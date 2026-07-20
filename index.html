@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="A prototype synchronized Daf Yomi video player and alignment editor." />
+  <title>DafSync Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Frank+Ruhl+Libre:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-group">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 48 48" role="img">
+            <path d="M10 11.5h18.2c5.4 0 9.8 4.4 9.8 9.8v15.2H19.8c-5.4 0-9.8-4.4-9.8-9.8V11.5Z" fill="currentColor" opacity=".22"/>
+            <path d="M14 8h17.2A8.8 8.8 0 0 1 40 16.8V32H22.8A8.8 8.8 0 0 1 14 23.2V8Z" fill="none" stroke="currentColor" stroke-width="2.6"/>
+            <path d="M20 17h14M20 23h10" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div>
+          <div class="brand-title">DafSync <span>Studio</span></div>
+          <div class="brand-subtitle">Synchronized shiur and daf prototype</div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <span class="status-pill"><span class="status-dot"></span> Chullin 81 pilot</span>
+        <button class="button primary small" id="loadPilotButton">Load verified sample</button>
+        <button class="button ghost" id="helpButton">How it works</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="setup-strip card">
+        <div class="setup-field video-field">
+          <label>Lecture source</label>
+          <div class="source-tabs" role="tablist" aria-label="Lecture source">
+            <button class="source-tab active" type="button" data-source-panel="demoSourcePanel" role="tab" aria-selected="true">Pilot</button>
+            <button class="source-tab" type="button" data-source-panel="fileSourcePanel" role="tab" aria-selected="false">Local file</button>
+            <button class="source-tab" type="button" data-source-panel="linkSourcePanel" role="tab" aria-selected="false">Video link</button>
+          </div>
+          <div class="source-panel" id="demoSourcePanel" role="tabpanel">
+            <button class="button secondary small" id="useDemoButton" type="button">Load verified Chullin sample</button>
+            <span class="field-note">YouTube 12:50–13:20 verified sample</span>
+          </div>
+          <div class="source-panel" id="fileSourcePanel" role="tabpanel" hidden>
+            <label class="button secondary file-button small">
+              <input id="videoInput" type="file" accept="video/*,audio/*" hidden />
+              Choose video
+            </label>
+            <span id="videoFileName" class="field-note">Nothing is uploaded</span>
+          </div>
+          <div class="source-panel link-source-panel" id="linkSourcePanel" role="tabpanel" hidden>
+            <div class="video-url-row">
+              <input id="videoUrl" type="url" inputmode="url" placeholder="Paste a YouTube or direct video URL" spellcheck="false" />
+              <button class="button primary small" id="loadVideoUrlButton" type="button">Load link</button>
+            </div>
+            <span id="videoUrlHint" class="field-note">YouTube, youtu.be, Shorts, or a direct MP4/WebM link</span>
+          </div>
+        </div>
+
+        <div class="setup-field ref-field">
+          <label for="dafRef">Daf reference</label>
+          <div class="input-with-button">
+            <input id="dafRef" type="text" value="Chullin 81" spellcheck="false" />
+            <button class="button primary" id="loadDafButton">Load daf</button>
+          </div>
+        </div>
+
+        <div class="setup-field action-field">
+          <label>Alignment data</label>
+          <div class="compact-actions">
+            <label class="button secondary file-button small">
+              <input id="alignmentInput" type="file" accept="application/json,.json" hidden />
+              Import sync
+            </label>
+            <label class="button secondary file-button small">
+              <input id="transcriptInput" type="file" accept="application/json,.json" hidden />
+              Import transcript
+            </label>
+            <button class="button secondary small" id="exportButton">Export</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="pilot-notice card" id="pilotNotice">
+        <div>
+          <span class="pilot-kicker">Real-world pilot</span>
+          <strong>Chullin 81 · YouTube video JjEa3Jd6XPU</strong>
+          <p>This pilot contains six manually verified caption states from 12:50–13:20 of the shiur. The remainder of the video is intentionally marked as unaligned.</p>
+        </div>
+        <div class="pilot-notice-actions">
+          <span class="alignment-badge complete" id="alignmentStatus">Verified sample</span>
+          <button class="button primary" id="loadPilotInlineButton">Open verified sample</button>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <article class="player-card card">
+          <div class="card-heading">
+            <div>
+              <div class="eyebrow">Shiur player</div>
+              <h1 id="lectureTitle">Daf Yomi — synchronized demo</h1>
+            </div>
+            <div class="live-location">
+              <span>Current location</span>
+              <strong id="currentRef">Berakhot 2a · Segment 1</strong>
+            </div>
+          </div>
+
+          <div class="video-frame" id="videoFrame">
+            <video id="video" preload="metadata" playsinline></video>
+            <div class="youtube-player-host" id="youtubePlayerHost" hidden>
+              <div id="youtubePlayer"></div>
+            </div>
+            <span class="video-source-badge" id="videoSourceBadge">Demo file</span>
+            <div class="video-empty" id="videoEmpty" hidden>
+              <div class="empty-icon">▶</div>
+              <p>Choose a lecture video or paste a YouTube link.</p>
+            </div>
+            <button class="large-play" id="largePlay" aria-label="Play video">
+              <svg viewBox="0 0 44 44" aria-hidden="true"><path d="M17 12.5 33 22 17 31.5v-19Z" fill="currentColor"/></svg>
+            </button>
+          </div>
+
+          <div class="scrubber-wrap">
+            <div class="scrub-preview" id="scrubPreview" hidden>
+              <strong id="previewTime">0:00</strong>
+              <span id="previewText">מאימתי קורין את שמע בערבין</span>
+            </div>
+            <input id="scrubber" class="scrubber" type="range" min="0" max="48" step="0.01" value="0" aria-label="Video timeline" />
+            <div class="time-row">
+              <span id="currentTime">0:00</span>
+              <span id="duration">0:48</span>
+            </div>
+          </div>
+
+          <div class="player-controls">
+            <button class="icon-button" id="backButton" aria-label="Back 10 seconds">−10</button>
+            <button class="play-button" id="playButton" aria-label="Play">
+              <svg class="play-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z" fill="currentColor"/></svg>
+              <svg class="pause-icon" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M7 5h4v14H7zm6 0h4v14h-4z" fill="currentColor"/></svg>
+            </button>
+            <button class="icon-button" id="forwardButton" aria-label="Forward 10 seconds">+10</button>
+            <div class="control-divider"></div>
+            <label class="speed-control">Speed
+              <select id="speedSelect">
+                <option value="0.75">0.75×</option>
+                <option value="1" selected>1×</option>
+                <option value="1.25">1.25×</option>
+                <option value="1.5">1.5×</option>
+                <option value="2">2×</option>
+              </select>
+            </label>
+            <button class="button secondary small push-right" id="editModeButton">Edit synchronization</button>
+          </div>
+
+          <div class="marking-bar" aria-label="Fast alignment controls">
+            <button class="button secondary small" id="markerBackButton" type="button">Previous phrase</button>
+            <div class="mark-target">
+              <span>Marking phrase</span>
+              <strong id="markTargetLabel">1 of 6</strong>
+            </div>
+            <button class="button primary" id="markHereButton" type="button">Mark here &amp; advance <kbd>M</kbd></button>
+            <button class="button secondary small" id="markerForwardButton" type="button">Next phrase</button>
+            <button class="button ghost small" id="saveDraftButton" type="button">Save draft</button>
+          </div>
+
+          <div class="now-learning">
+            <span class="now-label">The rabbi is discussing</span>
+            <div id="currentPhrase" dir="rtl">מאימתי קורין את שמע בערבין</div>
+            <p id="currentTranslation">From when may one recite the Shema in the evening?</p>
+          </div>
+        </article>
+
+        <article class="daf-card card">
+          <div class="card-heading daf-heading">
+            <div>
+              <div class="eyebrow">Digital daf</div>
+              <h2 id="dafTitle">ברכות ב׳ ע״א</h2>
+            </div>
+            <div class="view-switch" role="group" aria-label="Daf display mode">
+              <button class="active" data-view="text">Text</button>
+              <button data-view="page" title="Vilna page-image mapping is planned for phase two">Vilna page</button>
+            </div>
+          </div>
+
+          <div class="daf-toolbar">
+            <label class="toggle-label">
+              <input type="checkbox" id="autoScroll" checked />
+              <span class="toggle"></span>
+              Auto-scroll
+            </label>
+            <span class="toolbar-hint">Click any phrase to jump to that point in the shiur.</span>
+          </div>
+
+          <div class="daf-scroll" id="dafScroll">
+            <div class="daf-page" id="dafPage" dir="rtl" lang="he"></div>
+            <div class="vilna-placeholder" id="vilnaPlaceholder" hidden>
+              <div class="page-silhouette">
+                <div class="page-column narrow"></div>
+                <div class="page-column wide"></div>
+                <div class="page-column narrow"></div>
+              </div>
+              <h3>Vilna page mapping</h3>
+              <p>The synchronization model is ready for page coordinates. OCR and word-box mapping will be added in phase two.</p>
+            </div>
+          </div>
+
+          <div class="daf-footer">
+            <span id="segmentCount">6 synchronized segments</span>
+            <span>Text retrieval: Sefaria API</span>
+          </div>
+        </article>
+      </section>
+
+      <section class="editor card" id="editor" hidden>
+        <div class="editor-heading">
+          <div>
+            <div class="eyebrow">Alignment editor</div>
+            <h2>Correct the synchronization</h2>
+            <p>Select a phrase, play or seek to its correct point, then use “Mark here & advance” or press M. The previous phrase closes automatically.</p>
+          </div>
+          <div class="editor-actions">
+            <button class="button secondary small" id="evenSpacingButton">Reset evenly</button>
+            <button class="button primary small" id="closeEditorButton">Done editing</button>
+          </div>
+        </div>
+        <div class="editor-table-wrap">
+          <table class="editor-table">
+            <thead>
+              <tr><th>#</th><th>Start</th><th>End</th><th>Phrase</th><th></th></tr>
+            </thead>
+            <tbody id="editorBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="workflow-grid">
+        <article class="workflow-card card">
+          <span class="step-number">1</span>
+          <div><h3>Load the lecture</h3><p>Use a local file, a direct media link, or an embedded YouTube video.</p></div>
+        </article>
+        <article class="workflow-card card">
+          <span class="step-number">2</span>
+          <div><h3>Match transcript to daf</h3><p>Import timestamped transcript JSON or edit the timeline manually.</p></div>
+        </article>
+        <article class="workflow-card card">
+          <span class="step-number">3</span>
+          <div><h3>Publish alignment</h3><p>Export a reusable JSON map for the final hosted video.</p></div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="helpDialog">
+    <button class="dialog-close" id="closeHelp" aria-label="Close">×</button>
+    <div class="eyebrow">Prototype guide</div>
+    <h2>How to test DafSync</h2>
+    <ol>
+      <li>The Chullin 81 pilot loads automatically. Play from 12:50 and watch the highlighted phrase change.</li>
+      <li>Drag the timeline. The hover preview and highlighted phrase update immediately.</li>
+      <li>Click a phrase on the daf to jump the video to that point.</li>
+      <li>Press “Load verified sample” to open the supplied YouTube shiur at the manually checked 12:50–13:20 interval.</li>
+      <li>While listening, select a phrase and press M to mark its starting time and advance.</li>
+      <li>Open the synchronization editor to correct timestamps and export the result.</li>
+    </ol>
+    <p class="dialog-note">YouTube playback is controlled through YouTube’s embedded player. This pilot includes only the manually verified 30-second sample. Unverified caption guesses were removed. Automatic full-video processing will run in a separate production service.</p>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js" defer></script>
+</body>
+</html>
