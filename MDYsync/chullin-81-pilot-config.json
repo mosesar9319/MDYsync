@@ -1,0 +1,14 @@
+{
+  "schema": "dafsync-project-v1",
+  "projectId": "chullin-81-jjea3jd6xpu",
+  "title": "Chullin 81 — Daf Yomi pilot shiur",
+  "dafRef": "Chullin 81",
+  "videoSource": {
+    "type": "youtube",
+    "videoId": "JjEa3Jd6XPU",
+    "url": "https://www.youtube.com/watch?v=JjEa3Jd6XPU",
+    "label": "YouTube"
+  },
+  "alignmentStatus": "placeholder",
+  "note": "Load through the built-in Chullin 81 pilot button. Placeholder spacing must be reviewed against the shiur."
+}

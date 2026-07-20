@@ -1,0 +1,10 @@
+{
+  "segments": [
+    { "start": 0, "end": 7.7, "text": "מאימתי קורין את שמע בערבין, the Mishnah begins by asking from when." },
+    { "start": 7.7, "end": 15.5, "text": "משעה שהכהנים נכנסים לאכול בתרומתן." },
+    { "start": 15.5, "end": 23.4, "text": "עד סוף האשמורה הראשונה." },
+    { "start": 23.4, "end": 31.4, "text": "דברי רבי אליעזר, this is Rabbi Eliezer's opinion." },
+    { "start": 31.4, "end": 39.5, "text": "וחכמים אומרים עד חצות." },
+    { "start": 39.5, "end": 48, "text": "רבן גמליאל אומר עד שיעלה עמוד השחר." }
+  ]
+}

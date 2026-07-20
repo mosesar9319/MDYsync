@@ -1,0 +1,62 @@
+{
+  "schema": "dafsync-alignment-v2",
+  "title": "Daf Yomi — synchronized demo",
+  "dafRef": "Berakhot 2a",
+  "duration": 48,
+  "segments": [
+    {
+      "id": "b2a-1",
+      "ref": "Berakhot 2a.1",
+      "start": 0,
+      "end": 7.7,
+      "he": "מאימתי קורין את שמע בערבין",
+      "en": "From when may one recite the Shema in the evening?"
+    },
+    {
+      "id": "b2a-2",
+      "ref": "Berakhot 2a.1",
+      "start": 7.7,
+      "end": 15.5,
+      "he": "משעה שהכהנים נכנסים לאכול בתרומתן",
+      "en": "From the time the priests enter to eat their teruma."
+    },
+    {
+      "id": "b2a-3",
+      "ref": "Berakhot 2a.1",
+      "start": 15.5,
+      "end": 23.4,
+      "he": "עד סוף האשמורה הראשונה",
+      "en": "Until the end of the first watch."
+    },
+    {
+      "id": "b2a-4",
+      "ref": "Berakhot 2a.1",
+      "start": 23.4,
+      "end": 31.4,
+      "he": "דברי רבי אליעזר",
+      "en": "These are the words of Rabbi Eliezer."
+    },
+    {
+      "id": "b2a-5",
+      "ref": "Berakhot 2a.1",
+      "start": 31.4,
+      "end": 39.5,
+      "he": "וחכמים אומרים עד חצות",
+      "en": "The Rabbis say: until midnight."
+    },
+    {
+      "id": "b2a-6",
+      "ref": "Berakhot 2a.1",
+      "start": 39.5,
+      "end": 48,
+      "he": "רבן גמליאל אומר עד שיעלה עמוד השחר",
+      "en": "Rabban Gamliel says: until dawn rises."
+    }
+  ],
+  "videoSource": {
+    "type": "demo",
+    "url": "assets/demo-shiur.mp4",
+    "label": "Demo file",
+    "title": "Daf Yomi — synchronized demo"
+  }
+}
