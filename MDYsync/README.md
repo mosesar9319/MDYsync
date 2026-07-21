@@ -23,6 +23,8 @@ A browser-based prototype for synchronizing a Daf Yomi lecture video with the ex
 - Rapid “mark here and advance” workflow with the `M` keyboard shortcut
 - Browser-local draft saving and automatic pilot-draft restoration
 - Alignment status tracking: needs alignment, in progress, and aligned draft
+- Word-level highlighting during playback when an imported alignment includes a `wordTimeline` (see `tools/caption-sync/`)
+- Caption-box OCR tool that converts a video's burned-in highlighted caption strip into a word-level alignment (`tools/caption-sync/caption_ocr_align.py`)
 
 
 ## Chullin 81 pilot

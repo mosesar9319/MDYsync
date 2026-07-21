@@ -41,7 +41,8 @@ const state = {
   usingDefaultAlignment: true,
   editingIndex: 0,
   alignmentStatus: 'placeholder',
-  currentProjectId: null
+  currentProjectId: null,
+  wordTimeline: []
 };
 
 const $ = (id) => document.getElementById(id);
@@ -226,7 +227,10 @@ function renderDaf() {
     span.tabIndex = 0;
     span.setAttribute('role', 'button');
     span.setAttribute('aria-label', `Jump to ${formatTime(segment.start)}: ${segment.he}`);
-    span.innerHTML = `<sup class="segment-marker">${index + 1}</sup>${escapeHtml(segment.he)} `;
+    const body = state.wordTimeline.length
+      ? segment.he.trim().split(/\s+/).map((word, w) => `<span class="daf-word" data-w="${w}">${escapeHtml(word)}</span>`).join(' ')
+      : escapeHtml(segment.he);
+    span.innerHTML = `<sup class="segment-marker">${index + 1}</sup>${body} `;
     span.addEventListener('click', () => seekToSegment(index));
     span.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
@@ -242,8 +246,23 @@ function renderDaf() {
   renderEditor();
 }
 
+function updateActiveWords(time) {
+  if (!state.wordTimeline.length) return;
+  const active = state.wordTimeline.filter((entry) => time >= entry.start && time < entry.end);
+  document.querySelectorAll('.daf-segment').forEach((node, i) => {
+    const ref = state.segments[i]?.ref;
+    const spans = node.querySelectorAll('.daf-word');
+    const ranges = active.filter((entry) => entry.ref === ref);
+    spans.forEach((wordNode, w) => {
+      const hit = ranges.some((entry) => w >= entry.w0 && w <= entry.w1);
+      wordNode.classList.toggle('word-active', hit);
+    });
+  });
+}
+
 function updateActiveSegment(force = false, timeOverride = null) {
   const time = timeOverride ?? getCurrentTime();
+  updateActiveWords(time);
   const index = findSegmentAt(time);
   if (!force && index === state.activeIndex) return;
   state.activeIndex = index;
@@ -486,6 +505,7 @@ async function loadDaf(refOverride = null, options = {}) {
     if (!he.length) throw new Error('No Hebrew text was returned for this reference.');
 
     state.dafRef = ref;
+    state.wordTimeline = [];
     const duration = getDuration() || Number(scrubber.max) || 48;
     const length = duration / he.length;
     state.segments = he.map((text, index) => ({
@@ -866,6 +886,17 @@ async function importAlignment(file) {
       he: String(segment.he || segment.text || ''),
       en: String(segment.en || segment.translation || '')
     })).sort((a, b) => a.start - b.start);
+    state.wordTimeline = Array.isArray(data.wordTimeline)
+      ? data.wordTimeline
+          .filter((entry) => entry && entry.ref != null && Number.isFinite(Number(entry.start)))
+          .map((entry) => ({
+            start: Number(entry.start),
+            end: Number(entry.end) || Number(entry.start),
+            ref: String(entry.ref),
+            w0: Number(entry.w0) || 0,
+            w1: Number(entry.w1) || 0
+          }))
+      : [];
     state.dafRef = data.dafRef || state.dafRef;
     state.currentProjectId = data.projectId || null;
     state.alignmentStatus = data.alignmentStatus || 'in-progress';

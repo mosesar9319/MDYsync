@@ -142,6 +142,9 @@ h2 { margin-bottom: 0; }
 .daf-segment:hover { background: rgba(59, 112, 124, .12); box-shadow: 0 0 0 3px rgba(59,112,124,.08); }
 .daf-segment.past { color: #746a58; }
 .daf-segment.active { background: var(--highlight); color: var(--highlight-text); box-shadow: 0 0 0 4px rgba(255, 208, 84, .22); }
+.daf-word { border-radius: 5px; padding: 0 1px; transition: background .14s ease, color .14s ease; }
+.daf-word.word-active { background: #ffd054; color: #241c0d; box-shadow: 0 0 0 3px rgba(255, 176, 32, .35); }
+.daf-segment.active .daf-word.word-active { background: #ffb020; box-shadow: 0 0 0 3px rgba(200, 120, 0, .4); }
 .segment-marker { color: #8a6c2f; font-size: .58em; vertical-align: super; margin-left: 2px; font-family: "Assistant", sans-serif; }
 .vilna-placeholder { min-height: 100%; padding: 42px 30px; color: #453c2e; text-align: center; }
 .page-silhouette { width: min(360px, 92%); aspect-ratio: 0.75; margin: 0 auto 24px; background: #fffaf0; border: 1px solid #cbbfa8; box-shadow: 0 12px 35px rgba(50,43,31,.18); padding: 22px; display: grid; grid-template-columns: .7fr 1.4fr .7fr; gap: 8px; }
