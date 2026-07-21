@@ -1,0 +1,75 @@
+name: Build Windows caption-sync app
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - claude/dafeomi-caption-highlighting-ikebz6
+    paths:
+      - 'MDYsync/tools/caption-sync/**'
+      - '.github/workflows/build-windows-app.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: pip install opencv-python-headless pytesseract rapidfuzz pyinstaller
+
+      - name: Install Tesseract OCR
+        run: choco install tesseract -y --no-progress
+
+      - name: Add Hebrew language data
+        shell: pwsh
+        run: |
+          $tessdata = 'C:\Program Files\Tesseract-OCR\tessdata'
+          Invoke-WebRequest `
+            -Uri 'https://github.com/tesseract-ocr/tessdata_best/raw/main/heb.traineddata' `
+            -OutFile "$tessdata\heb.traineddata"
+
+      - name: Build executable
+        shell: pwsh
+        working-directory: MDYsync/tools/caption-sync
+        run: pyinstaller --noconfirm --windowed --name DafSyncCaptionSync gui_app.py
+
+      - name: Bundle Tesseract with the app
+        shell: pwsh
+        working-directory: MDYsync/tools/caption-sync
+        run: |
+          Copy-Item -Recurse 'C:\Program Files\Tesseract-OCR' dist\DafSyncCaptionSync\tesseract
+          & dist\DafSyncCaptionSync\tesseract\tesseract.exe --list-langs
+
+      - name: Zip app
+        shell: pwsh
+        working-directory: MDYsync/tools/caption-sync
+        run: Compress-Archive -Path dist\DafSyncCaptionSync -DestinationPath DafSync-Caption-Sync-windows.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DafSync-Caption-Sync-windows
+          path: MDYsync/tools/caption-sync/DafSync-Caption-Sync-windows.zip
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: caption-sync-v0.1.0
+          name: DafSync Caption Sync for Windows v0.1.0
+          body: |
+            Desktop app that converts a Daf Yomi lecture video's burned-in
+            highlighted caption box into a DafSync word-level alignment.
+
+            Download `DafSync-Caption-Sync-windows.zip`, extract it anywhere,
+            and run `DafSyncCaptionSync.exe` inside the extracted folder.
+            Python, OpenCV, and Tesseract (with Hebrew) are bundled — nothing
+            else to install.
+          files: MDYsync/tools/caption-sync/DafSync-Caption-Sync-windows.zip

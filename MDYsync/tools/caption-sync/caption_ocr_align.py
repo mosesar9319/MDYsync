@@ -64,8 +64,10 @@ class CanonWord:
 
 
 def fetch_sefaria(ref: str):
+    import urllib.parse
     import urllib.request
-    url = f"https://www.sefaria.org/api/texts/{ref}?context=0&commentary=0"
+    url = (f"https://www.sefaria.org/api/texts/"
+           f"{urllib.parse.quote(ref)}?context=0&commentary=0")
     with urllib.request.urlopen(url, timeout=30) as r:
         return json.loads(r.read())
 
@@ -290,7 +292,7 @@ class WordEvent:
 
 
 def process_video(path, refs, crop=None, sample_fps=3.0, out_dir="out",
-                  cache_dir=None, debug=False):
+                  cache_dir=None, debug=False, progress=None):
     os.makedirs(out_dir, exist_ok=True)
     canon, segments = load_canonical(refs, cache_dir or out_dir)
     print(f"Canonical text: {len(segments)} segments, {len(canon)} words")
@@ -320,6 +322,8 @@ def process_video(path, refs, crop=None, sample_fps=3.0, out_dir="out",
         if not ok:
             break
         t = (frame_idx - 1) / fps
+        if progress and nframes and frame_idx % (step * 25) == 0:
+            progress(frame_idx / nframes)
 
         if crop is None:
             crop = auto_detect_box(frame)
