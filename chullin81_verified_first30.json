@@ -1,6 +1,6 @@
 {
   "schema": "dafsync-alignment-v2",
-  "title": "Chullin 81 — verified first 30 seconds",
+  "title": "Chullin 81 — recalibrated first 30 seconds",
   "dafRef": "Chullin 81a",
   "videoSource": {
     "type": "youtube",
@@ -8,62 +8,69 @@
     "url": "https://www.youtube.com/watch?v=JjEa3Jd6XPU",
     "label": "YouTube"
   },
-  "projectId": "chullin-81-first30-verified",
-  "alignmentStatus": "verified-sample",
+  "projectId": "chullin-81-first30-recalibrated",
+  "alignmentStatus": "measured-sample",
   "analysis": {
-    "method": "manual-frame-verification-of-visual-highlight",
+    "method": "frame-by-frame-yellow-caption-state-with-visible-youtube-clock-calibration",
     "recordingFile": "Recording 2026-07-21 013536.mp4",
-    "recordingStartInYouTubeSeconds": 770.0,
-    "verifiedClipRangeSeconds": {"start": 0.0, "end": 30.0},
-    "verifiedYouTubeRangeSeconds": {"start": 770.0, "end": 800.0},
-    "note": "This sample was rebuilt from the actual yellow caption state, including brief word-by-word transitions. It replaces the earlier inferred alignment for this range."
+    "recordingToYoutubeOffsetSeconds": 769.4,
+    "calibrationEvidence": "The visible YouTube clock changed from 16:11 to 16:12 at recording time 202.600 seconds, giving an offset of 972.000 - 202.600 = 769.400 seconds.",
+    "verifiedClipRangeSeconds": {
+      "start": 0.0,
+      "end": 30.0
+    },
+    "verifiedYouTubeRangeSeconds": {
+      "start": 769.4,
+      "end": 799.4
+    },
+    "note": "This replaces the earlier 770-second estimate and restores the omitted one-word caption state. Boundaries were measured at 0.1-second frame sampling."
   },
   "segments": [
     {
-      "id": "verified-01",
+      "id": "measured-01",
       "ref": "Chullin 81a",
-      "start": 770.0,
-      "end": 778.2,
+      "start": 769.4,
+      "end": 777.5,
       "he": "שחיטה שאינה ראויה לא שמה שחיטה",
       "confidence": 0.99
     },
     {
-      "id": "verified-02",
+      "id": "measured-02",
       "ref": "Chullin 81a",
-      "start": 778.8,
-      "end": 780.0,
+      "start": 777.5,
+      "end": 778.6,
+      "he": "שחיטת",
+      "confidence": 0.98
+    },
+    {
+      "id": "measured-03",
+      "ref": "Chullin 81a",
+      "start": 778.6,
+      "end": 779.4,
       "he": "שחיטת קדשים נמי שחיטה שאינה ראויה היא",
       "confidence": 0.98
     },
     {
-      "id": "verified-03",
+      "id": "measured-04",
       "ref": "Chullin 81a",
-      "start": 780.0,
-      "end": 780.7,
+      "start": 779.4,
+      "end": 780.5,
       "he": "מתיב",
       "confidence": 0.99
     },
     {
-      "id": "verified-04",
+      "id": "measured-05",
       "ref": "Chullin 81a",
-      "start": 780.7,
-      "end": 781.1,
-      "he": "מתיב רבא",
-      "confidence": 0.98
-    },
-    {
-      "id": "verified-05",
-      "ref": "Chullin 81a",
-      "start": 781.1,
-      "end": 781.6,
+      "start": 780.5,
+      "end": 781.0,
       "he": "אותו ואת בנו",
       "confidence": 0.99
     },
     {
-      "id": "verified-06",
+      "id": "measured-06",
       "ref": "Chullin 81a",
-      "start": 781.6,
-      "end": 800.0,
+      "start": 781.0,
+      "end": 799.4,
       "he": "קדשים בחוץ",
       "confidence": 0.99
     }
