@@ -98,8 +98,12 @@ def _flatten_he(node):
     """Sefaria returns a flat list of segment strings for a fully-specified
     ref (e.g. Chullin.80b), but a nested list of amud-lists when the amud is
     omitted (e.g. Chullin.80). Flatten either shape into one segment list."""
+    if node is None:
+        return []
     if isinstance(node, str):
         return [node]
+    if not isinstance(node, list):
+        return []
     out = []
     for child in node:
         out.extend(_flatten_he(child))

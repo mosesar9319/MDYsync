@@ -23,7 +23,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install Python dependencies
-        run: pip install opencv-python-headless pytesseract rapidfuzz pyinstaller
+        run: pip install opencv-python-headless pytesseract rapidfuzz customtkinter pyinstaller
 
       - name: Install Tesseract OCR
         run: choco install tesseract -y --no-progress
@@ -39,14 +39,17 @@ jobs:
       - name: Build executable
         shell: pwsh
         working-directory: MDYsync/tools/caption-sync
-        run: pyinstaller --noconfirm --windowed --noupx --name DafSyncCaptionSync gui_app.py
+        run: |
+          pyinstaller --noconfirm --windowed --noupx --collect-all customtkinter `
+            --name DafSyncCaptionSync gui_app.py
 
-      - name: Bundle Tesseract with the app
+      - name: Bundle Tesseract and the tractate index with the app
         shell: pwsh
         working-directory: MDYsync/tools/caption-sync
         run: |
           Copy-Item -Recurse 'C:\Program Files\Tesseract-OCR' dist\DafSyncCaptionSync\tesseract
           & dist\DafSyncCaptionSync\tesseract\tesseract.exe --list-langs
+          Copy-Item talmud_index.json dist\DafSyncCaptionSync\talmud_index.json
 
       - name: Zip app
         shell: pwsh
@@ -62,24 +65,31 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: caption-sync-v0.1.2
-          name: DafSync Caption Sync for Windows v0.1.2
+          tag_name: caption-sync-v0.2.0
+          name: DafSync Caption Sync for Windows v0.2.0
           body: |
             Desktop app that converts a Daf Yomi lecture video's burned-in
             highlighted caption box into a DafSync word-level alignment.
 
             Download `DafSync-Caption-Sync-windows.zip`, extract it anywhere,
             and run `DafSyncCaptionSync.exe` inside the extracted folder.
-            Python, OpenCV, and Tesseract (with Hebrew) are bundled — nothing
-            else to install.
+            Python, OpenCV, Tesseract (with Hebrew), and CustomTkinter are
+            bundled — nothing else to install.
 
-            Enter the daf covered as e.g. `Chullin 80b, Chullin 81a` —
-            tractate, page number, and a/b for the amud (side of the page).
-
-            **v0.1.2**: Sefaria lookups now retry automatically on a
-            transient server error, give a clear message instead of a raw
-            HTTP error when a reference can't be found, and no longer crash
-            if the amud letter is left off a reference.
+            **v0.2.0**: New look and a click-based reading picker.
+            - Redesigned interface (CustomTkinter): card-based layout,
+              light/dark mode follows your system setting, scrolls to fit
+              any window size.
+            - No more typing Sefaria references. Pick the tractate, daf
+              (page), and amud (a/b side) from dropdowns, then click
+              "+ Add reading" to build the ordered list of readings the
+              video covers — supports multiple dapim/amudim per video.
+              The tractate/daf/amud data is generated from Sefaria's own
+              pagination, including known exceptions (e.g. Nazir 33b, a
+              genuinely missing page, is correctly left out of the picker).
+            - Note: Shekalim is not included in the picker, since the
+              Daf Yomi cycle uses the Jerusalem Talmud for that tractate,
+              which has different pagination than the other 36 tractates.
 
             **If Windows shows "Failed to load Python DLL ... Access is
             denied"**: right-click the downloaded zip → Properties → check
