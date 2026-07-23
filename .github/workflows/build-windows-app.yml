@@ -62,8 +62,8 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: caption-sync-v0.1.1
-          name: DafSync Caption Sync for Windows v0.1.1
+          tag_name: caption-sync-v0.1.2
+          name: DafSync Caption Sync for Windows v0.1.2
           body: |
             Desktop app that converts a Daf Yomi lecture video's burned-in
             highlighted caption box into a DafSync word-level alignment.
@@ -72,6 +72,14 @@ jobs:
             and run `DafSyncCaptionSync.exe` inside the extracted folder.
             Python, OpenCV, and Tesseract (with Hebrew) are bundled — nothing
             else to install.
+
+            Enter the daf covered as e.g. `Chullin 80b, Chullin 81a` —
+            tractate, page number, and a/b for the amud (side of the page).
+
+            **v0.1.2**: Sefaria lookups now retry automatically on a
+            transient server error, give a clear message instead of a raw
+            HTTP error when a reference can't be found, and no longer crash
+            if the amud letter is left off a reference.
 
             **If Windows shows "Failed to load Python DLL ... Access is
             denied"**: right-click the downloaded zip → Properties → check

@@ -42,10 +42,17 @@ from caption_ocr_align import build_outputs, process_video
 
 def parse_refs(raw):
     """Accept 'Chullin 80b, Chullin 81a' (or newline/semicolon separated)
-    and return Sefaria API refs like ['Chullin.80b', 'Chullin.81a']."""
+    and return Sefaria API refs like ['Chullin.80b', 'Chullin.81a'].
+
+    Drops a stray word "daf" (e.g. someone typing "Chullin Daf 84"), which
+    isn't part of Sefaria's reference syntax — the format is just the
+    tractate, the page number, and a/b for the amud (side of the page).
+    """
     refs = []
     for part in re.split(r"[,;\n]+", raw):
         part = part.strip()
+        part = re.sub(r"(?i)\bdaf\b", "", part).strip()
+        part = re.sub(r"\s+", " ", part)
         if part:
             refs.append(re.sub(r"\s+", ".", part))
     return refs

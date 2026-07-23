@@ -63,13 +63,47 @@ class CanonWord:
     norm: str         # normalized form
 
 
-def fetch_sefaria(ref: str):
+def fetch_sefaria(ref: str, attempts: int = 3):
+    import time
+    import urllib.error
     import urllib.parse
     import urllib.request
     url = (f"https://www.sefaria.org/api/texts/"
            f"{urllib.parse.quote(ref)}?context=0&commentary=0")
-    with urllib.request.urlopen(url, timeout=30) as r:
-        return json.loads(r.read())
+    last_error = None
+    for attempt in range(attempts):
+        try:
+            with urllib.request.urlopen(url, timeout=30) as r:
+                return json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            last_error = e
+            if e.code == 404:
+                break  # not found won't fix itself with a retry
+            if attempt < attempts - 1:
+                time.sleep(1.5 * (attempt + 1))
+        except urllib.error.URLError as e:
+            last_error = e
+            if attempt < attempts - 1:
+                time.sleep(1.5 * (attempt + 1))
+    raise RuntimeError(
+        f"Could not fetch '{ref}' from Sefaria ({last_error}). "
+        f"Check that it's a valid reference, e.g. 'Chullin 80b' or "
+        f"'Chullin 81a' (tractate, page number, and a/b side — not the "
+        f"word 'Daf'). Sefaria's servers can also be briefly unavailable; "
+        f"try again in a minute."
+    )
+
+
+def _flatten_he(node):
+    """Sefaria returns a flat list of segment strings for a fully-specified
+    ref (e.g. Chullin.80b), but a nested list of amud-lists when the amud is
+    omitted (e.g. Chullin.80). Flatten either shape into one segment list."""
+    if isinstance(node, str):
+        return [node]
+    out = []
+    for child in node:
+        out.extend(_flatten_he(child))
+    return out
 
 
 def load_canonical(refs, cache_dir=None):
@@ -83,7 +117,11 @@ def load_canonical(refs, cache_dir=None):
             data = fetch_sefaria(ref)
             if cache:
                 json.dump(data, open(cache, "w"), ensure_ascii=False)
-        he = data["he"] if isinstance(data, dict) else data
+        he = _flatten_he(data["he"] if isinstance(data, dict) else data)
+        if not he:
+            raise RuntimeError(
+                f"Sefaria returned no text for '{ref}'. Check the "
+                f"reference is correct, e.g. 'Chullin 80b'.")
         base = ref.replace(".", " ")
         for i, seg in enumerate(he):
             seg_plain = re.sub(r"<[^>]+>", "", seg)
