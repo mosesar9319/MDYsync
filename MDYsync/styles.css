@@ -142,6 +142,9 @@ h2 { margin-bottom: 0; }
 .daf-segment:hover { background: rgba(59, 112, 124, .12); box-shadow: 0 0 0 3px rgba(59,112,124,.08); }
 .daf-segment.past { color: #746a58; }
 .daf-segment.active { background: var(--highlight); color: var(--highlight-text); box-shadow: 0 0 0 4px rgba(255, 208, 84, .22); }
+.daf-word { border-radius: 5px; padding: 0 1px; transition: background .14s ease, color .14s ease; }
+.daf-word.word-active { background: #ffd054; color: #241c0d; box-shadow: 0 0 0 3px rgba(255, 176, 32, .35); }
+.daf-segment.active .daf-word.word-active { background: #ffb020; box-shadow: 0 0 0 3px rgba(200, 120, 0, .4); }
 .segment-marker { color: #8a6c2f; font-size: .58em; vertical-align: super; margin-left: 2px; font-family: "Assistant", sans-serif; }
 .vilna-placeholder { min-height: 100%; padding: 42px 30px; color: #453c2e; text-align: center; }
 .page-silhouette { width: min(360px, 92%); aspect-ratio: 0.75; margin: 0 auto 24px; background: #fffaf0; border: 1px solid #cbbfa8; box-shadow: 0 12px 35px rgba(50,43,31,.18); padding: 22px; display: grid; grid-template-columns: .7fr 1.4fr .7fr; gap: 8px; }
@@ -274,6 +277,34 @@ kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; 
 .daf-segment.active.mark-target-segment { outline-color: rgba(159, 85, 0, .8); }
 .editor-row.mark-target-row { box-shadow: inset 4px 0 0 #ffd470; background: rgba(255, 202, 92, .055); }
 .editor-row { cursor: pointer; }
+
+#syncDialog { width: min(640px, calc(100% - 28px)); max-height: min(88vh, 780px); overflow-y: auto; }
+.sync-picker { margin: 16px 0 14px; }
+.sync-picker-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.sync-field { display: flex; flex-direction: column; gap: 6px; min-width: 140px; flex: 1; }
+.sync-field-narrow { min-width: 84px; flex: 0 0 auto; }
+.sync-field span { color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+.amud-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.amud-option { border: 0; background: rgba(255,255,255,.04); color: var(--muted); padding: 9px 14px; cursor: pointer; font-weight: 700; }
+.amud-option.active { background: var(--accent); color: #03211d; }
+.sync-readings-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.sync-readings-list { max-height: 150px; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; padding: 6px 10px; background: rgba(0,0,0,.14); margin-bottom: 16px; }
+.sync-reading-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 2px; }
+.sync-reading-row + .sync-reading-row { border-top: 1px solid var(--line); }
+.sync-reading-remove { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 15px; padding: 2px 6px; }
+.sync-reading-remove:hover { color: var(--text); }
+.sync-tabs { display: inline-flex; gap: 4px; padding: 4px; margin-bottom: 4px; border: 1px solid var(--line); border-radius: 11px; background: rgba(0,0,0,.16); }
+.sync-tab { border: 0; border-radius: 8px; padding: 6px 9px; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 700; }
+.sync-tab.active { background: rgba(56,214,193,.14); color: var(--accent); }
+.sync-source-panel { display: flex; flex-direction: column; align-items: stretch; gap: 10px; padding: 14px 2px 4px; min-width: 0; }
+.sync-app-status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.status-dot.muted { background: var(--muted); box-shadow: none; }
+.status-dot.ready { background: #4ade80; box-shadow: 0 0 0 4px rgba(74,222,128,.15); }
+.status-dot.error { background: #f87171; box-shadow: 0 0 0 4px rgba(248,113,113,.15); }
+.sync-progress-wrap { margin-top: 16px; }
+.sync-progress-track { height: 8px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; }
+.sync-progress-fill { height: 100%; width: 0%; background: var(--accent); transition: width .3s ease; }
+.sync-log { margin-top: 10px; max-height: 140px; overflow-y: auto; font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); background: rgba(0,0,0,.18); border-radius: 10px; padding: 10px 12px; white-space: pre-wrap; }
 
 @media (max-width: 900px) {
   .marking-bar { flex-wrap: wrap; }

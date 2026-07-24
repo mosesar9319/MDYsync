@@ -1,0 +1,87 @@
+name: Server-side caption OCR job
+
+# Triggered by the trigger-ocr-job Netlify Function on the user's behalf
+# (never called directly with a public token) when someone uses the
+# "Google Drive link" tab of the website's sync dialog. Downloads the
+# video, runs the same OCR engine used by the desktop app and CLI
+# unchanged, and publishes the alignment JSON to the `results` branch at
+# a path keyed by the job ID, which the website polls for via
+# raw.githubusercontent.com (public repo, no auth needed to read it).
+
+on:
+  repository_dispatch:
+    types: [run-ocr-job]
+
+permissions:
+  contents: write
+
+jobs:
+  ocr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Tesseract with Hebrew
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-heb
+
+      - name: Install Python dependencies
+        run: pip install opencv-python-headless pytesseract rapidfuzz gdown
+
+      - name: Download the video from Google Drive
+        working-directory: MDYsync/tools/caption-sync
+        env:
+          DRIVE_URL: ${{ github.event.client_payload.driveUrl }}
+        run: |
+          python3 -c "
+          import gdown, os
+          gdown.download(url=os.environ['DRIVE_URL'], output='job-video.mp4', fuzzy=True, quiet=False)
+          "
+          ls -la job-video.mp4
+
+      - name: Run the OCR alignment engine
+        working-directory: MDYsync/tools/caption-sync
+        env:
+          REFS_JSON: ${{ toJSON(github.event.client_payload.refs) }}
+        run: |
+          python3 caption_ocr_align.py job-video.mp4 \
+            --refs-json "$REFS_JSON" \
+            --out-dir job-out
+
+      - name: Publish the result to the results branch
+        env:
+          JOB_ID: ${{ github.event.client_payload.jobId }}
+        run: |
+          set -e
+          mkdir -p /tmp/results-checkout
+          git config user.name "dafsync-bot"
+          git config user.email "dafsync-bot@users.noreply.github.com"
+
+          git fetch origin results 2>/dev/null || true
+          if git show-ref --verify --quiet refs/remotes/origin/results; then
+            git worktree add /tmp/results-checkout origin/results
+          else
+            git worktree add --detach /tmp/results-checkout
+            (cd /tmp/results-checkout && git checkout --orphan results && git rm -rf . >/dev/null 2>&1 || true)
+          fi
+
+          mkdir -p /tmp/results-checkout/results
+          cp MDYsync/tools/caption-sync/job-out/alignment.json "/tmp/results-checkout/results/${JOB_ID}.json"
+
+          cd /tmp/results-checkout
+          git add "results/${JOB_ID}.json"
+          git commit -m "Add OCR result for job ${JOB_ID}"
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:results; then
+              break
+            fi
+            git fetch origin results
+            git rebase origin/results
+            sleep 2
+          done

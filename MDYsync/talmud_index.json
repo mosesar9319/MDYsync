@@ -1,0 +1,330 @@
+{
+  "tractates": [
+    {
+      "name": "Berakhot",
+      "hebrewName": "ברכות",
+      "seder": "Seder Zeraim",
+      "startDaf": 2,
+      "endDaf": 64,
+      "endSide": "a",
+      "skipAmudim": []
+    },
+    {
+      "name": "Shabbat",
+      "hebrewName": "שבת",
+      "seder": "Seder Moed",
+      "startDaf": 2,
+      "endDaf": 157,
+      "endSide": "b",
+      "skipAmudim": []
+    },
+    {
+      "name": "Eruvin",
+      "hebrewName": "עירובין",
+      "seder": "Seder Moed",
+      "startDaf": 2,
+      "endDaf": 105,
+      "endSide": "a",
+      "skipAmudim": []
+    },
+    {
+      "name": "Pesachim",
+      "hebrewName": "פסחים",
+      "seder": "Seder Moed",
+      "startDaf": 2,
+      "endDaf": 121,
+      "endSide": "b",
+      "skipAmudim": []
+    },
+    {
+      "name": "Yoma",
+      "hebrewName": "יומא",
+      "seder": "Seder Moed",
+      "startDaf": 2,
+      "endDaf": 88,
+      "endSide": "a",
+      "skipAmudim": []
+    },
+    {
+      "name": "Sukkah",
+      "hebrewName": "סוכה",
+      "seder": "Seder Moed",
+      "startDaf": 2,
+      "endDaf": 56,
+      "endSide": "b",
+      "skipAmudim": []
+    },
+    {
+      "name": "Beitzah",
+      "hebrewName": "ביצה",
+      "seder": "Seder Moed",
+      "startDaf": 2,
+      "endDaf": 40,
+      "endSide": "b",
+      "skipAmudim": []
+    },
+    {
+      "name": "Rosh Hashanah",
+      "hebrewName": "ראש השנה",
+      "seder": "Seder Moed",
+      "startDaf": 2,
+      "endDaf": 35,
+      "endSide": "a",
+      "skipAmudim": []
+    },
+    {
+      "name": "Taanit",
+      "hebrewName": "תענית",
+      "seder": "Seder Moed",
+      "startDaf": 2,
+      "endDaf": 31,
+      "endSide": "a",
+      "skipAmudim": []
+    },
+    {
+      "name": "Megillah",
+      "hebrewName": "מגילה",
+      "seder": "Seder Moed",
+      "startDaf": 2,
+      "endDaf": 32,
+      "endSide": "a",
+      "skipAmudim": []
+    },
+    {
+      "name": "Moed Katan",
+      "hebrewName": "מועד קטן",
+      "seder": "Seder Moed",
+      "startDaf": 2,
+      "endDaf": 29,
+      "endSide": "a",
+      "skipAmudim": []
+    },
+    {
+      "name": "Chagigah",
+      "hebrewName": "חגיגה",
+      "seder": "Seder Moed",
+      "startDaf": 2,
+      "endDaf": 27,
+      "endSide": "a",
+      "skipAmudim": []
+    },
+    {
+      "name": "Yevamot",
+      "hebrewName": "יבמות",
+      "seder": "Seder Nashim",
+      "startDaf": 2,
+      "endDaf": 122,
+      "endSide": "b",
+      "skipAmudim": []
+    },
+    {
+      "name": "Ketubot",
+      "hebrewName": "כתובות",
+      "seder": "Seder Nashim",
+      "startDaf": 2,
+      "endDaf": 112,
+      "endSide": "b",
+      "skipAmudim": []
+    },
+    {
+      "name": "Nedarim",
+      "hebrewName": "נדרים",
+      "seder": "Seder Nashim",
+      "startDaf": 2,
+      "endDaf": 91,
+      "endSide": "b",
+      "skipAmudim": []
+    },
+    {
+      "name": "Nazir",
+      "hebrewName": "נזיר",
+      "seder": "Seder Nashim",
+      "startDaf": 2,
+      "endDaf": 66,
+      "endSide": "b",
+      "skipAmudim": [
+        "33b"
+      ]
+    },
+    {
+      "name": "Sotah",
+      "hebrewName": "סוטה",
+      "seder": "Seder Nashim",
+      "startDaf": 2,
+      "endDaf": 49,
+      "endSide": "b",
+      "skipAmudim": []
+    },
+    {
+      "name": "Gittin",
+      "hebrewName": "גיטין",
+      "seder": "Seder Nashim",
+      "startDaf": 2,
+      "endDaf": 90,
+      "endSide": "b",
+      "skipAmudim": []
+    },
+    {
+      "name": "Kiddushin",
+      "hebrewName": "קידושין",
+      "seder": "Seder Nashim",
+      "startDaf": 2,
+      "endDaf": 82,
+      "endSide": "b",
+      "skipAmudim": []
+    },
+    {
+      "name": "Bava Kamma",
+      "hebrewName": "בבא קמא",
+      "seder": "Seder Nezikin",
+      "startDaf": 2,
+      "endDaf": 119,
+      "endSide": "b",
+      "skipAmudim": []
+    },
+    {
+      "name": "Bava Metzia",
+      "hebrewName": "בבא מציעא",
+      "seder": "Seder Nezikin",
+      "startDaf": 2,
+      "endDaf": 119,
+      "endSide": "a",
+      "skipAmudim": []
+    },
+    {
+      "name": "Bava Batra",
+      "hebrewName": "בבא בתרא",
+      "seder": "Seder Nezikin",
+      "startDaf": 2,
+      "endDaf": 176,
+      "endSide": "b",
+      "skipAmudim": []
+    },
+    {
+      "name": "Sanhedrin",
+      "hebrewName": "סנהדרין",
+      "seder": "Seder Nezikin",
+      "startDaf": 2,
+      "endDaf": 113,
+      "endSide": "b",
+      "skipAmudim": []
+    },
+    {
+      "name": "Makkot",
+      "hebrewName": "מכות",
+      "seder": "Seder Nezikin",
+      "startDaf": 2,
+      "endDaf": 24,
+      "endSide": "b",
+      "skipAmudim": []
+    },
+    {
+      "name": "Shevuot",
+      "hebrewName": "שבועות",
+      "seder": "Seder Nezikin",
+      "startDaf": 2,
+      "endDaf": 49,
+      "endSide": "b",
+      "skipAmudim": []
+    },
+    {
+      "name": "Avodah Zarah",
+      "hebrewName": "עבודה זרה",
+      "seder": "Seder Nezikin",
+      "startDaf": 2,
+      "endDaf": 76,
+      "endSide": "b",
+      "skipAmudim": []
+    },
+    {
+      "name": "Horayot",
+      "hebrewName": "הוריות",
+      "seder": "Seder Nezikin",
+      "startDaf": 2,
+      "endDaf": 14,
+      "endSide": "a",
+      "skipAmudim": []
+    },
+    {
+      "name": "Zevachim",
+      "hebrewName": "זבחים",
+      "seder": "Seder Kodashim",
+      "startDaf": 2,
+      "endDaf": 120,
+      "endSide": "b",
+      "skipAmudim": []
+    },
+    {
+      "name": "Menachot",
+      "hebrewName": "מנחות",
+      "seder": "Seder Kodashim",
+      "startDaf": 2,
+      "endDaf": 110,
+      "endSide": "a",
+      "skipAmudim": []
+    },
+    {
+      "name": "Chullin",
+      "hebrewName": "חולין",
+      "seder": "Seder Kodashim",
+      "startDaf": 2,
+      "endDaf": 142,
+      "endSide": "a",
+      "skipAmudim": []
+    },
+    {
+      "name": "Bekhorot",
+      "hebrewName": "בכורות",
+      "seder": "Seder Kodashim",
+      "startDaf": 2,
+      "endDaf": 61,
+      "endSide": "a",
+      "skipAmudim": []
+    },
+    {
+      "name": "Arakhin",
+      "hebrewName": "ערכין",
+      "seder": "Seder Kodashim",
+      "startDaf": 2,
+      "endDaf": 34,
+      "endSide": "a",
+      "skipAmudim": []
+    },
+    {
+      "name": "Temurah",
+      "hebrewName": "תמורה",
+      "seder": "Seder Kodashim",
+      "startDaf": 2,
+      "endDaf": 34,
+      "endSide": "a",
+      "skipAmudim": []
+    },
+    {
+      "name": "Keritot",
+      "hebrewName": "כריתות",
+      "seder": "Seder Kodashim",
+      "startDaf": 2,
+      "endDaf": 28,
+      "endSide": "b",
+      "skipAmudim": []
+    },
+    {
+      "name": "Meilah",
+      "hebrewName": "מעילה",
+      "seder": "Seder Kodashim",
+      "startDaf": 2,
+      "endDaf": 22,
+      "endSide": "a",
+      "skipAmudim": []
+    },
+    {
+      "name": "Niddah",
+      "hebrewName": "נדה",
+      "seder": "Seder Tahorot",
+      "startDaf": 2,
+      "endDaf": 73,
+      "endSide": "a",
+      "skipAmudim": []
+    }
+  ]
+}
