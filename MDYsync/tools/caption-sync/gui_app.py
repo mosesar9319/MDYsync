@@ -40,6 +40,8 @@ if os.path.exists(_bundled_tess):
     pytesseract.pytesseract.tesseract_cmd = _bundled_tess
 
 from caption_ocr_align import build_outputs, process_video
+from local_server import start_server
+from protocol_handler import parse_launch_payload, register_protocol_handler
 
 
 # ---------------------------------------------------------------------------
@@ -101,6 +103,13 @@ class App:
         self.worker = None
         self.readings = []  # ordered list of {ref, display}
 
+        launch_payload = parse_launch_payload(sys.argv) or {}
+        for ref in launch_payload.get("refs", []):
+            self.readings.append({"ref": ref, "display": ref})
+        if launch_payload:
+            root.after(200, lambda: (root.deiconify(), root.lift(),
+                                     root.focus_force()))
+
         # The whole form scrolls as one unit, so nothing gets clipped on
         # smaller screens regardless of how much content is above the fold.
         container = ctk.CTkScrollableFrame(root, fg_color="transparent")
@@ -119,6 +128,10 @@ class App:
             font=ctk.CTkFont(size=13),
             text_color=("gray35", "gray70"),
         ).pack(anchor="w", pady=(2, 0))
+        self.web_status_label = ctk.CTkLabel(
+            header, text="", font=ctk.CTkFont(size=12),
+            text_color=("gray45", "gray60"))
+        self.web_status_label.pack(anchor="w", pady=(4, 0))
 
         self._build_reading_picker(container)
         self._build_readings_list(container)
@@ -128,6 +141,21 @@ class App:
         self.on_tractate_change(TRACTATE_NAMES[0])
         self.render_readings()
         root.after(150, self.poll_queue)
+        self._start_local_server()
+
+    def _start_local_server(self):
+        server = start_server(self.q, process_video, build_outputs)
+        if server is not None:
+            from local_server import PORT
+            self.web_status_label.configure(
+                text=f"● Website sync ready — listening on 127.0.0.1:{PORT} "
+                     f"for requests from mdysync.netlify.app only",
+                text_color=("#2f7d3c", "#5fd576"))
+        else:
+            self.web_status_label.configure(
+                text="○ Website sync unavailable (port already in use by "
+                     "another DafSync window, or blocked)",
+                text_color=("gray45", "gray60"))
 
     # ------------------------------------------------------------ picker UI
 
@@ -427,6 +455,8 @@ class App:
 
 
 def main():
+    if getattr(sys, "frozen", False):
+        register_protocol_handler(sys.executable)
     ctk.set_appearance_mode("system")
     ctk.set_default_color_theme("blue")
     root = ctk.CTk()

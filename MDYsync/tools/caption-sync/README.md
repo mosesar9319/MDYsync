@@ -72,6 +72,23 @@ for it, which has different pagination than the other 36 tractates.
 Run from source: `python3 gui_app.py` (needs `customtkinter` installed
 alongside the engine's dependencies).
 
+### Website integration (local companion server + protocol handler)
+
+While the desktop app is running, `local_server.py` serves a small HTTP API
+on `127.0.0.1:8765` only — never reachable from another machine — so the
+DafSync website's "Sync from video" dialog can hand it a local video file
+directly and get back the alignment, without a manual export/import step.
+It only answers requests whose `Origin` matches the real DafSync site
+(`ALLOWED_ORIGINS` in that file), refuses a second job while one is already
+running, and reports live progress into the same log/progress bar the
+desktop GUI itself shows.
+
+`protocol_handler.py` registers the `dafsync://` URL scheme for the current
+Windows user (no admin rights needed) the first time the packaged app runs.
+A link like `dafsync://open?refs=%5B%22Chullin%2080b%22%5D` on the website
+launches the app if it isn't already open, and pre-fills the readings list
+from the `refs` payload so they don't need to be re-entered.
+
 ## Player support
 
 When an imported alignment carries a `wordTimeline`, the player renders each
@@ -87,6 +104,31 @@ overlay mid-clip, tracked the caption growing from 2 to 4 text lines, and
 produced a monotonic Chullin 80b:5–11 timeline with typical match scores of
 90–100. Spot-checked frames at t=100s and t=130s matched the on-screen
 highlight exactly.
+
+## Server-side sync (Google Drive)
+
+The website's "Google Drive link" tab doesn't need the desktop app at all —
+it runs the same engine on GitHub Actions instead:
+
+1. The website POSTs `{driveUrl, refs}` to the Netlify Function
+   `netlify/functions/trigger-ocr-job.mjs`.
+2. That function (the only piece holding a GitHub token, stored as the
+   Netlify environment variable `GITHUB_DISPATCH_TOKEN` — never exposed to
+   the browser) dispatches `.github/workflows/ocr-job.yml` with the Drive
+   link, the reading list, and a generated job ID.
+3. The workflow downloads the video (`gdown`, so the Drive file must be
+   shared as "Anyone with the link"), runs `caption_ocr_align.py`
+   unchanged via its `--refs-json` flag (safe for multi-word tractate
+   names, unlike `--refs`), and pushes the resulting `alignment.json` to
+   `results/<jobId>.json` on a dedicated `results` branch.
+4. The website polls that path on `raw.githubusercontent.com` (public repo,
+   no auth needed to read) until it's there.
+
+**Setup required before this path works**: create a GitHub personal access
+token with permission to dispatch workflows on this repo, and add it as the
+`GITHUB_DISPATCH_TOKEN` environment variable in the site's Netlify project
+settings. Nothing else needs configuring — the `results` branch is created
+automatically on first run.
 
 ## Known limitations
 

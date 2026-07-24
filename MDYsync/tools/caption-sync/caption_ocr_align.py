@@ -500,23 +500,38 @@ def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("video")
-    p.add_argument("--refs", nargs="+", required=True,
-                   help="Sefaria refs in reading order, e.g. Chullin.80b Chullin.81a")
+    p.add_argument("--refs", nargs="+",
+                   help="Sefaria refs in reading order, e.g. Chullin.80b Chullin.81a. "
+                        "Breaks on multi-word tractate names (e.g. 'Bava Batra') "
+                        "since each token is treated as a separate ref — use "
+                        "--refs-json for those instead.")
+    p.add_argument("--refs-json",
+                   help="Sefaria refs as a single JSON array string, e.g. "
+                        '\'["Chullin 80b", "Bava Batra 82b"]\'. Safe for '
+                        "multi-word tractate names; use this from scripts/CI "
+                        "rather than --refs.")
     p.add_argument("--crop", help="Caption box as x,y,w,h (default: auto-detect)")
     p.add_argument("--sample-fps", type=float, default=3.0)
     p.add_argument("--out-dir", default="out")
     p.add_argument("--debug", action="store_true")
     args = p.parse_args()
 
+    if args.refs_json:
+        refs = json.loads(args.refs_json)
+    elif args.refs:
+        refs = args.refs
+    else:
+        p.error("one of --refs or --refs-json is required")
+
     crop = tuple(int(v) for v in args.crop.split(",")) if args.crop else None
     canon, segments, events, duration = process_video(
-        args.video, args.refs, crop=crop, sample_fps=args.sample_fps,
+        args.video, refs, crop=crop, sample_fps=args.sample_fps,
         out_dir=args.out_dir, debug=args.debug)
     if not events:
         print("No highlight matches found — check the crop region and refs.")
         sys.exit(1)
     alignment, word_map = build_outputs(
-        canon, segments, events, duration, args.video, args.refs)
+        canon, segments, events, duration, args.video, refs)
 
     a_path = os.path.join(args.out_dir, "alignment.json")
     w_path = os.path.join(args.out_dir, "wordmap.json")

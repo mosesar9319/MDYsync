@@ -874,42 +874,46 @@ async function restoreVideoSource(source) {
   }
 }
 
+async function loadAlignmentData(data, { restoreSource = true } = {}) {
+  if (!Array.isArray(data.segments) || !data.segments.length) throw new Error('No segments found.');
+  state.segments = data.segments.map((segment, index) => ({
+    id: segment.id || `segment-${index + 1}`,
+    ref: segment.ref || data.dafRef || 'Unknown',
+    start: Number(segment.start) || 0,
+    end: Number(segment.end) || (Number(segment.start) || 0) + 1,
+    he: String(segment.he || segment.text || ''),
+    en: String(segment.en || segment.translation || '')
+  })).sort((a, b) => a.start - b.start);
+  state.wordTimeline = Array.isArray(data.wordTimeline)
+    ? data.wordTimeline
+        .filter((entry) => entry && entry.ref != null && Number.isFinite(Number(entry.start)))
+        .map((entry) => ({
+          start: Number(entry.start),
+          end: Number(entry.end) || Number(entry.start),
+          ref: String(entry.ref),
+          w0: Number(entry.w0) || 0,
+          w1: Number(entry.w1) || 0
+        }))
+    : [];
+  state.dafRef = data.dafRef || state.dafRef;
+  state.currentProjectId = data.projectId || null;
+  state.alignmentStatus = data.alignmentStatus || 'in-progress';
+  state.editingIndex = Math.min(Number(data.editingIndex) || 0, state.segments.length - 1);
+  state.usingDefaultAlignment = false;
+  updateAlignmentStatus();
+  $('dafRef').value = state.dafRef;
+  $('lectureTitle').textContent = data.title || $('lectureTitle').textContent;
+  if (Number(data.duration) > 0) applyDuration(Number(data.duration), false);
+  renderDaf();
+  if (restoreSource && data.videoSource) await restoreVideoSource(data.videoSource);
+  if (data.title) $('lectureTitle').textContent = data.title;
+  seek(0);
+}
+
 async function importAlignment(file) {
   try {
     const data = JSON.parse(await file.text());
-    if (!Array.isArray(data.segments) || !data.segments.length) throw new Error('No segments found.');
-    state.segments = data.segments.map((segment, index) => ({
-      id: segment.id || `segment-${index + 1}`,
-      ref: segment.ref || data.dafRef || 'Unknown',
-      start: Number(segment.start) || 0,
-      end: Number(segment.end) || (Number(segment.start) || 0) + 1,
-      he: String(segment.he || segment.text || ''),
-      en: String(segment.en || segment.translation || '')
-    })).sort((a, b) => a.start - b.start);
-    state.wordTimeline = Array.isArray(data.wordTimeline)
-      ? data.wordTimeline
-          .filter((entry) => entry && entry.ref != null && Number.isFinite(Number(entry.start)))
-          .map((entry) => ({
-            start: Number(entry.start),
-            end: Number(entry.end) || Number(entry.start),
-            ref: String(entry.ref),
-            w0: Number(entry.w0) || 0,
-            w1: Number(entry.w1) || 0
-          }))
-      : [];
-    state.dafRef = data.dafRef || state.dafRef;
-    state.currentProjectId = data.projectId || null;
-    state.alignmentStatus = data.alignmentStatus || 'in-progress';
-    state.editingIndex = Math.min(Number(data.editingIndex) || 0, state.segments.length - 1);
-    state.usingDefaultAlignment = false;
-    updateAlignmentStatus();
-    $('dafRef').value = state.dafRef;
-    $('lectureTitle').textContent = data.title || $('lectureTitle').textContent;
-    if (Number(data.duration) > 0) applyDuration(Number(data.duration), false);
-    renderDaf();
-    if (data.videoSource) await restoreVideoSource(data.videoSource);
-    if (data.title) $('lectureTitle').textContent = data.title;
-    seek(0);
+    await loadAlignmentData(data);
     showToast(`Imported ${state.segments.length} synchronized segments.`);
   } catch (error) {
     showToast(`Invalid alignment file: ${error.message}`, 'error');
@@ -1073,3 +1077,303 @@ renderDaf();
 updateAlignmentStatus();
 updateScrubberFill();
 updatePlayUi();
+
+// ---------------------------------------------------------------------------
+// Sync-from-video dialog: pick a tractate/daf/amud reading list, then process
+// a caption-box video either locally (via the DafSync desktop app's
+// companion server on 127.0.0.1) or on our server (Google Drive + GitHub
+// Actions, via a Netlify Function relay that holds the trigger token).
+// ---------------------------------------------------------------------------
+
+const LOCAL_SERVER_BASE = 'http://127.0.0.1:8765';
+const TRIGGER_ENDPOINT = '/api/trigger-ocr-job';
+
+const syncState = {
+  talmudByName: {},
+  tractateNames: [],
+  readings: [],
+  localVideoFile: null,
+  pollTimer: null,
+  appReady: false
+};
+
+function amudimForDaf(entry, daf) {
+  const sides = [];
+  for (const side of ['a', 'b']) {
+    if (daf === entry.endDaf && side === 'b' && entry.endSide === 'a') continue;
+    if (entry.skipAmudim.includes(`${daf}${side}`)) continue;
+    sides.push(side);
+  }
+  return sides;
+}
+
+function dafOptionsFor(entry) {
+  const options = [];
+  for (let d = entry.startDaf; d <= entry.endDaf; d++) {
+    if (amudimForDaf(entry, d).length) options.push(d);
+  }
+  return options;
+}
+
+async function loadTalmudIndex() {
+  if (syncState.tractateNames.length) return;
+  const response = await fetch('talmud_index.json');
+  const data = await response.json();
+  for (const t of data.tractates) syncState.talmudByName[t.name] = t;
+  syncState.tractateNames = data.tractates.map((t) => t.name);
+  const select = $('syncTractateSelect');
+  select.innerHTML = syncState.tractateNames
+    .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+  onSyncTractateChange();
+}
+
+function onSyncTractateChange() {
+  const entry = syncState.talmudByName[$('syncTractateSelect').value];
+  const options = dafOptionsFor(entry);
+  $('syncDafSelect').innerHTML = options.map((d) => `<option value="${d}">${d}</option>`).join('');
+  onSyncDafChange();
+}
+
+function onSyncDafChange() {
+  const entry = syncState.talmudByName[$('syncTractateSelect').value];
+  const daf = Number($('syncDafSelect').value);
+  const sides = daf ? (amudimForDaf(entry, daf).length ? amudimForDaf(entry, daf) : ['a']) : ['a'];
+  const buttons = document.querySelectorAll('#syncAmudToggle .amud-option');
+  buttons.forEach((button) => {
+    const available = sides.includes(button.dataset.side);
+    button.disabled = !available;
+    button.classList.toggle('active', available && button.classList.contains('active'));
+  });
+  if (![...buttons].some((button) => button.classList.contains('active') && !button.disabled)) {
+    buttons.forEach((button) => button.classList.toggle('active', button.dataset.side === sides[0]));
+  }
+}
+
+function currentSyncAmud() {
+  const active = document.querySelector('#syncAmudToggle .amud-option.active');
+  return active ? active.dataset.side : 'a';
+}
+
+function addSyncReading() {
+  const tractate = $('syncTractateSelect').value;
+  const daf = $('syncDafSelect').value;
+  if (!tractate || !daf) return;
+  const ref = `${tractate} ${daf}${currentSyncAmud()}`;
+  syncState.readings.push({ ref, display: ref });
+  renderSyncReadings();
+}
+
+function removeSyncReading(index) {
+  syncState.readings.splice(index, 1);
+  renderSyncReadings();
+}
+
+function clearSyncReadings() {
+  syncState.readings = [];
+  renderSyncReadings();
+}
+
+function renderSyncReadings() {
+  const list = $('syncReadingsList');
+  if (!syncState.readings.length) {
+    list.innerHTML = '<p class="field-note">No readings added yet.</p>';
+  } else {
+    list.innerHTML = syncState.readings.map((reading, index) => `
+      <div class="sync-reading-row">
+        <span>${index + 1}. <strong>${escapeHtml(reading.display)}</strong></span>
+        <button type="button" class="sync-reading-remove" data-index="${index}" aria-label="Remove">✕</button>
+      </div>`).join('');
+    list.querySelectorAll('.sync-reading-remove').forEach((button) => {
+      button.addEventListener('click', () => removeSyncReading(Number(button.dataset.index)));
+    });
+  }
+  updateOpenAppLink();
+}
+
+function updateOpenAppLink() {
+  const refs = syncState.readings.map((r) => r.ref);
+  const url = refs.length
+    ? `dafsync://open?refs=${encodeURIComponent(JSON.stringify(refs))}`
+    : 'dafsync://open';
+  $('syncOpenAppButton').href = url;
+}
+
+async function checkLocalAppStatus() {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1500);
+    const response = await fetch(`${LOCAL_SERVER_BASE}/dafsync/status`, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!response.ok) throw new Error('not ready');
+    syncState.appReady = true;
+    $('syncAppStatus').querySelector('.status-dot').className = 'status-dot ready';
+    $('syncAppStatusText').textContent = 'DafSync desktop app detected — ready to sync.';
+    $('syncOpenAppButton').hidden = true;
+  } catch {
+    syncState.appReady = false;
+    $('syncAppStatus').querySelector('.status-dot').className = 'status-dot muted';
+    $('syncAppStatusText').textContent = 'DafSync desktop app not detected on this computer.';
+    $('syncOpenAppButton').hidden = false;
+  }
+}
+
+function setSyncProgress(fraction, logLines) {
+  $('syncProgressWrap').hidden = false;
+  $('syncProgressFill').style.width = `${Math.round(Math.max(0, Math.min(1, fraction)) * 100)}%`;
+  if (logLines) {
+    const log = $('syncLog');
+    log.textContent = logLines.join('\n');
+    log.scrollTop = log.scrollHeight;
+  }
+}
+
+function stopSyncPolling() {
+  if (syncState.pollTimer) {
+    clearInterval(syncState.pollTimer);
+    syncState.pollTimer = null;
+  }
+}
+
+async function startLocalSync() {
+  if (!syncState.readings.length) {
+    showToast('Add at least one reading first.', 'error');
+    return;
+  }
+  if (!syncState.localVideoFile) {
+    showToast('Choose a video file first.', 'error');
+    return;
+  }
+  await checkLocalAppStatus();
+  if (!syncState.appReady) {
+    showToast('Open the DafSync desktop app first, then try again.', 'error');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('video', syncState.localVideoFile, syncState.localVideoFile.name);
+  formData.append('refs', JSON.stringify(syncState.readings.map((r) => r.ref)));
+
+  setSyncProgress(0, ['Uploading to the desktop app on this computer…']);
+  let jobId;
+  try {
+    const response = await fetch(`${LOCAL_SERVER_BASE}/dafsync/jobs`, { method: 'POST', body: formData });
+    if (!response.ok) throw new Error((await response.json()).error || 'Could not start the job.');
+    ({ jobId } = await response.json());
+  } catch (error) {
+    showToast(`Could not start local sync: ${error.message}`, 'error');
+    return;
+  }
+
+  stopSyncPolling();
+  syncState.pollTimer = setInterval(async () => {
+    try {
+      const response = await fetch(`${LOCAL_SERVER_BASE}/dafsync/jobs/${jobId}`);
+      const job = await response.json();
+      setSyncProgress(job.progress || 0, job.log);
+      if (job.status === 'done') {
+        stopSyncPolling();
+        handleVideoFile(syncState.localVideoFile);
+        await loadAlignmentData(job.result.alignment, { restoreSource: false });
+        showToast('Synced! The video and daf are ready.');
+        $('syncDialog').close();
+      } else if (job.status === 'error') {
+        stopSyncPolling();
+        showToast(`Sync failed: ${job.error}`, 'error');
+      }
+    } catch {
+      stopSyncPolling();
+      showToast('Lost connection to the desktop app.', 'error');
+    }
+  }, 1200);
+}
+
+async function startDriveSync() {
+  if (!syncState.readings.length) {
+    showToast('Add at least one reading first.', 'error');
+    return;
+  }
+  const driveUrl = $('syncDriveUrlInput').value.trim();
+  if (!/^https:\/\/(drive|docs)\.google\.com\//.test(driveUrl)) {
+    showToast('Paste a valid Google Drive link.', 'error');
+    return;
+  }
+
+  setSyncProgress(0, ['Starting the server-side job…']);
+  let jobId, resultUrl;
+  try {
+    const response = await fetch(TRIGGER_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ driveUrl, refs: syncState.readings.map((r) => r.ref) })
+    });
+    if (!response.ok) throw new Error((await response.json()).error || 'Could not start the job.');
+    ({ jobId, resultUrl } = await response.json());
+  } catch (error) {
+    showToast(`Could not start server sync: ${error.message}`, 'error');
+    return;
+  }
+
+  const startedAt = Date.now();
+  stopSyncPolling();
+  syncState.pollTimer = setInterval(async () => {
+    const elapsed = Math.round((Date.now() - startedAt) / 1000);
+    try {
+      const response = await fetch(`${resultUrl}?t=${Date.now()}`);
+      if (response.status === 404) {
+        setSyncProgress(Math.min(0.9, elapsed / 300), [`Processing on the server… (${elapsed}s elapsed)`]);
+        return;
+      }
+      if (!response.ok) throw new Error(`Server returned ${response.status}`);
+      const alignment = await response.json();
+      stopSyncPolling();
+      setSyncProgress(1, [`Done after ${elapsed}s.`]);
+      await loadAlignmentData(alignment);
+      showToast('Synced from Google Drive! Choose or paste the video to watch it.');
+      $('syncDialog').close();
+    } catch (error) {
+      stopSyncPolling();
+      showToast(`Server sync failed: ${error.message}`, 'error');
+    }
+  }, 6000);
+}
+
+$('openSyncDialogButton')?.addEventListener('click', async () => {
+  await loadTalmudIndex();
+  renderSyncReadings();
+  checkLocalAppStatus();
+  $('syncDialog').showModal();
+});
+$('closeSyncDialog')?.addEventListener('click', () => $('syncDialog').close());
+$('syncDialog')?.addEventListener('close', () => {
+  stopSyncPolling();
+  $('syncProgressWrap').hidden = true;
+});
+$('syncTractateSelect')?.addEventListener('change', onSyncTractateChange);
+$('syncDafSelect')?.addEventListener('change', onSyncDafChange);
+document.querySelectorAll('#syncAmudToggle .amud-option').forEach((button) => {
+  button.addEventListener('click', () => {
+    if (button.disabled) return;
+    document.querySelectorAll('#syncAmudToggle .amud-option').forEach((b) => b.classList.remove('active'));
+    button.classList.add('active');
+  });
+});
+$('syncAddReadingButton')?.addEventListener('click', addSyncReading);
+$('syncClearReadingsButton')?.addEventListener('click', clearSyncReadings);
+$('syncVideoInput')?.addEventListener('change', (event) => {
+  const file = event.target.files?.[0];
+  syncState.localVideoFile = file || null;
+  $('syncVideoFileName').textContent = file ? file.name : 'Processed on this computer, never uploaded';
+});
+$('syncLocalStartButton')?.addEventListener('click', startLocalSync);
+$('syncDriveStartButton')?.addEventListener('click', startDriveSync);
+document.querySelectorAll('.sync-tab').forEach((tab) => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.sync-tab').forEach((t) => {
+      t.classList.toggle('active', t === tab);
+      t.setAttribute('aria-selected', String(t === tab));
+    });
+    document.querySelectorAll('.sync-source-panel').forEach((panel) => {
+      panel.hidden = panel.id !== tab.dataset.syncPanel;
+    });
+  });
+});

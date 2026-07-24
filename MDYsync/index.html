@@ -29,6 +29,7 @@
       <div class="top-actions">
         <span class="status-pill"><span class="status-dot"></span> Chullin 81 pilot</span>
         <button class="button primary small" id="loadPilotButton">Load Chullin 81 pilot</button>
+        <a class="button secondary" href="https://github.com/mosesar9319/MDYsync/releases/latest" target="_blank" rel="noopener">Download desktop app</a>
         <button class="button ghost" id="helpButton">How it works</button>
       </div>
     </header>
@@ -82,6 +83,7 @@
               Import transcript
             </label>
             <button class="button secondary small" id="exportButton">Export</button>
+            <button class="button primary small" id="openSyncDialogButton" type="button">Sync from video</button>
           </div>
         </div>
       </section>
@@ -269,6 +271,78 @@
       <li>Open the synchronization editor to correct timestamps and export the result.</li>
     </ol>
     <p class="dialog-note">YouTube playback is controlled through YouTube’s embedded player. Automatic transcription and semantic alignment will run in a separate processing service in the production version.</p>
+  </dialog>
+
+  <dialog id="syncDialog">
+    <button class="dialog-close" id="closeSyncDialog" aria-label="Close">×</button>
+    <div class="eyebrow">Caption-box sync</div>
+    <h2>Generate a sync from a lecture video</h2>
+    <p class="dialog-note">Pick the daf the video covers, then process it either
+      with the DafSync desktop app on this computer, or on our server from a
+      Google Drive link.</p>
+
+    <div class="sync-picker">
+      <div class="sync-picker-row">
+        <label class="sync-field">
+          <span>Tractate</span>
+          <select id="syncTractateSelect"></select>
+        </label>
+        <label class="sync-field sync-field-narrow">
+          <span>Daf</span>
+          <select id="syncDafSelect"></select>
+        </label>
+        <label class="sync-field sync-field-narrow">
+          <span>Amud</span>
+          <div class="amud-toggle" id="syncAmudToggle" role="group" aria-label="Amud">
+            <button type="button" class="amud-option active" data-side="a">a</button>
+            <button type="button" class="amud-option" data-side="b">b</button>
+          </div>
+        </label>
+        <button class="button primary small" id="syncAddReadingButton" type="button">+ Add reading</button>
+      </div>
+    </div>
+
+    <div class="sync-readings-head">
+      <strong>Readings covered, in order</strong>
+      <button class="button ghost small" id="syncClearReadingsButton" type="button">Clear all</button>
+    </div>
+    <div class="sync-readings-list" id="syncReadingsList">
+      <p class="field-note">No readings added yet.</p>
+    </div>
+
+    <div class="sync-tabs" role="tablist" aria-label="Processing method">
+      <button class="sync-tab active" type="button" data-sync-panel="syncLocalPanel" role="tab" aria-selected="true">Local file (Desktop App)</button>
+      <button class="sync-tab" type="button" data-sync-panel="syncDrivePanel" role="tab" aria-selected="false">Google Drive link</button>
+    </div>
+
+    <div class="sync-source-panel" id="syncLocalPanel" role="tabpanel">
+      <label class="button secondary file-button small">
+        <input id="syncVideoInput" type="file" accept="video/*" hidden />
+        Choose video
+      </label>
+      <span id="syncVideoFileName" class="field-note">Processed on this computer, never uploaded</span>
+      <div class="sync-app-status" id="syncAppStatus">
+        <span class="status-dot muted"></span>
+        <span id="syncAppStatusText">Checking for the DafSync desktop app…</span>
+        <a class="button secondary small" id="syncOpenAppButton" href="dafsync://open" hidden>Open DafSync app</a>
+        <a class="button ghost small" href="https://github.com/mosesar9319/MDYsync/releases/latest" target="_blank" rel="noopener">Don't have it? Download</a>
+      </div>
+      <button class="button primary" id="syncLocalStartButton" type="button">Sync using desktop app</button>
+    </div>
+
+    <div class="sync-source-panel" id="syncDrivePanel" role="tabpanel" hidden>
+      <label class="sync-field">
+        <span>Google Drive video link</span>
+        <input id="syncDriveUrlInput" type="url" placeholder="https://drive.google.com/file/d/…/view" spellcheck="false" />
+      </label>
+      <span class="field-note">The file must be shared as "Anyone with the link." Processing runs on our server and can take a few minutes.</span>
+      <button class="button primary" id="syncDriveStartButton" type="button">Sync from Google Drive</button>
+    </div>
+
+    <div class="sync-progress-wrap" id="syncProgressWrap" hidden>
+      <div class="sync-progress-track"><div class="sync-progress-fill" id="syncProgressFill"></div></div>
+      <div class="sync-log" id="syncLog"></div>
+    </div>
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
