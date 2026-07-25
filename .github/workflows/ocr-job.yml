@@ -32,7 +32,7 @@ jobs:
           sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-heb
 
       - name: Install Python dependencies
-        run: pip install opencv-python-headless pytesseract rapidfuzz gdown
+        run: pip install opencv-python-headless pytesseract rapidfuzz "gdown==6.1.0"
 
       - name: Download the video from Google Drive
         working-directory: MDYsync/tools/caption-sync
@@ -40,8 +40,17 @@ jobs:
           DRIVE_URL: ${{ github.event.client_payload.driveUrl }}
         run: |
           python3 -c "
-          import gdown, os
-          gdown.download(url=os.environ['DRIVE_URL'], output='job-video.mp4', fuzzy=True, quiet=False)
+          import gdown, os, sys
+          result = gdown.download(url=os.environ['DRIVE_URL'], output='job-video.mp4', quiet=False)
+          if not result:
+              print('gdown could not resolve this link — check the file is shared as \"Anyone with the link\".')
+              sys.exit(1)
+          size = os.path.getsize('job-video.mp4')
+          print(f'Downloaded {size} bytes')
+          if size < 100_000:
+              print('Downloaded file is suspiciously small for a video — likely a Drive '
+                    'permission/interstitial page was saved instead of the real file.')
+              sys.exit(1)
           "
           ls -la job-video.mp4
 

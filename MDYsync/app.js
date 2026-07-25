@@ -1314,9 +1314,19 @@ async function startDriveSync() {
   }
 
   const startedAt = Date.now();
+  const MAX_WAIT_SECONDS = 20 * 60; // GitHub Actions job has its own 30-min cap
   stopSyncPolling();
   syncState.pollTimer = setInterval(async () => {
     const elapsed = Math.round((Date.now() - startedAt) / 1000);
+    if (elapsed > MAX_WAIT_SECONDS) {
+      stopSyncPolling();
+      setSyncProgress(0.9, [
+        `Still not done after ${elapsed}s — that's longer than expected.`,
+        'The server job may have failed. Check the repository’s Actions tab, or try again.'
+      ]);
+      showToast('Server sync is taking much longer than expected — it may have failed.', 'error');
+      return;
+    }
     try {
       const response = await fetch(`${resultUrl}?t=${Date.now()}`);
       if (response.status === 404) {
@@ -1332,6 +1342,10 @@ async function startDriveSync() {
       $('syncDialog').close();
     } catch (error) {
       stopSyncPolling();
+      setSyncProgress(Math.min(0.9, elapsed / 300), [
+        `Failed after ${elapsed}s: ${error.message}`,
+        'Check that the Drive link is shared as "Anyone with the link," then try again.'
+      ]);
       showToast(`Server sync failed: ${error.message}`, 'error');
     }
   }, 6000);
