@@ -23,7 +23,8 @@ const state = {
   alignmentDuration: 0,
   vilnaPageKey: null,
   vilnaPageMap: null,
-  vilnaPagePollTimer: null
+  vilnaPagePollTimer: null,
+  vilnaOverlayKey: ''
 };
 
 const AUTO_SCROLL_RESUME_MS = 4000;
@@ -528,6 +529,7 @@ function stopVilnaPagePoll() {
 async function loadVilnaPageMap(parsed) {
   stopVilnaPagePoll();
   state.vilnaPageMap = null;
+  state.vilnaOverlayKey = '';
   $('vilnaPageOverlay').innerHTML = '';
   const key = pageMapKey(parsed);
   const resultUrl = `https://raw.githubusercontent.com/mosesar9319/MDYsync/results/pages/${key}.json`;
@@ -571,17 +573,27 @@ function updateVilnaOverlay(time) {
   const overlay = $('vilnaPageOverlay');
   if (!overlay) return;
   if (!state.vilnaPageMap || $('vilnaPlaceholder').hidden || !state.wordTimeline.length) {
-    overlay.innerHTML = '';
+    if (overlay.childElementCount) overlay.innerHTML = '';
+    state.vilnaOverlayKey = '';
     return;
   }
   const active = state.wordTimeline.filter((entry) => time >= entry.start && time < entry.end);
-  if (!active.length) {
-    overlay.innerHTML = '';
-    return;
-  }
-  const boxes = state.vilnaPageMap.wordBoxes.filter((box) =>
-    active.some((entry) => entry.ref === box.ref && box.wordIndex >= entry.w0 && box.wordIndex <= entry.w1)
-  );
+  const boxes = active.length
+    ? state.vilnaPageMap.wordBoxes.filter((box) =>
+        active.some((entry) => entry.ref === box.ref && box.wordIndex >= entry.w0 && box.wordIndex <= entry.w1)
+      )
+    : [];
+
+  // The YouTube poll re-runs this every 100ms; without this check the
+  // overlay was torn down and rebuilt on every single tick even when the
+  // highlighted words hadn't changed, restarting each box's CSS entrance
+  // animation from opacity:0 before it ever finished fading in -- a
+  // constant flicker that also read as much dimmer than the steady color
+  // it's supposed to settle into.
+  const key = boxes.map((box) => `${box.ref}:${box.wordIndex}`).join(',');
+  if (key === state.vilnaOverlayKey) return;
+  state.vilnaOverlayKey = key;
+
   overlay.innerHTML = '';
   for (const box of boxes) {
     const el = document.createElement('div');
