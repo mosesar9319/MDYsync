@@ -305,7 +305,10 @@ function loadPdfJs() {
 }
 
 function parseDafRef(ref) {
-  const match = /^(.+?)\s+(\d+)\s*([abAB])$/.exec(String(ref || '').trim());
+  // Accepts both a bare daf ref ("Chullin 86a") and a segment ref
+  // ("Chullin 86a:3", as found on state.segments[i].ref) by ignoring an
+  // optional trailing ":<segment number>".
+  const match = /^(.+?)\s+(\d+)\s*([abAB])(?::\d+)?$/.exec(String(ref || '').trim());
   if (!match) return null;
   return { tractate: match[1].trim(), daf: Number(match[2]), amud: match[3].toLowerCase() };
 }
@@ -323,7 +326,12 @@ async function renderVilnaPage() {
   const view = $('vilnaPlaceholder');
   if (!canvas || !view || view.hidden) return;
 
-  const parsed = parseDafRef(state.dafRef);
+  // Follow the daf the video is actually on, not just whichever ref the
+  // player started with -- a synced video can span more than one daf
+  // (e.g. finishing 86a partway through and continuing into 86b), and
+  // the Vilna page should turn with it.
+  const activeRef = state.segments[state.activeIndex]?.ref || state.dafRef;
+  const parsed = parseDafRef(activeRef);
   if (!parsed) {
     state.vilnaPageKey = null;
     setVilnaPageStatus('Load a daf reference to see the Vilna page image.');
@@ -332,7 +340,7 @@ async function renderVilnaPage() {
   const key = `${parsed.tractate}|${parsed.daf}|${parsed.amud}`;
   if (state.vilnaPageKey === key) return;
 
-  setVilnaPageStatus(`Loading the Vilna page for ${state.dafRef}…`);
+  setVilnaPageStatus(`Loading the Vilna page for ${parsed.tractate} ${parsed.daf}${parsed.amud}…`);
   try {
     const [lib, response] = await Promise.all([
       loadPdfJs(),
@@ -363,7 +371,7 @@ async function renderVilnaPage() {
     loadVilnaPageMap(parsed);
   } catch (error) {
     state.vilnaPageKey = null;
-    setVilnaPageStatus(`Couldn't load the Vilna page for ${state.dafRef}: ${error.message}`);
+    setVilnaPageStatus(`Couldn't load the Vilna page for ${parsed.tractate} ${parsed.daf}${parsed.amud}: ${error.message}`);
   }
 }
 
@@ -480,11 +488,15 @@ function updateActiveSegment(force = false, timeOverride = null) {
 
   renderDafWindow();
   updateActiveWords(time);
+  renderVilnaPage();
   document.querySelectorAll('.editor-row').forEach((node, i) => node.classList.toggle('active', i === index));
 
   $('currentPhrase').textContent = active.he;
   $('currentTranslation').textContent = active.en || 'Translation not loaded.';
-  $('currentRef').textContent = `${state.dafRef} · Segment ${index + 1}`;
+  const activeDaf = parseDafRef(active.ref);
+  $('currentRef').textContent = activeDaf
+    ? `${activeDaf.tractate} ${activeDaf.daf}${activeDaf.amud} · Segment ${index + 1}`
+    : `${state.dafRef} · Segment ${index + 1}`;
 
   const recentlyScrolledManually = Date.now() - state.lastManualScrollAt < AUTO_SCROLL_RESUME_MS;
   if ($('autoScroll').checked && timeOverride === null && !recentlyScrolledManually) {
