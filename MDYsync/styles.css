@@ -158,18 +158,22 @@ h2 { margin-bottom: 0; }
 .vilna-page-wrap { position: relative; width: 100%; }
 #vilnaPageCanvas { display: block; margin: 0 auto; max-width: 100%; height: auto; box-shadow: 0 12px 35px rgba(50,43,31,.18); }
 .vilna-page-overlay { position: absolute; inset: 0; pointer-events: none; }
-.vilna-word-highlight {
+.vilna-word-box {
   position: absolute;
-  transform: scale(1.35, 2.6);
+  transform: scale(1.2, 1.7);
+  pointer-events: auto;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.vilna-word-box:hover { background: rgba(67, 57, 42, .14); }
+.vilna-word-box.active {
   background: #ffd400;
   mix-blend-mode: multiply;
-  border-radius: 40% / 65%;
-  filter: blur(0.4px);
-  animation: vilna-highlight-in .15s ease-out;
+  animation: vilna-highlight-in .12s ease-out;
 }
 @keyframes vilna-highlight-in {
-  from { opacity: 0; transform: scale(1.1475, 2.21); }
-  to { opacity: 1; transform: scale(1.35, 2.6); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 .daf-footer { justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 12px; }
 

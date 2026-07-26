@@ -24,7 +24,8 @@ const state = {
   vilnaPageKey: null,
   vilnaPageMap: null,
   vilnaPagePollTimer: null,
-  vilnaOverlayKey: ''
+  vilnaOverlayKey: '',
+  vilnaWordEls: null
 };
 
 const AUTO_SCROLL_RESUME_MS = 4000;
@@ -530,6 +531,7 @@ async function loadVilnaPageMap(parsed) {
   stopVilnaPagePoll();
   state.vilnaPageMap = null;
   state.vilnaOverlayKey = '';
+  state.vilnaWordEls = null;
   $('vilnaPageOverlay').innerHTML = '';
   const key = pageMapKey(parsed);
   const resultUrl = `https://raw.githubusercontent.com/mosesar9319/MDYsync/results/pages/${key}.json`;
@@ -539,6 +541,7 @@ async function loadVilnaPageMap(parsed) {
       const response = await fetch(`${resultUrl}?t=${Date.now()}`);
       if (!response.ok) return false;
       state.vilnaPageMap = await response.json();
+      renderVilnaWordBoxes();
       updateVilnaOverlay(getCurrentTime());
       return true;
     } catch {
@@ -569,40 +572,70 @@ async function loadVilnaPageMap(parsed) {
   }, 5000);
 }
 
-function updateVilnaOverlay(time) {
+// Renders one persistent, clickable div per word on the page -- not just
+// the ones currently playing -- so a reader can click any word to jump the
+// video there, not only the word already lit up. updateVilnaOverlay below
+// then just toggles an "active" class on these same elements rather than
+// creating/destroying DOM nodes on every playback tick.
+function renderVilnaWordBoxes() {
   const overlay = $('vilnaPageOverlay');
   if (!overlay) return;
-  if (!state.vilnaPageMap || $('vilnaPlaceholder').hidden || !state.wordTimeline.length) {
-    if (overlay.childElementCount) overlay.innerHTML = '';
-    state.vilnaOverlayKey = '';
-    return;
-  }
-  const active = state.wordTimeline.filter((entry) => time >= entry.start && time < entry.end);
-  const boxes = active.length
-    ? state.vilnaPageMap.wordBoxes.filter((box) =>
-        active.some((entry) => entry.ref === box.ref && box.wordIndex >= entry.w0 && box.wordIndex <= entry.w1)
-      )
-    : [];
-
-  // The YouTube poll re-runs this every 100ms; without this check the
-  // overlay was torn down and rebuilt on every single tick even when the
-  // highlighted words hadn't changed, restarting each box's CSS entrance
-  // animation from opacity:0 before it ever finished fading in -- a
-  // constant flicker that also read as much dimmer than the steady color
-  // it's supposed to settle into.
-  const key = boxes.map((box) => `${box.ref}:${box.wordIndex}`).join(',');
-  if (key === state.vilnaOverlayKey) return;
-  state.vilnaOverlayKey = key;
-
   overlay.innerHTML = '';
-  for (const box of boxes) {
+  state.vilnaWordEls = new Map();
+  if (!state.vilnaPageMap) return;
+  for (const box of state.vilnaPageMap.wordBoxes) {
     const el = document.createElement('div');
-    el.className = 'vilna-word-highlight';
+    el.className = 'vilna-word-box';
     el.style.left = `${box.x * 100}%`;
     el.style.top = `${box.y * 100}%`;
     el.style.width = `${box.w * 100}%`;
     el.style.height = `${box.h * 100}%`;
+    el.addEventListener('click', () => seekToVilnaWord(box.ref, box.wordIndex));
     overlay.appendChild(el);
+    state.vilnaWordEls.set(`${box.ref}:${box.wordIndex}`, el);
+  }
+}
+
+function seekToVilnaWord(ref, wordIndex) {
+  const entry = state.wordTimeline.find(
+    (e) => e.ref === ref && wordIndex >= e.w0 && wordIndex <= e.w1
+  );
+  if (!entry) return;
+  state.lastManualScrollAt = 0;
+  seek(entry.start + 0.03, true);
+  updateActiveSegment(true);
+}
+
+function updateVilnaOverlay(time) {
+  if (!state.vilnaWordEls) return;
+  if (!state.vilnaPageMap || $('vilnaPlaceholder').hidden || !state.wordTimeline.length) {
+    if (state.vilnaOverlayKey) {
+      for (const el of state.vilnaWordEls.values()) el.classList.remove('active');
+      state.vilnaOverlayKey = '';
+    }
+    return;
+  }
+  const active = state.wordTimeline.filter((entry) => time >= entry.start && time < entry.end);
+  const activeKeys = new Set();
+  for (const entry of active) {
+    for (let idx = entry.w0; idx <= entry.w1; idx++) {
+      const k = `${entry.ref}:${idx}`;
+      if (state.vilnaWordEls.has(k)) activeKeys.add(k);
+    }
+  }
+
+  // The YouTube poll re-runs this every 100ms; without this check the
+  // active class was being toggled on every single tick even when the
+  // highlighted words hadn't changed, restarting each box's CSS entrance
+  // animation from opacity:0 before it ever finished fading in -- a
+  // constant flicker that also read as much dimmer than the steady color
+  // it's supposed to settle into.
+  const key = [...activeKeys].sort().join(',');
+  if (key === state.vilnaOverlayKey) return;
+  state.vilnaOverlayKey = key;
+
+  for (const [k, el] of state.vilnaWordEls) {
+    el.classList.toggle('active', activeKeys.has(k));
   }
 }
 
