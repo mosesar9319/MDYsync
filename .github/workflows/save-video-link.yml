@@ -1,0 +1,56 @@
+name: Save a video link for a daf reference
+
+# Triggered by the save-video-link Netlify Function when a reader pastes
+# a YouTube or direct video link for a daf. Publishes just that link to
+# the `results` branch, keyed by daf reference, so it's available on any
+# device -- separate from the alignment/segments data, since a reader may
+# paste a video link before running (or without ever running) a sync for
+# that daf, and a synced alignment's own videoSource is just the generic
+# local filename the OCR job used internally, never a real playable link.
+
+on:
+  repository_dispatch:
+    types: [save-video-link]
+
+permissions:
+  contents: write
+
+jobs:
+  save:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish the video link to the results branch
+        env:
+          REF_KEY: ${{ github.event.client_payload.refKey }}
+          VIDEO_SOURCE_JSON: ${{ toJSON(github.event.client_payload.videoSource) }}
+        run: |
+          set -e
+          mkdir -p /tmp/results-checkout
+          git config user.name "dafsync-bot"
+          git config user.email "dafsync-bot@users.noreply.github.com"
+
+          git fetch origin results 2>/dev/null || true
+          if git show-ref --verify --quiet refs/remotes/origin/results; then
+            git worktree add /tmp/results-checkout origin/results
+          else
+            git worktree add --detach /tmp/results-checkout
+            (cd /tmp/results-checkout && git checkout --orphan results && git rm -rf . >/dev/null 2>&1 || true)
+          fi
+
+          mkdir -p /tmp/results-checkout/video-links
+          echo "$VIDEO_SOURCE_JSON" > "/tmp/results-checkout/video-links/${REF_KEY}.json"
+
+          cd /tmp/results-checkout
+          git add "video-links/${REF_KEY}.json"
+          git commit -m "Save video link for ${REF_KEY}"
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:results; then
+              break
+            fi
+            git fetch origin results
+            git rebase origin/results
+            sleep 2
+          done

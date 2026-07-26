@@ -1,0 +1,89 @@
+// Publishes a playable video link (YouTube or direct URL) for a daf
+// reference to the results branch, keyed by reference, so it's available
+// on any device -- not just the browser that pasted it in. This is
+// separate from the alignment publishing: a reader may paste a video
+// link before ever syncing that daf, and a synced alignment's own
+// videoSource is just the generic local filename the OCR job used
+// internally, never a real link worth sharing across devices.
+
+const OWNER = 'mosesar9319';
+const REPO = 'MDYsync';
+const ALLOWED_ORIGINS = new Set([
+  'https://mdysync.netlify.app',
+  'https://main--mdysync.netlify.app',
+  'http://localhost:8080',
+]);
+
+export default async (request) => {
+  if (request.method !== 'POST') {
+    return Response.json({ error: 'Method not allowed' }, { status: 405 });
+  }
+
+  const origin = request.headers.get('Origin') || '';
+  if (!ALLOWED_ORIGINS.has(origin)) {
+    return Response.json({ error: 'Origin not permitted.' }, { status: 403 });
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: 'Invalid JSON body.' }, { status: 400 });
+  }
+
+  const { ref, videoSource } = body || {};
+  if (typeof ref !== 'string' || !ref.trim() || ref.length > 80) {
+    return Response.json({ error: 'A valid daf reference is required.' }, { status: 400 });
+  }
+  if (!videoSource || (videoSource.type !== 'youtube' && videoSource.type !== 'direct')) {
+    return Response.json({ error: "videoSource.type must be 'youtube' or 'direct'." }, { status: 400 });
+  }
+  if (typeof videoSource.url !== 'string' || !/^https?:\/\//.test(videoSource.url) || videoSource.url.length > 2000) {
+    return Response.json({ error: 'A valid http(s) video URL is required.' }, { status: 400 });
+  }
+
+  const token = Netlify.env.get('GITHUB_DISPATCH_TOKEN');
+  if (!token) {
+    return Response.json({ error: 'Server sync is not configured yet.' }, { status: 503 });
+  }
+
+  const refKey = ref.trim().replace(/\s+/g, '-');
+  const safeVideoSource = {
+    type: videoSource.type,
+    url: videoSource.url,
+    videoId: typeof videoSource.videoId === 'string' ? videoSource.videoId.slice(0, 32) : undefined,
+    label: typeof videoSource.label === 'string' ? videoSource.label.slice(0, 40) : undefined,
+  };
+
+  const dispatchResponse = await fetch(
+    `https://api.github.com/repos/${OWNER}/${REPO}/dispatches`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        event_type: 'save-video-link',
+        client_payload: { refKey, videoSource: safeVideoSource },
+      }),
+    }
+  );
+
+  if (!dispatchResponse.ok) {
+    const detail = await dispatchResponse.text();
+    return Response.json(
+      { error: 'Could not save the video link.', detail },
+      { status: 502 }
+    );
+  }
+
+  return Response.json({ refKey }, {
+    headers: { 'Access-Control-Allow-Origin': origin },
+  });
+};
+
+export const config = {
+  path: '/api/save-video-link',
+};

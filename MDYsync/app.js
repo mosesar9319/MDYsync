@@ -178,6 +178,39 @@ async function fetchServerAlignment(ref) {
   }
 }
 
+// A synced alignment's own videoSource is never a real playable link --
+// just the generic local filename the OCR job used internally -- so a
+// YouTube/direct link is published separately, keyed by reference, the
+// same way. Checked in resolvePreferredVideoSource below alongside
+// whatever this browser has saved locally, so a link pasted on one
+// device is still found on another.
+async function fetchServerVideoLink(ref) {
+  try {
+    const url = `https://raw.githubusercontent.com/mosesar9319/MDYsync/results/video-links/${refKey(ref)}.json?t=${Date.now()}`;
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+function saveVideoLinkToServer(ref, videoSource) {
+  if (!ref || !videoSource || !['youtube', 'direct'].includes(videoSource.type)) return;
+  fetch('/api/save-video-link', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ref, videoSource }),
+  }).catch((error) => console.error('Could not save the video link to the server.', error));
+}
+
+async function resolvePreferredVideoSource(ref, localSaved) {
+  if (localSaved?.videoSource && ['youtube', 'direct'].includes(localSaved.videoSource.type)) {
+    return localSaved.videoSource;
+  }
+  return fetchServerVideoLink(ref);
+}
+
 function flattenText(value) {
   if (typeof value === 'string') return [value];
   if (!Array.isArray(value)) return [];
@@ -778,14 +811,12 @@ async function loadDaf(refOverride = null, options = {}) {
   if (serverAlignment) {
     // The server's own videoSource is never actually playable -- it's
     // just the generic local filename the OCR job used internally
-    // (e.g. "job-video.mp4"), not the real YouTube/direct link a reader
-    // separately pastes in to watch it. Prefer whatever playable link
-    // this browser has remembered for this daf, if any, instead of
-    // letting the server's placeholder silently overwrite it.
-    const localForRef = loadProjectForRef(ref);
-    if (localForRef?.videoSource && ['youtube', 'direct'].includes(localForRef.videoSource.type)) {
-      serverAlignment.videoSource = localForRef.videoSource;
-    }
+    // (e.g. "job-video.mp4"), not a real YouTube/direct link. Prefer a
+    // real link already known for this daf, whether saved on this
+    // browser or on another device, over letting that placeholder
+    // silently overwrite it.
+    const preferredVideoSource = await resolvePreferredVideoSource(ref, loadProjectForRef(ref));
+    if (preferredVideoSource) serverAlignment.videoSource = preferredVideoSource;
     await loadAlignmentData(serverAlignment);
     if (!options.silent) showToast(`Loaded the synced alignment for ${ref} from the server.`);
     return;
@@ -796,10 +827,13 @@ async function loadDaf(refOverride = null, options = {}) {
     if (!options.silent) showToast(`Restored the saved sync for ${ref}.`);
     return;
   }
-  // Restore a saved video-only link before the text fetch below, not
-  // after -- it shouldn't depend on Sefaria's fetch succeeding.
-  if (saved && saved.videoSource) {
-    try { await restoreVideoSource(saved.videoSource); } catch (error) { console.error(error); }
+  // Restore a known video link before the text fetch below, not after --
+  // it shouldn't depend on Sefaria's fetch succeeding. Checks this
+  // browser's own saved link first, then the one published for this daf
+  // reference on the server (from another device), if any.
+  const preferredVideoSource = await resolvePreferredVideoSource(ref, saved);
+  if (preferredVideoSource) {
+    try { await restoreVideoSource(preferredVideoSource); } catch (error) { console.error(error); }
   }
 
   const button = $('loadDafButton');
@@ -1032,6 +1066,7 @@ async function loadYouTubeVideo(url, videoId = extractYouTubeId(url)) {
   setSourcePanel('linkSourcePanel');
   seek(0);
   saveProjectForRef(state.dafRef, { videoSource: state.videoSource });
+  saveVideoLinkToServer(state.dafRef, state.videoSource);
   showToast('YouTube video connected to the synchronized timeline.');
 }
 
@@ -1064,6 +1099,7 @@ function loadDirectVideoUrl(url) {
   setSourcePanel('linkSourcePanel');
   $('largePlay').hidden = false;
   saveProjectForRef(state.dafRef, { videoSource: state.videoSource });
+  saveVideoLinkToServer(state.dafRef, state.videoSource);
   showToast('Direct video link loaded. Playback depends on the host and browser format support.');
 }
 
