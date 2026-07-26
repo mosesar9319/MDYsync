@@ -776,6 +776,16 @@ async function loadDaf(refOverride = null, options = {}) {
   // that never goes through the server) if the server doesn't have it.
   const serverAlignment = await fetchServerAlignment(ref);
   if (serverAlignment) {
+    // The server's own videoSource is never actually playable -- it's
+    // just the generic local filename the OCR job used internally
+    // (e.g. "job-video.mp4"), not the real YouTube/direct link a reader
+    // separately pastes in to watch it. Prefer whatever playable link
+    // this browser has remembered for this daf, if any, instead of
+    // letting the server's placeholder silently overwrite it.
+    const localForRef = loadProjectForRef(ref);
+    if (localForRef?.videoSource && ['youtube', 'direct'].includes(localForRef.videoSource.type)) {
+      serverAlignment.videoSource = localForRef.videoSource;
+    }
     await loadAlignmentData(serverAlignment);
     if (!options.silent) showToast(`Loaded the synced alignment for ${ref} from the server.`);
     return;
