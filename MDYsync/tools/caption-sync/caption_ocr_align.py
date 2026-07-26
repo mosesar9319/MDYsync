@@ -170,13 +170,25 @@ def auto_detect_box(frame):
 
 
 def box_is_visible(crop):
-    """Sanity check that the crop still looks like the white caption strip
-    (rejects frames where a player UI overlay covers it)."""
+    """Cheap pre-filter so OCR isn't run on frames with no caption at all
+    (e.g. a b-roll cutaway with nothing white/yellow in the crop region).
+
+    This used to require frac > 0.45, on the assumption that a real caption
+    fills most of the crop. That's true for a single-line caption but false
+    for a two-line one, which measured as low as ~0.23-0.39 on real,
+    correctly-OCRable captions -- so the old threshold was silently
+    discarding long stretches of genuinely readable, matchable caption
+    frames before OCR ever ran on them. The real correctness guard is the
+    match-score floor in match_phrase, which already rejects OCR garbage
+    from non-caption frames (verified: an unrelated infographic and a plain
+    video b-roll frame both produced no scoring match). So this only needs
+    to filter out frames with essentially nothing on them.
+    """
     hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
     white = cv2.inRange(hsv, (0, 0, 170), (180, 60, 255))
     yellow = cv2.inRange(hsv, (20, 80, 120), (40, 255, 255))
     frac = (cv2.countNonZero(white) + cv2.countNonZero(yellow)) / white.size
-    return frac > 0.45
+    return frac > 0.08
 
 
 # ---------------------------------------------------------------------------
