@@ -68,9 +68,16 @@ export default async (request) => {
     );
   }
 
+  // The workflow publishes one copy of the result per daf reference it
+  // covers (results/by-ref/<ref>.json), not a job-ID-keyed path, so that
+  // any device can look up an already-synced daf directly. refs[0] is
+  // the primary reading, matching how the alignment JSON itself sets
+  // its own top-level dafRef.
+  const refKey = refs[0].trim().replace(/\s+/g, '-');
+
   return Response.json({
     jobId,
-    resultUrl: `https://raw.githubusercontent.com/${OWNER}/${REPO}/results/results/${jobId}.json`,
+    resultUrl: `https://raw.githubusercontent.com/${OWNER}/${REPO}/results/by-ref/${refKey}.json`,
   }, {
     headers: { 'Access-Control-Allow-Origin': origin },
   });

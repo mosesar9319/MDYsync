@@ -4,9 +4,12 @@ name: Server-side caption OCR job
 # (never called directly with a public token) when someone uses the
 # "Google Drive link" tab of the website's sync dialog. Downloads the
 # video, runs the same OCR engine used by the desktop app and CLI
-# unchanged, and publishes the alignment JSON to the `results` branch at
-# a path keyed by the job ID, which the website polls for via
-# raw.githubusercontent.com (public repo, no auth needed to read it).
+# unchanged, and publishes the alignment JSON to the `results` branch,
+# once per daf reference it covers (results/by-ref/<ref>.json), which the
+# website polls for via raw.githubusercontent.com (public repo, no auth
+# needed to read it). Keying by daf reference rather than a random job ID
+# means any device can look up an already-synced daf directly -- the sync
+# isn't tied to the browser that started the job.
 
 on:
   repository_dispatch:
@@ -66,6 +69,7 @@ jobs:
       - name: Publish the result to the results branch
         env:
           JOB_ID: ${{ github.event.client_payload.jobId }}
+          REFS_JSON: ${{ toJSON(github.event.client_payload.refs) }}
         run: |
           set -e
           mkdir -p /tmp/results-checkout
@@ -80,11 +84,18 @@ jobs:
             (cd /tmp/results-checkout && git checkout --orphan results && git rm -rf . >/dev/null 2>&1 || true)
           fi
 
-          mkdir -p /tmp/results-checkout/results
-          cp MDYsync/tools/caption-sync/job-out/alignment.json "/tmp/results-checkout/results/${JOB_ID}.json"
+          mkdir -p /tmp/results-checkout/by-ref
+          python3 -c "
+          import json, re, shutil
+          refs = json.loads('''$REFS_JSON''')
+          for ref in refs:
+              key = re.sub(r'\s+', '-', ref.strip())
+              shutil.copy('MDYsync/tools/caption-sync/job-out/alignment.json', f'/tmp/results-checkout/by-ref/{key}.json')
+              print(f'Published for {ref} -> by-ref/{key}.json')
+          "
 
           cd /tmp/results-checkout
-          git add "results/${JOB_ID}.json"
+          git add by-ref
           git commit -m "Add OCR result for job ${JOB_ID}"
           for attempt in 1 2 3 4 5; do
             if git push origin HEAD:results; then

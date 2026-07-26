@@ -155,6 +155,29 @@ function loadProjectForRef(ref) {
   }
 }
 
+// A Drive/server sync publishes its result once per daf reference it
+// covers, at a predictable path -- results/by-ref/<ref>.json on the
+// `results` branch -- so any device can fetch an already-synced daf
+// directly, without needing anything saved in this browser. This is
+// checked before the local-only saved project below, since it's the
+// shared source of truth across devices; local storage only still
+// matters for a manually imported file, which never gets published
+// anywhere.
+function refKey(ref) {
+  return String(ref || '').trim().replace(/\s+/g, '-');
+}
+
+async function fetchServerAlignment(ref) {
+  try {
+    const url = `https://raw.githubusercontent.com/mosesar9319/MDYsync/results/by-ref/${refKey(ref)}.json?t=${Date.now()}`;
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
 function flattenText(value) {
   if (typeof value === 'string') return [value];
   if (!Array.isArray(value)) return [];
@@ -746,11 +769,17 @@ async function loadDaf(refOverride = null, options = {}) {
   $('dafRef').value = ref;
   if (!ref) return showToast('Enter a Sefaria reference first.', 'error');
 
-  // A previously imported sync (or one produced by a Drive/local sync
-  // job) is saved per daf reference so reopening the same daf doesn't
-  // require re-importing it. If only a video link was saved (no sync
-  // yet), fall through to the normal fetch below and reattach the video
-  // once the placeholder text loads.
+  // A daf already synced through the Drive/server job is published on
+  // GitHub keyed by reference, so check that first -- it works on any
+  // device, not just the one that ran the sync. Only fall back to this
+  // browser's own saved copy (a manual import, or a locally-synced video
+  // that never goes through the server) if the server doesn't have it.
+  const serverAlignment = await fetchServerAlignment(ref);
+  if (serverAlignment) {
+    await loadAlignmentData(serverAlignment);
+    if (!options.silent) showToast(`Loaded the synced alignment for ${ref} from the server.`);
+    return;
+  }
   const saved = loadProjectForRef(ref);
   if (saved && Array.isArray(saved.segments) && saved.segments.length) {
     await loadAlignmentData(saved);
