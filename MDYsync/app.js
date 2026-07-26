@@ -164,6 +164,14 @@ function loadProjectForRef(ref) {
 // matters for a manually imported file, which never gets published
 // anywhere.
 function refKey(ref) {
+  // GitHub's raw file serving is case-sensitive, and the server side
+  // (trigger-ocr-job.mjs, the sync dialog's picker-built ref list) always
+  // publishes under the canonical tractate capitalization, so the lookup
+  // has to normalize to that same canonical form -- not just whatever
+  // case the reader happened to type ("chullin 86a" must resolve to the
+  // same key as "Chullin 86a").
+  const parsed = parseDafRef(ref);
+  if (parsed) return `${parsed.tractate.replace(/\s+/g, '-')}-${parsed.daf}${parsed.amud}`;
   return String(ref || '').trim().replace(/\s+/g, '-');
 }
 
@@ -394,13 +402,37 @@ function loadPdfJs() {
   return pdfjsLibPromise;
 }
 
+const CANONICAL_TRACTATE_NAMES = [
+  'Berakhot', 'Shabbat', 'Eruvin', 'Pesachim', 'Yoma', 'Sukkah', 'Beitzah', 'Rosh Hashanah',
+  'Taanit', 'Megillah', 'Moed Katan', 'Chagigah', 'Yevamot', 'Ketubot', 'Nedarim', 'Nazir',
+  'Sotah', 'Gittin', 'Kiddushin', 'Bava Kamma', 'Bava Metzia', 'Bava Batra', 'Sanhedrin',
+  'Makkot', 'Shevuot', 'Avodah Zarah', 'Horayot', 'Zevachim', 'Menachot', 'Chullin', 'Bekhorot',
+  'Arakhin', 'Temurah', 'Keritot', 'Meilah', 'Niddah'
+];
+const TRACTATE_NAME_BY_LOWERCASE = new Map(CANONICAL_TRACTATE_NAMES.map((name) => [name.toLowerCase(), name]));
+
 function parseDafRef(ref) {
   // Accepts both a bare daf ref ("Chullin 86a") and a segment ref
   // ("Chullin 86a:3", as found on state.segments[i].ref) by ignoring an
-  // optional trailing ":<segment number>".
+  // optional trailing ":<segment number>". The tractate name is
+  // normalized to its canonical capitalization regardless of how it was
+  // typed/cased, since it flows into case-sensitive lookups downstream
+  // (GitHub raw file paths, and server-side tractate whitelists).
   const match = /^(.+?)\s+(\d+)\s*([abAB])(?::\d+)?$/.exec(String(ref || '').trim());
   if (!match) return null;
-  return { tractate: match[1].trim(), daf: Number(match[2]), amud: match[3].toLowerCase() };
+  const typedTractate = match[1].trim();
+  const tractate = TRACTATE_NAME_BY_LOWERCASE.get(typedTractate.toLowerCase()) || typedTractate;
+  return { tractate, daf: Number(match[2]), amud: match[3].toLowerCase() };
+}
+
+// Rebuilds a daf ref string with canonical tractate capitalization (e.g.
+// "chullin 86a" -> "Chullin 86a"), used wherever a reader-typed ref is
+// about to be saved/looked-up server-side, so it lands under the same
+// key regardless of how it was typed. Falls back to the input unchanged
+// if it doesn't parse as a daf ref at all.
+function canonicalDafRef(ref) {
+  const parsed = parseDafRef(ref);
+  return parsed ? `${parsed.tractate} ${parsed.daf}${parsed.amud}` : String(ref || '').trim();
 }
 
 function setVilnaPageStatus(message) {
@@ -798,7 +830,7 @@ function normalizeSegmentOrder(index, field) {
 }
 
 async function loadDaf(refOverride = null, options = {}) {
-  const ref = String(refOverride || $('dafRef').value).trim();
+  const ref = canonicalDafRef(String(refOverride || $('dafRef').value).trim());
   $('dafRef').value = ref;
   if (!ref) return showToast('Enter a Sefaria reference first.', 'error');
 
