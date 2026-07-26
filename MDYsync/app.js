@@ -121,6 +121,40 @@ function restoreDraftForCurrentProject() {
   }
 }
 
+// Separate from the manual-marking draft above: this remembers a fully
+// synced alignment (imported, or produced by a Drive/local sync job) and
+// the video source, per daf reference, so reopening the same daf doesn't
+// require re-importing the sync file or re-pasting the video link. Keyed
+// by daf reference alone (normalized), not by video source, since a saved
+// alignment should come back regardless of which exact video the reader
+// re-opens the site with.
+const SAVED_PROJECT_PREFIX = 'dafsync:saved:';
+
+function savedProjectKey(ref) {
+  return SAVED_PROJECT_PREFIX + String(ref || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function saveProjectForRef(ref, patch) {
+  if (!ref) return;
+  try {
+    const key = savedProjectKey(ref);
+    const existing = JSON.parse(localStorage.getItem(key) || 'null') || {};
+    localStorage.setItem(key, JSON.stringify({ ...existing, ...patch, dafRef: ref, savedAt: Date.now() }));
+  } catch (error) {
+    console.error('Could not save this daf locally.', error);
+  }
+}
+
+function loadProjectForRef(ref) {
+  if (!ref) return null;
+  try {
+    const raw = localStorage.getItem(savedProjectKey(ref));
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 function flattenText(value) {
   if (typeof value === 'string') return [value];
   if (!Array.isArray(value)) return [];
@@ -711,6 +745,24 @@ async function loadDaf(refOverride = null, options = {}) {
   const ref = String(refOverride || $('dafRef').value).trim();
   $('dafRef').value = ref;
   if (!ref) return showToast('Enter a Sefaria reference first.', 'error');
+
+  // A previously imported sync (or one produced by a Drive/local sync
+  // job) is saved per daf reference so reopening the same daf doesn't
+  // require re-importing it. If only a video link was saved (no sync
+  // yet), fall through to the normal fetch below and reattach the video
+  // once the placeholder text loads.
+  const saved = loadProjectForRef(ref);
+  if (saved && Array.isArray(saved.segments) && saved.segments.length) {
+    await loadAlignmentData(saved);
+    if (!options.silent) showToast(`Restored the saved sync for ${ref}.`);
+    return;
+  }
+  // Restore a saved video-only link before the text fetch below, not
+  // after -- it shouldn't depend on Sefaria's fetch succeeding.
+  if (saved && saved.videoSource) {
+    try { await restoreVideoSource(saved.videoSource); } catch (error) { console.error(error); }
+  }
+
   const button = $('loadDafButton');
   const original = button.textContent;
   button.disabled = true;
@@ -940,6 +992,7 @@ async function loadYouTubeVideo(url, videoId = extractYouTubeId(url)) {
   setSourceBadge('YouTube');
   setSourcePanel('linkSourcePanel');
   seek(0);
+  saveProjectForRef(state.dafRef, { videoSource: state.videoSource });
   showToast('YouTube video connected to the synchronized timeline.');
 }
 
@@ -971,6 +1024,7 @@ function loadDirectVideoUrl(url) {
   setSourceBadge('Direct link');
   setSourcePanel('linkSourcePanel');
   $('largePlay').hidden = false;
+  saveProjectForRef(state.dafRef, { videoSource: state.videoSource });
   showToast('Direct video link loaded. Playback depends on the host and browser format support.');
 }
 
@@ -1080,6 +1134,14 @@ async function loadAlignmentData(data, { restoreSource = true } = {}) {
   $('lectureTitle').textContent = data.title || $('lectureTitle').textContent;
   if (Number(data.duration) > 0) applyDuration(Number(data.duration), false);
   renderDaf();
+  saveProjectForRef(state.dafRef, {
+    segments: state.segments,
+    wordTimeline: state.wordTimeline,
+    alignmentStatus: state.alignmentStatus,
+    duration: state.alignmentDuration || undefined,
+    title: data.title || $('lectureTitle').textContent,
+    videoSource: data.videoSource || null
+  });
   if (restoreSource && data.videoSource) await restoreVideoSource(data.videoSource);
   if (data.title) $('lectureTitle').textContent = data.title;
   seek(0);
