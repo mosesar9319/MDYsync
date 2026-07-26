@@ -160,7 +160,7 @@ h2 { margin-bottom: 0; }
 .vilna-page-overlay { position: absolute; inset: 0; pointer-events: none; }
 .vilna-word-highlight {
   position: absolute;
-  margin: -8% -4%;
+  transform: scale(1.35, 2.6);
   background: #ffd400;
   mix-blend-mode: multiply;
   border-radius: 40% / 65%;
@@ -168,8 +168,8 @@ h2 { margin-bottom: 0; }
   animation: vilna-highlight-in .15s ease-out;
 }
 @keyframes vilna-highlight-in {
-  from { opacity: 0; transform: scale(.85); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: scale(1.1475, 2.21); }
+  to { opacity: 1; transform: scale(1.35, 2.6); }
 }
 .daf-footer { justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 12px; }
 
