@@ -476,7 +476,19 @@ async function renderVilnaPage() {
     const pdf = await lib.getDocument({ data: bytes }).promise;
     const page = await pdf.getPage(1);
 
-    const containerWidth = view.clientWidth || 640;
+    // Measure the canvas's actual containing block (.vilna-page-wrap), not
+    // #vilnaPlaceholder itself -- that has 20px of padding, so using its
+    // clientWidth overstates the space really available by 40px. That
+    // overstated width got clamped back down by the canvas's own
+    // max-width:100% rule when displayed, but the explicit pixel height set
+    // below was computed from the same overstated width and never got
+    // reclamped along with it -- stretching the displayed image out of its
+    // real aspect ratio, which is exactly what would shift a highlight box
+    // meant for a Gemara word onto the Rashi column next to it. Leaving
+    // the CSS height:auto rule in charge (by not setting an explicit
+    // height at all) keeps the display proportional to whatever width it
+    // actually renders at, however that gets constrained.
+    const containerWidth = $('vilnaPageWrap').clientWidth || view.clientWidth || 640;
     const baseViewport = page.getViewport({ scale: 1 });
     const scale = (containerWidth / baseViewport.width) * (window.devicePixelRatio || 1);
     const viewport = page.getViewport({ scale });
@@ -484,7 +496,7 @@ async function renderVilnaPage() {
     canvas.width = viewport.width;
     canvas.height = viewport.height;
     canvas.style.width = `${containerWidth}px`;
-    canvas.style.height = `${(containerWidth * viewport.height) / viewport.width}px`;
+    canvas.style.removeProperty('height');
     await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
 
     state.vilnaPageKey = key;
