@@ -33,6 +33,19 @@ Layout notes (validated against real rendered pages, not assumed):
     ~86-93% on the same pages, since a global alignment can't drift the
     way a greedy walk can -- validated with drawn word-box overlays, not
     just the coverage number, before replacing the old approach.
+  - The dominant bug, found after the above two were already fixed and
+    the highlight was *still* landing away from the intended word on
+    nearly every page: shas.org's PDF is a print sheet with bleed margin
+    (MediaBox 842x1191pt) around the actual visible page (CropBox
+    643.575x992.575pt) -- confirmed byte-identical across every sampled
+    tractate/daf, a fixed property of the template. `pdftoppm` (below)
+    rasterizes the MediaBox by default; the browser's pdf.js renders only
+    the CropBox. Word positions were being stored as fractions of the
+    MediaBox render, then applied as percentages of the browser's smaller
+    CropBox-sized canvas -- both renders share the same top-left origin,
+    so this doesn't shift anything, but it uniformly compresses every
+    box toward the top-left corner, worse the further right/down a word
+    actually is. See CROPBOX_WIDTH_FRAC/CROPBOX_HEIGHT_FRAC below.
 
 Example:
     python3 page_ocr_align.py --tractate Chullin --daf 86 --amud a \
@@ -69,6 +82,31 @@ BAND_X1_FRAC = 0.655
 OCR_SCALE = 2.2
 MATCH_THRESHOLD = 60
 GAP_PENALTY = -2
+
+# shas.org's Daf PDF template renders a print sheet with bleed margin (the
+# MediaBox, 842x1191pt) around the actual visible page (the CropBox,
+# 643.575x992.575pt) -- confirmed byte-identical across every sampled
+# tractate/daf, so this is a fixed property of the template, not something
+# that varies per page. `pdftoppm` (used below, with no -cropbox flag)
+# rasterizes the full MediaBox, which is what BAND_X0_FRAC/BAND_X1_FRAC
+# above are calibrated against and OCR reads fine. But the browser's pdf.js
+# renders only the CropBox -- a real single-viewport render was measured at
+# 639x985px for a page whose MediaBox render was 1755x2482px, and
+# 985/639=1.542 matches the CropBox's own aspect ratio (992.575/643.575=
+# 1.542), not the MediaBox's (1191/842=1.414).
+#
+# Every word position below was being stored as a fraction of the full
+# MediaBox-rendered image, then applied as a percentage of the browser's
+# smaller CropBox-sized canvas. Since both renders share the same top-left
+# origin (confirmed: identical content at the same absolute pixel offset in
+# both), this doesn't shift anything -- it uniformly *compresses* every
+# fraction toward the top-left, worse for words further right/down the
+# page. That's a systematic error on every single word on every page, not
+# an occasional one -- unlike the rare cross-column contamination this
+# pipeline was already known to have, this is the dominant reason the
+# Vilna page highlight was landing away from the intended word so often.
+CROPBOX_WIDTH_FRAC = 643.575 / 842.0
+CROPBOX_HEIGHT_FRAC = 992.575 / 1191.0
 
 
 def fetch_page_pdf(tractate, daf, amud, out_path):
@@ -207,10 +245,16 @@ def align_words_to_canon(canon, words):
     return pairs
 
 
-def build_word_boxes(canon, words, pairs, page_w, page_h):
-    """One box per aligned canonical word, taken directly from its
-    matched OCR word's real bounding box (no chunk-distribution
-    approximation needed now that alignment is word-for-word)."""
+def build_word_boxes(canon, words, pairs, crop_w, crop_h):
+    """One box per aligned canonical word, taken directly from its matched
+    OCR word's real bounding box (no chunk-distribution approximation
+    needed now that alignment is word-for-word).
+
+    crop_w/crop_h must be the CropBox-equivalent pixel dimensions (see
+    CROPBOX_WIDTH_FRAC/CROPBOX_HEIGHT_FRAC above), not the raw OCR'd PNG's
+    own (MediaBox-sized) dimensions -- these are what the browser's canvas
+    actually represents, and box positions are stored as fractions of them.
+    """
     out = []
     for ocr_i, canon_i, score in pairs:
         w = words[ocr_i]
@@ -218,10 +262,10 @@ def build_word_boxes(canon, words, pairs, page_w, page_h):
         out.append({
             'ref': c.ref,
             'wordIndex': c.word_index,
-            'x': w['x'] / page_w,
-            'y': w['y'] / page_h,
-            'w': w['w'] / page_w,
-            'h': w['h'] / page_h,
+            'x': w['x'] / crop_w,
+            'y': w['y'] / crop_h,
+            'w': w['w'] / crop_w,
+            'h': w['h'] / crop_h,
         })
     return out
 
@@ -239,8 +283,16 @@ def process_page(tractate, daf, amud, out_dir, cache_dir=None):
     words, page_w, page_h = ocr_band_words(png_path)
     print(f'OCR: {len(words)} words in the Gemara band')
 
+    # page_w/page_h are the full MediaBox-rendered PNG's own dimensions --
+    # OCR extraction is calibrated against those and works fine, but word
+    # positions must be stored relative to the CropBox-equivalent size,
+    # which is what the browser's canvas actually represents (see
+    # CROPBOX_WIDTH_FRAC/CROPBOX_HEIGHT_FRAC above).
+    crop_w = page_w * CROPBOX_WIDTH_FRAC
+    crop_h = page_h * CROPBOX_HEIGHT_FRAC
+
     pairs = align_words_to_canon(canon, words)
-    boxes = build_word_boxes(canon, words, pairs, page_w, page_h)
+    boxes = build_word_boxes(canon, words, pairs, crop_w, crop_h)
     covered = len(boxes)
     print(f'Aligned {covered}/{len(canon)} words ({covered / max(1, len(canon)):.0%} coverage)')
 
@@ -249,8 +301,8 @@ def process_page(tractate, daf, amud, out_dir, cache_dir=None):
         'tractate': tractate,
         'daf': daf,
         'amud': amud,
-        'pageWidth': page_w,
-        'pageHeight': page_h,
+        'pageWidth': crop_w,
+        'pageHeight': crop_h,
         'wordBoxes': boxes,
     }
     out_path = os.path.join(out_dir, 'pagemap.json')
