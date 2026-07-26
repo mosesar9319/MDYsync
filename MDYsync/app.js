@@ -201,9 +201,19 @@ function switchPlayerType(type) {
 
 function findSegmentAt(time) {
   if (!state.segments.length) return -1;
-  let index = state.segments.findIndex((segment) => time >= segment.start && time < segment.end);
-  if (index === -1 && time >= state.segments[state.segments.length - 1].end) index = state.segments.length - 1;
-  if (index === -1) index = 0;
+  // Segments can slightly overlap in end/start (real speech doesn't cut
+  // cleanly at a segment boundary, so a stray word can get matched into the
+  // previous or next segment's range). Picking the first range that
+  // technically contains `time` would then always favor whichever segment
+  // comes first in reading order, even after seeking past it into the
+  // next one. What the reader actually means by "current segment" is
+  // whichever one they most recently entered, so take the last segment
+  // (in start-ascending order) whose start is at or before `time`.
+  let index = 0;
+  for (let i = 0; i < state.segments.length; i++) {
+    if (state.segments[i].start <= time) index = i;
+    else break;
+  }
   return index;
 }
 
