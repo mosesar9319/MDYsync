@@ -39,15 +39,10 @@
         <div class="setup-field video-field">
           <label>Lecture source</label>
           <div class="source-tabs" role="tablist" aria-label="Lecture source">
-            <button class="source-tab active" type="button" data-source-panel="demoSourcePanel" role="tab" aria-selected="true">Demo</button>
-            <button class="source-tab" type="button" data-source-panel="fileSourcePanel" role="tab" aria-selected="false">Local file</button>
+            <button class="source-tab active" type="button" data-source-panel="fileSourcePanel" role="tab" aria-selected="true">Local file</button>
             <button class="source-tab" type="button" data-source-panel="linkSourcePanel" role="tab" aria-selected="false">Video link</button>
           </div>
-          <div class="source-panel" id="demoSourcePanel" role="tabpanel">
-            <button class="button secondary small" id="useDemoButton" type="button">Load demo video</button>
-            <span class="field-note">Built-in 48-second example</span>
-          </div>
-          <div class="source-panel" id="fileSourcePanel" role="tabpanel" hidden>
+          <div class="source-panel" id="fileSourcePanel" role="tabpanel">
             <label class="button secondary file-button small">
               <input id="videoInput" type="file" accept="video/*,audio/*" hidden />
               Choose video
@@ -105,25 +100,25 @@
           <div class="card-heading">
             <div>
               <div class="eyebrow">Shiur player</div>
-              <h1 id="lectureTitle">Daf Yomi — synchronized demo</h1>
+              <h1 id="lectureTitle">DafSync Studio</h1>
             </div>
             <div class="live-location">
               <span>Current location</span>
-              <strong id="currentRef">Berakhot 2a · Segment 1</strong>
+              <strong id="currentRef">No daf loaded</strong>
             </div>
           </div>
 
           <div class="video-frame" id="videoFrame">
-            <video id="video" preload="metadata" playsinline src="assets/demo-shiur.mp4"></video>
+            <video id="video" preload="metadata" playsinline></video>
             <div class="youtube-player-host" id="youtubePlayerHost" hidden>
               <div id="youtubePlayer"></div>
             </div>
-            <span class="video-source-badge" id="videoSourceBadge">Demo file</span>
-            <div class="video-empty" id="videoEmpty" hidden>
+            <span class="video-source-badge" id="videoSourceBadge" hidden></span>
+            <div class="video-empty" id="videoEmpty">
               <div class="empty-icon">▶</div>
               <p>Choose a lecture video or paste a YouTube link.</p>
             </div>
-            <button class="large-play" id="largePlay" aria-label="Play video">
+            <button class="large-play" id="largePlay" aria-label="Play video" hidden>
               <svg viewBox="0 0 44 44" aria-hidden="true"><path d="M17 12.5 33 22 17 31.5v-19Z" fill="currentColor"/></svg>
             </button>
           </div>
@@ -131,12 +126,12 @@
           <div class="scrubber-wrap">
             <div class="scrub-preview" id="scrubPreview" hidden>
               <strong id="previewTime">0:00</strong>
-              <span id="previewText">מאימתי קורין את שמע בערבין</span>
+              <span id="previewText"></span>
             </div>
-            <input id="scrubber" class="scrubber" type="range" min="0" max="48" step="0.01" value="0" aria-label="Video timeline" />
+            <input id="scrubber" class="scrubber" type="range" min="0" max="100" step="0.01" value="0" aria-label="Video timeline" />
             <div class="time-row">
               <span id="currentTime">0:00</span>
-              <span id="duration">0:48</span>
+              <span id="duration">0:00</span>
             </div>
           </div>
 
@@ -164,7 +159,7 @@
             <button class="button secondary small" id="markerBackButton" type="button">Previous phrase</button>
             <div class="mark-target">
               <span>Marking phrase</span>
-              <strong id="markTargetLabel">1 of 6</strong>
+              <strong id="markTargetLabel">0 of 0</strong>
             </div>
             <button class="button primary" id="markHereButton" type="button">Mark here &amp; advance <kbd>M</kbd></button>
             <button class="button secondary small" id="markerForwardButton" type="button">Next phrase</button>
@@ -173,8 +168,8 @@
 
           <div class="now-learning">
             <span class="now-label">The rabbi is discussing</span>
-            <div id="currentPhrase" dir="rtl">מאימתי קורין את שמע בערבין</div>
-            <p id="currentTranslation">From when may one recite the Shema in the evening?</p>
+            <div id="currentPhrase" dir="rtl"></div>
+            <p id="currentTranslation">Enter a daf reference above and press "Load daf," or load the Chullin 81 pilot.</p>
           </div>
         </article>
 
@@ -182,7 +177,7 @@
           <div class="card-heading daf-heading">
             <div>
               <div class="eyebrow">Digital daf</div>
-              <h2 id="dafTitle">ברכות ב׳ ע״א</h2>
+              <h2 id="dafTitle">No daf loaded</h2>
             </div>
             <div class="view-switch" role="group" aria-label="Daf display mode">
               <button class="active" data-view="text">Text</button>
@@ -200,7 +195,9 @@
           </div>
 
           <div class="daf-scroll" id="dafScroll">
-            <div class="daf-page" id="dafPage" dir="rtl" lang="he"></div>
+            <div class="daf-page" id="dafPage" dir="rtl" lang="he">
+              <p class="daf-empty-note">No daf loaded yet. Enter a reference above and press "Load daf," or load the Chullin 81 pilot.</p>
+            </div>
             <div class="vilna-placeholder" id="vilnaPlaceholder" hidden>
               <div class="page-silhouette">
                 <div class="page-column narrow"></div>
@@ -340,7 +337,10 @@
     </div>
 
     <div class="sync-progress-wrap" id="syncProgressWrap" hidden>
-      <div class="sync-progress-track"><div class="sync-progress-fill" id="syncProgressFill"></div></div>
+      <div class="sync-progress-row">
+        <div class="sync-progress-track"><div class="sync-progress-fill" id="syncProgressFill"></div></div>
+        <span class="sync-progress-pct" id="syncProgressPct">0%</span>
+      </div>
       <div class="sync-log" id="syncLog"></div>
     </div>
   </dialog>

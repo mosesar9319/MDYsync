@@ -1,21 +1,5 @@
 'use strict';
 
-const DEFAULT_SEGMENTS = [
-  { id: 'b2a-1', ref: 'Berakhot 2a.1', start: 0, end: 7.7, he: 'מאימתי קורין את שמע בערבין', en: 'From when may one recite the Shema in the evening?' },
-  { id: 'b2a-2', ref: 'Berakhot 2a.1', start: 7.7, end: 15.5, he: 'משעה שהכהנים נכנסים לאכול בתרומתן', en: 'From the time the priests enter to eat their teruma.' },
-  { id: 'b2a-3', ref: 'Berakhot 2a.1', start: 15.5, end: 23.4, he: 'עד סוף האשמורה הראשונה', en: 'Until the end of the first watch.' },
-  { id: 'b2a-4', ref: 'Berakhot 2a.1', start: 23.4, end: 31.4, he: 'דברי רבי אליעזר', en: 'These are the words of Rabbi Eliezer.' },
-  { id: 'b2a-5', ref: 'Berakhot 2a.1', start: 31.4, end: 39.5, he: 'וחכמים אומרים עד חצות', en: 'The Rabbis say: until midnight.' },
-  { id: 'b2a-6', ref: 'Berakhot 2a.1', start: 39.5, end: 48, he: 'רבן גמליאל אומר עד שיעלה עמוד השחר', en: 'Rabban Gamliel says: until dawn rises.' }
-];
-
-const DEMO_SOURCE = {
-  type: 'demo',
-  url: 'assets/demo-shiur.mp4',
-  label: 'Demo file',
-  title: 'Daf Yomi — synchronized demo'
-};
-
 const PILOT_PROJECT = {
   id: 'chullin-81-jjea3jd6xpu',
   dafRef: 'Chullin 81',
@@ -25,14 +9,14 @@ const PILOT_PROJECT = {
 };
 
 const state = {
-  dafRef: 'Berakhot 2a',
-  segments: structuredClone(DEFAULT_SEGMENTS),
+  dafRef: '',
+  segments: [],
   activeIndex: 0,
   objectUrl: null,
   seeking: false,
   toastTimer: null,
   playerType: 'html5',
-  videoSource: { ...DEMO_SOURCE },
+  videoSource: null,
   youtubePlayer: null,
   youtubeApiPromise: null,
   youtubeReady: false,
@@ -188,6 +172,8 @@ function isPaused() {
 
 function setSourceBadge(label) {
   $('videoSourceBadge').textContent = label;
+  $('videoSourceBadge').hidden = false;
+  $('videoEmpty').hidden = true;
 }
 
 function switchPlayerType(type) {
@@ -219,6 +205,12 @@ function findSegmentAt(time) {
 
 function renderDaf() {
   dafPage.innerHTML = '';
+  if (!state.segments.length) {
+    const note = document.createElement('p');
+    note.className = 'daf-empty-note';
+    note.textContent = 'No daf loaded yet. Enter a reference above and press "Load daf," or load the Chullin 81 pilot.';
+    dafPage.appendChild(note);
+  }
   state.segments.forEach((segment, index) => {
     const span = document.createElement('span');
     span.className = `daf-segment${index === state.editingIndex ? ' mark-target-segment' : ''}`;
@@ -318,7 +310,7 @@ function updatePlayUi() {
   const paused = isPaused();
   document.querySelector('.play-icon').hidden = !paused;
   document.querySelector('.pause-icon').hidden = paused;
-  $('largePlay').hidden = !paused || getCurrentTime() > 0.15;
+  $('largePlay').hidden = !state.videoSource || !paused || getCurrentTime() > 0.15;
   $('playButton').setAttribute('aria-label', paused ? 'Play' : 'Pause');
 }
 
@@ -522,7 +514,6 @@ async function loadDaf(refOverride = null, options = {}) {
     state.alignmentStatus = options.placeholderAlignment ? 'placeholder' : 'in-progress';
     updateAlignmentStatus();
     $('dafTitle').textContent = data.heRef || ref;
-    if (state.videoSource.type === 'demo') $('lectureTitle').textContent = `${ref} — synchronized lecture`;
     renderDaf();
     seek(0);
     if (!options.silent) showToast(`Loaded ${he.length} text segments from Sefaria.`);
@@ -541,23 +532,6 @@ function cleanupObjectUrl() {
     state.objectUrl = null;
   }
 }
-
-function useDemoVideo() {
-  cleanupObjectUrl();
-  switchPlayerType('html5');
-  state.videoSource = { ...DEMO_SOURCE };
-  state.currentProjectId = null;
-  state.alignmentStatus = 'placeholder';
-  updateAlignmentStatus();
-  htmlVideo.src = DEMO_SOURCE.url;
-  htmlVideo.load();
-  $('lectureTitle').textContent = DEMO_SOURCE.title;
-  $('videoFileName').textContent = 'Nothing is uploaded';
-  setSourceBadge(DEMO_SOURCE.label);
-  setSourcePanel('demoSourcePanel');
-  showToast('Demo video loaded.');
-}
-
 
 async function loadPilotProject() {
   const buttons = [$('loadPilotButton'), $('loadPilotInlineButton')].filter(Boolean);
@@ -866,8 +840,6 @@ async function restoreVideoSource(source) {
   } else if (source.type === 'direct' && source.url) {
     $('videoUrl').value = source.url;
     loadDirectVideoUrl(source.url);
-  } else if (source.type === 'demo') {
-    useDemoVideo();
   } else if (source.type === 'local') {
     setSourcePanel('fileSourcePanel');
     showToast(`Choose the local file again: ${source.fileName || 'lecture video'}.`);
@@ -902,6 +874,7 @@ async function loadAlignmentData(data, { restoreSource = true } = {}) {
   state.usingDefaultAlignment = false;
   updateAlignmentStatus();
   $('dafRef').value = state.dafRef;
+  $('dafTitle').textContent = state.dafRef;
   $('lectureTitle').textContent = data.title || $('lectureTitle').textContent;
   if (Number(data.duration) > 0) applyDuration(Number(data.duration), false);
   renderDaf();
@@ -1008,7 +981,6 @@ $('backButton').addEventListener('click', () => seek(getCurrentTime() - 10));
 $('forwardButton').addEventListener('click', () => seek(getCurrentTime() + 10));
 $('speedSelect').addEventListener('change', (event) => setPlaybackRate(Number(event.target.value)));
 $('videoInput').addEventListener('change', (event) => handleVideoFile(event.target.files?.[0]));
-$('useDemoButton').addEventListener('click', useDemoVideo);
 $('loadVideoUrlButton').addEventListener('click', loadVideoFromUrl);
 $('videoUrl').addEventListener('keydown', (event) => { if (event.key === 'Enter') loadVideoFromUrl(); });
 $('loadDafButton').addEventListener('click', () => loadDaf());
@@ -1219,7 +1191,9 @@ async function checkLocalAppStatus() {
 
 function setSyncProgress(fraction, logLines) {
   $('syncProgressWrap').hidden = false;
-  $('syncProgressFill').style.width = `${Math.round(Math.max(0, Math.min(1, fraction)) * 100)}%`;
+  const pct = Math.round(Math.max(0, Math.min(1, fraction)) * 100);
+  $('syncProgressFill').style.width = `${pct}%`;
+  $('syncProgressPct').textContent = `${pct}%`;
   if (logLines) {
     const log = $('syncLog');
     log.textContent = logLines.join('\n');

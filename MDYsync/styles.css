@@ -64,6 +64,7 @@ button { color: inherit; }
 .setup-field > label { display: block; color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .09em; margin-bottom: 9px; }
 .file-row, .compact-actions { gap: 10px; flex-wrap: wrap; }
 .field-note { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+.daf-empty-note { direction: ltr; text-align: left; color: var(--muted); font-family: "Assistant", sans-serif; font-size: 14px; line-height: 1.6; max-width: 420px; }
 .input-with-button { gap: 8px; }
 input[type="text"], input[type="number"], select {
   width: 100%; border: 1px solid var(--line-strong); color: var(--text); background: rgba(4, 14, 27, .7);
@@ -302,8 +303,10 @@ kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; 
 .status-dot.ready { background: #4ade80; box-shadow: 0 0 0 4px rgba(74,222,128,.15); }
 .status-dot.error { background: #f87171; box-shadow: 0 0 0 4px rgba(248,113,113,.15); }
 .sync-progress-wrap { margin-top: 16px; }
-.sync-progress-track { height: 8px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; }
+.sync-progress-row { display: flex; align-items: center; gap: 10px; }
+.sync-progress-track { flex: 1; height: 8px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; }
 .sync-progress-fill { height: 100%; width: 0%; background: var(--accent); transition: width .3s ease; }
+.sync-progress-pct { flex: 0 0 auto; min-width: 34px; text-align: right; font-size: 12px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
 .sync-log { margin-top: 10px; max-height: 140px; overflow-y: auto; font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); background: rgba(0,0,0,.18); border-radius: 10px; padding: 10px 12px; white-space: pre-wrap; }
 
 @media (max-width: 900px) {
