@@ -27,8 +27,6 @@
         </div>
       </div>
       <div class="top-actions">
-        <span class="status-pill"><span class="status-dot"></span> Chullin 81 pilot</span>
-        <button class="button primary small" id="loadPilotButton">Load Chullin 81 pilot</button>
         <a class="button secondary" href="https://github.com/mosesar9319/MDYsync/releases/latest" target="_blank" rel="noopener">Download desktop app</a>
         <button class="button ghost" id="helpButton">How it works</button>
       </div>
@@ -61,7 +59,7 @@
         <div class="setup-field ref-field">
           <label for="dafRef">Daf reference</label>
           <div class="input-with-button">
-            <input id="dafRef" type="text" value="Chullin 81" spellcheck="false" />
+            <input id="dafRef" type="text" value="" placeholder="e.g. Chullin 81a" spellcheck="false" />
             <button class="button primary" id="loadDafButton">Load daf</button>
           </div>
         </div>
@@ -80,18 +78,6 @@
             <button class="button secondary small" id="exportButton">Export</button>
             <button class="button primary small" id="openSyncDialogButton" type="button">Sync from video</button>
           </div>
-        </div>
-      </section>
-
-      <section class="pilot-notice card" id="pilotNotice">
-        <div>
-          <span class="pilot-kicker">Real-world pilot</span>
-          <strong>Chullin 81 · YouTube video JjEa3Jd6XPU</strong>
-          <p>The daf and video are ready to load. Timestamp alignment begins as a draft and must be marked against the actual shiur.</p>
-        </div>
-        <div class="pilot-notice-actions">
-          <span class="alignment-badge needs-work" id="alignmentStatus">Needs alignment</span>
-          <button class="button primary" id="loadPilotInlineButton">Open pilot</button>
         </div>
       </section>
 
@@ -169,7 +155,7 @@
           <div class="now-learning">
             <span class="now-label">The rabbi is discussing</span>
             <div id="currentPhrase" dir="rtl"></div>
-            <p id="currentTranslation">Enter a daf reference above and press "Load daf," or load the Chullin 81 pilot.</p>
+            <p id="currentTranslation">Enter a daf reference above and press "Load daf."</p>
           </div>
         </article>
 
@@ -186,6 +172,7 @@
           </div>
 
           <div class="daf-toolbar">
+            <span class="alignment-badge needs-work" id="alignmentStatus">Needs alignment</span>
             <label class="toggle-label">
               <input type="checkbox" id="autoScroll" checked />
               <span class="toggle"></span>
@@ -196,7 +183,7 @@
 
           <div class="daf-scroll" id="dafScroll">
             <div class="daf-page" id="dafPage" dir="rtl" lang="he">
-              <p class="daf-empty-note">No daf loaded yet. Enter a reference above and press "Load daf," or load the Chullin 81 pilot.</p>
+              <p class="daf-empty-note">No daf loaded yet. Enter a reference above and press "Load daf."</p>
             </div>
             <div class="vilna-placeholder" id="vilnaPlaceholder" hidden>
               <div class="page-silhouette">
@@ -258,16 +245,15 @@
   <dialog id="helpDialog">
     <button class="dialog-close" id="closeHelp" aria-label="Close">×</button>
     <div class="eyebrow">Prototype guide</div>
-    <h2>How to test DafSync</h2>
+    <h2>How to use DafSync</h2>
     <ol>
-      <li>Press play on the demo video and watch the daf highlight move.</li>
-      <li>Drag the timeline. The hover preview and highlighted phrase update immediately.</li>
-      <li>Click a phrase on the daf to jump the video to that point.</li>
-      <li>Press “Load Chullin 81 pilot” to open the supplied YouTube shiur and its daf.</li>
-      <li>While listening, select a phrase and press M to mark its starting time and advance.</li>
-      <li>Open the synchronization editor to correct timestamps and export the result.</li>
+      <li>Choose a lecture video (local file, direct link, or YouTube) and enter a daf reference, then press "Load daf."</li>
+      <li>Use "Sync from video" to generate real timestamps automatically from the video's on-screen caption box, via the desktop app or a Google Drive link.</li>
+      <li>Click a phrase on the daf to jump the video to that point. During playback, the daf auto-scrolls to follow along.</li>
+      <li>To align by hand instead, open "Edit synchronization," select a phrase, and press M while listening to mark its start time and advance to the next.</li>
+      <li>Export the result as a reusable alignment JSON, or import one with "Import sync."</li>
     </ol>
-    <p class="dialog-note">YouTube playback is controlled through YouTube’s embedded player. Automatic transcription and semantic alignment will run in a separate processing service in the production version.</p>
+    <p class="dialog-note">YouTube playback is controlled through YouTube's embedded player.</p>
   </dialog>
 
   <dialog id="syncDialog">

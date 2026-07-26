@@ -1,13 +1,5 @@
 'use strict';
 
-const PILOT_PROJECT = {
-  id: 'chullin-81-jjea3jd6xpu',
-  dafRef: 'Chullin 81',
-  videoId: 'JjEa3Jd6XPU',
-  videoUrl: 'https://www.youtube.com/watch?v=JjEa3Jd6XPU',
-  title: 'Chullin 81 — Daf Yomi pilot shiur'
-};
-
 const state = {
   dafRef: '',
   segments: [],
@@ -118,7 +110,7 @@ function restoreDraftForCurrentProject() {
     state.usingDefaultAlignment = false;
     renderDaf();
     updateAlignmentStatus();
-    showToast('Restored the saved Chullin 81 alignment draft.');
+    showToast(`Restored the saved ${state.dafRef || 'daf'} alignment draft.`);
     return true;
   } catch (error) {
     console.error(error);
@@ -217,35 +209,70 @@ function findSegmentAt(time) {
   return index;
 }
 
-function renderDaf() {
+// How many segments of context to show before/after the active one. The daf
+// pane is meant for checking sync against the video side by side, not for
+// reading the whole daf -- showing everything pushes the currently-spoken
+// text far down the page and makes it hard to keep the video and the
+// highlight in view together.
+const DAF_WINDOW_BEFORE = 2;
+const DAF_WINDOW_AFTER = 3;
+
+function buildSegmentSpan(segment, index) {
+  const span = document.createElement('span');
+  const classes = ['daf-segment'];
+  if (index === state.editingIndex) classes.push('mark-target-segment');
+  if (index === state.activeIndex) classes.push('active');
+  else if (index < state.activeIndex) classes.push('past');
+  span.className = classes.join(' ');
+  span.dataset.index = String(index);
+  span.dataset.start = String(segment.start);
+  span.tabIndex = 0;
+  span.setAttribute('role', 'button');
+  span.setAttribute('aria-label', `Jump to ${formatTime(segment.start)}: ${segment.he}`);
+  const body = state.wordTimeline.length
+    ? segment.he.trim().split(/\s+/).map((word, w) => `<span class="daf-word" data-w="${w}">${escapeHtml(word)}</span>`).join(' ')
+    : escapeHtml(segment.he);
+  span.innerHTML = `<sup class="segment-marker">${index + 1}</sup>${body} `;
+  span.addEventListener('click', () => seekToSegment(index));
+  span.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      seekToSegment(index);
+    }
+  });
+  return span;
+}
+
+function renderDafWindow() {
   dafPage.innerHTML = '';
   if (!state.segments.length) {
     const note = document.createElement('p');
     note.className = 'daf-empty-note';
-    note.textContent = 'No daf loaded yet. Enter a reference above and press "Load daf," or load the Chullin 81 pilot.';
+    note.textContent = 'No daf loaded yet. Enter a reference above and press "Load daf."';
     dafPage.appendChild(note);
+    return;
   }
-  state.segments.forEach((segment, index) => {
-    const span = document.createElement('span');
-    span.className = `daf-segment${index === state.editingIndex ? ' mark-target-segment' : ''}`;
-    span.dataset.index = String(index);
-    span.dataset.start = String(segment.start);
-    span.tabIndex = 0;
-    span.setAttribute('role', 'button');
-    span.setAttribute('aria-label', `Jump to ${formatTime(segment.start)}: ${segment.he}`);
-    const body = state.wordTimeline.length
-      ? segment.he.trim().split(/\s+/).map((word, w) => `<span class="daf-word" data-w="${w}">${escapeHtml(word)}</span>`).join(' ')
-      : escapeHtml(segment.he);
-    span.innerHTML = `<sup class="segment-marker">${index + 1}</sup>${body} `;
-    span.addEventListener('click', () => seekToSegment(index));
-    span.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        seekToSegment(index);
-      }
-    });
-    dafPage.appendChild(span);
-  });
+  const lo = Math.max(0, state.activeIndex - DAF_WINDOW_BEFORE);
+  const hi = Math.min(state.segments.length - 1, state.activeIndex + DAF_WINDOW_AFTER);
+  if (lo > 0) {
+    const more = document.createElement('p');
+    more.className = 'daf-window-more';
+    more.textContent = `··· ${lo} earlier segment${lo === 1 ? '' : 's'} ···`;
+    dafPage.appendChild(more);
+  }
+  for (let index = lo; index <= hi; index++) {
+    dafPage.appendChild(buildSegmentSpan(state.segments[index], index));
+  }
+  if (hi < state.segments.length - 1) {
+    const remaining = state.segments.length - 1 - hi;
+    const more = document.createElement('p');
+    more.className = 'daf-window-more';
+    more.textContent = `··· ${remaining} later segment${remaining === 1 ? '' : 's'} ···`;
+    dafPage.appendChild(more);
+  }
+}
+
+function renderDaf() {
   $('segmentCount').textContent = `${state.segments.length} synchronized segment${state.segments.length === 1 ? '' : 's'}`;
   updateMarkTargetUi();
   updateActiveSegment(true);
@@ -255,8 +282,8 @@ function renderDaf() {
 function updateActiveWords(time) {
   if (!state.wordTimeline.length) return;
   const active = state.wordTimeline.filter((entry) => time >= entry.start && time < entry.end);
-  document.querySelectorAll('.daf-segment').forEach((node, i) => {
-    const ref = state.segments[i]?.ref;
+  document.querySelectorAll('.daf-segment').forEach((node) => {
+    const ref = state.segments[Number(node.dataset.index)]?.ref;
     const spans = node.querySelectorAll('.daf-word');
     const ranges = active.filter((entry) => entry.ref === ref);
     spans.forEach((wordNode, w) => {
@@ -268,17 +295,17 @@ function updateActiveWords(time) {
 
 function updateActiveSegment(force = false, timeOverride = null) {
   const time = timeOverride ?? getCurrentTime();
-  updateActiveWords(time);
   const index = findSegmentAt(time);
-  if (!force && index === state.activeIndex) return;
+  if (!force && index === state.activeIndex) {
+    updateActiveWords(time);
+    return;
+  }
   state.activeIndex = index;
   const active = state.segments[index];
   if (!active) return;
 
-  document.querySelectorAll('.daf-segment').forEach((node, i) => {
-    node.classList.toggle('active', i === index);
-    node.classList.toggle('past', i < index);
-  });
+  renderDafWindow();
+  updateActiveWords(time);
   document.querySelectorAll('.editor-row').forEach((node, i) => node.classList.toggle('active', i === index));
 
   $('currentPhrase').textContent = active.he;
@@ -383,7 +410,7 @@ function updateMarkTargetUi() {
   state.editingIndex = index;
   const label = $('markTargetLabel');
   if (label) label.textContent = total ? `${index + 1} of ${total}` : 'No phrase';
-  document.querySelectorAll('.daf-segment').forEach((node, i) => node.classList.toggle('mark-target-segment', i === index));
+  renderDafWindow();
   document.querySelectorAll('.editor-row').forEach((node, i) => node.classList.toggle('mark-target-row', i === index));
 }
 
@@ -556,41 +583,6 @@ function cleanupObjectUrl() {
   }
 }
 
-async function loadPilotProject() {
-  const buttons = [$('loadPilotButton'), $('loadPilotInlineButton')].filter(Boolean);
-  buttons.forEach((button) => { button.disabled = true; button.textContent = 'Loading pilot…'; });
-  state.currentProjectId = PILOT_PROJECT.id;
-  state.alignmentStatus = 'placeholder';
-  updateAlignmentStatus();
-  $('videoUrl').value = PILOT_PROJECT.videoUrl;
-  $('dafRef').value = PILOT_PROJECT.dafRef;
-  $('lectureTitle').textContent = PILOT_PROJECT.title;
-  setSourcePanel('linkSourcePanel');
-
-  const results = await Promise.allSettled([
-    loadYouTubeVideo(PILOT_PROJECT.videoUrl, PILOT_PROJECT.videoId),
-    loadDaf(PILOT_PROJECT.dafRef, { placeholderAlignment: true, silent: true })
-  ]);
-
-  if (results[1].status === 'rejected') {
-    showToast('The video loaded, but the daf text could not be retrieved. Press “Load daf” when online.', 'error');
-  }
-  if (results[0].status === 'rejected') {
-    showToast('The daf loaded, but YouTube could not be embedded here. Try the hosted Netlify version.', 'error');
-  }
-
-  $('lectureTitle').textContent = PILOT_PROJECT.title;
-  const restored = results[1].status === 'fulfilled' && restoreDraftForCurrentProject();
-  if (!restored && results.some((result) => result.status === 'fulfilled')) {
-    updateAlignmentStatus('placeholder');
-    showToast('Chullin 81 pilot opened. Start the video and press M at each new Gemara segment.');
-  }
-  buttons.forEach((button, index) => {
-    button.disabled = false;
-    button.textContent = index === 0 ? 'Reload Chullin 81 pilot' : 'Open pilot';
-  });
-}
-
 function handleVideoFile(file) {
   if (!file) return;
   cleanupObjectUrl();
@@ -756,9 +748,9 @@ async function loadYouTubeVideo(url, videoId = extractYouTubeId(url)) {
     url: `https://www.youtube.com/watch?v=${videoId}`,
     label: 'YouTube'
   };
-  if (videoId !== PILOT_PROJECT.videoId) state.currentProjectId = null;
+  state.currentProjectId = null;
   $('videoUrl').value = state.videoSource.url;
-  $('lectureTitle').textContent = videoId === PILOT_PROJECT.videoId ? PILOT_PROJECT.title : `YouTube lecture · ${videoId}`;
+  $('lectureTitle').textContent = `YouTube lecture · ${videoId}`;
   setSourceBadge('YouTube');
   setSourcePanel('linkSourcePanel');
   seek(0);
@@ -992,8 +984,6 @@ htmlVideo.addEventListener('error', () => {
   }
 });
 
-$('loadPilotButton')?.addEventListener('click', loadPilotProject);
-$('loadPilotInlineButton')?.addEventListener('click', loadPilotProject);
 $('markerBackButton')?.addEventListener('click', () => selectEditingIndex(state.editingIndex - 1));
 $('markerForwardButton')?.addEventListener('click', () => selectEditingIndex(state.editingIndex + 1));
 $('markHereButton')?.addEventListener('click', markHereAndAdvance);
