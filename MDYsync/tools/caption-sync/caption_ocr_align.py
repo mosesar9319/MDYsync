@@ -401,7 +401,17 @@ def process_video(path, refs, crop=None, sample_fps=3.0, out_dir="out",
             locked = True
         local_misses = 0
         s, e, score = m
-        cursor = max(cursor, s)
+        # Trust the match position outright rather than clamping to a
+        # never-decreasing cursor. A hard forward-only floor means a single
+        # bad match (OCR misread, an ambiguous short phrase) permanently
+        # strands later matching: every subsequent local search window is
+        # anchored past where the true content actually is, and even a
+        # confident global relocalization gets silently discarded if it
+        # points earlier than the stuck cursor. Local search already biases
+        # toward staying near the cursor (see the distance penalty in
+        # match_phrase), so this only actually jumps far when the evidence
+        # — a high-scoring global re-match — says the cursor was wrong.
+        cursor = s
         events.append(WordEvent(round(t, 2), s, e, round(score, 1),
                                 " ".join(w.text for w in hl)))
         if debug:
