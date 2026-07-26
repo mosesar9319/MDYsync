@@ -1,0 +1,79 @@
+name: Server-side Vilna page OCR job
+
+# Triggered by the trigger-page-ocr-job Netlify Function when the website
+# needs word-position data for a Vilna page it hasn't mapped yet. Fetches
+# the page from shas.org, OCRs the Gemara column, and publishes the word
+# boxes to the `results` branch at a path keyed by tractate/daf/amud (not
+# a random job ID, since a page's map is reusable across every viewer who
+# asks for that daf, unlike a video alignment which is per-upload).
+
+on:
+  repository_dispatch:
+    types: [run-page-ocr-job]
+
+permissions:
+  contents: write
+
+jobs:
+  ocr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Tesseract with Hebrew and poppler
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-heb poppler-utils
+
+      - name: Install Python dependencies
+        run: pip install opencv-python-headless pytesseract rapidfuzz
+
+      - name: Run the page OCR engine
+        working-directory: MDYsync/tools/caption-sync
+        env:
+          TRACTATE: ${{ github.event.client_payload.tractate }}
+          DAF: ${{ github.event.client_payload.daf }}
+          AMUD: ${{ github.event.client_payload.amud }}
+        run: |
+          python3 page_ocr_align.py \
+            --tractate "$TRACTATE" \
+            --daf "$DAF" \
+            --amud "$AMUD" \
+            --out-dir page-out
+
+      - name: Publish the result to the results branch
+        env:
+          PAGE_KEY: ${{ github.event.client_payload.pageKey }}
+        run: |
+          set -e
+          mkdir -p /tmp/results-checkout
+          git config user.name "dafsync-bot"
+          git config user.email "dafsync-bot@users.noreply.github.com"
+
+          git fetch origin results 2>/dev/null || true
+          if git show-ref --verify --quiet refs/remotes/origin/results; then
+            git worktree add /tmp/results-checkout origin/results
+          else
+            git worktree add --detach /tmp/results-checkout
+            (cd /tmp/results-checkout && git checkout --orphan results && git rm -rf . >/dev/null 2>&1 || true)
+          fi
+
+          mkdir -p /tmp/results-checkout/pages
+          cp MDYsync/tools/caption-sync/page-out/pagemap.json "/tmp/results-checkout/pages/${PAGE_KEY}.json"
+
+          cd /tmp/results-checkout
+          git add "pages/${PAGE_KEY}.json"
+          git commit -m "Add page map for ${PAGE_KEY}"
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:results; then
+              break
+            fi
+            git fetch origin results
+            git rebase origin/results
+            sleep 2
+          done

@@ -21,7 +21,9 @@ const state = {
   wordTimeline: [],
   lastManualScrollAt: 0,
   alignmentDuration: 0,
-  vilnaPageKey: null
+  vilnaPageKey: null,
+  vilnaPageMap: null,
+  vilnaPagePollTimer: null
 };
 
 const AUTO_SCROLL_RESUME_MS = 4000;
@@ -358,13 +360,100 @@ async function renderVilnaPage() {
     state.vilnaPageKey = key;
     $('vilnaPageStatus').hidden = true;
     canvas.hidden = false;
+    loadVilnaPageMap(parsed);
   } catch (error) {
     state.vilnaPageKey = null;
     setVilnaPageStatus(`Couldn't load the Vilna page for ${state.dafRef}: ${error.message}`);
   }
 }
 
+function pageMapKey(parsed) {
+  return `${parsed.tractate.replace(/\s+/g, '-')}-${parsed.daf}${parsed.amud}`;
+}
+
+function stopVilnaPagePoll() {
+  if (state.vilnaPagePollTimer) {
+    clearInterval(state.vilnaPagePollTimer);
+    state.vilnaPagePollTimer = null;
+  }
+}
+
+// Word-position highlighting on the Vilna page is a separate, optional
+// layer on top of the page image: the image itself (renderVilnaPage) is
+// already useful without it, so a failure or delay here should never
+// disturb what's already on screen -- it just means no highlight overlay
+// yet.
+async function loadVilnaPageMap(parsed) {
+  stopVilnaPagePoll();
+  state.vilnaPageMap = null;
+  $('vilnaPageOverlay').innerHTML = '';
+  const key = pageMapKey(parsed);
+  const resultUrl = `https://raw.githubusercontent.com/mosesar9319/MDYsync/results/pages/${key}.json`;
+
+  const tryFetch = async () => {
+    try {
+      const response = await fetch(`${resultUrl}?t=${Date.now()}`);
+      if (!response.ok) return false;
+      state.vilnaPageMap = await response.json();
+      updateVilnaOverlay(getCurrentTime());
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  if (await tryFetch()) return;
+
+  try {
+    const parsedResponse = await fetch('/api/trigger-page-ocr-job', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tractate: parsed.tractate, daf: parsed.daf, amud: parsed.amud }),
+    });
+    if (!parsedResponse.ok) return;
+  } catch {
+    return;
+  }
+
+  const startedAt = Date.now();
+  state.vilnaPagePollTimer = setInterval(async () => {
+    if (Date.now() - startedAt > 3 * 60 * 1000) {
+      stopVilnaPagePoll();
+      return;
+    }
+    if (await tryFetch()) stopVilnaPagePoll();
+  }, 5000);
+}
+
+function updateVilnaOverlay(time) {
+  const overlay = $('vilnaPageOverlay');
+  if (!overlay) return;
+  if (!state.vilnaPageMap || $('vilnaPlaceholder').hidden || !state.wordTimeline.length) {
+    overlay.innerHTML = '';
+    return;
+  }
+  const active = state.wordTimeline.filter((entry) => time >= entry.start && time < entry.end);
+  if (!active.length) {
+    overlay.innerHTML = '';
+    return;
+  }
+  const boxes = state.vilnaPageMap.wordBoxes.filter((box) =>
+    active.some((entry) => entry.ref === box.ref && box.wordIndex >= entry.w0 && box.wordIndex <= entry.w1)
+  );
+  overlay.innerHTML = '';
+  for (const box of boxes) {
+    const el = document.createElement('div');
+    el.className = 'vilna-word-highlight';
+    el.style.left = `${box.x * 100}%`;
+    el.style.top = `${box.y * 100}%`;
+    el.style.width = `${box.w * 100}%`;
+    el.style.height = `${box.h * 100}%`;
+    overlay.appendChild(el);
+  }
+}
+
 function updateActiveWords(time) {
+  updateVilnaOverlay(time);
   if (!state.wordTimeline.length) return;
   const active = state.wordTimeline.filter((entry) => time >= entry.start && time < entry.end);
   document.querySelectorAll('.daf-segment').forEach((node) => {
