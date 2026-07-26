@@ -26,8 +26,12 @@ const state = {
   editingIndex: 0,
   alignmentStatus: 'placeholder',
   currentProjectId: null,
-  wordTimeline: []
+  wordTimeline: [],
+  lastManualScrollAt: 0,
+  alignmentDuration: 0
 };
+
+const AUTO_SCROLL_RESUME_MS = 4000;
 
 const $ = (id) => document.getElementById(id);
 const htmlVideo = $('video');
@@ -271,7 +275,8 @@ function updateActiveSegment(force = false, timeOverride = null) {
   $('currentTranslation').textContent = active.en || 'Translation not loaded.';
   $('currentRef').textContent = `${state.dafRef} · Segment ${index + 1}`;
 
-  if ($('autoScroll').checked && timeOverride === null) {
+  const recentlyScrolledManually = Date.now() - state.lastManualScrollAt < AUTO_SCROLL_RESUME_MS;
+  if ($('autoScroll').checked && timeOverride === null && !recentlyScrolledManually) {
     const node = document.querySelector(`.daf-segment[data-index="${index}"]`);
     node?.scrollIntoView({ block: 'center', behavior: force ? 'auto' : 'smooth' });
   }
@@ -281,6 +286,13 @@ function applyDuration(duration, resetDefault = true) {
   if (!Number.isFinite(duration) || duration <= 0) return;
   scrubber.max = String(duration);
   $('duration').textContent = formatTime(duration);
+  if (resetDefault && state.alignmentDuration > 0 && Math.abs(duration - state.alignmentDuration) > 5) {
+    showToast(
+      `This video is ${formatTime(duration)} long, but the synced daf was built from a ${formatTime(state.alignmentDuration)} video — ` +
+      `they don't match, so the highlighting will be off. Load the exact video that was analyzed.`,
+      'error'
+    );
+  }
   if (resetDefault && state.usingDefaultAlignment) {
     const mappedEnd = state.segments.at(-1)?.end || 0;
     if (Math.abs(mappedEnd - duration) > 1) resetEvenSpacing(true);
@@ -349,6 +361,7 @@ function seekToSegment(index) {
   selectEditingIndex(index);
   const segment = state.segments[index];
   if (!segment) return;
+  state.lastManualScrollAt = 0;
   seek(segment.start + 0.03, true);
   updateActiveSegment(true);
 }
@@ -842,7 +855,7 @@ async function restoreVideoSource(source) {
     loadDirectVideoUrl(source.url);
   } else if (source.type === 'local') {
     setSourcePanel('fileSourcePanel');
-    showToast(`Choose the local file again: ${source.fileName || 'lecture video'}.`);
+    showToast(`Choose the exact video file that was analyzed: ${source.fileName || source.url || 'lecture video'}.`);
   }
 }
 
@@ -867,6 +880,7 @@ async function loadAlignmentData(data, { restoreSource = true } = {}) {
           w1: Number(entry.w1) || 0
         }))
     : [];
+  state.alignmentDuration = Number(data.duration) || 0;
   state.dafRef = data.dafRef || state.dafRef;
   state.currentProjectId = data.projectId || null;
   state.alignmentStatus = data.alignmentStatus || 'in-progress';
@@ -995,6 +1009,14 @@ $('closeEditorButton').addEventListener('click', () => { editor.hidden = true; d
 document.querySelectorAll('.source-tab').forEach((tab) => {
   tab.addEventListener('click', () => setSourcePanel(tab.dataset.sourcePanel));
 });
+
+// Auto-scroll should defer to the reader: a manual wheel/touch scroll inside the
+// daf pane suspends the follow-the-video auto-scroll for a few seconds so it
+// doesn't yank the view back down mid-gesture. It resumes on its own after
+// the cooldown, or immediately once the reader clicks a phrase to seek.
+const markManualScroll = () => { state.lastManualScrollAt = Date.now(); };
+$('dafScroll').addEventListener('wheel', markManualScroll, { passive: true });
+$('dafScroll').addEventListener('touchmove', markManualScroll, { passive: true });
 
 scrubber.addEventListener('input', (event) => {
   state.seeking = true;
@@ -1311,8 +1333,15 @@ async function startDriveSync() {
       const alignment = await response.json();
       stopSyncPolling();
       setSyncProgress(1, [`Done after ${elapsed}s.`]);
+      // loadAlignmentData already surfaces a specific "load this exact file" toast
+      // (via restoreVideoSource) for the local-video case; don't clobber it with a
+      // generic one — that specific guidance is what actually prevents mis-synced
+      // playback from a mismatched video.
+      const hadSpecificSource = alignment?.videoSource?.type === 'local';
       await loadAlignmentData(alignment);
-      showToast('Synced from Google Drive! Choose or paste the video to watch it.');
+      if (!hadSpecificSource) {
+        showToast('Synced from Google Drive! Choose or paste the video to watch it.');
+      }
       $('syncDialog').close();
     } catch (error) {
       stopSyncPolling();
