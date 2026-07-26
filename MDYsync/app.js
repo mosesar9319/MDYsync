@@ -1359,8 +1359,10 @@ $('openSyncDialogButton')?.addEventListener('click', async () => {
 });
 $('closeSyncDialog')?.addEventListener('click', () => $('syncDialog').close());
 $('syncDialog')?.addEventListener('close', () => {
-  stopSyncPolling();
-  $('syncProgressWrap').hidden = true;
+  // Deliberately do NOT stop polling here: a server-side (or local-app) job
+  // keeps running whether or not this dialog is open, so closing it must
+  // not abandon watching for the result. It'll still load automatically
+  // and toast when done; reopening the dialog re-shows live progress.
 });
 $('syncTractateSelect')?.addEventListener('change', onSyncTractateChange);
 $('syncDafSelect')?.addEventListener('change', onSyncDafChange);
