@@ -20,7 +20,8 @@ const state = {
   currentProjectId: null,
   wordTimeline: [],
   lastManualScrollAt: 0,
-  alignmentDuration: 0
+  alignmentDuration: 0,
+  vilnaPageKey: null
 };
 
 const AUTO_SCROLL_RESUME_MS = 4000;
@@ -277,6 +278,90 @@ function renderDaf() {
   updateMarkTargetUi();
   updateActiveSegment(true);
   renderEditor();
+  renderVilnaPage();
+}
+
+// --- Vilna page-image view -------------------------------------------------
+// Fetches a real Vilna-style daf page (via the daf-page proxy function, which
+// forwards to shas.org's Daf PDF API) and rasterizes page 1 with pdf.js so it
+// can be shown as a plain image. shas.org publishes no explicit reuse
+// license for these pages, so this is a private-use source for now.
+
+const PDFJS_VERSION = '6.1.200';
+let pdfjsLibPromise = null;
+
+function loadPdfJs() {
+  if (!pdfjsLibPromise) {
+    pdfjsLibPromise = import(`https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.min.mjs`)
+      .then((lib) => {
+        lib.GlobalWorkerOptions.workerSrc =
+          `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.mjs`;
+        return lib;
+      });
+  }
+  return pdfjsLibPromise;
+}
+
+function parseDafRef(ref) {
+  const match = /^(.+?)\s+(\d+)\s*([abAB])$/.exec(String(ref || '').trim());
+  if (!match) return null;
+  return { tractate: match[1].trim(), daf: Number(match[2]), amud: match[3].toLowerCase() };
+}
+
+function setVilnaPageStatus(message) {
+  const status = $('vilnaPageStatus');
+  const text = $('vilnaPageStatusText');
+  if (text) text.textContent = message;
+  if (status) status.hidden = false;
+  $('vilnaPageCanvas').hidden = true;
+}
+
+async function renderVilnaPage() {
+  const canvas = $('vilnaPageCanvas');
+  const view = $('vilnaPlaceholder');
+  if (!canvas || !view || view.hidden) return;
+
+  const parsed = parseDafRef(state.dafRef);
+  if (!parsed) {
+    state.vilnaPageKey = null;
+    setVilnaPageStatus('Load a daf reference to see the Vilna page image.');
+    return;
+  }
+  const key = `${parsed.tractate}|${parsed.daf}|${parsed.amud}`;
+  if (state.vilnaPageKey === key) return;
+
+  setVilnaPageStatus(`Loading the Vilna page for ${state.dafRef}…`);
+  try {
+    const [lib, response] = await Promise.all([
+      loadPdfJs(),
+      fetch(`/api/daf-page?tractate=${encodeURIComponent(parsed.tractate)}&daf=${parsed.daf}&amud=${parsed.amud}`)
+    ]);
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.error || `Page image request failed (${response.status}).`);
+    }
+    const bytes = await response.arrayBuffer();
+    const pdf = await lib.getDocument({ data: bytes }).promise;
+    const page = await pdf.getPage(1);
+
+    const containerWidth = view.clientWidth || 640;
+    const baseViewport = page.getViewport({ scale: 1 });
+    const scale = (containerWidth / baseViewport.width) * (window.devicePixelRatio || 1);
+    const viewport = page.getViewport({ scale });
+
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    canvas.style.width = `${containerWidth}px`;
+    canvas.style.height = `${(containerWidth * viewport.height) / viewport.width}px`;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+
+    state.vilnaPageKey = key;
+    $('vilnaPageStatus').hidden = true;
+    canvas.hidden = false;
+  } catch (error) {
+    state.vilnaPageKey = null;
+    setVilnaPageStatus(`Couldn't load the Vilna page for ${state.dafRef}: ${error.message}`);
+  }
 }
 
 function updateActiveWords(time) {
@@ -1046,6 +1131,7 @@ for (const button of document.querySelectorAll('.view-switch button')) {
     const pageView = button.dataset.view === 'page';
     dafPage.hidden = pageView;
     $('vilnaPlaceholder').hidden = !pageView;
+    if (pageView) renderVilnaPage();
   });
 }
 

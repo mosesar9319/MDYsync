@@ -167,7 +167,7 @@
             </div>
             <div class="view-switch" role="group" aria-label="Daf display mode">
               <button class="active" data-view="text">Text</button>
-              <button data-view="page" title="Vilna page-image mapping is planned for phase two">Vilna page</button>
+              <button data-view="page" title="Real Vilna-edition page image (private-use source)">Vilna page</button>
             </div>
           </div>
 
@@ -186,18 +186,20 @@
               <p class="daf-empty-note">No daf loaded yet. Enter a reference above and press "Load daf."</p>
             </div>
             <div class="vilna-placeholder" id="vilnaPlaceholder" hidden>
-              <div class="page-silhouette">
-                <div class="page-column narrow"></div>
-                <div class="page-column wide"></div>
-                <div class="page-column narrow"></div>
+              <div class="vilna-page-status" id="vilnaPageStatus">
+                <div class="page-silhouette">
+                  <div class="page-column narrow"></div>
+                  <div class="page-column wide"></div>
+                  <div class="page-column narrow"></div>
+                </div>
+                <p id="vilnaPageStatusText">Load a daf reference to see the Vilna page image.</p>
               </div>
-              <h3>Vilna page mapping</h3>
-              <p>The synchronization model is ready for page coordinates. OCR and word-box mapping will be added in phase two.</p>
+              <canvas id="vilnaPageCanvas" hidden></canvas>
             </div>
           </div>
 
           <div class="daf-footer">
-            <span id="segmentCount">6 synchronized segments</span>
+            <span id="segmentCount">0 synchronized segments</span>
             <span>Text retrieval: Sefaria API</span>
           </div>
         </article>
