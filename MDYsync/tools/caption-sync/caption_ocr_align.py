@@ -461,14 +461,33 @@ def build_outputs(canon, segments, events, duration, video_path, refs):
     if timeline:
         timeline[-1]["end"] = round(min(duration, timeline[-1]["end"] + 2.0), 2)
 
-    # segment-level alignment: first/last time each canonical segment is active
-    seg_times = {}
+    # segment-level alignment: first/last time each canonical segment is
+    # active. A segment can accumulate several timeline entries (repeats,
+    # relocalization after a gap, etc.), and a single stray one -- a short,
+    # ambiguous phrase that fuzzy-matched to the wrong position -- must not
+    # be able to drag the segment's whole recorded range across unrelated
+    # minutes of video the way a plain min/max would. So cluster each
+    # segment's entries by time first and keep only the largest cluster,
+    # treating isolated ones as mismatches rather than genuine repeats.
+    CLUSTER_GAP_SECONDS = 180
+
+    def robust_span(spans):
+        spans = sorted(spans)
+        clusters = [[spans[0]]]
+        for span in spans[1:]:
+            if span[0] - clusters[-1][-1][1] > CLUSTER_GAP_SECONDS:
+                clusters.append([])
+            clusters[-1].append(span)
+        largest = max(clusters, key=len)
+        return min(t0 for t0, t1 in largest), max(t1 for t0, t1 in largest)
+
+    seg_entries = {}
     for entry in timeline:
         si = canon[entry["startWord"]].seg_index
         se = canon[entry["endWord"]].seg_index
         for s in range(si, se + 1):
-            t0, t1 = seg_times.get(s, (entry["start"], entry["end"]))
-            seg_times[s] = (min(t0, entry["start"]), max(t1, entry["end"]))
+            seg_entries.setdefault(s, []).append((entry["start"], entry["end"]))
+    seg_times = {s: robust_span(spans) for s, spans in seg_entries.items()}
 
     align_segments = []
     for s in sorted(seg_times):
