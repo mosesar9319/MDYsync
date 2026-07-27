@@ -100,16 +100,23 @@
             </div>
           </div>
 
-          <!-- Invisible spacer matching .daf-toolbar's box exactly (same
-               classes, so it stays in sync with any future change to it)
-               -- the digital-daf card has a toolbar row between its heading
-               and its content; the player card doesn't, so without this the
-               video player's top edge sits above the daf text/Vilna page's
-               top edge instead of level with it. -->
-          <div class="daf-toolbar toolbar-ghost" aria-hidden="true">
-            <span class="alignment-badge needs-work">Needs alignment</span>
-            <label class="toggle-label"><input type="checkbox" checked /><span class="toggle"></span>Auto-scroll</label>
-            <span class="toolbar-hint">Click any phrase to jump to that point in the shiur.</span>
+          <div class="overlay-controls" id="overlayControls">
+            <label class="toggle-label">
+              <input type="checkbox" id="overlayToggle" />
+              <span class="toggle"></span>
+              Overlay Vilna page on video <em>(experimental)</em>
+            </label>
+            <label class="overlay-mode-label">
+              Style
+              <select id="overlayModeSelect">
+                <option value="full">Full page</option>
+                <option value="strip">Current lines</option>
+              </select>
+            </label>
+            <label class="overlay-opacity-label">
+              Opacity
+              <input type="range" id="overlayOpacitySlider" min="10" max="90" value="50" />
+            </label>
           </div>
 
           <div class="video-frame" id="videoFrame">
@@ -131,25 +138,6 @@
             <button class="video-fullscreen-button" id="fullscreenButton" aria-label="Fullscreen" title="Fullscreen">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
-          </div>
-
-          <div class="overlay-controls" id="overlayControls">
-            <label class="toggle-label">
-              <input type="checkbox" id="overlayToggle" />
-              <span class="toggle"></span>
-              Overlay Vilna page on video <em>(experimental)</em>
-            </label>
-            <label class="overlay-mode-label">
-              Style
-              <select id="overlayModeSelect">
-                <option value="full">Full page</option>
-                <option value="strip">Current lines</option>
-              </select>
-            </label>
-            <label class="overlay-opacity-label">
-              Opacity
-              <input type="range" id="overlayOpacitySlider" min="10" max="90" value="50" />
-            </label>
           </div>
 
           <div class="scrubber-wrap">
