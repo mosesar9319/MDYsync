@@ -47,7 +47,16 @@ export default async (request) => {
     return Response.json({ error: 'Server sync is not configured yet.' }, { status: 503 });
   }
 
-  const refKey = ref.trim().replace(/\s+/g, '-');
+  // A "(Chazarah Daf)" suffix marks the shorter chazara-only recording of
+  // the same daf (see parseDafRef/refKey in app.js) -- it needs its own
+  // separate key from the regular shiur's, in the same
+  // Chazarah-Daf-<Tractate>-<Daf><Amud> format the frontend's own refKey()
+  // computes, or a link saved under one would never be found looked up
+  // under the other.
+  const match = /^(.+?)\s+(\d+)\s*([abAB])(?:[:.]\d+)?(\s*\(Chazarah Daf\))?$/i.exec(ref.trim());
+  const refKey = match
+    ? `${match[4] ? 'Chazarah-Daf-' : ''}${match[1].trim().replace(/\s+/g, '-')}-${match[2]}${match[3].toLowerCase()}`
+    : ref.trim().replace(/\s+/g, '-');
   const safeVideoSource = {
     type: videoSource.type,
     url: videoSource.url,

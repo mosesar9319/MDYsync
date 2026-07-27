@@ -70,6 +70,7 @@ jobs:
         env:
           JOB_ID: ${{ github.event.client_payload.jobId }}
           REFS_JSON: ${{ toJSON(github.event.client_payload.refs) }}
+          VARIANT: ${{ github.event.client_payload.variant }}
         run: |
           set -e
           mkdir -p /tmp/results-checkout
@@ -86,10 +87,16 @@ jobs:
 
           mkdir -p /tmp/results-checkout/by-ref
           python3 -c "
-          import json, re, shutil
+          import json, re, shutil, os
           refs = json.loads('''$REFS_JSON''')
+          # A 'Chazarah Daf' reading (the shorter, gemara-only-review recording
+          # of the same daf) is namespaced under its own prefix so it never
+          # collides with the regular shiur's alignment for the same ref --
+          # must match trigger-ocr-job.mjs's and the frontend's own refKey()
+          # exactly.
+          prefix = 'Chazarah-Daf-' if os.environ.get('VARIANT') == 'chazarah' else ''
           for ref in refs:
-              key = re.sub(r'\s+', '-', ref.strip())
+              key = prefix + re.sub(r'\s+', '-', ref.strip())
               shutil.copy('MDYsync/tools/caption-sync/job-out/alignment.json', f'/tmp/results-checkout/by-ref/{key}.json')
               print(f'Published for {ref} -> by-ref/{key}.json')
           "

@@ -191,8 +191,9 @@ function refKey(ref) {
   // case the reader happened to type ("chullin 86a" must resolve to the
   // same key as "Chullin 86a").
   const parsed = parseDafRef(ref);
-  if (parsed) return `${parsed.tractate.replace(/\s+/g, '-')}-${parsed.daf}${parsed.amud}`;
-  return String(ref || '').trim().replace(/\s+/g, '-');
+  if (!parsed) return String(ref || '').trim().replace(/\s+/g, '-');
+  const prefix = parsed.variant === 'chazarah' ? CHAZARAH_KEY_PREFIX : '';
+  return `${prefix}${parsed.tractate.replace(/\s+/g, '-')}-${parsed.daf}${parsed.amud}`;
 }
 
 async function fetchServerAlignment(ref) {
@@ -430,6 +431,10 @@ const CANONICAL_TRACTATE_NAMES = [
   'Arakhin', 'Temurah', 'Keritot', 'Meilah', 'Niddah'
 ];
 const TRACTATE_NAME_BY_LOWERCASE = new Map(CANONICAL_TRACTATE_NAMES.map((name) => [name.toLowerCase(), name]));
+// Namespaces a Chazarah Daf reading's alignment key so it never collides
+// with the regular shiur's for the same daf -- must match exactly what
+// trigger-ocr-job.mjs and ocr-job.yml's publish step compute server-side.
+const CHAZARAH_KEY_PREFIX = 'Chazarah-Daf-';
 
 function parseDafRef(ref) {
   // Accepts both a bare daf ref ("Chullin 86a") and a segment ref, ignoring
@@ -445,20 +450,43 @@ function parseDafRef(ref) {
   // unparseable). The tractate name is normalized to its canonical
   // capitalization regardless of how it was typed/cased, since it flows
   // into case-sensitive lookups downstream (GitHub raw file paths, and
-  // server-side tractate whitelists).
-  const match = /^(.+?)\s+(\d+)\s*([abAB])(?:[:.]\d+)?$/.exec(String(ref || '').trim());
+  // server-side tractate whitelists). An optional trailing " (Chazarah Daf)"
+  // marks the shorter chazara-only recording of the same daf -- it shares
+  // the exact same Gemara text/page as the regular shiur (Sefaria and the
+  // Vilna page/pagemap lookups below always use tractate/daf/amud alone,
+  // never .variant), but needs its own separate alignment/video so the two
+  // don't collide, which is what .variant threads through refKey() for.
+  const match = /^(.+?)\s+(\d+)\s*([abAB])(?:[:.]\d+)?(\s*\(Chazarah Daf\))?$/i.exec(String(ref || '').trim());
   if (!match) return null;
   const typedTractate = match[1].trim();
   const tractate = TRACTATE_NAME_BY_LOWERCASE.get(typedTractate.toLowerCase()) || typedTractate;
-  return { tractate, daf: Number(match[2]), amud: match[3].toLowerCase() };
+  return {
+    tractate,
+    daf: Number(match[2]),
+    amud: match[3].toLowerCase(),
+    variant: match[4] ? 'chazarah' : 'regular'
+  };
 }
 
 // Rebuilds a daf ref string with canonical tractate capitalization (e.g.
 // "chullin 86a" -> "Chullin 86a"), used wherever a reader-typed ref is
 // about to be saved/looked-up server-side, so it lands under the same
 // key regardless of how it was typed. Falls back to the input unchanged
-// if it doesn't parse as a daf ref at all.
+// if it doesn't parse as a daf ref at all. Preserves a "(Chazarah Daf)"
+// suffix if the input had one, so re-canonicalizing an already-variant ref
+// doesn't silently drop it.
 function canonicalDafRef(ref) {
+  const parsed = parseDafRef(ref);
+  if (!parsed) return String(ref || '').trim();
+  const suffix = parsed.variant === 'chazarah' ? ' (Chazarah Daf)' : '';
+  return `${parsed.tractate} ${parsed.daf}${parsed.amud}${suffix}`;
+}
+
+// Strips a "(Chazarah Daf)" marker back down to the real Sefaria ref --
+// Sefaria and shas.org only know the underlying tractate/daf/amud, never
+// the shiur variant, so anything sent to them (or to the OCR engine's own
+// Sefaria fetch) needs this instead of the display/storage ref.
+function realDafRef(ref) {
   const parsed = parseDafRef(ref);
   return parsed ? `${parsed.tractate} ${parsed.daf}${parsed.amud}` : String(ref || '').trim();
 }
@@ -1322,13 +1350,13 @@ async function loadDaf(refOverride = null, options = {}) {
     // silently overwrite it.
     const preferredVideoSource = await resolvePreferredVideoSource(ref, loadProjectForRef(ref));
     if (preferredVideoSource) serverAlignment.videoSource = preferredVideoSource;
-    await loadAlignmentData(serverAlignment);
+    await loadAlignmentData(serverAlignment, { dafRefOverride: ref });
     if (!options.silent) showToast(`Loaded the synced alignment for ${ref} from the server.`);
     return;
   }
   const saved = loadProjectForRef(ref);
   if (saved && Array.isArray(saved.segments) && saved.segments.length) {
-    await loadAlignmentData(saved);
+    await loadAlignmentData(saved, { dafRefOverride: ref });
     if (!options.silent) showToast(`Restored the saved sync for ${ref}.`);
     return;
   }
@@ -1686,7 +1714,12 @@ async function restoreVideoSource(source) {
   }
 }
 
-async function loadAlignmentData(data, { restoreSource = true } = {}) {
+// dafRefOverride: the OCR engine's own output always carries the real,
+// variant-less Sefaria ref (a "Chazarah Daf" reading's canonical text is
+// identical to the regular shiur's -- see realDafRef), so callers that know
+// which shiur variant they actually asked for pass it back in here rather
+// than letting data.dafRef silently drop the "(Chazarah Daf)" marker.
+async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = null } = {}) {
   if (!Array.isArray(data.segments) || !data.segments.length) throw new Error('No segments found.');
   state.segments = data.segments.map((segment, index) => ({
     id: segment.id || `segment-${index + 1}`,
@@ -1708,7 +1741,7 @@ async function loadAlignmentData(data, { restoreSource = true } = {}) {
         }))
     : [];
   state.alignmentDuration = Number(data.duration) || 0;
-  state.dafRef = data.dafRef || state.dafRef;
+  state.dafRef = dafRefOverride || data.dafRef || state.dafRef;
   state.currentProjectId = data.projectId || null;
   state.alignmentStatus = data.alignmentStatus || 'in-progress';
   state.editingIndex = Math.min(Number(data.editingIndex) || 0, state.segments.length - 1);
@@ -2043,6 +2076,20 @@ function activeAmud(toggleId) {
   return active ? active.dataset.side : 'a';
 }
 
+// "Regular" vs "Chazarah Daf" -- unlike the amud toggle, both options are
+// always valid regardless of which daf is selected, so there's no
+// availability/disabling logic to mirror here.
+function activeShiurVariant(toggleId) {
+  const active = document.querySelector(`#${toggleId} .shiur-variant-option.active`);
+  return active ? active.dataset.variant : 'regular';
+}
+
+function setActiveShiurVariant(toggleId, variant) {
+  document.querySelectorAll(`#${toggleId} .shiur-variant-option`).forEach((button) => {
+    button.classList.toggle('active', button.dataset.variant === variant);
+  });
+}
+
 function onSyncTractateChange() {
   const entry = syncState.talmudByName[$('syncTractateSelect').value];
   const options = dafOptionsFor(entry);
@@ -2085,7 +2132,8 @@ function dafPickerRef() {
   const tractate = $('dafTractateSelect').value;
   const daf = $('dafDafSelect').value;
   if (!tractate || !daf) return '';
-  return `${tractate} ${daf}${activeAmud('dafAmudToggle')}`;
+  const suffix = activeShiurVariant('dafShiurToggle') === 'chazarah' ? ' (Chazarah Daf)' : '';
+  return `${tractate} ${daf}${activeAmud('dafAmudToggle')}${suffix}`;
 }
 
 function onDafPickerChanged() {
@@ -2114,13 +2162,15 @@ function syncDafPickerFromRef(ref) {
   buttons.forEach((b) => {
     if (!b.disabled) b.classList.toggle('active', b.dataset.side === parsed.amud);
   });
+  setActiveShiurVariant('dafShiurToggle', parsed.variant);
 }
 
 function addSyncReading() {
   const tractate = $('syncTractateSelect').value;
   const daf = $('syncDafSelect').value;
   if (!tractate || !daf) return;
-  const ref = `${tractate} ${daf}${currentSyncAmud()}`;
+  const suffix = activeShiurVariant('syncShiurToggle') === 'chazarah' ? ' (Chazarah Daf)' : '';
+  const ref = `${tractate} ${daf}${currentSyncAmud()}${suffix}`;
   syncState.readings.push({ ref, display: ref });
   renderSyncReadings();
 }
@@ -2213,9 +2263,12 @@ async function startLocalSync() {
     return;
   }
 
+  // The desktop app's own OCR engine fetches these from Sefaria directly,
+  // same as the server-side job -- it needs the real ref, not the display
+  // ref with the "(Chazarah Daf)" marker on it (see realDafRef).
   const formData = new FormData();
   formData.append('video', syncState.localVideoFile, syncState.localVideoFile.name);
-  formData.append('refs', JSON.stringify(syncState.readings.map((r) => r.ref)));
+  formData.append('refs', JSON.stringify(syncState.readings.map((r) => realDafRef(r.ref))));
 
   setSyncProgress(0, ['Uploading to the desktop app on this computer…']);
   let jobId;
@@ -2237,7 +2290,7 @@ async function startLocalSync() {
       if (job.status === 'done') {
         stopSyncPolling();
         handleVideoFile(syncState.localVideoFile);
-        await loadAlignmentData(job.result.alignment, { restoreSource: false });
+        await loadAlignmentData(job.result.alignment, { restoreSource: false, dafRefOverride: syncState.readings[0].ref });
         showToast('Synced! The video and daf are ready.');
         $('syncDialog').close();
       } else if (job.status === 'error') {
@@ -2262,13 +2315,19 @@ async function startDriveSync() {
     return;
   }
 
+  // The OCR engine only ever fetches the real Sefaria ref (a "Chazarah Daf"
+  // reading's canonical text is identical to the regular shiur's -- it's a
+  // shorter recording of the same content, not different content), so refs
+  // sent server-side always has the variant marker stripped; variant is
+  // sent alongside purely to namespace where the result gets published.
+  const variant = parseDafRef(syncState.readings[0].ref)?.variant || 'regular';
   setSyncProgress(0, ['Starting the server-side job…']);
   let jobId, resultUrl;
   try {
     const response = await fetch(TRIGGER_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ driveUrl, refs: syncState.readings.map((r) => r.ref) })
+      body: JSON.stringify({ driveUrl, refs: syncState.readings.map((r) => realDafRef(r.ref)), variant })
     });
     if (!response.ok) throw new Error((await response.json()).error || 'Could not start the job.');
     ({ jobId, resultUrl } = await response.json());
@@ -2306,7 +2365,7 @@ async function startDriveSync() {
       // generic one — that specific guidance is what actually prevents mis-synced
       // playback from a mismatched video.
       const hadSpecificSource = alignment?.videoSource?.type === 'local';
-      await loadAlignmentData(alignment);
+      await loadAlignmentData(alignment, { dafRefOverride: syncState.readings[0].ref });
       if (!hadSpecificSource) {
         showToast('Synced from Google Drive! Choose or paste the video to watch it.');
       }
@@ -2353,6 +2412,12 @@ document.querySelectorAll('#dafAmudToggle .amud-option').forEach((button) => {
     onDafPickerChanged();
   });
 });
+document.querySelectorAll('#dafShiurToggle .shiur-variant-option').forEach((button) => {
+  button.addEventListener('click', () => {
+    setActiveShiurVariant('dafShiurToggle', button.dataset.variant);
+    onDafPickerChanged();
+  });
+});
 loadTalmudIndex();
 document.querySelectorAll('#syncAmudToggle .amud-option').forEach((button) => {
   button.addEventListener('click', () => {
@@ -2360,6 +2425,9 @@ document.querySelectorAll('#syncAmudToggle .amud-option').forEach((button) => {
     document.querySelectorAll('#syncAmudToggle .amud-option').forEach((b) => b.classList.remove('active'));
     button.classList.add('active');
   });
+});
+document.querySelectorAll('#syncShiurToggle .shiur-variant-option').forEach((button) => {
+  button.addEventListener('click', () => setActiveShiurVariant('syncShiurToggle', button.dataset.variant));
 });
 $('syncAddReadingButton')?.addEventListener('click', addSyncReading);
 $('syncClearReadingsButton')?.addEventListener('click', clearSyncReadings);

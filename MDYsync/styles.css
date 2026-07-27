@@ -357,6 +357,10 @@ kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; 
 .amud-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
 .amud-option { border: 0; background: rgba(255,255,255,.04); color: var(--muted); padding: 9px 14px; cursor: pointer; font-weight: 700; }
 .amud-option.active { background: var(--accent); color: #03211d; }
+
+.shiur-variant-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; margin-top: 8px; }
+.shiur-variant-option { border: 0; background: rgba(255,255,255,.04); color: var(--muted); padding: 8px 12px; cursor: pointer; font-weight: 700; font-size: 13px; flex: 1; }
+.shiur-variant-option.active { background: var(--accent); color: #03211d; }
 .sync-readings-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .sync-readings-list { max-height: 150px; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; padding: 6px 10px; background: rgba(0,0,0,.14); margin-bottom: 16px; }
 .sync-reading-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 2px; }

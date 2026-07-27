@@ -28,13 +28,16 @@ export default async (request) => {
     return Response.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }
 
-  const { driveUrl, refs } = body || {};
+  const { driveUrl, refs, variant } = body || {};
   if (typeof driveUrl !== 'string' || !/^https:\/\/(drive|docs)\.google\.com\//.test(driveUrl)) {
     return Response.json({ error: 'A valid Google Drive link is required.' }, { status: 400 });
   }
   if (!Array.isArray(refs) || !refs.length || refs.length > 40
       || !refs.every((r) => typeof r === 'string' && r.length > 0 && r.length < 60)) {
     return Response.json({ error: 'A non-empty list of readings is required.' }, { status: 400 });
+  }
+  if (variant !== undefined && variant !== 'regular' && variant !== 'chazarah') {
+    return Response.json({ error: "variant must be 'regular' or 'chazarah'." }, { status: 400 });
   }
 
   const token = Netlify.env.get('GITHUB_DISPATCH_TOKEN');
@@ -55,7 +58,7 @@ export default async (request) => {
       },
       body: JSON.stringify({
         event_type: 'run-ocr-job',
-        client_payload: { driveUrl, refs, jobId },
+        client_payload: { driveUrl, refs, jobId, variant: variant || 'regular' },
       }),
     }
   );
@@ -72,8 +75,12 @@ export default async (request) => {
   // covers (results/by-ref/<ref>.json), not a job-ID-keyed path, so that
   // any device can look up an already-synced daf directly. refs[0] is
   // the primary reading, matching how the alignment JSON itself sets
-  // its own top-level dafRef.
-  const refKey = refs[0].trim().replace(/\s+/g, '-');
+  // its own top-level dafRef. A "Chazarah Daf" reading (the shorter,
+  // gemara-only-review recording of the same daf) is namespaced under its
+  // own prefix so it never collides with the regular shiur's alignment for
+  // the same ref -- must match the frontend's own refKey() exactly.
+  const keyPrefix = variant === 'chazarah' ? 'Chazarah-Daf-' : '';
+  const refKey = keyPrefix + refs[0].trim().replace(/\s+/g, '-');
 
   return Response.json({
     jobId,
