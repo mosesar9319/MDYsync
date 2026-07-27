@@ -100,6 +100,18 @@
             </div>
           </div>
 
+          <!-- Invisible spacer matching .daf-toolbar's box exactly (same
+               classes, so it stays in sync with any future change to it)
+               -- the digital-daf card has a toolbar row between its heading
+               and its content; the player card doesn't, so without this the
+               video player's top edge sits above the daf text/Vilna page's
+               top edge instead of level with it. -->
+          <div class="daf-toolbar toolbar-ghost" aria-hidden="true">
+            <span class="alignment-badge needs-work">Needs alignment</span>
+            <label class="toggle-label"><input type="checkbox" checked /><span class="toggle"></span>Auto-scroll</label>
+            <span class="toolbar-hint">Click any phrase to jump to that point in the shiur.</span>
+          </div>
+
           <div class="video-frame" id="videoFrame">
             <video id="video" preload="metadata" playsinline></video>
             <div class="youtube-player-host" id="youtubePlayerHost" hidden>
