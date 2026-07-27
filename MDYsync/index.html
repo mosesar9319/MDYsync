@@ -57,11 +57,17 @@
         </div>
 
         <div class="setup-field ref-field">
-          <label for="dafRef">Daf reference</label>
-          <div class="input-with-button">
-            <input id="dafRef" type="text" value="" placeholder="e.g. Chullin 81a" spellcheck="false" />
-            <button class="button primary" id="loadDafButton">Load daf</button>
+          <label>Daf reference</label>
+          <div class="daf-picker-row">
+            <select id="dafTractateSelect" aria-label="Tractate"></select>
+            <select id="dafDafSelect" class="daf-picker-narrow" aria-label="Daf"></select>
+            <div class="amud-toggle" id="dafAmudToggle" role="group" aria-label="Amud">
+              <button type="button" class="amud-option active" data-side="a">a</button>
+              <button type="button" class="amud-option" data-side="b">b</button>
+            </div>
           </div>
+          <input id="dafRef" type="hidden" value="" />
+          <button id="loadDafButton" hidden>Load daf</button>
         </div>
 
         <div class="setup-field action-field">
@@ -160,6 +166,7 @@
                 <option value="2">2×</option>
               </select>
             </label>
+            <button class="icon-button" id="fullscreenButton" aria-label="Fullscreen" title="Fullscreen">⛶</button>
             <button class="button secondary small push-right" id="editModeButton">Edit synchronization</button>
           </div>
 

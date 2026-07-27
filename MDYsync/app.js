@@ -728,6 +728,9 @@ function updateVideoOverlay(time) {
   const centerY = activeY * pageH;
   const sourceY = Math.max(0, Math.min(Math.max(0, pageH - visibleSourceH), centerY - visibleSourceH / 2));
   ctx.drawImage(mainCanvas, sx, sourceY, sw, visibleSourceH, 0, 0, canvas.width, canvas.height);
+  // Saved so a click on the canvas can be translated back into page-fraction
+  // coordinates and matched against a word box (see the click handler below).
+  state.videoOverlayTransform = { sx, sourceY, scale, pageW, pageH };
 
   ctx.save();
   ctx.fillStyle = 'rgba(255, 212, 0, 0.55)';
@@ -742,6 +745,38 @@ function updateVideoOverlay(time) {
     ctx.fillRect(bx - padX, by - padY, bw + padX * 2, bh + padY * 2);
   }
   ctx.restore();
+}
+
+// The video overlay draws with plain canvas 2D calls (drawImage/fillRect),
+// not one DOM element per word like the side-by-side Vilna page view -- the
+// crop/zoom/pan changes every tick, so a click is translated back into
+// page-fraction coordinates using the transform saved by the last draw,
+// then matched against a word box the same way seekToVilnaWord does.
+function handleVideoOverlayClick(event) {
+  const t = state.videoOverlayTransform;
+  if (!t || !state.vilnaPageMap) return;
+  const canvas = $('videoVilnaCanvas');
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0) return;
+  const canvasX = (event.clientX - rect.left) * (canvas.width / rect.width);
+  const canvasY = (event.clientY - rect.top) * (canvas.height / rect.height);
+  const pageX = canvasX / t.scale + t.sx;
+  const pageY = canvasY / t.scale + t.sourceY;
+  const xFrac = pageX / t.pageW;
+  const yFrac = pageY / t.pageH;
+  const box = state.vilnaPageMap.wordBoxes.find(
+    (b) => xFrac >= b.x && xFrac <= b.x + b.w && yFrac >= b.y && yFrac <= b.y + b.h
+  );
+  if (box) seekToVilnaWord(box.ref, box.wordIndex);
+}
+
+function toggleVideoFullscreen() {
+  const frame = $('videoFrame');
+  if (document.fullscreenElement === frame) {
+    document.exitFullscreen();
+  } else {
+    frame.requestFullscreen?.().catch((error) => showToast(`Fullscreen not available: ${error.message}`, 'error'));
+  }
 }
 
 function updateActiveWords(time) {
@@ -995,6 +1030,7 @@ function normalizeSegmentOrder(index, field) {
 async function loadDaf(refOverride = null, options = {}) {
   const ref = canonicalDafRef(String(refOverride || $('dafRef').value).trim());
   $('dafRef').value = ref;
+  syncDafPickerFromRef(ref);
   if (!ref) return showToast('Enter a Sefaria reference first.', 'error');
 
   // A daf already synced through the Drive/server job is published on
@@ -1178,7 +1214,12 @@ async function ensureYouTubePlayer(videoId) {
         playsinline: 1,
         rel: 0,
         controls: 1,
-        enablejsapi: 1
+        enablejsapi: 1,
+        // YouTube's own fullscreen button only fullscreens the iframe itself,
+        // leaving the Vilna page overlay (a sibling element) behind -- our
+        // own fullscreen button (below) fullscreens the whole video-frame
+        // container instead, so it covers both.
+        fs: 0
       };
       if (location.protocol === 'http:' || location.protocol === 'https:') playerVars.origin = location.origin;
 
@@ -1400,6 +1441,7 @@ async function loadAlignmentData(data, { restoreSource = true } = {}) {
   state.usingDefaultAlignment = false;
   updateAlignmentStatus();
   $('dafRef').value = state.dafRef;
+  syncDafPickerFromRef(state.dafRef);
   $('dafTitle').textContent = state.dafRef;
   $('lectureTitle').textContent = data.title || $('lectureTitle').textContent;
   if (Number(data.duration) > 0) applyDuration(Number(data.duration), false);
@@ -1512,6 +1554,9 @@ $('largePlay').addEventListener('click', togglePlay);
 $('backButton').addEventListener('click', () => seek(getCurrentTime() - 10));
 $('forwardButton').addEventListener('click', () => seek(getCurrentTime() + 10));
 $('speedSelect').addEventListener('change', (event) => setPlaybackRate(Number(event.target.value)));
+$('fullscreenButton')?.addEventListener('click', toggleVideoFullscreen);
+document.addEventListener('fullscreenchange', () => updateVideoOverlay(getCurrentTime()));
+$('videoVilnaCanvas')?.addEventListener('click', handleVideoOverlayClick);
 $('overlayToggle')?.addEventListener('change', (event) => {
   state.videoOverlayEnabled = event.target.checked;
   updateVideoOverlay(getCurrentTime());
@@ -1641,15 +1686,40 @@ function dafOptionsFor(entry) {
 }
 
 async function loadTalmudIndex() {
-  if (syncState.tractateNames.length) return;
-  const response = await fetch('talmud_index.json');
-  const data = await response.json();
-  for (const t of data.tractates) syncState.talmudByName[t.name] = t;
-  syncState.tractateNames = data.tractates.map((t) => t.name);
-  const select = $('syncTractateSelect');
-  select.innerHTML = syncState.tractateNames
+  if (!syncState.tractateNames.length) {
+    const response = await fetch('talmud_index.json');
+    const data = await response.json();
+    for (const t of data.tractates) syncState.talmudByName[t.name] = t;
+    syncState.tractateNames = data.tractates.map((t) => t.name);
+  }
+  const optionsHtml = syncState.tractateNames
     .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+  $('syncTractateSelect').innerHTML = optionsHtml;
   onSyncTractateChange();
+  if ($('dafTractateSelect') && !$('dafTractateSelect').options.length) {
+    $('dafTractateSelect').innerHTML = optionsHtml;
+    refreshDafPickerOptions();
+  }
+}
+
+// Shared by both the sync dialog's tractate/daf/amud picker and the main
+// "daf reference" picker -- same talmud_index.json data, same daf-existence
+// and amud-availability rules, just different element IDs.
+function populateAmudToggle(toggleId, sides) {
+  const buttons = document.querySelectorAll(`#${toggleId} .amud-option`);
+  buttons.forEach((button) => {
+    const available = sides.includes(button.dataset.side);
+    button.disabled = !available;
+    button.classList.toggle('active', available && button.classList.contains('active'));
+  });
+  if (![...buttons].some((button) => button.classList.contains('active') && !button.disabled)) {
+    buttons.forEach((button) => button.classList.toggle('active', button.dataset.side === sides[0]));
+  }
+}
+
+function activeAmud(toggleId) {
+  const active = document.querySelector(`#${toggleId} .amud-option.active`);
+  return active ? active.dataset.side : 'a';
 }
 
 function onSyncTractateChange() {
@@ -1663,20 +1733,66 @@ function onSyncDafChange() {
   const entry = syncState.talmudByName[$('syncTractateSelect').value];
   const daf = Number($('syncDafSelect').value);
   const sides = daf ? (amudimForDaf(entry, daf).length ? amudimForDaf(entry, daf) : ['a']) : ['a'];
-  const buttons = document.querySelectorAll('#syncAmudToggle .amud-option');
-  buttons.forEach((button) => {
-    const available = sides.includes(button.dataset.side);
-    button.disabled = !available;
-    button.classList.toggle('active', available && button.classList.contains('active'));
-  });
-  if (![...buttons].some((button) => button.classList.contains('active') && !button.disabled)) {
-    buttons.forEach((button) => button.classList.toggle('active', button.dataset.side === sides[0]));
-  }
+  populateAmudToggle('syncAmudToggle', sides);
 }
 
 function currentSyncAmud() {
-  const active = document.querySelector('#syncAmudToggle .amud-option.active');
-  return active ? active.dataset.side : 'a';
+  return activeAmud('syncAmudToggle');
+}
+
+// --- Main "daf reference" picker (tractate / daf / amud dropdowns) --------
+// Replaces free-text ref typing. #dafRef stays in the DOM (hidden) as the
+// plain-string source of truth every other loadDaf()/loadAlignmentData()
+// code path already reads and writes -- the picker just keeps it in sync.
+
+function refreshDafPickerOptions() {
+  const entry = syncState.talmudByName[$('dafTractateSelect').value];
+  if (!entry) return;
+  const options = dafOptionsFor(entry);
+  $('dafDafSelect').innerHTML = options.map((d) => `<option value="${d}">${d}</option>`).join('');
+  refreshDafPickerAmud();
+}
+
+function refreshDafPickerAmud() {
+  const entry = syncState.talmudByName[$('dafTractateSelect').value];
+  const daf = Number($('dafDafSelect').value);
+  const sides = daf ? (amudimForDaf(entry, daf).length ? amudimForDaf(entry, daf) : ['a']) : ['a'];
+  populateAmudToggle('dafAmudToggle', sides);
+}
+
+function dafPickerRef() {
+  const tractate = $('dafTractateSelect').value;
+  const daf = $('dafDafSelect').value;
+  if (!tractate || !daf) return '';
+  return `${tractate} ${daf}${activeAmud('dafAmudToggle')}`;
+}
+
+function onDafPickerChanged() {
+  const ref = dafPickerRef();
+  if (!ref) return;
+  loadDaf(ref);
+}
+
+// Reflects an externally-set ref (loaded via import, restored project,
+// server sync, etc.) back into the picker -- does NOT trigger a load itself
+// (this runs *from* loadDaf()/loadAlignmentData(), so re-triggering would
+// recurse).
+function syncDafPickerFromRef(ref) {
+  const tractateSelect = $('dafTractateSelect');
+  if (!tractateSelect || !tractateSelect.options.length) return;
+  const parsed = parseDafRef(ref);
+  if (!parsed || !syncState.talmudByName[parsed.tractate]) return;
+  tractateSelect.value = parsed.tractate;
+  refreshDafPickerOptions();
+  const dafSelect = $('dafDafSelect');
+  if ([...dafSelect.options].some((o) => Number(o.value) === parsed.daf)) {
+    dafSelect.value = String(parsed.daf);
+  }
+  refreshDafPickerAmud();
+  const buttons = document.querySelectorAll('#dafAmudToggle .amud-option');
+  buttons.forEach((b) => {
+    if (!b.disabled) b.classList.toggle('active', b.dataset.side === parsed.amud);
+  });
 }
 
 function addSyncReading() {
@@ -1900,6 +2016,23 @@ $('syncDialog')?.addEventListener('close', () => {
 });
 $('syncTractateSelect')?.addEventListener('change', onSyncTractateChange);
 $('syncDafSelect')?.addEventListener('change', onSyncDafChange);
+$('dafTractateSelect')?.addEventListener('change', () => {
+  refreshDafPickerOptions();
+  onDafPickerChanged();
+});
+$('dafDafSelect')?.addEventListener('change', () => {
+  refreshDafPickerAmud();
+  onDafPickerChanged();
+});
+document.querySelectorAll('#dafAmudToggle .amud-option').forEach((button) => {
+  button.addEventListener('click', () => {
+    if (button.disabled) return;
+    document.querySelectorAll('#dafAmudToggle .amud-option').forEach((b) => b.classList.remove('active'));
+    button.classList.add('active');
+    onDafPickerChanged();
+  });
+});
+loadTalmudIndex();
 document.querySelectorAll('#syncAmudToggle .amud-option').forEach((button) => {
   button.addEventListener('click', () => {
     if (button.disabled) return;
