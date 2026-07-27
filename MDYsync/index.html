@@ -100,25 +100,6 @@
             </div>
           </div>
 
-          <div class="overlay-controls" id="overlayControls">
-            <label class="toggle-label">
-              <input type="checkbox" id="overlayToggle" />
-              <span class="toggle"></span>
-              Overlay Vilna page on video <em>(experimental)</em>
-            </label>
-            <label class="overlay-mode-label">
-              Style
-              <select id="overlayModeSelect">
-                <option value="full">Full page</option>
-                <option value="strip">Current lines</option>
-              </select>
-            </label>
-            <label class="overlay-opacity-label">
-              Opacity
-              <input type="range" id="overlayOpacitySlider" min="10" max="90" value="50" />
-            </label>
-          </div>
-
           <div class="video-frame" id="videoFrame">
             <video id="video" preload="metadata" playsinline></video>
             <div class="youtube-player-host" id="youtubePlayerHost" hidden>
@@ -138,6 +119,25 @@
             <button class="video-fullscreen-button" id="fullscreenButton" aria-label="Fullscreen" title="Fullscreen">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
+          </div>
+
+          <div class="overlay-controls" id="overlayControls">
+            <label class="toggle-label">
+              <input type="checkbox" id="overlayToggle" />
+              <span class="toggle"></span>
+              Overlay Vilna page on video <em>(experimental)</em>
+            </label>
+            <label class="overlay-mode-label">
+              Style
+              <select id="overlayModeSelect">
+                <option value="full">Full page</option>
+                <option value="strip">Current lines</option>
+              </select>
+            </label>
+            <label class="overlay-opacity-label">
+              Opacity
+              <input type="range" id="overlayOpacitySlider" min="10" max="90" value="50" />
+            </label>
           </div>
 
           <div class="scrubber-wrap">
@@ -202,16 +202,6 @@
             </div>
           </div>
 
-          <div class="daf-toolbar">
-            <span class="alignment-badge needs-work" id="alignmentStatus">Needs alignment</span>
-            <label class="toggle-label">
-              <input type="checkbox" id="autoScroll" checked />
-              <span class="toggle"></span>
-              Auto-scroll
-            </label>
-            <span class="toolbar-hint">Click any phrase to jump to that point in the shiur.</span>
-          </div>
-
           <div class="daf-scroll" id="dafScroll">
             <div class="daf-page" id="dafPage" dir="rtl" lang="he">
               <p class="daf-empty-note">No daf loaded yet. Enter a reference above and press "Load daf."</p>
@@ -230,6 +220,16 @@
                 <div class="vilna-page-overlay" id="vilnaPageOverlay"></div>
               </div>
             </div>
+          </div>
+
+          <div class="daf-toolbar">
+            <span class="alignment-badge needs-work" id="alignmentStatus">Needs alignment</span>
+            <label class="toggle-label">
+              <input type="checkbox" id="autoScroll" checked />
+              <span class="toggle"></span>
+              Auto-scroll
+            </label>
+            <span class="toolbar-hint">Click any phrase to jump to that point in the shiur.</span>
           </div>
 
           <div class="daf-footer">
