@@ -35,7 +35,10 @@ const state = {
   videoOverlayZoom: 1,
   videoOverlayPanX: 0,
   videoOverlayPanY: 0,
-  vilnaPageZoom: 1
+  vilnaPageZoom: 1,
+  vilnaPdfPage: null,
+  vilnaPdfContainerWidth: 0,
+  vilnaZoomRerenderTimer: null
 };
 
 const AUTO_SCROLL_RESUME_MS = 4000;
@@ -476,6 +479,23 @@ function currentVilnaPageKey() {
   return { parsed, key: `${parsed.tractate}|${parsed.daf}|${parsed.amud}` };
 }
 
+// The source PDF (proxied as-is from shas.org) is real vector text -- ~50
+// embedded Type1C fonts, no raster /Image XObject anywhere in it -- so it's
+// crisp at any resolution; shas.org isn't the quality ceiling. QUALITY_OVERSAMPLE
+// renders noticeably above 1:1 device pixels so the page still looks sharp
+// zoomed in a bit, and rerenderVilnaPageForZoom below re-rasterizes from the
+// same cached page at a resolution matching the current zoom level instead of
+// just CSS-stretching a fixed-resolution bitmap (which is blurry the same way
+// stretching any raster image is, vector source or not).
+const QUALITY_OVERSAMPLE = 1.6;
+const MAX_CANVAS_WIDTH_PX = 2600;
+
+function vilnaPageRenderScale(baseViewportWidth, containerWidth, qualityMultiplier) {
+  const scale = (containerWidth / baseViewportWidth) * (window.devicePixelRatio || 1) * QUALITY_OVERSAMPLE * qualityMultiplier;
+  const maxScale = MAX_CANVAS_WIDTH_PX / baseViewportWidth;
+  return Math.min(scale, maxScale);
+}
+
 async function renderVilnaPage() {
   const canvas = $('vilnaPageCanvas');
   const view = $('vilnaPlaceholder');
@@ -526,7 +546,7 @@ async function renderVilnaPage() {
     // actually renders at, however that gets constrained.
     const containerWidth = $('vilnaPageWrap').clientWidth || view.clientWidth || 640;
     const baseViewport = page.getViewport({ scale: 1 });
-    const scale = (containerWidth / baseViewport.width) * (window.devicePixelRatio || 1);
+    const scale = vilnaPageRenderScale(baseViewport.width, containerWidth, 1);
     const viewport = page.getViewport({ scale });
 
     canvas.width = viewport.width;
@@ -537,6 +557,8 @@ async function renderVilnaPage() {
     if (!stillWanted()) return;
 
     state.vilnaPageKey = key;
+    state.vilnaPdfPage = page;
+    state.vilnaPdfContainerWidth = containerWidth;
     $('vilnaPageStatus').hidden = true;
     canvas.hidden = false;
     loadVilnaPageMap(parsed, stillWanted);
@@ -633,6 +655,36 @@ function applyVilnaPageZoom() {
 function setVilnaPageZoom(zoom) {
   state.vilnaPageZoom = Math.max(VILNA_ZOOM_MIN, Math.min(VILNA_ZOOM_MAX, zoom));
   applyVilnaPageZoom();
+  // The CSS transform above gives instant visual feedback by stretching the
+  // existing bitmap (blurry past its native resolution, same as stretching
+  // any image); this re-rasterizes the same cached vector page at a
+  // resolution matching the new zoom so it settles crisp a moment later.
+  // Debounced so rapid clicks/wheel ticks don't each trigger a full
+  // pdf.js render pass.
+  clearTimeout(state.vilnaZoomRerenderTimer);
+  state.vilnaZoomRerenderTimer = setTimeout(rerenderVilnaPageForZoom, 220);
+}
+
+async function rerenderVilnaPageForZoom() {
+  const page = state.vilnaPdfPage;
+  const canvas = $('vilnaPageCanvas');
+  if (!page || !canvas || canvas.hidden) return;
+  const key = state.vilnaPageKey;
+  const containerWidth = state.vilnaPdfContainerWidth || canvas.clientWidth || 640;
+  const baseViewport = page.getViewport({ scale: 1 });
+  // Only the zoomed-in case needs a fresh, higher-resolution rasterization --
+  // zooming back out is already covered by the baseline render's own
+  // QUALITY_OVERSAMPLE headroom, so skip the redundant re-render.
+  const qualityMultiplier = Math.max(1, state.vilnaPageZoom);
+  const scale = vilnaPageRenderScale(baseViewport.width, containerWidth, qualityMultiplier);
+  const viewport = page.getViewport({ scale });
+  if (Math.round(viewport.width) === canvas.width) return; // already at this resolution (e.g. capped by MAX_CANVAS_WIDTH_PX)
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  // The per-word click targets are positioned in percentages of the wrap's
+  // CSS layout box (unchanged here -- only the canvas's internal pixel
+  // resolution is), so they stay aligned without needing to be rebuilt.
+  await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
 }
 
 function toggleVilnaFullscreen() {
