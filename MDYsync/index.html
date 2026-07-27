@@ -107,6 +107,28 @@
             <button class="large-play" id="largePlay" aria-label="Play video" hidden>
               <svg viewBox="0 0 44 44" aria-hidden="true"><path d="M17 12.5 33 22 17 31.5v-19Z" fill="currentColor"/></svg>
             </button>
+            <div class="video-vilna-overlay" id="videoVilnaOverlay" hidden>
+              <canvas id="videoVilnaCanvas"></canvas>
+            </div>
+          </div>
+
+          <div class="overlay-controls" id="overlayControls">
+            <label class="toggle-label">
+              <input type="checkbox" id="overlayToggle" />
+              <span class="toggle"></span>
+              Overlay Vilna page on video <em>(experimental)</em>
+            </label>
+            <label class="overlay-mode-label">
+              Style
+              <select id="overlayModeSelect">
+                <option value="full">Full page</option>
+                <option value="strip">Current lines</option>
+              </select>
+            </label>
+            <label class="overlay-opacity-label">
+              Opacity
+              <input type="range" id="overlayOpacitySlider" min="10" max="90" value="50" />
+            </label>
           </div>
 
           <div class="scrubber-wrap">

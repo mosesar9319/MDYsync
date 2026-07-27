@@ -26,7 +26,10 @@ const state = {
   vilnaPagePollTimer: null,
   vilnaOverlayKey: '',
   vilnaWordEls: null,
-  vilnaPageLoadingKey: null
+  vilnaPageLoadingKey: null,
+  videoOverlayEnabled: false,
+  videoOverlayMode: 'full',
+  videoOverlayOpacity: 0.5
 };
 
 const AUTO_SCROLL_RESUME_MS = 4000;
@@ -667,8 +670,83 @@ function updateVilnaOverlay(time) {
   }
 }
 
+// Experimental: draws a cropped/zoomed slice of the already-rendered Vilna
+// page canvas as a semi-transparent layer over the video itself, panning to
+// keep the currently-spoken line in view. Reuses the main canvas as a
+// drawImage source rather than re-rendering the page separately.
+function updateVideoOverlay(time) {
+  const wrap = $('videoVilnaOverlay');
+  if (!wrap) return;
+  if (!state.videoOverlayEnabled || !state.vilnaPageMap) {
+    wrap.hidden = true;
+    return;
+  }
+  const mainCanvas = $('vilnaPageCanvas');
+  if (!mainCanvas || mainCanvas.hidden || !mainCanvas.width) {
+    wrap.hidden = true;
+    return;
+  }
+  wrap.hidden = false;
+  wrap.classList.toggle('mode-strip', state.videoOverlayMode === 'strip');
+  wrap.style.opacity = String(state.videoOverlayOpacity);
+
+  const canvas = $('videoVilnaCanvas');
+  const dpr = window.devicePixelRatio || 1;
+  const cssWidth = wrap.clientWidth || 1;
+  const cssHeight = wrap.clientHeight || 1;
+  const wantW = Math.round(cssWidth * dpr);
+  const wantH = Math.round(cssHeight * dpr);
+  if (canvas.width !== wantW || canvas.height !== wantH) {
+    canvas.width = wantW;
+    canvas.height = wantH;
+  }
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const active = state.wordTimeline.filter((entry) => time >= entry.start && time < entry.end);
+  const activeBoxes = [];
+  for (const entry of active) {
+    for (let idx = entry.w0; idx <= entry.w1; idx++) {
+      const box = state.vilnaPageMap.wordBoxes.find((b) => b.ref === entry.ref && b.wordIndex === idx);
+      if (box) activeBoxes.push(box);
+    }
+  }
+  const activeY = activeBoxes.length
+    ? activeBoxes.reduce((sum, b) => sum + b.y + b.h / 2, 0) / activeBoxes.length
+    : 0.15;
+
+  const pageW = mainCanvas.width;
+  const pageH = mainCanvas.height;
+  // The established Gemara-column band (see page_ocr_align.py) -- "strip"
+  // mode crops to just this x-range instead of the full (mostly-margin)
+  // page width, so the zoomed-in text fills the available space.
+  const sx = state.videoOverlayMode === 'strip' ? 0.15 * pageW : 0;
+  const sw = state.videoOverlayMode === 'strip' ? (0.855 - 0.15) * pageW : pageW;
+
+  const scale = canvas.width / sw;
+  const visibleSourceH = canvas.height / scale;
+  const centerY = activeY * pageH;
+  const sourceY = Math.max(0, Math.min(Math.max(0, pageH - visibleSourceH), centerY - visibleSourceH / 2));
+  ctx.drawImage(mainCanvas, sx, sourceY, sw, visibleSourceH, 0, 0, canvas.width, canvas.height);
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(255, 212, 0, 0.55)';
+  ctx.globalCompositeOperation = 'multiply';
+  for (const box of activeBoxes) {
+    const bx = (box.x * pageW - sx) * scale;
+    const by = (box.y * pageH - sourceY) * scale;
+    const bw = box.w * pageW * scale;
+    const bh = box.h * pageH * scale;
+    const padX = bw * 0.15;
+    const padY = bh * 0.35;
+    ctx.fillRect(bx - padX, by - padY, bw + padX * 2, bh + padY * 2);
+  }
+  ctx.restore();
+}
+
 function updateActiveWords(time) {
   updateVilnaOverlay(time);
+  updateVideoOverlay(time);
   if (!state.wordTimeline.length) return;
   const active = state.wordTimeline.filter((entry) => time >= entry.start && time < entry.end);
   document.querySelectorAll('.daf-segment').forEach((node) => {
@@ -1434,6 +1512,18 @@ $('largePlay').addEventListener('click', togglePlay);
 $('backButton').addEventListener('click', () => seek(getCurrentTime() - 10));
 $('forwardButton').addEventListener('click', () => seek(getCurrentTime() + 10));
 $('speedSelect').addEventListener('change', (event) => setPlaybackRate(Number(event.target.value)));
+$('overlayToggle')?.addEventListener('change', (event) => {
+  state.videoOverlayEnabled = event.target.checked;
+  updateVideoOverlay(getCurrentTime());
+});
+$('overlayModeSelect')?.addEventListener('change', (event) => {
+  state.videoOverlayMode = event.target.value;
+  updateVideoOverlay(getCurrentTime());
+});
+$('overlayOpacitySlider')?.addEventListener('input', (event) => {
+  state.videoOverlayOpacity = Number(event.target.value) / 100;
+  updateVideoOverlay(getCurrentTime());
+});
 $('videoInput').addEventListener('change', (event) => handleVideoFile(event.target.files?.[0]));
 $('loadVideoUrlButton').addEventListener('click', loadVideoFromUrl);
 $('videoUrl').addEventListener('keydown', (event) => { if (event.key === 'Enter') loadVideoFromUrl(); });
