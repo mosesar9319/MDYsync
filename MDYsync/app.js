@@ -34,7 +34,8 @@ const state = {
   videoOverlayIdleMode: 'dim',
   videoOverlayZoom: 1,
   videoOverlayPanX: 0,
-  videoOverlayPanY: 0
+  videoOverlayPanY: 0,
+  vilnaPageZoom: 1
 };
 
 const AUTO_SCROLL_RESUME_MS = 4000;
@@ -611,6 +612,37 @@ async function loadVilnaPageMap(parsed, stillWanted = () => true) {
     }
     if (await tryFetch()) stopVilnaPagePoll();
   }, 5000);
+}
+
+const VILNA_ZOOM_MIN = 0.5;
+const VILNA_ZOOM_MAX = 3;
+const VILNA_ZOOM_STEP = 0.2;
+
+// A plain CSS transform on the page's own wrap, not a re-render -- the
+// canvas and the per-word click targets inside it scale together as one
+// visual unit, so clicking a word to seek keeps working unchanged at any
+// zoom level, and .daf-scroll's existing overflow:auto lets the reader pan
+// around a zoomed-in page for free.
+function applyVilnaPageZoom() {
+  const wrap = $('vilnaPageWrap');
+  if (wrap) wrap.style.transform = `scale(${state.vilnaPageZoom})`;
+  const label = $('vilnaZoomLabel');
+  if (label) label.textContent = `${Math.round(state.vilnaPageZoom * 100)}%`;
+}
+
+function setVilnaPageZoom(zoom) {
+  state.vilnaPageZoom = Math.max(VILNA_ZOOM_MIN, Math.min(VILNA_ZOOM_MAX, zoom));
+  applyVilnaPageZoom();
+}
+
+function toggleVilnaFullscreen() {
+  const card = document.querySelector('.daf-card');
+  if (!card) return;
+  if (document.fullscreenElement === card) {
+    document.exitFullscreen();
+  } else {
+    card.requestFullscreen?.().catch((error) => showToast(`Fullscreen not available: ${error.message}`, 'error'));
+  }
 }
 
 // Renders one persistent, clickable div per word on the page -- not just
@@ -1776,6 +1808,18 @@ $('overlayResetPositionButton')?.addEventListener('click', () => {
   syncOverlayZoomSlider();
   updateVideoOverlay(getCurrentTime());
 });
+$('vilnaZoomInButton')?.addEventListener('click', () => setVilnaPageZoom(state.vilnaPageZoom + VILNA_ZOOM_STEP));
+$('vilnaZoomOutButton')?.addEventListener('click', () => setVilnaPageZoom(state.vilnaPageZoom - VILNA_ZOOM_STEP));
+$('vilnaZoomResetButton')?.addEventListener('click', () => setVilnaPageZoom(1));
+$('vilnaFullscreenButton')?.addEventListener('click', toggleVilnaFullscreen);
+// ctrlKey is how browsers deliver a trackpad/touchscreen pinch gesture as a
+// wheel event -- only intercepted with that modifier so plain two-finger
+// scrolling still scrolls .daf-scroll normally instead of always zooming.
+$('vilnaPageWrap')?.addEventListener('wheel', (event) => {
+  if (!event.ctrlKey) return;
+  event.preventDefault();
+  setVilnaPageZoom(state.vilnaPageZoom + (event.deltaY < 0 ? VILNA_ZOOM_STEP : -VILNA_ZOOM_STEP));
+}, { passive: false });
 $('videoInput').addEventListener('change', (event) => handleVideoFile(event.target.files?.[0]));
 $('loadVideoUrlButton').addEventListener('click', loadVideoFromUrl);
 $('videoUrl').addEventListener('keydown', (event) => { if (event.key === 'Enter') loadVideoFromUrl(); });
