@@ -2278,7 +2278,7 @@ async function startDriveSync() {
   }
 
   const startedAt = Date.now();
-  const MAX_WAIT_SECONDS = 20 * 60; // GitHub Actions job has its own 30-min cap
+  const MAX_WAIT_SECONDS = 55 * 60; // GitHub Actions job has its own 60-min cap
   stopSyncPolling();
   syncState.pollTimer = setInterval(async () => {
     const elapsed = Math.round((Date.now() - startedAt) / 1000);
