@@ -116,9 +116,21 @@
             <div class="video-vilna-overlay" id="videoVilnaOverlay" hidden>
               <canvas id="videoVilnaCanvas"></canvas>
             </div>
-            <button class="video-fullscreen-button" id="fullscreenButton" aria-label="Fullscreen" title="Fullscreen">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
+            <!-- Lives inside .video-frame (not a sibling) so it survives native
+                 fullscreen -- the scrubber-wrap below the frame does not, and
+                 the overlay canvas otherwise sits on top of the YouTube
+                 iframe's own hover controls, blocking them. -->
+            <div class="video-inline-controls" id="videoInlineControls">
+              <button class="video-inline-play" id="inlinePlayButton" aria-label="Play">
+                <svg class="play-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z" fill="currentColor"/></svg>
+                <svg class="pause-icon" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M7 5h4v14H7zm6 0h4v14h-4z" fill="currentColor"/></svg>
+              </button>
+              <input id="inlineScrubber" class="inline-scrubber" type="range" min="0" max="100" step="0.01" value="0" aria-label="Video timeline" />
+              <span class="inline-time" id="inlineTimeLabel">0:00 / 0:00</span>
+              <button class="video-fullscreen-button" id="fullscreenButton" aria-label="Fullscreen" title="Fullscreen">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
           </div>
 
           <div class="overlay-controls" id="overlayControls">
@@ -152,6 +164,12 @@
                 <option value="hide">Hide overlay</option>
               </select>
             </label>
+            <label class="overlay-opacity-label">
+              Zoom
+              <input type="range" id="overlayZoomSlider" min="60" max="350" value="100" />
+            </label>
+            <button class="button ghost small" id="overlayResetPositionButton" type="button">Reset position</button>
+            <em class="overlay-hint">Scroll/pinch the overlay to zoom, drag to reposition</em>
           </div>
 
           <div class="scrubber-wrap">

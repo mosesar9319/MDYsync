@@ -31,7 +31,10 @@ const state = {
   videoOverlayMode: 'full',
   videoOverlayOpacity: 0.5,
   videoOverlayOpacityTarget: 'both',
-  videoOverlayIdleMode: 'dim'
+  videoOverlayIdleMode: 'dim',
+  videoOverlayZoom: 1,
+  videoOverlayPanX: 0,
+  videoOverlayPanY: 0
 };
 
 const AUTO_SCROLL_RESUME_MS = 4000;
@@ -40,6 +43,11 @@ const $ = (id) => document.getElementById(id);
 const htmlVideo = $('video');
 const youtubeHost = $('youtubePlayerHost');
 const scrubber = $('scrubber');
+const inlineScrubber = $('inlineScrubber');
+// Both scrubbers stay in sync so the in-frame one (the only one visible in
+// fullscreen, and the only one reachable through a "full page" overlay) works
+// identically to the one below the player.
+const scrubberEls = [scrubber, inlineScrubber].filter(Boolean);
 const dafPage = $('dafPage');
 const editor = $('editor');
 const editorBody = $('editorBody');
@@ -687,6 +695,11 @@ const COMMENTARY_X1_FRAC = 0.855;
 // reading Gemara text that has a page position -- "dim" idle mode fades the
 // overlay down to this floor instead of hiding it outright.
 const IDLE_OPACITY_FLOOR = 0.1;
+// videoOverlayZoom multiplies into the mode's base crop width -- 1 is the
+// mode's default framing, >1 shows less of the page (more magnified), <1
+// shows more. Clamped so the crop never needs to exceed the source image.
+const OVERLAY_ZOOM_MIN = 0.6;
+const OVERLAY_ZOOM_MAX = 3.5;
 
 // Experimental: draws a cropped/zoomed slice of the already-rendered Vilna
 // page canvas as a semi-transparent layer over the video itself, panning to
@@ -750,12 +763,18 @@ function updateVideoOverlay(time) {
   const pageH = mainCanvas.height;
   const x0 = state.videoOverlayMode === 'strip' ? GEMARA_X0_FRAC : COMMENTARY_X0_FRAC;
   const x1 = state.videoOverlayMode === 'strip' ? GEMARA_X1_FRAC : COMMENTARY_X1_FRAC;
-  const sx = x0 * pageW;
-  const sw = (x1 - x0) * pageW;
+  const zoom = Math.max(OVERLAY_ZOOM_MIN, Math.min(OVERLAY_ZOOM_MAX, state.videoOverlayZoom || 1));
+  // Pan is a user-chosen nudge on top of the mode's default centering (X) or
+  // the auto-follow-the-active-word centering (Y) -- it isn't clamped itself,
+  // only the resulting crop rectangle is, so it stays meaningful across zoom
+  // levels and doesn't need resetting when the active line moves.
+  const sw = Math.min(pageW, ((x1 - x0) / zoom) * pageW);
+  const centerX = ((x0 + x1) / 2 + state.videoOverlayPanX) * pageW;
+  const sx = Math.max(0, Math.min(Math.max(0, pageW - sw), centerX - sw / 2));
 
   const scale = canvas.width / sw;
   const visibleSourceH = canvas.height / scale;
-  const centerY = activeY * pageH;
+  const centerY = (activeY + state.videoOverlayPanY) * pageH;
   const sourceY = Math.max(0, Math.min(Math.max(0, pageH - visibleSourceH), centerY - visibleSourceH / 2));
   ctx.drawImage(mainCanvas, sx, sourceY, sw, visibleSourceH, 0, 0, canvas.width, canvas.height);
   // Saved so a click on the canvas can be translated back into page-fraction
@@ -798,6 +817,12 @@ function applyBackgroundOnlyFade(ctx, canvas, opacity) {
 // page-fraction coordinates using the transform saved by the last draw,
 // then matched against a word box the same way seekToVilnaWord does.
 function handleVideoOverlayClick(event) {
+  // A drag (pan) or pinch (zoom) still fires a native click on pointerup;
+  // swallow it so repositioning the overlay doesn't also seek the video.
+  if (overlayDragMoved) {
+    overlayDragMoved = false;
+    return;
+  }
   const t = state.videoOverlayTransform;
   if (!t || !state.vilnaPageMap) return;
   const canvas = $('videoVilnaCanvas');
@@ -813,6 +838,114 @@ function handleVideoOverlayClick(event) {
     (b) => xFrac >= b.x && xFrac <= b.x + b.w && yFrac >= b.y && yFrac <= b.y + b.h
   );
   if (box) seekToVilnaWord(box.ref, box.wordIndex);
+}
+
+// Drag-to-pan and pinch-to-zoom on the video overlay, so a user can choose
+// how much of the page is magnified and which part of it sits over which
+// part of the video, independent of the mode's default framing. Tracked with
+// Pointer Events (not separate mouse/touch listeners) so one finger drags and
+// two fingers pinch through the same pointer map -- a second pointerId
+// arriving mid-drag just promotes it to a pinch.
+const overlayPointers = new Map();
+let overlayDragMoved = false;
+let overlayDragStart = null; // { x, y, panX, panY }
+let overlayPinchStart = null; // { dist, midX, midY, zoom, panX, panY }
+
+function overlayPointToCanvasPx(clientX, clientY) {
+  const canvas = $('videoVilnaCanvas');
+  const rect = canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  return {
+    x: (clientX - rect.left) * (canvas.width / rect.width),
+    y: (clientY - rect.top) * (canvas.height / rect.height)
+  };
+}
+
+function pointerMidpoint() {
+  const pts = [...overlayPointers.values()];
+  return { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+}
+
+function pointerDistance() {
+  const pts = [...overlayPointers.values()];
+  return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+}
+
+function syncOverlayZoomSlider() {
+  const slider = $('overlayZoomSlider');
+  if (slider) slider.value = String(Math.round(state.videoOverlayZoom * 100));
+}
+
+function handleOverlayPointerDown(event) {
+  const canvas = $('videoVilnaCanvas');
+  canvas.setPointerCapture(event.pointerId);
+  const pt = overlayPointToCanvasPx(event.clientX, event.clientY);
+  if (!pt) return;
+  overlayPointers.set(event.pointerId, pt);
+  if (overlayPointers.size === 1) {
+    overlayDragMoved = false;
+    overlayDragStart = { x: pt.x, y: pt.y, panX: state.videoOverlayPanX, panY: state.videoOverlayPanY };
+    overlayPinchStart = null;
+  } else if (overlayPointers.size === 2) {
+    overlayDragMoved = true; // a pinch is never a click, on either finger
+    const mid = pointerMidpoint();
+    overlayPinchStart = {
+      dist: pointerDistance(),
+      midX: mid.x,
+      midY: mid.y,
+      zoom: state.videoOverlayZoom,
+      panX: state.videoOverlayPanX,
+      panY: state.videoOverlayPanY
+    };
+  }
+}
+
+function handleOverlayPointerMove(event) {
+  if (!overlayPointers.has(event.pointerId)) return;
+  const pt = overlayPointToCanvasPx(event.clientX, event.clientY);
+  if (!pt) return;
+  overlayPointers.set(event.pointerId, pt);
+  const t = state.videoOverlayTransform;
+  if (!t) return;
+
+  if (overlayPointers.size >= 2 && overlayPinchStart) {
+    const dist = pointerDistance();
+    const ratio = dist / (overlayPinchStart.dist || dist || 1);
+    state.videoOverlayZoom = Math.max(OVERLAY_ZOOM_MIN, Math.min(OVERLAY_ZOOM_MAX, overlayPinchStart.zoom * ratio));
+    const mid = pointerMidpoint();
+    state.videoOverlayPanX = overlayPinchStart.panX - (mid.x - overlayPinchStart.midX) / t.scale / t.pageW;
+    state.videoOverlayPanY = overlayPinchStart.panY - (mid.y - overlayPinchStart.midY) / t.scale / t.pageH;
+    syncOverlayZoomSlider();
+    updateVideoOverlay(getCurrentTime());
+  } else if (overlayDragStart) {
+    const dx = pt.x - overlayDragStart.x;
+    const dy = pt.y - overlayDragStart.y;
+    if (Math.hypot(dx, dy) > 6) overlayDragMoved = true;
+    state.videoOverlayPanX = overlayDragStart.panX - dx / t.scale / t.pageW;
+    state.videoOverlayPanY = overlayDragStart.panY - dy / t.scale / t.pageH;
+    updateVideoOverlay(getCurrentTime());
+  }
+}
+
+function handleOverlayPointerUp(event) {
+  overlayPointers.delete(event.pointerId);
+  if (overlayPointers.size < 2) overlayPinchStart = null;
+  if (overlayPointers.size === 1) {
+    // One finger remains after a pinch or after the primary drag pointer
+    // lifted -- re-baseline so the remaining finger doesn't jump the pan.
+    const [[, pt]] = overlayPointers;
+    overlayDragStart = { x: pt.x, y: pt.y, panX: state.videoOverlayPanX, panY: state.videoOverlayPanY };
+  } else if (overlayPointers.size === 0) {
+    overlayDragStart = null;
+  }
+}
+
+function handleOverlayWheel(event) {
+  event.preventDefault();
+  const factor = event.deltaY < 0 ? 1.08 : 1 / 1.08;
+  state.videoOverlayZoom = Math.max(OVERLAY_ZOOM_MIN, Math.min(OVERLAY_ZOOM_MAX, state.videoOverlayZoom * factor));
+  syncOverlayZoomSlider();
+  updateVideoOverlay(getCurrentTime());
 }
 
 function toggleVideoFullscreen() {
@@ -872,7 +1005,7 @@ function updateActiveSegment(force = false, timeOverride = null) {
 
 function applyDuration(duration, resetDefault = true) {
   if (!Number.isFinite(duration) || duration <= 0) return;
-  scrubber.max = String(duration);
+  scrubberEls.forEach((el) => { el.max = String(duration); });
   $('duration').textContent = formatTime(duration);
   if (resetDefault && state.alignmentDuration > 0 && Math.abs(duration - state.alignmentDuration) > 5) {
     showToast(
@@ -891,27 +1024,30 @@ function applyDuration(duration, resetDefault = true) {
 function updateTimeline() {
   const current = getCurrentTime();
   const duration = getDuration() || Number(scrubber.max) || 0;
-  if (duration > 0 && Number(scrubber.max) !== duration) scrubber.max = String(duration);
-  if (!state.seeking) scrubber.value = String(Math.min(current, duration || current));
+  if (duration > 0 && Number(scrubber.max) !== duration) scrubberEls.forEach((el) => { el.max = String(duration); });
+  if (!state.seeking) scrubberEls.forEach((el) => { el.value = String(Math.min(current, duration || current)); });
   $('currentTime').textContent = formatTime(current);
   $('duration').textContent = formatTime(duration);
+  if ($('inlineTimeLabel')) $('inlineTimeLabel').textContent = `${formatTime(current)} / ${formatTime(duration)}`;
   updateScrubberFill();
   updateActiveSegment();
 }
 
 function updateScrubberFill() {
   const max = Number(scrubber.max) || 1;
-  const value = Number(scrubber.value) || 0;
-  const percent = Math.min(100, Math.max(0, value / max * 100));
-  scrubber.style.background = `linear-gradient(to right, var(--accent) 0%, var(--accent) ${percent}%, rgba(255,255,255,.14) ${percent}%, rgba(255,255,255,.14) 100%)`;
+  for (const el of scrubberEls) {
+    const percent = Math.min(100, Math.max(0, (Number(el.value) || 0) / max * 100));
+    el.style.background = `linear-gradient(to right, var(--accent) 0%, var(--accent) ${percent}%, rgba(255,255,255,.14) ${percent}%, rgba(255,255,255,.14) 100%)`;
+  }
 }
 
 function updatePlayUi() {
   const paused = isPaused();
-  document.querySelector('.play-icon').hidden = !paused;
-  document.querySelector('.pause-icon').hidden = paused;
+  document.querySelectorAll('.play-icon').forEach((el) => { el.hidden = !paused; });
+  document.querySelectorAll('.pause-icon').forEach((el) => { el.hidden = paused; });
   $('largePlay').hidden = !state.videoSource || !paused || getCurrentTime() > 0.15;
   $('playButton').setAttribute('aria-label', paused ? 'Play' : 'Pause');
+  $('inlinePlayButton')?.setAttribute('aria-label', paused ? 'Play' : 'Pause');
 }
 
 async function togglePlay() {
@@ -939,8 +1075,9 @@ function seek(time, allowSeekAhead = true) {
     htmlVideo.currentTime = clamped;
   }
 
-  scrubber.value = String(clamped);
+  scrubberEls.forEach((el) => { el.value = String(clamped); });
   $('currentTime').textContent = formatTime(clamped);
+  if ($('inlineTimeLabel')) $('inlineTimeLabel').textContent = `${formatTime(clamped)} / ${formatTime(max)}`;
   updateScrubberFill();
   updateActiveSegment(true, clamped);
 }
@@ -1602,8 +1739,14 @@ $('speedSelect').addEventListener('change', (event) => setPlaybackRate(Number(ev
 $('fullscreenButton')?.addEventListener('click', toggleVideoFullscreen);
 document.addEventListener('fullscreenchange', () => updateVideoOverlay(getCurrentTime()));
 $('videoVilnaCanvas')?.addEventListener('click', handleVideoOverlayClick);
+$('videoVilnaCanvas')?.addEventListener('pointerdown', handleOverlayPointerDown);
+$('videoVilnaCanvas')?.addEventListener('pointermove', handleOverlayPointerMove);
+$('videoVilnaCanvas')?.addEventListener('pointerup', handleOverlayPointerUp);
+$('videoVilnaCanvas')?.addEventListener('pointercancel', handleOverlayPointerUp);
+$('videoVilnaCanvas')?.addEventListener('wheel', handleOverlayWheel, { passive: false });
 $('overlayToggle')?.addEventListener('change', (event) => {
   state.videoOverlayEnabled = event.target.checked;
+  $('videoFrame')?.classList.toggle('overlay-on', state.videoOverlayEnabled);
   updateVideoOverlay(getCurrentTime());
 });
 $('overlayModeSelect')?.addEventListener('change', (event) => {
@@ -1620,6 +1763,17 @@ $('overlayOpacityTargetSelect')?.addEventListener('change', (event) => {
 });
 $('overlayIdleSelect')?.addEventListener('change', (event) => {
   state.videoOverlayIdleMode = event.target.value;
+  updateVideoOverlay(getCurrentTime());
+});
+$('overlayZoomSlider')?.addEventListener('input', (event) => {
+  state.videoOverlayZoom = Number(event.target.value) / 100;
+  updateVideoOverlay(getCurrentTime());
+});
+$('overlayResetPositionButton')?.addEventListener('click', () => {
+  state.videoOverlayZoom = 1;
+  state.videoOverlayPanX = 0;
+  state.videoOverlayPanY = 0;
+  syncOverlayZoomSlider();
   updateVideoOverlay(getCurrentTime());
 });
 $('videoInput').addEventListener('change', (event) => handleVideoFile(event.target.files?.[0]));
@@ -1646,10 +1800,15 @@ const markManualScroll = () => { state.lastManualScrollAt = Date.now(); };
 $('dafScroll').addEventListener('wheel', markManualScroll, { passive: true });
 $('dafScroll').addEventListener('touchmove', markManualScroll, { passive: true });
 
-scrubber.addEventListener('input', (event) => {
+function handleScrubInput(event) {
   state.seeking = true;
   const time = Number(event.target.value);
+  scrubberEls.forEach((el) => { if (el !== event.target) el.value = event.target.value; });
   $('currentTime').textContent = formatTime(time);
+  if ($('inlineTimeLabel')) {
+    const duration = getDuration() || Number(scrubber.max) || 0;
+    $('inlineTimeLabel').textContent = `${formatTime(time)} / ${formatTime(duration)}`;
+  }
   updateScrubberFill();
   updateActiveSegment(true, time);
   if (state.playerType === 'youtube') {
@@ -1657,16 +1816,21 @@ scrubber.addEventListener('input', (event) => {
   } else {
     htmlVideo.currentTime = time;
   }
-});
-scrubber.addEventListener('change', (event) => {
+}
+function handleScrubChange(event) {
   const time = Number(event.target.value);
   if (state.playerType === 'youtube' && state.youtubeReady) state.youtubePlayer.seekTo(time, true);
   state.seeking = false;
   updateTimeline();
-});
+}
+for (const el of scrubberEls) {
+  el.addEventListener('input', handleScrubInput);
+  el.addEventListener('change', handleScrubChange);
+}
 scrubber.addEventListener('pointermove', handleScrubPointer);
 scrubber.addEventListener('pointerenter', handleScrubPointer);
 scrubber.addEventListener('pointerleave', () => { $('scrubPreview').hidden = true; });
+$('inlinePlayButton')?.addEventListener('click', togglePlay);
 
 for (const button of document.querySelectorAll('.view-switch button')) {
   button.addEventListener('click', () => {
