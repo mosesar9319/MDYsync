@@ -25,7 +25,8 @@ const state = {
   vilnaPageMap: null,
   vilnaPagePollTimer: null,
   vilnaOverlayKey: '',
-  vilnaWordEls: null
+  vilnaWordEls: null,
+  vilnaPageLoadingKey: null
 };
 
 const AUTO_SCROLL_RESUME_MS = 4000;
@@ -445,6 +446,22 @@ function setVilnaPageStatus(message) {
   $('vilnaPageCanvas').hidden = true;
 }
 
+// The daf shown can change mid-flight (a user seeking back and forth across
+// an amud boundary while the previous page image/map fetch is still in the
+// air) -- render/load calls below re-check this at every await point instead
+// of trusting a value captured when they started, so a slow, now-stale
+// response can never clobber a faster, newer one. Without this, the exact
+// failure seen in practice: the canvas stayed on the old amud's image (which
+// can have large blank stretches) while the *overlay* had already moved on
+// to the new amud's word positions, landing highlights in blank space that
+// belonged on a page that was no longer the one on screen.
+function currentVilnaPageKey() {
+  const activeRef = state.segments[state.activeIndex]?.ref || state.dafRef;
+  const parsed = parseDafRef(activeRef);
+  if (!parsed) return { parsed: null, key: null };
+  return { parsed, key: `${parsed.tractate}|${parsed.daf}|${parsed.amud}` };
+}
+
 async function renderVilnaPage() {
   const canvas = $('vilnaPageCanvas');
   const view = $('vilnaPlaceholder');
@@ -454,15 +471,15 @@ async function renderVilnaPage() {
   // player started with -- a synced video can span more than one daf
   // (e.g. finishing 86a partway through and continuing into 86b), and
   // the Vilna page should turn with it.
-  const activeRef = state.segments[state.activeIndex]?.ref || state.dafRef;
-  const parsed = parseDafRef(activeRef);
+  const { parsed, key } = currentVilnaPageKey();
   if (!parsed) {
     state.vilnaPageKey = null;
     setVilnaPageStatus('Load a daf reference to see the Vilna page image.');
     return;
   }
-  const key = `${parsed.tractate}|${parsed.daf}|${parsed.amud}`;
-  if (state.vilnaPageKey === key) return;
+  if (state.vilnaPageKey === key || state.vilnaPageLoadingKey === key) return;
+  state.vilnaPageLoadingKey = key;
+  const stillWanted = () => currentVilnaPageKey().key === key;
 
   setVilnaPageStatus(`Loading the Vilna page for ${parsed.tractate} ${parsed.daf}${parsed.amud}…`);
   try {
@@ -470,13 +487,16 @@ async function renderVilnaPage() {
       loadPdfJs(),
       fetch(`/api/daf-page?tractate=${encodeURIComponent(parsed.tractate)}&daf=${parsed.daf}&amud=${parsed.amud}`)
     ]);
+    if (!stillWanted()) return;
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
       throw new Error(body.error || `Page image request failed (${response.status}).`);
     }
     const bytes = await response.arrayBuffer();
     const pdf = await lib.getDocument({ data: bytes }).promise;
+    if (!stillWanted()) return;
     const page = await pdf.getPage(1);
+    if (!stillWanted()) return;
 
     // Measure the canvas's actual containing block (.vilna-page-wrap), not
     // #vilnaPlaceholder itself -- that has 20px of padding, so using its
@@ -500,14 +520,18 @@ async function renderVilnaPage() {
     canvas.style.width = `${containerWidth}px`;
     canvas.style.removeProperty('height');
     await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    if (!stillWanted()) return;
 
     state.vilnaPageKey = key;
     $('vilnaPageStatus').hidden = true;
     canvas.hidden = false;
-    loadVilnaPageMap(parsed);
+    loadVilnaPageMap(parsed, stillWanted);
   } catch (error) {
+    if (!stillWanted()) return;
     state.vilnaPageKey = null;
     setVilnaPageStatus(`Couldn't load the Vilna page for ${parsed.tractate} ${parsed.daf}${parsed.amud}: ${error.message}`);
+  } finally {
+    if (state.vilnaPageLoadingKey === key) state.vilnaPageLoadingKey = null;
   }
 }
 
@@ -527,7 +551,7 @@ function stopVilnaPagePoll() {
 // already useful without it, so a failure or delay here should never
 // disturb what's already on screen -- it just means no highlight overlay
 // yet.
-async function loadVilnaPageMap(parsed) {
+async function loadVilnaPageMap(parsed, stillWanted = () => true) {
   stopVilnaPagePoll();
   state.vilnaPageMap = null;
   state.vilnaOverlayKey = '';
@@ -539,8 +563,11 @@ async function loadVilnaPageMap(parsed) {
   const tryFetch = async () => {
     try {
       const response = await fetch(`${resultUrl}?t=${Date.now()}`);
+      if (!stillWanted()) return true; // a newer page has since taken over; stop polling, apply nothing
       if (!response.ok) return false;
-      state.vilnaPageMap = await response.json();
+      const data = await response.json();
+      if (!stillWanted()) return true;
+      state.vilnaPageMap = data;
       renderVilnaWordBoxes();
       updateVilnaOverlay(getCurrentTime());
       return true;
@@ -550,6 +577,7 @@ async function loadVilnaPageMap(parsed) {
   };
 
   if (await tryFetch()) return;
+  if (!stillWanted()) return;
 
   try {
     const parsedResponse = await fetch('/api/trigger-page-ocr-job', {
