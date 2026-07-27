@@ -29,7 +29,9 @@ const state = {
   vilnaPageLoadingKey: null,
   videoOverlayEnabled: false,
   videoOverlayMode: 'full',
-  videoOverlayOpacity: 0.5
+  videoOverlayOpacity: 0.5,
+  videoOverlayOpacityTarget: 'both',
+  videoOverlayIdleMode: 'dim'
 };
 
 const AUTO_SCROLL_RESUME_MS = 4000;
@@ -670,6 +672,22 @@ function updateVilnaOverlay(time) {
   }
 }
 
+// Column-boundary fractions of the rendered (CropBox-consistent) page canvas,
+// measured directly against real rendered pages -- see the "strip"/"full"
+// crops below. Right-to-left the page is: Ein Mishpat (outer margin) | Rashi
+// or its substitute | Gemara | Tosafot or its substitute | Mesorat HaShas and
+// stacked marginalia (outer margin, sharing the Tosafot-side column width).
+const GEMARA_X0_FRAC = 0.15;
+const GEMARA_X1_FRAC = 0.855;
+// Wider than the pure-Gemara band so "full page" mode also keeps Rashi and
+// Tosafot in frame, while still cropping out the two outer margin columns.
+const COMMENTARY_X0_FRAC = 0.05;
+const COMMENTARY_X1_FRAC = 0.855;
+// When nothing in wordTimeline covers the current instant, the rabbi isn't
+// reading Gemara text that has a page position -- "dim" idle mode fades the
+// overlay down to this floor instead of hiding it outright.
+const IDLE_OPACITY_FLOOR = 0.1;
+
 // Experimental: draws a cropped/zoomed slice of the already-rendered Vilna
 // page canvas as a semi-transparent layer over the video itself, panning to
 // keep the currently-spoken line in view. Reuses the main canvas as a
@@ -686,9 +704,23 @@ function updateVideoOverlay(time) {
     wrap.hidden = true;
     return;
   }
+
+  const active = state.wordTimeline.filter((entry) => time >= entry.start && time < entry.end);
+  const isIdle = active.length === 0;
+  if (isIdle && state.videoOverlayIdleMode === 'hide') {
+    wrap.hidden = true;
+    return;
+  }
+
   wrap.hidden = false;
   wrap.classList.toggle('mode-strip', state.videoOverlayMode === 'strip');
-  wrap.style.opacity = String(state.videoOverlayOpacity);
+  const effectiveOpacity = isIdle
+    ? Math.min(state.videoOverlayOpacity, IDLE_OPACITY_FLOOR)
+    : state.videoOverlayOpacity;
+  const fadeBackgroundOnly = state.videoOverlayOpacityTarget === 'background';
+  // In background-only mode the fade is baked into the pixel alpha below, so
+  // the wrapping element itself always stays fully opaque.
+  wrap.style.opacity = fadeBackgroundOnly ? '1' : String(effectiveOpacity);
 
   const canvas = $('videoVilnaCanvas');
   const dpr = window.devicePixelRatio || 1;
@@ -703,7 +735,6 @@ function updateVideoOverlay(time) {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  const active = state.wordTimeline.filter((entry) => time >= entry.start && time < entry.end);
   const activeBoxes = [];
   for (const entry of active) {
     for (let idx = entry.w0; idx <= entry.w1; idx++) {
@@ -717,11 +748,10 @@ function updateVideoOverlay(time) {
 
   const pageW = mainCanvas.width;
   const pageH = mainCanvas.height;
-  // The established Gemara-column band (see page_ocr_align.py) -- "strip"
-  // mode crops to just this x-range instead of the full (mostly-margin)
-  // page width, so the zoomed-in text fills the available space.
-  const sx = state.videoOverlayMode === 'strip' ? 0.15 * pageW : 0;
-  const sw = state.videoOverlayMode === 'strip' ? (0.855 - 0.15) * pageW : pageW;
+  const x0 = state.videoOverlayMode === 'strip' ? GEMARA_X0_FRAC : COMMENTARY_X0_FRAC;
+  const x1 = state.videoOverlayMode === 'strip' ? GEMARA_X1_FRAC : COMMENTARY_X1_FRAC;
+  const sx = x0 * pageW;
+  const sw = (x1 - x0) * pageW;
 
   const scale = canvas.width / sw;
   const visibleSourceH = canvas.height / scale;
@@ -731,6 +761,8 @@ function updateVideoOverlay(time) {
   // Saved so a click on the canvas can be translated back into page-fraction
   // coordinates and matched against a word box (see the click handler below).
   state.videoOverlayTransform = { sx, sourceY, scale, pageW, pageH };
+
+  if (fadeBackgroundOnly) applyBackgroundOnlyFade(ctx, canvas, effectiveOpacity);
 
   ctx.save();
   ctx.fillStyle = 'rgba(255, 212, 0, 0.55)';
@@ -745,6 +777,19 @@ function updateVideoOverlay(time) {
     ctx.fillRect(bx - padX, by - padY, bw + padX * 2, bh + padY * 2);
   }
   ctx.restore();
+}
+
+// Fades only the light page background toward transparent while keeping dark
+// text at full opacity, by converting each pixel's luminance into an alpha:
+// white (luminance 1) gets `opacity`, black (luminance 0) stays fully opaque.
+function applyBackgroundOnlyFade(ctx, canvas, opacity) {
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const luminance = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114) / 255;
+    data[i + 3] = Math.round((opacity + (1 - opacity) * (1 - luminance)) * 255);
+  }
+  ctx.putImageData(imageData, 0, 0);
 }
 
 // The video overlay draws with plain canvas 2D calls (drawImage/fillRect),
@@ -1567,6 +1612,14 @@ $('overlayModeSelect')?.addEventListener('change', (event) => {
 });
 $('overlayOpacitySlider')?.addEventListener('input', (event) => {
   state.videoOverlayOpacity = Number(event.target.value) / 100;
+  updateVideoOverlay(getCurrentTime());
+});
+$('overlayOpacityTargetSelect')?.addEventListener('change', (event) => {
+  state.videoOverlayOpacityTarget = event.target.value;
+  updateVideoOverlay(getCurrentTime());
+});
+$('overlayIdleSelect')?.addEventListener('change', (event) => {
+  state.videoOverlayIdleMode = event.target.value;
   updateVideoOverlay(getCurrentTime());
 });
 $('videoInput').addEventListener('change', (event) => handleVideoFile(event.target.files?.[0]));

@@ -138,6 +138,20 @@
               Opacity
               <input type="range" id="overlayOpacitySlider" min="10" max="90" value="50" />
             </label>
+            <label class="overlay-mode-label">
+              Fade to opacity
+              <select id="overlayOpacityTargetSelect">
+                <option value="both">Page + text</option>
+                <option value="background">Page only</option>
+              </select>
+            </label>
+            <label class="overlay-mode-label">
+              When not reading Gemara
+              <select id="overlayIdleSelect">
+                <option value="dim">Dim overlay</option>
+                <option value="hide">Hide overlay</option>
+              </select>
+            </label>
           </div>
 
           <div class="scrubber-wrap">
