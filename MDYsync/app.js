@@ -432,13 +432,21 @@ const CANONICAL_TRACTATE_NAMES = [
 const TRACTATE_NAME_BY_LOWERCASE = new Map(CANONICAL_TRACTATE_NAMES.map((name) => [name.toLowerCase(), name]));
 
 function parseDafRef(ref) {
-  // Accepts both a bare daf ref ("Chullin 86a") and a segment ref
-  // ("Chullin 86a:3", as found on state.segments[i].ref) by ignoring an
-  // optional trailing ":<segment number>". The tractate name is
-  // normalized to its canonical capitalization regardless of how it was
-  // typed/cased, since it flows into case-sensitive lookups downstream
-  // (GitHub raw file paths, and server-side tractate whitelists).
-  const match = /^(.+?)\s+(\d+)\s*([abAB])(?::\d+)?$/.exec(String(ref || '').trim());
+  // Accepts both a bare daf ref ("Chullin 86a") and a segment ref, ignoring
+  // an optional trailing segment number. Segment refs use two different
+  // separators depending on where they came from: a synced alignment's
+  // segments use a colon ("Chullin 86a:3", built server-side), while
+  // loadDaf()'s own fresh-Sefaria-fetch fallback (used for any daf that
+  // hasn't been through the sync pipeline yet) builds them with a dot
+  // ("Chullin 88a.1", from `${sectionRef}.${index+1}`) -- both need to
+  // parse here, or the Vilna page silently never loads for any such daf
+  // (currentVilnaPageKey() reads state.segments[i].ref first and only
+  // falls back to state.dafRef when that's empty, not when it's just
+  // unparseable). The tractate name is normalized to its canonical
+  // capitalization regardless of how it was typed/cased, since it flows
+  // into case-sensitive lookups downstream (GitHub raw file paths, and
+  // server-side tractate whitelists).
+  const match = /^(.+?)\s+(\d+)\s*([abAB])(?:[:.]\d+)?$/.exec(String(ref || '').trim());
   if (!match) return null;
   const typedTractate = match[1].trim();
   const tractate = TRACTATE_NAME_BY_LOWERCASE.get(typedTractate.toLowerCase()) || typedTractate;
