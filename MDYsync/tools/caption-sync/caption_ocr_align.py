@@ -116,11 +116,12 @@ def load_canonical(refs, cache_dir=None):
     for ref in refs:
         cache = os.path.join(cache_dir, f"sefaria_{ref}.json") if cache_dir else None
         if cache and os.path.exists(cache):
-            data = json.load(open(cache))
+            data = json.load(open(cache, encoding="utf-8"))
         else:
             data = fetch_sefaria(ref)
             if cache:
-                json.dump(data, open(cache, "w"), ensure_ascii=False)
+                json.dump(data, open(cache, "w", encoding="utf-8"),
+                          ensure_ascii=False)
         he = _flatten_he(data["he"] if isinstance(data, dict) else data)
         if not he:
             raise RuntimeError(
@@ -576,8 +577,10 @@ def main():
 
     a_path = os.path.join(args.out_dir, "alignment.json")
     w_path = os.path.join(args.out_dir, "wordmap.json")
-    json.dump(alignment, open(a_path, "w"), ensure_ascii=False, indent=2)
-    json.dump(word_map, open(w_path, "w"), ensure_ascii=False, indent=2)
+    json.dump(alignment, open(a_path, "w", encoding="utf-8"),
+              ensure_ascii=False, indent=2)
+    json.dump(word_map, open(w_path, "w", encoding="utf-8"),
+              ensure_ascii=False, indent=2)
     print(f"Wrote {a_path} ({len(alignment['segments'])} segments)")
     print(f"Wrote {w_path} ({len(word_map['entries'])} word-span entries)")
 

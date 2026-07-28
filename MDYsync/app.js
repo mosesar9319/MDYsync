@@ -233,6 +233,40 @@ function saveVideoLinkToServer(ref, videoSource) {
   }).catch((error) => console.error('Could not save the video link to the server.', error));
 }
 
+// A synced alignment can span several daf references in one video (e.g. a
+// shiur that opens on the last few lines of one daf before the bulk moves
+// to the next) -- pasting/connecting the real playable link once should
+// make it findable from any of those refs, not just whichever one happened
+// to be loaded at the time. Reads the distinct daf refs straight out of the
+// loaded segments, the same source of truth the alignment publish itself
+// covers.
+function dafRefsCoveredByCurrentAlignment() {
+  // Segment refs never carry the "(Chazarah Daf)" marker themselves (the
+  // OCR engine's own refs are always the plain, variant-less tractate/daf/
+  // amud -- see real_ref() in gui_app.py), so it has to be re-attached from
+  // the loaded alignment's own dafRef to keep a chazara reading's links
+  // under their own namespace instead of colliding with the regular shiur's.
+  const variant = parseDafRef(state.dafRef)?.variant === 'chazarah' ? ' (Chazarah Daf)' : '';
+  const refs = new Set();
+  for (const segment of state.segments) {
+    const parsed = parseDafRef(segment.ref);
+    if (parsed) refs.add(`${parsed.tractate} ${parsed.daf}${parsed.amud}${variant}`);
+  }
+  if (!refs.size && state.dafRef) refs.add(state.dafRef);
+  return [...refs];
+}
+
+// `refs`, when given, overrides the refs derived from state.segments -- used
+// by loadDaf()'s own early video-link restore, which runs before the daf
+// being navigated to has replaced the *previous* daf's segments, so reading
+// "covered refs" from live state there would tag the link onto the wrong
+// (stale) references.
+function saveVideoLinkForCoveredRefs(videoSource, refs = null) {
+  for (const ref of (refs && refs.length ? refs : dafRefsCoveredByCurrentAlignment())) {
+    saveVideoLinkToServer(ref, videoSource);
+  }
+}
+
 async function resolvePreferredVideoSource(ref, localSaved) {
   if (localSaved?.videoSource && ['youtube', 'direct'].includes(localSaved.videoSource.type)) {
     return localSaved.videoSource;
@@ -1366,7 +1400,12 @@ async function loadDaf(refOverride = null, options = {}) {
   // reference on the server (from another device), if any.
   const preferredVideoSource = await resolvePreferredVideoSource(ref, saved);
   if (preferredVideoSource) {
-    try { await restoreVideoSource(preferredVideoSource); } catch (error) { console.error(error); }
+    // Explicit [ref] here, not the default (state.segments-derived) covered
+    // refs -- at this point in loadDaf(), state.segments/state.dafRef still
+    // hold the *previous* daf's data (this one hasn't matched a synced
+    // alignment or saved project), so deriving refs from live state would
+    // tag the link onto the wrong daf.
+    try { await restoreVideoSource(preferredVideoSource, [ref]); } catch (error) { console.error(error); }
   }
 
   const button = $('loadDafButton');
@@ -1525,15 +1564,22 @@ async function ensureYouTubePlayer(videoId) {
       };
       if (location.protocol === 'http:' || location.protocol === 'https:') playerVars.origin = location.origin;
 
+      // videoId is deliberately left out of the constructor -- passing it
+      // there makes the IFrame API start playback the instant the player is
+      // ready regardless of the autoplay playerVar (a well-known API quirk),
+      // which is exactly what turned "pick a daf reference that already has
+      // a known video" into "and now it's playing, unasked". cueVideoById
+      // in onReady loads the same video without starting it, matching the
+      // already-has-a-player branch below.
       state.youtubePlayer = new window.YT.Player('youtubePlayer', {
         width: '100%',
         height: '100%',
-        videoId,
         playerVars,
         events: {
           onReady: (event) => {
             state.youtubeReady = true;
-            state.youtubeState = event.target.getPlayerState();
+            event.target.cueVideoById(videoId);
+            state.youtubeState = 5;
             startYouTubePoll();
             resolve();
           },
@@ -1587,7 +1633,7 @@ function stopYouTubePoll() {
   state.youtubePollTimer = null;
 }
 
-async function loadYouTubeVideo(url, videoId = extractYouTubeId(url)) {
+async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs = null) {
   if (!validateYouTubeId(videoId)) throw new Error('A valid YouTube video link is required.');
   cleanupObjectUrl();
   await ensureYouTubePlayer(videoId);
@@ -1604,7 +1650,7 @@ async function loadYouTubeVideo(url, videoId = extractYouTubeId(url)) {
   setSourcePanel('linkSourcePanel');
   seek(0);
   saveProjectForRef(state.dafRef, { videoSource: state.videoSource });
-  saveVideoLinkToServer(state.dafRef, state.videoSource);
+  saveVideoLinkForCoveredRefs(state.videoSource, saveRefs);
   showToast('YouTube video connected to the synchronized timeline.');
 }
 
@@ -1618,7 +1664,7 @@ function titleFromUrl(url) {
   }
 }
 
-function loadDirectVideoUrl(url) {
+function loadDirectVideoUrl(url, saveRefs = null) {
   let parsed;
   try {
     parsed = new URL(url);
@@ -1637,7 +1683,7 @@ function loadDirectVideoUrl(url) {
   setSourcePanel('linkSourcePanel');
   $('largePlay').hidden = false;
   saveProjectForRef(state.dafRef, { videoSource: state.videoSource });
-  saveVideoLinkToServer(state.dafRef, state.videoSource);
+  saveVideoLinkForCoveredRefs(state.videoSource, saveRefs);
   showToast('Direct video link loaded. Playback depends on the host and browser format support.');
 }
 
@@ -1701,13 +1747,13 @@ function slugify(text) {
   return (text || 'daf-sync').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
-async function restoreVideoSource(source) {
+async function restoreVideoSource(source, saveRefs = null) {
   if (!source || !source.type) return;
   if (source.type === 'youtube' && source.videoId) {
-    await loadYouTubeVideo(source.url || source.videoId, source.videoId);
+    await loadYouTubeVideo(source.url || source.videoId, source.videoId, saveRefs);
   } else if (source.type === 'direct' && source.url) {
     $('videoUrl').value = source.url;
-    loadDirectVideoUrl(source.url);
+    loadDirectVideoUrl(source.url, saveRefs);
   } else if (source.type === 'local') {
     setSourcePanel('fileSourcePanel');
     showToast(`Choose the exact video file that was analyzed: ${source.fileName || source.url || 'lecture video'}.`);
