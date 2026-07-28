@@ -2419,7 +2419,18 @@ document.querySelectorAll('#dafShiurToggle .shiur-variant-option').forEach((butt
     onDafPickerChanged();
   });
 });
-loadTalmudIndex();
+// A catalog link (?ref=Chullin+86a&variant=chazarah) should land straight on
+// that daf instead of the built-in demo -- but the picker it feeds
+// (syncDafPickerFromRef) needs the tractate index loaded first, so this
+// waits on the same loadTalmudIndex() call the picker itself depends on.
+loadTalmudIndex().then(() => {
+  const params = new URLSearchParams(location.search);
+  const ref = params.get('ref');
+  if (!ref) return;
+  const wantsChazarah = params.get('variant') === 'chazarah';
+  const fullRef = wantsChazarah && !/chazarah/i.test(ref) ? `${ref} (Chazarah Daf)` : ref;
+  loadDaf(fullRef);
+});
 document.querySelectorAll('#syncAmudToggle .amud-option').forEach((button) => {
   button.addEventListener('click', () => {
     if (button.disabled) return;
