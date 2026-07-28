@@ -2359,6 +2359,13 @@ async function startDriveSync() {
       }
       if (!response.ok) throw new Error(`Server returned ${response.status}`);
       const alignment = await response.json();
+      if (alignment?.jobId !== jobId) {
+        // A file already existed at this ref path from an earlier sync (e.g.
+        // this job's first-listed ref was already synced before) -- that's
+        // not this job's result, keep waiting for it to be overwritten.
+        setSyncProgress(Math.min(0.9, elapsed / 300), [`Processing on the server… (${elapsed}s elapsed)`]);
+        return;
+      }
       stopSyncPolling();
       setSyncProgress(1, [`Done after ${elapsed}s.`]);
       // loadAlignmentData already surfaces a specific "load this exact file" toast
