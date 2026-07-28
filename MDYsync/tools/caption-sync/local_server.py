@@ -42,6 +42,30 @@ ALLOWED_ORIGINS = {
 
 APP_VERSION = "0.3.0"
 
+# Marker for the shorter chazara-only recording of the same daf -- must
+# match the website's own suffix exactly (app.js parseDafRef/
+# canonicalDafRef) and gui_app.py's own copy of this constant.
+CHAZARAH_SUFFIX = " (Chazarah Daf)"
+PUBLISH_ENDPOINT = "https://mdysync.netlify.app/api/publish-alignment"
+
+
+def upload_alignment(alignment, refs, variant):
+    """Publish a finished alignment straight to the results branch (see
+    publish-alignment.mjs) so every device sees it immediately, not just
+    the browser that drove this particular sync. Raises on failure --
+    callers should treat that as non-fatal, since the website already has
+    the result directly regardless of whether this publish succeeds."""
+    import json as _json
+    import urllib.request
+    payload = _json.dumps({
+        "refs": refs, "variant": variant, "alignment": alignment,
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        PUBLISH_ENDPOINT, data=payload, method="POST",
+        headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        return _json.loads(resp.read())
+
 
 class JobRegistry:
     """Thread-safe in-memory job store. Jobs disappear when the app closes;
@@ -215,6 +239,9 @@ def make_handler(registry: JobRegistry, gui_queue, engine):
                 if not isinstance(refs, list) or not refs:
                     self._send_json(400, {"error": "Missing readings list."})
                     return
+                variant = fields.get("variant", "regular")
+                if variant not in ("regular", "chazarah"):
+                    variant = "regular"
             except Exception as exc:
                 self._send_json(400, {"error": f"Bad request: {exc}"})
                 return
@@ -229,7 +256,7 @@ def make_handler(registry: JobRegistry, gui_queue, engine):
 
             thread = threading.Thread(
                 target=_run_job,
-                args=(job_id, video_path, refs, work_dir, registry,
+                args=(job_id, video_path, refs, variant, work_dir, registry,
                       gui_queue, process_video, build_outputs),
                 daemon=True)
             thread.start()
@@ -238,7 +265,7 @@ def make_handler(registry: JobRegistry, gui_queue, engine):
     return Handler
 
 
-def _run_job(job_id, video_path, refs, work_dir, registry, gui_queue,
+def _run_job(job_id, video_path, refs, variant, work_dir, registry, gui_queue,
              process_video, build_outputs):
     try:
         if gui_queue is not None:
@@ -275,12 +302,27 @@ def _run_job(job_id, video_path, refs, work_dir, registry, gui_queue,
                     "readings cover this lecture.")
             alignment, word_map = build_outputs(
                 canon, segments, events, duration, video_path, refs)
+        if variant == "chazarah" and not alignment["dafRef"].endswith(CHAZARAH_SUFFIX):
+            alignment["dafRef"] += CHAZARAH_SUFFIX
 
         registry.update(job_id, status="done", progress=1.0,
                         result={"alignment": alignment, "wordmap": word_map})
         if gui_queue is not None:
             gui_queue.put(("progress", 1.0))
             gui_queue.put(("log", "[web] Done — result sent back to the website."))
+
+        # Also publish to the shared results branch -- the website already
+        # has this result directly (it's about to load it), but without
+        # this, no *other* device would ever see it unless the same person
+        # re-ran a Drive sync for the same daf.
+        try:
+            upload_alignment(alignment, refs, variant)
+            if gui_queue is not None:
+                gui_queue.put(("log", "[web] Also published for other devices."))
+        except Exception as exc:
+            if gui_queue is not None:
+                gui_queue.put(("log", f"[web] Publish to other devices failed (harmless, "
+                                       f"the website already has this result): {exc}"))
     except Exception as exc:
         registry.update(job_id, status="error", error=str(exc))
         if gui_queue is not None:

@@ -91,6 +91,45 @@ class QueueWriter:
 
 CARD_PAD = {"padx": 22, "pady": 9}
 
+# Marker appended to a reading's display ref for the shorter chazara-only
+# recording of the same daf -- must match the website's own suffix exactly
+# (app.js parseDafRef/canonicalDafRef) so a locally-synced-then-imported
+# file round-trips to the same variant there.
+CHAZARAH_SUFFIX = " (Chazarah Daf)"
+
+
+def real_ref(ref):
+    """Strip the Chazarah Daf marker back to the plain Sefaria ref -- the
+    OCR engine's own Sefaria fetch only ever knows the real tractate/daf/
+    amud, never the shiur variant (a chazara reading's canonical text is
+    identical to the regular shiur's, just a shorter recording of it)."""
+    return ref[:-len(CHAZARAH_SUFFIX)] if ref.endswith(CHAZARAH_SUFFIX) else ref
+
+
+def ref_variant(ref):
+    return "chazarah" if ref.endswith(CHAZARAH_SUFFIX) else "regular"
+
+
+PUBLISH_ENDPOINT = "https://mdysync.netlify.app/api/publish-alignment"
+
+
+def upload_alignment(alignment, refs, variant):
+    """Publish a finished alignment straight to the results branch (see
+    publish-alignment.mjs), so it's available to every device the moment
+    the sync finishes -- without the manual export/"Import sync" round
+    trip. Raises on any failure; the caller decides how to surface that
+    (the local .json files are already saved regardless, so a publish
+    failure here never loses the sync itself)."""
+    import urllib.request
+    payload = json.dumps({
+        "refs": refs, "variant": variant, "alignment": alignment,
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        PUBLISH_ENDPOINT, data=payload, method="POST",
+        headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        return json.loads(resp.read())
+
 
 class App:
     def __init__(self, root):
@@ -166,7 +205,7 @@ class App:
         ctk.CTkLabel(
             card, text="Add a daf reading",
             font=ctk.CTkFont(size=15, weight="bold")
-        ).grid(row=0, column=0, columnspan=4, sticky="w", padx=18, pady=(16, 8))
+        ).grid(row=0, column=0, columnspan=5, sticky="w", padx=18, pady=(16, 8))
 
         ctk.CTkLabel(card, text="Tractate", font=ctk.CTkFont(size=12),
                      text_color=("gray35", "gray65")
@@ -195,12 +234,27 @@ class App:
             card, values=["a", "b"], variable=self.amud_var, width=100)
         self.amud_seg.grid(row=2, column=2, padx=6, pady=(0, 16), sticky="w")
 
+        # A "Chazarah Daf" reading is the shorter, gemara-only-review
+        # recording of the same daf -- same tractate/daf/amud, same Sefaria
+        # text, just a different (shorter) video, so it needs its own
+        # separate alignment rather than overwriting the regular shiur's.
+        # Matches the "(Chazarah Daf)" marker the website's own picker
+        # appends -- see realDafRef()/refKey() in app.js.
+        ctk.CTkLabel(card, text="Shiur type", font=ctk.CTkFont(size=12),
+                     text_color=("gray35", "gray65")
+                     ).grid(row=1, column=3, sticky="w", padx=6)
+        self.shiur_var = tk.StringVar(value="Regular")
+        self.shiur_menu = ctk.CTkOptionMenu(
+            card, variable=self.shiur_var, values=["Regular", "Chazarah Daf"],
+            width=150)
+        self.shiur_menu.grid(row=2, column=3, padx=6, pady=(0, 16), sticky="w")
+
         self.add_btn = ctk.CTkButton(
             card, text="+  Add reading", command=self.add_reading, width=150)
-        self.add_btn.grid(row=2, column=3, padx=(6, 18), pady=(0, 16),
+        self.add_btn.grid(row=2, column=4, padx=(6, 18), pady=(0, 16),
                            sticky="w")
 
-        card.grid_columnconfigure(4, weight=1)
+        card.grid_columnconfigure(5, weight=1)
 
     def _build_readings_list(self, root):
         card = ctk.CTkFrame(root, corner_radius=14)
@@ -253,10 +307,16 @@ class App:
         card = ctk.CTkFrame(root, corner_radius=14)
         card.pack(fill="both", expand=True, padx=22, pady=(9, 20))
 
+        self.publish_var = tk.BooleanVar(value=True)
+        ctk.CTkCheckBox(
+            card, text="Publish to the website automatically when done",
+            variable=self.publish_var,
+        ).pack(anchor="w", padx=18, pady=(16, 6))
+
         self.run_btn = ctk.CTkButton(
             card, text="Sync", command=self.run, height=40,
             font=ctk.CTkFont(size=14, weight="bold"))
-        self.run_btn.pack(fill="x", padx=18, pady=(16, 10))
+        self.run_btn.pack(fill="x", padx=18, pady=(0, 10))
 
         self.progress = ctk.CTkProgressBar(card)
         self.progress.set(0)
@@ -299,7 +359,8 @@ class App:
         amud = self.amud_var.get()
         if not daf:
             return
-        ref = f"{tractate} {daf}{amud}"
+        suffix = CHAZARAH_SUFFIX if self.shiur_var.get() == "Chazarah Daf" else ""
+        ref = f"{tractate} {daf}{amud}{suffix}"
         self.readings.append({"ref": ref, "display": ref})
         self.render_readings()
 
@@ -395,17 +456,24 @@ class App:
         self.open_btn.configure(state="disabled")
         self.progress.set(0)
         self.worker = threading.Thread(
-            target=self.work, args=(video, refs, out), daemon=True)
+            target=self.work,
+            args=(video, refs, out, self.publish_var.get()), daemon=True)
         self.worker.start()
 
-    def work(self, video, refs, out):
+    def work(self, video, refs, out, publish):
         writer = QueueWriter(self.q)
+        # The OCR engine's own Sefaria fetch only ever knows the real
+        # tractate/daf/amud, never the shiur variant (a Chazarah Daf
+        # reading's canonical text is identical to the regular shiur's,
+        # just a shorter recording of it) -- see real_ref/ref_variant above.
+        real_refs = [real_ref(r) for r in refs]
+        variant = ref_variant(refs[0])
         try:
             os.makedirs(out, exist_ok=True)
             with contextlib.redirect_stdout(writer), \
                     contextlib.redirect_stderr(writer):
                 canon, segments, events, duration = process_video(
-                    video, refs, out_dir=out,
+                    video, real_refs, out_dir=out,
                     progress=lambda f: self.q.put(("progress", f)))
                 if not events:
                     raise RuntimeError(
@@ -413,15 +481,31 @@ class App:
                         "Check that the video shows the caption box and "
                         "that the readings cover this lecture.")
                 alignment, word_map = build_outputs(
-                    canon, segments, events, duration, video, refs)
+                    canon, segments, events, duration, video, real_refs)
+            if variant == "chazarah" and not alignment["dafRef"].endswith(CHAZARAH_SUFFIX):
+                alignment["dafRef"] += CHAZARAH_SUFFIX
             a_path = os.path.join(out, "alignment.json")
             w_path = os.path.join(out, "wordmap.json")
             with open(a_path, "w", encoding="utf-8") as fh:
                 json.dump(alignment, fh, ensure_ascii=False, indent=2)
             with open(w_path, "w", encoding="utf-8") as fh:
                 json.dump(word_map, fh, ensure_ascii=False, indent=2)
+
+            published_url = None
+            if publish:
+                self.q.put(("log", "Publishing to the website…"))
+                try:
+                    result = upload_alignment(alignment, real_refs, variant)
+                    published_url = result.get("resultUrl")
+                    self.q.put(("log", f"Published — live at {published_url}"))
+                except Exception as exc:
+                    self.q.put(("log",
+                                 f"Publish failed (the files are still saved "
+                                 f"locally, use “Import sync” "
+                                 f"instead): {exc}"))
+
             self.q.put(("done", (a_path, len(alignment["segments"]),
-                                 len(alignment["wordTimeline"]))))
+                                 len(alignment["wordTimeline"]), published_url)))
         except Exception as exc:  # surface everything to the log window
             self.q.put(("log", traceback.format_exc(limit=3)))
             self.q.put(("error", str(exc)))
@@ -435,14 +519,18 @@ class App:
                 elif kind == "progress":
                     self.progress.set(payload)
                 elif kind == "done":
-                    path, nseg, nwords = payload
+                    path, nseg, nwords, published_url = payload
                     self.progress.set(1.0)
                     self.log_line(
                         f"Done — {nseg} segments, {nwords} word spans.")
                     self.log_line(f"Alignment saved to: {path}")
-                    self.log_line(
-                        "Import this file in DafSync Studio with "
-                        "“Import alignment”.")
+                    if published_url:
+                        self.log_line(
+                            "Already live on the website — no import needed.")
+                    else:
+                        self.log_line(
+                            "Import this file in DafSync Studio with "
+                            "“Import alignment”.")
                     self.run_btn.configure(state="normal")
                     self.open_btn.configure(state="normal")
                 elif kind == "error":

@@ -2269,6 +2269,7 @@ async function startLocalSync() {
   const formData = new FormData();
   formData.append('video', syncState.localVideoFile, syncState.localVideoFile.name);
   formData.append('refs', JSON.stringify(syncState.readings.map((r) => realDafRef(r.ref))));
+  formData.append('variant', parseDafRef(syncState.readings[0].ref)?.variant || 'regular');
 
   setSyncProgress(0, ['Uploading to the desktop app on this computer…']);
   let jobId;
