@@ -69,54 +69,64 @@ export default async (request) => {
   // recording of the same daf) and/or a Hebrew-language recording publish
   // under their own prefix(es), composed in this order, so none of the four
   // variant/language combinations collide with each other for the same ref.
+  //
+  // Published once per daf reference the video covers (not just refs[0]),
+  // matching ocr-job.yml -- a video spanning e.g. "Chullin 88b, Chullin 89a,
+  // Chullin 89b" needs to be found no matter which of those three a reader
+  // looks up, not just the first one entered in the picker.
   const keyPrefix = (language === 'he' ? 'Hebrew-' : '') + (variant === 'chazarah' ? 'Chazarah-Daf-' : '');
-  const refKey = keyPrefix + refs[0].trim().replace(/\s+/g, '-');
-  const path = `by-ref/${refKey}.json`;
-  const apiUrl = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}`;
   const headers = {
     Authorization: `Bearer ${token}`,
     Accept: 'application/vnd.github+json',
     'Content-Type': 'application/json',
   };
+  const content = toBase64Utf8(serialized);
 
-  // The Contents API needs the existing file's blob sha to update it (vs.
-  // create); read it first, tolerating a 404 for a ref published for the
-  // first time.
-  let sha;
-  try {
-    const existing = await fetch(`${apiUrl}?ref=results`, { headers });
-    if (existing.ok) {
-      sha = (await existing.json()).sha;
-    } else if (existing.status !== 404) {
-      const detail = await existing.text();
-      return Response.json({ error: 'Could not check the existing file.', detail }, { status: 502 });
+  const refKeys = [...new Set(refs.map((r) => keyPrefix + r.trim().replace(/\s+/g, '-')))];
+  for (const refKey of refKeys) {
+    const path = `by-ref/${refKey}.json`;
+    const apiUrl = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}`;
+
+    // The Contents API needs the existing file's blob sha to update it (vs.
+    // create); read it first, tolerating a 404 for a ref published for the
+    // first time.
+    let sha;
+    try {
+      const existing = await fetch(`${apiUrl}?ref=results`, { headers });
+      if (existing.ok) {
+        sha = (await existing.json()).sha;
+      } else if (existing.status !== 404) {
+        const detail = await existing.text();
+        return Response.json({ error: `Could not check the existing file for ${refKey}.`, detail }, { status: 502 });
+      }
+    } catch (error) {
+      return Response.json({ error: `Could not reach GitHub: ${error.message}` }, { status: 502 });
     }
-  } catch (error) {
-    return Response.json({ error: `Could not reach GitHub: ${error.message}` }, { status: 502 });
+
+    try {
+      const putResponse = await fetch(apiUrl, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          message: `Publish desktop-synced alignment for ${refKey}`,
+          content,
+          branch: 'results',
+          ...(sha ? { sha } : {}),
+        }),
+      });
+      if (!putResponse.ok) {
+        const detail = await putResponse.text();
+        return Response.json({ error: `Could not publish the alignment for ${refKey}.`, detail }, { status: 502 });
+      }
+    } catch (error) {
+      return Response.json({ error: `Could not reach GitHub: ${error.message}` }, { status: 502 });
+    }
   }
 
-  try {
-    const putResponse = await fetch(apiUrl, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify({
-        message: `Publish desktop-synced alignment for ${refs[0]}`,
-        content: toBase64Utf8(serialized),
-        branch: 'results',
-        ...(sha ? { sha } : {}),
-      }),
-    });
-    if (!putResponse.ok) {
-      const detail = await putResponse.text();
-      return Response.json({ error: 'Could not publish the alignment.', detail }, { status: 502 });
-    }
-  } catch (error) {
-    return Response.json({ error: `Could not reach GitHub: ${error.message}` }, { status: 502 });
-  }
-
+  const refKey = keyPrefix + refs[0].trim().replace(/\s+/g, '-');
   return Response.json({
     refKey,
-    resultUrl: `https://raw.githubusercontent.com/${OWNER}/${REPO}/results/${path}`,
+    resultUrl: `https://raw.githubusercontent.com/${OWNER}/${REPO}/results/by-ref/${refKey}.json`,
   });
 };
 
