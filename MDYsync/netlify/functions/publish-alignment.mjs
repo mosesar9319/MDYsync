@@ -39,13 +39,16 @@ export default async (request) => {
     return Response.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }
 
-  const { refs, variant, alignment } = body || {};
+  const { refs, variant, language, alignment } = body || {};
   if (!Array.isArray(refs) || !refs.length || refs.length > 40
       || !refs.every((r) => typeof r === 'string' && r.length > 0 && r.length < 60)) {
     return Response.json({ error: 'A non-empty list of readings is required.' }, { status: 400 });
   }
   if (variant !== undefined && variant !== 'regular' && variant !== 'chazarah') {
     return Response.json({ error: "variant must be 'regular' or 'chazarah'." }, { status: 400 });
+  }
+  if (language !== undefined && language !== 'en' && language !== 'he') {
+    return Response.json({ error: "language must be 'en' or 'he'." }, { status: 400 });
   }
   if (!alignment || typeof alignment !== 'object' || !Array.isArray(alignment.segments) || !alignment.segments.length) {
     return Response.json({ error: 'alignment must be an object with a non-empty segments array.' }, { status: 400 });
@@ -63,9 +66,10 @@ export default async (request) => {
 
   // Same namespacing as trigger-ocr-job.mjs/ocr-job.yml and the frontend's
   // own refKey() -- a "Chazarah Daf" reading (the shorter, gemara-only
-  // recording of the same daf) publishes under its own prefix so it never
-  // collides with the regular shiur's alignment for the same ref.
-  const keyPrefix = variant === 'chazarah' ? 'Chazarah-Daf-' : '';
+  // recording of the same daf) and/or a Hebrew-language recording publish
+  // under their own prefix(es), composed in this order, so none of the four
+  // variant/language combinations collide with each other for the same ref.
+  const keyPrefix = (language === 'he' ? 'Hebrew-' : '') + (variant === 'chazarah' ? 'Chazarah-Daf-' : '');
   const refKey = keyPrefix + refs[0].trim().replace(/\s+/g, '-');
   const path = `by-ref/${refKey}.json`;
   const apiUrl = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}`;

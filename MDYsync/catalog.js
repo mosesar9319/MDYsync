@@ -35,13 +35,23 @@ async function loadSyncedKeys() {
   return catalogState.loadingSynced;
 }
 
+// Checks all four variant/language combinations for a daf. Order here also
+// sets which one a catalog-cell click lands on when more than one is
+// synced (regular English first, since that's the player's own default
+// picker state) -- see renderCatalogGrid below.
+const CATALOG_COMBOS = [
+  { key: 'regularEn', suffix: '' },
+  { key: 'chazarahEn', suffix: ' (Chazarah Daf)' },
+  { key: 'regularHe', suffix: ' (Hebrew)' },
+  { key: 'chazarahHe', suffix: ' (Chazarah Daf) (Hebrew)' },
+];
+
 function dafCellStatus(tractate, daf, amud, syncedKeys) {
-  const regularKey = refKey(`${tractate} ${daf}${amud}`);
-  const chazarahKey = refKey(`${tractate} ${daf}${amud} (Chazarah Daf)`);
-  return {
-    regularSynced: syncedKeys.has(regularKey),
-    chazarahSynced: syncedKeys.has(chazarahKey),
-  };
+  const status = {};
+  for (const combo of CATALOG_COMBOS) {
+    status[combo.key] = syncedKeys.has(refKey(`${tractate} ${daf}${amud}${combo.suffix}`));
+  }
+  return status;
 }
 
 async function renderCatalogGrid() {
@@ -58,13 +68,19 @@ async function renderCatalogGrid() {
   const cells = [];
   for (const daf of dafNumbers) {
     for (const amud of amudimForDaf(entry, daf)) {
-      const { regularSynced, chazarahSynced } = dafCellStatus(tractateName, daf, amud, syncedKeys);
-      const synced = regularSynced || chazarahSynced;
+      const status = dafCellStatus(tractateName, daf, amud, syncedKeys);
+      const primary = CATALOG_COMBOS.find((combo) => status[combo.key]);
+      const synced = Boolean(primary);
+      const hasChazarah = status.chazarahEn || status.chazarahHe;
+      const hasHebrew = status.regularHe || status.chazarahHe;
+      const primaryRef = `${tractateName} ${daf}${amud}${primary ? primary.suffix : ''}`;
       cells.push(`
         <button type="button" class="catalog-cell ${synced ? 'synced' : 'coming-soon'}"
-                data-daf="${daf}" data-amud="${amud}" data-synced="${synced ? '1' : '0'}">
+                data-daf="${daf}" data-amud="${amud}" data-synced="${synced ? '1' : '0'}"
+                data-primary-ref="${escapeHtml(primaryRef)}">
           ${daf}${amud}
-          ${chazarahSynced ? '<i class="catalog-swatch chazarah-dot" title="Chazarah Daf available"></i>' : ''}
+          ${hasChazarah ? '<i class="catalog-swatch chazarah-dot" title="Chazarah Daf available"></i>' : ''}
+          ${hasHebrew ? '<i class="catalog-swatch hebrew-dot" title="Hebrew shiur available"></i>' : ''}
         </button>`);
     }
   }
@@ -79,7 +95,7 @@ async function renderCatalogGrid() {
         showToast('This daf has not been synced yet.');
         return;
       }
-      const ref = `${tractateName} ${cell.dataset.daf}${cell.dataset.amud}`;
+      const ref = cell.dataset.primaryRef || `${tractateName} ${cell.dataset.daf}${cell.dataset.amud}`;
       loadDaf(ref);
       document.querySelector('.player-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });

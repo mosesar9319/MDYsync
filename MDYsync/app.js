@@ -192,8 +192,9 @@ function refKey(ref) {
   // same key as "Chullin 86a").
   const parsed = parseDafRef(ref);
   if (!parsed) return String(ref || '').trim().replace(/\s+/g, '-');
-  const prefix = parsed.variant === 'chazarah' ? CHAZARAH_KEY_PREFIX : '';
-  return `${prefix}${parsed.tractate.replace(/\s+/g, '-')}-${parsed.daf}${parsed.amud}`;
+  const languagePrefix = parsed.language === 'he' ? HEBREW_KEY_PREFIX : '';
+  const variantPrefix = parsed.variant === 'chazarah' ? CHAZARAH_KEY_PREFIX : '';
+  return `${languagePrefix}${variantPrefix}${parsed.tractate.replace(/\s+/g, '-')}-${parsed.daf}${parsed.amud}`;
 }
 
 async function fetchServerAlignment(ref) {
@@ -431,10 +432,14 @@ const CANONICAL_TRACTATE_NAMES = [
   'Arakhin', 'Temurah', 'Keritot', 'Meilah', 'Niddah'
 ];
 const TRACTATE_NAME_BY_LOWERCASE = new Map(CANONICAL_TRACTATE_NAMES.map((name) => [name.toLowerCase(), name]));
-// Namespaces a Chazarah Daf reading's alignment key so it never collides
-// with the regular shiur's for the same daf -- must match exactly what
-// trigger-ocr-job.mjs and ocr-job.yml's publish step compute server-side.
+// Namespaces a Chazarah Daf / Hebrew-shiur reading's alignment key so it
+// never collides with the regular/English shiur's for the same daf -- must
+// match exactly what trigger-ocr-job.mjs, save-video-link.mjs, and
+// ocr-job.yml's publish step compute server-side. The two prefixes compose
+// independently (a Hebrew Chazarah reading gets both), since the channel
+// this site tracks publishes all four combinations as separate recordings.
 const CHAZARAH_KEY_PREFIX = 'Chazarah-Daf-';
+const HEBREW_KEY_PREFIX = 'Hebrew-';
 
 function parseDafRef(ref) {
   // Accepts both a bare daf ref ("Chullin 86a") and a segment ref, ignoring
@@ -450,13 +455,24 @@ function parseDafRef(ref) {
   // unparseable). The tractate name is normalized to its canonical
   // capitalization regardless of how it was typed/cased, since it flows
   // into case-sensitive lookups downstream (GitHub raw file paths, and
-  // server-side tractate whitelists). An optional trailing " (Chazarah Daf)"
-  // marks the shorter chazara-only recording of the same daf -- it shares
-  // the exact same Gemara text/page as the regular shiur (Sefaria and the
-  // Vilna page/pagemap lookups below always use tractate/daf/amud alone,
-  // never .variant), but needs its own separate alignment/video so the two
-  // don't collide, which is what .variant threads through refKey() for.
-  const match = /^(.+?)\s+(\d+)\s*([abAB])(?:[:.]\d+)?(\s*\(Chazarah Daf\))?$/i.exec(String(ref || '').trim());
+  // server-side tractate whitelists). Optional trailing " (Chazarah Daf)"
+  // and " (Hebrew)" markers can appear in either order -- stripped in a
+  // small loop rather than a fixed-order regex so "X (Hebrew) (Chazarah
+  // Daf)" and "X (Chazarah Daf) (Hebrew)" both parse the same way. Neither
+  // marker changes the Gemara text/page looked up (Sefaria and the Vilna
+  // page/pagemap lookups always use tractate/daf/amud alone, never
+  // .variant/.language), but each needs its own separate alignment/video,
+  // which is what .variant/.language thread through refKey() for.
+  let working = String(ref || '').trim();
+  let variant = 'regular';
+  let language = 'en';
+  const chazarahSuffix = /\s*\(Chazarah Daf\)\s*$/i;
+  const hebrewSuffix = /\s*\(Hebrew\)\s*$/i;
+  for (let pass = 0; pass < 2; pass++) {
+    if (chazarahSuffix.test(working)) { variant = 'chazarah'; working = working.replace(chazarahSuffix, ''); }
+    if (hebrewSuffix.test(working)) { language = 'he'; working = working.replace(hebrewSuffix, ''); }
+  }
+  const match = /^(.+?)\s+(\d+)\s*([abAB])(?:[:.]\d+)?$/i.exec(working.trim());
   if (!match) return null;
   const typedTractate = match[1].trim();
   const tractate = TRACTATE_NAME_BY_LOWERCASE.get(typedTractate.toLowerCase()) || typedTractate;
@@ -464,7 +480,8 @@ function parseDafRef(ref) {
     tractate,
     daf: Number(match[2]),
     amud: match[3].toLowerCase(),
-    variant: match[4] ? 'chazarah' : 'regular'
+    variant,
+    language
   };
 }
 
@@ -472,14 +489,15 @@ function parseDafRef(ref) {
 // "chullin 86a" -> "Chullin 86a"), used wherever a reader-typed ref is
 // about to be saved/looked-up server-side, so it lands under the same
 // key regardless of how it was typed. Falls back to the input unchanged
-// if it doesn't parse as a daf ref at all. Preserves a "(Chazarah Daf)"
-// suffix if the input had one, so re-canonicalizing an already-variant ref
-// doesn't silently drop it.
+// if it doesn't parse as a daf ref at all. Preserves "(Chazarah Daf)"/
+// "(Hebrew)" suffixes if the input had them, so re-canonicalizing an
+// already-variant ref doesn't silently drop them.
 function canonicalDafRef(ref) {
   const parsed = parseDafRef(ref);
   if (!parsed) return String(ref || '').trim();
-  const suffix = parsed.variant === 'chazarah' ? ' (Chazarah Daf)' : '';
-  return `${parsed.tractate} ${parsed.daf}${parsed.amud}${suffix}`;
+  const variantSuffix = parsed.variant === 'chazarah' ? ' (Chazarah Daf)' : '';
+  const languageSuffix = parsed.language === 'he' ? ' (Hebrew)' : '';
+  return `${parsed.tractate} ${parsed.daf}${parsed.amud}${variantSuffix}${languageSuffix}`;
 }
 
 // Strips a "(Chazarah Daf)" marker back down to the real Sefaria ref --
@@ -2090,6 +2108,21 @@ function setActiveShiurVariant(toggleId, variant) {
   });
 }
 
+// "English" vs "Hebrew" -- the channel this site tracks publishes both as
+// separate recordings (different speaker pace, not a translation of one
+// another), so like the shiur-variant toggle above, both options are always
+// valid regardless of which daf is selected.
+function activeLanguage(toggleId) {
+  const active = document.querySelector(`#${toggleId} .language-option.active`);
+  return active ? active.dataset.language : 'en';
+}
+
+function setActiveLanguage(toggleId, language) {
+  document.querySelectorAll(`#${toggleId} .language-option`).forEach((button) => {
+    button.classList.toggle('active', button.dataset.language === language);
+  });
+}
+
 function onSyncTractateChange() {
   const entry = syncState.talmudByName[$('syncTractateSelect').value];
   const options = dafOptionsFor(entry);
@@ -2132,8 +2165,9 @@ function dafPickerRef() {
   const tractate = $('dafTractateSelect').value;
   const daf = $('dafDafSelect').value;
   if (!tractate || !daf) return '';
-  const suffix = activeShiurVariant('dafShiurToggle') === 'chazarah' ? ' (Chazarah Daf)' : '';
-  return `${tractate} ${daf}${activeAmud('dafAmudToggle')}${suffix}`;
+  const variantSuffix = activeShiurVariant('dafShiurToggle') === 'chazarah' ? ' (Chazarah Daf)' : '';
+  const languageSuffix = activeLanguage('dafLanguageToggle') === 'he' ? ' (Hebrew)' : '';
+  return `${tractate} ${daf}${activeAmud('dafAmudToggle')}${variantSuffix}${languageSuffix}`;
 }
 
 function onDafPickerChanged() {
@@ -2163,14 +2197,16 @@ function syncDafPickerFromRef(ref) {
     if (!b.disabled) b.classList.toggle('active', b.dataset.side === parsed.amud);
   });
   setActiveShiurVariant('dafShiurToggle', parsed.variant);
+  setActiveLanguage('dafLanguageToggle', parsed.language);
 }
 
 function addSyncReading() {
   const tractate = $('syncTractateSelect').value;
   const daf = $('syncDafSelect').value;
   if (!tractate || !daf) return;
-  const suffix = activeShiurVariant('syncShiurToggle') === 'chazarah' ? ' (Chazarah Daf)' : '';
-  const ref = `${tractate} ${daf}${currentSyncAmud()}${suffix}`;
+  const variantSuffix = activeShiurVariant('syncShiurToggle') === 'chazarah' ? ' (Chazarah Daf)' : '';
+  const languageSuffix = activeLanguage('syncLanguageToggle') === 'he' ? ' (Hebrew)' : '';
+  const ref = `${tractate} ${daf}${currentSyncAmud()}${variantSuffix}${languageSuffix}`;
   syncState.readings.push({ ref, display: ref });
   renderSyncReadings();
 }
@@ -2270,6 +2306,7 @@ async function startLocalSync() {
   formData.append('video', syncState.localVideoFile, syncState.localVideoFile.name);
   formData.append('refs', JSON.stringify(syncState.readings.map((r) => realDafRef(r.ref))));
   formData.append('variant', parseDafRef(syncState.readings[0].ref)?.variant || 'regular');
+  formData.append('language', parseDafRef(syncState.readings[0].ref)?.language || 'en');
 
   setSyncProgress(0, ['Uploading to the desktop app on this computer…']);
   let jobId;
@@ -2318,17 +2355,19 @@ async function startDriveSync() {
 
   // The OCR engine only ever fetches the real Sefaria ref (a "Chazarah Daf"
   // reading's canonical text is identical to the regular shiur's -- it's a
-  // shorter recording of the same content, not different content), so refs
-  // sent server-side always has the variant marker stripped; variant is
-  // sent alongside purely to namespace where the result gets published.
+  // shorter recording of the same content, not different content, and the
+  // same is true of a Hebrew-language recording), so refs sent server-side
+  // always have both markers stripped; variant/language are sent alongside
+  // purely to namespace where the result gets published.
   const variant = parseDafRef(syncState.readings[0].ref)?.variant || 'regular';
+  const language = parseDafRef(syncState.readings[0].ref)?.language || 'en';
   setSyncProgress(0, ['Starting the server-side job…']);
   let jobId, resultUrl;
   try {
     const response = await fetch(TRIGGER_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ driveUrl, refs: syncState.readings.map((r) => realDafRef(r.ref)), variant })
+      body: JSON.stringify({ driveUrl, refs: syncState.readings.map((r) => realDafRef(r.ref)), variant, language })
     });
     if (!response.ok) throw new Error((await response.json()).error || 'Could not start the job.');
     ({ jobId, resultUrl } = await response.json());
@@ -2419,16 +2458,25 @@ document.querySelectorAll('#dafShiurToggle .shiur-variant-option').forEach((butt
     onDafPickerChanged();
   });
 });
-// A catalog link (?ref=Chullin+86a&variant=chazarah) should land straight on
-// that daf instead of the built-in demo -- but the picker it feeds
-// (syncDafPickerFromRef) needs the tractate index loaded first, so this
-// waits on the same loadTalmudIndex() call the picker itself depends on.
+document.querySelectorAll('#dafLanguageToggle .language-option').forEach((button) => {
+  button.addEventListener('click', () => {
+    setActiveLanguage('dafLanguageToggle', button.dataset.language);
+    onDafPickerChanged();
+  });
+});
+// A catalog link (?ref=Chullin+86a&variant=chazarah&language=hebrew) should
+// land straight on that daf instead of the built-in demo -- but the picker
+// it feeds (syncDafPickerFromRef) needs the tractate index loaded first, so
+// this waits on the same loadTalmudIndex() call the picker itself depends on.
 loadTalmudIndex().then(() => {
   const params = new URLSearchParams(location.search);
   const ref = params.get('ref');
   if (!ref) return;
   const wantsChazarah = params.get('variant') === 'chazarah';
-  const fullRef = wantsChazarah && !/chazarah/i.test(ref) ? `${ref} (Chazarah Daf)` : ref;
+  const wantsHebrew = params.get('language') === 'hebrew' || params.get('language') === 'he';
+  let fullRef = ref;
+  if (wantsChazarah && !/chazarah/i.test(fullRef)) fullRef += ' (Chazarah Daf)';
+  if (wantsHebrew && !/hebrew/i.test(fullRef)) fullRef += ' (Hebrew)';
   loadDaf(fullRef);
 });
 document.querySelectorAll('#syncAmudToggle .amud-option').forEach((button) => {
@@ -2440,6 +2488,9 @@ document.querySelectorAll('#syncAmudToggle .amud-option').forEach((button) => {
 });
 document.querySelectorAll('#syncShiurToggle .shiur-variant-option').forEach((button) => {
   button.addEventListener('click', () => setActiveShiurVariant('syncShiurToggle', button.dataset.variant));
+});
+document.querySelectorAll('#syncLanguageToggle .language-option').forEach((button) => {
+  button.addEventListener('click', () => setActiveLanguage('syncLanguageToggle', button.dataset.language));
 });
 $('syncAddReadingButton')?.addEventListener('click', addSyncReading);
 $('syncClearReadingsButton')?.addEventListener('click', clearSyncReadings);

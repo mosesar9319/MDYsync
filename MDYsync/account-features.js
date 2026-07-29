@@ -12,10 +12,12 @@ function currentDafInfo() {
   const parsed = parseDafRef(state.dafRef);
   if (!parsed) return null;
   const variant = parsed.variant === 'chazarah' ? 'chazarah' : 'regular';
+  const variantSuffix = variant === 'chazarah' ? ' (Chazarah Daf)' : '';
+  const languageSuffix = parsed.language === 'he' ? ' (Hebrew)' : '';
   return {
     key: refKey(state.dafRef),
     variant,
-    display: `${parsed.tractate} ${parsed.daf}${parsed.amud}${variant === 'chazarah' ? ' (Chazarah Daf)' : ''}`,
+    display: `${parsed.tractate} ${parsed.daf}${parsed.amud}${variantSuffix}${languageSuffix}`,
   };
 }
 

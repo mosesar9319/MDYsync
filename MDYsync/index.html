@@ -68,6 +68,7 @@
             <span><i class="catalog-swatch synced"></i> Synced</span>
             <span><i class="catalog-swatch coming-soon"></i> Coming soon</span>
             <span><i class="catalog-swatch chazarah-dot"></i> Chazarah Daf available</span>
+            <span><i class="catalog-swatch hebrew-dot"></i> Hebrew shiur available</span>
           </div>
         </div>
       </section>
@@ -105,9 +106,15 @@
               <button type="button" class="amud-option" data-side="b">b</button>
             </div>
           </div>
-          <div class="shiur-variant-toggle" id="dafShiurToggle" role="group" aria-label="Shiur type">
-            <button type="button" class="shiur-variant-option active" data-variant="regular">Regular</button>
-            <button type="button" class="shiur-variant-option" data-variant="chazarah">Chazarah Daf</button>
+          <div class="picker-toggle-row">
+            <div class="shiur-variant-toggle" id="dafShiurToggle" role="group" aria-label="Shiur type">
+              <button type="button" class="shiur-variant-option active" data-variant="regular">Regular</button>
+              <button type="button" class="shiur-variant-option" data-variant="chazarah">Chazarah Daf</button>
+            </div>
+            <div class="shiur-variant-toggle" id="dafLanguageToggle" role="group" aria-label="Shiur language">
+              <button type="button" class="language-option active" data-language="en">English</button>
+              <button type="button" class="language-option" data-language="he">Hebrew</button>
+            </div>
           </div>
           <input id="dafRef" type="hidden" value="" />
           <button id="loadDafButton" hidden>Load daf</button>
@@ -410,6 +417,13 @@
           <div class="shiur-variant-toggle" id="syncShiurToggle" role="group" aria-label="Shiur type">
             <button type="button" class="shiur-variant-option active" data-variant="regular">Regular</button>
             <button type="button" class="shiur-variant-option" data-variant="chazarah">Chazarah Daf (shorter, gemara-only review)</button>
+          </div>
+        </label>
+        <label class="sync-field">
+          <span>Language</span>
+          <div class="shiur-variant-toggle" id="syncLanguageToggle" role="group" aria-label="Shiur language">
+            <button type="button" class="language-option active" data-language="en">English</button>
+            <button type="button" class="language-option" data-language="he">Hebrew</button>
           </div>
         </label>
       </div>
