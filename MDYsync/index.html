@@ -484,6 +484,7 @@
     <div class="sync-tabs" role="tablist" aria-label="Processing method">
       <button class="sync-tab active" type="button" data-sync-panel="syncLocalPanel" role="tab" aria-selected="true">Local file (Desktop App)</button>
       <button class="sync-tab" type="button" data-sync-panel="syncDrivePanel" role="tab" aria-selected="false">Google Drive link</button>
+      <button class="sync-tab" type="button" data-sync-panel="syncYoutubePanel" role="tab" aria-selected="false">YouTube link</button>
     </div>
 
     <div class="sync-source-panel" id="syncLocalPanel" role="tabpanel">
@@ -508,6 +509,15 @@
       </label>
       <span class="field-note">The file must be shared as "Anyone with the link." Processing runs on our server and can take a few minutes.</span>
       <button class="button primary" id="syncDriveStartButton" type="button">Sync from Google Drive</button>
+    </div>
+
+    <div class="sync-source-panel" id="syncYoutubePanel" role="tabpanel" hidden>
+      <label class="sync-field">
+        <span>YouTube video link</span>
+        <input id="syncYoutubeUrlInput" type="url" placeholder="https://www.youtube.com/watch?v=…" spellcheck="false" />
+      </label>
+      <span class="field-note">Restricted to recent Mercaz Daf Yomi uploads. Processing runs on our server and can take a few minutes.</span>
+      <button class="button primary" id="syncYoutubeStartButton" type="button">Sync from YouTube</button>
     </div>
 
     <div class="sync-progress-wrap" id="syncProgressWrap" hidden>

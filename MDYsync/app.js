@@ -2391,6 +2391,63 @@ async function startLocalSync() {
   }, 1200);
 }
 
+// Shared by both server-side sync sources (Drive, YouTube) once each has
+// its own trigger-ocr-job response in hand -- everything past that point
+// (poll results/by-ref/<ref>.json for a fresh match, time out, load the
+// result) is identical regardless of which one the video came from.
+function pollServerSyncResult(jobId, resultUrl, successMessage) {
+  const startedAt = Date.now();
+  const MAX_WAIT_SECONDS = 55 * 60; // GitHub Actions job has its own 60-min cap
+  stopSyncPolling();
+  syncState.pollTimer = setInterval(async () => {
+    const elapsed = Math.round((Date.now() - startedAt) / 1000);
+    if (elapsed > MAX_WAIT_SECONDS) {
+      stopSyncPolling();
+      setSyncProgress(0.9, [
+        `Still not done after ${elapsed}s — that's longer than expected.`,
+        'The server job may have failed. Check the repository’s Actions tab, or try again.'
+      ]);
+      showToast('Server sync is taking much longer than expected — it may have failed.', 'error');
+      return;
+    }
+    try {
+      const response = await fetch(`${resultUrl}?t=${Date.now()}`);
+      if (response.status === 404) {
+        setSyncProgress(Math.min(0.9, elapsed / 300), [`Processing on the server… (${elapsed}s elapsed)`]);
+        return;
+      }
+      if (!response.ok) throw new Error(`Server returned ${response.status}`);
+      const alignment = await response.json();
+      if (alignment?.jobId !== jobId) {
+        // A file already existed at this ref path from an earlier sync (e.g.
+        // this job's first-listed ref was already synced before) -- that's
+        // not this job's result, keep waiting for it to be overwritten.
+        setSyncProgress(Math.min(0.9, elapsed / 300), [`Processing on the server… (${elapsed}s elapsed)`]);
+        return;
+      }
+      stopSyncPolling();
+      setSyncProgress(1, [`Done after ${elapsed}s.`]);
+      // loadAlignmentData already surfaces a specific "load this exact file" toast
+      // (via restoreVideoSource) for the local-video case; don't clobber it with a
+      // generic one — that specific guidance is what actually prevents mis-synced
+      // playback from a mismatched video.
+      const hadSpecificSource = alignment?.videoSource?.type === 'local';
+      await loadAlignmentData(alignment, { dafRefOverride: syncState.readings[0].ref });
+      if (!hadSpecificSource) {
+        showToast(successMessage);
+      }
+      $('syncDialog').close();
+    } catch (error) {
+      stopSyncPolling();
+      setSyncProgress(Math.min(0.9, elapsed / 300), [
+        `Failed after ${elapsed}s: ${error.message}`,
+        'Check the source link, then try again.'
+      ]);
+      showToast(`Server sync failed: ${error.message}`, 'error');
+    }
+  }, 6000);
+}
+
 async function startDriveSync() {
   if (!syncState.readings.length) {
     showToast('Add at least one reading first.', 'error');
@@ -2425,49 +2482,38 @@ async function startDriveSync() {
     return;
   }
 
-  const startedAt = Date.now();
-  const MAX_WAIT_SECONDS = 55 * 60; // GitHub Actions job has its own 60-min cap
-  stopSyncPolling();
-  syncState.pollTimer = setInterval(async () => {
-    const elapsed = Math.round((Date.now() - startedAt) / 1000);
-    if (elapsed > MAX_WAIT_SECONDS) {
-      stopSyncPolling();
-      setSyncProgress(0.9, [
-        `Still not done after ${elapsed}s — that's longer than expected.`,
-        'The server job may have failed. Check the repository’s Actions tab, or try again.'
-      ]);
-      showToast('Server sync is taking much longer than expected — it may have failed.', 'error');
-      return;
-    }
-    try {
-      const response = await fetch(`${resultUrl}?t=${Date.now()}`);
-      if (response.status === 404) {
-        setSyncProgress(Math.min(0.9, elapsed / 300), [`Processing on the server… (${elapsed}s elapsed)`]);
-        return;
-      }
-      if (!response.ok) throw new Error(`Server returned ${response.status}`);
-      const alignment = await response.json();
-      stopSyncPolling();
-      setSyncProgress(1, [`Done after ${elapsed}s.`]);
-      // loadAlignmentData already surfaces a specific "load this exact file" toast
-      // (via restoreVideoSource) for the local-video case; don't clobber it with a
-      // generic one — that specific guidance is what actually prevents mis-synced
-      // playback from a mismatched video.
-      const hadSpecificSource = alignment?.videoSource?.type === 'local';
-      await loadAlignmentData(alignment, { dafRefOverride: syncState.readings[0].ref });
-      if (!hadSpecificSource) {
-        showToast('Synced from Google Drive! Choose or paste the video to watch it.');
-      }
-      $('syncDialog').close();
-    } catch (error) {
-      stopSyncPolling();
-      setSyncProgress(Math.min(0.9, elapsed / 300), [
-        `Failed after ${elapsed}s: ${error.message}`,
-        'Check that the Drive link is shared as "Anyone with the link," then try again.'
-      ]);
-      showToast(`Server sync failed: ${error.message}`, 'error');
-    }
-  }, 6000);
+  pollServerSyncResult(jobId, resultUrl, 'Synced from Google Drive! Choose or paste the video to watch it.');
+}
+
+async function startYoutubeSync() {
+  if (!syncState.readings.length) {
+    showToast('Add at least one reading first.', 'error');
+    return;
+  }
+  const youtubeUrl = $('syncYoutubeUrlInput').value.trim();
+  if (!/^https:\/\/(www\.)?(youtube\.com\/watch\?(.*&)?v=|youtu\.be\/)[\w-]{11}/.test(youtubeUrl)) {
+    showToast('Paste a valid YouTube video link.', 'error');
+    return;
+  }
+
+  const variant = parseDafRef(syncState.readings[0].ref)?.variant || 'regular';
+  const language = parseDafRef(syncState.readings[0].ref)?.language || 'en';
+  setSyncProgress(0, ['Starting the server-side job…']);
+  let jobId, resultUrl;
+  try {
+    const response = await fetch(TRIGGER_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ youtubeUrl, refs: syncState.readings.map((r) => realDafRef(r.ref)), variant, language })
+    });
+    if (!response.ok) throw new Error((await response.json()).error || 'Could not start the job.');
+    ({ jobId, resultUrl } = await response.json());
+  } catch (error) {
+    showToast(`Could not start server sync: ${error.message}`, 'error');
+    return;
+  }
+
+  pollServerSyncResult(jobId, resultUrl, 'Synced from YouTube! Choose or paste the video to watch it.');
 }
 
 $('openSyncDialogButton')?.addEventListener('click', async () => {
@@ -2550,6 +2596,7 @@ $('syncVideoInput')?.addEventListener('change', (event) => {
 });
 $('syncLocalStartButton')?.addEventListener('click', startLocalSync);
 $('syncDriveStartButton')?.addEventListener('click', startDriveSync);
+$('syncYoutubeStartButton')?.addEventListener('click', startYoutubeSync);
 document.querySelectorAll('.sync-tab').forEach((tab) => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.sync-tab').forEach((t) => {

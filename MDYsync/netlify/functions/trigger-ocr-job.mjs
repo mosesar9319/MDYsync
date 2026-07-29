@@ -1,7 +1,7 @@
 // Starts the server-side caption-OCR job for the website's "Google Drive
-// link" sync flow. This is the only piece allowed to hold the GitHub token
-// that can trigger the ocr-job.yml workflow — the token lives in Netlify's
-// own environment variables, never in the browser.
+// link" and "YouTube link" sync flows. This is the only piece allowed to
+// hold the GitHub token that can trigger the ocr-job.yml workflow — the
+// token lives in Netlify's own environment variables, never in the browser.
 
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
@@ -10,6 +10,28 @@ const ALLOWED_ORIGINS = new Set([
   'https://main--mdysync.netlify.app',
   'http://localhost:8080',
 ]);
+
+// A Drive link only ever gets used here because someone deliberately shared
+// it as "Anyone with the link" -- that sharing action is itself an implicit
+// signal the person triggering the sync has rights to that video. Grabbing
+// an arbitrary public YouTube URL server-side to download and OCR carries no
+// such signal, so per PRODUCTION_ARCHITECTURE.md's "an authorized YouTube
+// Data API workflow for a channel the user controls" carve-out, YouTube
+// sync is restricted to recent uploads of this one channel -- the same one
+// youtube-channel-sync.mjs already trusts for auto-linking video URLs.
+const YOUTUBE_CHANNEL_ID = 'UCKwQa5DB_VR98ac_r-Wyl-g'; // @MercazDafYomi
+
+function extractYoutubeVideoId(url) {
+  const match = /^https:\/\/(?:www\.)?(?:youtube\.com\/watch\?(?:.*&)?v=|youtu\.be\/)([\w-]{11})/.exec(url);
+  return match ? match[1] : null;
+}
+
+async function isRecentUploadOfChannel(videoId) {
+  const response = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${YOUTUBE_CHANNEL_ID}`);
+  if (!response.ok) throw new Error(`YouTube feed returned ${response.status}`);
+  const xml = await response.text();
+  return xml.includes(`<yt:videoId>${videoId}</yt:videoId>`);
+}
 
 export default async (request) => {
   if (request.method !== 'POST') {
@@ -28,8 +50,28 @@ export default async (request) => {
     return Response.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }
 
-  const { driveUrl, refs, variant, language } = body || {};
-  if (typeof driveUrl !== 'string' || !/^https:\/\/(drive|docs)\.google\.com\//.test(driveUrl)) {
+  const { driveUrl, youtubeUrl, refs, variant, language } = body || {};
+  if (driveUrl !== undefined && youtubeUrl !== undefined) {
+    return Response.json({ error: 'Provide either a Drive link or a YouTube link, not both.' }, { status: 400 });
+  }
+  let youtubeVideoId = null;
+  if (youtubeUrl !== undefined) {
+    youtubeVideoId = extractYoutubeVideoId(String(youtubeUrl || ''));
+    if (!youtubeVideoId) {
+      return Response.json({ error: 'Paste a valid YouTube video link.' }, { status: 400 });
+    }
+    let isChannelUpload;
+    try {
+      isChannelUpload = await isRecentUploadOfChannel(youtubeVideoId);
+    } catch (error) {
+      return Response.json({ error: `Could not verify the video's channel: ${error.message}` }, { status: 502 });
+    }
+    if (!isChannelUpload) {
+      return Response.json({
+        error: 'YouTube sync only works for recent Mercaz Daf Yomi uploads -- use a Google Drive link for anything else.'
+      }, { status: 403 });
+    }
+  } else if (typeof driveUrl !== 'string' || !/^https:\/\/(drive|docs)\.google\.com\//.test(driveUrl)) {
     return Response.json({ error: 'A valid Google Drive link is required.' }, { status: 400 });
   }
   if (!Array.isArray(refs) || !refs.length || refs.length > 40
@@ -61,7 +103,11 @@ export default async (request) => {
       },
       body: JSON.stringify({
         event_type: 'run-ocr-job',
-        client_payload: { driveUrl, refs, jobId, variant: variant || 'regular', language: language || 'en' },
+        client_payload: {
+          driveUrl: driveUrl || null,
+          youtubeUrl: youtubeUrl || null,
+          refs, jobId, variant: variant || 'regular', language: language || 'en',
+        },
       }),
     }
   );
