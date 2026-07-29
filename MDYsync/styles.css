@@ -422,6 +422,14 @@ body:not(.is-admin) .setup-strip { grid-template-columns: 1.1fr 1fr; }
 }
 .account-dropdown-item:hover { background: rgba(255,255,255,.07); }
 
+.google-auth-button {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
+  margin-top: 6px;
+}
+.auth-divider {
+  display: flex; align-items: center; gap: 12px; margin: 16px 0; color: var(--muted); font-size: 12px;
+}
+.auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--line); }
 .auth-form { display: flex; flex-direction: column; gap: 14px; margin-top: 4px; }
 .auth-form-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .auth-error { color: var(--muted); font-size: 13px; background: rgba(56,214,193,.08); border: 1px solid var(--line); padding: 10px 12px; border-radius: 11px; margin: 0; }
