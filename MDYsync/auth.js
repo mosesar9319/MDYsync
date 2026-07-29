@@ -14,6 +14,14 @@
   const SUPABASE_URL = 'https://cyexvsymuivvvhvpeber.supabase.co';
   const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_EMHmjaU6PAGdmhiyA2b6dg_HNUgyW1J';
 
+  if (!window.supabase || typeof window.supabase.createClient !== 'function') {
+    // vendor/supabase-js.min.js failed to load or run -- surface this
+    // specifically rather than throwing a bare TypeError below, since
+    // "the login library never arrived" is a much more actionable message
+    // than "Cannot read properties of undefined (reading 'createClient')".
+    throw new Error('The sign-in library (vendor/supabase-js.min.js) did not load.');
+  }
+
   const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
   const listeners = new Set();
