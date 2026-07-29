@@ -94,12 +94,32 @@ lines.forEach((line, position) => {
 
 const written = [];
 const kept = [];
+const enriched = [];
 for (const [key, pick] of [...best.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
   const target = args.results ? path.join(args.results, 'video-links', `${key}.json`) : null;
-  // Never overwrite: an existing file is either a reader's own hand-pasted
+  // Never repoint an existing link: it's either a reader's own hand-pasted
   // correction or something the hourly job already published, and neither
   // should be clobbered by a bulk backfill.
+  //
+  // The one exception is purely additive. Links published before coveredRefs
+  // existed can't drive a one-click sync, and skipping them outright would
+  // leave that permanently broken on precisely the dapim already in use. So
+  // when the stored video is the same one this scan picked, its covered refs
+  // are filled in and nothing else is touched. A file pointing somewhere
+  // else is a deliberate correction and is left completely alone.
   if (target && fs.existsSync(target)) {
+    try {
+      const existing = JSON.parse(fs.readFileSync(target, 'utf8'));
+      if (existing.videoId === pick.videoId && !Array.isArray(existing.coveredRefs)) {
+        existing.coveredRefs = pick.coveredRefs;
+        if (!args.dryRun) fs.writeFileSync(target, `${JSON.stringify(existing, null, 2)}\n`);
+        enriched.push(key);
+        continue;
+      }
+    } catch {
+      // Unreadable/corrupt existing file: leave it be and report it as kept
+      // rather than silently replacing something we couldn't inspect.
+    }
     kept.push(key);
     continue;
   }
@@ -120,7 +140,8 @@ for (const [key, pick] of [...best.entries()].sort((a, b) => a[0].localeCompare(
 console.log(`Scanned ${lines.length} channel videos; ${considered} matched `
   + `${wantTractate === 'all' ? 'a known tractate' : args.tractate}.`);
 console.log(`${written.length} link(s) ${args.dryRun ? 'would be written' : 'written'}, `
-  + `${kept.length} already present and left alone.`);
+  + `${enriched.length} existing link(s) ${args.dryRun ? 'would gain' : 'gained'} covered refs, `
+  + `${kept.length} left alone.`);
 
 for (const w of written.slice(0, 40)) {
   console.log(`  + ${w.key}${w.rank === TAIL ? '  (tail coverage only)' : ''}  <- ${w.videoId}`);
