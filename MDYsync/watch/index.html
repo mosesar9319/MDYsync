@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="A prototype synchronized Daf Yomi video player and alignment editor." />
-  <title>DafSync Studio</title>
+  <meta name="description" content="Watch a synchronized Daf Yomi shiur alongside the daf, word-highlighted as the shiur plays." />
+  <title>DafSync — Watch</title>
   <script>
     // Surfaces any otherwise-silent failure (a script that fails to load,
     // an uncaught exception, a rejected promise nobody caught) as a plain,
@@ -54,17 +54,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Frank+Ruhl+Libre:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../styles.css" />
 </head>
-<body class="studio-locked">
-  <div class="studio-gate" id="studioGate">
-    <div class="studio-gate-card">
-      <h2>Admin sign-in required</h2>
-      <p>This is the DafSync backend. Sign in with an admin account to continue.</p>
-      <div class="studio-gate-actions">
-        <button class="button primary" id="studioGateSignInButton" type="button">Sign in</button>
-        <a class="button ghost" href="/">Back to the library</a>
-      </div>
-    </div>
-  </div>
+<body>
   <div class="app-shell">
     <header class="topbar">
       <div class="brand-group">
@@ -76,12 +66,11 @@
           </svg>
         </div>
         <div>
-          <div class="brand-title">DafSync <span>Studio</span></div>
-          <div class="brand-subtitle">Synchronized shiur and daf prototype</div>
+          <div class="brand-title">DafSync</div>
+          <div class="brand-subtitle">Watch a synced shiur alongside the daf</div>
         </div>
       </div>
       <div class="top-actions">
-        <a class="button secondary admin-only" id="studioLink" href="https://github.com/mosesar9319/MDYsync/releases/latest" target="_blank" rel="noopener">Download desktop app</a>
         <button class="button ghost" id="helpButton">How it works</button>
         <a class="button secondary small" href="/">Back to library</a>
         <div class="auth-widget" id="authWidget">
@@ -101,33 +90,6 @@
     </header>
 
     <main>
-      <section class="catalog-card card" id="catalogCard">
-        <div class="card-heading catalog-heading">
-          <div>
-            <div class="eyebrow" id="catalogSeriesEyebrow">Series</div>
-            <h2 id="catalogSeriesName">Browse dapim</h2>
-            <p class="catalog-series-desc" id="catalogSeriesDesc"></p>
-          </div>
-          <button class="button ghost small" id="catalogToggleButton" type="button">Hide</button>
-        </div>
-        <div class="catalog-body" id="catalogBody">
-          <div class="catalog-controls">
-            <label class="sync-field">
-              <span>Tractate</span>
-              <select id="catalogTractateSelect"></select>
-            </label>
-            <span class="field-note" id="catalogStatusNote">Checking which dapim are synced…</span>
-          </div>
-          <div class="catalog-grid" id="catalogGrid"></div>
-          <div class="catalog-legend">
-            <span><i class="catalog-swatch synced"></i> Synced</span>
-            <span><i class="catalog-swatch coming-soon"></i> Coming soon</span>
-            <span><i class="catalog-swatch chazarah-dot"></i> Chazarah Daf available</span>
-            <span><i class="catalog-swatch hebrew-dot"></i> Hebrew shiur available</span>
-          </div>
-        </div>
-      </section>
-
       <section class="setup-strip card">
         <div class="setup-field video-field">
           <label>Lecture source</label>
@@ -409,33 +371,18 @@
         </div>
       </section>
 
-      <section class="workflow-grid">
-        <article class="workflow-card card">
-          <span class="step-number">1</span>
-          <div><h3>Load the lecture</h3><p>Use a local file, a direct media link, or an embedded YouTube video.</p></div>
-        </article>
-        <article class="workflow-card card">
-          <span class="step-number">2</span>
-          <div><h3>Match transcript to daf</h3><p>Import timestamped transcript JSON or edit the timeline manually.</p></div>
-        </article>
-        <article class="workflow-card card">
-          <span class="step-number">3</span>
-          <div><h3>Publish alignment</h3><p>Export a reusable JSON map for the final hosted video.</p></div>
-        </article>
-      </section>
     </main>
   </div>
 
   <dialog id="helpDialog">
     <button class="dialog-close" id="closeHelp" aria-label="Close">×</button>
-    <div class="eyebrow">Prototype guide</div>
-    <h2>How to use DafSync</h2>
+    <div class="eyebrow">Guide</div>
+    <h2>How to use the player</h2>
     <ol>
-      <li>Choose a lecture video (local file, direct link, or YouTube) and enter a daf reference, then press "Load daf."</li>
-      <li>Use "Sync from video" to generate real timestamps automatically from the video's on-screen caption box, via the desktop app or a Google Drive link.</li>
+      <li>Pick a tractate, daf, and amud above, or arrive here already loaded from a link on the library page.</li>
       <li>Click a phrase on the daf to jump the video to that point. During playback, the daf auto-scrolls to follow along.</li>
-      <li>To align by hand instead, open "Edit synchronization," select a phrase, and press M while listening to mark its start time and advance to the next.</li>
-      <li>Export the result as a reusable alignment JSON, or import one with "Import sync."</li>
+      <li>Switch the daf view to "Vilna page" for a real page image instead of plain text, or overlay it directly on the video.</li>
+      <li>Sign in to save favorites and resume a shiur where you left off.</li>
     </ol>
     <p class="dialog-note">YouTube playback is controlled through YouTube's embedded player.</p>
   </dialog>
@@ -585,23 +532,7 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="../vendor/supabase-js.min.js"></script>
   <script src="../auth.js"></script>
-  <script>
-    // Locks the whole backend behind a real admin sign-in, not just hiding
-    // individual sync buttons (see the .admin-only note in styles.css) --
-    // <body> starts with the "studio-locked" class already applied inline,
-    // so there's no flash of the page before auth.js has had a chance to
-    // check the session, and this only ever removes that class once
-    // DafSyncAuth confirms a signed-in is_admin profile.
-    window.DafSyncAuth.onChange((user, profile) => {
-      const isAdmin = Boolean(user && profile && profile.is_admin);
-      document.body.classList.toggle('studio-locked', !isAdmin);
-    });
-    document.getElementById('studioGateSignInButton').addEventListener('click', () => {
-      document.getElementById('signInButton').click();
-    });
-  </script>
   <script src="../app.js" defer></script>
-  <script src="../catalog.js" defer></script>
   <script src="../account-features.js" defer></script>
 </body>
 </html>

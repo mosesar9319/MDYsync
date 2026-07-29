@@ -92,6 +92,10 @@ jobs:
             --tractate "$TRACTATE" \
             $EXTRA
 
+      - name: Rebuild the video catalog
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: node MDYsync/tools/build-video-catalog.mjs --results /tmp/results-checkout
+
       - name: Publish the new links
         if: ${{ github.event.inputs.dry_run != 'true' }}
         env:
@@ -105,7 +109,7 @@ jobs:
             echo "Nothing new to publish."
             exit 0
           fi
-          git add video-links
+          git add video-links catalog.json
           git commit -m "Backfill ${TRACTATE} channel video links"
           for attempt in 1 2 3 4 5; do
             if git push origin HEAD:results; then

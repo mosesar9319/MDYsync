@@ -402,6 +402,38 @@ body.is-admin .admin-only.setup-field { display: block !important; }
 body.is-admin .marking-bar.admin-only { display: flex !important; }
 body:not(.is-admin) .setup-strip { grid-template-columns: 1.1fr 1fr; }
 
+/* /studio/'s login gate: locked by default (see the inline class on <body>
+   in studio/index.html, so there's no flash of the backend before auth.js
+   has had a chance to check the session) and lifted only once auth.js
+   confirms an is_admin profile. Same UI-convenience caveat as .admin-only
+   above -- this blocks the page's own controls, not the Netlify functions
+   behind them. */
+.studio-gate { display: none; }
+body.studio-locked .studio-gate {
+  display: flex;
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(5, 12, 22, 0.94);
+  backdrop-filter: blur(6px);
+}
+body.studio-locked .app-shell { visibility: hidden; }
+.studio-gate-card {
+  width: 100%;
+  max-width: 360px;
+  padding: 32px 28px;
+  border-radius: 18px;
+  border: 1px solid var(--line-strong);
+  background: var(--card-strong);
+  text-align: center;
+}
+.studio-gate-card h2 { margin: 0 0 8px; color: var(--text); }
+.studio-gate-card p { margin: 0 0 20px; color: var(--muted); }
+.studio-gate-actions { display: flex; flex-direction: column; gap: 10px; }
+
 /* --- Auth widget --------------------------------------------------------- */
 .auth-widget { position: relative; }
 .account-menu { position: relative; }

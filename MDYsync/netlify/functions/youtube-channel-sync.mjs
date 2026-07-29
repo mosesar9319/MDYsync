@@ -38,6 +38,12 @@ const REPO = 'MDYsync';
 const CHANNEL_ID = 'UCKwQa5DB_VR98ac_r-Wyl-g'; // @MercazDafYomi
 const TALMUD_INDEX_URL = `https://raw.githubusercontent.com/${OWNER}/${REPO}/main/MDYsync/talmud_index.json`;
 
+function comboKeyFor(variant, language) {
+  const variantPart = variant === 'chazarah' ? 'chazarah' : 'regular';
+  const languagePart = language === 'he' ? 'He' : 'En';
+  return `${variantPart}${languagePart}`;
+}
+
 function parseFeedEntries(xml) {
   const entries = [];
   const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
@@ -101,6 +107,7 @@ export default async (request) => {
 
   const published = [];
   const skipped = [];
+  const catalogUpdates = []; // { tractate, daf, amud, comboKey, videoId, label }
 
   for (const entry of entries) {
     const parsed = parseChannelTitle(entry.title, lookup);
@@ -145,12 +152,68 @@ export default async (request) => {
         if (putResponse.ok) {
           existingKeys.add(key);
           published.push({ ref: refDisplay(reading), videoId: entry.videoId });
+          catalogUpdates.push({
+            tractate: reading.tractate,
+            daf: reading.daf,
+            amud: reading.amud,
+            comboKey: comboKeyFor(reading.variant, reading.language),
+            videoId: entry.videoId,
+            label: decodeHtmlEntities(entry.title).slice(0, 40),
+          });
         } else {
           skipped.push({ ref: refDisplay(reading), videoId: entry.videoId, reason: `publish failed (${putResponse.status})` });
         }
       } catch (error) {
         skipped.push({ ref: refDisplay(reading), videoId: entry.videoId, reason: error.message });
       }
+    }
+  }
+
+  // catalog.json is the front end's one-fetch summary of every linked video
+  // (see tools/build-video-catalog.mjs); patched here with just the rows this
+  // run touched rather than rebuilt from scratch, since rebuilding would mean
+  // re-fetching and re-parsing every video-links file on every hourly run.
+  if (catalogUpdates.length) {
+    try {
+      const catalogResponse = await fetch(
+        `https://api.github.com/repos/${OWNER}/${REPO}/contents/catalog.json?ref=results`,
+        { headers }
+      );
+      let catalog = { tractates: {} };
+      let sha;
+      if (catalogResponse.ok) {
+        const file = await catalogResponse.json();
+        sha = file.sha;
+        catalog = JSON.parse(Buffer.from(file.content, 'base64').toString('utf8'));
+        if (!catalog.tractates) catalog.tractates = {};
+      }
+      for (const update of catalogUpdates) {
+        const rows = catalog.tractates[update.tractate] || (catalog.tractates[update.tractate] = []);
+        let row = rows.find((r) => r.daf === update.daf && r.amud === update.amud);
+        if (!row) {
+          row = { daf: update.daf, amud: update.amud };
+          rows.push(row);
+          rows.sort((a, b) => a.daf - b.daf || a.amud.localeCompare(b.amud));
+        }
+        row[update.comboKey] = { videoId: update.videoId, label: update.label };
+      }
+      catalog.generatedAt = new Date().toISOString();
+      await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/catalog.json`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          message: `Update video catalog (${catalogUpdates.length} row(s))`,
+          content: Buffer.from(JSON.stringify(catalog, null, 2) + '\n', 'utf8').toString('base64'),
+          branch: 'results',
+          ...(sha ? { sha } : {}),
+        }),
+      });
+    } catch (error) {
+      // catalog.json is a derived convenience file, not the source of truth
+      // (video-links/ is) -- a failure here shouldn't fail the whole run or
+      // stop the individually-published video-links files above from
+      // counting as published.
+      console.error('Could not update catalog.json', error);
     }
   }
 
