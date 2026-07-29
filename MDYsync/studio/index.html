@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="A prototype synchronized Daf Yomi video player and alignment editor." />
+  <title>DafSync Studio</title>
+  <script>
+    // Surfaces any otherwise-silent failure (a script that fails to load,
+    // an uncaught exception, a rejected promise nobody caught) as a plain,
+    // dependency-free banner at the top of the page -- deliberately inline
+    // and placed before every other <script>, with its own inline styles,
+    // so it still works even if styles.css or another script is the very
+    // thing that failed to load. Without this, a failure this early (e.g.
+    // vendor/supabase-js.min.js not loading) leaves every click on the
+    // page doing nothing, with no way for a reader to know why.
+    (function () {
+      var shown = false;
+      function showBanner(message) {
+        if (shown) return;
+        shown = true;
+        var bar = document.createElement('div');
+        bar.textContent = 'Something on this page failed to load: ' + message + ' -- try reloading the page.';
+        bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#7c1d1d;color:#fff;'
+          + 'font:14px/1.4 -apple-system,system-ui,sans-serif;padding:10px 40px 10px 14px;text-align:left;';
+        var close = document.createElement('button');
+        close.textContent = '×';
+        close.setAttribute('aria-label', 'Dismiss');
+        close.style.cssText = 'position:absolute;right:8px;top:6px;background:transparent;border:0;color:#fff;'
+          + 'font-size:20px;line-height:1;cursor:pointer;padding:4px 8px;';
+        close.onclick = function () { bar.remove(); };
+        bar.appendChild(close);
+        document.body ? document.body.prepend(bar) : document.addEventListener('DOMContentLoaded', function () { document.body.prepend(bar); });
+      }
+      window.addEventListener('error', function (event) {
+        // In capture phase, a resource (script/link/img) that fails to load
+        // fires this same 'error' event with event.target set to that
+        // element -- a genuine script execution error has no target instead.
+        // Only <script> failures are worth an alarming banner: a stylesheet
+        // or font failing to load (e.g. Google Fonts blocked by a network
+        // filter) just falls back to a system font, and isn't a reason to
+        // tell the reader the page is broken.
+        if (event.target && event.target.tagName !== 'SCRIPT') return;
+        var message = event.message || (event.target && event.target.src) || 'unknown error';
+        showBanner(String(message));
+      }, true);
+      window.addEventListener('unhandledrejection', function (event) {
+        showBanner(String(event.reason && event.reason.message || event.reason || 'unknown error'));
+      });
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Frank+Ruhl+Libre:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../styles.css" />
+  <link rel="stylesheet" href="../studio-access.css" />
+</head>
+<body class="is-admin studio-route">
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-group">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 48 48" role="img">
+            <path d="M10 11.5h18.2c5.4 0 9.8 4.4 9.8 9.8v15.2H19.8c-5.4 0-9.8-4.4-9.8-9.8V11.5Z" fill="currentColor" opacity=".22"/>
+            <path d="M14 8h17.2A8.8 8.8 0 0 1 40 16.8V32H22.8A8.8 8.8 0 0 1 14 23.2V8Z" fill="none" stroke="currentColor" stroke-width="2.6"/>
+            <path d="M20 17h14M20 23h10" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div>
+          <div class="brand-title">DafSync <span>Studio</span></div>
+          <div class="brand-subtitle">Synchronized shiur and daf prototype</div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <a class="button secondary admin-only" id="studioLink" href="https://github.com/mosesar9319/MDYsync/releases/latest" target="_blank" rel="noopener">Download desktop app</a>
+        <button class="button ghost" id="helpButton">How it works</button>
+        <a class="button secondary small" href="/">Back to library</a>
+        <button class="button ghost small" id="studio-logout-button" type="button">Log out</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="catalog-card card" id="catalogCard">
+        <div class="card-heading catalog-heading">
+          <div>
+            <div class="eyebrow" id="catalogSeriesEyebrow">Series</div>
+            <h2 id="catalogSeriesName">Browse dapim</h2>
+            <p class="catalog-series-desc" id="catalogSeriesDesc"></p>
+          </div>
+          <button class="button ghost small" id="catalogToggleButton" type="button">Hide</button>
+        </div>
+        <div class="catalog-body" id="catalogBody">
+          <div class="catalog-controls">
+            <label class="sync-field">
+              <span>Tractate</span>
+              <select id="catalogTractateSelect"></select>
+            </label>
+            <span class="field-note" id="catalogStatusNote">Checking which dapim are synced…</span>
+          </div>
+          <div class="catalog-grid" id="catalogGrid"></div>
+          <div class="catalog-legend">
+            <span><i class="catalog-swatch synced"></i> Synced</span>
+            <span><i class="catalog-swatch coming-soon"></i> Coming soon</span>
+            <span><i class="catalog-swatch chazarah-dot"></i> Chazarah Daf available</span>
+            <span><i class="catalog-swatch hebrew-dot"></i> Hebrew shiur available</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="setup-strip card">
+        <div class="setup-field video-field">
+          <label>Lecture source</label>
+          <div class="source-tabs" role="tablist" aria-label="Lecture source">
+            <button class="source-tab active" type="button" data-source-panel="fileSourcePanel" role="tab" aria-selected="true">Local file</button>
+            <button class="source-tab" type="button" data-source-panel="linkSourcePanel" role="tab" aria-selected="false">Video link</button>
+          </div>
+          <div class="source-panel" id="fileSourcePanel" role="tabpanel">
+            <label class="button secondary file-button small">
+              <input id="videoInput" type="file" accept="video/*,audio/*" hidden />
+              Choose video
+            </label>
+            <span id="videoFileName" class="field-note">Nothing is uploaded</span>
+          </div>
+          <div class="source-panel link-source-panel" id="linkSourcePanel" role="tabpanel" hidden>
+            <div class="video-url-row">
+              <input id="videoUrl" type="url" inputmode="url" placeholder="Paste a YouTube or direct video URL" spellcheck="false" />
+              <button class="button primary small" id="loadVideoUrlButton" type="button">Load link</button>
+            </div>
+            <span id="videoUrlHint" class="field-note">YouTube, youtu.be, Shorts, or a direct MP4/WebM link</span>
+          </div>
+        </div>
+
+        <div class="setup-field ref-field">
+          <label>Daf reference</label>
+          <div class="daf-picker-row">
+            <select id="dafTractateSelect" aria-label="Tractate"></select>
+            <select id="dafDafSelect" class="daf-picker-narrow" aria-label="Daf"></select>
+            <div class="amud-toggle" id="dafAmudToggle" role="group" aria-label="Amud">
+              <button type="button" class="amud-option active" data-side="a">a</button>
+              <button type="button" class="amud-option" data-side="b">b</button>
+            </div>
+          </div>
+          <div class="picker-toggle-row">
+            <div class="shiur-variant-toggle" id="dafShiurToggle" role="group" aria-label="Shiur type">
+              <button type="button" class="shiur-variant-option active" data-variant="regular">Regular</button>
+              <button type="button" class="shiur-variant-option" data-variant="chazarah">Chazarah Daf</button>
+            </div>
+            <div class="shiur-variant-toggle" id="dafLanguageToggle" role="group" aria-label="Shiur language">
+              <button type="button" class="language-option active" data-language="en">English</button>
+              <button type="button" class="language-option" data-language="he">Hebrew</button>
+            </div>
+          </div>
+          <input id="dafRef" type="hidden" value="" />
+          <button id="loadDafButton" hidden>Load daf</button>
+        </div>
+
+        <div class="setup-field action-field admin-only">
+          <label>Alignment data</label>
+          <div class="compact-actions">
+            <label class="button secondary file-button small">
+              <input id="alignmentInput" type="file" accept="application/json,.json" hidden />
+              Import sync
+            </label>
+            <label class="button secondary file-button small">
+              <input id="transcriptInput" type="file" accept="application/json,.json" hidden />
+              Import transcript
+            </label>
+            <button class="button secondary small" id="exportButton">Export</button>
+            <button class="button primary small" id="quickSyncButton" type="button" hidden>Sync this daf</button>
+            <button class="button primary small" id="openSyncDialogButton" type="button">Sync from video</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <article class="player-card card">
+          <div class="card-heading">
+            <div>
+              <div class="eyebrow">Shiur player</div>
+              <h1 id="lectureTitle">DafSync Studio</h1>
+            </div>
+            <div class="live-location">
+              <span>Current location</span>
+              <strong id="currentRef">No daf loaded</strong>
+              <button class="favorite-button" id="favoriteButton" type="button" aria-label="Favorite this daf" title="Save to favorites" hidden>☆</button>
+            </div>
+          </div>
+
+          <div class="video-frame" id="videoFrame">
+            <video id="video" preload="metadata" playsinline></video>
+            <div class="youtube-player-host" id="youtubePlayerHost" hidden>
+              <div id="youtubePlayer"></div>
+            </div>
+            <span class="video-source-badge" id="videoSourceBadge" hidden></span>
+            <div class="video-empty" id="videoEmpty">
+              <div class="empty-icon">▶</div>
+              <p>Choose a lecture video or paste a YouTube link.</p>
+            </div>
+            <button class="large-play" id="largePlay" aria-label="Play video" hidden>
+              <svg viewBox="0 0 44 44" aria-hidden="true"><path d="M17 12.5 33 22 17 31.5v-19Z" fill="currentColor"/></svg>
+            </button>
+            <div class="video-vilna-overlay" id="videoVilnaOverlay" hidden>
+              <canvas id="videoVilnaCanvas"></canvas>
+            </div>
+            <!-- Lives inside .video-frame (not a sibling) so it survives native
+                 fullscreen -- the scrubber-wrap below the frame does not, and
+                 the overlay canvas otherwise sits on top of the YouTube
+                 iframe's own hover controls, blocking them. -->
+            <div class="video-inline-controls" id="videoInlineControls">
+              <button class="video-inline-play" id="inlinePlayButton" aria-label="Play">
+                <svg class="play-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z" fill="currentColor"/></svg>
+                <svg class="pause-icon" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M7 5h4v14H7zm6 0h4v14h-4z" fill="currentColor"/></svg>
+              </button>
+              <input id="inlineScrubber" class="inline-scrubber" type="range" min="0" max="100" step="0.01" value="0" aria-label="Video timeline" />
+              <span class="inline-time" id="inlineTimeLabel">0:00 / 0:00</span>
+              <button class="video-fullscreen-button" id="fullscreenButton" aria-label="Fullscreen" title="Fullscreen">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="overlay-controls" id="overlayControls">
+            <label class="toggle-label">
+              <input type="checkbox" id="overlayToggle" />
+              <span class="toggle"></span>
+              Overlay Vilna page on video <em>(experimental)</em>
+            </label>
+            <label class="overlay-mode-label">
+              Style
+              <select id="overlayModeSelect">
+                <option value="full">Full page</option>
+                <option value="strip">Current lines</option>
+              </select>
+            </label>
+            <label class="overlay-opacity-label">
+              Opacity
+              <input type="range" id="overlayOpacitySlider" min="10" max="90" value="50" />
+            </label>
+            <label class="overlay-mode-label">
+              Fade to opacity
+              <select id="overlayOpacityTargetSelect">
+                <option value="both">Page + text</option>
+                <option value="background">Page only</option>
+              </select>
+            </label>
+            <label class="overlay-mode-label">
+              When not reading Gemara
+              <select id="overlayIdleSelect">
+                <option value="dim">Dim overlay</option>
+                <option value="hide">Hide overlay</option>
+              </select>
+            </label>
+            <label class="overlay-opacity-label">
+              Zoom
+              <input type="range" id="overlayZoomSlider" min="60" max="350" value="100" />
+            </label>
+            <button class="button ghost small" id="overlayResetPositionButton" type="button">Reset position</button>
+            <em class="overlay-hint">Scroll/pinch the overlay to zoom, drag to reposition</em>
+          </div>
+
+          <div class="scrubber-wrap">
+            <div class="scrub-preview" id="scrubPreview" hidden>
+              <strong id="previewTime">0:00</strong>
+              <span id="previewText"></span>
+            </div>
+            <input id="scrubber" class="scrubber" type="range" min="0" max="100" step="0.01" value="0" aria-label="Video timeline" />
+            <div class="time-row">
+              <span id="currentTime">0:00</span>
+              <span id="duration">0:00</span>
+            </div>
+          </div>
+
+          <div class="player-controls">
+            <button class="icon-button" id="backButton" aria-label="Back 10 seconds">−10</button>
+            <button class="play-button" id="playButton" aria-label="Play">
+              <svg class="play-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z" fill="currentColor"/></svg>
+              <svg class="pause-icon" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M7 5h4v14H7zm6 0h4v14h-4z" fill="currentColor"/></svg>
+            </button>
+            <button class="icon-button" id="forwardButton" aria-label="Forward 10 seconds">+10</button>
+            <div class="control-divider"></div>
+            <label class="speed-control">Speed
+              <select id="speedSelect">
+                <option value="0.75">0.75×</option>
+                <option value="1" selected>1×</option>
+                <option value="1.25">1.25×</option>
+                <option value="1.5">1.5×</option>
+                <option value="2">2×</option>
+              </select>
+            </label>
+            <button class="button secondary small push-right admin-only" id="editModeButton">Edit synchronization</button>
+          </div>
+
+          <div class="marking-bar admin-only" aria-label="Fast alignment controls">
+            <button class="button secondary small" id="markerBackButton" type="button">Previous phrase</button>
+            <div class="mark-target">
+              <span>Marking phrase</span>
+              <strong id="markTargetLabel">0 of 0</strong>
+            </div>
+            <button class="button primary" id="markHereButton" type="button">Mark here &amp; advance <kbd>M</kbd></button>
+            <button class="button secondary small" id="markerForwardButton" type="button">Next phrase</button>
+            <button class="button ghost small" id="saveDraftButton" type="button">Save draft</button>
+          </div>
+
+          <div class="now-learning">
+            <span class="now-label">The rabbi is discussing</span>
+            <div id="currentPhrase" dir="rtl"></div>
+            <p id="currentTranslation">Enter a daf reference above and press "Load daf."</p>
+          </div>
+        </article>
+
+        <article class="daf-card card">
+          <div class="card-heading daf-heading">
+            <div>
+              <div class="eyebrow">Digital daf</div>
+              <h2 id="dafTitle">No daf loaded</h2>
+            </div>
+            <div class="view-switch" role="group" aria-label="Daf display mode">
+              <button class="active" data-view="text">Text</button>
+              <button data-view="page" title="Real Vilna-edition page image (private-use source)">Vilna page</button>
+            </div>
+          </div>
+
+          <div class="daf-scroll" id="dafScroll">
+            <div class="daf-page" id="dafPage" dir="rtl" lang="he">
+              <p class="daf-empty-note">No daf loaded yet. Enter a reference above and press "Load daf."</p>
+            </div>
+            <div class="vilna-placeholder" id="vilnaPlaceholder" hidden>
+              <div class="vilna-zoom-controls" id="vilnaZoomControls">
+                <button class="vilna-zoom-btn" id="vilnaZoomOutButton" type="button" aria-label="Zoom out">−</button>
+                <span id="vilnaZoomLabel">100%</span>
+                <button class="vilna-zoom-btn" id="vilnaZoomInButton" type="button" aria-label="Zoom in">+</button>
+                <button class="vilna-zoom-reset" id="vilnaZoomResetButton" type="button">Reset zoom</button>
+                <button class="vilna-fullscreen-button" id="vilnaFullscreenButton" type="button" aria-label="Fullscreen" title="Fullscreen">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+              </div>
+              <div class="vilna-page-status" id="vilnaPageStatus">
+                <div class="page-silhouette">
+                  <div class="page-column narrow"></div>
+                  <div class="page-column wide"></div>
+                  <div class="page-column narrow"></div>
+                </div>
+                <p id="vilnaPageStatusText">Load a daf reference to see the Vilna page image.</p>
+              </div>
+              <div class="vilna-page-wrap" id="vilnaPageWrap">
+                <canvas id="vilnaPageCanvas" hidden></canvas>
+                <div class="vilna-page-overlay" id="vilnaPageOverlay"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="daf-toolbar">
+            <span class="alignment-badge needs-work" id="alignmentStatus">Needs alignment</span>
+            <label class="toggle-label">
+              <input type="checkbox" id="autoScroll" checked />
+              <span class="toggle"></span>
+              Auto-scroll
+            </label>
+            <span class="toolbar-hint">Click any phrase to jump to that point in the shiur.</span>
+          </div>
+
+          <div class="daf-footer">
+            <span id="segmentCount">0 synchronized segments</span>
+            <span>Text retrieval: Sefaria API</span>
+          </div>
+        </article>
+      </section>
+
+      <section class="editor card" id="editor" hidden>
+        <div class="editor-heading">
+          <div>
+            <div class="eyebrow">Alignment editor</div>
+            <h2>Correct the synchronization</h2>
+            <p>Select a phrase, play or seek to its correct point, then use “Mark here & advance” or press M. The previous phrase closes automatically.</p>
+          </div>
+          <div class="editor-actions">
+            <button class="button secondary small" id="evenSpacingButton">Reset evenly</button>
+            <button class="button primary small" id="closeEditorButton">Done editing</button>
+          </div>
+        </div>
+        <div class="editor-table-wrap">
+          <table class="editor-table">
+            <thead>
+              <tr><th>#</th><th>Start</th><th>End</th><th>Phrase</th><th></th></tr>
+            </thead>
+            <tbody id="editorBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="workflow-grid">
+        <article class="workflow-card card">
+          <span class="step-number">1</span>
+          <div><h3>Load the lecture</h3><p>Use a local file, a direct media link, or an embedded YouTube video.</p></div>
+        </article>
+        <article class="workflow-card card">
+          <span class="step-number">2</span>
+          <div><h3>Match transcript to daf</h3><p>Import timestamped transcript JSON or edit the timeline manually.</p></div>
+        </article>
+        <article class="workflow-card card">
+          <span class="step-number">3</span>
+          <div><h3>Publish alignment</h3><p>Export a reusable JSON map for the final hosted video.</p></div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="helpDialog">
+    <button class="dialog-close" id="closeHelp" aria-label="Close">×</button>
+    <div class="eyebrow">Prototype guide</div>
+    <h2>How to use DafSync</h2>
+    <ol>
+      <li>Choose a lecture video (local file, direct link, or YouTube) and enter a daf reference, then press "Load daf."</li>
+      <li>Use "Sync from video" to generate real timestamps automatically from the video's on-screen caption box, via the desktop app or a Google Drive link.</li>
+      <li>Click a phrase on the daf to jump the video to that point. During playback, the daf auto-scrolls to follow along.</li>
+      <li>To align by hand instead, open "Edit synchronization," select a phrase, and press M while listening to mark its start time and advance to the next.</li>
+      <li>Export the result as a reusable alignment JSON, or import one with "Import sync."</li>
+    </ol>
+    <p class="dialog-note">YouTube playback is controlled through YouTube's embedded player.</p>
+  </dialog>
+
+  <dialog id="syncDialog">
+    <button class="dialog-close" id="closeSyncDialog" aria-label="Close">×</button>
+    <div class="eyebrow">Caption-box sync</div>
+    <h2>Generate a sync from a lecture video</h2>
+    <p class="dialog-note">Pick the daf the video covers, then process it either
+      with the DafSync desktop app on this computer, or on our server from a
+      Google Drive link.</p>
+
+    <div class="sync-picker">
+      <div class="sync-picker-row">
+        <label class="sync-field">
+          <span>Tractate</span>
+          <select id="syncTractateSelect"></select>
+        </label>
+        <label class="sync-field sync-field-narrow">
+          <span>Daf</span>
+          <select id="syncDafSelect"></select>
+        </label>
+        <label class="sync-field sync-field-narrow">
+          <span>Amud</span>
+          <div class="amud-toggle" id="syncAmudToggle" role="group" aria-label="Amud">
+            <button type="button" class="amud-option active" data-side="a">a</button>
+            <button type="button" class="amud-option" data-side="b">b</button>
+          </div>
+        </label>
+        <button class="button primary small" id="syncAddReadingButton" type="button">+ Add reading</button>
+      </div>
+      <div class="sync-picker-row">
+        <label class="sync-field">
+          <span>Shiur type</span>
+          <div class="shiur-variant-toggle" id="syncShiurToggle" role="group" aria-label="Shiur type">
+            <button type="button" class="shiur-variant-option active" data-variant="regular">Regular</button>
+            <button type="button" class="shiur-variant-option" data-variant="chazarah">Chazarah Daf (shorter, gemara-only review)</button>
+          </div>
+        </label>
+        <label class="sync-field">
+          <span>Language</span>
+          <div class="shiur-variant-toggle" id="syncLanguageToggle" role="group" aria-label="Shiur language">
+            <button type="button" class="language-option active" data-language="en">English</button>
+            <button type="button" class="language-option" data-language="he">Hebrew</button>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <div class="sync-readings-head">
+      <strong>Readings covered, in order</strong>
+      <button class="button ghost small" id="syncClearReadingsButton" type="button">Clear all</button>
+    </div>
+    <div class="sync-readings-list" id="syncReadingsList">
+      <p class="field-note">No readings added yet.</p>
+    </div>
+
+    <div class="sync-tabs" role="tablist" aria-label="Processing method">
+      <button class="sync-tab active" type="button" data-sync-panel="syncLocalPanel" role="tab" aria-selected="true">Local file (Desktop App)</button>
+      <button class="sync-tab" type="button" data-sync-panel="syncDrivePanel" role="tab" aria-selected="false">Google Drive link</button>
+      <button class="sync-tab" type="button" data-sync-panel="syncYoutubePanel" role="tab" aria-selected="false">YouTube link</button>
+    </div>
+
+    <div class="sync-source-panel" id="syncLocalPanel" role="tabpanel">
+      <label class="button secondary file-button small">
+        <input id="syncVideoInput" type="file" accept="video/*" hidden />
+        Choose video
+      </label>
+      <span id="syncVideoFileName" class="field-note">Processed on this computer, never uploaded</span>
+      <div class="sync-app-status" id="syncAppStatus">
+        <span class="status-dot muted"></span>
+        <span id="syncAppStatusText">Checking for the DafSync desktop app…</span>
+        <a class="button secondary small" id="syncOpenAppButton" href="dafsync://open" hidden>Open DafSync app</a>
+        <a class="button ghost small" href="https://github.com/mosesar9319/MDYsync/releases/latest" target="_blank" rel="noopener">Don't have it? Download</a>
+      </div>
+      <button class="button primary" id="syncLocalStartButton" type="button">Sync using desktop app</button>
+    </div>
+
+    <div class="sync-source-panel" id="syncDrivePanel" role="tabpanel" hidden>
+      <label class="sync-field">
+        <span>Google Drive video link</span>
+        <input id="syncDriveUrlInput" type="url" placeholder="https://drive.google.com/file/d/…/view" spellcheck="false" />
+      </label>
+      <span class="field-note">The file must be shared as "Anyone with the link." Processing runs on our server and can take a few minutes.</span>
+      <button class="button primary" id="syncDriveStartButton" type="button">Sync from Google Drive</button>
+    </div>
+
+    <div class="sync-source-panel" id="syncYoutubePanel" role="tabpanel" hidden>
+      <label class="sync-field">
+        <span>YouTube video link</span>
+        <input id="syncYoutubeUrlInput" type="url" placeholder="https://www.youtube.com/watch?v=…" spellcheck="false" />
+      </label>
+      <span class="field-note">Restricted to recent Mercaz Daf Yomi uploads. Processing runs on our server and can take a few minutes.</span>
+      <button class="button primary" id="syncYoutubeStartButton" type="button">Sync from YouTube</button>
+    </div>
+
+    <div class="sync-progress-wrap" id="syncProgressWrap" hidden>
+      <div class="sync-progress-row">
+        <div class="sync-progress-track"><div class="sync-progress-fill" id="syncProgressFill"></div></div>
+        <span class="sync-progress-pct" id="syncProgressPct">0%</span>
+      </div>
+      <div class="sync-log" id="syncLog"></div>
+    </div>
+  </dialog>
+
+  <dialog id="authDialog">
+    <button class="dialog-close" id="closeAuthDialog" aria-label="Close">×</button>
+    <div class="eyebrow" id="authDialogEyebrow">Account</div>
+    <h2 id="authDialogTitle">Sign in</h2>
+    <p class="dialog-note" id="authDialogNote">Sign in to save favorites, resume playback where you left off, and keep your player settings across devices.</p>
+    <button class="button secondary google-auth-button" id="googleAuthButton" type="button">
+      <svg viewBox="0 0 18 18" aria-hidden="true" width="18" height="18">
+        <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.84 2.09-1.79 2.73v2.27h2.9c1.7-1.56 2.68-3.87 2.68-6.64z"/>
+        <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.17l-2.9-2.27c-.8.54-1.83.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.34C2.44 15.98 5.48 18 9 18z"/>
+        <path fill="#FBBC05" d="M3.95 10.7c-.18-.54-.28-1.11-.28-1.7s.1-1.16.28-1.7V4.96H.96A8.996 8.996 0 0 0 0 9c0 1.45.35 2.83.96 4.04l2.99-2.34z"/>
+        <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0 5.48 0 2.44 2.02.96 4.96l2.99 2.34C4.66 5.17 6.65 3.58 9 3.58z"/>
+      </svg>
+      Continue with Google
+    </button>
+    <div class="auth-divider"><span>or</span></div>
+    <form class="auth-form" id="authForm">
+      <label class="sync-field">
+        <span>Email</span>
+        <input id="authEmail" type="email" autocomplete="email" required />
+      </label>
+      <label class="sync-field">
+        <span>Password</span>
+        <input id="authPassword" type="password" autocomplete="current-password" required minlength="6" />
+      </label>
+      <p class="auth-error" id="authError" hidden></p>
+      <div class="auth-form-actions">
+        <button class="button primary" id="authSubmitButton" type="submit">Sign in</button>
+        <button class="button ghost small" id="authSwitchModeButton" type="button">Need an account? Sign up</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="favoritesDialog">
+    <button class="dialog-close" id="closeFavoritesDialog" aria-label="Close">×</button>
+    <div class="eyebrow">Saved</div>
+    <h2>My favorites</h2>
+    <div class="favorites-list" id="favoritesList">
+      <p class="field-note">No favorites yet. Use the star next to "Current location" while viewing a daf.</p>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="../studio-access.js" defer></script>
+  <script src="../app.js" defer></script>
+  <script src="../catalog.js" defer></script>
+</body>
+</html>
