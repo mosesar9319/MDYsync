@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#0c263d">
   <meta name="description" content="Browse Daf Yomi shiurim by daf, masechta, and maggid shiur.">
   <title>DafSync — Daily Daf Yomi Shiurim</title>
+  <link rel="stylesheet" href="/studio-access.css">
   <style>
 
 :root {
@@ -1039,8 +1040,10 @@ h1 {
         <div class="profile-wrap">
           <button aria-expanded="false" aria-label="Open profile menu" class="profile-button" id="profile-button" type="button"></button>
           <div class="profile-menu" id="profile-menu" hidden>
-            <strong>Welcome back</strong>
-            <span>Your learning is waiting.</span>
+            <strong>Backend editor</strong>
+            <span>Manage shiurim and synchronization.</span>
+            <button class="editor-access-button" id="editor-access-button" type="button">Editor login</button>
+            <button class="editor-signout-button" id="editor-signout-button" type="button" hidden>Log out</button>
           </div>
         </div>
       </header>
@@ -1100,8 +1103,28 @@ h1 {
         </div>
       </section>
     </div>
+
+    <dialog class="editor-login-dialog" id="editor-login-dialog">
+      <button aria-label="Close editor login" class="editor-login-close" id="editor-login-close" type="button">×</button>
+      <p class="editor-login-kicker">DAFSYNC STUDIO</p>
+      <h2>Backend editor login</h2>
+      <p class="editor-login-note">Sign in to manage DafSync shiurim and synchronization.</p>
+      <form id="editor-login-form">
+        <label>
+          <span>Email</span>
+          <input id="editor-login-email" type="email" autocomplete="username" required>
+        </label>
+        <label>
+          <span>Password</span>
+          <input id="editor-login-password" type="password" autocomplete="current-password" minlength="6" required>
+        </label>
+        <p class="editor-login-message" id="editor-login-message" role="alert" hidden></p>
+        <button class="editor-login-submit" id="editor-login-submit" type="submit">Open editor</button>
+      </form>
+    </dialog>
   </div>
 
+  <script src="/studio-access.js" defer></script>
   <script>
   (() => {
     const iconPaths = {
