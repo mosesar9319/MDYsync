@@ -2,9 +2,14 @@ name: Server-side caption OCR job
 
 # Triggered by the trigger-ocr-job Netlify Function on the user's behalf
 # (never called directly with a public token) when someone uses the
-# "Google Drive link" tab of the website's sync dialog. Downloads the
-# video, runs the same OCR engine used by the desktop app and CLI
-# unchanged, and publishes the alignment JSON to the `results` branch,
+# "Google Drive link" or "YouTube link" tab of the website's sync dialog --
+# exactly one of client_payload.driveUrl/youtubeUrl is set, gating which
+# download step below runs. (YouTube sync is restricted to one specific
+# channel; that check happens in trigger-ocr-job.mjs before dispatch, not
+# here -- this workflow trusts whatever dispatched it, same as the Drive
+# path always has.) Downloads the video, runs the same OCR engine used by
+# the desktop app and CLI unchanged, and publishes the alignment JSON to
+# the `results` branch,
 # once per daf reference it covers (results/by-ref/<ref>.json), which the
 # website polls for via raw.githubusercontent.com (public repo, no auth
 # needed to read it). Keying by daf reference rather than a random job ID
@@ -35,9 +40,10 @@ jobs:
           sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-heb
 
       - name: Install Python dependencies
-        run: pip install opencv-python-headless pytesseract rapidfuzz "gdown==6.1.0"
+        run: pip install opencv-python-headless pytesseract rapidfuzz "gdown==6.1.0" yt-dlp
 
       - name: Download the video from Google Drive
+        if: ${{ github.event.client_payload.driveUrl }}
         working-directory: MDYsync/tools/caption-sync
         env:
           DRIVE_URL: ${{ github.event.client_payload.driveUrl }}
@@ -55,6 +61,27 @@ jobs:
                     'permission/interstitial page was saved instead of the real file.')
               sys.exit(1)
           "
+          ls -la job-video.mp4
+
+      - name: Download the video from YouTube
+        if: ${{ github.event.client_payload.youtubeUrl }}
+        working-directory: MDYsync/tools/caption-sync
+        env:
+          YOUTUBE_URL: ${{ github.event.client_payload.youtubeUrl }}
+        run: |
+          set -e
+          # Capped at 720p -- plenty for OCR'ing the on-screen caption box,
+          # and much faster to fetch than the highest available format.
+          # ubuntu-latest ships ffmpeg already, which yt-dlp needs to mux
+          # separate video/audio streams into one mp4.
+          yt-dlp -f "bv*[height<=720][ext=mp4]+ba[ext=m4a]/best[height<=720][ext=mp4]/best" \
+            --merge-output-format mp4 -o job-video.mp4 "$YOUTUBE_URL"
+          size=$(stat -c%s job-video.mp4)
+          echo "Downloaded $size bytes"
+          if [ "$size" -lt 100000 ]; then
+            echo "Downloaded file is suspiciously small for a video."
+            exit 1
+          fi
           ls -la job-video.mp4
 
       - name: Run the OCR alignment engine
