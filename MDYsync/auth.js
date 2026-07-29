@@ -82,6 +82,20 @@
       const { error } = await client.auth.signOut();
       if (error) throw error;
     },
+    // Full-page redirect to Google, then back to this same URL -- Supabase
+    // reads the resulting session straight out of the redirect URL on
+    // load (createClient's default detectSessionInUrl), so there is no
+    // second step here. Requires Google enabled as a provider in the
+    // Supabase dashboard (Authentication -> Providers) with a Google
+    // Cloud OAuth client configured for it; until that's done this
+    // rejects with Supabase's own "provider is not enabled" error.
+    async signInWithGoogle() {
+      const { error } = await client.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin + window.location.pathname },
+      });
+      if (error) throw error;
+    },
   };
 
   // --- Header widget: sign in/up dialog + account menu ---------------------
@@ -124,6 +138,19 @@
     $('authSwitchModeButton').addEventListener('click', () => {
       setAuthMode($('authDialog').dataset.mode === 'signup' ? 'signin' : 'signup');
       $('authError').hidden = true;
+    });
+    $('googleAuthButton').addEventListener('click', async () => {
+      const errorEl = $('authError');
+      try {
+        await window.DafSyncAuth.signInWithGoogle();
+        // The page is about to navigate away to Google, so nothing else
+        // runs here on success -- only a rejection (e.g. the provider
+        // isn't enabled yet) surfaces before that redirect would happen.
+      } catch (error) {
+        errorEl.hidden = false;
+        errorEl.classList.add('is-error');
+        errorEl.textContent = error.message || 'Could not start Google sign-in.';
+      }
     });
 
     $('authForm').addEventListener('submit', async (event) => {
