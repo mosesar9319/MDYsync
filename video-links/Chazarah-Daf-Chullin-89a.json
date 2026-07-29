@@ -2,5 +2,10 @@
   "label": "YouTube",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=LsXrdnG67m0",
-  "videoId": "LsXrdnG67m0"
+  "videoId": "LsXrdnG67m0",
+  "coveredRefs": [
+    "Chullin 88b",
+    "Chullin 89a",
+    "Chullin 89b"
+  ]
 }

@@ -1,1 +1,11 @@
-{"type":"youtube","url":"https://www.youtube.com/watch?v=d4tUz_ywmP8","videoId":"d4tUz_ywmP8","label":"חזרה - חולין דף פט | \"רק הדף\" עם ר' אלי "}
+{
+  "type": "youtube",
+  "url": "https://www.youtube.com/watch?v=d4tUz_ywmP8",
+  "videoId": "d4tUz_ywmP8",
+  "label": "חזרה - חולין דף פט | \"רק הדף\" עם ר' אלי ",
+  "coveredRefs": [
+    "Chullin 88b",
+    "Chullin 89a",
+    "Chullin 89b"
+  ]
+}
