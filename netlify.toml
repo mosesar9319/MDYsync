@@ -1,6 +1,5 @@
 [build]
   base = "MDYsync"
-  command = "npm run build"
   publish = "."
   functions = "netlify/functions"
 

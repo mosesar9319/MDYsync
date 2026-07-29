@@ -53,9 +53,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Frank+Ruhl+Libre:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../styles.css" />
-  <link rel="stylesheet" href="../studio-access.css" />
 </head>
-<body class="is-admin studio-route">
+<body>
   <div class="app-shell">
     <header class="topbar">
       <div class="brand-group">
@@ -75,7 +74,19 @@
         <a class="button secondary admin-only" id="studioLink" href="https://github.com/mosesar9319/MDYsync/releases/latest" target="_blank" rel="noopener">Download desktop app</a>
         <button class="button ghost" id="helpButton">How it works</button>
         <a class="button secondary small" href="/">Back to library</a>
-        <button class="button ghost small" id="studio-logout-button" type="button">Log out</button>
+        <div class="auth-widget" id="authWidget">
+          <button class="button secondary small" id="signInButton" type="button">Sign in</button>
+          <div class="account-menu" id="accountMenu" hidden>
+            <button class="button secondary small account-trigger" id="accountMenuButton" type="button">
+              <span id="accountEmailLabel">Account</span>
+              <span class="admin-badge admin-only" id="adminBadge">Admin</span>
+            </button>
+            <div class="account-dropdown" id="accountDropdown" hidden>
+              <button class="account-dropdown-item" id="myFavoritesButton" type="button">My favorites</button>
+              <button class="account-dropdown-item" id="signOutButton" type="button">Sign out</button>
+            </div>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -562,8 +573,10 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="../studio-access.js" defer></script>
+  <script src="../vendor/supabase-js.min.js"></script>
+  <script src="../auth.js"></script>
   <script src="../app.js" defer></script>
   <script src="../catalog.js" defer></script>
+  <script src="../account-features.js" defer></script>
 </body>
 </html>

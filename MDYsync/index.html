@@ -6,7 +6,6 @@
   <meta name="theme-color" content="#0c263d">
   <meta name="description" content="Browse Daf Yomi shiurim by daf, masechta, and maggid shiur.">
   <title>DafSync — Daily Daf Yomi Shiurim</title>
-  <link rel="stylesheet" href="/studio-access.css">
   <style>
 
 :root {
@@ -1037,34 +1036,22 @@ h1 {
           <input id="search" placeholder="Search shiurim, masechtos, or maggidei shiur" type="search">
           <button aria-label="Clear search" class="clear-search" id="clear-search" hidden type="button"></button>
         </label>
-        <div class="profile-wrap">
-          <button aria-expanded="false" aria-label="Open profile menu" class="profile-button" id="profile-button" type="button"></button>
-          <div class="profile-menu" id="profile-menu" hidden>
-            <strong>Backend editor</strong>
-            <span>Manage shiurim and synchronization.</span>
-            <button class="editor-access-button" id="editor-access-button" type="button">Editor login</button>
-            <button class="editor-signout-button" id="editor-signout-button" type="button" hidden>Log out</button>
-          </div>
-        </div>
       </header>
 
       <main>
         <div class="filters" id="filters" aria-label="Browse filters"></div>
 
         <section class="today-section" id="today-section">
-          <p class="eyebrow">WEDNESDAY • 15 AV 5786</p>
+          <p class="eyebrow" id="today-eyebrow"></p>
           <h1>Today’s Daf</h1>
-          <button class="hero-card" id="hero-card" type="button">
+          <button class="hero-card" id="hero-card" type="button" hidden>
             <span class="hero-copy">
-              <span class="hero-kicker">DAF YOMI • ZEVACHIM</span>
-              <strong>Maseches Zevachim 62</strong>
-              <span class="hero-teacher">Rabbi Eli Stefansky</span>
-              <span class="hero-actions">
-                <span class="watch-button"><span data-icon="play"></span> Watch today’s shiur</span>
-                <span class="duration"><span data-icon="clock"></span> 47 min</span>
-              </span>
+              <span class="hero-kicker" id="hero-kicker">DAF YOMI</span>
+              <strong id="hero-title"></strong>
+              <span class="hero-actions" id="hero-actions"></span>
             </span>
           </button>
+          <p class="field-note" id="hero-loading">Loading today’s daf…</p>
         </section>
 
         <section class="learning-section">
@@ -1099,41 +1086,19 @@ h1 {
           <h2 id="shiur-title">Zevachim 61</h2>
           <p id="modal-teacher">Rabbi Eli Stefansky</p>
           <div class="modal-meta"><span data-icon="clock"></span> <span id="modal-length">46 min</span></div>
-          <button class="primary-action" type="button"><span data-icon="play"></span> Start watching</button>
+          <a class="primary-action" id="modal-watch-link" href="#"><span data-icon="play"></span> Start watching</a>
         </div>
       </section>
     </div>
-
-    <dialog class="editor-login-dialog" id="editor-login-dialog">
-      <button aria-label="Close editor login" class="editor-login-close" id="editor-login-close" type="button">×</button>
-      <p class="editor-login-kicker">DAFSYNC STUDIO</p>
-      <h2>Backend editor login</h2>
-      <p class="editor-login-note">Sign in to manage DafSync shiurim and synchronization.</p>
-      <form id="editor-login-form">
-        <label>
-          <span>Email</span>
-          <input id="editor-login-email" type="email" autocomplete="username" required>
-        </label>
-        <label>
-          <span>Password</span>
-          <input id="editor-login-password" type="password" autocomplete="current-password" minlength="6" required>
-        </label>
-        <p class="editor-login-message" id="editor-login-message" role="alert" hidden></p>
-        <button class="editor-login-submit" id="editor-login-submit" type="submit">Open editor</button>
-      </form>
-    </dialog>
   </div>
 
-  <script src="/studio-access.js" defer></script>
   <script>
   (() => {
     const iconPaths = {
       home: '<path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10M9 20v-6h6v6"/>',
       calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',
       books: '<path d="M4 19.5V5a2 2 0 0 1 2-2h5v18H6a2 2 0 0 1-2-1.5ZM11 3h7a2 2 0 0 1 2 2v14.5A1.5 1.5 0 0 0 18.5 18H11"/><path d="M15 7h2M15 11h2"/>',
-      teacher: '<circle cx="12" cy="7" r="4"/><path d="M4 21c.7-5 3.3-7 8-7s7.3 2 8 7M18 14l3-2M6 14l-3-2"/>',
       search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
-      user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c.8-5.3 3.4-8 8-8s7.2 2.7 8 8"/>',
       play: '<path d="m9 7 8 5-8 5V7Z" fill="currentColor" stroke="none"/>',
       clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
       close: '<path d="m6 6 12 12M18 6 6 18"/>',
@@ -1147,32 +1112,125 @@ h1 {
       node.outerHTML = icon(node.dataset.icon, node.dataset.icon === "play" ? 18 : 22);
     });
     document.querySelector("#clear-search").innerHTML = icon("close", 17);
-    document.querySelector("#profile-button").innerHTML = icon("user", 23);
     document.querySelector("#modal-close").innerHTML = icon("close", 22);
+    // No real per-video duration is available cheaply on this page (it
+    // lives inside each by-ref alignment file, and fetching hundreds of
+    // those just to populate a homepage grid isn't worth the requests) --
+    // the modal's duration row is hidden rather than showing a fabricated
+    // number.
+    document.querySelector("#modal-length").closest(".modal-meta").hidden = true;
 
-    const shiurim = [
-      { daf: "Zevachim 61", teacher: "Rabbi Eli Stefansky", length: "46 min", progress: 75, image: "gemara" },
-      { daf: "Zevachim 60", teacher: "Rabbi Eli Stefansky", length: "45 min", progress: 60, image: "glasses" },
-      { daf: "Zevachim 59", teacher: "Rabbi Eli Stefansky", length: "45 min", progress: 40, image: "seforim" },
-      { daf: "Introduction to Zevachim", teacher: "Rabbi Eli Stefansky", length: "52 min", progress: 25, image: "hall" },
-      { daf: "Zevachim 58", teacher: "Rabbi Dovid Kaplan", length: "48 min", progress: 0, image: "shelf" },
-      { daf: "Zevachim 57", teacher: "Rabbi Yitzchak Etshalom", length: "47 min", progress: 0, image: "ark" },
-      { daf: "Zevachim 56", teacher: "Rabbi Ari Enkin", length: "44 min", progress: 0, image: "glasses" },
-      { daf: "Zevachim 55", teacher: "Rabbi Eli Stefansky", length: "50 min", progress: 0, image: "medallion" },
-      { daf: "Zevachim 54", teacher: "Rabbi Dovid Kaplan", length: "49 min", progress: 0, image: "gemara" },
-      { daf: "Zevachim 53", teacher: "Rabbi Eli Stefansky", length: "46 min", progress: 0, image: "seforim" },
-      { daf: "Zevachim 52", teacher: "Rabbi Ari Enkin", length: "45 min", progress: 0, image: "hall" },
-      { daf: "Zevachim 51", teacher: "Rabbi Yitzchak Etshalom", length: "47 min", progress: 0, image: "shelf" }
-    ];
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (ch) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+      }[ch]));
+    }
+
+    // -----------------------------------------------------------------
+    // Real data: which dapim are actually synced (by-ref/*.json on the
+    // results branch, the same source catalog.js reads elsewhere), and
+    // today's real Daf Yomi from Sefaria's own calendar -- replacing the
+    // placeholder Zevachim mock this shell originally shipped with.
+    //
+    // parseRefKey is the exact inverse of app.js's refKey()/
+    // CHAZARAH_KEY_PREFIX/HEBREW_KEY_PREFIX composition -- if that ever
+    // changes, this must change with it, or a "synced" daf here could
+    // point the player at a ref it can't find.
+    // -----------------------------------------------------------------
+
+    const RESULTS_TREE_URL = "https://api.github.com/repos/mosesar9319/MDYsync/git/trees/results?recursive=1";
+    const SEFARIA_CALENDAR_URL = "https://www.sefaria.org/api/calendars";
+
+    function parseRefKey(key) {
+      let rest = key;
+      let language = "en";
+      let variant = "regular";
+      if (rest.startsWith("Hebrew-")) { language = "he"; rest = rest.slice("Hebrew-".length); }
+      if (rest.startsWith("Chazarah-Daf-")) { variant = "chazarah"; rest = rest.slice("Chazarah-Daf-".length); }
+      const m = /^(.+)-(\d+)([ab])$/.exec(rest);
+      if (!m) return null;
+      return { tractate: m[1].replace(/-/g, " "), daf: Number(m[2]), amud: m[3], variant, language };
+    }
+
+    function dafLabel(entry) {
+      return `${entry.tractate} ${entry.daf}${entry.amud}`;
+    }
+
+    function playerUrl(entry) {
+      const params = new URLSearchParams({ ref: dafLabel(entry) });
+      if (entry.variant === "chazarah") params.set("variant", "chazarah");
+      if (entry.language === "he") params.set("language", "hebrew");
+      return `/studio/?${params.toString()}`;
+    }
+
+    // One row per real (tractate, daf, amud), with every synced
+    // variant/language folded in as booleans -- catalog.js already treats
+    // these four combinations as facets of one daf rather than four
+    // separate things to browse, and this mirrors that.
+    async function loadSyncedDapim() {
+      const entries = [];
+      try {
+        const response = await fetch(RESULTS_TREE_URL);
+        if (!response.ok) throw new Error(`GitHub returned ${response.status}`);
+        const data = await response.json();
+        for (const item of data.tree || []) {
+          if (item.type !== "blob" || !item.path.startsWith("by-ref/") || !item.path.endsWith(".json")) continue;
+          const parsed = parseRefKey(item.path.slice("by-ref/".length, -".json".length));
+          if (parsed) entries.push(parsed);
+        }
+      } catch (error) {
+        console.error("Could not load synced dapim.", error);
+      }
+      const byDaf = new Map();
+      for (const entry of entries) {
+        const dafKey = `${entry.tractate}|${entry.daf}|${entry.amud}`;
+        let row = byDaf.get(dafKey);
+        if (!row) {
+          row = { tractate: entry.tractate, daf: entry.daf, amud: entry.amud, regularEn: false, chazarahEn: false, regularHe: false, chazarahHe: false };
+          byDaf.set(dafKey, row);
+        }
+        row[(entry.variant === "chazarah" ? "chazarah" : "regular") + (entry.language === "he" ? "He" : "En")] = true;
+      }
+      return [...byDaf.values()].sort((a, b) =>
+        a.tractate.localeCompare(b.tractate) || a.daf - b.daf || a.amud.localeCompare(b.amud));
+    }
+
+    // Regular English first, matching the player's own default picker
+    // state -- clicking a card should land where typing the plain ref by
+    // hand would.
+    function primaryEntry(row) {
+      if (row.regularEn) return { tractate: row.tractate, daf: row.daf, amud: row.amud, variant: "regular", language: "en" };
+      if (row.chazarahEn) return { tractate: row.tractate, daf: row.daf, amud: row.amud, variant: "chazarah", language: "en" };
+      if (row.regularHe) return { tractate: row.tractate, daf: row.daf, amud: row.amud, variant: "regular", language: "he" };
+      return { tractate: row.tractate, daf: row.daf, amud: row.amud, variant: "chazarah", language: "he" };
+    }
+
+    async function loadTodaysDaf() {
+      try {
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+        const response = await fetch(`${SEFARIA_CALENDAR_URL}?timezone=${encodeURIComponent(timezone)}`);
+        if (!response.ok) throw new Error(`Sefaria returned ${response.status}`);
+        const data = await response.json();
+        const item = (data.calendar_items || []).find((i) => i.category === "Talmud" && i.title?.en === "Daf Yomi");
+        if (!item) return null;
+        const m = /^(.+?)\s+(\d+)$/.exec(String(item.displayValue?.en || "").trim());
+        return m ? { tractate: m[1], daf: Number(m[2]) } : null;
+      } catch (error) {
+        console.error("Could not load today's daf.", error);
+        return null;
+      }
+    }
+
+    // -----------------------------------------------------------------
+    // Rendering
+    // -----------------------------------------------------------------
 
     const navItems = [
       { label: "Home", icon: "home" },
       { label: "Today’s Daf", icon: "calendar" },
       { label: "Masechtos", icon: "books" },
-      { label: "Maggidei Shiur", icon: "teacher" }
     ];
-    const filters = ["Today", "Zevachim", "Recent", "Popular", "All Masechtos"];
-    const state = { activeNav: "Home", filter: "Today", query: "", showAll: false };
+    const state = { activeNav: "Home", filter: "All Masechtos", filters: ["All Masechtos"], query: "", showAll: false, synced: [], today: null };
 
     const desktopNav = document.querySelector(".desktop-navigation");
     const mobileNav = document.querySelector(".mobile-nav");
@@ -1181,7 +1239,7 @@ h1 {
     const clearSearch = document.querySelector("#clear-search");
     const grid = document.querySelector("#card-grid");
     const empty = document.querySelector("#empty-state");
-    const today = document.querySelector("#today-section");
+    const todaySection = document.querySelector("#today-section");
     const sectionTitle = document.querySelector("#section-title");
     const sectionEyebrow = document.querySelector("#section-eyebrow");
     const seeAll = document.querySelector("#see-all");
@@ -1199,11 +1257,7 @@ h1 {
           state.activeNav = button.dataset.nav;
           if (state.activeNav === "Today’s Daf") state.filter = "Today";
           if (state.activeNav === "Masechtos") state.filter = "All Masechtos";
-          if (state.activeNav === "Maggidei Shiur") state.query = "Rabbi";
-          if (state.activeNav === "Home") {
-            state.filter = "Today";
-            state.query = "";
-          }
+          if (state.activeNav === "Home") { state.filter = "All Masechtos"; state.query = ""; }
           search.value = state.query;
           render();
           window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1212,45 +1266,50 @@ h1 {
     }
 
     function renderFilters() {
-      filterBar.innerHTML = filters.map((label) =>
-        `<button class="${state.filter === label ? "active" : ""}" data-filter="${label}" type="button">${label === "Today" ? icon("calendar", 17) : ""}${label}</button>`
+      filterBar.innerHTML = state.filters.map((label) =>
+        `<button class="${state.filter === label ? "active" : ""}" data-filter="${escapeHtml(label)}" type="button">${label === "Today" ? icon("calendar", 17) : ""}${escapeHtml(label)}</button>`
       ).join("");
       filterBar.querySelectorAll("[data-filter]").forEach((button) => {
         button.addEventListener("click", () => {
           state.filter = button.dataset.filter;
+          state.showAll = false;
           render();
         });
       });
     }
 
-    function cardMarkup(item, index) {
-      const progress = item.progress
-        ? `<span class="progress-track"><span style="width:${item.progress}%"></span></span><small>${item.progress}% watched</small>`
-        : '<small class="new-label">Ready to learn</small>';
+    function cardMarkup(row, index) {
+      const badges = [
+        (row.chazarahEn || row.chazarahHe) ? '<i class="catalog-swatch chazarah-dot" title="Chazarah Daf available"></i>' : "",
+        (row.regularHe || row.chazarahHe) ? '<i class="catalog-swatch hebrew-dot" title="Hebrew shiur available"></i>' : "",
+      ].join("");
+      const images = ["gemara", "glasses", "seforim", "hall", "shelf", "ark", "medallion"];
       return `<button class="shiur-card" data-card="${index}" type="button">
-        <span class="thumbnail image-${item.image}">
+        <span class="thumbnail image-${images[index % images.length]}">
           <span class="thumbnail-play">${icon("play", 20)}</span>
-          <span class="length">${item.length}</span>
         </span>
-        <span class="card-copy"><strong>${item.daf}</strong><span>${item.teacher}</span>${progress}</span>
+        <span class="card-copy"><strong>${escapeHtml(dafLabel(row))}</strong><span>${badges || "Daf Yomi"}</span></span>
       </button>`;
     }
 
     function results() {
+      let items = state.synced;
+      if (state.filter === "Today") {
+        items = state.today ? items.filter((row) => row.tractate === state.today.tractate && row.daf === state.today.daf) : [];
+      } else if (state.filter !== "All Masechtos") {
+        items = items.filter((row) => row.tractate === state.filter);
+      }
       const needle = state.query.trim().toLowerCase();
-      let items = needle
-        ? shiurim.filter((item) => `${item.daf} ${item.teacher}`.toLowerCase().includes(needle))
-        : [...shiurim];
-      if (state.filter === "Popular") items.sort((a, b) => b.progress - a.progress);
-      if (state.filter === "Recent") items.reverse();
+      if (needle) items = items.filter((row) => dafLabel(row).toLowerCase().includes(needle));
       return items;
     }
 
-    function openShiur(item) {
-      document.querySelector("#shiur-title").textContent = item.daf;
-      document.querySelector("#modal-teacher").textContent = item.teacher;
-      document.querySelector("#modal-length").textContent = item.length;
-      document.querySelector("#modal-visual").className = `modal-visual image-${item.image || "gemara"}`;
+    function openShiur(row) {
+      const entry = primaryEntry(row);
+      document.querySelector("#shiur-title").textContent = dafLabel(entry);
+      document.querySelector("#modal-teacher").textContent = "Daf Yomi";
+      document.querySelector("#modal-visual").className = "modal-visual image-gemara";
+      document.querySelector("#modal-watch-link").href = playerUrl(entry);
       modal.hidden = false;
       document.body.style.overflow = "hidden";
       document.querySelector("#modal-close").focus();
@@ -1264,7 +1323,7 @@ h1 {
     function renderCards() {
       const items = results();
       const visible = state.showAll ? items : items.slice(0, 8);
-      today.hidden = Boolean(state.query);
+      todaySection.hidden = Boolean(state.query);
       clearSearch.hidden = !state.query;
       empty.hidden = items.length > 0;
       grid.hidden = items.length === 0;
@@ -1273,14 +1332,43 @@ h1 {
       if (state.query) {
         sectionEyebrow.textContent = `${items.length} RESULTS`;
         sectionTitle.textContent = `Results for “${state.query}”`;
+      } else if (state.filter === "Today") {
+        sectionEyebrow.textContent = "DAF YOMI";
+        sectionTitle.textContent = "Today’s Daf";
+      } else if (state.filter === "All Masechtos") {
+        sectionEyebrow.textContent = `${state.synced.length} DAPIM SYNCED`;
+        sectionTitle.textContent = "Browse synced shiurim";
       } else {
-        sectionEyebrow.textContent = "PICK UP WHERE YOU LEFT OFF";
-        sectionTitle.textContent = state.filter === "Popular" ? "Most Popular" : "Continue Learning";
+        sectionEyebrow.textContent = state.filter.toUpperCase();
+        sectionTitle.textContent = state.filter;
       }
-      grid.innerHTML = visible.map((item, index) => cardMarkup(item, index)).join("");
+      grid.innerHTML = visible.map((row, index) => cardMarkup(row, index)).join("");
       grid.querySelectorAll("[data-card]").forEach((card) => {
         card.addEventListener("click", () => openShiur(visible[Number(card.dataset.card)]));
       });
+    }
+
+    function renderHero() {
+      const loading = document.querySelector("#hero-loading");
+      const hero = document.querySelector("#hero-card");
+      const weekday = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(new Date()).toUpperCase();
+      const hebrewDate = new Intl.DateTimeFormat("en-u-ca-hebrew", { day: "numeric", month: "long", year: "numeric" }).format(new Date());
+      document.querySelector("#today-eyebrow").textContent = `${weekday} • ${hebrewDate}`;
+      if (!state.today) {
+        loading.textContent = "Could not load today’s daf.";
+        return;
+      }
+      const row = state.synced.find((r) => r.tractate === state.today.tractate && r.daf === state.today.daf);
+      if (!row) {
+        loading.textContent = `${state.today.tractate} ${state.today.daf} hasn’t been synced yet.`;
+        return;
+      }
+      loading.hidden = true;
+      hero.hidden = false;
+      document.querySelector("#hero-kicker").textContent = `DAF YOMI • ${row.tractate.toUpperCase()}`;
+      document.querySelector("#hero-title").textContent = `Maseches ${row.tractate} ${row.daf}`;
+      document.querySelector("#hero-actions").innerHTML = `<span class="watch-button">${icon("play", 18)} Watch today’s shiur</span>`;
+      hero.onclick = () => openShiur(row);
     }
 
     function render() {
@@ -1308,14 +1396,6 @@ h1 {
       state.showAll = !state.showAll;
       renderCards();
     });
-    document.querySelector("#hero-card").addEventListener("click", () =>
-      openShiur({ daf: "Maseches Zevachim 62", teacher: "Rabbi Eli Stefansky", length: "47 min", image: "gemara" })
-    );
-    document.querySelector("#profile-button").addEventListener("click", (event) => {
-      const menu = document.querySelector("#profile-menu");
-      menu.hidden = !menu.hidden;
-      event.currentTarget.setAttribute("aria-expanded", String(!menu.hidden));
-    });
     document.querySelector("#modal-close").addEventListener("click", closeModal);
     modal.addEventListener("click", (event) => {
       if (event.target === modal) closeModal();
@@ -1326,7 +1406,7 @@ h1 {
     document.querySelectorAll(".brand").forEach((brand) => brand.addEventListener("click", (event) => {
       event.preventDefault();
       state.activeNav = "Home";
-      state.filter = "Today";
+      state.filter = "All Masechtos";
       state.query = "";
       search.value = "";
       render();
@@ -1334,6 +1414,15 @@ h1 {
     }));
 
     render();
+
+    (async () => {
+      const [synced, today] = await Promise.all([loadSyncedDapim(), loadTodaysDaf()]);
+      state.synced = synced;
+      state.today = today;
+      state.filters = ["Today", "All Masechtos", ...new Set(synced.map((row) => row.tractate))].filter((v, i, a) => a.indexOf(v) === i);
+      render();
+      renderHero();
+    })();
   })();
   </script>
 </body>
