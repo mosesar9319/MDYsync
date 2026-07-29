@@ -42,12 +42,12 @@ jobs:
       - name: Install Python dependencies
         run: pip install opencv-python-headless pytesseract rapidfuzz "gdown==6.1.0" yt-dlp
 
-      # yt-dlp can solve YouTube's JS-based extraction challenge itself, but
-      # only with a JS runtime available -- without one (the default on a
-      # bare runner), extraction degrades and trips the "Sign in to confirm
-      # you're not a bot" wall almost every time from GitHub Actions' shared
-      # IPs, regardless of which player client is requested. Only installed
-      # for a YouTube-sourced job; the Drive path has no use for it.
+      # Lets yt-dlp solve YouTube's signature-decipher JS challenge itself
+      # instead of degrading extraction without one. Only installed for a
+      # YouTube-sourced job; the Drive path has no use for it. (This does
+      # NOT address the separate "Sign in to confirm you're not a bot" gate
+      # below -- that one only backs off for an authenticated session,
+      # which is what YOUTUBE_COOKIES supplies.)
       - uses: denoland/setup-deno@v2
         if: ${{ github.event.client_payload.youtubeUrl }}
         with:
@@ -79,6 +79,7 @@ jobs:
         working-directory: MDYsync/tools/caption-sync
         env:
           YOUTUBE_URL: ${{ github.event.client_payload.youtubeUrl }}
+          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
         run: |
           set -e
           # Capped at 720p -- plenty for OCR'ing the on-screen caption box,
@@ -86,17 +87,28 @@ jobs:
           # ubuntu-latest ships ffmpeg already, which yt-dlp needs to mux
           # separate video/audio streams into one mp4.
           #
-          # yt-dlp's default player client hits YouTube's "Sign in to confirm
-          # you're not a bot" wall from GitHub Actions' datacenter IPs almost
-          # every time. Forcing the android/tv/web clients (in that order,
-          # yt-dlp falls through on failure) works around it without needing
-          # cookies -- which we deliberately don't want to introduce here,
-          # since piping a personal account's cookies into an automated
-          # public-repo job is a much bigger trust/compliance step than this
-          # feature calls for.
-          yt-dlp --extractor-args "youtube:player_client=android,tv,web" \
+          # GitHub Actions' shared runner IPs hit YouTube's "Sign in to
+          # confirm you're not a bot" wall almost every time -- confirmed
+          # this isn't fixed by player-client selection or by giving yt-dlp
+          # a JS runtime (both tried and failed); only an authenticated
+          # session gets past it. YOUTUBE_COOKIES is a cookies.txt export
+          # (Netscape format) from a signed-in browser, set as a repo
+          # secret -- use a secondary/throwaway account for it, not a
+          # personal one, since an automated job holds and uses it on
+          # every run.
+          if [ -z "$YOUTUBE_COOKIES" ]; then
+            echo "YOUTUBE_COOKIES repo secret is not set. YouTube sync needs a" \
+                 "cookies.txt export from a signed-in account to get past" \
+                 "YouTube's bot-check wall on GitHub Actions runners -- see" \
+                 "this step's comments for what to set and why."
+            exit 1
+          fi
+          printf '%s' "$YOUTUBE_COOKIES" > cookies.txt
+          yt-dlp --cookies cookies.txt \
+            --extractor-args "youtube:player_client=android,tv,web" \
             -f "bv*[height<=720][ext=mp4]+ba[ext=m4a]/best[height<=720][ext=mp4]/best" \
             --merge-output-format mp4 -o job-video.mp4 "$YOUTUBE_URL"
+          rm -f cookies.txt
           size=$(stat -c%s job-video.mp4)
           echo "Downloaded $size bytes"
           if [ "$size" -lt 100000 ]; then
