@@ -91,29 +91,41 @@ class QueueWriter:
 
 CARD_PAD = {"padx": 22, "pady": 9}
 
-# Marker appended to a reading's display ref for the shorter chazara-only
-# recording of the same daf -- must match the website's own suffix exactly
-# (app.js parseDafRef/canonicalDafRef) so a locally-synced-then-imported
-# file round-trips to the same variant there.
+# Markers appended to a reading's display ref for the shorter chazara-only
+# recording of the same daf, and/or the separate Hebrew-language recording
+# -- must match the website's own suffixes exactly (app.js parseDafRef/
+# canonicalDafRef), in either order, so a locally-synced-then-imported file
+# round-trips to the same variant/language there.
 CHAZARAH_SUFFIX = " (Chazarah Daf)"
+HEBREW_SUFFIX = " (Hebrew)"
 
 
 def real_ref(ref):
-    """Strip the Chazarah Daf marker back to the plain Sefaria ref -- the
-    OCR engine's own Sefaria fetch only ever knows the real tractate/daf/
-    amud, never the shiur variant (a chazara reading's canonical text is
-    identical to the regular shiur's, just a shorter recording of it)."""
-    return ref[:-len(CHAZARAH_SUFFIX)] if ref.endswith(CHAZARAH_SUFFIX) else ref
+    """Strip the Chazarah Daf / Hebrew markers back to the plain Sefaria
+    ref, in either order -- the OCR engine's own Sefaria fetch only ever
+    knows the real tractate/daf/amud, never the shiur variant/language (a
+    chazara and/or Hebrew reading's canonical text is identical to the
+    regular English shiur's, just a different recording of it)."""
+    for _ in range(2):
+        if ref.endswith(CHAZARAH_SUFFIX):
+            ref = ref[:-len(CHAZARAH_SUFFIX)]
+        if ref.endswith(HEBREW_SUFFIX):
+            ref = ref[:-len(HEBREW_SUFFIX)]
+    return ref
 
 
 def ref_variant(ref):
-    return "chazarah" if ref.endswith(CHAZARAH_SUFFIX) else "regular"
+    return "chazarah" if CHAZARAH_SUFFIX in ref else "regular"
+
+
+def ref_language(ref):
+    return "he" if HEBREW_SUFFIX in ref else "en"
 
 
 PUBLISH_ENDPOINT = "https://mdysync.netlify.app/api/publish-alignment"
 
 
-def upload_alignment(alignment, refs, variant):
+def upload_alignment(alignment, refs, variant, language):
     """Publish a finished alignment straight to the results branch (see
     publish-alignment.mjs), so it's available to every device the moment
     the sync finishes -- without the manual export/"Import sync" round
@@ -122,7 +134,7 @@ def upload_alignment(alignment, refs, variant):
     failure here never loses the sync itself)."""
     import urllib.request
     payload = json.dumps({
-        "refs": refs, "variant": variant, "alignment": alignment,
+        "refs": refs, "variant": variant, "language": language, "alignment": alignment,
     }).encode("utf-8")
     req = urllib.request.Request(
         PUBLISH_ENDPOINT, data=payload, method="POST",
@@ -249,12 +261,26 @@ class App:
             width=150)
         self.shiur_menu.grid(row=2, column=3, padx=6, pady=(0, 16), sticky="w")
 
+        # Same idea as Shiur type, but for the separate Hebrew-language
+        # recording of the same daf -- a fully independent recording (own
+        # pace, own speaker delivery), not a translation, so it needs its
+        # own alignment too. Matches the "(Hebrew)" marker the website's
+        # own picker appends -- see realDafRef()/refKey() in app.js.
+        ctk.CTkLabel(card, text="Language", font=ctk.CTkFont(size=12),
+                     text_color=("gray35", "gray65")
+                     ).grid(row=1, column=4, sticky="w", padx=6)
+        self.language_var = tk.StringVar(value="English")
+        self.language_menu = ctk.CTkOptionMenu(
+            card, variable=self.language_var, values=["English", "Hebrew"],
+            width=130)
+        self.language_menu.grid(row=2, column=4, padx=6, pady=(0, 16), sticky="w")
+
         self.add_btn = ctk.CTkButton(
             card, text="+  Add reading", command=self.add_reading, width=150)
-        self.add_btn.grid(row=2, column=4, padx=(6, 18), pady=(0, 16),
+        self.add_btn.grid(row=2, column=5, padx=(6, 18), pady=(0, 16),
                            sticky="w")
 
-        card.grid_columnconfigure(5, weight=1)
+        card.grid_columnconfigure(6, weight=1)
 
     def _build_readings_list(self, root):
         card = ctk.CTkFrame(root, corner_radius=14)
@@ -359,8 +385,9 @@ class App:
         amud = self.amud_var.get()
         if not daf:
             return
-        suffix = CHAZARAH_SUFFIX if self.shiur_var.get() == "Chazarah Daf" else ""
-        ref = f"{tractate} {daf}{amud}{suffix}"
+        variant_suffix = CHAZARAH_SUFFIX if self.shiur_var.get() == "Chazarah Daf" else ""
+        language_suffix = HEBREW_SUFFIX if self.language_var.get() == "Hebrew" else ""
+        ref = f"{tractate} {daf}{amud}{variant_suffix}{language_suffix}"
         self.readings.append({"ref": ref, "display": ref})
         self.render_readings()
 
@@ -463,11 +490,13 @@ class App:
     def work(self, video, refs, out, publish):
         writer = QueueWriter(self.q)
         # The OCR engine's own Sefaria fetch only ever knows the real
-        # tractate/daf/amud, never the shiur variant (a Chazarah Daf
-        # reading's canonical text is identical to the regular shiur's,
-        # just a shorter recording of it) -- see real_ref/ref_variant above.
+        # tractate/daf/amud, never the shiur variant/language (a Chazarah
+        # Daf and/or Hebrew reading's canonical text is identical to the
+        # regular English shiur's, just a different recording of it) --
+        # see real_ref/ref_variant/ref_language above.
         real_refs = [real_ref(r) for r in refs]
         variant = ref_variant(refs[0])
+        language = ref_language(refs[0])
         try:
             os.makedirs(out, exist_ok=True)
             with contextlib.redirect_stdout(writer), \
@@ -484,6 +513,8 @@ class App:
                     canon, segments, events, duration, video, real_refs)
             if variant == "chazarah" and not alignment["dafRef"].endswith(CHAZARAH_SUFFIX):
                 alignment["dafRef"] += CHAZARAH_SUFFIX
+            if language == "he" and not alignment["dafRef"].endswith(HEBREW_SUFFIX):
+                alignment["dafRef"] += HEBREW_SUFFIX
             a_path = os.path.join(out, "alignment.json")
             w_path = os.path.join(out, "wordmap.json")
             with open(a_path, "w", encoding="utf-8") as fh:
@@ -495,7 +526,7 @@ class App:
             if publish:
                 self.q.put(("log", "Publishing to the website…"))
                 try:
-                    result = upload_alignment(alignment, real_refs, variant)
+                    result = upload_alignment(alignment, real_refs, variant, language)
                     published_url = result.get("resultUrl")
                     self.q.put(("log", f"Published — live at {published_url}"))
                 except Exception as exc:

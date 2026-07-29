@@ -27,12 +27,52 @@
         </div>
       </div>
       <div class="top-actions">
-        <a class="button secondary" href="https://github.com/mosesar9319/MDYsync/releases/latest" target="_blank" rel="noopener">Download desktop app</a>
+        <a class="button secondary admin-only" id="studioLink" href="https://github.com/mosesar9319/MDYsync/releases/latest" target="_blank" rel="noopener">Download desktop app</a>
         <button class="button ghost" id="helpButton">How it works</button>
+        <div class="auth-widget" id="authWidget">
+          <button class="button secondary small" id="signInButton" type="button">Sign in</button>
+          <div class="account-menu" id="accountMenu" hidden>
+            <button class="button secondary small account-trigger" id="accountMenuButton" type="button">
+              <span id="accountEmailLabel">Account</span>
+              <span class="admin-badge admin-only" id="adminBadge">Admin</span>
+            </button>
+            <div class="account-dropdown" id="accountDropdown" hidden>
+              <button class="account-dropdown-item" id="myFavoritesButton" type="button">My favorites</button>
+              <button class="account-dropdown-item" id="signOutButton" type="button">Sign out</button>
+            </div>
+          </div>
+        </div>
       </div>
     </header>
 
     <main>
+      <section class="catalog-card card" id="catalogCard">
+        <div class="card-heading catalog-heading">
+          <div>
+            <div class="eyebrow" id="catalogSeriesEyebrow">Series</div>
+            <h2 id="catalogSeriesName">Browse dapim</h2>
+            <p class="catalog-series-desc" id="catalogSeriesDesc"></p>
+          </div>
+          <button class="button ghost small" id="catalogToggleButton" type="button">Hide</button>
+        </div>
+        <div class="catalog-body" id="catalogBody">
+          <div class="catalog-controls">
+            <label class="sync-field">
+              <span>Tractate</span>
+              <select id="catalogTractateSelect"></select>
+            </label>
+            <span class="field-note" id="catalogStatusNote">Checking which dapim are synced…</span>
+          </div>
+          <div class="catalog-grid" id="catalogGrid"></div>
+          <div class="catalog-legend">
+            <span><i class="catalog-swatch synced"></i> Synced</span>
+            <span><i class="catalog-swatch coming-soon"></i> Coming soon</span>
+            <span><i class="catalog-swatch chazarah-dot"></i> Chazarah Daf available</span>
+            <span><i class="catalog-swatch hebrew-dot"></i> Hebrew shiur available</span>
+          </div>
+        </div>
+      </section>
+
       <section class="setup-strip card">
         <div class="setup-field video-field">
           <label>Lecture source</label>
@@ -66,15 +106,21 @@
               <button type="button" class="amud-option" data-side="b">b</button>
             </div>
           </div>
-          <div class="shiur-variant-toggle" id="dafShiurToggle" role="group" aria-label="Shiur type">
-            <button type="button" class="shiur-variant-option active" data-variant="regular">Regular</button>
-            <button type="button" class="shiur-variant-option" data-variant="chazarah">Chazarah Daf</button>
+          <div class="picker-toggle-row">
+            <div class="shiur-variant-toggle" id="dafShiurToggle" role="group" aria-label="Shiur type">
+              <button type="button" class="shiur-variant-option active" data-variant="regular">Regular</button>
+              <button type="button" class="shiur-variant-option" data-variant="chazarah">Chazarah Daf</button>
+            </div>
+            <div class="shiur-variant-toggle" id="dafLanguageToggle" role="group" aria-label="Shiur language">
+              <button type="button" class="language-option active" data-language="en">English</button>
+              <button type="button" class="language-option" data-language="he">Hebrew</button>
+            </div>
           </div>
           <input id="dafRef" type="hidden" value="" />
           <button id="loadDafButton" hidden>Load daf</button>
         </div>
 
-        <div class="setup-field action-field">
+        <div class="setup-field action-field admin-only">
           <label>Alignment data</label>
           <div class="compact-actions">
             <label class="button secondary file-button small">
@@ -101,6 +147,7 @@
             <div class="live-location">
               <span>Current location</span>
               <strong id="currentRef">No daf loaded</strong>
+              <button class="favorite-button" id="favoriteButton" type="button" aria-label="Favorite this daf" title="Save to favorites" hidden>☆</button>
             </div>
           </div>
 
@@ -205,10 +252,10 @@
                 <option value="2">2×</option>
               </select>
             </label>
-            <button class="button secondary small push-right" id="editModeButton">Edit synchronization</button>
+            <button class="button secondary small push-right admin-only" id="editModeButton">Edit synchronization</button>
           </div>
 
-          <div class="marking-bar" aria-label="Fast alignment controls">
+          <div class="marking-bar admin-only" aria-label="Fast alignment controls">
             <button class="button secondary small" id="markerBackButton" type="button">Previous phrase</button>
             <div class="mark-target">
               <span>Marking phrase</span>
@@ -372,6 +419,13 @@
             <button type="button" class="shiur-variant-option" data-variant="chazarah">Chazarah Daf (shorter, gemara-only review)</button>
           </div>
         </label>
+        <label class="sync-field">
+          <span>Language</span>
+          <div class="shiur-variant-toggle" id="syncLanguageToggle" role="group" aria-label="Shiur language">
+            <button type="button" class="language-option active" data-language="en">English</button>
+            <button type="button" class="language-option" data-language="he">Hebrew</button>
+          </div>
+        </label>
       </div>
     </div>
 
@@ -421,7 +475,42 @@
     </div>
   </dialog>
 
+  <dialog id="authDialog">
+    <button class="dialog-close" id="closeAuthDialog" aria-label="Close">×</button>
+    <div class="eyebrow" id="authDialogEyebrow">Account</div>
+    <h2 id="authDialogTitle">Sign in</h2>
+    <p class="dialog-note" id="authDialogNote">Sign in to save favorites, resume playback where you left off, and keep your player settings across devices.</p>
+    <form class="auth-form" id="authForm">
+      <label class="sync-field">
+        <span>Email</span>
+        <input id="authEmail" type="email" autocomplete="email" required />
+      </label>
+      <label class="sync-field">
+        <span>Password</span>
+        <input id="authPassword" type="password" autocomplete="current-password" required minlength="6" />
+      </label>
+      <p class="auth-error" id="authError" hidden></p>
+      <div class="auth-form-actions">
+        <button class="button primary" id="authSubmitButton" type="submit">Sign in</button>
+        <button class="button ghost small" id="authSwitchModeButton" type="button">Need an account? Sign up</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="favoritesDialog">
+    <button class="dialog-close" id="closeFavoritesDialog" aria-label="Close">×</button>
+    <div class="eyebrow">Saved</div>
+    <h2>My favorites</h2>
+    <div class="favorites-list" id="favoritesList">
+      <p class="field-note">No favorites yet. Use the star next to "Current location" while viewing a daf.</p>
+    </div>
+  </dialog>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="vendor/supabase-js.min.js"></script>
+  <script src="auth.js"></script>
   <script src="app.js" defer></script>
+  <script src="catalog.js" defer></script>
+  <script src="account-features.js" defer></script>
 </body>
 </html>

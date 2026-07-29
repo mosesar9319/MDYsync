@@ -48,14 +48,24 @@ export default async (request) => {
   }
 
   // A "(Chazarah Daf)" suffix marks the shorter chazara-only recording of
-  // the same daf (see parseDafRef/refKey in app.js) -- it needs its own
-  // separate key from the regular shiur's, in the same
-  // Chazarah-Daf-<Tractate>-<Daf><Amud> format the frontend's own refKey()
-  // computes, or a link saved under one would never be found looked up
-  // under the other.
-  const match = /^(.+?)\s+(\d+)\s*([abAB])(?:[:.]\d+)?(\s*\(Chazarah Daf\))?$/i.exec(ref.trim());
+  // the same daf, and a "(Hebrew)" suffix marks the separate Hebrew-language
+  // recording (see parseDafRef/refKey in app.js) -- either, both, or
+  // neither can be present, in any order, so they're stripped in a loop
+  // rather than a fixed-order regex. Each needs its own separate key from
+  // the others, in the same Hebrew-/Chazarah-Daf-<Tractate>-<Daf><Amud>
+  // format the frontend's own refKey() computes, or a link saved under one
+  // would never be found looked up under another.
+  let working = ref.trim();
+  let chazarah = false;
+  let hebrew = false;
+  for (let pass = 0; pass < 2; pass++) {
+    if (/\(Chazarah Daf\)\s*$/i.test(working)) { chazarah = true; working = working.replace(/\s*\(Chazarah Daf\)\s*$/i, ''); }
+    if (/\(Hebrew\)\s*$/i.test(working)) { hebrew = true; working = working.replace(/\s*\(Hebrew\)\s*$/i, ''); }
+  }
+  const match = /^(.+?)\s+(\d+)\s*([abAB])(?:[:.]\d+)?$/i.exec(working.trim());
+  const keyPrefix = (hebrew ? 'Hebrew-' : '') + (chazarah ? 'Chazarah-Daf-' : '');
   const refKey = match
-    ? `${match[4] ? 'Chazarah-Daf-' : ''}${match[1].trim().replace(/\s+/g, '-')}-${match[2]}${match[3].toLowerCase()}`
+    ? `${keyPrefix}${match[1].trim().replace(/\s+/g, '-')}-${match[2]}${match[3].toLowerCase()}`
     : ref.trim().replace(/\s+/g, '-');
   const safeVideoSource = {
     type: videoSource.type,
