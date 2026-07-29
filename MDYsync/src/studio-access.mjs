@@ -1,17 +1,4 @@
-import {
-  AuthError,
-  getUser,
-  handleAuthCallback,
-  login,
-  logout,
-  signup,
-} from '@netlify/identity';
-
 const $ = (id) => document.getElementById(id);
-
-function hasAdminRole(user) {
-  return Boolean(user?.app_metadata?.roles?.includes('admin'));
-}
 
 function showMessage(message, info = false) {
   const element = $('editor-login-message');
@@ -40,19 +27,40 @@ function openLogin() {
 async function refreshHomepageControls() {
   const accessButton = $('editor-access-button');
   if (!accessButton) return;
-  const user = await getUser();
-  accessButton.textContent = hasAdminRole(user) ? 'Open editor' : 'Editor login';
+  const authenticated = await isAuthenticated();
+  accessButton.textContent = authenticated ? 'Open editor' : 'Editor login';
   const signOutButton = $('editor-signout-button');
-  if (signOutButton) signOutButton.hidden = !user;
+  if (signOutButton) signOutButton.hidden = !authenticated;
 }
 
 async function goToEditor() {
-  const user = await getUser();
-  if (hasAdminRole(user)) {
+  if (await isAuthenticated()) {
     window.location.assign('/studio/');
     return;
   }
   openLogin();
+}
+
+async function isAuthenticated() {
+  try {
+    const response = await fetch('/api/studio-auth', {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) return false;
+    const result = await response.json();
+    return result.authenticated === true;
+  } catch {
+    return false;
+  }
+}
+
+async function signOut() {
+  await fetch('/api/studio-auth', {
+    method: 'DELETE',
+    credentials: 'same-origin',
+    headers: { Accept: 'application/json' },
+  });
 }
 
 async function submitLogin(event) {
@@ -67,34 +75,23 @@ async function submitLogin(event) {
   submitButton.disabled = true;
   submitButton.textContent = 'Signing in…';
   try {
-    let user;
-    try {
-      user = await login(email, password);
-    } catch (error) {
-      if (!(error instanceof AuthError) || error.status !== 401) throw error;
-
-      const result = await signup(email, password);
-      if (!result.emailVerified) {
-        showMessage(
-          'For the first login only, check this email address for a confirmation link. After confirming, the editor will open.',
-          true,
-        );
-        return;
-      }
-      user = result;
-    }
-
-    if (!hasAdminRole(user)) {
-      await logout();
-      showMessage('This account does not have editor access.');
+    const response = await fetch('/api/studio-auth', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.authenticated !== true) {
+      showMessage(result.error || 'The email or password is incorrect.');
       return;
     }
     window.location.assign('/studio/');
   } catch (error) {
-    const message = error instanceof AuthError && error.status === 401
-      ? 'The email or password is incorrect.'
-      : error?.message || 'The editor login is temporarily unavailable.';
-    showMessage(message);
+    showMessage(error?.message || 'The editor login is temporarily unavailable.');
   } finally {
     submitButton.disabled = false;
     submitButton.textContent = 'Open editor';
@@ -102,22 +99,8 @@ async function submitLogin(event) {
 }
 
 async function initialize() {
-  try {
-    const callback = await handleAuthCallback();
-    if (callback?.user && hasAdminRole(callback.user)) {
-      window.location.replace('/studio/');
-      return;
-    }
-  } catch (error) {
-    if ($('editor-login-dialog')) {
-      openLogin();
-      showMessage(error?.message || 'The confirmation link could not be completed.');
-    }
-  }
-
   if (document.body.classList.contains('studio-route')) {
-    const user = await getUser();
-    if (!hasAdminRole(user)) {
+    if (!await isAuthenticated()) {
       window.location.replace('/?editor=login');
       return;
     }
@@ -125,13 +108,13 @@ async function initialize() {
 
   $('editor-access-button')?.addEventListener('click', goToEditor);
   $('editor-signout-button')?.addEventListener('click', async () => {
-    await logout();
+    await signOut();
     await refreshHomepageControls();
   });
   $('editor-login-close')?.addEventListener('click', () => $('editor-login-dialog')?.close());
   $('editor-login-form')?.addEventListener('submit', submitLogin);
   $('studio-logout-button')?.addEventListener('click', async () => {
-    await logout();
+    await signOut();
     window.location.replace('/');
   });
 
