@@ -1,0 +1,117 @@
+name: Backfill channel video links
+
+# Manual counterpart to the hourly youtube-channel-sync Netlify function.
+# That job can only see the 15 newest uploads (all the channel's RSS feed
+# carries), so it keeps up with new shiurim but can never fill in the back
+# catalogue. This walks the channel's full upload list with yt-dlp and
+# publishes a video-links/<refKey>.json for every daf reference it covers,
+# so the player has a playable link ready for dapim nobody has synced yet.
+#
+# Deliberately manual (workflow_dispatch) and dry-run by default: it writes
+# in bulk to the results branch the live site reads from, so the intended
+# flow is to run it once to read the report, then re-run with dry_run off.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tractate:
+        description: 'Tractate to backfill (e.g. Chullin), or "all" for every tractate found'
+        required: true
+        default: 'Chullin'
+      max_videos:
+        description: "How many of the channel's newest uploads to scan"
+        required: true
+        default: '1500'
+      dry_run:
+        description: 'Report what would be written without pushing anything'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install yt-dlp
+        run: pip install yt-dlp
+
+      - name: List the channel's uploads
+        env:
+          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
+          MAX_VIDEOS: ${{ github.event.inputs.max_videos }}
+        run: |
+          set -e
+          # Same authenticated session the OCR job needs: GitHub Actions'
+          # shared runner IPs otherwise hit YouTube's "Sign in to confirm
+          # you're not a bot" wall. This only lists metadata (no media, so
+          # no PO token or JS challenge solver needed here).
+          if [ -z "$YOUTUBE_COOKIES" ]; then
+            echo "YOUTUBE_COOKIES repo secret is not set -- see ocr-job.yml for what it is."
+            exit 1
+          fi
+          printf '%s' "$YOUTUBE_COOKIES" > cookies.txt
+          yt-dlp --cookies cookies.txt \
+            --flat-playlist \
+            --playlist-end "$MAX_VIDEOS" \
+            --print "%(id)s|||%(title)s" \
+            "https://www.youtube.com/channel/UCKwQa5DB_VR98ac_r-Wyl-g/videos" \
+            > channel-videos.txt
+          rm -f cookies.txt
+          echo "Listed $(wc -l < channel-videos.txt) videos."
+
+      - name: Check out the results branch
+        run: |
+          git fetch origin results 2>/dev/null || true
+          if git show-ref --verify --quiet refs/remotes/origin/results; then
+            git worktree add /tmp/results-checkout origin/results
+          else
+            git worktree add --detach /tmp/results-checkout
+            (cd /tmp/results-checkout && git checkout --orphan results && git rm -rf . >/dev/null 2>&1 || true)
+          fi
+
+      - name: Work out which links are missing
+        env:
+          TRACTATE: ${{ github.event.inputs.tractate }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          set -e
+          EXTRA=""
+          if [ "$DRY_RUN" = "true" ]; then EXTRA="--dry-run"; fi
+          node MDYsync/tools/backfill-video-links.mjs \
+            --videos channel-videos.txt \
+            --results /tmp/results-checkout \
+            --tractate "$TRACTATE" \
+            $EXTRA
+
+      - name: Publish the new links
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          TRACTATE: ${{ github.event.inputs.tractate }}
+        run: |
+          set -e
+          cd /tmp/results-checkout
+          git config user.name "dafsync-bot"
+          git config user.email "dafsync-bot@users.noreply.github.com"
+          if git diff --quiet && git diff --cached --quiet && [ -z "$(git status --porcelain)" ]; then
+            echo "Nothing new to publish."
+            exit 0
+          fi
+          git add video-links
+          git commit -m "Backfill ${TRACTATE} channel video links"
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:results; then
+              break
+            fi
+            git fetch origin results
+            git rebase origin/results
+            sleep 2
+          done
