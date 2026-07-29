@@ -5,6 +5,50 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="A prototype synchronized Daf Yomi video player and alignment editor." />
   <title>DafSync Studio</title>
+  <script>
+    // Surfaces any otherwise-silent failure (a script that fails to load,
+    // an uncaught exception, a rejected promise nobody caught) as a plain,
+    // dependency-free banner at the top of the page -- deliberately inline
+    // and placed before every other <script>, with its own inline styles,
+    // so it still works even if styles.css or another script is the very
+    // thing that failed to load. Without this, a failure this early (e.g.
+    // vendor/supabase-js.min.js not loading) leaves every click on the
+    // page doing nothing, with no way for a reader to know why.
+    (function () {
+      var shown = false;
+      function showBanner(message) {
+        if (shown) return;
+        shown = true;
+        var bar = document.createElement('div');
+        bar.textContent = 'Something on this page failed to load: ' + message + ' -- try reloading the page.';
+        bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#7c1d1d;color:#fff;'
+          + 'font:14px/1.4 -apple-system,system-ui,sans-serif;padding:10px 40px 10px 14px;text-align:left;';
+        var close = document.createElement('button');
+        close.textContent = '×';
+        close.setAttribute('aria-label', 'Dismiss');
+        close.style.cssText = 'position:absolute;right:8px;top:6px;background:transparent;border:0;color:#fff;'
+          + 'font-size:20px;line-height:1;cursor:pointer;padding:4px 8px;';
+        close.onclick = function () { bar.remove(); };
+        bar.appendChild(close);
+        document.body ? document.body.prepend(bar) : document.addEventListener('DOMContentLoaded', function () { document.body.prepend(bar); });
+      }
+      window.addEventListener('error', function (event) {
+        // In capture phase, a resource (script/link/img) that fails to load
+        // fires this same 'error' event with event.target set to that
+        // element -- a genuine script execution error has no target instead.
+        // Only <script> failures are worth an alarming banner: a stylesheet
+        // or font failing to load (e.g. Google Fonts blocked by a network
+        // filter) just falls back to a system font, and isn't a reason to
+        // tell the reader the page is broken.
+        if (event.target && event.target.tagName !== 'SCRIPT') return;
+        var message = event.message || (event.target && event.target.src) || 'unknown error';
+        showBanner(String(message));
+      }, true);
+      window.addEventListener('unhandledrejection', function (event) {
+        showBanner(String(event.reason && event.reason.message || event.reason || 'unknown error'));
+      });
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Frank+Ruhl+Libre:wght@400;500;600;700&display=swap" rel="stylesheet">
