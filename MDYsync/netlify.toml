@@ -2,6 +2,22 @@
   publish = "."
   functions = "netlify/functions"
 
+[[redirects]]
+  from = "/studio"
+  to = "/studio/"
+  status = 301
+
+[[redirects]]
+  from = "/studio/*"
+  to = "/studio/:splat"
+  status = 200
+  conditions = { Role = ["admin"] }
+
+[[redirects]]
+  from = "/studio/*"
+  to = "/?editor=login"
+  status = 302
+
 [[headers]]
   for = "/*"
   [headers.values]
