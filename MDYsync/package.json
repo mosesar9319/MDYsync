@@ -1,0 +1,14 @@
+{
+  "name": "dafsync-netlify",
+  "private": true,
+  "scripts": {
+    "build": "esbuild src/studio-access.mjs --bundle --format=iife --platform=browser --target=es2020 --outfile=studio-access.js"
+  },
+  "dependencies": {
+    "@netlify/identity": "1.2.0"
+  },
+  "devDependencies": {
+    "@netlify/functions": "5.3.0",
+    "esbuild": "0.28.1"
+  }
+}
