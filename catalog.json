@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-29T22:22:17.757Z",
+  "generatedAt": "2026-07-29T23:09:51.903Z",
   "tractates": {
     "Chullin": [
       {
@@ -3536,6 +3536,10 @@
         "regularHe": {
           "videoId": "SRXH7dOVd30",
           "label": "מרכז דף יומי -  חולין דף  צ. - ר' ידידיה"
+        },
+        "chazarahHe": {
+          "videoId": "AKiPctp-Epw",
+          "label": "חזרה - חולין דף צ | \"רק הדף\" עם ר' אלי ס"
         }
       },
       {
@@ -3552,6 +3556,10 @@
         "regularHe": {
           "videoId": "SRXH7dOVd30",
           "label": "מרכז דף יומי -  חולין דף  צ. - ר' ידידיה"
+        },
+        "chazarahHe": {
+          "videoId": "AKiPctp-Epw",
+          "label": "חזרה - חולין דף צ | \"רק הדף\" עם ר' אלי ס"
         }
       },
       {
