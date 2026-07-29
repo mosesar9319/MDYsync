@@ -74,7 +74,17 @@ jobs:
           # and much faster to fetch than the highest available format.
           # ubuntu-latest ships ffmpeg already, which yt-dlp needs to mux
           # separate video/audio streams into one mp4.
-          yt-dlp -f "bv*[height<=720][ext=mp4]+ba[ext=m4a]/best[height<=720][ext=mp4]/best" \
+          #
+          # yt-dlp's default player client hits YouTube's "Sign in to confirm
+          # you're not a bot" wall from GitHub Actions' datacenter IPs almost
+          # every time. Forcing the android/tv/web clients (in that order,
+          # yt-dlp falls through on failure) works around it without needing
+          # cookies -- which we deliberately don't want to introduce here,
+          # since piping a personal account's cookies into an automated
+          # public-repo job is a much bigger trust/compliance step than this
+          # feature calls for.
+          yt-dlp --extractor-args "youtube:player_client=android,tv,web" \
+            -f "bv*[height<=720][ext=mp4]+ba[ext=m4a]/best[height<=720][ext=mp4]/best" \
             --merge-output-format mp4 -o job-video.mp4 "$YOUTUBE_URL"
           size=$(stat -c%s job-video.mp4)
           echo "Downloaded $size bytes"
