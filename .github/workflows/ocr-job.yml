@@ -143,9 +143,14 @@ jobs:
           # to steer toward -- the bgutil provider started above supplies
           # tokens for whichever yt-dlp picks. ("android" self-skips anyway,
           # since it can't use cookies.)
+          # vcodec^=avc1 (H.264) is load-bearing, not a preference: "ext=mp4"
+          # alone also matches YouTube's AV1 streams, and OpenCV on this
+          # runner can't decode AV1 -- every frame read fails and the OCR
+          # pass silently matches 0 samples. Falls back to avc1 at any
+          # resolution before it accepts a non-avc1 stream.
           yt-dlp --cookies cookies.txt \
             --remote-components ejs:github \
-            -f "bv*[height<=720][ext=mp4]+ba[ext=m4a]/best[height<=720][ext=mp4]/best" \
+            -f "bv*[height<=720][vcodec^=avc1]+ba/b[height<=720][vcodec^=avc1]/bv*[vcodec^=avc1]+ba/b[vcodec^=avc1]/bv*[height<=720]+ba/b" \
             --merge-output-format mp4 -o job-video.mp4 "$YOUTUBE_URL"
           rm -f cookies.txt
           size=$(stat -c%s job-video.mp4)
