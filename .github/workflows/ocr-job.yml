@@ -71,6 +71,7 @@ jobs:
           JOB_ID: ${{ github.event.client_payload.jobId }}
           REFS_JSON: ${{ toJSON(github.event.client_payload.refs) }}
           VARIANT: ${{ github.event.client_payload.variant }}
+          LANGUAGE: ${{ github.event.client_payload.language }}
         run: |
           set -e
           mkdir -p /tmp/results-checkout
@@ -90,11 +91,12 @@ jobs:
           import json, re, os
           refs = json.loads('''$REFS_JSON''')
           # A 'Chazarah Daf' reading (the shorter, gemara-only-review recording
-          # of the same daf) is namespaced under its own prefix so it never
-          # collides with the regular shiur's alignment for the same ref --
-          # must match trigger-ocr-job.mjs's and the frontend's own refKey()
-          # exactly.
-          prefix = 'Chazarah-Daf-' if os.environ.get('VARIANT') == 'chazarah' else ''
+          # of the same daf) and/or a Hebrew-language recording are namespaced
+          # under their own prefix(es), composed in this order, so none of the
+          # four variant/language combinations collide -- must match
+          # trigger-ocr-job.mjs's and the frontend's own refKey() exactly.
+          prefix = ('Hebrew-' if os.environ.get('LANGUAGE') == 'he' else '') + \
+                   ('Chazarah-Daf-' if os.environ.get('VARIANT') == 'chazarah' else '')
           with open('MDYsync/tools/caption-sync/job-out/alignment.json') as f:
               alignment = json.load(f)
           # Stamped so the frontend's poll loop can tell a freshly published

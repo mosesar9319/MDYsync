@@ -359,8 +359,9 @@ kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; 
 .amud-option.active { background: var(--accent); color: #03211d; }
 
 .shiur-variant-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; margin-top: 8px; }
-.shiur-variant-option { border: 0; background: rgba(255,255,255,.04); color: var(--muted); padding: 8px 12px; cursor: pointer; font-weight: 700; font-size: 13px; flex: 1; }
-.shiur-variant-option.active { background: var(--accent); color: #03211d; }
+.shiur-variant-option, .language-option { border: 0; background: rgba(255,255,255,.04); color: var(--muted); padding: 8px 12px; cursor: pointer; font-weight: 700; font-size: 13px; flex: 1; }
+.shiur-variant-option.active, .language-option.active { background: var(--accent); color: #03211d; }
+.picker-toggle-row { display: flex; gap: 10px; flex-wrap: wrap; }
 .sync-readings-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .sync-readings-list { max-height: 150px; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; padding: 6px 10px; background: rgba(0,0,0,.14); margin-bottom: 16px; }
 .sync-reading-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 2px; }
@@ -390,3 +391,84 @@ kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; 
   .marking-bar .button { flex: 1; }
   .marking-bar #saveDraftButton { flex-basis: 100%; }
 }
+
+/* Admin-only studio controls (Sync from video, editing, import/export) are
+   hidden entirely for anonymous/non-admin visitors -- this is a UI
+   convenience, not a security boundary; the underlying Netlify functions
+   trust any caller today, same as before accounts existed. */
+.admin-only { display: none !important; }
+body.is-admin .admin-only { display: revert !important; }
+body.is-admin .admin-only.setup-field { display: block !important; }
+body.is-admin .marking-bar.admin-only { display: flex !important; }
+body:not(.is-admin) .setup-strip { grid-template-columns: 1.1fr 1fr; }
+
+/* --- Auth widget --------------------------------------------------------- */
+.auth-widget { position: relative; }
+.account-menu { position: relative; }
+.account-trigger { display: inline-flex; align-items: center; gap: 8px; }
+.admin-badge {
+  display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px;
+  font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+  color: #2d240f; background: var(--highlight);
+}
+.account-dropdown {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 20; min-width: 180px;
+  background: var(--card-strong); border: 1px solid var(--line-strong); border-radius: 14px;
+  box-shadow: var(--shadow); padding: 6px; display: flex; flex-direction: column; gap: 2px;
+}
+.account-dropdown-item {
+  border: 0; background: transparent; color: var(--text); text-align: left; padding: 9px 11px;
+  border-radius: 9px; cursor: pointer; font-size: 14px;
+}
+.account-dropdown-item:hover { background: rgba(255,255,255,.07); }
+
+.auth-form { display: flex; flex-direction: column; gap: 14px; margin-top: 4px; }
+.auth-form-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.auth-error { color: var(--muted); font-size: 13px; background: rgba(56,214,193,.08); border: 1px solid var(--line); padding: 10px 12px; border-radius: 11px; margin: 0; }
+.auth-error.is-error { color: var(--danger); background: rgba(255,124,137,.1); border-color: rgba(255,124,137,.28); }
+
+/* --- Favorite star -------------------------------------------------------- */
+.favorite-button {
+  border: 0; background: transparent; color: var(--muted); font-size: 22px; line-height: 1;
+  cursor: pointer; padding: 2px; margin-inline-start: 2px;
+}
+.favorite-button.is-favorited { color: var(--highlight); }
+.favorite-item {
+  display: block; width: 100%; text-align: left; border: 1px solid var(--line); background: rgba(255,255,255,.03);
+  color: var(--text); padding: 10px 12px; border-radius: 11px; cursor: pointer; margin-bottom: 8px; font-size: 14px;
+}
+.favorite-item:hover { background: rgba(255,255,255,.08); }
+
+/* --- Catalog browser ------------------------------------------------------ */
+.catalog-card { padding: 20px 22px; margin-bottom: 18px; }
+.catalog-heading { align-items: flex-start; justify-content: space-between; }
+.catalog-series-desc { color: var(--muted); font-size: 14px; margin: 6px 0 0; max-width: 640px; }
+.catalog-controls { display: flex; align-items: center; gap: 16px; margin: 14px 0; flex-wrap: wrap; }
+.catalog-controls .sync-field select { min-width: 200px; }
+.catalog-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px; margin-bottom: 14px;
+}
+.catalog-cell {
+  position: relative; border-radius: 10px; padding: 10px 6px; font-weight: 700; font-size: 13px;
+  cursor: pointer; text-align: center; border: 1px solid var(--line);
+}
+.catalog-cell.synced { background: rgba(56,214,193,.12); border-color: rgba(56,214,193,.32); color: #a8f4e8; }
+.catalog-cell.synced:hover { background: rgba(56,214,193,.2); }
+.catalog-cell.coming-soon { background: rgba(255,255,255,.03); color: var(--muted); }
+.catalog-cell.coming-soon:hover { background: rgba(255,255,255,.07); }
+.catalog-legend { display: flex; gap: 18px; flex-wrap: wrap; color: var(--muted); font-size: 12px; }
+.catalog-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.catalog-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.catalog-swatch.synced { background: rgba(56,214,193,.6); }
+.catalog-swatch.coming-soon { background: rgba(255,255,255,.15); }
+.catalog-swatch.chazarah-dot {
+  position: absolute; top: 3px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--blue);
+  display: block;
+}
+.catalog-swatch.hebrew-dot {
+  position: absolute; top: 3px; left: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--highlight);
+  display: block;
+}
+.catalog-legend .chazarah-dot, .catalog-legend .hebrew-dot { position: static; display: inline-block; }
+.catalog-legend .chazarah-dot { background: var(--blue); }
+.catalog-legend .hebrew-dot { background: var(--highlight); }

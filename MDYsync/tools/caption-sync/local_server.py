@@ -42,14 +42,16 @@ ALLOWED_ORIGINS = {
 
 APP_VERSION = "0.3.0"
 
-# Marker for the shorter chazara-only recording of the same daf -- must
-# match the website's own suffix exactly (app.js parseDafRef/
-# canonicalDafRef) and gui_app.py's own copy of this constant.
+# Markers for the shorter chazara-only recording of the same daf, and/or
+# the separate Hebrew-language recording -- must match the website's own
+# suffixes exactly (app.js parseDafRef/canonicalDafRef) and gui_app.py's
+# own copy of these constants.
 CHAZARAH_SUFFIX = " (Chazarah Daf)"
+HEBREW_SUFFIX = " (Hebrew)"
 PUBLISH_ENDPOINT = "https://mdysync.netlify.app/api/publish-alignment"
 
 
-def upload_alignment(alignment, refs, variant):
+def upload_alignment(alignment, refs, variant, language):
     """Publish a finished alignment straight to the results branch (see
     publish-alignment.mjs) so every device sees it immediately, not just
     the browser that drove this particular sync. Raises on failure --
@@ -58,7 +60,7 @@ def upload_alignment(alignment, refs, variant):
     import json as _json
     import urllib.request
     payload = _json.dumps({
-        "refs": refs, "variant": variant, "alignment": alignment,
+        "refs": refs, "variant": variant, "language": language, "alignment": alignment,
     }).encode("utf-8")
     req = urllib.request.Request(
         PUBLISH_ENDPOINT, data=payload, method="POST",
@@ -242,6 +244,9 @@ def make_handler(registry: JobRegistry, gui_queue, engine):
                 variant = fields.get("variant", "regular")
                 if variant not in ("regular", "chazarah"):
                     variant = "regular"
+                language = fields.get("language", "en")
+                if language not in ("en", "he"):
+                    language = "en"
             except Exception as exc:
                 self._send_json(400, {"error": f"Bad request: {exc}"})
                 return
@@ -256,8 +261,8 @@ def make_handler(registry: JobRegistry, gui_queue, engine):
 
             thread = threading.Thread(
                 target=_run_job,
-                args=(job_id, video_path, refs, variant, work_dir, registry,
-                      gui_queue, process_video, build_outputs),
+                args=(job_id, video_path, refs, variant, language, work_dir,
+                      registry, gui_queue, process_video, build_outputs),
                 daemon=True)
             thread.start()
             self._send_json(202, {"jobId": job_id})
@@ -265,8 +270,8 @@ def make_handler(registry: JobRegistry, gui_queue, engine):
     return Handler
 
 
-def _run_job(job_id, video_path, refs, variant, work_dir, registry, gui_queue,
-             process_video, build_outputs):
+def _run_job(job_id, video_path, refs, variant, language, work_dir, registry,
+             gui_queue, process_video, build_outputs):
     try:
         if gui_queue is not None:
             gui_queue.put(("log", f"[web] Starting sync for {', '.join(refs)}"))
@@ -304,6 +309,8 @@ def _run_job(job_id, video_path, refs, variant, work_dir, registry, gui_queue,
                 canon, segments, events, duration, video_path, refs)
         if variant == "chazarah" and not alignment["dafRef"].endswith(CHAZARAH_SUFFIX):
             alignment["dafRef"] += CHAZARAH_SUFFIX
+        if language == "he" and not alignment["dafRef"].endswith(HEBREW_SUFFIX):
+            alignment["dafRef"] += HEBREW_SUFFIX
 
         registry.update(job_id, status="done", progress=1.0,
                         result={"alignment": alignment, "wordmap": word_map})
@@ -316,7 +323,7 @@ def _run_job(job_id, video_path, refs, variant, work_dir, registry, gui_queue,
         # this, no *other* device would ever see it unless the same person
         # re-ran a Drive sync for the same daf.
         try:
-            upload_alignment(alignment, refs, variant)
+            upload_alignment(alignment, refs, variant, language)
             if gui_queue is not None:
                 gui_queue.put(("log", "[web] Also published for other devices."))
         except Exception as exc:

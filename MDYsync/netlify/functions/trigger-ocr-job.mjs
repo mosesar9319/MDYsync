@@ -28,7 +28,7 @@ export default async (request) => {
     return Response.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }
 
-  const { driveUrl, refs, variant } = body || {};
+  const { driveUrl, refs, variant, language } = body || {};
   if (typeof driveUrl !== 'string' || !/^https:\/\/(drive|docs)\.google\.com\//.test(driveUrl)) {
     return Response.json({ error: 'A valid Google Drive link is required.' }, { status: 400 });
   }
@@ -38,6 +38,9 @@ export default async (request) => {
   }
   if (variant !== undefined && variant !== 'regular' && variant !== 'chazarah') {
     return Response.json({ error: "variant must be 'regular' or 'chazarah'." }, { status: 400 });
+  }
+  if (language !== undefined && language !== 'en' && language !== 'he') {
+    return Response.json({ error: "language must be 'en' or 'he'." }, { status: 400 });
   }
 
   const token = Netlify.env.get('GITHUB_DISPATCH_TOKEN');
@@ -58,7 +61,7 @@ export default async (request) => {
       },
       body: JSON.stringify({
         event_type: 'run-ocr-job',
-        client_payload: { driveUrl, refs, jobId, variant: variant || 'regular' },
+        client_payload: { driveUrl, refs, jobId, variant: variant || 'regular', language: language || 'en' },
       }),
     }
   );
@@ -76,10 +79,11 @@ export default async (request) => {
   // any device can look up an already-synced daf directly. refs[0] is
   // the primary reading, matching how the alignment JSON itself sets
   // its own top-level dafRef. A "Chazarah Daf" reading (the shorter,
-  // gemara-only-review recording of the same daf) is namespaced under its
-  // own prefix so it never collides with the regular shiur's alignment for
-  // the same ref -- must match the frontend's own refKey() exactly.
-  const keyPrefix = variant === 'chazarah' ? 'Chazarah-Daf-' : '';
+  // gemara-only-review recording of the same daf) and/or a Hebrew-language
+  // recording are namespaced under their own prefix(es) so none of the four
+  // variant/language combinations collide -- must match the frontend's own
+  // refKey() exactly.
+  const keyPrefix = (language === 'he' ? 'Hebrew-' : '') + (variant === 'chazarah' ? 'Chazarah-Daf-' : '');
   const refKey = keyPrefix + refs[0].trim().replace(/\s+/g, '-');
 
   return Response.json({
