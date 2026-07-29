@@ -1388,6 +1388,11 @@ async function loadDaf(refOverride = null, options = {}) {
   const ref = canonicalDafRef(String(refOverride || $('dafRef').value).trim());
   $('dafRef').value = ref;
   syncDafPickerFromRef(ref);
+  // Deliberately not awaited: whether this daf offers a one-click sync is
+  // independent of loading its text, and loadDaf returns early down several
+  // paths below (already-synced, saved locally) that would otherwise each
+  // need their own call.
+  refreshQuickSync(ref);
   if (!ref) return showToast('Enter a Sefaria reference first.', 'error');
 
   // A daf already synced through the Drive/server job is published on
@@ -2391,11 +2396,16 @@ async function startLocalSync() {
   }, 1200);
 }
 
-// Shared by both server-side sync sources (Drive, YouTube) once each has
-// its own trigger-ocr-job response in hand -- everything past that point
-// (poll results/by-ref/<ref>.json for a fresh match, time out, load the
-// result) is identical regardless of which one the video came from.
-function pollServerSyncResult(jobId, resultUrl, successMessage) {
+// Shared by every server-side sync entry point (the dialog's Drive and
+// YouTube tabs, and the daf page's one-click quick sync) once each has its
+// own trigger-ocr-job response in hand -- everything past that point (poll
+// results/by-ref/<ref>.json for a fresh match, time out, load the result)
+// is identical regardless of which one the video came from.
+//
+// dafRefOverride is passed in rather than read from syncState.readings,
+// because quick sync never populates the dialog's reading list -- it has
+// only the daf on screen and the covered refs the video link carries.
+function pollServerSyncResult(jobId, resultUrl, successMessage, dafRefOverride) {
   const startedAt = Date.now();
   const MAX_WAIT_SECONDS = 55 * 60; // GitHub Actions job has its own 60-min cap
   stopSyncPolling();
@@ -2432,7 +2442,7 @@ function pollServerSyncResult(jobId, resultUrl, successMessage) {
       // generic one — that specific guidance is what actually prevents mis-synced
       // playback from a mismatched video.
       const hadSpecificSource = alignment?.videoSource?.type === 'local';
-      await loadAlignmentData(alignment, { dafRefOverride: syncState.readings[0].ref });
+      await loadAlignmentData(alignment, { dafRefOverride });
       if (!hadSpecificSource) {
         showToast(successMessage);
       }
@@ -2482,7 +2492,8 @@ async function startDriveSync() {
     return;
   }
 
-  pollServerSyncResult(jobId, resultUrl, 'Synced from Google Drive! Choose or paste the video to watch it.');
+  pollServerSyncResult(jobId, resultUrl, 'Synced from Google Drive! Choose or paste the video to watch it.',
+    syncState.readings[0].ref);
 }
 
 async function startYoutubeSync() {
@@ -2513,7 +2524,84 @@ async function startYoutubeSync() {
     return;
   }
 
-  pollServerSyncResult(jobId, resultUrl, 'Synced from YouTube! Choose or paste the video to watch it.');
+  pollServerSyncResult(jobId, resultUrl, 'Synced from YouTube! Choose or paste the video to watch it.',
+    syncState.readings[0].ref);
+}
+
+// ---------------------------------------------------------------------------
+// Quick sync: one click, straight from the daf page
+// ---------------------------------------------------------------------------
+
+// The sync dialog exists to answer three questions -- which readings, which
+// video, and which variant/language. For a daf whose video link was already
+// published (by the hourly channel poll or the backfill job) all three are
+// already known: the link carries the refs its video covers, and the
+// variant/language come from the daf on screen. So there is nothing left to
+// choose, and the dialog is pure friction.
+//
+// Only set when the published link carries coveredRefs. A link without them
+// (an older publish, or one a reader pasted by hand) deliberately leaves the
+// button hidden rather than guessing at the refs -- syncing against the wrong
+// span of canonical text produces a confidently wrong alignment, which is
+// worse than making someone open the dialog.
+let quickSyncLink = null;
+
+async function refreshQuickSync(ref) {
+  const button = $('quickSyncButton');
+  if (!button) return;
+  quickSyncLink = null;
+  button.hidden = true;
+  if (!ref) return;
+  const link = await fetchServerVideoLink(ref);
+  if (!link || link.type !== 'youtube' || !Array.isArray(link.coveredRefs) || !link.coveredRefs.length) return;
+  // Guard against a slow fetch landing after the reader has already moved on
+  // to a different daf, which would otherwise offer to sync the wrong video.
+  if (canonicalDafRef($('dafRef').value) !== ref) return;
+  quickSyncLink = link;
+  button.hidden = false;
+  button.title = `${link.label || link.url}\nCovers: ${link.coveredRefs.join(', ')}`;
+}
+
+async function startQuickSync() {
+  if (!quickSyncLink) return;
+  const ref = canonicalDafRef($('dafRef').value);
+  const parsed = parseDafRef(ref);
+  const variant = parsed?.variant || 'regular';
+  const language = parsed?.language || 'en';
+  const button = $('quickSyncButton');
+
+  button.disabled = true;
+  button.textContent = 'Starting…';
+  setSyncProgress(0, ['Starting the server-side job…']);
+  let jobId, resultUrl;
+  try {
+    const response = await fetch(TRIGGER_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        youtubeUrl: quickSyncLink.url,
+        refs: quickSyncLink.coveredRefs,
+        variant,
+        language,
+      })
+    });
+    if (!response.ok) throw new Error((await response.json()).error || 'Could not start the job.');
+    ({ jobId, resultUrl } = await response.json());
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = 'Sync this daf';
+    showToast(`Could not start the sync: ${error.message}`, 'error');
+    return;
+  }
+
+  button.textContent = 'Syncing…';
+  // The progress bar lives inside the sync dialog, which isn't open here, so
+  // say plainly how long this takes -- otherwise a job that's running fine
+  // looks like a button that did nothing.
+  showToast(`Syncing ${quickSyncLink.coveredRefs.join(', ')} on the server. `
+    + 'This usually takes 10-40 minutes; you can keep using the site.');
+  pollServerSyncResult(jobId, resultUrl,
+    'Synced from YouTube! The daf and video are ready.', ref);
 }
 
 $('openSyncDialogButton')?.addEventListener('click', async () => {
@@ -2597,6 +2685,7 @@ $('syncVideoInput')?.addEventListener('change', (event) => {
 $('syncLocalStartButton')?.addEventListener('click', startLocalSync);
 $('syncDriveStartButton')?.addEventListener('click', startDriveSync);
 $('syncYoutubeStartButton')?.addEventListener('click', startYoutubeSync);
+$('quickSyncButton')?.addEventListener('click', startQuickSync);
 document.querySelectorAll('.sync-tab').forEach((tab) => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.sync-tab').forEach((t) => {
