@@ -42,6 +42,17 @@ jobs:
       - name: Install Python dependencies
         run: pip install opencv-python-headless pytesseract rapidfuzz "gdown==6.1.0" yt-dlp
 
+      # yt-dlp can solve YouTube's JS-based extraction challenge itself, but
+      # only with a JS runtime available -- without one (the default on a
+      # bare runner), extraction degrades and trips the "Sign in to confirm
+      # you're not a bot" wall almost every time from GitHub Actions' shared
+      # IPs, regardless of which player client is requested. Only installed
+      # for a YouTube-sourced job; the Drive path has no use for it.
+      - uses: denoland/setup-deno@v2
+        if: ${{ github.event.client_payload.youtubeUrl }}
+        with:
+          deno-version: v2.x
+
       - name: Download the video from Google Drive
         if: ${{ github.event.client_payload.driveUrl }}
         working-directory: MDYsync/tools/caption-sync
