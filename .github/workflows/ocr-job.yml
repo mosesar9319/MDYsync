@@ -53,6 +53,34 @@ jobs:
         with:
           deno-version: v2.x
 
+      # Even with valid cookies and a working JS-challenge solver, YouTube
+      # gates the actual media URLs behind a "PO token" tied to the session
+      # -- without one they return 403 (confirmed here on both the web and
+      # tv clients). yt-dlp can't mint these itself; it delegates to a
+      # provider. bgutil is the standard one: a small HTTP service the
+      # companion yt-dlp plugin queries on demand, both from the same
+      # project and released in lockstep (hence unpinned -- a plugin newer
+      # than its provider is the usual mismatch failure).
+      - name: Start the PO token provider
+        if: ${{ github.event.client_payload.youtubeUrl }}
+        run: |
+          pip install bgutil-ytdlp-pot-provider
+          docker run --name bgutil-provider -d -p 4416:4416 \
+            brainicism/bgutil-ytdlp-pot-provider
+          # The plugin auto-discovers the provider on 127.0.0.1:4416, but
+          # only once it's actually listening -- yt-dlp would otherwise
+          # silently fall back to token-less (403-ing) extraction.
+          for _ in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:4416/ping >/dev/null 2>&1; then
+              echo "PO token provider is up."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "PO token provider never became ready:"
+          docker logs bgutil-provider || true
+          exit 1
+
       - name: Download the video from Google Drive
         if: ${{ github.event.client_payload.driveUrl }}
         working-directory: MDYsync/tools/caption-sync
@@ -84,8 +112,8 @@ jobs:
           set -e
           # Capped at 720p -- plenty for OCR'ing the on-screen caption box,
           # and much faster to fetch than the highest available format.
-          # ubuntu-latest ships ffmpeg already, which yt-dlp needs to mux
-          # separate video/audio streams into one mp4.
+          # ffmpeg (installed above) is what muxes the separate video/audio
+          # streams into one mp4.
           #
           # GitHub Actions' shared runner IPs hit YouTube's "Sign in to
           # confirm you're not a bot" wall almost every time -- confirmed
@@ -110,13 +138,13 @@ jobs:
           # told to, since pulling remote code to execute is opt-in by
           # design. Without this, deciphering fails silently and only
           # thumbnail-image formats end up "available".
-          # "web" client formats are dropped -- their HTTPS URLs need a PO
-          # token we don't provide and 403 without one. "android" already
-          # gets skipped automatically (doesn't support cookies), leaving
-          # "tv", which doesn't carry that requirement.
+          # No player_client pin: an earlier guess that only "web" needed a
+          # PO token was wrong ("tv" 403s identically), so there's no client
+          # to steer toward -- the bgutil provider started above supplies
+          # tokens for whichever yt-dlp picks. ("android" self-skips anyway,
+          # since it can't use cookies.)
           yt-dlp --cookies cookies.txt \
             --remote-components ejs:github \
-            --extractor-args "youtube:player_client=tv" \
             -f "bv*[height<=720][ext=mp4]+ba[ext=m4a]/best[height<=720][ext=mp4]/best" \
             --merge-output-format mp4 -o job-video.mp4 "$YOUTUBE_URL"
           rm -f cookies.txt
