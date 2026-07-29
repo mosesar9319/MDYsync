@@ -77,7 +77,20 @@
       return () => listeners.delete(callback);
     },
     async signUp(email, password) {
-      const { data, error } = await client.auth.signUp({ email, password });
+      // Without this, the confirmation email's link falls back to whatever
+      // "Site URL" is configured in the Supabase dashboard -- which
+      // defaults to http://localhost:3000 and is easy to leave unset,
+      // sending readers to a dead local address instead of the real site.
+      // Naming it explicitly here means it's always correct regardless of
+      // that dashboard setting, and works the same in production, a
+      // deploy preview, or local dev. Still requires this exact origin to
+      // be in the dashboard's Redirect URLs allow-list, or Supabase
+      // rejects it and falls back to Site URL anyway.
+      const { data, error } = await client.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: window.location.origin + window.location.pathname },
+      });
       if (error) throw error;
       return data;
     },
