@@ -2113,7 +2113,7 @@ function dafOptionsFor(entry) {
 
 async function loadTalmudIndex() {
   if (!syncState.tractateNames.length) {
-    const response = await fetch('talmud_index.json');
+    const response = await fetch('/talmud_index.json');
     const data = await response.json();
     for (const t of data.tractates) syncState.talmudByName[t.name] = t;
     syncState.tractateNames = data.tractates.map((t) => t.name);
