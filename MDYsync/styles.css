@@ -401,11 +401,14 @@ body.is-admin .admin-only { display: revert !important; }
 body.is-admin .admin-only.setup-field { display: block !important; }
 body.is-admin .marking-bar.admin-only { display: flex !important; }
 body:not(.is-admin) .setup-strip { grid-template-columns: 1.1fr 1fr; }
-/* /watch/ hides the video-source panel from everyone but an admin (see its
-   admin-only class) -- for the common non-admin case that leaves only the
-   ref-field, so it should take the full row instead of leaving the second
-   column's grid track sitting empty next to it. */
-body.watch-page:not(.is-admin) .setup-strip { grid-template-columns: 1fr; }
+/* /watch/'s setup-strip only ever held admin tooling (video-source override,
+   sync/import/export) and the daf-reference picker -- all of it belongs to
+   choosing/editing what to sync, not to watching, so the whole row is
+   dropped on the public player regardless of admin status. #dafRef and
+   #loadDafButton live inside it and stay in the DOM either way (app.js
+   reads/writes them directly, unconditionally), so this can't just delete
+   the section outright. */
+body.watch-page .setup-strip { display: none; }
 
 /* /studio/'s login gate: locked by default (see the inline class on <body>
    in studio/index.html, so there's no flash of the backend before auth.js
