@@ -1,1 +1,6 @@
-{"type":"youtube","url":"https://www.youtube.com/watch?v=AKiPctp-Epw","videoId":"AKiPctp-Epw","label":"חזרה - חולין דף צ | \"רק הדף\" עם ר' אלי ס","coveredRefs":["Chullin 89b","Chullin 90a","Chullin 90b"]}
+{
+  "label": "YouTube",
+  "type": "youtube",
+  "url": "https://www.youtube.com/watch?v=AKiPctp-Epw",
+  "videoId": "AKiPctp-Epw"
+}
