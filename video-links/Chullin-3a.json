@@ -1,11 +1,6 @@
 {
-  "label": "Daf Yomi Chullin Daf 3 by R' Eli Stefans",
+  "label": "YouTube",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=M6dUDISeen8",
-  "videoId": "M6dUDISeen8",
-  "coveredRefs": [
-    "Chullin 2b",
-    "Chullin 3a",
-    "Chullin 3b"
-  ]
+  "videoId": "M6dUDISeen8"
 }
