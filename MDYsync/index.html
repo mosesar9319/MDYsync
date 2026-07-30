@@ -1431,12 +1431,12 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       return (state.language === "all" || comboLanguage(key) === state.language)
         && (state.variant === "all" || comboVariant(key) === state.variant);
     }
+    // Used for the hero card and any other single-daf entry point that
+    // doesn't already know which specific combo it wants -- the grid itself
+    // now builds one card per matching combo instead of picking just one.
     function bestCombo(row) {
       return COMBO_KEYS.find((key) => row[key] && comboMatchesFilters(key))
         || COMBO_KEYS.find((key) => row[key]);
-    }
-    function matchesSubfilters(row) {
-      return COMBO_KEYS.some((key) => row[key] && comboMatchesFilters(key));
     }
     function entryForCombo(row, key) {
       return {
@@ -1526,51 +1526,62 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
     }
 
-    function cardMarkup(row, index) {
-      const badges = [
-        (row.chazarahEn || row.chazarahHe) ? '<i class="catalog-swatch chazarah-dot" title="Chazarah Daf available"></i>' : "",
-        (row.regularHe || row.chazarahHe) ? '<i class="catalog-swatch hebrew-dot" title="Hebrew shiur available"></i>' : "",
-      ].join("");
-      const videoId = row[bestCombo(row)].videoId;
-      return `<button class="shiur-card" data-card="${index}" type="button">
-        <span class="thumbnail">
-          <img class="thumb-img" src="${thumbUrl(videoId)}" alt="" loading="lazy" />
-          <span class="thumbnail-play">${icon("play", 20)}</span>
-        </span>
-        <span class="card-copy"><strong>${escapeHtml(dafLabel(row))}</strong><span>${badges || "Daf Yomi"}</span></span>
-      </button>`;
-    }
-
-    function results() {
-      let items = state.catalog;
-      if (state.filter === "Today") {
-        items = state.today ? items.filter((row) => row.tractate === state.today.tractate && row.daf === state.today.daf) : [];
-      } else if (state.filter !== "All Masechtos") {
-        items = items.filter((row) => row.tractate === state.filter);
-      }
-      items = items.filter(matchesSubfilters);
-      const needle = state.query.trim().toLowerCase();
-      if (needle) items = items.filter((row) => dafLabel(row).toLowerCase().includes(needle));
-      // A higher daf number is later in the cycle, i.e. newer -- "newest
-      // first" is descending daf, matching the sort toggle's default.
-      const direction = state.sortOrder === "old" ? 1 : -1;
-      return [...items].sort((a, b) => direction * (a.daf - b.daf));
-    }
-
     const COMBO_LABELS = {
       regularEn: "English", chazarahEn: "English · Chazarah",
       regularHe: "Hebrew", chazarahHe: "Hebrew · Chazarah",
     };
 
-    // Filtering by language/type on the browse page picks which video a
-    // card *starts* on -- with both filters at "All" that's always the
-    // regular English one (see bestCombo's fixed priority order), which
-    // otherwise makes every other language/variant a daf has effectively
-    // unreachable unless the reader happens to have pre-filtered for it.
-    // These chips list every combo the daf actually has linked, so any of
-    // them is one click away regardless of the page-level filter.
+    function cardMarkup(item, index) {
+      const { row, combo } = item;
+      const videoId = row[combo].videoId;
+      return `<button class="shiur-card" data-card="${index}" type="button">
+        <span class="thumbnail">
+          <img class="thumb-img" src="${thumbUrl(videoId)}" alt="" loading="lazy" />
+          <span class="thumbnail-play">${icon("play", 20)}</span>
+        </span>
+        <span class="card-copy"><strong>${escapeHtml(dafLabel(row))}</strong><span>${COMBO_LABELS[combo]}</span></span>
+      </button>`;
+    }
+
+    // Each daf can have up to four genuinely different videos (English vs
+    // Hebrew, regular vs Chazarah -- not just a sync-side split like amud
+    // a/b, which catalog.json already collapses). With both filters at
+    // "All" that means one card per video that exists, not one card per
+    // daf defaulting to whichever combo happens to be first in priority
+    // order -- otherwise "All" only ever *looked* like English/regular,
+    // even though the other combos were still technically reachable.
+    // Narrowing a filter just narrows which combos produce a card.
+    function cardItems() {
+      let rows = state.catalog;
+      if (state.filter === "Today") {
+        rows = state.today ? rows.filter((row) => row.tractate === state.today.tractate && row.daf === state.today.daf) : [];
+      } else if (state.filter !== "All Masechtos") {
+        rows = rows.filter((row) => row.tractate === state.filter);
+      }
+      const needle = state.query.trim().toLowerCase();
+      if (needle) rows = rows.filter((row) => dafLabel(row).toLowerCase().includes(needle));
+
+      const items = [];
+      for (const row of rows) {
+        for (const combo of COMBO_KEYS) {
+          if (row[combo] && comboMatchesFilters(combo)) items.push({ row, combo });
+        }
+      }
+      // A higher daf number is later in the cycle, i.e. newer -- "newest
+      // first" is descending daf, matching the sort toggle's default. Combo
+      // order is the secondary key so a daf's own cards stay grouped
+      // together instead of interleaving with neighbouring dapim.
+      const direction = state.sortOrder === "old" ? 1 : -1;
+      return items.sort((a, b) =>
+        direction * (a.row.daf - b.row.daf) || COMBO_KEYS.indexOf(a.combo) - COMBO_KEYS.indexOf(b.combo));
+    }
+
+    // The modal still offers every combo the daf has (not just the one the
+    // clicked card represented) so switching, say, from regular to Chazarah
+    // doesn't mean closing the modal and hunting for the other card.
     function selectModalCombo(row, combo) {
       const entry = entryForCombo(row, combo);
+      document.querySelector("#shiur-title").textContent = dafLabel(entry);
       document.querySelector("#modal-thumb").src = thumbUrl(row[combo].videoId);
       document.querySelector("#modal-watch-link").href = playerUrl(entry);
       document.querySelectorAll("#modal-variant-toggle button").forEach((button) => {
@@ -1578,11 +1589,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       });
     }
 
-    function openShiur(row) {
-      const initialCombo = bestCombo(row);
-      const entry = entryForCombo(row, initialCombo);
-      document.querySelector("#shiur-title").textContent = dafLabel(entry);
-
+    function openShiur(row, combo = bestCombo(row)) {
       const available = COMBO_KEYS.filter((key) => row[key]);
       const toggle = document.querySelector("#modal-variant-toggle");
       toggle.innerHTML = available.length > 1
@@ -1591,7 +1598,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       toggle.querySelectorAll("button").forEach((button) => {
         button.addEventListener("click", () => selectModalCombo(row, button.dataset.combo));
       });
-      selectModalCombo(row, initialCombo);
+      selectModalCombo(row, combo);
 
       modal.hidden = false;
       document.body.style.overflow = "hidden";
@@ -1604,7 +1611,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     }
 
     function renderCards() {
-      const items = results();
+      const items = cardItems();
       todaySection.hidden = Boolean(state.query);
       clearSearch.hidden = !state.query;
       empty.hidden = items.length > 0;
@@ -1622,9 +1629,10 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         sectionEyebrow.textContent = state.filter.toUpperCase();
         sectionTitle.textContent = state.filter;
       }
-      grid.innerHTML = items.map((row, index) => cardMarkup(row, index)).join("");
+      grid.innerHTML = items.map((item, index) => cardMarkup(item, index)).join("");
       grid.querySelectorAll("[data-card]").forEach((card) => {
-        card.addEventListener("click", () => openShiur(items[Number(card.dataset.card)]));
+        const item = items[Number(card.dataset.card)];
+        card.addEventListener("click", () => openShiur(item.row, item.combo));
       });
     }
 
