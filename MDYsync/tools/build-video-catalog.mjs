@@ -6,6 +6,18 @@
 // video-links files, and browsers doing that many requests on page load
 // isn't a real option.
 //
+// The a/b amud split is a syncing concern (each amud gets its own OCR
+// alignment) -- the channel itself uploads one video per daf, covering
+// both amudim, so the front end should list it once, not twice. Amud a
+// and b of the same daf are almost always the same video (see
+// readingsForVideo()'s PRIMARY ranking in shared/mdy-channel.mjs), so
+// each daf's row is just its own amud-a link when one exists, falling
+// back to amud b otherwise -- deliberately never compared against *other*
+// dafim's links: a handful of stray videoIds from early manual testing
+// are reused across unrelated, far-apart dafim in the real data, and
+// grouping by videoId tractate-wide would silently merge those into one
+// bogus multi-daf row instead of leaving each daf's own choice alone.
+//
 // Usage: node build-video-catalog.mjs --results <dir>
 //
 // Re-run this whenever video-links/ changes (after a backfill, or once new
@@ -44,9 +56,10 @@ const args = parseArgs(process.argv);
 const videoLinksDir = path.join(args.results, 'video-links');
 const files = fs.readdirSync(videoLinksDir).filter((f) => f.endsWith('.json'));
 
-const byTractate = new Map(); // tractate -> Map("daf|amud" -> row)
 const COMBO_KEY = { regular_en: 'regularEn', chazarah_en: 'chazarahEn', regular_he: 'regularHe', chazarah_he: 'chazarahHe' };
 
+// tractate -> daf -> comboKey -> { a: {videoId,label}, b: {videoId,label} }
+const byTractate = new Map();
 let skipped = 0;
 for (const file of files) {
   const key = file.slice(0, -'.json'.length);
@@ -63,16 +76,25 @@ for (const file of files) {
 
   if (!byTractate.has(parsed.tractate)) byTractate.set(parsed.tractate, new Map());
   const dafMap = byTractate.get(parsed.tractate);
-  const rowKey = `${parsed.daf}|${parsed.amud}`;
-  if (!dafMap.has(rowKey)) dafMap.set(rowKey, { daf: parsed.daf, amud: parsed.amud });
-  const row = dafMap.get(rowKey);
+  if (!dafMap.has(parsed.daf)) dafMap.set(parsed.daf, {});
   const comboKey = COMBO_KEY[`${parsed.variant}_${parsed.language}`];
-  row[comboKey] = { videoId: payload.videoId, label: payload.label || null };
+  const combos = dafMap.get(parsed.daf);
+  if (!combos[comboKey]) combos[comboKey] = {};
+  combos[comboKey][parsed.amud] = { videoId: payload.videoId, label: payload.label || null };
 }
 
 const tractates = {};
 for (const [tractate, dafMap] of byTractate) {
-  tractates[tractate] = [...dafMap.values()].sort((a, b) => a.daf - b.daf || a.amud.localeCompare(b.amud));
+  const rows = [];
+  for (const [daf, combos] of dafMap) {
+    const row = { daf };
+    for (const [comboKey, byAmud] of Object.entries(combos)) {
+      const picked = byAmud.a || byAmud.b;
+      row[comboKey] = { videoId: picked.videoId, label: picked.label, amud: byAmud.a ? 'a' : 'b' };
+    }
+    rows.push(row);
+  }
+  tractates[tractate] = rows.sort((a, b) => a.daf - b.daf);
 }
 
 const catalog = { generatedAt: new Date().toISOString(), tractates };
@@ -80,4 +102,4 @@ const outPath = path.join(args.results, 'catalog.json');
 fs.writeFileSync(outPath, `${JSON.stringify(catalog, null, 2)}\n`);
 
 const totalRows = Object.values(tractates).reduce((sum, rows) => sum + rows.length, 0);
-console.log(`Wrote ${outPath}: ${Object.keys(tractates).length} tractate(s), ${totalRows} daf/amud row(s), ${skipped} file(s) skipped.`);
+console.log(`Wrote ${outPath}: ${Object.keys(tractates).length} tractate(s), ${totalRows} daf row(s) (one per daf, not per amud), ${skipped} file(s) skipped.`);

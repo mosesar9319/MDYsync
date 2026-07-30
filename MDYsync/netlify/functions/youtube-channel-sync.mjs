@@ -188,14 +188,21 @@ export default async (request) => {
         if (!catalog.tractates) catalog.tractates = {};
       }
       for (const update of catalogUpdates) {
+        // One row per daf, not per amud -- see tools/build-video-catalog.mjs
+        // for why: the channel publishes one video per daf, so amud a and b
+        // collapse into a single row, preferring whichever combo entry
+        // anchors on amud 'a' (the natural start of the daf) when both
+        // amudim get linked.
         const rows = catalog.tractates[update.tractate] || (catalog.tractates[update.tractate] = []);
-        let row = rows.find((r) => r.daf === update.daf && r.amud === update.amud);
+        let row = rows.find((r) => r.daf === update.daf);
         if (!row) {
-          row = { daf: update.daf, amud: update.amud };
+          row = { daf: update.daf };
           rows.push(row);
-          rows.sort((a, b) => a.daf - b.daf || a.amud.localeCompare(b.amud));
+          rows.sort((a, b) => a.daf - b.daf);
         }
-        row[update.comboKey] = { videoId: update.videoId, label: update.label };
+        const existing = row[update.comboKey];
+        if (existing && existing.amud === 'a' && update.amud !== 'a') continue;
+        row[update.comboKey] = { videoId: update.videoId, label: update.label, amud: update.amud };
       }
       catalog.generatedAt = new Date().toISOString();
       await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/catalog.json`, {

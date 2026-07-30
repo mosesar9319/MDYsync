@@ -1361,19 +1361,28 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     // a tractate nobody has linked on purpose yet.
     const SITE_TRACTATES = ["Chullin"];
 
-    function dafLabel(entry) {
-      return `${entry.tractate} ${entry.daf}${entry.amud}`;
+    // Display label only -- no amud. The a/b split is a syncing concern
+    // (catalog.json already collapses each daf's own two amudim down to
+    // one video, see tools/build-video-catalog.mjs); the channel itself
+    // publishes one video per daf, so that's what the front end lists.
+    function dafLabel(row) {
+      return `${row.tractate} ${row.daf}`;
     }
 
+    // The player still needs a real amud to open on -- catalog.json
+    // records, per combo, which amud that daf's video actually anchors on
+    // (almost always 'a', the natural start of the daf).
     function playerUrl(entry) {
-      const params = new URLSearchParams({ ref: dafLabel(entry) });
+      const params = new URLSearchParams({ ref: `${entry.tractate} ${entry.daf}${entry.amud}` });
       if (entry.variant === "chazarah") params.set("variant", "chazarah");
       if (entry.language === "he") params.set("language", "hebrew");
       return `/watch/?${params.toString()}`;
     }
 
-    // One row per real (tractate, daf, amud), each of the four
-    // variant/language combinations either null or { videoId, label }.
+    // One row per real (tractate, daf) -- see tools/build-video-catalog.mjs
+    // for how each daf's amud a/b video-links collapse into one row -- each
+    // of the four variant/language combinations either absent or
+    // { videoId, label, amud }.
     async function loadVideoCatalog() {
       try {
         const response = await fetch(`${CATALOG_URL}?t=${Math.floor(Date.now() / 3600000)}`);
@@ -1383,7 +1392,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         for (const tractate of SITE_TRACTATES) {
           for (const row of data.tractates?.[tractate] || []) rows.push({ tractate, ...row });
         }
-        return rows.sort((a, b) => a.tractate.localeCompare(b.tractate) || a.daf - b.daf || a.amud.localeCompare(b.amud));
+        return rows.sort((a, b) => a.tractate.localeCompare(b.tractate) || a.daf - b.daf);
       } catch (error) {
         console.error("Could not load the video catalog.", error);
         return [];
@@ -1411,7 +1420,10 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       return COMBO_KEYS.some((key) => row[key] && comboMatchesFilters(key));
     }
     function entryForCombo(row, key) {
-      return { tractate: row.tractate, daf: row.daf, amud: row.amud, variant: comboVariant(key), language: comboLanguage(key) };
+      return {
+        tractate: row.tractate, daf: row.daf, amud: row[key].amud,
+        variant: comboVariant(key), language: comboLanguage(key),
+      };
     }
 
     async function loadTodaysDaf() {
