@@ -401,6 +401,11 @@ body.is-admin .admin-only { display: revert !important; }
 body.is-admin .admin-only.setup-field { display: block !important; }
 body.is-admin .marking-bar.admin-only { display: flex !important; }
 body:not(.is-admin) .setup-strip { grid-template-columns: 1.1fr 1fr; }
+/* /watch/ hides the video-source panel from everyone but an admin (see its
+   admin-only class) -- for the common non-admin case that leaves only the
+   ref-field, so it should take the full row instead of leaving the second
+   column's grid track sitting empty next to it. */
+body.watch-page:not(.is-admin) .setup-strip { grid-template-columns: 1fr; }
 
 /* /studio/'s login gate: locked by default (see the inline class on <body>
    in studio/index.html, so there's no flash of the backend before auth.js
