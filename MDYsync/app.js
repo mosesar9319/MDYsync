@@ -1469,8 +1469,21 @@ async function loadDaf(refOverride = null, options = {}) {
     }));
     state.activeIndex = 0;
     state.editingIndex = 0;
-    state.usingDefaultAlignment = Boolean(options.placeholderAlignment);
-    state.alignmentStatus = options.placeholderAlignment ? 'placeholder' : 'in-progress';
+    // Reaching this branch at all means there was no real synced alignment
+    // to load (checked above, before the Sefaria fetch) -- these segments
+    // are always the even-spacing placeholder, guessed from whatever
+    // duration happens to be known yet (often just the scrubber's default
+    // before a video has loaded). state.usingDefaultAlignment is what tells
+    // applyDuration() it's safe to silently re-spread these once the real
+    // video duration comes in; leaving it false here (as an unset caller
+    // option previously did) meant that correction never ran for any daf
+    // without a real alignment, letting the whole placeholder timeline sit
+    // compressed into the first ~100 seconds of a much longer video -- the
+    // highlight then raced through every segment in that opening stretch
+    // and sat frozen on the last one for the rest of playback, dragging
+    // auto-scroll along with it.
+    state.usingDefaultAlignment = true;
+    state.alignmentStatus = 'placeholder';
     updateAlignmentStatus();
     $('dafTitle').textContent = data.heRef || ref;
     renderDaf();
