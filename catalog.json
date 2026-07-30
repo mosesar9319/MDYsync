@@ -1,3603 +1,2085 @@
 {
-  "generatedAt": "2026-07-29T23:09:51.903Z",
+  "generatedAt": "2026-07-30T05:45:55.082Z",
   "tractates": {
     "Chullin": [
       {
         "daf": 2,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "I6KEY-aV9rM",
-          "label": "CHAZARAH - Chullin Daf 2 | \"Nothing but "
+          "label": "CHAZARAH - Chullin Daf 2 | \"Nothing but ",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "T-xwyBOBGnQ",
-          "label": "YouTube"
+          "label": "YouTube",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "psug78mggeg",
-          "label": "חזרה - חולין דף ב | \"רק הדף\" עם ר' אלי ס"
+          "label": "חזרה - חולין דף ב | \"רק הדף\" עם ר' אלי ס",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "_x7JNwOqqnc",
-          "label": "מרכז דף יומי - חולין דף ב. - ר' אלי סטפנ"
-        }
-      },
-      {
-        "daf": 2,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "I6KEY-aV9rM",
-          "label": "CHAZARAH - Chullin Daf 2 | \"Nothing but "
-        },
-        "regularEn": {
-          "videoId": "2s3d2_CEw58",
-          "label": "Daf Yomi Chullin Daf 2 by R' Eli Stefans"
-        },
-        "chazarahHe": {
-          "videoId": "psug78mggeg",
-          "label": "חזרה - חולין דף ב | \"רק הדף\" עם ר' אלי ס"
-        },
-        "regularHe": {
-          "videoId": "_x7JNwOqqnc",
-          "label": "מרכז דף יומי - חולין דף ב. - ר' אלי סטפנ"
+          "label": "מרכז דף יומי - חולין דף ב. - ר' אלי סטפנ",
+          "amud": "a"
         }
       },
       {
         "daf": 3,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "heJKVWUi6mo",
-          "label": "CHAZARAH - Chullin Daf 3 | \"Nothing but "
+          "label": "CHAZARAH - Chullin Daf 3 | \"Nothing but ",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "M6dUDISeen8",
-          "label": "Daf Yomi Chullin Daf 3 by R' Eli Stefans"
+          "label": "YouTube",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "bzITdgiHqgI",
-          "label": "חזרה - חולין דף ג | \"רק הדף\" עם ר' אלי ס"
+          "label": "חזרה - חולין דף ג | \"רק הדף\" עם ר' אלי ס",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "bDaaoHEQeSo",
-          "label": "מרכז דף יומי - חולין דף ג. - ר' אלי סטפנ"
-        }
-      },
-      {
-        "daf": 3,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "heJKVWUi6mo",
-          "label": "CHAZARAH - Chullin Daf 3 | \"Nothing but "
-        },
-        "regularEn": {
-          "videoId": "M6dUDISeen8",
-          "label": "Daf Yomi Chullin Daf 3 by R' Eli Stefans"
-        },
-        "chazarahHe": {
-          "videoId": "bzITdgiHqgI",
-          "label": "חזרה - חולין דף ג | \"רק הדף\" עם ר' אלי ס"
-        },
-        "regularHe": {
-          "videoId": "bDaaoHEQeSo",
-          "label": "מרכז דף יומי - חולין דף ג. - ר' אלי סטפנ"
+          "label": "מרכז דף יומי - חולין דף ג. - ר' אלי סטפנ",
+          "amud": "a"
         }
       },
       {
         "daf": 4,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "7Uk9MN118X0",
-          "label": "CHAZARAH - Chullin Daf 4 | \"Nothing but "
+          "label": "CHAZARAH - Chullin Daf 4 | \"Nothing but ",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "h7eGXDkDy1Q",
-          "label": "Daf Yomi Chullin Daf 4 by R' Eli Stefans"
+          "label": "Daf Yomi Chullin Daf 4 by R' Eli Stefans",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "MunDxwwtTTI",
-          "label": "חזרה - חולין דף ד | \"רק הדף\" עם ר' אלי ס"
+          "label": "חזרה - חולין דף ד | \"רק הדף\" עם ר' אלי ס",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "SV1qklq7TbI",
-          "label": "מרכז דף יומי - חולין דף ד. - ר' אלי סטפנ"
-        }
-      },
-      {
-        "daf": 4,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "7Uk9MN118X0",
-          "label": "CHAZARAH - Chullin Daf 4 | \"Nothing but "
-        },
-        "regularEn": {
-          "videoId": "h7eGXDkDy1Q",
-          "label": "Daf Yomi Chullin Daf 4 by R' Eli Stefans"
-        },
-        "chazarahHe": {
-          "videoId": "MunDxwwtTTI",
-          "label": "חזרה - חולין דף ד | \"רק הדף\" עם ר' אלי ס"
-        },
-        "regularHe": {
-          "videoId": "SV1qklq7TbI",
-          "label": "מרכז דף יומי - חולין דף ד. - ר' אלי סטפנ"
+          "label": "מרכז דף יומי - חולין דף ד. - ר' אלי סטפנ",
+          "amud": "a"
         }
       },
       {
         "daf": 5,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "4Yr7HwVn-EM",
-          "label": "CHAZARAH - Chullin Daf 5 | \"Nothing but "
+          "label": "CHAZARAH - Chullin Daf 5 | \"Nothing but ",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "eOIyqFBPGQY",
-          "label": "Daf Yomi Chullin Daf 5 by R' Eli Stefans"
+          "label": "Daf Yomi Chullin Daf 5 by R' Eli Stefans",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "On-OVl5Znjw",
-          "label": "חזרה - חולין דף ה | \"רק הדף\" עם ר' אלי ס"
+          "label": "חזרה - חולין דף ה | \"רק הדף\" עם ר' אלי ס",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "tjZmF5JmCyk",
-          "label": "מרכז דף יומי - חולין דף ה. - ר' אלי סטפנ"
-        }
-      },
-      {
-        "daf": 5,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "4Yr7HwVn-EM",
-          "label": "CHAZARAH - Chullin Daf 5 | \"Nothing but "
-        },
-        "regularEn": {
-          "videoId": "eOIyqFBPGQY",
-          "label": "Daf Yomi Chullin Daf 5 by R' Eli Stefans"
-        },
-        "chazarahHe": {
-          "videoId": "On-OVl5Znjw",
-          "label": "חזרה - חולין דף ה | \"רק הדף\" עם ר' אלי ס"
-        },
-        "regularHe": {
-          "videoId": "tjZmF5JmCyk",
-          "label": "מרכז דף יומי - חולין דף ה. - ר' אלי סטפנ"
+          "label": "מרכז דף יומי - חולין דף ה. - ר' אלי סטפנ",
+          "amud": "a"
         }
       },
       {
         "daf": 6,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "siq-RUwgRLk",
-          "label": "CHAZARAH - Chullin Daf 6 | \"Nothing but "
+          "label": "CHAZARAH - Chullin Daf 6 | \"Nothing but ",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "2uwkhLqWRs8",
-          "label": "Daf Yomi Chullin Daf 6 by R' Eli Stefans"
+          "label": "Daf Yomi Chullin Daf 6 by R' Eli Stefans",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "8SzvnymYaOU",
-          "label": "חזרה - חולין דף ו | \"רק הדף\" עם ר' אלי ס"
+          "label": "חזרה - חולין דף ו | \"רק הדף\" עם ר' אלי ס",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "qBtiynZadCM",
-          "label": "מרכז דף יומי - חולין דף ו. - ר' אלי סטפנ"
-        }
-      },
-      {
-        "daf": 6,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "siq-RUwgRLk",
-          "label": "CHAZARAH - Chullin Daf 6 | \"Nothing but "
-        },
-        "regularEn": {
-          "videoId": "2uwkhLqWRs8",
-          "label": "Daf Yomi Chullin Daf 6 by R' Eli Stefans"
-        },
-        "chazarahHe": {
-          "videoId": "8SzvnymYaOU",
-          "label": "חזרה - חולין דף ו | \"רק הדף\" עם ר' אלי ס"
-        },
-        "regularHe": {
-          "videoId": "qBtiynZadCM",
-          "label": "מרכז דף יומי - חולין דף ו. - ר' אלי סטפנ"
+          "label": "מרכז דף יומי - חולין דף ו. - ר' אלי סטפנ",
+          "amud": "a"
         }
       },
       {
         "daf": 7,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "Wm8xmNXJ2Gs",
-          "label": "CHAZARAH - Chullin Daf 7 | \"Nothing but "
+          "label": "CHAZARAH - Chullin Daf 7 | \"Nothing but ",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "fbxa7w-A9AI",
-          "label": "Daf Yomi Chullin Daf 7 by R' Eli Stefans"
+          "label": "Daf Yomi Chullin Daf 7 by R' Eli Stefans",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "hdXfuk5XZCY",
-          "label": "חזרה - חולין דף ז | \"רק הדף\" עם ר' אלי ס"
+          "label": "חזרה - חולין דף ז | \"רק הדף\" עם ר' אלי ס",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "91PsuizD7gY",
-          "label": "מרכז דף יומי - חולין דף ז. - ר' אלי סטפנ"
-        }
-      },
-      {
-        "daf": 7,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "Wm8xmNXJ2Gs",
-          "label": "CHAZARAH - Chullin Daf 7 | \"Nothing but "
-        },
-        "regularEn": {
-          "videoId": "fbxa7w-A9AI",
-          "label": "Daf Yomi Chullin Daf 7 by R' Eli Stefans"
-        },
-        "chazarahHe": {
-          "videoId": "hdXfuk5XZCY",
-          "label": "חזרה - חולין דף ז | \"רק הדף\" עם ר' אלי ס"
-        },
-        "regularHe": {
-          "videoId": "91PsuizD7gY",
-          "label": "מרכז דף יומי - חולין דף ז. - ר' אלי סטפנ"
+          "label": "מרכז דף יומי - חולין דף ז. - ר' אלי סטפנ",
+          "amud": "a"
         }
       },
       {
         "daf": 8,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "zDXx6NdccaM",
-          "label": "CHAZARAH - Chullin Daf 8 | \"Nothing but "
+          "label": "CHAZARAH - Chullin Daf 8 | \"Nothing but ",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "WhkZ93-9p64",
-          "label": "Daf Yomi Chullin Daf 8 by R' Eli Stefans"
+          "label": "Daf Yomi Chullin Daf 8 by R' Eli Stefans",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "BFNSG-i33X4",
-          "label": "חזרה - חולין דף ח | \"רק הדף\" עם ר' אלי ס"
+          "label": "חזרה - חולין דף ח | \"רק הדף\" עם ר' אלי ס",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "3n_kI_ofKww",
-          "label": "מרכז דף יומי - חולין דף ח. - ר' אלי סטפנ"
-        }
-      },
-      {
-        "daf": 8,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "zDXx6NdccaM",
-          "label": "CHAZARAH - Chullin Daf 8 | \"Nothing but "
-        },
-        "regularEn": {
-          "videoId": "WhkZ93-9p64",
-          "label": "Daf Yomi Chullin Daf 8 by R' Eli Stefans"
-        },
-        "chazarahHe": {
-          "videoId": "BFNSG-i33X4",
-          "label": "חזרה - חולין דף ח | \"רק הדף\" עם ר' אלי ס"
-        },
-        "regularHe": {
-          "videoId": "3n_kI_ofKww",
-          "label": "מרכז דף יומי - חולין דף ח. - ר' אלי סטפנ"
+          "label": "מרכז דף יומי - חולין דף ח. - ר' אלי סטפנ",
+          "amud": "a"
         }
       },
       {
         "daf": 9,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "rB5N3l6_GtI",
-          "label": "CHAZARAH - Chullin Daf 9 | \"Nothing but "
+          "label": "CHAZARAH - Chullin Daf 9 | \"Nothing but ",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "y1x97Dd03Ow",
-          "label": "Daf Yomi Chullin Daf 9 by R' Eli Stefans"
+          "label": "Daf Yomi Chullin Daf 9 by R' Eli Stefans",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "MkojfUvr6iE",
-          "label": "חזרה - חולין דף ט | \"רק הדף\" עם ר' אלי ס"
+          "label": "חזרה - חולין דף ט | \"רק הדף\" עם ר' אלי ס",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "qccmx7WFB-I",
-          "label": "מרכז דף יומי - חולין דף ט. - ר' אלי סטפנ"
-        }
-      },
-      {
-        "daf": 9,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "rB5N3l6_GtI",
-          "label": "CHAZARAH - Chullin Daf 9 | \"Nothing but "
-        },
-        "regularEn": {
-          "videoId": "y1x97Dd03Ow",
-          "label": "Daf Yomi Chullin Daf 9 by R' Eli Stefans"
-        },
-        "chazarahHe": {
-          "videoId": "MkojfUvr6iE",
-          "label": "חזרה - חולין דף ט | \"רק הדף\" עם ר' אלי ס"
-        },
-        "regularHe": {
-          "videoId": "qccmx7WFB-I",
-          "label": "מרכז דף יומי - חולין דף ט. - ר' אלי סטפנ"
+          "label": "מרכז דף יומי - חולין דף ט. - ר' אלי סטפנ",
+          "amud": "a"
         }
       },
       {
         "daf": 10,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "JINbnwWF28k",
-          "label": "CHAZARAH - Chullin Daf 10 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 10 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "yYotEZ5XiqU",
-          "label": "Daf Yomi Chullin Daf 10 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 10 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "fQvyXFD3JCU",
-          "label": "חזרה - חולין דף י | \"רק הדף\" עם ר' אלי ס"
+          "label": "חזרה - חולין דף י | \"רק הדף\" עם ר' אלי ס",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "4aSzuRFak4k",
-          "label": "מרכז דף יומי - חולין דף י. - ר' אלי סטפנ"
-        }
-      },
-      {
-        "daf": 10,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "JINbnwWF28k",
-          "label": "CHAZARAH - Chullin Daf 10 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "yYotEZ5XiqU",
-          "label": "Daf Yomi Chullin Daf 10 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "fQvyXFD3JCU",
-          "label": "חזרה - חולין דף י | \"רק הדף\" עם ר' אלי ס"
-        },
-        "regularHe": {
-          "videoId": "4aSzuRFak4k",
-          "label": "מרכז דף יומי - חולין דף י. - ר' אלי סטפנ"
+          "label": "מרכז דף יומי - חולין דף י. - ר' אלי סטפנ",
+          "amud": "a"
         }
       },
       {
         "daf": 11,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "OFXfVRPBhRg",
-          "label": "CHAZARAH - Chullin Daf 11 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 11 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "m_LnJLUlGUI",
-          "label": "Daf Yomi Chullin Daf 11 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 11 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "6IjpK6XUplM",
-          "label": "חזרה - חולין דף יא | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף יא | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "fBHuJQGaQtc",
-          "label": "מרכז דף יומי - חולין דף יא. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 11,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "OFXfVRPBhRg",
-          "label": "CHAZARAH - Chullin Daf 11 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "m_LnJLUlGUI",
-          "label": "Daf Yomi Chullin Daf 11 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "6IjpK6XUplM",
-          "label": "חזרה - חולין דף יא | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "fBHuJQGaQtc",
-          "label": "מרכז דף יומי - חולין דף יא. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף יא. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 12,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "X07nNRCzKqU",
-          "label": "CHAZARAH - Chullin Daf 12 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 12 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "VV9HX8gm_Y4",
-          "label": "Daf Yomi Chullin Daf 12 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 12 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "GKiucegma_M",
-          "label": "חזרה - חולין דף יב | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף יב | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "obZXywNmBe8",
-          "label": "מרכז דף יומי - חולין דף יב. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 12,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "X07nNRCzKqU",
-          "label": "CHAZARAH - Chullin Daf 12 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "VV9HX8gm_Y4",
-          "label": "Daf Yomi Chullin Daf 12 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "GKiucegma_M",
-          "label": "חזרה - חולין דף יב | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "obZXywNmBe8",
-          "label": "מרכז דף יומי - חולין דף יב. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף יב. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 13,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "faYwlE_k7Bg",
-          "label": "CHAZARAH - Chullin Daf 13 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 13 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "OCLSwI2dqIk",
-          "label": "Daf Yomi Chullin Daf 13 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 13 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "2tf8x5PCOyg",
-          "label": "חזרה - חולין דף יג | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף יג | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "6W1b_apvEd0",
-          "label": "מרכז דף יומי - חולין דף יג. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 13,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "faYwlE_k7Bg",
-          "label": "CHAZARAH - Chullin Daf 13 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "OCLSwI2dqIk",
-          "label": "Daf Yomi Chullin Daf 13 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "2tf8x5PCOyg",
-          "label": "חזרה - חולין דף יג | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "6W1b_apvEd0",
-          "label": "מרכז דף יומי - חולין דף יג. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף יג. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 14,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "dXqu8wRMihQ",
-          "label": "CHAZARAH - Chullin Daf 14 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 14 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "ZYOjM_2ucY0",
-          "label": "Daf Yomi Chullin Daf 14 by R’ Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 14 by R’ Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "zq-O8e0O2Sc",
-          "label": "חזרה - חולין דף יד | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף יד | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "ApRDzEv_PMU",
-          "label": "מרכז דף יומי - חולין דף יד. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 14,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "dXqu8wRMihQ",
-          "label": "CHAZARAH - Chullin Daf 14 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "ZYOjM_2ucY0",
-          "label": "Daf Yomi Chullin Daf 14 by R’ Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "zq-O8e0O2Sc",
-          "label": "חזרה - חולין דף יד | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "ApRDzEv_PMU",
-          "label": "מרכז דף יומי - חולין דף יד. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף יד. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 15,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "Anl1BEv9a9s",
-          "label": "CHAZARAH - Chullin Daf 15 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 15 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "9ja4nQvdr28",
-          "label": "Daf Yomi Chullin Daf 15 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 15 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "tTTGCO8pynk",
-          "label": "חזרה - חולין דף טו | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף טו | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "LKC77sQ3nuc",
-          "label": "מרכז דף יומי - חולין דף טו. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 15,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "Anl1BEv9a9s",
-          "label": "CHAZARAH - Chullin Daf 15 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "9ja4nQvdr28",
-          "label": "Daf Yomi Chullin Daf 15 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "tTTGCO8pynk",
-          "label": "חזרה - חולין דף טו | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "LKC77sQ3nuc",
-          "label": "מרכז דף יומי - חולין דף טו. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף טו. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 16,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "OxnHbHRNzDQ",
-          "label": "CHAZARAH - Chullin Daf 16 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 16 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "PaiPocZ37J4",
-          "label": "Daf Yomi Chullin Daf 16 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 16 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "2ix8zf6k6hI",
-          "label": "חזרה - חולין דף טז | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף טז | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "UqsctGL_xGY",
-          "label": "מרכז דף יומי - חולין דף טז. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 16,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "OxnHbHRNzDQ",
-          "label": "CHAZARAH - Chullin Daf 16 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "PaiPocZ37J4",
-          "label": "Daf Yomi Chullin Daf 16 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "2ix8zf6k6hI",
-          "label": "חזרה - חולין דף טז | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "UqsctGL_xGY",
-          "label": "מרכז דף יומי - חולין דף טז. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף טז. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 17,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "2GiyrD7hprs",
-          "label": "CHAZARAH - Chullin Daf 17 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 17 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "PEGqQk4mSpc",
-          "label": "Daf Yomi Chullin Daf 17 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 17 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "-t3xsj487zk",
-          "label": "חזרה - חולין דף יז | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף יז | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "eTHQ5PWxSWY",
-          "label": "מרכז דף יומי - חולין דף יז. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 17,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "2GiyrD7hprs",
-          "label": "CHAZARAH - Chullin Daf 17 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "PEGqQk4mSpc",
-          "label": "Daf Yomi Chullin Daf 17 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "-t3xsj487zk",
-          "label": "חזרה - חולין דף יז | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "eTHQ5PWxSWY",
-          "label": "מרכז דף יומי - חולין דף יז. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף יז. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 18,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "4zXnDrIXE0U",
-          "label": "CHAZARAH - Chullin Daf 18 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 18 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "QP1MZDJqpXQ",
-          "label": "Daf Yomi Chullin Daf 18 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 18 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "nViEIEOAVMM",
-          "label": "חזרה - חולין דף יח | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף יח | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "ipZS4WeOXpU",
-          "label": "מרכז דף יומי - חולין דף יח. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 18,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "4zXnDrIXE0U",
-          "label": "CHAZARAH - Chullin Daf 18 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "QP1MZDJqpXQ",
-          "label": "Daf Yomi Chullin Daf 18 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "nViEIEOAVMM",
-          "label": "חזרה - חולין דף יח | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "ipZS4WeOXpU",
-          "label": "מרכז דף יומי - חולין דף יח. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף יח. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 19,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "-0UBoxQlZ3M",
-          "label": "CHAZARAH - Chullin Daf 19 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 19 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "K8VukU8-Msc",
-          "label": "Daf Yomi Chullin Daf 19 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 19 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "85hs2lhUEIw",
-          "label": "חזרה - חולין דף יט | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף יט | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "e2ugYE5NdgE",
-          "label": "מרכז דף יומי - חולין דף יט. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 19,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "-0UBoxQlZ3M",
-          "label": "CHAZARAH - Chullin Daf 19 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "K8VukU8-Msc",
-          "label": "Daf Yomi Chullin Daf 19 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "85hs2lhUEIw",
-          "label": "חזרה - חולין דף יט | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "e2ugYE5NdgE",
-          "label": "מרכז דף יומי - חולין דף יט. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף יט. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 20,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "5kPHI5XaUGE",
-          "label": "CHAZARAH - Chullin Daf 20 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 20 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "WfacrJkgcxE",
-          "label": "Daf Yomi Chullin Daf 20 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 20 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "PmL5vu1S_nM",
-          "label": "חזרה - חולין דף כ | \"רק הדף\" עם ר' אלי ס"
+          "label": "חזרה - חולין דף כ | \"רק הדף\" עם ר' אלי ס",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "wORVLlZuBNs",
-          "label": "מרכז דף יומי - חולין דף כ. - ר' אלי סטפנ"
-        }
-      },
-      {
-        "daf": 20,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "5kPHI5XaUGE",
-          "label": "CHAZARAH - Chullin Daf 20 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "WfacrJkgcxE",
-          "label": "Daf Yomi Chullin Daf 20 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "PmL5vu1S_nM",
-          "label": "חזרה - חולין דף כ | \"רק הדף\" עם ר' אלי ס"
-        },
-        "regularHe": {
-          "videoId": "wORVLlZuBNs",
-          "label": "מרכז דף יומי - חולין דף כ. - ר' אלי סטפנ"
+          "label": "מרכז דף יומי - חולין דף כ. - ר' אלי סטפנ",
+          "amud": "a"
         }
       },
       {
         "daf": 21,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "DYzz8IM0Ado",
-          "label": "CHAZARAH - Chullin Daf 21 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 21 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "978Tf_SKEqs",
-          "label": "Daf Yomi Chullin Daf 21 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 21 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "M0BqECAsmpw",
-          "label": "חזרה - חולין דף כא | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף כא | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "svMsuXxcV-o",
-          "label": "מרכז דף יומי - חולין דף כא. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 21,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "DYzz8IM0Ado",
-          "label": "CHAZARAH - Chullin Daf 21 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "978Tf_SKEqs",
-          "label": "Daf Yomi Chullin Daf 21 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "M0BqECAsmpw",
-          "label": "חזרה - חולין דף כא | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "svMsuXxcV-o",
-          "label": "מרכז דף יומי - חולין דף כא. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף כא. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 22,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "wLcsYZ02xck",
-          "label": "CHAZARAH - Chullin Daf 22 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 22 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "LX-VE3PYvcU",
-          "label": "Daf Yomi Chullin Daf 22 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 22 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "HV_n9xenuNY",
-          "label": "חזרה - חולין דף כב | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף כב | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "g_EQAjl4Kuo",
-          "label": "מרכז דף יומי - חולין דף כב. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 22,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "wLcsYZ02xck",
-          "label": "CHAZARAH - Chullin Daf 22 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "LX-VE3PYvcU",
-          "label": "Daf Yomi Chullin Daf 22 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "HV_n9xenuNY",
-          "label": "חזרה - חולין דף כב | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "g_EQAjl4Kuo",
-          "label": "מרכז דף יומי - חולין דף כב. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף כב. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 23,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "NATox_Q18PI",
-          "label": "CHAZARAH - Chullin Daf 23 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 23 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "I0JQjSGQU0c",
-          "label": "Daf Yomi Chullin Daf 23 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 23 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "FdcpK9eO42o",
-          "label": "חזרה - חולין דף כג | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף כג | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "OgqQteKwB1Q",
-          "label": "מרכז דף יומי - חולין דף כג. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 23,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "NATox_Q18PI",
-          "label": "CHAZARAH - Chullin Daf 23 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "I0JQjSGQU0c",
-          "label": "Daf Yomi Chullin Daf 23 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "FdcpK9eO42o",
-          "label": "חזרה - חולין דף כג | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "OgqQteKwB1Q",
-          "label": "מרכז דף יומי - חולין דף כג. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף כג. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 24,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "fsRO_1l_968",
-          "label": "CHAZARAH - Chullin Daf 24 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 24 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "expMbk2zOrA",
-          "label": "Daf Yomi Chullin Daf 24 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 24 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "oowDdnjBlwA",
-          "label": "חזרה - חולין דף כד | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף כד | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "X-61-llo8sU",
-          "label": "מרכז דף יומי - חולין דף כד. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 24,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "fsRO_1l_968",
-          "label": "CHAZARAH - Chullin Daf 24 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "expMbk2zOrA",
-          "label": "Daf Yomi Chullin Daf 24 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "oowDdnjBlwA",
-          "label": "חזרה - חולין דף כד | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "X-61-llo8sU",
-          "label": "מרכז דף יומי - חולין דף כד. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף כד. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 25,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "XxSahgZGjoM",
-          "label": "CHAZARAH - Chullin Daf 25 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 25 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "AD6Hqcsv1m0",
-          "label": "Daf Yomi Chullin Daf 25 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 25 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "63st3Rn4PsI",
-          "label": "חזרה - חולין דף כה | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף כה | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "0RQbvqaSL2o",
-          "label": "מרכז דף יומי - חולין דף כה. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 25,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "XxSahgZGjoM",
-          "label": "CHAZARAH - Chullin Daf 25 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "AD6Hqcsv1m0",
-          "label": "Daf Yomi Chullin Daf 25 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "63st3Rn4PsI",
-          "label": "חזרה - חולין דף כה | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "0RQbvqaSL2o",
-          "label": "מרכז דף יומי - חולין דף כה. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף כה. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 26,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "_WPgdHppvnM",
-          "label": "CHAZARAH - Chullin Daf 26 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 26 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "plsQrwHyy1o",
-          "label": "Daf Yomi Chullin Daf 26 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 26 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "78bDpCT8aZY",
-          "label": "חזרה - חולין דף כו | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף כו | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "XPr_3QaC9FE",
-          "label": "מרכז דף יומי - חולין דף כו. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 26,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "_WPgdHppvnM",
-          "label": "CHAZARAH - Chullin Daf 26 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "plsQrwHyy1o",
-          "label": "Daf Yomi Chullin Daf 26 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "78bDpCT8aZY",
-          "label": "חזרה - חולין דף כו | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "XPr_3QaC9FE",
-          "label": "מרכז דף יומי - חולין דף כו. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף כו. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 27,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "AzC-2TMaewQ",
-          "label": "CHAZARAH - Chullin Daf 27 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 27 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "k7OQ9V6bjzQ",
-          "label": "Daf Yomi Chullin Daf 27 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 27 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "J5lk10UrjNA",
-          "label": "חזרה - חולין דף כז | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף כז | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "N5CKkICf2uY",
-          "label": "מרכז דף יומי - חולין דף כז. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 27,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "AzC-2TMaewQ",
-          "label": "CHAZARAH - Chullin Daf 27 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "k7OQ9V6bjzQ",
-          "label": "Daf Yomi Chullin Daf 27 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "J5lk10UrjNA",
-          "label": "חזרה - חולין דף כז | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "N5CKkICf2uY",
-          "label": "מרכז דף יומי - חולין דף כז. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף כז. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 28,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "U0b3zzg5t0Q",
-          "label": "CHAZARAH - Chullin Daf 28 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 28 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "787ZJG_jAq0",
-          "label": "Daf Yomi Chullin Daf 28 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 28 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "SBh2-EVBshQ",
-          "label": "חזרה - חולין דף כח | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף כח | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "8vSJysweQ9M",
-          "label": "מרכז דף יומי - חולין דף כח. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 28,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "U0b3zzg5t0Q",
-          "label": "CHAZARAH - Chullin Daf 28 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "787ZJG_jAq0",
-          "label": "Daf Yomi Chullin Daf 28 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "SBh2-EVBshQ",
-          "label": "חזרה - חולין דף כח | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "8vSJysweQ9M",
-          "label": "מרכז דף יומי - חולין דף כח. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף כח. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 29,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "Nv_96x-bA1c",
-          "label": "CHAZARAH - Chullin Daf 29 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 29 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "PhUoL0KNkD4",
-          "label": "Daf Yomi Chullin Daf 29 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 29 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "boNLgDFQQCo",
-          "label": "חזרה - חולין דף כט | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף כט | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "j8anWHp27mM",
-          "label": "מרכז דף יומי - חולין דף כט. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 29,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "Nv_96x-bA1c",
-          "label": "CHAZARAH - Chullin Daf 29 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "PhUoL0KNkD4",
-          "label": "Daf Yomi Chullin Daf 29 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "boNLgDFQQCo",
-          "label": "חזרה - חולין דף כט | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "j8anWHp27mM",
-          "label": "מרכז דף יומי - חולין דף כט. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף כט. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 30,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "A91dmfXB4eA",
-          "label": "CHAZARAH - Chullin Daf 30 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 30 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "IAiXAQh3_20",
-          "label": "Daf Yomi Chullin Daf 30 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 30 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "z19o8FwR8ug",
-          "label": "חזרה - חולין דף ל | \"רק הדף\" עם ר' אלי ס"
+          "label": "חזרה - חולין דף ל | \"רק הדף\" עם ר' אלי ס",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "ehGTShjysg4",
-          "label": "מרכז דף יומי - חולין דף ל. - ר' אלי סטפנ"
-        }
-      },
-      {
-        "daf": 30,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "A91dmfXB4eA",
-          "label": "CHAZARAH - Chullin Daf 30 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "IAiXAQh3_20",
-          "label": "Daf Yomi Chullin Daf 30 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "z19o8FwR8ug",
-          "label": "חזרה - חולין דף ל | \"רק הדף\" עם ר' אלי ס"
-        },
-        "regularHe": {
-          "videoId": "ehGTShjysg4",
-          "label": "מרכז דף יומי - חולין דף ל. - ר' אלי סטפנ"
+          "label": "מרכז דף יומי - חולין דף ל. - ר' אלי סטפנ",
+          "amud": "a"
         }
       },
       {
         "daf": 31,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "G2cqq9oo9Fs",
-          "label": "CHAZARAH - Chullin Daf 31 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 31 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "t_b005QJBBs",
-          "label": "Daf Yomi Chullin Daf 31 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 31 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "hYmicqFgxIg",
-          "label": "חזרה - חולין דף לא | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף לא | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "sY_p3Y7ARu0",
-          "label": "מרכז דף יומי - חולין דף לא. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 31,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "G2cqq9oo9Fs",
-          "label": "CHAZARAH - Chullin Daf 31 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "t_b005QJBBs",
-          "label": "Daf Yomi Chullin Daf 31 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "hYmicqFgxIg",
-          "label": "חזרה - חולין דף לא | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "sY_p3Y7ARu0",
-          "label": "מרכז דף יומי - חולין דף לא. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף לא. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 32,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "zJn8w7CbW64",
-          "label": "CHAZARAH - Chullin Daf 32 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 32 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "2b1hPYzbVUc",
-          "label": "Daf Yomi Chullin Daf 32 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 32 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "DOUjNgOPJBo",
-          "label": "חזרה - חולין דף לב | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף לב | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "DwGaBJHo10E",
-          "label": "מרכז דף יומי - חולין דף לב. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 32,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "zJn8w7CbW64",
-          "label": "CHAZARAH - Chullin Daf 32 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "2b1hPYzbVUc",
-          "label": "Daf Yomi Chullin Daf 32 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "DOUjNgOPJBo",
-          "label": "חזרה - חולין דף לב | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "DwGaBJHo10E",
-          "label": "מרכז דף יומי - חולין דף לב. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף לב. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 33,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "7jNWp1LxwSM",
-          "label": "CHAZARAH - Chullin Daf 33 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 33 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "yeQIGOn0IoU",
-          "label": "Daf Yomi Chullin Daf 33 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 33 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "WxieN_IpogU",
-          "label": "חזרה - חולין דף לג | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף לג | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "Hpzde0VrqqA",
-          "label": "מרכז דף יומי - חולין דף לג. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 33,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "7jNWp1LxwSM",
-          "label": "CHAZARAH - Chullin Daf 33 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "yeQIGOn0IoU",
-          "label": "Daf Yomi Chullin Daf 33 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "WxieN_IpogU",
-          "label": "חזרה - חולין דף לג | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "Hpzde0VrqqA",
-          "label": "מרכז דף יומי - חולין דף לג. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף לג. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 34,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "O5fW2e8woaQ",
-          "label": "CHAZARAH - Chullin Daf 34 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 34 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "8WcgL8DF5C0",
-          "label": "Daf Yomi Chullin Daf 34 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 34 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "Hnt1yaMBkdM",
-          "label": "חזרה - חולין דף לד | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף לד | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "CiTm_er9cro",
-          "label": "מרכז דף יומי - חולין דף לד. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 34,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "O5fW2e8woaQ",
-          "label": "CHAZARAH - Chullin Daf 34 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "8WcgL8DF5C0",
-          "label": "Daf Yomi Chullin Daf 34 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "Hnt1yaMBkdM",
-          "label": "חזרה - חולין דף לד | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "CiTm_er9cro",
-          "label": "מרכז דף יומי - חולין דף לד. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף לד. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 35,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "3VoxWrJonj4",
-          "label": "CHAZARAH - Chullin Daf 35 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 35 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "zGCOBR1-P5M",
-          "label": "Daf Yomi Chullin Daf 35 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 35 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "NoaUgSyeQRc",
-          "label": "חזרה - חולין דף לה | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף לה | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "JrN3pfBCDlU",
-          "label": "מרכז דף יומי - חולין דף לה. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 35,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "3VoxWrJonj4",
-          "label": "CHAZARAH - Chullin Daf 35 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "zGCOBR1-P5M",
-          "label": "Daf Yomi Chullin Daf 35 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "NoaUgSyeQRc",
-          "label": "חזרה - חולין דף לה | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "JrN3pfBCDlU",
-          "label": "מרכז דף יומי - חולין דף לה. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף לה. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 36,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "5XNNyR9DDy8",
-          "label": "CHAZARAH - Chullin Daf 36 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 36 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "8mh3ookpiTk",
-          "label": "Daf Yomi Chullin Daf 36 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 36 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "882Atb2QAQo",
-          "label": "חזרה - חולין דף לו | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף לו | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "V1FOFnrYGSc",
-          "label": "מרכז דף יומי - חולין דף לו. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 36,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "5XNNyR9DDy8",
-          "label": "CHAZARAH - Chullin Daf 36 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "8mh3ookpiTk",
-          "label": "Daf Yomi Chullin Daf 36 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "882Atb2QAQo",
-          "label": "חזרה - חולין דף לו | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "V1FOFnrYGSc",
-          "label": "מרכז דף יומי - חולין דף לו. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף לו. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 37,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "11wbhOnGjc4",
-          "label": "CHAZARAH - Chullin Daf 37 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 37 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "TJDMTLUlTtY",
-          "label": "Daf Yomi Chullin Daf 37 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 37 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "-GwHeRXMWrs",
-          "label": "חזרה - חולין דף לז | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף לז | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "imqG6ldVRKU",
-          "label": "מרכז דף יומי - חולין דף לז. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 37,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "11wbhOnGjc4",
-          "label": "CHAZARAH - Chullin Daf 37 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "TJDMTLUlTtY",
-          "label": "Daf Yomi Chullin Daf 37 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "-GwHeRXMWrs",
-          "label": "חזרה - חולין דף לז | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "imqG6ldVRKU",
-          "label": "מרכז דף יומי - חולין דף לז. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף לז. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 38,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "tbovKdBCsIM",
-          "label": "CHAZARAH - Chullin Daf 38 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 38 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "FZAMxGdPMIk",
-          "label": "Daf Yomi Chullin Daf 38 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 38 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "4o1HuseHDPA",
-          "label": "חזרה - חולין דף לח | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף לח | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "xL2jtVkvSUk",
-          "label": "מרכז דף יומי - חולין דף לח. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 38,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "tbovKdBCsIM",
-          "label": "CHAZARAH - Chullin Daf 38 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "FZAMxGdPMIk",
-          "label": "Daf Yomi Chullin Daf 38 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "4o1HuseHDPA",
-          "label": "חזרה - חולין דף לח | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "xL2jtVkvSUk",
-          "label": "מרכז דף יומי - חולין דף לח. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף לח. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 39,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "2g4GjN1fydw",
-          "label": "CHAZARAH - Chullin Daf 39 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 39 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "hd8cCCe40AI",
-          "label": "Daf Yomi Chullin Daf 39 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 39 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "FajtH6oD4VA",
-          "label": "חזרה - חולין דף לט | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף לט | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "a3L0L8rdfT4",
-          "label": "מרכז דף יומי - חולין דף לט. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 39,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "2g4GjN1fydw",
-          "label": "CHAZARAH - Chullin Daf 39 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "hd8cCCe40AI",
-          "label": "Daf Yomi Chullin Daf 39 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "FajtH6oD4VA",
-          "label": "חזרה - חולין דף לט | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "a3L0L8rdfT4",
-          "label": "מרכז דף יומי - חולין דף לט. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף לט. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 40,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "gGAO4QlHlgk",
-          "label": "CHAZARAH - Chullin Daf 40 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 40 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "EKYMfvjhupA",
-          "label": "Daf Yomi Chullin Daf 40 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 40 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "oMNQo6lf8QE",
-          "label": "חזרה - חולין דף מ | \"רק הדף\" עם ר' אלי ס"
+          "label": "חזרה - חולין דף מ | \"רק הדף\" עם ר' אלי ס",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "iggRIvc5BgA",
-          "label": "מרכז דף יומי - חולין דף מ. - ר' אלי סטפנ"
-        }
-      },
-      {
-        "daf": 40,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "gGAO4QlHlgk",
-          "label": "CHAZARAH - Chullin Daf 40 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "EKYMfvjhupA",
-          "label": "Daf Yomi Chullin Daf 40 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "oMNQo6lf8QE",
-          "label": "חזרה - חולין דף מ | \"רק הדף\" עם ר' אלי ס"
-        },
-        "regularHe": {
-          "videoId": "iggRIvc5BgA",
-          "label": "מרכז דף יומי - חולין דף מ. - ר' אלי סטפנ"
+          "label": "מרכז דף יומי - חולין דף מ. - ר' אלי סטפנ",
+          "amud": "a"
         }
       },
       {
         "daf": 41,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "Yo1-jVcwjiI",
-          "label": "CHAZARAH - Chullin Daf 41 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 41 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "Wqqilr9gywo",
-          "label": "Daf Yomi Chullin Daf 41 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 41 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "82ptDxCCmWw",
-          "label": "חזרה - חולין דף מא | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף מא | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "FtHVKGhZL9E",
-          "label": "מרכז דף יומי - חולין דף מא. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 41,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "Yo1-jVcwjiI",
-          "label": "CHAZARAH - Chullin Daf 41 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "Wqqilr9gywo",
-          "label": "Daf Yomi Chullin Daf 41 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "82ptDxCCmWw",
-          "label": "חזרה - חולין דף מא | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "FtHVKGhZL9E",
-          "label": "מרכז דף יומי - חולין דף מא. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף מא. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 42,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "Uw183cVR4PA",
-          "label": "CHAZARAH - Chullin Daf 42 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 42 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "xaLmJbYhcU4",
-          "label": "Daf Yomi Chullin Daf 42 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 42 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "coXHkRbe7VQ",
-          "label": "חזרה - חולין דף מב | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף מב | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "MyF5H4lPGO4",
-          "label": "מרכז דף יומי - חולין דף מב. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 42,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "Uw183cVR4PA",
-          "label": "CHAZARAH - Chullin Daf 42 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "xaLmJbYhcU4",
-          "label": "Daf Yomi Chullin Daf 42 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "coXHkRbe7VQ",
-          "label": "חזרה - חולין דף מב | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "MyF5H4lPGO4",
-          "label": "מרכז דף יומי - חולין דף מב. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף מב. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 43,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "Ue9Rpdok14Q",
-          "label": "CHAZARAH - Chullin Daf 43 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 43 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "83UpZMHG0Bo",
-          "label": "Daf Yomi Chullin Daf 43 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 43 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "QQnaHmqAYTA",
-          "label": "חזרה - חולין דף מג | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף מג | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "mEnlBNSZ4Fk",
-          "label": "מרכז דף יומי - חולין דף מג. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 43,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "Ue9Rpdok14Q",
-          "label": "CHAZARAH - Chullin Daf 43 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "83UpZMHG0Bo",
-          "label": "Daf Yomi Chullin Daf 43 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "QQnaHmqAYTA",
-          "label": "חזרה - חולין דף מג | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "mEnlBNSZ4Fk",
-          "label": "מרכז דף יומי - חולין דף מג. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף מג. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 44,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "kkyEXUJ188k",
-          "label": "CHAZARAH - Chullin Daf 44 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 44 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "LdhG9gizJ0o",
-          "label": "Daf Yomi Chullin Daf 44 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 44 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "7tHxihPXqUo",
-          "label": "חזרה - חולין דף מד | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף מד | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "ayOGUEvwfwU",
-          "label": "מרכז דף יומי - חולין דף מד. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 44,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "kkyEXUJ188k",
-          "label": "CHAZARAH - Chullin Daf 44 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "LdhG9gizJ0o",
-          "label": "Daf Yomi Chullin Daf 44 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "7tHxihPXqUo",
-          "label": "חזרה - חולין דף מד | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "ayOGUEvwfwU",
-          "label": "מרכז דף יומי - חולין דף מד. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף מד. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 45,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "pN66A9GyP6I",
-          "label": "CHAZARAH - Chullin Daf 45 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 45 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "C-kPsRFLZhk",
-          "label": "Daf Yomi Chullin Daf 45 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 45 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "q-5Hb3WyAYE",
-          "label": "חזרה - חולין דף מה | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף מה | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "OneEPBP2E6k",
-          "label": "מרכז דף יומי - חולין דף מה. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 45,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "pN66A9GyP6I",
-          "label": "CHAZARAH - Chullin Daf 45 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "C-kPsRFLZhk",
-          "label": "Daf Yomi Chullin Daf 45 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "q-5Hb3WyAYE",
-          "label": "חזרה - חולין דף מה | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "OneEPBP2E6k",
-          "label": "מרכז דף יומי - חולין דף מה. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף מה. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 46,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "mEEtMxO97fM",
-          "label": "CHAZARAH - Chullin Daf 46 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 46 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "XFL2qcm98xE",
-          "label": "Daf Yomi Chullin Daf 46 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 46 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "hwq8Sr7-M30",
-          "label": "חזרה - חולין דף מו | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף מו | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "HdNhQoDYoiw",
-          "label": "מרכז דף יומי - חולין דף מו. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 46,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "mEEtMxO97fM",
-          "label": "CHAZARAH - Chullin Daf 46 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "XFL2qcm98xE",
-          "label": "Daf Yomi Chullin Daf 46 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "hwq8Sr7-M30",
-          "label": "חזרה - חולין דף מו | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "HdNhQoDYoiw",
-          "label": "מרכז דף יומי - חולין דף מו. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף מו. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 47,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "1PgRu_fs670",
-          "label": "CHAZARAH - Chullin Daf 47 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 47 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "soVzhXbtTuw",
-          "label": "Daf Yomi Chullin Daf 47 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 47 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "g0ceWbFKg_4",
-          "label": "חזרה - חולין דף מז | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף מז | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "VvY19VbbwXE",
-          "label": "מרכז דף יומי - חולין דף מז. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 47,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "1PgRu_fs670",
-          "label": "CHAZARAH - Chullin Daf 47 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "soVzhXbtTuw",
-          "label": "Daf Yomi Chullin Daf 47 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "g0ceWbFKg_4",
-          "label": "חזרה - חולין דף מז | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "VvY19VbbwXE",
-          "label": "מרכז דף יומי - חולין דף מז. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף מז. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 48,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "zIXimV0Yiv0",
-          "label": "CHAZARAH - Chullin Daf 48 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 48 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "QZySzkIal9U",
-          "label": "Daf Yomi Chullin Daf 48 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 48 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "gvq1LXwO6Qs",
-          "label": "חזרה - חולין דף מח | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף מח | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "ZiFWS7aUYL4",
-          "label": "מרכז דף יומי - חולין דף מח. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 48,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "zIXimV0Yiv0",
-          "label": "CHAZARAH - Chullin Daf 48 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "QZySzkIal9U",
-          "label": "Daf Yomi Chullin Daf 48 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "gvq1LXwO6Qs",
-          "label": "חזרה - חולין דף מח | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "ZiFWS7aUYL4",
-          "label": "מרכז דף יומי - חולין דף מח. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף מח. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 49,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "bKJjSbtheMo",
-          "label": "CHAZARAH - Chullin Daf 49 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 49 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "ZEbJezl7J3A",
-          "label": "Daf Yomi Chullin Daf 49 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 49 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "1ikT9yL9S5E",
-          "label": "חזרה - חולין דף מט | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף מט | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "BOPXA-ZXlR0",
-          "label": "מרכז דף יומי - חולין דף מט. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 49,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "bKJjSbtheMo",
-          "label": "CHAZARAH - Chullin Daf 49 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "ZEbJezl7J3A",
-          "label": "Daf Yomi Chullin Daf 49 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "1ikT9yL9S5E",
-          "label": "חזרה - חולין דף מט | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "BOPXA-ZXlR0",
-          "label": "מרכז דף יומי - חולין דף מט. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף מט. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 50,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "k7_DZfOWIcI",
-          "label": "CHAZARAH - Chullin Daf 50 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 50 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "1Ig1PDFPCSk",
-          "label": "Daf Yomi Chullin Daf 50 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 50 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "fxo39zkbxB0",
-          "label": "חזרה - חולין דף נ | \"רק הדף\" עם ר' אלי ס"
+          "label": "חזרה - חולין דף נ | \"רק הדף\" עם ר' אלי ס",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "1oTR-8tn4MA",
-          "label": "מרכז דף יומי - חולין דף נ. - ר' אלי סטפנ"
-        }
-      },
-      {
-        "daf": 50,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "k7_DZfOWIcI",
-          "label": "CHAZARAH - Chullin Daf 50 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "1Ig1PDFPCSk",
-          "label": "Daf Yomi Chullin Daf 50 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "fxo39zkbxB0",
-          "label": "חזרה - חולין דף נ | \"רק הדף\" עם ר' אלי ס"
-        },
-        "regularHe": {
-          "videoId": "1oTR-8tn4MA",
-          "label": "מרכז דף יומי - חולין דף נ. - ר' אלי סטפנ"
+          "label": "מרכז דף יומי - חולין דף נ. - ר' אלי סטפנ",
+          "amud": "a"
         }
       },
       {
         "daf": 51,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "5ogquMsIdAA",
-          "label": "CHAZARAH - Chullin Daf 51 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 51 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "RWY7vZ8HCkI",
-          "label": "Daf Yomi Chullin Daf 51 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 51 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "q0z6qW4h_Jg",
-          "label": "חזרה - חולין דף נא | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף נא | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "J-p2zKlbrNA",
-          "label": "מרכז דף יומי - חולין דף נא. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 51,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "5ogquMsIdAA",
-          "label": "CHAZARAH - Chullin Daf 51 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "RWY7vZ8HCkI",
-          "label": "Daf Yomi Chullin Daf 51 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "q0z6qW4h_Jg",
-          "label": "חזרה - חולין דף נא | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "J-p2zKlbrNA",
-          "label": "מרכז דף יומי - חולין דף נא. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף נא. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 52,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "AA-1ORwkuZU",
-          "label": "CHAZARAH - Chullin Daf 52 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 52 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "g6PjXvDVmB0",
-          "label": "Daf Yomi Chullin Daf 52 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 52 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "p8Xs5Gni4VQ",
-          "label": "חזרה - חולין דף נב | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף נב | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "4rc4gUk_jI0",
-          "label": "מרכז דף יומי - חולין דף נב. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 52,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "AA-1ORwkuZU",
-          "label": "CHAZARAH - Chullin Daf 52 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "g6PjXvDVmB0",
-          "label": "Daf Yomi Chullin Daf 52 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "p8Xs5Gni4VQ",
-          "label": "חזרה - חולין דף נב | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "4rc4gUk_jI0",
-          "label": "מרכז דף יומי - חולין דף נב. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף נב. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 53,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "ESDyqKC79EI",
-          "label": "CHAZARAH - Chullin Daf 53 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 53 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "R42CwUtxPb8",
-          "label": "Daf Yomi Chullin Daf 53 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 53 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "Rh17--yMj2g",
-          "label": "חזרה - חולין דף נג | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף נג | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "zlV50-pBDxg",
-          "label": "מרכז דף יומי - חולין דף נג. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 53,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "ESDyqKC79EI",
-          "label": "CHAZARAH - Chullin Daf 53 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "R42CwUtxPb8",
-          "label": "Daf Yomi Chullin Daf 53 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "Rh17--yMj2g",
-          "label": "חזרה - חולין דף נג | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "zlV50-pBDxg",
-          "label": "מרכז דף יומי - חולין דף נג. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף נג. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 54,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "R7xrY9la1p0",
-          "label": "CHAZARAH - Chullin Daf 54 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 54 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "UT6VBM0At1c",
-          "label": "Daf Yomi Chullin Daf 54 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 54 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "UpC2rEI0BmY",
-          "label": "חזרה - חולין דף נד | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף נד | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "zfqNOgi4Wkw",
-          "label": "מרכז דף יומי - חולין דף נד. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 54,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "R7xrY9la1p0",
-          "label": "CHAZARAH - Chullin Daf 54 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "UT6VBM0At1c",
-          "label": "Daf Yomi Chullin Daf 54 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "UpC2rEI0BmY",
-          "label": "חזרה - חולין דף נד | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "zfqNOgi4Wkw",
-          "label": "מרכז דף יומי - חולין דף נד. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף נד. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 55,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "hcyPJqlRSd0",
-          "label": "CHAZARAH - Chullin Daf 55 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 55 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "QZXu3xqCAQw",
-          "label": "Daf Yomi Chullin Daf 55 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 55 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "-tUWB73Wol0",
-          "label": "חזרה - חולין דף נה | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף נה | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "-QvO__tVyso",
-          "label": "מרכז דף יומי - חולין דף נה. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 55,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "hcyPJqlRSd0",
-          "label": "CHAZARAH - Chullin Daf 55 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "QZXu3xqCAQw",
-          "label": "Daf Yomi Chullin Daf 55 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "-tUWB73Wol0",
-          "label": "חזרה - חולין דף נה | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "-QvO__tVyso",
-          "label": "מרכז דף יומי - חולין דף נה. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף נה. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 56,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "_pyM5PB53Q4",
-          "label": "CHAZARAH - Chullin Daf 56 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 56 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "tmbe0JFJKug",
-          "label": "Daf Yomi Chullin Daf 56 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 56 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "I0zZ2w8ym70",
-          "label": "חזרה - חולין דף נו | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף נו | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "nEchPxzamUs",
-          "label": "מרכז דף יומי - חולין דף נו. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 56,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "_pyM5PB53Q4",
-          "label": "CHAZARAH - Chullin Daf 56 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "tmbe0JFJKug",
-          "label": "Daf Yomi Chullin Daf 56 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "I0zZ2w8ym70",
-          "label": "חזרה - חולין דף נו | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "nEchPxzamUs",
-          "label": "מרכז דף יומי - חולין דף נו. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף נו. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 57,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "6bhC0K7dfyw",
-          "label": "CHAZARAH - Chullin Daf 57 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 57 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "PrbDXMjfeE8",
-          "label": "Daf Yomi Chullin Daf 57 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 57 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "yKT4T3lESPo",
-          "label": "חזרה - חולין דף נז | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף נז | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "vd77colmqqg",
-          "label": "מרכז דף יומי - חולין דף נז. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 57,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "6bhC0K7dfyw",
-          "label": "CHAZARAH - Chullin Daf 57 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "PrbDXMjfeE8",
-          "label": "Daf Yomi Chullin Daf 57 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "yKT4T3lESPo",
-          "label": "חזרה - חולין דף נז | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "vd77colmqqg",
-          "label": "מרכז דף יומי - חולין דף נז. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף נז. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 58,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "eWYUc8ZloWU",
-          "label": "CHAZARAH - Chullin Daf 58 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 58 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "Ik9M50STIfk",
-          "label": "Daf Yomi Chullin Daf 58 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 58 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "si_9mPXVn-I",
-          "label": "חזרה - חולין דף נח | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף נח | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "AIv5D4gTNXc",
-          "label": "מרכז דף יומי - חולין דף נח. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 58,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "eWYUc8ZloWU",
-          "label": "CHAZARAH - Chullin Daf 58 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "Ik9M50STIfk",
-          "label": "Daf Yomi Chullin Daf 58 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "si_9mPXVn-I",
-          "label": "חזרה - חולין דף נח | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "AIv5D4gTNXc",
-          "label": "מרכז דף יומי - חולין דף נח. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף נח. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 59,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "U0eT3-mozv0",
-          "label": "CHAZARAH - Chullin Daf 59 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 59 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "tUem0ZzRdPo",
-          "label": "Daf Yomi Chullin Daf 59 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 59 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "Uu33LG5hITc",
-          "label": "חזרה - חולין דף נט | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף נט | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "yzKW7Y_82Os",
-          "label": "מרכז דף יומי - חולין דף נט. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 59,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "U0eT3-mozv0",
-          "label": "CHAZARAH - Chullin Daf 59 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "tUem0ZzRdPo",
-          "label": "Daf Yomi Chullin Daf 59 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "Uu33LG5hITc",
-          "label": "חזרה - חולין דף נט | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "yzKW7Y_82Os",
-          "label": "מרכז דף יומי - חולין דף נט. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף נט. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 60,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "sGIY-gj5r-k",
-          "label": "CHAZARAH - Chullin Daf 60 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 60 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "c2OAY1sEda8",
-          "label": "Daf Yomi Chullin Daf 60 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 60 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "-VbLBJJa2nQ",
-          "label": "חזרה - חולין דף ס | \"רק הדף\" עם ר' אלי ס"
+          "label": "חזרה - חולין דף ס | \"רק הדף\" עם ר' אלי ס",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "X2jyZJ7yT38",
-          "label": "מרכז דף יומי - חולין דף ס. - ר' אלי סטפנ"
-        }
-      },
-      {
-        "daf": 60,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "sGIY-gj5r-k",
-          "label": "CHAZARAH - Chullin Daf 60 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "c2OAY1sEda8",
-          "label": "Daf Yomi Chullin Daf 60 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "-VbLBJJa2nQ",
-          "label": "חזרה - חולין דף ס | \"רק הדף\" עם ר' אלי ס"
-        },
-        "regularHe": {
-          "videoId": "X2jyZJ7yT38",
-          "label": "מרכז דף יומי - חולין דף ס. - ר' אלי סטפנ"
+          "label": "מרכז דף יומי - חולין דף ס. - ר' אלי סטפנ",
+          "amud": "a"
         }
       },
       {
         "daf": 61,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "n0Sgf-PtZ2g",
-          "label": "CHAZARAH - Chullin Daf 61 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 61 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "FOQlFhYyugY",
-          "label": "Daf Yomi Chullin Daf 61 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 61 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "tQL58rs7IXE",
-          "label": "חזרה - חולין דף סא | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף סא | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "zpw4oXHRFrg",
-          "label": "מרכז דף יומי - חולין דף סא. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 61,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "n0Sgf-PtZ2g",
-          "label": "CHAZARAH - Chullin Daf 61 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "FOQlFhYyugY",
-          "label": "Daf Yomi Chullin Daf 61 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "tQL58rs7IXE",
-          "label": "חזרה - חולין דף סא | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "zpw4oXHRFrg",
-          "label": "מרכז דף יומי - חולין דף סא. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף סא. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 62,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "7RAEeleCYQ4",
-          "label": "CHAZARAH - Chullin Daf 62 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 62 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "PlRgwE7-CjU",
-          "label": "Daf Yomi Chullin Daf 62 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 62 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "ClG8mEJzY_E",
-          "label": "חזרה - חולין דף סב | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף סב | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "zCmSbsIvFBI",
-          "label": "מרכז דף יומי - חולין דף סב. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 62,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "7RAEeleCYQ4",
-          "label": "CHAZARAH - Chullin Daf 62 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "PlRgwE7-CjU",
-          "label": "Daf Yomi Chullin Daf 62 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "ClG8mEJzY_E",
-          "label": "חזרה - חולין דף סב | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "zCmSbsIvFBI",
-          "label": "מרכז דף יומי - חולין דף סב. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף סב. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 63,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "eaV-s_TrLFs",
-          "label": "CHAZARAH - Chullin Daf 63 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 63 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "8OMUF6odSpI",
-          "label": "Daf Yomi Chullin Daf 63 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 63 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "JCyrvIbWuow",
-          "label": "חזרה - חולין דף סג | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף סג | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "bh2f_wDPWLA",
-          "label": "מרכז דף יומי - חולין דף סג. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 63,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "eaV-s_TrLFs",
-          "label": "CHAZARAH - Chullin Daf 63 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "8OMUF6odSpI",
-          "label": "Daf Yomi Chullin Daf 63 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "JCyrvIbWuow",
-          "label": "חזרה - חולין דף סג | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "bh2f_wDPWLA",
-          "label": "מרכז דף יומי - חולין דף סג. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף סג. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 64,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "3Ry3zucXahA",
-          "label": "CHAZARAH - Chullin Daf 64 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 64 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "K1gaBCN2Msw",
-          "label": "Daf Yomi Chullin Daf 64 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 64 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "2km8G5V6Hls",
-          "label": "חזרה - חולין דף סד | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף סד | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "-zD8ye9kIYU",
-          "label": "מרכז דף יומי - חולין דף סד. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 64,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "3Ry3zucXahA",
-          "label": "CHAZARAH - Chullin Daf 64 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "K1gaBCN2Msw",
-          "label": "Daf Yomi Chullin Daf 64 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "2km8G5V6Hls",
-          "label": "חזרה - חולין דף סד | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "-zD8ye9kIYU",
-          "label": "מרכז דף יומי - חולין דף סד. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף סד. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 65,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "McZ7zt20sL4",
-          "label": "CHAZARAH - Chullin Daf 65 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 65 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "oAZc_3p4yFg",
-          "label": "Daf Yomi Chullin Daf 65 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 65 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "jCvNNNO2_7g",
-          "label": "חזרה - חולין דף סה | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף סה | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "WssTKqNgGJ8",
-          "label": "מרכז דף יומי - חולין דף סה. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 65,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "McZ7zt20sL4",
-          "label": "CHAZARAH - Chullin Daf 65 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "oAZc_3p4yFg",
-          "label": "Daf Yomi Chullin Daf 65 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "jCvNNNO2_7g",
-          "label": "חזרה - חולין דף סה | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "WssTKqNgGJ8",
-          "label": "מרכז דף יומי - חולין דף סה. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף סה. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 66,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "BxZ_qrdQi0I",
-          "label": "CHAZARAH - Chullin Daf 66 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 66 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "_YOF0wCA5HI",
-          "label": "Daf Yomi Chullin Daf 66 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 66 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "x7aWKQDr8Aw",
-          "label": "חזרה - חולין דף סו | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף סו | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "RLl6GCKJ5Mo",
-          "label": "מרכז דף יומי - חולין דף סו. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 66,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "BxZ_qrdQi0I",
-          "label": "CHAZARAH - Chullin Daf 66 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "_YOF0wCA5HI",
-          "label": "Daf Yomi Chullin Daf 66 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "x7aWKQDr8Aw",
-          "label": "חזרה - חולין דף סו | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "RLl6GCKJ5Mo",
-          "label": "מרכז דף יומי - חולין דף סו. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף סו. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 67,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "7F2XK5zXNJY",
-          "label": "CHAZARAH - Chullin Daf 67 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 67 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "pYQEgFaWsDU",
-          "label": "Daf Yomi Chullin Daf 67 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 67 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "Pm8-PXnJEMs",
-          "label": "חזרה - חולין דף סז | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף סז | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "KSVYZ9DI6l4",
-          "label": "מרכז דף יומי - חולין דף סז. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 67,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "7F2XK5zXNJY",
-          "label": "CHAZARAH - Chullin Daf 67 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "pYQEgFaWsDU",
-          "label": "Daf Yomi Chullin Daf 67 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "Pm8-PXnJEMs",
-          "label": "חזרה - חולין דף סז | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "KSVYZ9DI6l4",
-          "label": "מרכז דף יומי - חולין דף סז. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף סז. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 68,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "b86gKlzOOZ8",
-          "label": "CHAZARAH - Chullin Daf 68 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 68 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "8k3MqUpmPfc",
-          "label": "Daf Yomi Chullin Daf 68 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 68 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "JiUmHm6JEnI",
-          "label": "חזרה - חולין דף סח | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף סח | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "t_1WoAOFflE",
-          "label": "מרכז דף יומי - חולין דף סח. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 68,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "b86gKlzOOZ8",
-          "label": "CHAZARAH - Chullin Daf 68 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "8k3MqUpmPfc",
-          "label": "Daf Yomi Chullin Daf 68 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "JiUmHm6JEnI",
-          "label": "חזרה - חולין דף סח | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "t_1WoAOFflE",
-          "label": "מרכז דף יומי - חולין דף סח. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף סח. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 69,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "f3RRejFWfKY",
-          "label": "CHAZARAH - Chullin Daf 69 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 69 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "2a0zSC73EqA",
-          "label": "Daf Yomi Chullin Daf 69 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 69 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "Y4k7D1i6AP4",
-          "label": "חזרה - חולין דף סט | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף סט | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "usUsy12tZfA",
-          "label": "מרכז דף יומי - חולין דף סט. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 69,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "f3RRejFWfKY",
-          "label": "CHAZARAH - Chullin Daf 69 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "2a0zSC73EqA",
-          "label": "Daf Yomi Chullin Daf 69 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "Y4k7D1i6AP4",
-          "label": "חזרה - חולין דף סט | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "usUsy12tZfA",
-          "label": "מרכז דף יומי - חולין דף סט. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף סט. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 70,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "IBfWcVMTun8",
-          "label": "CHAZARAH - Chullin Daf 70 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 70 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "-WMT8nQR9fg",
-          "label": "Daf Yomi Chullin Daf 70 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 70 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "hwC-rHV4tp0",
-          "label": "חזרה - חולין דף ע | \"רק הדף\" עם ר' אלי ס"
+          "label": "חזרה - חולין דף ע | \"רק הדף\" עם ר' אלי ס",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "KJ7KcAJfuHE",
-          "label": "מרכז דף יומי - חולין דף ע. - ר' אלי סטפנ"
-        }
-      },
-      {
-        "daf": 70,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "IBfWcVMTun8",
-          "label": "CHAZARAH - Chullin Daf 70 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "-WMT8nQR9fg",
-          "label": "Daf Yomi Chullin Daf 70 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "hwC-rHV4tp0",
-          "label": "חזרה - חולין דף ע | \"רק הדף\" עם ר' אלי ס"
-        },
-        "regularHe": {
-          "videoId": "KJ7KcAJfuHE",
-          "label": "מרכז דף יומי - חולין דף ע. - ר' אלי סטפנ"
+          "label": "מרכז דף יומי - חולין דף ע. - ר' אלי סטפנ",
+          "amud": "a"
         }
       },
       {
         "daf": 71,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "nbipmWx2RCo",
-          "label": "CHAZARAH - Chullin Daf 71 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 71 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "dPVV5kFi7qs",
-          "label": "Daf Yomi Chullin Daf 71 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 71 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "jaPsI6IavZY",
-          "label": "חזרה - חולין דף עא | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף עא | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "jB4gdhvIsgk",
-          "label": "מרכז דף יומי - חולין דף עא. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 71,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "nbipmWx2RCo",
-          "label": "CHAZARAH - Chullin Daf 71 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "dPVV5kFi7qs",
-          "label": "Daf Yomi Chullin Daf 71 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "jaPsI6IavZY",
-          "label": "חזרה - חולין דף עא | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "jB4gdhvIsgk",
-          "label": "מרכז דף יומי - חולין דף עא. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף עא. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 72,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "kl5CcJ92Jgs",
-          "label": "CHAZARAH - Chullin Daf 72 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 72 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "5kHdS5Gmlxc",
-          "label": "Daf Yomi Chullin Daf 72 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 72 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "-06pBoC6YSc",
-          "label": "חזרה - חולין דף עב | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף עב | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "GX51oOT0zMU",
-          "label": "מרכז דף יומי - חולין דף עב. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 72,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "kl5CcJ92Jgs",
-          "label": "CHAZARAH - Chullin Daf 72 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "5kHdS5Gmlxc",
-          "label": "Daf Yomi Chullin Daf 72 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "-06pBoC6YSc",
-          "label": "חזרה - חולין דף עב | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "GX51oOT0zMU",
-          "label": "מרכז דף יומי - חולין דף עב. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף עב. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 73,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "n5GyIwRnGh0",
-          "label": "CHAZARAH - Chullin Daf 73 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 73 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "avQyoswVlKQ",
-          "label": "Daf Yomi Chullin Daf 73 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 73 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "6Sutj6zZj9k",
-          "label": "חזרה - חולין דף עג | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף עג | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "jvsPAdkf_Bw",
-          "label": "מרכז דף יומי - חולין דף עג. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 73,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "n5GyIwRnGh0",
-          "label": "CHAZARAH - Chullin Daf 73 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "avQyoswVlKQ",
-          "label": "Daf Yomi Chullin Daf 73 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "6Sutj6zZj9k",
-          "label": "חזרה - חולין דף עג | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "jvsPAdkf_Bw",
-          "label": "מרכז דף יומי - חולין דף עג. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף עג. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 74,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "7gZE6fhdXWU",
-          "label": "CHAZARAH - Chullin Daf 74 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 74 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "xBQbtHg0TBA",
-          "label": "Daf Yomi Chullin Daf 74 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 74 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "KzrIDSVOvw0",
-          "label": "חזרה - חולין דף עד | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף עד | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "38pxcV4_FPY",
-          "label": "מרכז דף יומי - חולין דף עד. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 74,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "7gZE6fhdXWU",
-          "label": "CHAZARAH - Chullin Daf 74 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "xBQbtHg0TBA",
-          "label": "Daf Yomi Chullin Daf 74 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "KzrIDSVOvw0",
-          "label": "חזרה - חולין דף עד | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "38pxcV4_FPY",
-          "label": "מרכז דף יומי - חולין דף עד. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף עד. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 75,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "rDiVhEcBrhA",
-          "label": "CHAZARAH - Chullin Daf 75 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 75 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "31rpNALLM5k",
-          "label": "Daf Yomi Chullin Daf 75 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 75 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "dg_wHnYl1oM",
-          "label": "חזרה - חולין דף עה | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף עה | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "mATuWuvgvHY",
-          "label": "מרכז דף יומי - חולין דף עה. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 75,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "rDiVhEcBrhA",
-          "label": "CHAZARAH - Chullin Daf 75 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "31rpNALLM5k",
-          "label": "Daf Yomi Chullin Daf 75 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "dg_wHnYl1oM",
-          "label": "חזרה - חולין דף עה | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "mATuWuvgvHY",
-          "label": "מרכז דף יומי - חולין דף עה. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף עה. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 76,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "W9Lybs54qo4",
-          "label": "CHAZARAH - Chullin Daf 76 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 76 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "yhxhTuqdetI",
-          "label": "Daf Yomi Chullin Daf 76 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 76 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "FmWXFdjqPcE",
-          "label": "חזרה - חולין דף עו | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף עו | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "Q6e_nFDI_GI",
-          "label": "מרכז דף יומי - חולין דף עו. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 76,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "W9Lybs54qo4",
-          "label": "CHAZARAH - Chullin Daf 76 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "yhxhTuqdetI",
-          "label": "Daf Yomi Chullin Daf 76 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "FmWXFdjqPcE",
-          "label": "חזרה - חולין דף עו | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "Q6e_nFDI_GI",
-          "label": "מרכז דף יומי - חולין דף עו. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף עו. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 77,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "vZWnu0jAQww",
-          "label": "CHAZARAH - Chullin Daf 77 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 77 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "2Js16N3cpRk",
-          "label": "Daf Yomi Chullin Daf 77 by R’ Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 77 by R’ Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "oYYV9gkOrrc",
-          "label": "חזרה - חולין דף עז | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף עז | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "ifTcs4gt18g",
-          "label": "מרכז דף יומי - חולין דף עז. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 77,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "vZWnu0jAQww",
-          "label": "CHAZARAH - Chullin Daf 77 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "2Js16N3cpRk",
-          "label": "Daf Yomi Chullin Daf 77 by R’ Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "oYYV9gkOrrc",
-          "label": "חזרה - חולין דף עז | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "ifTcs4gt18g",
-          "label": "מרכז דף יומי - חולין דף עז. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף עז. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 78,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "LgCe0WOlZOo",
-          "label": "CHAZARAH - Chullin Daf 78 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 78 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "FrM84idVYTs",
-          "label": "Daf Yomi Chullin Daf 78 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 78 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "AUPMRjkHqy8",
-          "label": "חזרה - חולין דף עח | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף עח | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "vCmMD5sbqsQ",
-          "label": "מרכז דף יומי - חולין דף עח. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 78,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "LgCe0WOlZOo",
-          "label": "CHAZARAH - Chullin Daf 78 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "FrM84idVYTs",
-          "label": "Daf Yomi Chullin Daf 78 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "AUPMRjkHqy8",
-          "label": "חזרה - חולין דף עח | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "vCmMD5sbqsQ",
-          "label": "מרכז דף יומי - חולין דף עח. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף עח. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 79,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "7xnY_ne6mUc",
-          "label": "CHAZARAH - Chullin Daf 79 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 79 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "dEdV0f9WLD8",
-          "label": "Daf Yomi Chullin Daf 79 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 79 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "veolQleVOmE",
-          "label": "חזרה - חולין דף עט | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף עט | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "DYZBGEZkPH4",
-          "label": "מרכז דף יומי - חולין דף עט. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 79,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "7xnY_ne6mUc",
-          "label": "CHAZARAH - Chullin Daf 79 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "dEdV0f9WLD8",
-          "label": "Daf Yomi Chullin Daf 79 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "veolQleVOmE",
-          "label": "חזרה - חולין דף עט | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "DYZBGEZkPH4",
-          "label": "מרכז דף יומי - חולין דף עט. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף עט. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 80,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "WLz3OIP_Cw4",
-          "label": "CHAZARAH - Chullin Daf 80 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 80 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "gNnGskd30K8",
-          "label": "Daf Yomi Chullin Daf 80 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 80 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "fP2HHuNmYcs",
-          "label": "חזרה - חולין דף פ | \"רק הדף\" עם ר' אלי ס"
+          "label": "חזרה - חולין דף פ | \"רק הדף\" עם ר' אלי ס",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "CMiAqCWehxQ",
-          "label": "מרכז דף יומי - חולין דף פ. - ר' אלי סטפנ"
-        }
-      },
-      {
-        "daf": 80,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "WLz3OIP_Cw4",
-          "label": "CHAZARAH - Chullin Daf 80 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "gNnGskd30K8",
-          "label": "Daf Yomi Chullin Daf 80 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "fP2HHuNmYcs",
-          "label": "חזרה - חולין דף פ | \"רק הדף\" עם ר' אלי ס"
-        },
-        "regularHe": {
-          "videoId": "CMiAqCWehxQ",
-          "label": "מרכז דף יומי - חולין דף פ. - ר' אלי סטפנ"
+          "label": "מרכז דף יומי - חולין דף פ. - ר' אלי סטפנ",
+          "amud": "a"
         }
       },
       {
         "daf": 81,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "JjEa3Jd6XPU",
-          "label": "CHAZARAH - Chullin Daf 81 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 81 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "sjaLKvaDy1I",
-          "label": "Daf Yomi Chullin Daf 81 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 81 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "rjKtGog9Fe8",
-          "label": "חזרה - חולין דף פא | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף פא | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "QCsy5ZwJZR8",
-          "label": "מרכז דף יומי - חולין דף פא. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 81,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "JjEa3Jd6XPU",
-          "label": "CHAZARAH - Chullin Daf 81 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "sjaLKvaDy1I",
-          "label": "Daf Yomi Chullin Daf 81 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "rjKtGog9Fe8",
-          "label": "חזרה - חולין דף פא | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "QCsy5ZwJZR8",
-          "label": "מרכז דף יומי - חולין דף פא. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף פא. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 82,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "yhFxHW6cHqA",
-          "label": "CHAZARAH - Chullin Daf 82 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 82 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "C6rgMV0iybA",
-          "label": "Daf Yomi Chullin Daf 82 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 82 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "BYkY6-6LVKA",
-          "label": "חזרה - חולין דף פב | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף פב | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "3yajANLPeY4",
-          "label": "מרכז דף יומי - חולין דף פב. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 82,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "yhFxHW6cHqA",
-          "label": "CHAZARAH - Chullin Daf 82 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "C6rgMV0iybA",
-          "label": "Daf Yomi Chullin Daf 82 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "BYkY6-6LVKA",
-          "label": "חזרה - חולין דף פב | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "3yajANLPeY4",
-          "label": "מרכז דף יומי - חולין דף פב. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף פב. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 83,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "qaOiFhkOrXk",
-          "label": "CHAZARAH - Chullin Daf 83 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 83 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "C3-3O_0zN4o",
-          "label": "Daf Yomi Chullin Daf 83 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 83 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "49jU4cqg0MM",
-          "label": "חזרה - חולין דף פג | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף פג | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "ZEYd7sY7e3w",
-          "label": "מרכז דף יומי - חולין דף פג. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 83,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "qaOiFhkOrXk",
-          "label": "CHAZARAH - Chullin Daf 83 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "C3-3O_0zN4o",
-          "label": "Daf Yomi Chullin Daf 83 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "49jU4cqg0MM",
-          "label": "חזרה - חולין דף פג | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "ZEYd7sY7e3w",
-          "label": "מרכז דף יומי - חולין דף פג. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף פג. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 84,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "3a6J7g3c32w",
-          "label": "CHAZARAH - Chullin Daf 84 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 84 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "EHgiG0bpBWg",
-          "label": "Daf Yomi Chullin Daf 84 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 84 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "kET82GUDFNc",
-          "label": "חזרה - חולין דף פד | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף פד | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "Ilv-DQglq1Y",
-          "label": "מרכז דף יומי - חולין דף פד. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 84,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "3a6J7g3c32w",
-          "label": "CHAZARAH - Chullin Daf 84 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "EHgiG0bpBWg",
-          "label": "Daf Yomi Chullin Daf 84 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "kET82GUDFNc",
-          "label": "חזרה - חולין דף פד | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "Ilv-DQglq1Y",
-          "label": "מרכז דף יומי - חולין דף פד. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף פד. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 85,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "hrbb03AnJgg",
-          "label": "CHAZARAH - Chullin Daf 85 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 85 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "G14Ke1sityQ",
-          "label": "Daf Yomi Chullin Daf 85 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 85 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "SHNGp5IwyjU",
-          "label": "חזרה - חולין דף פה | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף פה | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "sevdcszF18U",
-          "label": "מרכז דף יומי - חולין דף פה. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 85,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "hrbb03AnJgg",
-          "label": "CHAZARAH - Chullin Daf 85 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "G14Ke1sityQ",
-          "label": "Daf Yomi Chullin Daf 85 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "SHNGp5IwyjU",
-          "label": "חזרה - חולין דף פה | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "sevdcszF18U",
-          "label": "מרכז דף יומי - חולין דף פה. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף פה. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 86,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "pa_iCx9VWYU",
-          "label": "CHAZARAH - Chullin Daf 86 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 86 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "emoQQ5DkbHs",
-          "label": "YouTube"
+          "label": "YouTube",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "AAL3DYwnCEU",
-          "label": "חזרה - חולין דף פו | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף פו | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "OFNumwQ8tnU",
-          "label": "מרכז דף יומי - חולין דף פו. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 86,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "pa_iCx9VWYU",
-          "label": "CHAZARAH - Chullin Daf 86 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "emoQQ5DkbHs",
-          "label": "Daf Yomi Chullin Daf 86 by R' Eli Stefan"
-        },
-        "chazarahHe": {
-          "videoId": "AAL3DYwnCEU",
-          "label": "חזרה - חולין דף פו | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "OFNumwQ8tnU",
-          "label": "מרכז דף יומי - חולין דף פו. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף פו. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 87,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "A_2eY67P4HE",
-          "label": "CHAZARAH - Chullin Daf 87 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 87 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "CKd7BYEhX_0",
-          "label": "Daf Yomi Chullin Daf 87 by R' Eli Stefan"
+          "label": "Daf Yomi Chullin Daf 87 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "jk9bNCbWXd8",
-          "label": "חזרה - חולין דף פז | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף פז | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "Z8uBBpS0Wbs",
-          "label": "מרכז דף יומי - חולין דף פז. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 87,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "4Ut8wDLSWrE",
-          "label": "CHAZARAH - Chullin Daf 88 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "T-xwyBOBGnQ",
-          "label": "YouTube"
-        },
-        "chazarahHe": {
-          "videoId": "7luaxYbid7c",
-          "label": "חזרה - חולין דף פח | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "Z8uBBpS0Wbs",
-          "label": "מרכז דף יומי - חולין דף פז. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף פז. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 88,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "4Ut8wDLSWrE",
-          "label": "CHAZARAH - Chullin Daf 88 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 88 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "T-xwyBOBGnQ",
-          "label": "YouTube"
+          "label": "YouTube",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "7luaxYbid7c",
-          "label": "חזרה - חולין דף פח | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף פח | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "C2kRUZCkF3g",
-          "label": "מרכז דף יומי - חולין דף פח. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 88,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "LsXrdnG67m0",
-          "label": "YouTube"
-        },
-        "regularEn": {
-          "videoId": "PdPoG8Zecco",
-          "label": "YouTube"
-        },
-        "chazarahHe": {
-          "videoId": "d4tUz_ywmP8",
-          "label": "חזרה - חולין דף פט | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "0wFEdcLEPI4",
-          "label": "מרכז דף יומי - חולין דף פט. - ר' אלי סטפ"
+          "label": "מרכז דף יומי - חולין דף פח. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 89,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "LsXrdnG67m0",
-          "label": "YouTube"
+          "label": "YouTube",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "PdPoG8Zecco",
-          "label": "YouTube"
+          "label": "YouTube",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "d4tUz_ywmP8",
-          "label": "חזרה - חולין דף פט | \"רק הדף\" עם ר' אלי "
+          "label": "חזרה - חולין דף פט | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "0wFEdcLEPI4",
-          "label": "מרכז דף יומי - חולין דף פט. - ר' אלי סטפ"
-        }
-      },
-      {
-        "daf": 89,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "LsXrdnG67m0",
-          "label": "YouTube"
-        },
-        "regularEn": {
-          "videoId": "PdPoG8Zecco",
-          "label": "YouTube"
-        },
-        "chazarahHe": {
-          "videoId": "d4tUz_ywmP8",
-          "label": "חזרה - חולין דף פט | \"רק הדף\" עם ר' אלי "
-        },
-        "regularHe": {
-          "videoId": "SRXH7dOVd30",
-          "label": "מרכז דף יומי -  חולין דף  צ. - ר' ידידיה"
+          "label": "מרכז דף יומי - חולין דף פט. - ר' אלי סטפ",
+          "amud": "a"
         }
       },
       {
         "daf": 90,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "85uccZSIElc",
-          "label": "CHAZARAH - Chullin Daf 90 | \"Nothing but"
+          "label": "CHAZARAH - Chullin Daf 90 | \"Nothing but",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "xeDdU9gImiA",
-          "label": "Daf Yomi Chullin Daf 90 by R' Eli Stefan"
-        },
-        "regularHe": {
-          "videoId": "SRXH7dOVd30",
-          "label": "מרכז דף יומי -  חולין דף  צ. - ר' ידידיה"
+          "label": "Daf Yomi Chullin Daf 90 by R' Eli Stefan",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "AKiPctp-Epw",
-          "label": "חזרה - חולין דף צ | \"רק הדף\" עם ר' אלי ס"
-        }
-      },
-      {
-        "daf": 90,
-        "amud": "b",
-        "chazarahEn": {
-          "videoId": "85uccZSIElc",
-          "label": "CHAZARAH - Chullin Daf 90 | \"Nothing but"
-        },
-        "regularEn": {
-          "videoId": "xeDdU9gImiA",
-          "label": "Daf Yomi Chullin Daf 90 by R' Eli Stefan"
+          "label": "חזרה - חולין דף צ | \"רק הדף\" עם ר' אלי ס",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "SRXH7dOVd30",
-          "label": "מרכז דף יומי -  חולין דף  צ. - ר' ידידיה"
-        },
-        "chazarahHe": {
-          "videoId": "AKiPctp-Epw",
-          "label": "חזרה - חולין דף צ | \"רק הדף\" עם ר' אלי ס"
+          "label": "מרכז דף יומי -  חולין דף  צ. - ר' ידידיה",
+          "amud": "a"
         }
       },
       {
         "daf": 91,
-        "amud": "a",
         "regularHe": {
           "videoId": "e9S_je7J06U",
-          "label": "מרכז דף יומי -  חולין דף  צא. - ר' ידידי"
-        }
-      },
-      {
-        "daf": 91,
-        "amud": "b",
-        "regularHe": {
-          "videoId": "e9S_je7J06U",
-          "label": "מרכז דף יומי -  חולין דף  צא. - ר' ידידי"
+          "label": "מרכז דף יומי -  חולין דף  צא. - ר' ידידי",
+          "amud": "a"
         }
       }
     ],
     "Menachot": [
       {
         "daf": 110,
-        "amud": "a",
         "chazarahEn": {
           "videoId": "I6KEY-aV9rM",
-          "label": "CHAZARAH - Chullin Daf 2 | \"Nothing but "
+          "label": "CHAZARAH - Chullin Daf 2 | \"Nothing but ",
+          "amud": "a"
         },
         "chazarahHe": {
           "videoId": "psug78mggeg",
-          "label": "חזרה - חולין דף ב | \"רק הדף\" עם ר' אלי ס"
+          "label": "חזרה - חולין דף ב | \"רק הדף\" עם ר' אלי ס",
+          "amud": "a"
         },
         "regularHe": {
           "videoId": "_x7JNwOqqnc",
-          "label": "מרכז דף יומי - חולין דף ב. - ר' אלי סטפנ"
+          "label": "מרכז דף יומי - חולין דף ב. - ר' אלי סטפנ",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "2s3d2_CEw58",
-          "label": "Daf Yomi Chullin Daf 2 by R' Eli Stefans"
+          "label": "Daf Yomi Chullin Daf 2 by R' Eli Stefans",
+          "amud": "a"
         }
       }
     ]
