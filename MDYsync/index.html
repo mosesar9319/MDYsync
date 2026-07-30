@@ -743,6 +743,29 @@ h1 {
   font-family: Georgia, "Times New Roman", serif;
 }
 
+.modal-variant-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 22px;
+}
+
+.modal-variant-toggle button {
+  background: var(--paper);
+  border: 1px solid #dfd4c4;
+  border-radius: 999px;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 7px 15px;
+}
+
+.modal-variant-toggle button.active {
+  background: linear-gradient(135deg, #c89432, #aa7318);
+  border-color: transparent;
+  color: white;
+}
+
 @media (max-width: 1050px) {
   .card-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1266,6 +1289,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
           <h2 id="shiur-title">Zevachim 61</h2>
           <p id="modal-teacher">R' Eli Stefansky</p>
           <div class="modal-meta"><span data-icon="clock"></span> <span id="modal-length">46 min</span></div>
+          <div class="modal-variant-toggle" id="modal-variant-toggle"></div>
           <a class="primary-action" id="modal-watch-link" href="#"><span data-icon="play"></span> Start watching</a>
         </div>
       </section>
@@ -1533,13 +1557,42 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       return [...items].sort((a, b) => direction * (a.daf - b.daf));
     }
 
-    function openShiur(row) {
-      const combo = bestCombo(row);
+    const COMBO_LABELS = {
+      regularEn: "English", chazarahEn: "English · Chazarah",
+      regularHe: "Hebrew", chazarahHe: "Hebrew · Chazarah",
+    };
+
+    // Filtering by language/type on the browse page picks which video a
+    // card *starts* on -- with both filters at "All" that's always the
+    // regular English one (see bestCombo's fixed priority order), which
+    // otherwise makes every other language/variant a daf has effectively
+    // unreachable unless the reader happens to have pre-filtered for it.
+    // These chips list every combo the daf actually has linked, so any of
+    // them is one click away regardless of the page-level filter.
+    function selectModalCombo(row, combo) {
       const entry = entryForCombo(row, combo);
-      const videoId = row[combo].videoId;
-      document.querySelector("#shiur-title").textContent = dafLabel(entry);
-      document.querySelector("#modal-thumb").src = thumbUrl(videoId);
+      document.querySelector("#modal-thumb").src = thumbUrl(row[combo].videoId);
       document.querySelector("#modal-watch-link").href = playerUrl(entry);
+      document.querySelectorAll("#modal-variant-toggle button").forEach((button) => {
+        button.classList.toggle("active", button.dataset.combo === combo);
+      });
+    }
+
+    function openShiur(row) {
+      const initialCombo = bestCombo(row);
+      const entry = entryForCombo(row, initialCombo);
+      document.querySelector("#shiur-title").textContent = dafLabel(entry);
+
+      const available = COMBO_KEYS.filter((key) => row[key]);
+      const toggle = document.querySelector("#modal-variant-toggle");
+      toggle.innerHTML = available.length > 1
+        ? available.map((key) => `<button type="button" data-combo="${key}">${COMBO_LABELS[key]}</button>`).join("")
+        : "";
+      toggle.querySelectorAll("button").forEach((button) => {
+        button.addEventListener("click", () => selectModalCombo(row, button.dataset.combo));
+      });
+      selectModalCombo(row, initialCombo);
+
       modal.hidden = false;
       document.body.style.overflow = "hidden";
       document.querySelector("#modal-close").focus();
