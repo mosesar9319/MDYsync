@@ -488,17 +488,6 @@ h1 {
   margin: 0;
 }
 
-.see-all {
-  align-items: center;
-  background: transparent;
-  border: 0;
-  color: var(--gold);
-  cursor: pointer;
-  display: flex;
-  gap: 2px;
-  padding: 8px 0;
-}
-
 .card-grid {
   display: grid;
   gap: 20px;
@@ -1010,7 +999,7 @@ h1 {
 [hidden]{display:none!important}
 .brand{text-decoration:none}
 .desktop-navigation{display:flex;flex-direction:column}
-.shiur-card:focus-visible,.hero-card:focus-visible,.filters button:focus-visible,.side-link:focus-visible,.mobile-nav button:focus-visible,.profile-button:focus-visible,.see-all:focus-visible{outline:3px solid rgba(186,132,34,.45);outline-offset:2px}
+.shiur-card:focus-visible,.hero-card:focus-visible,.filters button:focus-visible,.side-link:focus-visible,.mobile-nav button:focus-visible,.profile-button:focus-visible{outline:3px solid rgba(186,132,34,.45);outline-offset:2px}
 
 /* Account sign-in: the site's one login affordance, mainly there so an
    admin can reach the /studio/ backend (see the account dropdown's
@@ -1226,7 +1215,6 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
               <p class="eyebrow" id="section-eyebrow">PICK UP WHERE YOU LEFT OFF</p>
               <h2 id="section-title">Continue Learning</h2>
             </div>
-            <button class="see-all" id="see-all" type="button">See all <span data-icon="chevron"></span></button>
           </div>
           <div class="subfilters" id="subfilters">
             <label class="subfilter-field">
@@ -1243,6 +1231,13 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
                 <option value="all">All</option>
                 <option value="regular">Full length</option>
                 <option value="chazarah">Chazarah</option>
+              </select>
+            </label>
+            <label class="subfilter-field">
+              <span>Sort</span>
+              <select id="sort-order">
+                <option value="new">Newest first</option>
+                <option value="old">Oldest first</option>
               </select>
             </label>
           </div>
@@ -1453,7 +1448,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     ];
     const state = {
       activeNav: "Home", filter: "All Masechtos", filters: ["All Masechtos"],
-      language: "all", variant: "all", query: "", showAll: false, catalog: [], today: null,
+      language: "all", variant: "all", sortOrder: "new", query: "", catalog: [], today: null,
     };
 
     const desktopNav = document.querySelector(".desktop-navigation");
@@ -1463,12 +1458,12 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     const clearSearch = document.querySelector("#clear-search");
     const languageFilter = document.querySelector("#language-filter");
     const variantFilter = document.querySelector("#variant-filter");
+    const sortOrderFilter = document.querySelector("#sort-order");
     const grid = document.querySelector("#card-grid");
     const empty = document.querySelector("#empty-state");
     const todaySection = document.querySelector("#today-section");
     const sectionTitle = document.querySelector("#section-title");
     const sectionEyebrow = document.querySelector("#section-eyebrow");
-    const seeAll = document.querySelector("#see-all");
     const modal = document.querySelector("#modal");
 
     function navMarkup(item, mobile = false) {
@@ -1498,7 +1493,6 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       filterBar.querySelectorAll("[data-filter]").forEach((button) => {
         button.addEventListener("click", () => {
           state.filter = button.dataset.filter;
-          state.showAll = false;
           render();
         });
       });
@@ -1533,7 +1527,10 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       items = items.filter(matchesSubfilters);
       const needle = state.query.trim().toLowerCase();
       if (needle) items = items.filter((row) => dafLabel(row).toLowerCase().includes(needle));
-      return items;
+      // A higher daf number is later in the cycle, i.e. newer -- "newest
+      // first" is descending daf, matching the sort toggle's default.
+      const direction = state.sortOrder === "old" ? 1 : -1;
+      return [...items].sort((a, b) => direction * (a.daf - b.daf));
     }
 
     function openShiur(row) {
@@ -1555,13 +1552,10 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
 
     function renderCards() {
       const items = results();
-      const visible = state.showAll ? items : items.slice(0, 8);
       todaySection.hidden = Boolean(state.query);
       clearSearch.hidden = !state.query;
       empty.hidden = items.length > 0;
       grid.hidden = items.length === 0;
-      seeAll.hidden = items.length <= 8;
-      seeAll.innerHTML = `${state.showAll ? "Show less" : "See all"} ${icon("chevron", 17)}`;
       if (state.query) {
         sectionEyebrow.textContent = `${items.length} RESULTS`;
         sectionTitle.textContent = `Results for “${state.query}”`;
@@ -1575,9 +1569,9 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         sectionEyebrow.textContent = state.filter.toUpperCase();
         sectionTitle.textContent = state.filter;
       }
-      grid.innerHTML = visible.map((row, index) => cardMarkup(row, index)).join("");
+      grid.innerHTML = items.map((row, index) => cardMarkup(row, index)).join("");
       grid.querySelectorAll("[data-card]").forEach((card) => {
-        card.addEventListener("click", () => openShiur(visible[Number(card.dataset.card)]));
+        card.addEventListener("click", () => openShiur(items[Number(card.dataset.card)]));
       });
     }
 
@@ -1622,6 +1616,10 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       state.variant = variantFilter.value;
       renderCards();
     });
+    sortOrderFilter.addEventListener("change", () => {
+      state.sortOrder = sortOrderFilter.value;
+      renderCards();
+    });
     clearSearch.addEventListener("click", () => {
       state.query = "";
       search.value = "";
@@ -1632,10 +1630,6 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       state.query = "";
       search.value = "";
       render();
-    });
-    seeAll.addEventListener("click", () => {
-      state.showAll = !state.showAll;
-      renderCards();
     });
     document.querySelector("#modal-close").addEventListener("click", closeModal);
     modal.addEventListener("click", (event) => {
