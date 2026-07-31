@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-31T10:43:02.556Z",
+  "generatedAt": "2026-07-31T12:04:00.205Z",
   "tractates": {
     "Chullin": [
       {
@@ -2082,6 +2082,14 @@
         "regularHe": {
           "videoId": "J_aDvJAaut4",
           "label": "מרכז דף יומי - חולין דף צב. - ר' אלי סטפ",
+          "amud": "a"
+        }
+      },
+      {
+        "daf": 93,
+        "regularHe": {
+          "videoId": "rGJcQffm7hw",
+          "label": "מרכז דף יומי -  חולין דף  צג. - ר' ידידי",
           "amud": "a"
         }
       }
