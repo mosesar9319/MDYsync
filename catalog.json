@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-30T07:01:26.906Z",
+  "generatedAt": "2026-07-31T10:43:02.556Z",
   "tractates": {
     "Chullin": [
       {
@@ -2059,6 +2059,29 @@
         "regularEn": {
           "videoId": "uk3x6XPIZUY",
           "label": "Daf Yomi Chullin Daf 91 by R' Eli Stefan",
+          "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "lmSVBE76h1Q",
+          "label": "חזרה - חולין דף צא | \"רק הדף\" עם ר' אלי ",
+          "amud": "a"
+        },
+        "chazarahEn": {
+          "videoId": "zSlc-TwZpCQ",
+          "label": "CHAZARAH - Chullin Daf 91 | \"Nothing but",
+          "amud": "a"
+        }
+      },
+      {
+        "daf": 92,
+        "regularEn": {
+          "videoId": "s-PVjfa0Z2o",
+          "label": "Daf Yomi Chullin Daf 92 by R' Eli Stefan",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "J_aDvJAaut4",
+          "label": "מרכז דף יומי - חולין דף צב. - ר' אלי סטפ",
           "amud": "a"
         }
       }
