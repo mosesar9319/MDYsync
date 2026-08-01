@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-01T19:02:28.043Z",
+  "generatedAt": "2026-08-01T23:03:13.684Z",
   "tractates": {
     "Chullin": [
       {
@@ -2100,6 +2100,11 @@
         "regularEn": {
           "videoId": "lbCpbsWzLEo",
           "label": "Daf Yomi Chullin Daf 93 by R' Eli Stefan",
+          "amud": "a"
+        },
+        "chazarahEn": {
+          "videoId": "REwHnUA9PiY",
+          "label": "CHAZARAH - Chullin Daf 93 | \"Nothing but",
           "amud": "a"
         }
       },
