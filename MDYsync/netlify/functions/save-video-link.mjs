@@ -71,7 +71,7 @@ export default async (request) => {
     type: videoSource.type,
     url: videoSource.url,
     videoId: typeof videoSource.videoId === 'string' ? videoSource.videoId.slice(0, 32) : undefined,
-    label: typeof videoSource.label === 'string' ? videoSource.label.slice(0, 40) : undefined,
+    label: typeof videoSource.label === 'string' ? videoSource.label.slice(0, 100) : undefined,
   };
 
   const dispatchResponse = await fetch(

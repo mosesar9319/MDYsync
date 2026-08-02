@@ -128,7 +128,7 @@ for (const [key, pick] of [...best.entries()].sort((a, b) => a[0].localeCompare(
     continue;
   }
   const payload = {
-    label: pick.title.slice(0, 40),
+    label: pick.title.slice(0, 100),
     type: 'youtube',
     url: `https://www.youtube.com/watch?v=${pick.videoId}`,
     videoId: pick.videoId,

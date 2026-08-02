@@ -128,7 +128,7 @@ export default async (request) => {
       type: 'youtube',
       url: `https://www.youtube.com/watch?v=${entry.videoId}`,
       videoId: entry.videoId,
-      label: decodeHtmlEntities(entry.title).slice(0, 40),
+      label: decodeHtmlEntities(entry.title).slice(0, 100),
       // Every daf this one video actually covers, in reading order, as plain
       // refs with no variant/language markers -- exactly the shape
       // trigger-ocr-job wants. Without this the player knows a link exists
@@ -204,7 +204,7 @@ export default async (request) => {
             amud: reading.amud,
             comboKey: comboKeyFor(reading.variant, reading.language),
             videoId: entry.videoId,
-            label: decodeHtmlEntities(entry.title).slice(0, 40),
+            label: decodeHtmlEntities(entry.title).slice(0, 100),
           });
         } else {
           skipped.push({ ref: refDisplay(reading), videoId: entry.videoId, reason: `publish failed (${putResponse.status})` });

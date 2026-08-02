@@ -1468,12 +1468,18 @@ async function loadDaf(refOverride = null, options = {}) {
   button.disabled = true;
   button.textContent = 'Loading…';
   try {
+    // Sefaria only knows tractate/daf/amud, never the "(Chazarah Daf)"/
+    // "(Hebrew)" variant markers `ref` can carry -- sending those through
+    // 404s the request outright, which used to break daf-text loading for
+    // any chazarah/Hebrew ref that didn't already have a synced alignment
+    // cached under by-ref/ (see realDafRef's own comment).
+    const sefariaRef = realDafRef(ref);
     let response;
     try {
-      response = await fetch(`/api/sefaria?ref=${encodeURIComponent(ref)}`);
+      response = await fetch(`/api/sefaria?ref=${encodeURIComponent(sefariaRef)}`);
       if (!response.ok) throw new Error('Proxy unavailable');
     } catch {
-      response = await fetch(`https://www.sefaria.org/api/v3/texts/${encodeURIComponent(ref)}?version=source&version=translation&return_format=text_only`);
+      response = await fetch(`https://www.sefaria.org/api/v3/texts/${encodeURIComponent(sefariaRef)}?version=source&version=translation&return_format=text_only`);
     }
     if (!response.ok) throw new Error(`Sefaria returned ${response.status}`);
     const data = await response.json();
@@ -1701,7 +1707,7 @@ function stopYouTubePoll() {
   state.youtubePollTimer = null;
 }
 
-async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs = null) {
+async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs = null, label = null) {
   if (!validateYouTubeId(videoId)) throw new Error('A valid YouTube video link is required.');
   cleanupObjectUrl();
   await ensureYouTubePlayer(videoId);
@@ -1709,11 +1715,11 @@ async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs =
     type: 'youtube',
     videoId,
     url: `https://www.youtube.com/watch?v=${videoId}`,
-    label: 'YouTube'
+    label: label || 'YouTube'
   };
   state.currentProjectId = null;
   $('videoUrl').value = state.videoSource.url;
-  $('lectureTitle').textContent = `YouTube lecture · ${videoId}`;
+  $('lectureTitle').textContent = label || `YouTube lecture · ${videoId}`;
   setSourceBadge('YouTube');
   setSourcePanel('linkSourcePanel');
   seek(0);
@@ -1818,7 +1824,13 @@ function slugify(text) {
 async function restoreVideoSource(source, saveRefs = null) {
   if (!source || !source.type) return;
   if (source.type === 'youtube' && source.videoId) {
-    await loadYouTubeVideo(source.url || source.videoId, source.videoId, saveRefs);
+    // A server-published video-link's label is the real YouTube title
+    // (captured off the channel feed) -- worth showing verbatim instead of
+    // the generic placeholder below. A locally-saved source's label is
+    // just that same generic 'YouTube' sentinel (see loadYouTubeVideo), so
+    // it's excluded rather than shown as if it meant something.
+    const realLabel = source.label && source.label !== 'YouTube' ? source.label : null;
+    await loadYouTubeVideo(source.url || source.videoId, source.videoId, saveRefs, realLabel);
   } else if (source.type === 'direct' && source.url) {
     $('videoUrl').value = source.url;
     loadDirectVideoUrl(source.url, saveRefs);
