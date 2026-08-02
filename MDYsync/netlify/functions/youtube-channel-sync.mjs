@@ -20,9 +20,17 @@
 // channel's RSS feed carries -- backfilling anything older is what the
 // manually-dispatched backfill-video-links workflow is for.
 //
-// This only ever *creates* a video-links file; if one already exists for a
-// ref (from this job or a manual paste), it's left alone, so a reader's own
-// correction is never silently overwritten by a later poll.
+// A link is normally left alone once it exists, so a reader's own pasted
+// correction is never silently overwritten by a later poll. The one
+// exception: the channel sometimes posts an unedited cut of a shiur first,
+// then replaces it on YouTube with the finished edit under a fresh upload
+// (same daf/variant/language, new videoId) once it's ready. When a newly
+// seen upload resolves to a ref that's already linked, but the existing
+// link is itself channel-derived (see the `source: 'channel-auto'` marker
+// below, also written by backfill-video-links.mjs) rather than a reader's
+// own paste, the new video replaces it. A link with no marker at all --
+// anything saved through save-video-link.mjs, or written before this
+// marker existed -- is never touched.
 
 import {
   decodeHtmlEntities,
@@ -130,12 +138,47 @@ export default async (request) => {
       // wrong stretch of canonical text). The variant/language are implied
       // by the file's own key, so they're deliberately not repeated here.
       coveredRefs: readings.map((r) => `${r.tractate} ${r.daf}${r.amud}`),
+      // See the file-level comment: only a link carrying this marker is
+      // ever eligible to be silently replaced by a later upload.
+      source: 'channel-auto',
     };
     const body = JSON.stringify(videoSource);
 
     for (const reading of readings) {
       const key = refKeyFor(reading);
-      if (existingKeys.has(key)) continue;
+      // Only a video's own daf (not the tail reading it also opens on, for
+      // the *previous* daf) is ever eligible to replace an existing link.
+      // Without this, a later video's tail reference could overwrite a
+      // perfectly good primary link for a daf it doesn't actually belong
+      // to -- e.g. next week's shiur opening on the tail of this daf's amud
+      // b would otherwise be able to bump this daf's own, correct video.
+      const isPrimary = reading.daf === parsed.daf;
+      let existingSha;
+      if (existingKeys.has(key)) {
+        let existingLink;
+        if (isPrimary) {
+          try {
+            const getResponse = await fetch(
+              `https://api.github.com/repos/${OWNER}/${REPO}/contents/video-links/${key}.json?ref=results`,
+              { headers }
+            );
+            if (getResponse.ok) {
+              const file = await getResponse.json();
+              existingSha = file.sha;
+              existingLink = JSON.parse(Buffer.from(file.content, 'base64').toString('utf8'));
+            }
+          } catch {
+            // Couldn't read it -- treat like any other unreadable file below:
+            // leave it alone rather than risk clobbering something unknown.
+          }
+        }
+        if (!existingLink || existingLink.videoId === entry.videoId) continue; // already up to date, tail reading, or unreadable
+        if (existingLink.source !== 'channel-auto') continue; // a reader's own paste -- never auto-replaced
+        // Falls through: this video's own daf, the existing link is
+        // channel-derived, and it points at a different video (the
+        // unedited-cut-replaced-by-the-finished-edit case) -- overwrite it
+        // below instead of skipping.
+      }
       try {
         const putResponse = await fetch(
           `https://api.github.com/repos/${OWNER}/${REPO}/contents/video-links/${key}.json`,
@@ -143,9 +186,12 @@ export default async (request) => {
             method: 'PUT',
             headers,
             body: JSON.stringify({
-              message: `Auto-link ${refDisplay(reading)} to ${entry.videoId}`,
+              message: existingSha
+                ? `Replace ${refDisplay(reading)}'s linked video with ${entry.videoId}`
+                : `Auto-link ${refDisplay(reading)} to ${entry.videoId}`,
               content: Buffer.from(body, 'utf8').toString('base64'),
               branch: 'results',
+              ...(existingSha ? { sha: existingSha } : {}),
             }),
           }
         );

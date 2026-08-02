@@ -112,6 +112,10 @@ for (const [key, pick] of [...best.entries()].sort((a, b) => a[0].localeCompare(
       const existing = JSON.parse(fs.readFileSync(target, 'utf8'));
       if (existing.videoId === pick.videoId && !Array.isArray(existing.coveredRefs)) {
         existing.coveredRefs = pick.coveredRefs;
+        // Predates the source marker (it was matched here by videoId, so
+        // it's channel-derived too) -- stamped now so it's eligible for
+        // youtube-channel-sync.mjs's auto-replace the same as a fresh write.
+        existing.source = 'channel-auto';
         if (!args.dryRun) fs.writeFileSync(target, `${JSON.stringify(existing, null, 2)}\n`);
         enriched.push(key);
         continue;
@@ -129,6 +133,12 @@ for (const [key, pick] of [...best.entries()].sort((a, b) => a[0].localeCompare(
     url: `https://www.youtube.com/watch?v=${pick.videoId}`,
     videoId: pick.videoId,
     coveredRefs: pick.coveredRefs,
+    // Marks this as channel-derived rather than a reader's hand-pasted
+    // correction -- youtube-channel-sync.mjs only ever auto-replaces a link
+    // (e.g. swapping an unedited cut for the finished upload) when the
+    // existing one carries this same marker, so a manual paste is never at
+    // risk of being silently swapped out later.
+    source: 'channel-auto',
   };
   if (!args.dryRun) {
     fs.mkdirSync(path.dirname(target), { recursive: true });
