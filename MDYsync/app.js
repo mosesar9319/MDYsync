@@ -1240,12 +1240,41 @@ async function togglePlay() {
   }
 }
 
+// A YouTube seekTo() issued moments after cueVideoById/onReady can be
+// silently ignored by the player -- it reports a valid duration (and
+// youtubeReady goes true) before it's actually able to honor a seek, so the
+// request looks like it worked while the video just keeps playing from
+// wherever it naturally started. There's no "seek was actually accepted"
+// event on the IFrame API to await instead, so the only way to catch this is
+// to check back and retry. Without this, the scrubber/time labels (updated
+// optimistically below, on the assumption the seek took) would permanently
+// disagree with the real, unmoved video -- exactly what "Continue watching"
+// resuming a saved position right after a video loads would trigger.
+//
+// `generation` guards against a stale retry chain fighting a newer, unrelated
+// seek -- e.g. a resume-on-load retry still pending when the reader drags the
+// scrubber themselves a moment later. Every fresh top-level call (attempt 0)
+// claims a new generation; a retry only fires if nothing newer has started.
+let seekGeneration = 0;
+function seekYouTubePlayer(time, allowSeekAhead, attempt = 0, generation = ++seekGeneration) {
+  const player = state.youtubePlayer;
+  if (!player?.seekTo) return;
+  player.seekTo(time, allowSeekAhead);
+  if (attempt >= 4) return;
+  setTimeout(() => {
+    if (generation !== seekGeneration) return; // superseded by a newer seek request
+    if (state.playerType !== 'youtube' || state.youtubePlayer !== player) return; // moved on since
+    const actual = Number(player.getCurrentTime?.()) || 0;
+    if (Math.abs(actual - time) > 2) seekYouTubePlayer(time, allowSeekAhead, attempt + 1, generation);
+  }, 400);
+}
+
 function seek(time, allowSeekAhead = true) {
   const max = getDuration() || Number(scrubber.max) || 0;
   const clamped = Math.max(0, Math.min(time, max || time));
 
   if (state.playerType === 'youtube') {
-    if (state.youtubeReady) state.youtubePlayer.seekTo(clamped, allowSeekAhead);
+    if (state.youtubeReady) seekYouTubePlayer(clamped, allowSeekAhead);
   } else {
     htmlVideo.currentTime = clamped;
   }
@@ -2041,7 +2070,7 @@ function handleScrubInput(event) {
 }
 function handleScrubChange(event) {
   const time = Number(event.target.value);
-  if (state.playerType === 'youtube' && state.youtubeReady) state.youtubePlayer.seekTo(time, true);
+  if (state.playerType === 'youtube' && state.youtubeReady) seekYouTubePlayer(time, true);
   state.seeking = false;
   updateTimeline();
 }
