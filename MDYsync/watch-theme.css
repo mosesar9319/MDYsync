@@ -83,3 +83,5 @@ kbd { color: #17302d; background: rgba(23, 33, 43, 0.08); border: 1px solid rgba
 .favorite-item:hover { background: rgba(23, 33, 43, 0.06); }
 
 .admin-badge { color: #fff; }
+
+.now-learning { border-color: var(--line); background: linear-gradient(135deg, rgba(186, 132, 34, .1), rgba(77, 54, 27, .04)); }

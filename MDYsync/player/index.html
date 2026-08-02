@@ -6,6 +6,49 @@
   <meta name="theme-color" content="#fbf8f2">
   <meta name="description" content="Watch a Daf Yomi shiur while following along inside the daf.">
   <title>DafSync — Shiur Player</title>
+  <script>
+    // Surfaces any otherwise-silent failure (a script that fails to load, an
+    // uncaught exception, a rejected promise nobody caught) as a plain banner
+    // -- inline and first, so it still works even if styles.css/app.js is the
+    // very thing that failed to load.
+    (function () {
+      var shown = false;
+      function showBanner(message) {
+        if (shown) return;
+        shown = true;
+        var bar = document.createElement('div');
+        bar.textContent = 'Something on this page failed to load: ' + message + ' -- try reloading the page.';
+        bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#7c1d1d;color:#fff;'
+          + 'font:14px/1.4 -apple-system,system-ui,sans-serif;padding:10px 40px 10px 14px;text-align:left;';
+        var close = document.createElement('button');
+        close.textContent = '×';
+        close.setAttribute('aria-label', 'Dismiss');
+        close.style.cssText = 'position:absolute;right:8px;top:6px;background:transparent;border:0;color:#fff;'
+          + 'font-size:20px;line-height:1;cursor:pointer;padding:4px 8px;';
+        close.onclick = function () { bar.remove(); };
+        bar.appendChild(close);
+        document.body ? document.body.prepend(bar) : document.addEventListener('DOMContentLoaded', function () { document.body.prepend(bar); });
+      }
+      window.addEventListener('error', function (event) {
+        if (event.target && event.target.tagName !== 'SCRIPT') return;
+        var message = event.message || (event.target && event.target.src) || 'unknown error';
+        showBanner(String(message));
+      }, true);
+      window.addEventListener('unhandledrejection', function (event) {
+        showBanner(String(event.reason && event.reason.message || event.reason || 'unknown error'));
+      });
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Frank+Ruhl+Libre:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Functional styling (buttons, dialogs, video frame, scrubber, daf text,
+       Vilna page, overlay, toggles, auth widget) comes from these two --
+       loaded first so this page's own <style> below, which carries the
+       DafSync ivory/gold player design, wins the small number of class
+       names the two sheets share. -->
+  <link rel="stylesheet" href="../styles.css" />
+  <link rel="stylesheet" href="../watch-theme.css" />
   <style>
     :root {
       --ivory: #fbf8f2;
@@ -132,17 +175,7 @@
     }
     .search-box:focus-within { border-color: var(--gold-light); box-shadow: 0 0 0 4px rgba(186,132,34,.1); }
     .search-box input { width: 100%; border: 0; outline: 0; color: var(--ink); background: transparent; font-size: 17px; }
-    .profile-button {
-      width: 50px;
-      height: 50px;
-      display: grid;
-      place-items: center;
-      color: #625a4e;
-      background: var(--paper);
-      border: 1px solid var(--line);
-      border-radius: 50%;
-      box-shadow: 0 5px 15px rgba(63,45,23,.07);
-    }
+    .topbar .auth-widget { justify-self: end; }
 
     main { max-width: 1600px; margin: 0 auto; padding: 34px clamp(22px,4vw,64px) 70px; }
     .breadcrumb { display: flex; align-items: center; gap: 8px; margin-bottom: 19px; color: var(--muted); font-size: 14px; }
@@ -169,103 +202,30 @@
     .pill-button:hover { border-color: var(--gold-light); color: var(--gold); }
 
     .watch-layout { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(390px,.8fr); gap: 24px; align-items: start; }
-    .video-card, .daf-card, .about-card, .up-next { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); overflow: hidden; }
-    .video-stage {
-      position: relative;
-      aspect-ratio: 16/9;
-      display: grid;
-      place-items: center;
-      overflow: hidden;
-      background:
-        radial-gradient(circle at 35% 35%, rgba(186,132,34,.18), transparent 24%),
-        linear-gradient(135deg, #061523 0%, #0c263d 58%, #17364f 100%);
-    }
-    .video-stage::before, .video-stage::after { content: ""; position: absolute; border: 1px solid rgba(217,168,72,.18); border-radius: 50%; }
-    .video-stage::before { width: 380px; height: 380px; left: -160px; bottom: -230px; }
-    .video-stage::after { width: 260px; height: 260px; right: -130px; top: -130px; }
-    .video-placeholder { position: relative; z-index: 1; text-align: center; color: #fff; }
-    .video-placeholder small { display: block; margin-top: 15px; color: rgba(255,255,255,.68); font-size: 13px; }
-    .play-button {
-      width: 78px;
-      height: 78px;
-      display: grid;
-      place-items: center;
-      margin: auto;
-      padding-left: 5px;
-      color: #fff;
-      background: linear-gradient(145deg,var(--gold-light),var(--gold));
-      border: 0;
-      border-radius: 50%;
-      box-shadow: 0 12px 35px rgba(186,132,34,.35);
-      transition: transform .18s ease;
-    }
-    .play-button:hover { transform: scale(1.05); }
-    .video-embed { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; z-index: 2; }
-    .player-chrome { padding: 14px 18px 16px; background: #091c2c; color: #fff; }
-    .timeline { position: relative; height: 5px; margin-bottom: 13px; background: rgba(255,255,255,.18); border-radius: 99px; overflow: hidden; }
-    .timeline span { display: block; width: 34%; height: 100%; background: linear-gradient(90deg,var(--gold),var(--gold-light)); border-radius: inherit; }
-    .player-controls { display: flex; align-items: center; gap: 14px; }
-    .control-button { width: 34px; height: 34px; display: grid; place-items: center; padding: 0; color: #fff; background: transparent; border: 0; border-radius: 50%; }
-    .control-button:hover { background: rgba(255,255,255,.1); }
-    .time-label { color: rgba(255,255,255,.7); font-size: 13px; font-variant-numeric: tabular-nums; }
-    .control-spacer { flex: 1; }
-    .player-meta { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 20px 22px 22px; }
-    .player-meta h2 { margin-bottom: 5px; color: var(--navy); font: 700 26px Georgia,"Times New Roman",serif; }
-    .player-meta p { margin-bottom: 0; color: var(--muted); }
-    .live-badge { display: inline-flex; align-items: center; gap: 7px; padding: 8px 11px; color: #6b4a0d; background: var(--gold-wash); border: 1px solid #ead4a4; border-radius: 999px; font-size: 12px; font-weight: 800; white-space: nowrap; }
-    .live-dot { width: 7px; height: 7px; background: var(--gold); border-radius: 50%; box-shadow: 0 0 0 4px rgba(186,132,34,.14); }
-
-    .daf-card { position: sticky; top: 128px; }
-    .daf-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 17px 19px; border-bottom: 1px solid var(--line); }
-    .daf-header h2 { margin: 3px 0 0; color: var(--navy); font: 700 25px Georgia,"Times New Roman",serif; }
-    .daf-tools { display: flex; gap: 6px; }
-    .tool-button { width: 36px; height: 36px; display: grid; place-items: center; color: #655e55; background: #fbf7ef; border: 1px solid var(--line); border-radius: 9px; }
-    .tool-button:hover { color: var(--gold); border-color: #d9bd85; }
-    .sync-note { display: flex; align-items: center; gap: 9px; margin: 14px 17px 0; padding: 11px 13px; color: #68501f; background: #fbf4e5; border: 1px solid #ead8af; border-radius: 11px; font-size: 12px; line-height: 1.45; }
-    .daf-page {
-      max-height: 642px;
-      overflow: auto;
-      padding: 27px 28px 38px;
-      color: #332b22;
-      background:
-        linear-gradient(rgba(255,253,247,.8),rgba(255,253,247,.8)),
-        repeating-linear-gradient(0deg, transparent 0 31px, rgba(90,66,34,.025) 31px 32px);
-      direction: rtl;
-      text-align: justify;
-      font: 400 24px/1.95 "Times New Roman", serif;
-      scrollbar-color: rgba(78,59,36,.25) transparent;
-    }
-    .daf-page p { margin-bottom: 16px; }
-    .daf-page strong { color: #19140f; }
-    .segment { padding: 2px 3px; border-radius: 6px; transition: .16s ease; }
-    .segment:hover { background: rgba(186,132,34,.1); }
-    .segment.active { color: #271a05; background: linear-gradient(180deg,#f4d68f,#e9bd5e); box-shadow: 0 0 0 3px rgba(186,132,34,.12); }
-    .daf-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px 17px; color: var(--muted); border-top: 1px solid var(--line); font-size: 12px; }
-    .page-nav { display: flex; gap: 7px; }
-    .page-nav a { min-width: 34px; height: 31px; display: grid; place-items: center; text-decoration: none; color: var(--navy); background: #fbf7ef; border: 1px solid var(--line); border-radius: 8px; }
-
-    .below-grid { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(390px,.8fr); gap: 24px; margin-top: 24px; }
-    .about-card { padding: 24px; }
-    .about-card h2, .up-next h2 { color: var(--navy); font: 700 25px Georgia,"Times New Roman",serif; }
+    .about-card { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); padding: 24px; margin-top: 24px; }
+    .about-card h2 { color: var(--navy); font: 700 25px Georgia,"Times New Roman",serif; }
     .about-card p { color: var(--muted); line-height: 1.7; }
     .details { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
     .detail-pill { padding: 8px 12px; color: #5e564d; background: #faf6ee; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; }
-    .up-next { padding: 20px; }
-    .up-next h2 { margin-bottom: 15px; }
-    .next-item { display: grid; grid-template-columns: 116px 1fr auto; gap: 13px; align-items: center; padding: 10px 0; color: inherit; text-decoration: none; border-top: 1px solid var(--line); }
-    .next-thumb { aspect-ratio: 16/10; display: grid; place-items: center; color: #fff; background: linear-gradient(140deg,#102f48,#071724); border-radius: 10px; }
-    .next-copy strong { display: block; color: var(--navy); font: 700 17px Georgia,"Times New Roman",serif; }
-    .next-copy span { color: var(--muted); font-size: 12px; }
-    .next-length { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+    /* The right-hand daf card keeps its box styling from the shared .card
+       class (below, via styles.css + watch-theme.css); this just adds the
+       sticky behavior from the original player design. */
+    .daf-card { position: sticky; top: 128px; }
+    .daf-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 17px 19px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+    .daf-header h2 { margin: 3px 0 0; color: var(--navy); font: 700 25px Georgia,"Times New Roman",serif; }
+    .daf-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .tool-button { width: 36px; height: 36px; display: grid; place-items: center; color: #655e55; background: #fbf7ef; border: 1px solid var(--line); border-radius: 9px; }
+    .tool-button:hover { color: var(--gold); border-color: #d9bd85; }
+    .sync-note { display: flex; align-items: center; gap: 9px; margin: 14px 17px 0; padding: 11px 13px; color: #68501f; background: #fbf4e5; border: 1px solid #ead8af; border-radius: 11px; font-size: 12px; line-height: 1.45; }
+    .daf-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px 17px; color: var(--muted); border-top: 1px solid var(--line); font-size: 12px; }
 
     .mobile-nav { display: none; }
     :focus-visible { outline: 3px solid rgba(186,132,34,.42); outline-offset: 3px; }
 
     @media (max-width: 1120px) {
-      .watch-layout, .below-grid { grid-template-columns: 1fr; }
+      .watch-layout { grid-template-columns: 1fr; }
       .daf-card { position: static; }
-      .daf-page { max-height: 560px; }
-      .below-grid .up-next { order: -1; }
     }
     @media (max-width: 760px) {
       body { padding-bottom: 78px; }
@@ -278,7 +238,6 @@
       .mobile-brand .brand-book { font-size: 20px; }
       .mobile-brand .brand-name { font-size: 31px; }
       .back-link { order: 3; font-size: 14px; }
-      .profile-button { width: 43px; height: 43px; }
       .search-box { order: 4; width: 100%; height: 51px; padding: 0 17px; }
       .search-box input { font-size: 16px; }
       main { padding: 19px 14px 38px; }
@@ -287,25 +246,10 @@
       h1 { font-size: 35px; }
       .teacher { font-size: 16px; }
       .title-actions { margin-top: 16px; overflow-x: auto; }
-      .watch-layout, .below-grid { gap: 16px; }
-      .video-card, .daf-card, .about-card, .up-next { border-radius: 16px; }
-      .video-stage { aspect-ratio: 16/9; }
-      .play-button { width: 64px; height: 64px; }
-      .player-chrome { padding: 11px 13px 13px; }
-      .player-controls { gap: 8px; }
-      .time-label { font-size: 11px; }
-      .player-meta { display: block; padding: 17px 18px 19px; }
-      .player-meta h2 { font-size: 23px; }
-      .live-badge { margin-top: 13px; }
+      .watch-layout { gap: 16px; }
       .daf-header { padding: 15px 16px; }
-      .daf-header h2 { font-size: 22px; }
       .sync-note { margin: 12px 13px 0; }
-      .daf-page { max-height: none; padding: 24px 19px 34px; font-size: 22px; line-height: 1.92; }
-      .daf-footer { align-items: flex-start; flex-direction: column; }
-      .below-grid { margin-top: 16px; }
-      .about-card, .up-next { padding: 18px; }
-      .next-item { grid-template-columns: 92px 1fr; }
-      .next-length { display: none; }
+      .about-card { padding: 18px; }
       .mobile-nav {
         position: fixed;
         inset: auto 0 0;
@@ -324,7 +268,7 @@
     @media (prefers-reduced-motion: reduce) { *,*::before,*::after { scroll-behavior: auto !important; transition-duration: .01ms !important; } }
   </style>
 </head>
-<body>
+<body class="player-page">
   <aside class="sidebar">
     <a class="brand" href="/" aria-label="DafSync home"><span class="brand-mark"><span class="brand-book">DS</span></span><span class="brand-name">DafSync</span></a>
     <nav class="desktop-navigation" aria-label="Primary navigation">
@@ -344,82 +288,474 @@
         <span data-icon="search"></span>
         <input id="player-search" name="q" placeholder="Search shiurim, masechtos, or maggidei shiur" type="search">
       </form>
-      <button class="profile-button" aria-label="Profile" type="button"><span data-icon="user"></span></button>
+      <div class="auth-widget" id="authWidget">
+        <button class="button secondary small" id="signInButton" type="button">Sign in</button>
+        <div class="account-menu" id="accountMenu" hidden>
+          <button class="button secondary small account-trigger" id="accountMenuButton" type="button">
+            <span id="accountEmailLabel">Account</span>
+            <span class="admin-badge admin-only" id="adminBadge">Admin</span>
+          </button>
+          <div class="account-dropdown" id="accountDropdown" hidden>
+            <button class="account-dropdown-item" id="myFavoritesButton" type="button">My favorites</button>
+            <button class="account-dropdown-item" id="signOutButton" type="button">Sign out</button>
+          </div>
+        </div>
+      </div>
     </header>
 
     <main>
-      <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">DafSync</a><span>/</span><span id="crumb-masechta">Zevachim</span><span>/</span><span id="crumb-daf">Daf 62</span></nav>
+      <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">DafSync</a><span>/</span><span>Shiur player</span></nav>
       <div class="title-row">
         <div>
           <p class="eyebrow">Daf Yomi shiur</p>
-          <h1 id="page-title">Maseches Zevachim 62</h1>
-          <p class="teacher" id="page-teacher">Rabbi Eli Stefansky</p>
+          <h1 id="lectureTitle">DafSync Studio</h1>
+          <p class="teacher" id="currentRef">No daf loaded</p>
         </div>
         <div class="title-actions">
-          <button class="pill-button" type="button"><span data-icon="bookmark"></span> Save</button>
+          <button class="pill-button" id="helpButton" type="button">How it works</button>
+          <button class="pill-button favorite-button" id="favoriteButton" type="button" aria-label="Favorite this daf" title="Save to favorites" hidden>☆</button>
           <button class="pill-button" id="share-button" type="button"><span data-icon="share"></span> Share</button>
         </div>
       </div>
 
+      <!-- Daf/lecture picker: real functional controls app.js depends on,
+           but navigation into this page happens via links from the home
+           page (?ref=...), so the picker itself stays out of the way --
+           hidden the same way it is on /watch/. -->
+      <section class="setup-strip card" hidden>
+        <div class="setup-field video-field admin-only">
+          <label>Lecture source</label>
+          <div class="source-tabs" role="tablist" aria-label="Lecture source">
+            <button class="source-tab active" type="button" data-source-panel="fileSourcePanel" role="tab" aria-selected="true">Local file</button>
+            <button class="source-tab" type="button" data-source-panel="linkSourcePanel" role="tab" aria-selected="false">Video link</button>
+          </div>
+          <div class="source-panel" id="fileSourcePanel" role="tabpanel">
+            <label class="button secondary file-button small">
+              <input id="videoInput" type="file" accept="video/*,audio/*" hidden />
+              Choose video
+            </label>
+            <span id="videoFileName" class="field-note">Nothing is uploaded</span>
+          </div>
+          <div class="source-panel link-source-panel" id="linkSourcePanel" role="tabpanel" hidden>
+            <div class="video-url-row">
+              <input id="videoUrl" type="url" inputmode="url" placeholder="Paste a YouTube or direct video URL" spellcheck="false" />
+              <button class="button primary small" id="loadVideoUrlButton" type="button">Load link</button>
+            </div>
+            <span id="videoUrlHint" class="field-note">YouTube, youtu.be, Shorts, or a direct MP4/WebM link</span>
+          </div>
+        </div>
+
+        <div class="setup-field ref-field">
+          <label>Daf reference</label>
+          <div class="daf-picker-row">
+            <select id="dafTractateSelect" aria-label="Tractate"></select>
+            <select id="dafDafSelect" class="daf-picker-narrow" aria-label="Daf"></select>
+            <div class="amud-toggle" id="dafAmudToggle" role="group" aria-label="Amud">
+              <button type="button" class="amud-option active" data-side="a">a</button>
+              <button type="button" class="amud-option" data-side="b">b</button>
+            </div>
+          </div>
+          <div class="picker-toggle-row">
+            <div class="shiur-variant-toggle" id="dafShiurToggle" role="group" aria-label="Shiur type">
+              <button type="button" class="shiur-variant-option active" data-variant="regular">Regular</button>
+              <button type="button" class="shiur-variant-option" data-variant="chazarah">Chazarah Daf</button>
+            </div>
+            <div class="shiur-variant-toggle" id="dafLanguageToggle" role="group" aria-label="Shiur language">
+              <button type="button" class="language-option active" data-language="en">English</button>
+              <button type="button" class="language-option" data-language="he">Hebrew</button>
+            </div>
+          </div>
+          <input id="dafRef" type="hidden" value="" />
+          <button id="loadDafButton" hidden>Load daf</button>
+        </div>
+
+        <div class="setup-field action-field admin-only">
+          <label>Alignment data</label>
+          <div class="compact-actions">
+            <label class="button secondary file-button small">
+              <input id="alignmentInput" type="file" accept="application/json,.json" hidden />
+              Import sync
+            </label>
+            <label class="button secondary file-button small">
+              <input id="transcriptInput" type="file" accept="application/json,.json" hidden />
+              Import transcript
+            </label>
+            <button class="button secondary small" id="exportButton">Export</button>
+            <button class="button primary small" id="quickSyncButton" type="button" hidden>Sync this daf</button>
+            <button class="button primary small" id="openSyncDialogButton" type="button">Sync from video</button>
+          </div>
+        </div>
+      </section>
+
       <section class="watch-layout" aria-label="Shiur and synchronized daf">
-        <article class="video-card">
-          <div class="video-stage" id="video-stage">
-            <div class="video-placeholder" id="video-placeholder">
-              <button class="play-button" id="play-video" aria-label="Play shiur" type="button"><span data-icon="play"></span></button>
-              <small>Open the shiur video</small>
+        <article class="player-card card">
+          <div class="video-frame" id="videoFrame">
+            <video id="video" preload="metadata" playsinline></video>
+            <div class="youtube-player-host" id="youtubePlayerHost" hidden>
+              <div id="youtubePlayer"></div>
+            </div>
+            <span class="video-source-badge" id="videoSourceBadge" hidden></span>
+            <div class="video-empty" id="videoEmpty">
+              <div class="empty-icon">▶</div>
+              <p>Choose a lecture video or paste a YouTube link.</p>
+            </div>
+            <button class="large-play" id="largePlay" aria-label="Play video" hidden>
+              <svg viewBox="0 0 44 44" aria-hidden="true"><path d="M17 12.5 33 22 17 31.5v-19Z" fill="currentColor"/></svg>
+            </button>
+            <div class="video-vilna-overlay" id="videoVilnaOverlay" hidden>
+              <canvas id="videoVilnaCanvas"></canvas>
+            </div>
+            <div class="video-inline-controls" id="videoInlineControls">
+              <button class="video-inline-play" id="inlinePlayButton" aria-label="Play">
+                <svg class="play-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z" fill="currentColor"/></svg>
+                <svg class="pause-icon" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M7 5h4v14H7zm6 0h4v14h-4z" fill="currentColor"/></svg>
+              </button>
+              <input id="inlineScrubber" class="inline-scrubber" type="range" min="0" max="100" step="0.01" value="0" aria-label="Video timeline" />
+              <span class="inline-time" id="inlineTimeLabel">0:00 / 0:00</span>
+              <button class="video-fullscreen-button" id="fullscreenButton" aria-label="Fullscreen" title="Fullscreen">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
             </div>
           </div>
-          <div class="player-chrome" aria-label="Video controls">
-            <div class="timeline"><span id="timeline-progress"></span></div>
-            <div class="player-controls">
-              <button class="control-button" id="chrome-play" aria-label="Play" type="button"><span data-icon="play-small"></span></button>
-              <button class="control-button" aria-label="Back 10 seconds" type="button"><span data-icon="rewind"></span></button>
-              <button class="control-button" aria-label="Forward 10 seconds" type="button"><span data-icon="forward"></span></button>
-              <span class="time-label">16:03 / <span id="length-label">47:00</span></span>
-              <span class="control-spacer"></span>
-              <button class="control-button" aria-label="Volume" type="button"><span data-icon="volume"></span></button>
-              <button class="control-button" aria-label="Fullscreen" type="button"><span data-icon="fullscreen"></span></button>
+
+          <div class="overlay-controls" id="overlayControls">
+            <label class="toggle-label">
+              <input type="checkbox" id="overlayToggle" />
+              <span class="toggle"></span>
+              Overlay Vilna page on video <em>(experimental)</em>
+            </label>
+            <label class="overlay-mode-label">
+              Style
+              <select id="overlayModeSelect">
+                <option value="full">Full page</option>
+                <option value="strip">Current lines</option>
+              </select>
+            </label>
+            <label class="overlay-opacity-label">
+              Opacity
+              <input type="range" id="overlayOpacitySlider" min="10" max="90" value="50" />
+            </label>
+            <label class="overlay-mode-label">
+              Fade to opacity
+              <select id="overlayOpacityTargetSelect">
+                <option value="both">Page + text</option>
+                <option value="background">Page only</option>
+              </select>
+            </label>
+            <label class="overlay-mode-label">
+              When not reading Gemara
+              <select id="overlayIdleSelect">
+                <option value="dim">Dim overlay</option>
+                <option value="hide">Hide overlay</option>
+              </select>
+            </label>
+            <label class="overlay-opacity-label">
+              Zoom
+              <input type="range" id="overlayZoomSlider" min="60" max="350" value="100" />
+            </label>
+            <button class="button ghost small" id="overlayResetPositionButton" type="button">Reset position</button>
+            <em class="overlay-hint">Scroll/pinch the overlay to zoom, drag to reposition</em>
+          </div>
+
+          <div class="scrubber-wrap">
+            <div class="scrub-preview" id="scrubPreview" hidden>
+              <strong id="previewTime">0:00</strong>
+              <span id="previewText"></span>
+            </div>
+            <input id="scrubber" class="scrubber" type="range" min="0" max="100" step="0.01" value="0" aria-label="Video timeline" />
+            <div class="time-row">
+              <span id="currentTime">0:00</span>
+              <span id="duration">0:00</span>
             </div>
           </div>
-          <div class="player-meta">
-            <div><h2 id="meta-title">Maseches Zevachim 62</h2><p id="meta-teacher">Rabbi Eli Stefansky · Daily Daf Yomi</p></div>
-            <span class="live-badge"><i class="live-dot"></i> Daf follows the shiur</span>
+
+          <div class="player-controls">
+            <button class="icon-button" id="backButton" aria-label="Back 10 seconds">−10</button>
+            <button class="play-button" id="playButton" aria-label="Play">
+              <svg class="play-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z" fill="currentColor"/></svg>
+              <svg class="pause-icon" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M7 5h4v14H7zm6 0h4v14h-4z" fill="currentColor"/></svg>
+            </button>
+            <button class="icon-button" id="forwardButton" aria-label="Forward 10 seconds">+10</button>
+            <div class="control-divider"></div>
+            <label class="speed-control">Speed
+              <select id="speedSelect">
+                <option value="0.75">0.75×</option>
+                <option value="1" selected>1×</option>
+                <option value="1.25">1.25×</option>
+                <option value="1.5">1.5×</option>
+                <option value="2">2×</option>
+              </select>
+            </label>
+            <button class="button secondary small push-right admin-only" id="editModeButton">Edit synchronization</button>
+          </div>
+
+          <div class="marking-bar admin-only" aria-label="Fast alignment controls">
+            <button class="button secondary small" id="markerBackButton" type="button">Previous phrase</button>
+            <div class="mark-target">
+              <span>Marking phrase</span>
+              <strong id="markTargetLabel">0 of 0</strong>
+            </div>
+            <button class="button primary" id="markHereButton" type="button">Mark here &amp; advance <kbd>M</kbd></button>
+            <button class="button secondary small" id="markerForwardButton" type="button">Next phrase</button>
+            <button class="button ghost small" id="saveDraftButton" type="button">Save draft</button>
+          </div>
+
+          <div class="now-learning">
+            <span class="now-label">The rabbi is discussing</span>
+            <div id="currentPhrase" dir="rtl"></div>
+            <p id="currentTranslation">Enter a daf reference above and press "Load daf."</p>
           </div>
         </article>
 
-        <aside class="daf-card" aria-labelledby="daf-heading">
+        <aside class="daf-card card" aria-labelledby="dafTitle">
           <header class="daf-header">
-            <div><p class="eyebrow">Following along</p><h2 id="daf-heading">זבחים סב ע״א</h2></div>
-            <div class="daf-tools"><button class="tool-button" id="decrease-text" aria-label="Decrease text size" type="button">A−</button><button class="tool-button" id="increase-text" aria-label="Increase text size" type="button">A+</button></div>
+            <div><p class="eyebrow">Following along</p><h2 id="dafTitle">No daf loaded</h2></div>
+            <div class="daf-tools">
+              <div class="view-switch" role="group" aria-label="Daf display mode">
+                <button class="active" data-view="text">Text</button>
+                <button data-view="page" title="Real Vilna-edition page image (private-use source)">Vilna page</button>
+              </div>
+              <button class="tool-button" id="decrease-text" aria-label="Decrease text size" type="button">A−</button>
+              <button class="tool-button" id="increase-text" aria-label="Increase text size" type="button">A+</button>
+            </div>
           </header>
-          <div class="sync-note"><span class="live-dot"></span><span>The highlighted words follow the current point in the shiur. Tap any passage to jump there.</span></div>
-          <div class="daf-page" id="daf-page" lang="he">
-            <p><strong>מתני׳</strong> <span class="segment">המזבח היה שלשים ושתים על שלשים ושתים.</span> <span class="segment">עלה אמה וכנס אמה זה היסוד.</span> <span class="segment active" tabindex="0">נמצא שלשים על שלשים. עלה חמש וכנס אמה זה הסובב.</span> <span class="segment">נמצא עשרים ושמונה על עשרים ושמונה.</span></p>
-            <p><strong>גמ׳</strong> <span class="segment">תנן התם כל הקדשים שנשחטו שלא לשמן כשרים.</span> <span class="segment">אלא שלא עלו לבעלים לשם חובה.</span> <span class="segment">חוץ מן הפסח והחטאת.</span> <span class="segment">הפסח בזמנו והחטאת בכל זמן.</span></p>
-            <p><span class="segment">אמר רבי יוסי ברבי יהודה.</span> <span class="segment">אף הנשחטין בדרום אם עלו לא ירדו.</span> <span class="segment">שנאמר זאת תורת העולה היא העולה על מוקדה.</span> <span class="segment">מה עולה שהיא ראויה לאישים אם עלתה לא תרד.</span></p>
-            <p><span class="segment">איתמר מזבח שנפגם.</span> <span class="segment">רבי יוחנן אמר כל הקדשים שנשחטו שם פסולים.</span> <span class="segment">ריש לקיש אמר כשרים.</span> <span class="segment">במאי קמיפלגי.</span></p>
+          <div class="sync-note"><span>The highlighted words follow the current point in the shiur. Tap any passage to jump there.</span></div>
+
+          <div class="daf-scroll" id="dafScroll">
+            <div class="daf-page" id="dafPage" dir="rtl" lang="he">
+              <p class="daf-empty-note">No daf loaded yet. Enter a reference above and press "Load daf."</p>
+            </div>
+            <div class="vilna-placeholder" id="vilnaPlaceholder" hidden>
+              <div class="vilna-zoom-controls" id="vilnaZoomControls">
+                <button class="vilna-zoom-btn" id="vilnaZoomOutButton" type="button" aria-label="Zoom out">−</button>
+                <span id="vilnaZoomLabel">100%</span>
+                <button class="vilna-zoom-btn" id="vilnaZoomInButton" type="button" aria-label="Zoom in">+</button>
+                <button class="vilna-zoom-reset" id="vilnaZoomResetButton" type="button">Reset zoom</button>
+                <button class="vilna-fullscreen-button" id="vilnaFullscreenButton" type="button" aria-label="Fullscreen" title="Fullscreen">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+              </div>
+              <div class="vilna-page-status" id="vilnaPageStatus">
+                <div class="page-silhouette">
+                  <div class="page-column narrow"></div>
+                  <div class="page-column wide"></div>
+                  <div class="page-column narrow"></div>
+                </div>
+                <p id="vilnaPageStatusText">Load a daf reference to see the Vilna page image.</p>
+              </div>
+              <div class="vilna-page-wrap" id="vilnaPageWrap">
+                <canvas id="vilnaPageCanvas" hidden></canvas>
+                <div class="vilna-page-overlay" id="vilnaPageOverlay"></div>
+              </div>
+            </div>
           </div>
-          <footer class="daf-footer"><span>Synced text view · Tap a passage to seek</span><nav class="page-nav" aria-label="Daf pages"><a href="#" aria-label="Previous amud">‹</a><a href="#">סב.</a><a href="#">סב:</a><a href="#" aria-label="Next amud">›</a></nav></footer>
+
+          <div class="daf-toolbar">
+            <span class="alignment-badge needs-work" id="alignmentStatus">Needs alignment</span>
+            <label class="toggle-label">
+              <input type="checkbox" id="autoScroll" checked />
+              <span class="toggle"></span>
+              Auto-scroll
+            </label>
+            <span class="toolbar-hint">Click any phrase to jump to that point in the shiur.</span>
+          </div>
+
+          <div class="daf-footer">
+            <span id="segmentCount">0 synchronized segments</span>
+            <span>Text retrieval: Sefaria API</span>
+          </div>
         </aside>
       </section>
 
-      <section class="below-grid">
-        <article class="about-card">
-          <p class="eyebrow">About this shiur</p>
-          <h2>Learn today’s daf with the text beside you</h2>
-          <p>DafSync keeps the video and Gemara together in one calm learning space. The daf automatically follows the maggid shiur, while still letting you pause, review, or jump directly to a passage.</p>
-          <div class="details"><span class="detail-pill" id="detail-length">47 minutes</span><span class="detail-pill">English</span><span class="detail-pill">Maseches Zevachim</span><span class="detail-pill">Daf Yomi</span></div>
-        </article>
-        <aside class="up-next">
-          <p class="eyebrow">Continue learning</p><h2>More from Zevachim</h2>
-          <a class="next-item" href="/player/?daf=Zevachim+61&teacher=Rabbi+Eli+Stefansky&length=46+min"><span class="next-thumb"><span data-icon="play-small"></span></span><span class="next-copy"><strong>Zevachim 61</strong><span>Rabbi Eli Stefansky</span></span><span class="next-length">46 min</span></a>
-          <a class="next-item" href="/player/?daf=Zevachim+60&teacher=Rabbi+Eli+Stefansky&length=45+min"><span class="next-thumb"><span data-icon="play-small"></span></span><span class="next-copy"><strong>Zevachim 60</strong><span>Rabbi Eli Stefansky</span></span><span class="next-length">45 min</span></a>
-        </aside>
+      <section class="editor card" id="editor" hidden>
+        <div class="editor-heading">
+          <div>
+            <div class="eyebrow">Alignment editor</div>
+            <h2>Correct the synchronization</h2>
+            <p>Select a phrase, play or seek to its correct point, then use “Mark here & advance” or press M. The previous phrase closes automatically.</p>
+          </div>
+          <div class="editor-actions">
+            <button class="button secondary small" id="evenSpacingButton">Reset evenly</button>
+            <button class="button primary small" id="closeEditorButton">Done editing</button>
+          </div>
+        </div>
+        <div class="editor-table-wrap">
+          <table class="editor-table">
+            <thead>
+              <tr><th>#</th><th>Start</th><th>End</th><th>Phrase</th><th></th></tr>
+            </thead>
+            <tbody id="editorBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="about-card">
+        <p class="eyebrow">About this shiur</p>
+        <h2>Learn today’s daf with the text beside you</h2>
+        <p>DafSync keeps the video and Gemara together in one calm learning space. The daf automatically follows the maggid shiur, while still letting you pause, review, or jump directly to a passage.</p>
+        <div class="details"><span class="detail-pill">Word-level sync</span><span class="detail-pill">Auto-scroll</span><span class="detail-pill">Vilna page overlay</span><span class="detail-pill">Sefaria text</span></div>
       </section>
     </main>
   </div>
 
   <nav class="mobile-nav" aria-label="Mobile navigation"><a href="/"><span data-icon="home"></span><span>Home</span></a><a class="active" href="/"><span data-icon="calendar"></span><span>Today’s Daf</span></a><a href="/"><span data-icon="books"></span><span>Masechtos</span></a><a href="/"><span data-icon="teacher"></span><span>Maggidei Shiur</span></a></nav>
+
+  <dialog id="helpDialog">
+    <button class="dialog-close" id="closeHelp" aria-label="Close">×</button>
+    <div class="eyebrow">Guide</div>
+    <h2>How to use the player</h2>
+    <ol>
+      <li>Pick a tractate, daf, and amud above, or arrive here already loaded from a link on the library page.</li>
+      <li>Click a phrase on the daf to jump the video to that point. During playback, the daf auto-scrolls to follow along.</li>
+      <li>Switch the daf view to "Vilna page" for a real page image instead of plain text, or overlay it directly on the video.</li>
+      <li>Sign in to save favorites and resume a shiur where you left off.</li>
+    </ol>
+    <p class="dialog-note">YouTube playback is controlled through YouTube's embedded player.</p>
+  </dialog>
+
+  <dialog id="syncDialog">
+    <button class="dialog-close" id="closeSyncDialog" aria-label="Close">×</button>
+    <div class="eyebrow">Caption-box sync</div>
+    <h2>Generate a sync from a lecture video</h2>
+    <p class="dialog-note">Pick the daf the video covers, then process it either
+      with the DafSync desktop app on this computer, or on our server from a
+      Google Drive link.</p>
+
+    <div class="sync-picker">
+      <div class="sync-picker-row">
+        <label class="sync-field">
+          <span>Tractate</span>
+          <select id="syncTractateSelect"></select>
+        </label>
+        <label class="sync-field sync-field-narrow">
+          <span>Daf</span>
+          <select id="syncDafSelect"></select>
+        </label>
+        <label class="sync-field sync-field-narrow">
+          <span>Amud</span>
+          <div class="amud-toggle" id="syncAmudToggle" role="group" aria-label="Amud">
+            <button type="button" class="amud-option active" data-side="a">a</button>
+            <button type="button" class="amud-option" data-side="b">b</button>
+          </div>
+        </label>
+        <button class="button primary small" id="syncAddReadingButton" type="button">+ Add reading</button>
+      </div>
+      <div class="sync-picker-row">
+        <label class="sync-field">
+          <span>Shiur type</span>
+          <div class="shiur-variant-toggle" id="syncShiurToggle" role="group" aria-label="Shiur type">
+            <button type="button" class="shiur-variant-option active" data-variant="regular">Regular</button>
+            <button type="button" class="shiur-variant-option" data-variant="chazarah">Chazarah Daf (shorter, gemara-only review)</button>
+          </div>
+        </label>
+        <label class="sync-field">
+          <span>Language</span>
+          <div class="shiur-variant-toggle" id="syncLanguageToggle" role="group" aria-label="Shiur language">
+            <button type="button" class="language-option active" data-language="en">English</button>
+            <button type="button" class="language-option" data-language="he">Hebrew</button>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <div class="sync-readings-head">
+      <strong>Readings covered, in order</strong>
+      <button class="button ghost small" id="syncClearReadingsButton" type="button">Clear all</button>
+    </div>
+    <div class="sync-readings-list" id="syncReadingsList">
+      <p class="field-note">No readings added yet.</p>
+    </div>
+
+    <div class="sync-tabs" role="tablist" aria-label="Processing method">
+      <button class="sync-tab active" type="button" data-sync-panel="syncLocalPanel" role="tab" aria-selected="true">Local file (Desktop App)</button>
+      <button class="sync-tab" type="button" data-sync-panel="syncDrivePanel" role="tab" aria-selected="false">Google Drive link</button>
+      <button class="sync-tab" type="button" data-sync-panel="syncYoutubePanel" role="tab" aria-selected="false">YouTube link</button>
+    </div>
+
+    <div class="sync-source-panel" id="syncLocalPanel" role="tabpanel">
+      <label class="button secondary file-button small">
+        <input id="syncVideoInput" type="file" accept="video/*" hidden />
+        Choose video
+      </label>
+      <span id="syncVideoFileName" class="field-note">Processed on this computer, never uploaded</span>
+      <div class="sync-app-status" id="syncAppStatus">
+        <span class="status-dot muted"></span>
+        <span id="syncAppStatusText">Checking for the DafSync desktop app…</span>
+        <a class="button secondary small" id="syncOpenAppButton" href="dafsync://open" hidden>Open DafSync app</a>
+        <a class="button ghost small" href="https://github.com/mosesar9319/MDYsync/releases/latest" target="_blank" rel="noopener">Don't have it? Download</a>
+      </div>
+      <button class="button primary" id="syncLocalStartButton" type="button">Sync using desktop app</button>
+    </div>
+
+    <div class="sync-source-panel" id="syncDrivePanel" role="tabpanel" hidden>
+      <label class="sync-field">
+        <span>Google Drive video link</span>
+        <input id="syncDriveUrlInput" type="url" placeholder="https://drive.google.com/file/d/…/view" spellcheck="false" />
+      </label>
+      <span class="field-note">The file must be shared as "Anyone with the link." Processing runs on our server and can take a few minutes.</span>
+      <button class="button primary" id="syncDriveStartButton" type="button">Sync from Google Drive</button>
+    </div>
+
+    <div class="sync-source-panel" id="syncYoutubePanel" role="tabpanel" hidden>
+      <label class="sync-field">
+        <span>YouTube video link</span>
+        <input id="syncYoutubeUrlInput" type="url" placeholder="https://www.youtube.com/watch?v=…" spellcheck="false" />
+      </label>
+      <span class="field-note">Restricted to recent Mercaz Daf Yomi uploads. Processing runs on our server and can take a few minutes.</span>
+      <button class="button primary" id="syncYoutubeStartButton" type="button">Sync from YouTube</button>
+    </div>
+
+    <div class="sync-progress-wrap" id="syncProgressWrap" hidden>
+      <div class="sync-progress-row">
+        <div class="sync-progress-track"><div class="sync-progress-fill" id="syncProgressFill"></div></div>
+        <span class="sync-progress-pct" id="syncProgressPct">0%</span>
+      </div>
+      <div class="sync-log" id="syncLog"></div>
+    </div>
+  </dialog>
+
+  <dialog id="authDialog">
+    <button class="dialog-close" id="closeAuthDialog" aria-label="Close">×</button>
+    <div class="eyebrow" id="authDialogEyebrow">Account</div>
+    <h2 id="authDialogTitle">Sign in</h2>
+    <p class="dialog-note" id="authDialogNote">Sign in to save favorites, resume playback where you left off, and keep your player settings across devices.</p>
+    <button class="button secondary google-auth-button" id="googleAuthButton" type="button">
+      <svg viewBox="0 0 18 18" aria-hidden="true" width="18" height="18">
+        <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.84 2.09-1.79 2.73v2.27h2.9c1.7-1.56 2.68-3.87 2.68-6.64z"/>
+        <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.17l-2.9-2.27c-.8.54-1.83.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.34C2.44 15.98 5.48 18 9 18z"/>
+        <path fill="#FBBC05" d="M3.95 10.7c-.18-.54-.28-1.11-.28-1.7s.1-1.16.28-1.7V4.96H.96A8.996 8.996 0 0 0 0 9c0 1.45.35 2.83.96 4.04l2.99-2.34z"/>
+        <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0 5.48 0 2.44 2.02.96 4.96l2.99 2.34C4.66 5.17 6.65 3.58 9 3.58z"/>
+      </svg>
+      Continue with Google
+    </button>
+    <div class="auth-divider"><span>or</span></div>
+    <form class="auth-form" id="authForm">
+      <label class="sync-field">
+        <span>Email</span>
+        <input id="authEmail" type="email" autocomplete="email" required />
+      </label>
+      <label class="sync-field">
+        <span>Password</span>
+        <input id="authPassword" type="password" autocomplete="current-password" required minlength="6" />
+      </label>
+      <p class="auth-error" id="authError" hidden></p>
+      <div class="auth-form-actions">
+        <button class="button primary" id="authSubmitButton" type="submit">Sign in</button>
+        <button class="button ghost small" id="authSwitchModeButton" type="button">Need an account? Sign up</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="favoritesDialog">
+    <button class="dialog-close" id="closeFavoritesDialog" aria-label="Close">×</button>
+    <div class="eyebrow">Saved</div>
+    <h2>My favorites</h2>
+    <div class="favorites-list" id="favoritesList">
+      <p class="field-note">No favorites yet. Use the star next to the shiur title while viewing a daf.</p>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script>
     (() => {
@@ -429,57 +765,13 @@
         books:'<path d="M4 19.5V5a2 2 0 0 1 2-2h5v18H6a2 2 0 0 1-2-1.5ZM11 3h7a2 2 0 0 1 2 2v14.5A1.5 1.5 0 0 0 18.5 18H11"/><path d="M15 7h2M15 11h2"/>',
         teacher:'<circle cx="12" cy="7" r="4"/><path d="M4 21c.7-5 3.3-7 8-7s7.3 2 8 7M18 14l3-2M6 14l-3-2"/>',
         search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
-        user:'<circle cx="12" cy="8" r="4"/><path d="M4 21c.8-5.3 3.4-8 8-8s7.2 2.7 8 8"/>',
         'arrow-left':'<path d="m15 18-6-6 6-6"/><path d="M9 12h11"/>',
-        bookmark:'<path d="M6 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18l-6-4-6 4V4Z"/>',
-        share:'<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5"/>',
-        play:'<path d="m9 7 8 5-8 5V7Z" fill="currentColor" stroke="none"/>',
-        'play-small':'<path d="m9 7 8 5-8 5V7Z" fill="currentColor" stroke="none"/>',
-        rewind:'<path d="M11 7 6 12l5 5V7Zm7 0-5 5 5 5V7Z"/>',
-        forward:'<path d="m6 7 5 5-5 5V7Zm7 0 5 5-5 5V7Z"/>',
-        volume:'<path d="M4 10v4h4l5 4V6L8 10H4Z"/><path d="M16 9c1.3 1.7 1.3 4.3 0 6M19 6c3.3 3.3 3.3 8.7 0 12"/>',
-        fullscreen:'<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>'
+        share:'<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5"/>'
       };
       const icon = (name, size = 22) => `<svg aria-hidden="true" class="icon" fill="none" height="${size}" viewBox="0 0 24 24" width="${size}">${paths[name]}</svg>`;
-      document.querySelectorAll('[data-icon]').forEach((node) => node.outerHTML = icon(node.dataset.icon, node.dataset.icon === 'play' ? 32 : 22));
+      document.querySelectorAll('[data-icon]').forEach((node) => node.outerHTML = icon(node.dataset.icon, 22));
 
-      const params = new URLSearchParams(location.search);
-      const daf = params.get('daf') || 'Maseches Zevachim 62';
-      const teacher = params.get('teacher') || 'Rabbi Eli Stefansky';
-      const length = params.get('length') || '47 min';
-      const normalizedTitle = /^Maseches\s/i.test(daf) ? daf : `Maseches ${daf}`;
-      const match = daf.match(/(?:Maseches\s+)?(.+?)\s+(\d+)$/i);
-      const masechta = match ? match[1] : 'Zevachim';
-      const dafNumber = match ? match[2] : '62';
-      document.title = `${normalizedTitle} — DafSync`;
-      document.querySelector('#page-title').textContent = normalizedTitle;
-      document.querySelector('#meta-title').textContent = normalizedTitle;
-      document.querySelector('#page-teacher').textContent = teacher;
-      document.querySelector('#meta-teacher').textContent = `${teacher} · Daily Daf Yomi`;
-      document.querySelector('#crumb-masechta').textContent = masechta;
-      document.querySelector('#crumb-daf').textContent = `Daf ${dafNumber}`;
-      document.querySelector('#length-label').textContent = length.replace(/\s*min/i, ':00');
-      document.querySelector('#detail-length').textContent = length;
-
-      const videoId = params.get('video');
-      const openVideo = () => {
-        if (!videoId || !/^[\w-]{11}$/.test(videoId)) {
-          document.querySelector('#video-placeholder small').textContent = 'Video ready when this shiur is connected to the DafSync catalog';
-          return;
-        }
-        const iframe = document.createElement('iframe');
-        iframe.className = 'video-embed';
-        iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`;
-        iframe.title = `${normalizedTitle} shiur`;
-        iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
-        iframe.allowFullscreen = true;
-        document.querySelector('#video-stage').appendChild(iframe);
-        document.querySelector('#video-placeholder').hidden = true;
-      };
-      document.querySelector('#play-video').addEventListener('click', openVideo);
-      document.querySelector('#chrome-play').addEventListener('click', openVideo);
-
-      const dafPage = document.querySelector('#daf-page');
+      const dafPage = document.querySelector('#dafPage');
       document.querySelector('#increase-text').addEventListener('click', () => {
         const current = parseFloat(getComputedStyle(dafPage).fontSize);
         dafPage.style.fontSize = `${Math.min(32,current + 2)}px`;
@@ -488,17 +780,16 @@
         const current = parseFloat(getComputedStyle(dafPage).fontSize);
         dafPage.style.fontSize = `${Math.max(18,current - 2)}px`;
       });
-      document.querySelectorAll('.segment').forEach((segment) => segment.addEventListener('click', () => {
-        document.querySelectorAll('.segment').forEach((item) => item.classList.remove('active'));
-        segment.classList.add('active');
-      }));
       document.querySelector('#share-button').addEventListener('click', async () => {
         const data = { title: document.title, url: location.href };
         if (navigator.share) await navigator.share(data).catch(() => {});
         else await navigator.clipboard?.writeText(location.href);
       });
-      document.querySelectorAll('.page-nav a').forEach((link) => link.addEventListener('click', (event) => event.preventDefault()));
     })();
   </script>
+  <script src="../vendor/supabase-js.min.js"></script>
+  <script src="../auth.js"></script>
+  <script src="../app.js" defer></script>
+  <script src="../account-features.js" defer></script>
 </body>
 </html>

@@ -1390,17 +1390,15 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
 
     // The player still needs a real amud to open on -- catalog.json
     // records, per combo, which amud that daf's video actually anchors on
-    // (almost always 'a', the natural start of the daf).
+    // (almost always 'a', the natural start of the daf). app.js (loaded on
+    // /player/) reads ?ref=/&variant=/&language= itself and looks up the
+    // matching video-link/alignment data server-side, so there's no need to
+    // pass the videoId through the URL.
     function playerUrl(entry) {
-      const teacherDetails = ["R' Eli Stefansky"];
-      if (entry.language === "he") teacherDetails.push("Hebrew");
-      if (entry.variant === "chazarah") teacherDetails.push("Chazarah");
-      const params = new URLSearchParams({
-        daf: `${entry.tractate} ${entry.daf}`,
-        teacher: teacherDetails.join(" · "),
-        video: entry.videoId,
-      });
-      return `/watch/?${params.toString()}`;
+      const params = new URLSearchParams({ ref: `${entry.tractate} ${entry.daf}${entry.amud}` });
+      if (entry.variant === "chazarah") params.set("variant", "chazarah");
+      if (entry.language === "he") params.set("language", "hebrew");
+      return `/player/?${params.toString()}`;
     }
 
     // One row per real (tractate, daf) -- see tools/build-video-catalog.mjs
