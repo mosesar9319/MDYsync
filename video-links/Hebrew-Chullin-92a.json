@@ -1,1 +1,11 @@
-{"type":"youtube","url":"https://www.youtube.com/watch?v=J_aDvJAaut4","videoId":"J_aDvJAaut4","label":"מרכז דף יומי - חולין דף צב. - ר' אלי סטפ","coveredRefs":["Chullin 91b","Chullin 92a","Chullin 92b"]}
+{
+  "type": "youtube",
+  "url": "https://www.youtube.com/watch?v=J_aDvJAaut4",
+  "videoId": "J_aDvJAaut4",
+  "label": "מרכז דף יומי - חולין דף צב. - ר' אלי סטפנסקי שליט\"א",
+  "coveredRefs": [
+    "Chullin 91b",
+    "Chullin 92a",
+    "Chullin 92b"
+  ]
+}
