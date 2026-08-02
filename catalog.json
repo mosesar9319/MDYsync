@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-02T02:03:13.784Z",
+  "generatedAt": "2026-08-02T06:02:52.854Z",
   "tractates": {
     "Chullin": [
       {
@@ -2123,6 +2123,11 @@
         "regularHe": {
           "videoId": "Bp9Pu72pXFg",
           "label": "מרכז דף יומי -  חולין דף  צד. - ר' ידידי",
+          "amud": "a"
+        },
+        "regularEn": {
+          "videoId": "fxggwPQ3LBs",
+          "label": "Daf Yomi Chullin Daf 94 by R' Eli Stefan",
           "amud": "a"
         }
       }
