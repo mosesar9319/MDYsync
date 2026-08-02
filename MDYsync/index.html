@@ -1400,7 +1400,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         teacher: teacherDetails.join(" · "),
         video: entry.videoId,
       });
-      return `/player/?${params.toString()}`;
+      return `/watch/?${params.toString()}`;
     }
 
     // One row per real (tractate, daf) -- see tools/build-video-catalog.mjs

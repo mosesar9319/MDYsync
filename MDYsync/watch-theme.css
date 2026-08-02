@@ -1,0 +1,85 @@
+/* Re-skins /watch/ with the ivory/gold/navy palette from /player/'s design
+   (and the home page's own look), on top of the same functional structure
+   /studio/ uses -- loaded after styles.css so these overrides win, and only
+   on /watch/, since /studio/ is backend tooling and can stay as-is.
+
+   styles.css is heavily driven by CSS custom properties, so redefining
+   :root here recolors most of the page for free; the rest of this file is
+   the handful of components that hardcode a literal rgba(255,255,255,...)
+   or rgba(0,0,0,...) wash tuned for a dark background, which need their own
+   light-mode equivalents rather than just following the variables. */
+
+:root {
+  --bg: #fbf8f2;
+  --bg-soft: #f5efe3;
+  --card: #fffdf8;
+  --card-strong: #fff8ea;
+  --line: rgba(90, 66, 34, 0.14);
+  --line-strong: rgba(90, 66, 34, 0.28);
+  --text: #17212b;
+  --muted: #706b64;
+  --accent: #ba8422;
+  --accent-soft: rgba(186, 132, 34, 0.14);
+  --accent-strong: #a97117;
+  --blue: #4d7a9c;
+  --highlight: #f4d68f;
+  --highlight-text: #2d240f;
+  --danger: #b3432f;
+  --shadow: 0 14px 38px rgba(63, 45, 23, 0.1);
+  --radius: 20px;
+}
+
+html { color-scheme: light; }
+body {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(186, 132, 34, 0.08), transparent 30%),
+    radial-gradient(circle at 98% 18%, rgba(23, 54, 79, 0.06), transparent 26%),
+    linear-gradient(180deg, #fcfaf5 0%, #f8f3ea 100%);
+}
+
+.card { backdrop-filter: none; border: 1px solid var(--line); }
+
+#lectureTitle, .brand-title, .daf-heading h2 {
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.status-pill { background: rgba(23, 33, 43, 0.03); }
+
+.button.primary { color: #fff; background: linear-gradient(135deg, #c89432, #a97117); box-shadow: 0 10px 24px rgba(171, 114, 22, 0.22); }
+.button.primary:hover { background: linear-gradient(135deg, #d3a13f, #b47b1c); }
+.button.secondary { background: rgba(23, 33, 43, 0.03); }
+.button.secondary:hover, .button.ghost:hover { background: rgba(23, 33, 43, 0.07); }
+.button { border-radius: 999px; }
+.button.small { border-radius: 999px; }
+
+.overlay-mode-label select { background: #fff; color: var(--text); }
+
+.icon-button, .play-button { background: rgba(23, 33, 43, 0.04); }
+.play-button { background: linear-gradient(145deg, #d9a848, #ba8422); color: #fff; }
+.large-play { border: 1px solid rgba(255, 255, 255, 0.4); background: rgba(23, 38, 61, 0.55); }
+.large-play:hover { background: linear-gradient(145deg, #d9a848, #ba8422); color: #fff; }
+
+.view-switch { background: rgba(23, 33, 43, 0.05); }
+.view-switch button.active { background: #fff; color: var(--text); box-shadow: 0 2px 8px rgba(63, 45, 23, 0.1); }
+
+.toggle { background: rgba(23, 33, 43, 0.14); }
+
+.video-source-badge { border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(12, 38, 61, 0.72); color: #fbf8f2; }
+
+dialog { background: var(--card); box-shadow: 0 30px 90px rgba(63, 45, 23, 0.28); }
+.dialog-note { background: rgba(23, 33, 43, 0.03); }
+.toast { background: var(--navy, #0c263d); }
+
+.source-tabs, .sync-tabs { background: rgba(23, 33, 43, 0.05); }
+.source-tab.active, .sync-tab.active { background: #fff; box-shadow: 0 2px 8px rgba(63, 45, 23, 0.1); }
+
+.amud-option, .shiur-variant-option, .language-option { background: rgba(23, 33, 43, 0.04); }
+.amud-option.active, .shiur-variant-option.active, .language-option.active { color: #fff; }
+
+kbd { color: #17302d; background: rgba(23, 33, 43, 0.08); border: 1px solid rgba(23, 33, 43, 0.15); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset; }
+
+.account-dropdown-item:hover { background: rgba(23, 33, 43, 0.05); }
+.favorite-item { background: rgba(23, 33, 43, 0.02); }
+.favorite-item:hover { background: rgba(23, 33, 43, 0.06); }
+
+.admin-badge { color: #fff; }
