@@ -1,1 +1,6 @@
-{"type":"youtube","url":"https://www.youtube.com/watch?v=6ItOX_Bnm5M","videoId":"6ItOX_Bnm5M","label":"מרכז דף יומי -  חולין דף  צה. - ר' ידידיה קרמר שליט\"א","coveredRefs":["Chullin 94b","Chullin 95a","Chullin 95b"],"source":"channel-auto"}
+{
+  "label": "מרכז דף יומי -  חולין דף  צה. - ר' ידידיה קרמר שליט\"א",
+  "type": "youtube",
+  "url": "https://www.youtube.com/watch?v=6ItOX_Bnm5M",
+  "videoId": "6ItOX_Bnm5M"
+}
