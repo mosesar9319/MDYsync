@@ -1,1 +1,6 @@
-{"type":"youtube","url":"https://www.youtube.com/watch?v=fxggwPQ3LBs","videoId":"fxggwPQ3LBs","label":"Daf Yomi Chullin Daf 94 by R' Eli Stefan","coveredRefs":["Chullin 93b","Chullin 94a","Chullin 94b"],"source":"channel-auto"}
+{
+  "label": "YouTube",
+  "type": "youtube",
+  "url": "https://www.youtube.com/watch?v=fxggwPQ3LBs",
+  "videoId": "fxggwPQ3LBs"
+}
