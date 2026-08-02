@@ -1,1 +1,11 @@
-{"type":"youtube","url":"https://www.youtube.com/watch?v=lPZ5TDJFrGo","videoId":"lPZ5TDJFrGo","label":"CHAZARAH - Chullin Daf 92 | \"Nothing but","coveredRefs":["Chullin 91b","Chullin 92a","Chullin 92b"]}
+{
+  "type": "youtube",
+  "url": "https://www.youtube.com/watch?v=lPZ5TDJFrGo",
+  "videoId": "lPZ5TDJFrGo",
+  "label": "CHAZARAH - Chullin Daf 92 | \"Nothing but the Daf\" with R' Eli Stefansky",
+  "coveredRefs": [
+    "Chullin 91b",
+    "Chullin 92a",
+    "Chullin 92b"
+  ]
+}
