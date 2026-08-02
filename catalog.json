@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-01T23:03:13.684Z",
+  "generatedAt": "2026-08-02T01:02:49.173Z",
   "tractates": {
     "Chullin": [
       {
@@ -2087,6 +2087,11 @@
         "chazarahEn": {
           "videoId": "lPZ5TDJFrGo",
           "label": "CHAZARAH - Chullin Daf 92 | \"Nothing but",
+          "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "2miKJvXOpnc",
+          "label": "חזרה - חולין דף צב | \"רק הדף\" עם ר' אלי ",
           "amud": "a"
         }
       },
