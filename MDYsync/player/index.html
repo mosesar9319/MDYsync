@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#fbf8f2">
+  <meta name="description" content="Watch a Daf Yomi shiur while following along inside the daf.">
+  <title>DafSync — Shiur Player</title>
+  <style>
+    :root {
+      --ivory: #fbf8f2;
+      --paper: #fffdf8;
+      --paper-deep: #f5ecdc;
+      --navy: #0c263d;
+      --navy-soft: #17364f;
+      --gold: #ba8422;
+      --gold-light: #d9a848;
+      --gold-wash: #f6e8c9;
+      --ink: #17212b;
+      --muted: #706b64;
+      --line: #e6ded1;
+      --shadow: 0 14px 38px rgba(63,45,23,.1);
+    }
+
+    * { box-sizing: border-box; }
+    html { background: var(--ivory); scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: Arial, Helvetica, sans-serif;
+      background:
+        radial-gradient(circle at 62% -10%, rgba(255,255,255,.96), transparent 38rem),
+        linear-gradient(130deg, #fcfaf5 0%, #f8f3ea 100%);
+    }
+    button, input, select { font: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    button { cursor: pointer; }
+    a { color: inherit; }
+    [hidden] { display: none !important; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    .icon { flex: 0 0 auto; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+
+    .sidebar {
+      position: fixed;
+      inset: 0 auto 0 0;
+      z-index: 20;
+      width: 148px;
+      display: flex;
+      flex-direction: column;
+      background: rgba(255,253,248,.96);
+      border-right: 1px solid var(--line);
+      box-shadow: 10px 0 30px rgba(77,54,27,.035);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      color: var(--navy);
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .sidebar > .brand { height: 104px; justify-content: center; border-bottom: 1px solid var(--line); }
+    .brand-mark {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: 54px;
+      height: 54px;
+      color: var(--gold);
+      border: 1.5px solid var(--gold);
+      border-radius: 11px;
+    }
+    .brand-mark::after { content: ""; position: absolute; bottom: -5px; width: 26px; height: 1px; background: var(--gold); transform: rotate(-8deg); }
+    .brand-book { font: 25px Georgia, "Times New Roman", serif; }
+    .brand-name { font: 700 clamp(28px,2.7vw,43px) Georgia,"Times New Roman",serif; letter-spacing: -1.5px; }
+    .sidebar .brand-name { display: none; }
+    .desktop-navigation { display: flex; flex-direction: column; }
+    .side-link {
+      height: 102px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: #544e46;
+      text-decoration: none;
+      font: 16px Georgia,"Times New Roman",serif;
+      border-left: 4px solid transparent;
+      transition: .18s ease;
+    }
+    .side-link:hover, .side-link.active { color: var(--gold); background: #fcf7ec; border-left-color: var(--gold); }
+
+    .page { min-height: 100vh; margin-left: 148px; }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 15;
+      height: 104px;
+      display: grid;
+      grid-template-columns: auto minmax(260px, 1fr) auto;
+      align-items: center;
+      gap: 22px;
+      padding: 0 clamp(22px,4vw,64px);
+      background: rgba(255,253,248,.92);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(16px);
+    }
+    .mobile-brand { display: none; }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--navy);
+      text-decoration: none;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .back-link:hover { color: var(--gold); }
+    .search-box {
+      justify-self: center;
+      width: min(760px,100%);
+      height: 58px;
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      padding: 0 22px;
+      color: #77736d;
+      background: rgba(255,255,255,.42);
+      border: 1px solid #dcd2c2;
+      border-radius: 999px;
+    }
+    .search-box:focus-within { border-color: var(--gold-light); box-shadow: 0 0 0 4px rgba(186,132,34,.1); }
+    .search-box input { width: 100%; border: 0; outline: 0; color: var(--ink); background: transparent; font-size: 17px; }
+    .profile-button {
+      width: 50px;
+      height: 50px;
+      display: grid;
+      place-items: center;
+      color: #625a4e;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      box-shadow: 0 5px 15px rgba(63,45,23,.07);
+    }
+
+    main { max-width: 1600px; margin: 0 auto; padding: 34px clamp(22px,4vw,64px) 70px; }
+    .breadcrumb { display: flex; align-items: center; gap: 8px; margin-bottom: 19px; color: var(--muted); font-size: 14px; }
+    .breadcrumb a { color: var(--gold); text-decoration: none; font-weight: 700; }
+    .title-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+    .eyebrow { margin: 0 0 7px; color: var(--gold); font-size: 12px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: 6px; color: var(--navy); font: 700 clamp(34px,4vw,53px)/1.06 Georgia,"Times New Roman",serif; letter-spacing: -1.4px; }
+    .teacher { margin: 0; color: var(--muted); font-size: 18px; }
+    .title-actions { display: flex; gap: 10px; }
+    .pill-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 0 16px;
+      color: var(--navy);
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      font-weight: 700;
+    }
+    .pill-button:hover { border-color: var(--gold-light); color: var(--gold); }
+
+    .watch-layout { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(390px,.8fr); gap: 24px; align-items: start; }
+    .video-card, .daf-card, .about-card, .up-next { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); overflow: hidden; }
+    .video-stage {
+      position: relative;
+      aspect-ratio: 16/9;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 35% 35%, rgba(186,132,34,.18), transparent 24%),
+        linear-gradient(135deg, #061523 0%, #0c263d 58%, #17364f 100%);
+    }
+    .video-stage::before, .video-stage::after { content: ""; position: absolute; border: 1px solid rgba(217,168,72,.18); border-radius: 50%; }
+    .video-stage::before { width: 380px; height: 380px; left: -160px; bottom: -230px; }
+    .video-stage::after { width: 260px; height: 260px; right: -130px; top: -130px; }
+    .video-placeholder { position: relative; z-index: 1; text-align: center; color: #fff; }
+    .video-placeholder small { display: block; margin-top: 15px; color: rgba(255,255,255,.68); font-size: 13px; }
+    .play-button {
+      width: 78px;
+      height: 78px;
+      display: grid;
+      place-items: center;
+      margin: auto;
+      padding-left: 5px;
+      color: #fff;
+      background: linear-gradient(145deg,var(--gold-light),var(--gold));
+      border: 0;
+      border-radius: 50%;
+      box-shadow: 0 12px 35px rgba(186,132,34,.35);
+      transition: transform .18s ease;
+    }
+    .play-button:hover { transform: scale(1.05); }
+    .video-embed { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; z-index: 2; }
+    .player-chrome { padding: 14px 18px 16px; background: #091c2c; color: #fff; }
+    .timeline { position: relative; height: 5px; margin-bottom: 13px; background: rgba(255,255,255,.18); border-radius: 99px; overflow: hidden; }
+    .timeline span { display: block; width: 34%; height: 100%; background: linear-gradient(90deg,var(--gold),var(--gold-light)); border-radius: inherit; }
+    .player-controls { display: flex; align-items: center; gap: 14px; }
+    .control-button { width: 34px; height: 34px; display: grid; place-items: center; padding: 0; color: #fff; background: transparent; border: 0; border-radius: 50%; }
+    .control-button:hover { background: rgba(255,255,255,.1); }
+    .time-label { color: rgba(255,255,255,.7); font-size: 13px; font-variant-numeric: tabular-nums; }
+    .control-spacer { flex: 1; }
+    .player-meta { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 20px 22px 22px; }
+    .player-meta h2 { margin-bottom: 5px; color: var(--navy); font: 700 26px Georgia,"Times New Roman",serif; }
+    .player-meta p { margin-bottom: 0; color: var(--muted); }
+    .live-badge { display: inline-flex; align-items: center; gap: 7px; padding: 8px 11px; color: #6b4a0d; background: var(--gold-wash); border: 1px solid #ead4a4; border-radius: 999px; font-size: 12px; font-weight: 800; white-space: nowrap; }
+    .live-dot { width: 7px; height: 7px; background: var(--gold); border-radius: 50%; box-shadow: 0 0 0 4px rgba(186,132,34,.14); }
+
+    .daf-card { position: sticky; top: 128px; }
+    .daf-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 17px 19px; border-bottom: 1px solid var(--line); }
+    .daf-header h2 { margin: 3px 0 0; color: var(--navy); font: 700 25px Georgia,"Times New Roman",serif; }
+    .daf-tools { display: flex; gap: 6px; }
+    .tool-button { width: 36px; height: 36px; display: grid; place-items: center; color: #655e55; background: #fbf7ef; border: 1px solid var(--line); border-radius: 9px; }
+    .tool-button:hover { color: var(--gold); border-color: #d9bd85; }
+    .sync-note { display: flex; align-items: center; gap: 9px; margin: 14px 17px 0; padding: 11px 13px; color: #68501f; background: #fbf4e5; border: 1px solid #ead8af; border-radius: 11px; font-size: 12px; line-height: 1.45; }
+    .daf-page {
+      max-height: 642px;
+      overflow: auto;
+      padding: 27px 28px 38px;
+      color: #332b22;
+      background:
+        linear-gradient(rgba(255,253,247,.8),rgba(255,253,247,.8)),
+        repeating-linear-gradient(0deg, transparent 0 31px, rgba(90,66,34,.025) 31px 32px);
+      direction: rtl;
+      text-align: justify;
+      font: 400 24px/1.95 "Times New Roman", serif;
+      scrollbar-color: rgba(78,59,36,.25) transparent;
+    }
+    .daf-page p { margin-bottom: 16px; }
+    .daf-page strong { color: #19140f; }
+    .segment { padding: 2px 3px; border-radius: 6px; transition: .16s ease; }
+    .segment:hover { background: rgba(186,132,34,.1); }
+    .segment.active { color: #271a05; background: linear-gradient(180deg,#f4d68f,#e9bd5e); box-shadow: 0 0 0 3px rgba(186,132,34,.12); }
+    .daf-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px 17px; color: var(--muted); border-top: 1px solid var(--line); font-size: 12px; }
+    .page-nav { display: flex; gap: 7px; }
+    .page-nav a { min-width: 34px; height: 31px; display: grid; place-items: center; text-decoration: none; color: var(--navy); background: #fbf7ef; border: 1px solid var(--line); border-radius: 8px; }
+
+    .below-grid { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(390px,.8fr); gap: 24px; margin-top: 24px; }
+    .about-card { padding: 24px; }
+    .about-card h2, .up-next h2 { color: var(--navy); font: 700 25px Georgia,"Times New Roman",serif; }
+    .about-card p { color: var(--muted); line-height: 1.7; }
+    .details { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+    .detail-pill { padding: 8px 12px; color: #5e564d; background: #faf6ee; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; }
+    .up-next { padding: 20px; }
+    .up-next h2 { margin-bottom: 15px; }
+    .next-item { display: grid; grid-template-columns: 116px 1fr auto; gap: 13px; align-items: center; padding: 10px 0; color: inherit; text-decoration: none; border-top: 1px solid var(--line); }
+    .next-thumb { aspect-ratio: 16/10; display: grid; place-items: center; color: #fff; background: linear-gradient(140deg,#102f48,#071724); border-radius: 10px; }
+    .next-copy strong { display: block; color: var(--navy); font: 700 17px Georgia,"Times New Roman",serif; }
+    .next-copy span { color: var(--muted); font-size: 12px; }
+    .next-length { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+    .mobile-nav { display: none; }
+    :focus-visible { outline: 3px solid rgba(186,132,34,.42); outline-offset: 3px; }
+
+    @media (max-width: 1120px) {
+      .watch-layout, .below-grid { grid-template-columns: 1fr; }
+      .daf-card { position: static; }
+      .daf-page { max-height: 560px; }
+      .below-grid .up-next { order: -1; }
+    }
+    @media (max-width: 760px) {
+      body { padding-bottom: 78px; }
+      .sidebar { display: none; }
+      .page { margin-left: 0; }
+      .topbar { position: static; height: auto; display: flex; flex-wrap: wrap; gap: 15px; padding: 20px 18px 16px; }
+      .mobile-brand { display: block; flex: 1; }
+      .mobile-brand .brand { gap: 10px; }
+      .mobile-brand .brand-mark { width: 42px; height: 42px; }
+      .mobile-brand .brand-book { font-size: 20px; }
+      .mobile-brand .brand-name { font-size: 31px; }
+      .back-link { order: 3; font-size: 14px; }
+      .profile-button { width: 43px; height: 43px; }
+      .search-box { order: 4; width: 100%; height: 51px; padding: 0 17px; }
+      .search-box input { font-size: 16px; }
+      main { padding: 19px 14px 38px; }
+      .breadcrumb { margin-bottom: 14px; }
+      .title-row { display: block; margin-bottom: 17px; }
+      h1 { font-size: 35px; }
+      .teacher { font-size: 16px; }
+      .title-actions { margin-top: 16px; overflow-x: auto; }
+      .watch-layout, .below-grid { gap: 16px; }
+      .video-card, .daf-card, .about-card, .up-next { border-radius: 16px; }
+      .video-stage { aspect-ratio: 16/9; }
+      .play-button { width: 64px; height: 64px; }
+      .player-chrome { padding: 11px 13px 13px; }
+      .player-controls { gap: 8px; }
+      .time-label { font-size: 11px; }
+      .player-meta { display: block; padding: 17px 18px 19px; }
+      .player-meta h2 { font-size: 23px; }
+      .live-badge { margin-top: 13px; }
+      .daf-header { padding: 15px 16px; }
+      .daf-header h2 { font-size: 22px; }
+      .sync-note { margin: 12px 13px 0; }
+      .daf-page { max-height: none; padding: 24px 19px 34px; font-size: 22px; line-height: 1.92; }
+      .daf-footer { align-items: flex-start; flex-direction: column; }
+      .below-grid { margin-top: 16px; }
+      .about-card, .up-next { padding: 18px; }
+      .next-item { grid-template-columns: 92px 1fr; }
+      .next-length { display: none; }
+      .mobile-nav {
+        position: fixed;
+        inset: auto 0 0;
+        z-index: 30;
+        height: calc(72px + env(safe-area-inset-bottom));
+        display: grid;
+        grid-template-columns: repeat(4,1fr);
+        padding: 8px 3px env(safe-area-inset-bottom);
+        background: rgba(255,253,248,.96);
+        border-top: 1px solid var(--line);
+        backdrop-filter: blur(15px);
+      }
+      .mobile-nav a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #625b52; text-decoration: none; font-size: 11px; }
+      .mobile-nav a.active { color: var(--gold); }
+    }
+    @media (prefers-reduced-motion: reduce) { *,*::before,*::after { scroll-behavior: auto !important; transition-duration: .01ms !important; } }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="DafSync home"><span class="brand-mark"><span class="brand-book">DS</span></span><span class="brand-name">DafSync</span></a>
+    <nav class="desktop-navigation" aria-label="Primary navigation">
+      <a class="side-link" href="/"><span data-icon="home"></span><span>Home</span></a>
+      <a class="side-link active" href="/"><span data-icon="calendar"></span><span>Today’s Daf</span></a>
+      <a class="side-link" href="/"><span data-icon="books"></span><span>Masechtos</span></a>
+      <a class="side-link" href="/"><span data-icon="teacher"></span><span>Maggidei Shiur</span></a>
+    </nav>
+  </aside>
+
+  <div class="page">
+    <header class="topbar">
+      <div class="mobile-brand"><a class="brand" href="/"><span class="brand-mark"><span class="brand-book">DS</span></span><span class="brand-name">DafSync</span></a></div>
+      <a class="back-link" href="/"><span data-icon="arrow-left"></span> Back to shiurim</a>
+      <form class="search-box" action="/" method="get">
+        <label class="sr-only" for="player-search">Search DafSync</label>
+        <span data-icon="search"></span>
+        <input id="player-search" name="q" placeholder="Search shiurim, masechtos, or maggidei shiur" type="search">
+      </form>
+      <button class="profile-button" aria-label="Profile" type="button"><span data-icon="user"></span></button>
+    </header>
+
+    <main>
+      <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">DafSync</a><span>/</span><span id="crumb-masechta">Zevachim</span><span>/</span><span id="crumb-daf">Daf 62</span></nav>
+      <div class="title-row">
+        <div>
+          <p class="eyebrow">Daf Yomi shiur</p>
+          <h1 id="page-title">Maseches Zevachim 62</h1>
+          <p class="teacher" id="page-teacher">Rabbi Eli Stefansky</p>
+        </div>
+        <div class="title-actions">
+          <button class="pill-button" type="button"><span data-icon="bookmark"></span> Save</button>
+          <button class="pill-button" id="share-button" type="button"><span data-icon="share"></span> Share</button>
+        </div>
+      </div>
+
+      <section class="watch-layout" aria-label="Shiur and synchronized daf">
+        <article class="video-card">
+          <div class="video-stage" id="video-stage">
+            <div class="video-placeholder" id="video-placeholder">
+              <button class="play-button" id="play-video" aria-label="Play shiur" type="button"><span data-icon="play"></span></button>
+              <small>Open the shiur video</small>
+            </div>
+          </div>
+          <div class="player-chrome" aria-label="Video controls">
+            <div class="timeline"><span id="timeline-progress"></span></div>
+            <div class="player-controls">
+              <button class="control-button" id="chrome-play" aria-label="Play" type="button"><span data-icon="play-small"></span></button>
+              <button class="control-button" aria-label="Back 10 seconds" type="button"><span data-icon="rewind"></span></button>
+              <button class="control-button" aria-label="Forward 10 seconds" type="button"><span data-icon="forward"></span></button>
+              <span class="time-label">16:03 / <span id="length-label">47:00</span></span>
+              <span class="control-spacer"></span>
+              <button class="control-button" aria-label="Volume" type="button"><span data-icon="volume"></span></button>
+              <button class="control-button" aria-label="Fullscreen" type="button"><span data-icon="fullscreen"></span></button>
+            </div>
+          </div>
+          <div class="player-meta">
+            <div><h2 id="meta-title">Maseches Zevachim 62</h2><p id="meta-teacher">Rabbi Eli Stefansky · Daily Daf Yomi</p></div>
+            <span class="live-badge"><i class="live-dot"></i> Daf follows the shiur</span>
+          </div>
+        </article>
+
+        <aside class="daf-card" aria-labelledby="daf-heading">
+          <header class="daf-header">
+            <div><p class="eyebrow">Following along</p><h2 id="daf-heading">זבחים סב ע״א</h2></div>
+            <div class="daf-tools"><button class="tool-button" id="decrease-text" aria-label="Decrease text size" type="button">A−</button><button class="tool-button" id="increase-text" aria-label="Increase text size" type="button">A+</button></div>
+          </header>
+          <div class="sync-note"><span class="live-dot"></span><span>The highlighted words follow the current point in the shiur. Tap any passage to jump there.</span></div>
+          <div class="daf-page" id="daf-page" lang="he">
+            <p><strong>מתני׳</strong> <span class="segment">המזבח היה שלשים ושתים על שלשים ושתים.</span> <span class="segment">עלה אמה וכנס אמה זה היסוד.</span> <span class="segment active" tabindex="0">נמצא שלשים על שלשים. עלה חמש וכנס אמה זה הסובב.</span> <span class="segment">נמצא עשרים ושמונה על עשרים ושמונה.</span></p>
+            <p><strong>גמ׳</strong> <span class="segment">תנן התם כל הקדשים שנשחטו שלא לשמן כשרים.</span> <span class="segment">אלא שלא עלו לבעלים לשם חובה.</span> <span class="segment">חוץ מן הפסח והחטאת.</span> <span class="segment">הפסח בזמנו והחטאת בכל זמן.</span></p>
+            <p><span class="segment">אמר רבי יוסי ברבי יהודה.</span> <span class="segment">אף הנשחטין בדרום אם עלו לא ירדו.</span> <span class="segment">שנאמר זאת תורת העולה היא העולה על מוקדה.</span> <span class="segment">מה עולה שהיא ראויה לאישים אם עלתה לא תרד.</span></p>
+            <p><span class="segment">איתמר מזבח שנפגם.</span> <span class="segment">רבי יוחנן אמר כל הקדשים שנשחטו שם פסולים.</span> <span class="segment">ריש לקיש אמר כשרים.</span> <span class="segment">במאי קמיפלגי.</span></p>
+          </div>
+          <footer class="daf-footer"><span>Synced text view · Tap a passage to seek</span><nav class="page-nav" aria-label="Daf pages"><a href="#" aria-label="Previous amud">‹</a><a href="#">סב.</a><a href="#">סב:</a><a href="#" aria-label="Next amud">›</a></nav></footer>
+        </aside>
+      </section>
+
+      <section class="below-grid">
+        <article class="about-card">
+          <p class="eyebrow">About this shiur</p>
+          <h2>Learn today’s daf with the text beside you</h2>
+          <p>DafSync keeps the video and Gemara together in one calm learning space. The daf automatically follows the maggid shiur, while still letting you pause, review, or jump directly to a passage.</p>
+          <div class="details"><span class="detail-pill" id="detail-length">47 minutes</span><span class="detail-pill">English</span><span class="detail-pill">Maseches Zevachim</span><span class="detail-pill">Daf Yomi</span></div>
+        </article>
+        <aside class="up-next">
+          <p class="eyebrow">Continue learning</p><h2>More from Zevachim</h2>
+          <a class="next-item" href="/player/?daf=Zevachim+61&teacher=Rabbi+Eli+Stefansky&length=46+min"><span class="next-thumb"><span data-icon="play-small"></span></span><span class="next-copy"><strong>Zevachim 61</strong><span>Rabbi Eli Stefansky</span></span><span class="next-length">46 min</span></a>
+          <a class="next-item" href="/player/?daf=Zevachim+60&teacher=Rabbi+Eli+Stefansky&length=45+min"><span class="next-thumb"><span data-icon="play-small"></span></span><span class="next-copy"><strong>Zevachim 60</strong><span>Rabbi Eli Stefansky</span></span><span class="next-length">45 min</span></a>
+        </aside>
+      </section>
+    </main>
+  </div>
+
+  <nav class="mobile-nav" aria-label="Mobile navigation"><a href="/"><span data-icon="home"></span><span>Home</span></a><a class="active" href="/"><span data-icon="calendar"></span><span>Today’s Daf</span></a><a href="/"><span data-icon="books"></span><span>Masechtos</span></a><a href="/"><span data-icon="teacher"></span><span>Maggidei Shiur</span></a></nav>
+
+  <script>
+    (() => {
+      const paths = {
+        home:'<path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10M9 20v-6h6v6"/>',
+        calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',
+        books:'<path d="M4 19.5V5a2 2 0 0 1 2-2h5v18H6a2 2 0 0 1-2-1.5ZM11 3h7a2 2 0 0 1 2 2v14.5A1.5 1.5 0 0 0 18.5 18H11"/><path d="M15 7h2M15 11h2"/>',
+        teacher:'<circle cx="12" cy="7" r="4"/><path d="M4 21c.7-5 3.3-7 8-7s7.3 2 8 7M18 14l3-2M6 14l-3-2"/>',
+        search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
+        user:'<circle cx="12" cy="8" r="4"/><path d="M4 21c.8-5.3 3.4-8 8-8s7.2 2.7 8 8"/>',
+        'arrow-left':'<path d="m15 18-6-6 6-6"/><path d="M9 12h11"/>',
+        bookmark:'<path d="M6 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18l-6-4-6 4V4Z"/>',
+        share:'<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5"/>',
+        play:'<path d="m9 7 8 5-8 5V7Z" fill="currentColor" stroke="none"/>',
+        'play-small':'<path d="m9 7 8 5-8 5V7Z" fill="currentColor" stroke="none"/>',
+        rewind:'<path d="M11 7 6 12l5 5V7Zm7 0-5 5 5 5V7Z"/>',
+        forward:'<path d="m6 7 5 5-5 5V7Zm7 0 5 5-5 5V7Z"/>',
+        volume:'<path d="M4 10v4h4l5 4V6L8 10H4Z"/><path d="M16 9c1.3 1.7 1.3 4.3 0 6M19 6c3.3 3.3 3.3 8.7 0 12"/>',
+        fullscreen:'<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>'
+      };
+      const icon = (name, size = 22) => `<svg aria-hidden="true" class="icon" fill="none" height="${size}" viewBox="0 0 24 24" width="${size}">${paths[name]}</svg>`;
+      document.querySelectorAll('[data-icon]').forEach((node) => node.outerHTML = icon(node.dataset.icon, node.dataset.icon === 'play' ? 32 : 22));
+
+      const params = new URLSearchParams(location.search);
+      const daf = params.get('daf') || 'Maseches Zevachim 62';
+      const teacher = params.get('teacher') || 'Rabbi Eli Stefansky';
+      const length = params.get('length') || '47 min';
+      const normalizedTitle = /^Maseches\s/i.test(daf) ? daf : `Maseches ${daf}`;
+      const match = daf.match(/(?:Maseches\s+)?(.+?)\s+(\d+)$/i);
+      const masechta = match ? match[1] : 'Zevachim';
+      const dafNumber = match ? match[2] : '62';
+      document.title = `${normalizedTitle} — DafSync`;
+      document.querySelector('#page-title').textContent = normalizedTitle;
+      document.querySelector('#meta-title').textContent = normalizedTitle;
+      document.querySelector('#page-teacher').textContent = teacher;
+      document.querySelector('#meta-teacher').textContent = `${teacher} · Daily Daf Yomi`;
+      document.querySelector('#crumb-masechta').textContent = masechta;
+      document.querySelector('#crumb-daf').textContent = `Daf ${dafNumber}`;
+      document.querySelector('#length-label').textContent = length.replace(/\s*min/i, ':00');
+      document.querySelector('#detail-length').textContent = length;
+
+      const videoId = params.get('video');
+      const openVideo = () => {
+        if (!videoId || !/^[\w-]{11}$/.test(videoId)) {
+          document.querySelector('#video-placeholder small').textContent = 'Video ready when this shiur is connected to the DafSync catalog';
+          return;
+        }
+        const iframe = document.createElement('iframe');
+        iframe.className = 'video-embed';
+        iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`;
+        iframe.title = `${normalizedTitle} shiur`;
+        iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
+        iframe.allowFullscreen = true;
+        document.querySelector('#video-stage').appendChild(iframe);
+        document.querySelector('#video-placeholder').hidden = true;
+      };
+      document.querySelector('#play-video').addEventListener('click', openVideo);
+      document.querySelector('#chrome-play').addEventListener('click', openVideo);
+
+      const dafPage = document.querySelector('#daf-page');
+      document.querySelector('#increase-text').addEventListener('click', () => {
+        const current = parseFloat(getComputedStyle(dafPage).fontSize);
+        dafPage.style.fontSize = `${Math.min(32,current + 2)}px`;
+      });
+      document.querySelector('#decrease-text').addEventListener('click', () => {
+        const current = parseFloat(getComputedStyle(dafPage).fontSize);
+        dafPage.style.fontSize = `${Math.max(18,current - 2)}px`;
+      });
+      document.querySelectorAll('.segment').forEach((segment) => segment.addEventListener('click', () => {
+        document.querySelectorAll('.segment').forEach((item) => item.classList.remove('active'));
+        segment.classList.add('active');
+      }));
+      document.querySelector('#share-button').addEventListener('click', async () => {
+        const data = { title: document.title, url: location.href };
+        if (navigator.share) await navigator.share(data).catch(() => {});
+        else await navigator.clipboard?.writeText(location.href);
+      });
+      document.querySelectorAll('.page-nav a').forEach((link) => link.addEventListener('click', (event) => event.preventDefault()));
+    })();
+  </script>
+</body>
+</html>

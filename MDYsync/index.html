@@ -1392,10 +1392,15 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     // records, per combo, which amud that daf's video actually anchors on
     // (almost always 'a', the natural start of the daf).
     function playerUrl(entry) {
-      const params = new URLSearchParams({ ref: `${entry.tractate} ${entry.daf}${entry.amud}` });
-      if (entry.variant === "chazarah") params.set("variant", "chazarah");
-      if (entry.language === "he") params.set("language", "hebrew");
-      return `/watch/?${params.toString()}`;
+      const teacherDetails = ["R' Eli Stefansky"];
+      if (entry.language === "he") teacherDetails.push("Hebrew");
+      if (entry.variant === "chazarah") teacherDetails.push("Chazarah");
+      const params = new URLSearchParams({
+        daf: `${entry.tractate} ${entry.daf}`,
+        teacher: teacherDetails.join(" · "),
+        video: entry.videoId,
+      });
+      return `/player/?${params.toString()}`;
     }
 
     // One row per real (tractate, daf) -- see tools/build-video-catalog.mjs
@@ -1442,6 +1447,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       return {
         tractate: row.tractate, daf: row.daf, amud: row[key].amud,
         variant: comboVariant(key), language: comboLanguage(key),
+        videoId: row[key].videoId,
       };
     }
 
