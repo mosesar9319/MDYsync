@@ -201,6 +201,21 @@
     }
     .pill-button:hover { border-color: var(--gold-light); color: var(--gold); }
 
+    /* The daf-reference picker (.ref-field) stays out of the way for
+       everyone, admin or not -- navigation here happens via ?ref= links
+       from the home page. The rest of .setup-strip (lecture-source
+       override, sync/import/export) is admin-only tooling (gated by
+       styles.css's .admin-only rules) and only shown to a signed-in
+       admin; for anyone else the whole strip, now empty, is dropped too. */
+    body.player-page .setup-strip .ref-field { display: none; }
+    body.player-page:not(.is-admin) .setup-strip { display: none; }
+    /* Only above styles.css's own 1100px breakpoint -- below that it
+       already collapses .setup-strip to fewer columns itself (1100px: 2,
+       700px: 1), and those rules already suit 2 real fields just fine. */
+    @media (min-width: 1101px) {
+      body.player-page.is-admin .setup-strip { grid-template-columns: 1fr 1fr; }
+    }
+
     .watch-layout { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(390px,.8fr); gap: 24px; align-items: start; }
     .about-card { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); padding: 24px; margin-top: 24px; }
     .about-card h2 { color: var(--navy); font: 700 25px Georgia,"Times New Roman",serif; }
@@ -320,9 +335,14 @@
 
       <!-- Daf/lecture picker: real functional controls app.js depends on,
            but navigation into this page happens via links from the home
-           page (?ref=...), so the picker itself stays out of the way --
-           hidden the same way it is on /watch/. -->
-      <section class="setup-strip card" hidden>
+           page (?ref=...), so the picker itself (.ref-field, below) stays
+           out of the way for everyone -- unlike /watch/, though, this whole
+           section isn't dropped outright: for a signed-in admin it's still
+           the only way to reach "Sync from video" (server-side OCR sync)
+           and the manual import/export tools, not just the in-page manual
+           editor. See the .ref-field/.setup-strip rules in this page's
+           <style> block above. -->
+      <section class="setup-strip card">
         <div class="setup-field video-field admin-only">
           <label>Lecture source</label>
           <div class="source-tabs" role="tablist" aria-label="Lecture source">
