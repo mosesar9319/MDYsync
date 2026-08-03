@@ -39,11 +39,12 @@ const state = {
   vilnaPdfPage: null,
   vilnaPdfContainerWidth: 0,
   vilnaZoomRerenderTimer: null,
-  // Set of segment.ref strings covered by the currently loaded (full) shiur's
-  // synced Chazarah Daf counterpart, or null when there isn't one (no such
-  // sync exists, the loaded ref is itself a Chazarah Daf, or nothing real is
-  // synced yet) -- see refreshChazaraGuide()/skipToNextReading().
-  chazaraRefs: null
+  // Map of segment.ref -> {start, end} (that ref's own timing *within the
+  // Chazarah Daf recording*), for the currently loaded (full) shiur's synced
+  // Chazarah Daf counterpart -- or null when there isn't one (no such sync
+  // exists, the loaded ref is itself a Chazarah Daf, or nothing real is
+  // synced yet). See refreshChazaraGuide()/skipToNextReading().
+  chazaraSegmentsByRef: null
 };
 
 const AUTO_SCROLL_RESUME_MS = 4000;
@@ -249,17 +250,23 @@ async function fetchServerVideoLink(ref) {
 }
 
 // "Skip to reading": the channel's Chazarah Daf recording is a shorter
-// review cut of the same daf, covering only the actual gemara reading and
-// skipping the full shiur's explanation/discussion stretches. Once both are
-// synced, its segment refs double as a guide for which parts of the FULL
-// shiur's own timeline are "reading" vs "explanation" -- see
-// skipToNextReading() for how that's used. The join is by segment.ref (a
+// review cut of the same daf, covering the same segments as the full shiur
+// (this is OCR-caption-based, so both alignments' segments already only
+// exist where text was actually captioned/read -- confirmed empirically:
+// every one of Chullin 95a's 30 full-shiur segment refs also appears in its
+// Chazarah Daf alignment) but taking far less time per segment, since the
+// full shiur tacks explanation/discussion onto the tail of each segment's
+// own window before the next one's reading begins and the review doesn't.
+// So the guide isn't "which refs does chazara cover" (nearly all of them,
+// making that check nearly always true) -- it's "how long does chazara
+// spend actually reading *this* ref", used to work out how much of the
+// full shiur's current segment window is real reading vs. how much is
+// trailing explanation before the next one starts. Joined by segment.ref (a
 // position in the canonical Sefaria text, e.g. "Chullin 95a:12"), which both
-// recordings' alignments share regardless of their own different runtimes,
-// not by either recording's own video timestamps.
+// recordings' alignments share regardless of their own different runtimes.
 async function refreshChazaraGuide() {
   const requestedRef = state.dafRef;
-  state.chazaraRefs = null;
+  state.chazaraSegmentsByRef = null;
   updateFastForwardButtonUi();
   const parsed = parseDafRef(requestedRef);
   // Only meaningful from the full shiur's own side, and only once it has a
@@ -272,46 +279,53 @@ async function refreshChazaraGuide() {
   const alignment = await fetchServerAlignment(chazaraRef);
   if (state.dafRef !== requestedRef) return; // navigated elsewhere while this was in flight
   if (alignment && Array.isArray(alignment.segments) && alignment.segments.length) {
-    state.chazaraRefs = new Set(alignment.segments.map((segment) => String(segment.ref)));
+    state.chazaraSegmentsByRef = new Map(
+      alignment.segments.map((segment) => [String(segment.ref), { start: Number(segment.start) || 0, end: Number(segment.end) || 0 }])
+    );
   }
   updateFastForwardButtonUi();
 }
 
-// The next of the full shiur's own segments (after the one currently
-// playing) whose ref is also covered by the Chazarah Daf guide -- i.e. the
-// next real reading moment worth jumping to. -1 when there isn't one.
-function nextChazaraSegmentIndex() {
-  if (!state.chazaraRefs) return -1;
-  for (let i = state.activeIndex + 1; i < state.segments.length; i++) {
-    if (state.chazaraRefs.has(state.segments[i].ref)) return i;
-  }
-  return -1;
+// Whether `time` (a moment within the full shiur's currently active segment)
+// still falls within that segment's own actual-reading window, as timed by
+// the Chazarah Daf's cut of the very same ref -- past that point, the full
+// shiur has moved on to explaining/discussing it, with the next real
+// reading only resuming once the *next* segment starts. Errs toward true
+// (still reading -- i.e. no-op the button) whenever there's nothing to
+// compare against, so a gap in the guide never causes a skip past content
+// that might still be actual reading.
+function isWithinActiveReading(time) {
+  const segment = state.segments[state.activeIndex];
+  if (!segment) return true;
+  const chazaraSegment = state.chazaraSegmentsByRef?.get(segment.ref);
+  if (!chazaraSegment) return true;
+  const chazaraDuration = Math.max(0, chazaraSegment.end - chazaraSegment.start);
+  return time - segment.start < chazaraDuration;
 }
 
-function updateFastForwardButtonUi() {
-  const available = Boolean(state.chazaraRefs);
-  const currentlyReading = available && state.chazaraRefs.has(state.segments[state.activeIndex]?.ref);
-  const targetIndex = available ? nextChazaraSegmentIndex() : -1;
+function updateFastForwardButtonUi(time = getCurrentTime()) {
+  const available = Boolean(state.chazaraSegmentsByRef);
+  const stillReading = available && isWithinActiveReading(time);
+  const hasNext = state.activeIndex + 1 < state.segments.length;
   for (const button of fastForwardButtonEls) {
     button.hidden = !available;
-    button.disabled = currentlyReading || targetIndex === -1;
-    button.title = currentlyReading
-      ? 'Already at a part the review shiur also covers'
-      : targetIndex === -1
-        ? 'No further review-covered part ahead'
-        : 'Skip ahead to the next part the review shiur covers';
+    button.disabled = stillReading || !hasNext;
+    button.title = stillReading
+      ? 'Already at a part the review shiur is also reading'
+      : hasNext
+        ? 'Skip ahead to the next part the review shiur covers'
+        : 'No further part ahead';
   }
 }
 
 function skipToNextReading() {
-  // The no-op rule (already at a part the review shiur covers) has to be
-  // enforced here, not just by disabling the button -- this is the actual
-  // behavior contract, and the button's disabled state is only a UI
-  // reflection of it, not the other way around.
-  if (state.chazaraRefs?.has(state.segments[state.activeIndex]?.ref)) return;
-  const index = nextChazaraSegmentIndex();
-  if (index === -1) return; // nothing further ahead -- see updateFastForwardButtonUi
-  seekToSegment(index);
+  // The no-op rule (still within the current segment's own actual-reading
+  // window) has to be enforced here, not just by disabling the button --
+  // this is the actual behavior contract, and the button's disabled state
+  // is only a UI reflection of it, not the other way around.
+  if (isWithinActiveReading(getCurrentTime())) return;
+  if (state.activeIndex + 1 >= state.segments.length) return; // nothing further ahead
+  seekToSegment(state.activeIndex + 1);
 }
 
 function saveVideoLinkToServer(ref, videoSource) {
@@ -1258,10 +1272,16 @@ function updateActiveSegment(force = false, timeOverride = null) {
   const index = findSegmentAt(time);
   if (!force && index === state.activeIndex) {
     updateActiveWords(time);
+    // Unlike the rest of this function, the fast-forward button's
+    // enabled/disabled state can change *within* the same segment (once
+    // playback passes that segment's own actual-reading window -- see
+    // isWithinActiveReading), not just when the active segment itself
+    // changes, so this needs to keep running on every tick, not only here.
+    updateFastForwardButtonUi(time);
     return;
   }
   state.activeIndex = index;
-  updateFastForwardButtonUi();
+  updateFastForwardButtonUi(time);
   const active = state.segments[index];
   if (!active) return;
 
@@ -2288,9 +2308,38 @@ for (const el of overlayResetPositionButtonEls) el.addEventListener('click', () 
     const y = parseFloat(widget.style.top);
     if (Number.isFinite(x) && Number.isFinite(y)) localStorage.setItem(STORAGE_KEY, JSON.stringify({ x, y }));
   }
-  handle.addEventListener('pointerup', endDrag);
+  handle.addEventListener('pointerup', () => { endDrag(); positionOverlaySettingsInVideo(); });
   handle.addEventListener('pointercancel', endDrag);
 })();
+
+// The in-video overlay-settings dropdown (unlike the canonical below-page
+// copy, which just opens downward into the normal page flow) floats over a
+// video frame it can be dragged anywhere within, so a fixed "always open
+// upward" (its old default, back when the widget itself always started in
+// the bottom-left corner) can just as easily run it off the top of the
+// frame now that the default start position is top-left, or after a drag
+// puts it somewhere else entirely. Opens whichever of up/down actually has
+// more room, and clamps its own height to that room either way so it's
+// never cut off by the frame's own edge.
+function positionOverlaySettingsInVideo() {
+  const details = $('overlaySettingsInVideo');
+  const body = details?.querySelector('.overlay-settings-body');
+  const summary = details?.querySelector('summary');
+  const frame = $('videoFrame');
+  if (!details?.open || !body || !summary || !frame) return;
+  const frameRect = frame.getBoundingClientRect();
+  const summaryRect = summary.getBoundingClientRect();
+  const spaceBelow = frameRect.bottom - summaryRect.bottom - 6;
+  const spaceAbove = summaryRect.top - frameRect.top - 6;
+  const openDownward = spaceBelow >= spaceAbove;
+  body.style.top = openDownward ? 'calc(100% + 6px)' : 'auto';
+  body.style.bottom = openDownward ? 'auto' : 'calc(100% + 6px)';
+  body.style.maxHeight = `${Math.max(120, openDownward ? spaceBelow : spaceAbove)}px`;
+}
+$('overlaySettingsInVideo')?.addEventListener('toggle', positionOverlaySettingsInVideo);
+window.addEventListener('resize', positionOverlaySettingsInVideo);
+document.addEventListener('fullscreenchange', positionOverlaySettingsInVideo);
+document.addEventListener('webkitfullscreenchange', positionOverlaySettingsInVideo);
 
 $('vilnaZoomInButton')?.addEventListener('click', () => setVilnaPageZoom(state.vilnaPageZoom + VILNA_ZOOM_STEP));
 $('vilnaZoomOutButton')?.addEventListener('click', () => setVilnaPageZoom(state.vilnaPageZoom - VILNA_ZOOM_STEP));

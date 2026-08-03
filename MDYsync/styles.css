@@ -349,6 +349,12 @@ input[type="url"]:focus { border-color: rgba(56,214,193,.8); box-shadow: 0 0 0 3
   display: flex;
   align-items: center;
   gap: 8px;
+  /* Wraps whenever its 5 buttons don't fit, not just below the 900px
+     *viewport* breakpoint further down -- the card this sits in can be far
+     narrower than 900px on its own (a two-column layout, a split window)
+     while the viewport itself is still well above that breakpoint, which
+     let the row overflow its card and get covered by the next column. */
+  flex-wrap: wrap;
 }
 .mark-target { min-width: 92px; text-align: center; }
 .mark-target span { display: block; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
@@ -395,7 +401,6 @@ kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; 
 .sync-log { margin-top: 10px; max-height: 140px; overflow-y: auto; font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); background: rgba(0,0,0,.18); border-radius: 10px; padding: 10px 12px; white-space: pre-wrap; }
 
 @media (max-width: 900px) {
-  .marking-bar { flex-wrap: wrap; }
   .marking-bar .mark-target { order: -1; width: 100%; text-align: left; }
 }
 @media (max-width: 700px) {

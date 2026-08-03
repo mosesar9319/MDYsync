@@ -228,7 +228,11 @@
        automatically when the toggle switches on. */
     .overlay-controls {
       position: absolute;
-      bottom: 42px;
+      /* Top-left by default (below videoSourceBadge, which sits at 10-12px
+         so this would otherwise land right on top of it), not bottom-left --
+         still just a starting point, since it's fully drag-repositionable
+         (see initOverlayControlsDrag() in app.js). */
+      top: 46px;
       left: 8px;
       z-index: 7;
       display: none;
@@ -279,14 +283,21 @@
     .overlay-controls .overlay-settings.icon-only summary { padding: 3px 7px; }
     .overlay-controls .overlay-settings.icon-only summary::after { margin-left: 0; }
     .overlay-controls .overlay-settings-body {
-      bottom: calc(100% + 6px);
-      top: auto;
+      /* Static fallback only -- positionOverlaySettingsInVideo() in app.js
+         sets top/bottom/max-height inline on open, flipping between
+         opening downward and upward (and clamping height) based on how
+         much room is actually left above/below the widget's current
+         (drag-repositionable) spot in the frame, so the panel never gets
+         cut off by the frame's own edge. */
+      top: calc(100% + 6px);
+      bottom: auto;
       left: 0;
       right: auto;
       background: rgba(4,14,27,.92);
       backdrop-filter: blur(10px);
       box-shadow: 0 14px 38px rgba(0,0,0,.4);
       color: rgba(255,255,255,.85);
+      overflow-y: auto;
     }
     .overlay-controls .overlay-settings-body select { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); color: #fff; }
 
