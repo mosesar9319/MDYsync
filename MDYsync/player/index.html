@@ -232,13 +232,10 @@
       left: 8px;
       z-index: 7;
       display: none;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 6px;
       max-width: min(260px, calc(100% - 16px));
-      opacity: .55;
-      transform: scale(.92);
-      transform-origin: bottom left;
+      opacity: .4;
+      transform: scale(.8);
+      transform-origin: top left;
       transition: opacity .15s ease, transform .15s ease;
     }
     .video-frame:hover .overlay-controls,
@@ -247,24 +244,40 @@
     .video-frame:-webkit-full-screen .overlay-controls,
     .video-frame.overlay-on .overlay-controls { display: flex; }
     .overlay-controls:hover, .overlay-controls:focus-within { opacity: 1; transform: scale(1); }
+    .overlay-controls-bar { display: flex; align-items: center; gap: 4px; }
+    .overlay-drag-grip {
+      display: grid;
+      place-items: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: rgba(4,14,27,.78);
+      backdrop-filter: blur(6px);
+      color: rgba(255,255,255,.7);
+      cursor: grab;
+      touch-action: none;
+      flex-shrink: 0;
+    }
+    .overlay-drag-grip:active { cursor: grabbing; color: #fff; }
     .overlay-controls .toggle-label {
       display: inline-flex;
       align-items: center;
-      gap: 7px;
-      padding: 5px 10px;
+      gap: 5px;
+      padding: 3px 8px;
       border-radius: 999px;
       background: rgba(4,14,27,.78);
       backdrop-filter: blur(6px);
       color: #fff;
-      font-size: 11px;
+      font-size: 10px;
       white-space: nowrap;
     }
-    .overlay-controls .toggle-label em { color: rgba(255,255,255,.6); font-style: normal; }
     .overlay-controls .overlay-settings summary {
       background: rgba(4,14,27,.78);
       backdrop-filter: blur(6px);
       color: rgba(255,255,255,.85);
     }
+    .overlay-controls .overlay-settings.icon-only summary { padding: 3px 7px; }
+    .overlay-controls .overlay-settings.icon-only summary::after { margin-left: 0; }
     .overlay-controls .overlay-settings-body {
       bottom: calc(100% + 6px);
       top: auto;
@@ -606,51 +619,62 @@
                  below the video via app.js's mirrorControl()) -- lives
                  inside .video-frame so it's still reachable in native
                  fullscreen, where only .video-frame's own descendants
-                 render at all. Bottom-left (not top-right) and shrunk/faded
-                 except on its own hover so it doesn't sit over YouTube's
-                 own volume/settings controls, which live bottom-right. -->
+                 render at all. Collapsed and icon-sized by default (unlike
+                 the canonical copy, its <details> is never auto-opened --
+                 see app.js) so it stays out of the way of the video itself,
+                 and its whole position is user-draggable (via the grip
+                 handle) since a fixed corner can just as easily land on top
+                 of whatever the reader's actually watching. Starts
+                 bottom-left (YouTube's own volume/settings live
+                 bottom-right) but that's just app.js's default, not a
+                 constraint once dragged. -->
             <div class="overlay-controls" id="overlayControlsInVideo">
-              <label class="toggle-label">
-                <input type="checkbox" id="overlayToggleInVideo" />
-                <span class="toggle"></span>
-                Overlay <em>(experimental)</em>
-              </label>
-              <details class="overlay-settings" id="overlaySettingsInVideo">
-                <summary>Display settings</summary>
-                <div class="overlay-settings-body">
-                  <label class="overlay-mode-label">
-                    Style
-                    <select id="overlayModeSelectInVideo">
-                      <option value="full">Full page</option>
-                      <option value="strip">Current lines</option>
-                    </select>
-                  </label>
-                  <label class="overlay-opacity-label">
-                    Opacity
-                    <input type="range" id="overlayOpacitySliderInVideo" min="10" max="90" value="50" />
-                  </label>
-                  <label class="overlay-mode-label">
-                    Fade to opacity
-                    <select id="overlayOpacityTargetSelectInVideo">
-                      <option value="both">Page + text</option>
-                      <option value="background">Page only</option>
-                    </select>
-                  </label>
-                  <label class="overlay-mode-label">
-                    When not reading Gemara
-                    <select id="overlayIdleSelectInVideo">
-                      <option value="dim">Dim overlay</option>
-                      <option value="hide">Hide overlay</option>
-                    </select>
-                  </label>
-                  <label class="overlay-opacity-label">
-                    Zoom
-                    <input type="range" id="overlayZoomSliderInVideo" min="60" max="350" value="100" />
-                  </label>
-                  <button class="button ghost small" id="overlayResetPositionButtonInVideo" type="button">Reset position</button>
-                  <em class="overlay-hint">Scroll/pinch the overlay to zoom, drag to reposition</em>
-                </div>
-              </details>
+              <div class="overlay-controls-bar">
+                <span class="overlay-drag-grip" id="overlayControlsDragHandle" title="Drag to move" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </span>
+                <label class="toggle-label" title="Overlay Vilna page on video (experimental)">
+                  <input type="checkbox" id="overlayToggleInVideo" />
+                  <span class="toggle"></span>
+                  Overlay
+                </label>
+                <details class="overlay-settings icon-only" id="overlaySettingsInVideo">
+                  <summary aria-label="Overlay display settings"></summary>
+                  <div class="overlay-settings-body">
+                    <label class="overlay-mode-label">
+                      Style
+                      <select id="overlayModeSelectInVideo">
+                        <option value="full">Full page</option>
+                        <option value="strip">Current lines</option>
+                      </select>
+                    </label>
+                    <label class="overlay-opacity-label">
+                      Opacity
+                      <input type="range" id="overlayOpacitySliderInVideo" min="10" max="90" value="50" />
+                    </label>
+                    <label class="overlay-mode-label">
+                      Fade to opacity
+                      <select id="overlayOpacityTargetSelectInVideo">
+                        <option value="both">Page + text</option>
+                        <option value="background">Page only</option>
+                      </select>
+                    </label>
+                    <label class="overlay-mode-label">
+                      When not reading Gemara
+                      <select id="overlayIdleSelectInVideo">
+                        <option value="dim">Dim overlay</option>
+                        <option value="hide">Hide overlay</option>
+                      </select>
+                    </label>
+                    <label class="overlay-opacity-label">
+                      Zoom
+                      <input type="range" id="overlayZoomSliderInVideo" min="60" max="350" value="100" />
+                    </label>
+                    <button class="button ghost small" id="overlayResetPositionButtonInVideo" type="button">Reset position</button>
+                    <em class="overlay-hint">Scroll/pinch the overlay to zoom, drag to reposition</em>
+                  </div>
+                </details>
+              </div>
             </div>
           </div>
 

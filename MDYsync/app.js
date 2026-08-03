@@ -2105,7 +2105,6 @@ const overlayOpacityTargetSelectEls = overlayControlGroup('overlayOpacityTargetS
 const overlayIdleSelectEls = overlayControlGroup('overlayIdleSelect');
 const overlayZoomSliderEls = overlayControlGroup('overlayZoomSlider');
 const overlayResetPositionButtonEls = overlayControlGroup('overlayResetPositionButton');
-const overlaySettingsEls = overlayControlGroup('overlaySettings');
 
 for (const el of overlayToggleEls) el.addEventListener('change', (event) => {
   syncGroupValue(overlayToggleEls, event, 'checked');
@@ -2114,9 +2113,13 @@ for (const el of overlayToggleEls) el.addEventListener('change', (event) => {
   updateVideoOverlay(getCurrentTime());
   // The rest of the overlay's own display settings (style/opacity/zoom/etc)
   // live tucked away in a <details> dropdown so they don't clutter the
-  // video by default -- open (and close) both copies of it in step with
-  // the feature itself, since there's nothing to tune once it's off.
-  for (const settings of overlaySettingsEls) settings.open = state.videoOverlayEnabled;
+  // video by default -- open (and close) the canonical, always-in-page-flow
+  // copy in step with the feature itself, since there's nothing to tune
+  // once it's off. The floating in-video copy stays collapsed regardless
+  // (reader opens it with the gear icon) -- it sits over the video itself,
+  // so auto-expanding it every time the overlay turns on would be exactly
+  // the kind of intrusive default it's meant to avoid.
+  if ($('overlaySettings')) $('overlaySettings').open = state.videoOverlayEnabled;
 });
 for (const el of overlayModeSelectEls) el.addEventListener('change', (event) => {
   syncGroupValue(overlayModeSelectEls, event);
@@ -2150,6 +2153,70 @@ for (const el of overlayResetPositionButtonEls) el.addEventListener('click', () 
   syncOverlayZoomSlider();
   updateVideoOverlay(getCurrentTime());
 });
+
+// Lets a reader drag the floating in-video overlay-controls widget (grip
+// handle only, so it doesn't fight with clicking the toggle/gear) anywhere
+// within the video frame, since a fixed corner can just as easily land on
+// top of whatever they're actually watching. Position is stored as a
+// percentage of the frame, not px, so it stays put proportionally across
+// window resizes and native fullscreen; persisted across reloads too.
+(function initOverlayControlsDrag() {
+  const widget = $('overlayControlsInVideo');
+  const handle = $('overlayControlsDragHandle');
+  const frame = $('videoFrame');
+  if (!widget || !handle || !frame) return;
+  const STORAGE_KEY = 'dafsync-overlay-widget-pos';
+
+  function place(xPercent, yPercent) {
+    widget.style.left = `${xPercent}%`;
+    widget.style.top = `${yPercent}%`;
+    widget.style.right = 'auto';
+    widget.style.bottom = 'auto';
+  }
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) place(saved.x, saved.y);
+  } catch { /* ignore a corrupted saved position */ }
+
+  let dragging = false;
+  let startX = 0;
+  let startY = 0;
+  let startLeft = 0;
+  let startTop = 0;
+
+  handle.addEventListener('pointerdown', (event) => {
+    dragging = true;
+    const frameRect = frame.getBoundingClientRect();
+    const widgetRect = widget.getBoundingClientRect();
+    startX = event.clientX;
+    startY = event.clientY;
+    startLeft = widgetRect.left - frameRect.left;
+    startTop = widgetRect.top - frameRect.top;
+    handle.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  });
+  handle.addEventListener('pointermove', (event) => {
+    if (!dragging) return;
+    const frameRect = frame.getBoundingClientRect();
+    const widgetRect = widget.getBoundingClientRect();
+    const maxLeft = Math.max(0, frameRect.width - widgetRect.width);
+    const maxTop = Math.max(0, frameRect.height - widgetRect.height);
+    const left = Math.min(Math.max(startLeft + (event.clientX - startX), 0), maxLeft);
+    const top = Math.min(Math.max(startTop + (event.clientY - startY), 0), maxTop);
+    place((left / frameRect.width) * 100, (top / frameRect.height) * 100);
+  });
+  function endDrag() {
+    if (!dragging) return;
+    dragging = false;
+    const x = parseFloat(widget.style.left);
+    const y = parseFloat(widget.style.top);
+    if (Number.isFinite(x) && Number.isFinite(y)) localStorage.setItem(STORAGE_KEY, JSON.stringify({ x, y }));
+  }
+  handle.addEventListener('pointerup', endDrag);
+  handle.addEventListener('pointercancel', endDrag);
+})();
+
 $('vilnaZoomInButton')?.addEventListener('click', () => setVilnaPageZoom(state.vilnaPageZoom + VILNA_ZOOM_STEP));
 $('vilnaZoomOutButton')?.addEventListener('click', () => setVilnaPageZoom(state.vilnaPageZoom - VILNA_ZOOM_STEP));
 $('vilnaZoomResetButton')?.addEventListener('click', () => setVilnaPageZoom(1));
