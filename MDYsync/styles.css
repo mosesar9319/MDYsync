@@ -122,11 +122,18 @@ h2 { margin-bottom: 0; }
 #videoVilnaCanvas:active { cursor: grabbing; }
 
 /* Hidden by default -- the scrubber-wrap/player-controls below the card
-   already cover normal playback. Shown only when those become unreachable:
-   in native fullscreen (where only .video-frame's own descendants render)
-   and whenever the Vilna overlay is on (its canvas otherwise sits on top of
-   the YouTube iframe's own hover controls, blocking them). */
+   already cover play/scrub during normal viewing. Shown when those become
+   unreachable: in native fullscreen (where only .video-frame's own
+   descendants render) and whenever the Vilna overlay is on (its canvas
+   otherwise sits on top of the YouTube iframe's own hover controls,
+   blocking them) -- and also on hover/focus, since #fullscreenButton in
+   here is the *only* way to ever reach fullscreen in the first place
+   (YouTube's own native fullscreen button is deliberately disabled, see
+   the `fs: 0` playerVar in app.js) and it can't be reachable exclusively
+   from states that require already being in fullscreen. */
 .video-inline-controls { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; display: none; align-items: center; gap: 9px; height: 34px; padding: 0 8px; background: linear-gradient(to top, rgba(4,14,27,.88), rgba(4,14,27,0)); }
+.video-frame:hover .video-inline-controls,
+.video-frame:focus-within .video-inline-controls,
 .video-frame:fullscreen .video-inline-controls,
 .video-frame:-webkit-full-screen .video-inline-controls,
 .video-frame.overlay-on .video-inline-controls { display: flex; }
