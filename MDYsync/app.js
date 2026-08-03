@@ -2474,6 +2474,17 @@ async function startLocalSync() {
 function pollServerSyncResult(jobId, resultUrl, successMessage, dafRefOverride) {
   const startedAt = Date.now();
   const MAX_WAIT_SECONDS = 55 * 60; // GitHub Actions job has its own 60-min cap
+  // A single fetch() to raw.githubusercontent.com can fail at the network
+  // level (a real "Failed to fetch" TypeError, not an HTTP error status) on
+  // any one poll -- a Wi-Fi blip, a background-tab throttle, whatever --
+  // with zero relation to whether the server-side job itself is fine. It
+  // usually is: the GitHub Actions job runs independently of this browser
+  // tab entirely. Giving up on the very first such hiccup used to end the
+  // poll (and tell the reader sync "failed") while the job kept right on
+  // running server-side regardless -- so tolerate a short run of
+  // consecutive failures before actually giving up.
+  const MAX_CONSECUTIVE_FAILURES = 5;
+  let consecutiveFailures = 0;
   stopSyncPolling();
   syncState.pollTimer = setInterval(async () => {
     const elapsed = Math.round((Date.now() - startedAt) / 1000);
@@ -2489,6 +2500,7 @@ function pollServerSyncResult(jobId, resultUrl, successMessage, dafRefOverride) 
     try {
       const response = await fetch(`${resultUrl}?t=${Date.now()}`);
       if (response.status === 404) {
+        consecutiveFailures = 0;
         setSyncProgress(Math.min(0.9, elapsed / 300), [`Processing on the server… (${elapsed}s elapsed)`]);
         return;
       }
@@ -2498,6 +2510,7 @@ function pollServerSyncResult(jobId, resultUrl, successMessage, dafRefOverride) 
         // A file already existed at this ref path from an earlier sync (e.g.
         // this job's first-listed ref was already synced before) -- that's
         // not this job's result, keep waiting for it to be overwritten.
+        consecutiveFailures = 0;
         setSyncProgress(Math.min(0.9, elapsed / 300), [`Processing on the server… (${elapsed}s elapsed)`]);
         return;
       }
@@ -2514,12 +2527,20 @@ function pollServerSyncResult(jobId, resultUrl, successMessage, dafRefOverride) 
       }
       $('syncDialog').close();
     } catch (error) {
+      consecutiveFailures++;
+      if (consecutiveFailures < MAX_CONSECUTIVE_FAILURES) {
+        setSyncProgress(Math.min(0.9, elapsed / 300), [
+          `Processing on the server… (${elapsed}s elapsed)`,
+          `Checking for the result is having trouble (${error.message}), retrying…`
+        ]);
+        return;
+      }
       stopSyncPolling();
       setSyncProgress(Math.min(0.9, elapsed / 300), [
         `Failed after ${elapsed}s: ${error.message}`,
-        'Check the source link, then try again.'
+        'The server-side job may still be running -- check the repository’s Actions tab, or try again.'
       ]);
-      showToast(`Server sync failed: ${error.message}`, 'error');
+      showToast(`Lost connection while checking on the sync: ${error.message}`, 'error');
     }
   }, 6000);
 }
