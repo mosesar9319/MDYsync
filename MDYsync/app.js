@@ -38,13 +38,7 @@ const state = {
   vilnaPageZoom: 1,
   vilnaPdfPage: null,
   vilnaPdfContainerWidth: 0,
-  vilnaZoomRerenderTimer: null,
-  // Map of segment.ref -> {start, end} (that ref's own timing *within the
-  // Chazarah Daf recording*), for the currently loaded (full) shiur's synced
-  // Chazarah Daf counterpart -- or null when there isn't one (no such sync
-  // exists, the loaded ref is itself a Chazarah Daf, or nothing real is
-  // synced yet). See refreshChazaraGuide()/skipToNextReading().
-  chazaraSegmentsByRef: null
+  vilnaZoomRerenderTimer: null
 };
 
 const AUTO_SCROLL_RESUME_MS = 4000;
@@ -249,83 +243,88 @@ async function fetchServerVideoLink(ref) {
   }
 }
 
-// "Skip to reading": the channel's Chazarah Daf recording is a shorter
-// review cut of the same daf, covering the same segments as the full shiur
-// (this is OCR-caption-based, so both alignments' segments already only
-// exist where text was actually captioned/read -- confirmed empirically:
-// every one of Chullin 95a's 30 full-shiur segment refs also appears in its
-// Chazarah Daf alignment) but taking far less time per segment, since the
-// full shiur tacks explanation/discussion onto the tail of each segment's
-// own window before the next one's reading begins and the review doesn't.
-// So the guide isn't "which refs does chazara cover" (nearly all of them,
-// making that check nearly always true) -- it's "how long does chazara
-// spend actually reading *this* ref", used to work out how much of the
-// full shiur's current segment window is real reading vs. how much is
-// trailing explanation before the next one starts. Joined by segment.ref (a
-// position in the canonical Sefaria text, e.g. "Chullin 95a:12"), which both
-// recordings' alignments share regardless of their own different runtimes.
-async function refreshChazaraGuide() {
-  const requestedRef = state.dafRef;
-  state.chazaraSegmentsByRef = null;
-  updateFastForwardButtonUi();
-  const parsed = parseDafRef(requestedRef);
-  // Only meaningful from the full shiur's own side, and only once it has a
-  // real synced alignment of its own -- state.usingDefaultAlignment's
-  // even-spacing placeholder segments don't correspond to real reading
-  // boundaries, so there'd be nothing trustworthy to guide.
-  if (!parsed || parsed.variant === 'chazarah' || state.usingDefaultAlignment) return;
-  const languageSuffix = parsed.language === 'he' ? ' (Hebrew)' : '';
-  const chazaraRef = `${parsed.tractate} ${parsed.daf}${parsed.amud} (Chazarah Daf)${languageSuffix}`;
-  const alignment = await fetchServerAlignment(chazaraRef);
-  if (state.dafRef !== requestedRef) return; // navigated elsewhere while this was in flight
-  if (alignment && Array.isArray(alignment.segments) && alignment.segments.length) {
-    state.chazaraSegmentsByRef = new Map(
-      alignment.segments.map((segment) => [String(segment.ref), { start: Number(segment.start) || 0, end: Number(segment.end) || 0 }])
-    );
-  }
-  updateFastForwardButtonUi();
+// "Skip to reading": originally built by cross-referencing the channel's
+// shorter Chazarah Daf (review) recording, but that compared two entirely
+// different recordings' pacing for the same text against each other, which
+// turned out to be unreliable in both directions (flagging real reading as
+// skippable when the review happened to move faster through a passage than
+// the full shiur, and missing real explanation when it moved slower) --
+// confirmed against Chullin 95a's real synced data.
+//
+// This instead reads the full shiur's OWN word-level OCR data (wordTimeline
+// -- already loaded with any real synced alignment) directly: each entry is
+// a span of video time the OCR tracked the on-screen caption sitting on a
+// given word range. Actual reading moves through new words continuously, so
+// its entries are short relative to how many words they cover; when the
+// rabbi lingers on a phrase to explain it, the caption (and so the tracked
+// word range) stays put while time keeps passing, producing one entry with
+// a hugely disproportionate duration for how few words it spans -- e.g. one
+// real entry from Chullin 95a's data spans 116 seconds for just 5 words,
+// against a typical entry nearby covering 8-9 words in under 20 seconds. A
+// long-and-slow entry like that is what this flags as "explanation" to skip
+// past, landing at wherever the next entry (real reading, or the next
+// explanation-tracking entry -- either way, the next actual change in
+// what's on screen) begins. Also covers the video's own opening stretch
+// before any daf text has been read aloud at all yet (routinely several
+// minutes of introductory remarks) -- wordTimeline has no entries there
+// either, which used to leave the button unavailable for exactly that
+// stretch; it now targets the first entry's own start instead.
+const EXPLANATION_PACE_THRESHOLD = 6; // seconds/word -- real reading stays well under this
+const EXPLANATION_MIN_DURATION = 12; // seconds -- ignore brief holds, not worth a skip
+
+function isExplanationEntry(entry) {
+  const duration = entry.end - entry.start;
+  if (duration < EXPLANATION_MIN_DURATION) return false;
+  const words = Math.max(1, entry.w1 - entry.w0 + 1);
+  return duration / words >= EXPLANATION_PACE_THRESHOLD;
 }
 
-// Whether `time` (a moment within the full shiur's currently active segment)
-// still falls within that segment's own actual-reading window, as timed by
-// the Chazarah Daf's cut of the very same ref -- past that point, the full
-// shiur has moved on to explaining/discussing it, with the next real
-// reading only resuming once the *next* segment starts. Errs toward true
-// (still reading -- i.e. no-op the button) whenever there's nothing to
-// compare against, so a gap in the guide never causes a skip past content
-// that might still be actual reading.
-function isWithinActiveReading(time) {
-  const segment = state.segments[state.activeIndex];
-  if (!segment) return true;
-  const chazaraSegment = state.chazaraSegmentsByRef?.get(segment.ref);
-  if (!chazaraSegment) return true;
-  const chazaraDuration = Math.max(0, chazaraSegment.end - chazaraSegment.start);
-  return time - segment.start < chazaraDuration;
+// The last wordTimeline entry whose start is at or before `time` -- same
+// "most recently begun" rule as findSegmentAt, since entries are built in
+// order and don't overlap.
+function findWordTimelineIndexAt(time) {
+  const timeline = state.wordTimeline;
+  let index = -1;
+  for (let i = 0; i < timeline.length; i++) {
+    if (timeline[i].start <= time) index = i; else break;
+  }
+  return index;
+}
+
+// Where the fast-forward button would jump to from `time`, or null when
+// there's nothing to skip (either genuinely mid-reading, or nothing
+// word-level to go on at all).
+function nextReadingTime(time) {
+  const timeline = state.wordTimeline;
+  if (!timeline.length) return null;
+  if (time < timeline[0].start) return timeline[0].start; // before any daf text has been read yet
+  const index = findWordTimelineIndexAt(time);
+  const entry = timeline[index];
+  const pastEntry = time >= entry.end; // a gap between two entries -- nothing actively being read right now either
+  if (!pastEntry && !isExplanationEntry(entry)) return null; // genuinely mid-reading -- no-op
+  const next = timeline[index + 1];
+  return next ? next.start : null;
 }
 
 function updateFastForwardButtonUi(time = getCurrentTime()) {
-  const available = Boolean(state.chazaraSegmentsByRef);
-  const stillReading = available && isWithinActiveReading(time);
-  const hasNext = state.activeIndex + 1 < state.segments.length;
+  const target = nextReadingTime(time);
   for (const button of fastForwardButtonEls) {
-    button.hidden = !available;
-    button.disabled = stillReading || !hasNext;
-    button.title = stillReading
-      ? 'Already at a part the review shiur is also reading'
-      : hasNext
-        ? 'Skip ahead to the next part the review shiur covers'
-        : 'No further part ahead';
+    button.hidden = !state.wordTimeline.length;
+    button.disabled = target === null;
+    button.title = target === null
+      ? 'Already reading, or nothing further ahead'
+      : 'Skip ahead to the next part actually reading the daf';
   }
 }
 
 function skipToNextReading() {
-  // The no-op rule (still within the current segment's own actual-reading
-  // window) has to be enforced here, not just by disabling the button --
-  // this is the actual behavior contract, and the button's disabled state
-  // is only a UI reflection of it, not the other way around.
-  if (isWithinActiveReading(getCurrentTime())) return;
-  if (state.activeIndex + 1 >= state.segments.length) return; // nothing further ahead
-  seekToSegment(state.activeIndex + 1);
+  // The no-op rule (genuinely mid-reading right now) has to be enforced
+  // here, not just by disabling the button -- this is the actual behavior
+  // contract, and the button's disabled state is only a UI reflection of
+  // it, not the other way around.
+  const target = nextReadingTime(getCurrentTime());
+  if (target === null) return;
+  seek(target + 0.03, true);
 }
 
 function saveVideoLinkToServer(ref, videoSource) {
@@ -1273,9 +1272,9 @@ function updateActiveSegment(force = false, timeOverride = null) {
   if (!force && index === state.activeIndex) {
     updateActiveWords(time);
     // Unlike the rest of this function, the fast-forward button's
-    // enabled/disabled state can change *within* the same segment (once
-    // playback passes that segment's own actual-reading window -- see
-    // isWithinActiveReading), not just when the active segment itself
+    // enabled/disabled state can change *within* the same segment (it's
+    // driven by wordTimeline entries, which are finer-grained than segments
+    // -- see nextReadingTime), not just when the active segment itself
     // changes, so this needs to keep running on every tick, not only here.
     updateFastForwardButtonUi(time);
     return;
@@ -1701,7 +1700,6 @@ async function loadDaf(refOverride = null, options = {}) {
     state.usingDefaultAlignment = true;
     state.alignmentStatus = 'placeholder';
     updateAlignmentStatus();
-    refreshChazaraGuide(); // no real alignment here -- just clears any stale guide from the previous daf
     $('dafTitle').textContent = data.heRef || ref;
     renderDaf();
     seek(0);
@@ -2056,7 +2054,6 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
   state.editingIndex = Math.min(Number(data.editingIndex) || 0, state.segments.length - 1);
   state.usingDefaultAlignment = false;
   updateAlignmentStatus();
-  refreshChazaraGuide(); // not awaited -- independent of the rest of this load
   $('dafRef').value = state.dafRef;
   syncDafPickerFromRef(state.dafRef);
   $('dafTitle').textContent = state.dafRef;
