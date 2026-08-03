@@ -1417,7 +1417,14 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     // { videoId, label, amud }.
     async function loadVideoCatalog() {
       try {
-        const response = await fetch(`${CATALOG_URL}?t=${Math.floor(Date.now() / 3600000)}`);
+        // A plain Date.now() (not hour-bucketed) -- raw.githubusercontent.com
+        // itself only caches a given URL for 5 minutes (Cache-Control:
+        // max-age=300), so bucketing this any coarser than that just means a
+        // reader who loaded the page earlier in the same bucket keeps getting
+        // a stale cached response even on a deliberate refresh, for up to
+        // the rest of that bucket -- exactly what happened after removing a
+        // batch of dead video listings and having them still show up.
+        const response = await fetch(`${CATALOG_URL}?t=${Date.now()}`);
         if (!response.ok) throw new Error(`Catalog fetch returned ${response.status}`);
         const data = await response.json();
         const rows = [];
