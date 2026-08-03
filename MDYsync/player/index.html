@@ -277,6 +277,9 @@
     }
     .overlay-controls .overlay-settings-body select { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); color: #fff; }
 
+    .auto-sync-row { margin-top: 12px; }
+    .auto-sync-row .toggle-label { color: var(--muted); font-size: 13px; }
+
     /* The canonical, always-in-page-flow instance -- ivory-themed to match
        the page rather than floating over the (always dark) video. */
     .overlay-controls-page {
@@ -549,6 +552,13 @@
             <button class="button secondary small" id="exportButton">Export</button>
             <button class="button primary small" id="quickSyncButton" type="button" hidden>Sync this daf</button>
             <button class="button primary small" id="openSyncDialogButton" type="button">Sync from video</button>
+          </div>
+          <div class="auto-sync-row">
+            <label class="toggle-label">
+              <input type="checkbox" id="autoSyncToggle" />
+              <span class="toggle"></span>
+              Auto-sync new channel uploads on the server
+            </label>
           </div>
         </div>
       </section>

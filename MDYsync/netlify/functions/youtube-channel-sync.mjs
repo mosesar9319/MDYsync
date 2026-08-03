@@ -31,6 +31,17 @@
 // own paste, the new video replaces it. A link with no marker at all --
 // anything saved through save-video-link.mjs, or written before this
 // marker existed -- is never touched.
+//
+// Optionally (results/settings.json's autoSyncNewUploads, toggled from the
+// player's admin-only sync dialog and written by save-settings.mjs), a
+// video that actually got a new/replaced link also has a server-side OCR
+// sync job dispatched for it automatically -- the same run-ocr-job event
+// trigger-ocr-job.mjs sends for a manual "Sync from video" click, just
+// self-triggered instead of requiring an admin to notice the new upload
+// and start it by hand. Skipped when the toggle is off (the default), and
+// per-video rather than per-reading, so one shiur covering three refs
+// (previous daf's tail b, this daf's a and b) gets exactly one job
+// covering all three, not three separate jobs.
 
 import {
   decodeHtmlEntities,
@@ -45,6 +56,7 @@ const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
 const CHANNEL_ID = 'UCKwQa5DB_VR98ac_r-Wyl-g'; // @MercazDafYomi
 const TALMUD_INDEX_URL = `https://raw.githubusercontent.com/${OWNER}/${REPO}/main/MDYsync/talmud_index.json`;
+const SETTINGS_URL = `https://raw.githubusercontent.com/${OWNER}/${REPO}/results/settings.json`;
 
 function comboKeyFor(variant, language) {
   const variantPart = variant === 'chazarah' ? 'chazarah' : 'regular';
@@ -86,6 +98,16 @@ export default async (request) => {
     return Response.json({ error: `Could not load talmud_index.json: ${error.message}` }, { status: 502 });
   }
   const lookup = buildTalmudLookup(talmudIndex);
+
+  // Missing/unreadable settings.json defaults to off -- auto-syncing is
+  // opt-in, not a behavior change every existing deployment suddenly gets.
+  let autoSyncEnabled = false;
+  try {
+    const response = await fetch(`${SETTINGS_URL}?t=${Date.now()}`);
+    if (response.ok) autoSyncEnabled = Boolean((await response.json()).autoSyncNewUploads);
+  } catch {
+    // Leave it off.
+  }
 
   let entries;
   try {
@@ -143,6 +165,7 @@ export default async (request) => {
       source: 'channel-auto',
     };
     const body = JSON.stringify(videoSource);
+    let entryPublishedCount = 0;
 
     for (const reading of readings) {
       const key = refKeyFor(reading);
@@ -198,6 +221,7 @@ export default async (request) => {
         if (putResponse.ok) {
           existingKeys.add(key);
           published.push({ ref: refDisplay(reading), videoId: entry.videoId });
+          entryPublishedCount++;
           catalogUpdates.push({
             tractate: reading.tractate,
             daf: reading.daf,
@@ -211,6 +235,37 @@ export default async (request) => {
         }
       } catch (error) {
         skipped.push({ ref: refDisplay(reading), videoId: entry.videoId, reason: error.message });
+      }
+    }
+
+    // One job per video, covering every ref it actually got linked to this
+    // run -- not one per reading, and not for a video that turned out to be
+    // already up to date (entryPublishedCount stays 0 for those).
+    if (autoSyncEnabled && entryPublishedCount) {
+      try {
+        const dispatchResponse = await fetch(
+          `https://api.github.com/repos/${OWNER}/${REPO}/dispatches`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              event_type: 'run-ocr-job',
+              client_payload: {
+                driveUrl: null,
+                youtubeUrl: videoSource.url,
+                refs: readings.map((r) => refDisplay(r)),
+                jobId: crypto.randomUUID().replace(/-/g, ''),
+                variant: parsed.variant || 'regular',
+                language: parsed.language || 'en',
+              },
+            }),
+          }
+        );
+        if (!dispatchResponse.ok) {
+          skipped.push({ videoId: entry.videoId, reason: `auto-sync dispatch failed (${dispatchResponse.status})` });
+        }
+      } catch (error) {
+        skipped.push({ videoId: entry.videoId, reason: `auto-sync dispatch error: ${error.message}` });
       }
     }
   }

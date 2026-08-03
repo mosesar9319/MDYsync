@@ -2838,6 +2838,38 @@ $('openSyncDialogButton')?.addEventListener('click', async () => {
   checkLocalAppStatus();
   $('syncDialog').showModal();
 });
+
+// Whether youtube-channel-sync.mjs (the hourly channel poll) should also
+// dispatch a server-side OCR sync job automatically for a newly linked
+// upload, instead of leaving it linked-but-unsynced until an admin notices
+// and starts one by hand. Site-wide, not per-daf, so it's read from/written
+// to results/settings.json rather than anything scoped to the daf on
+// screen -- reflects the real saved value on load, not just this toggle's
+// last-clicked state, since another admin (or another tab) may have
+// changed it since.
+if ($('autoSyncToggle')) {
+  fetch(`https://raw.githubusercontent.com/mosesar9319/MDYsync/results/settings.json?t=${Date.now()}`)
+    .then((response) => (response.ok ? response.json() : null))
+    .then((settings) => { if (settings) $('autoSyncToggle').checked = Boolean(settings.autoSyncNewUploads); })
+    .catch(() => {}); // leave it unchecked, matching the server's own default-off behavior
+}
+$('autoSyncToggle')?.addEventListener('change', async (event) => {
+  const enabled = event.target.checked;
+  try {
+    const response = await fetch('/api/save-settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ autoSyncNewUploads: enabled }),
+    });
+    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || 'Could not save the setting.');
+    showToast(enabled
+      ? 'New channel uploads will now sync automatically on the server.'
+      : 'Automatic server-side sync for new uploads is off.');
+  } catch (error) {
+    event.target.checked = !enabled;
+    showToast(`Could not save this setting: ${error.message}`, 'error');
+  }
+});
 $('closeSyncDialog')?.addEventListener('click', () => $('syncDialog').close());
 $('syncDialog')?.addEventListener('close', () => {
   // Deliberately do NOT stop polling here: a server-side (or local-app) job
