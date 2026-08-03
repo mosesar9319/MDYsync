@@ -52,6 +52,11 @@ const inlineScrubber = $('inlineScrubber');
 // fullscreen, and the only one reachable through a "full page" overlay) works
 // identically to the one below the player.
 const scrubberEls = [scrubber, inlineScrubber].filter(Boolean);
+// Same idea as scrubberEls -- the primary control-bar volume slider/button
+// and the compact in-frame copy (the only one reachable in fullscreen) stay
+// in sync with each other.
+const volumeSliderEls = [$('volumeSlider'), $('inlineVolumeSlider')].filter(Boolean);
+const muteButtonEls = [$('muteButton'), $('inlineMuteButton')].filter(Boolean);
 const dafPage = $('dafPage');
 const editor = $('editor');
 const editorBody = $('editorBody');
@@ -1072,8 +1077,11 @@ function pointerDistance() {
 }
 
 function syncOverlayZoomSlider() {
-  const slider = $('overlayZoomSlider');
-  if (slider) slider.value = String(Math.round(state.videoOverlayZoom * 100));
+  const value = String(Math.round(state.videoOverlayZoom * 100));
+  for (const id of ['overlayZoomSlider', 'overlayZoomSliderInVideo']) {
+    const slider = $(id);
+    if (slider) slider.value = value;
+  }
 }
 
 function handleOverlayPointerDown(event) {
@@ -1361,6 +1369,61 @@ function setPlaybackRate(rate) {
   } else {
     htmlVideo.playbackRate = rate;
   }
+}
+
+// Volume: 0-100 either way, matching the sliders -- YouTube's own API is
+// already that scale, htmlVideo.volume just needs /100.
+function isMuted() {
+  if (state.playerType === 'youtube' && state.youtubeReady) return Boolean(state.youtubePlayer.isMuted?.());
+  return Boolean(htmlVideo.muted);
+}
+
+function updateMuteIcons() {
+  const muted = isMuted();
+  for (const button of muteButtonEls) {
+    const volumeIcon = button.querySelector('.volume-icon');
+    const mutedIcon = button.querySelector('.muted-icon');
+    if (volumeIcon) volumeIcon.hidden = muted;
+    if (mutedIcon) mutedIcon.hidden = !muted;
+    button.setAttribute('aria-label', muted ? 'Unmute' : 'Mute');
+  }
+}
+
+function setMuted(muted) {
+  if (state.playerType === 'youtube') {
+    if (state.youtubeReady) { if (muted) state.youtubePlayer.mute(); else state.youtubePlayer.unMute(); }
+  } else {
+    htmlVideo.muted = muted;
+  }
+  updateMuteIcons();
+}
+
+function setVolume(volume) {
+  const clamped = Math.max(0, Math.min(100, Math.round(volume)));
+  if (state.playerType === 'youtube') {
+    if (state.youtubeReady) state.youtubePlayer.setVolume(clamped);
+  } else {
+    htmlVideo.volume = clamped / 100;
+  }
+  for (const el of volumeSliderEls) el.value = String(clamped);
+  // Dragging the level up while muted should audibly unmute -- otherwise
+  // moving the slider looks like it did nothing.
+  if (clamped > 0 && isMuted()) setMuted(false);
+}
+
+// Reflects whatever the active player's own actual volume/mute state is
+// (YouTube typically starts at 100, but keeps whatever a reader last set
+// within the page's own session; htmlVideo starts at 100/unmuted) into the
+// UI -- called once a player actually has a real volume to report, since
+// asking a YouTube player that isn't ready yet just throws.
+function syncVolumeUi() {
+  const volume = state.playerType === 'youtube'
+    ? (state.youtubeReady ? Number(state.youtubePlayer.getVolume?.()) : null)
+    : Math.round((htmlVideo.volume ?? 1) * 100);
+  if (volume != null && Number.isFinite(volume)) {
+    for (const el of volumeSliderEls) el.value = String(volume);
+  }
+  updateMuteIcons();
 }
 
 function resetEvenSpacing(silent = false) {
@@ -1680,6 +1743,7 @@ async function ensureYouTubePlayer(videoId) {
             event.target.cueVideoById(videoId);
             state.youtubeState = 5;
             startYouTubePoll();
+            syncVolumeUi();
             resolve();
           },
           onStateChange: (event) => {
@@ -1990,7 +2054,7 @@ function handleScrubPointer(event) {
   $('previewText').textContent = segment?.he || 'No mapped text';
 }
 
-htmlVideo.addEventListener('loadedmetadata', () => applyDuration(htmlVideo.duration));
+htmlVideo.addEventListener('loadedmetadata', () => { applyDuration(htmlVideo.duration); syncVolumeUi(); });
 htmlVideo.addEventListener('timeupdate', updateTimeline);
 htmlVideo.addEventListener('play', updatePlayUi);
 htmlVideo.addEventListener('pause', updatePlayUi);
@@ -2020,39 +2084,66 @@ $('videoVilnaCanvas')?.addEventListener('pointermove', handleOverlayPointerMove)
 $('videoVilnaCanvas')?.addEventListener('pointerup', handleOverlayPointerUp);
 $('videoVilnaCanvas')?.addEventListener('pointercancel', handleOverlayPointerUp);
 $('videoVilnaCanvas')?.addEventListener('wheel', handleOverlayWheel, { passive: false });
-$('overlayToggle')?.addEventListener('change', (event) => {
+// /player/ carries two copies of the overlay controls -- the canonical one
+// in normal page flow, and a compact floating one inside .video-frame
+// itself for when that's unreachable (fullscreen). Same idea as
+// scrubberEls above: each "...InVideo"-suffixed id is that same control's
+// second instance, kept in sync by running the one real handler for
+// whichever one the reader actually touched and mirroring its value onto
+// the other. On pages without the floating copy (studio/watch), the
+// InVideo lookup is just null and drops out of the group.
+function overlayControlGroup(id) {
+  return [$(id), $(`${id}InVideo`)].filter(Boolean);
+}
+function syncGroupValue(group, event, prop = 'value') {
+  for (const el of group) if (el !== event.target) el[prop] = event.target[prop];
+}
+const overlayToggleEls = overlayControlGroup('overlayToggle');
+const overlayModeSelectEls = overlayControlGroup('overlayModeSelect');
+const overlayOpacitySliderEls = overlayControlGroup('overlayOpacitySlider');
+const overlayOpacityTargetSelectEls = overlayControlGroup('overlayOpacityTargetSelect');
+const overlayIdleSelectEls = overlayControlGroup('overlayIdleSelect');
+const overlayZoomSliderEls = overlayControlGroup('overlayZoomSlider');
+const overlayResetPositionButtonEls = overlayControlGroup('overlayResetPositionButton');
+const overlaySettingsEls = overlayControlGroup('overlaySettings');
+
+for (const el of overlayToggleEls) el.addEventListener('change', (event) => {
+  syncGroupValue(overlayToggleEls, event, 'checked');
   state.videoOverlayEnabled = event.target.checked;
   $('videoFrame')?.classList.toggle('overlay-on', state.videoOverlayEnabled);
   updateVideoOverlay(getCurrentTime());
   // The rest of the overlay's own display settings (style/opacity/zoom/etc)
   // live tucked away in a <details> dropdown so they don't clutter the
-  // video by default -- open (and close) it in step with the feature
-  // itself, since there's nothing to tune once it's off. Only /player/'s
-  // markup has this element; other pages keep the settings always visible.
-  const settings = $('overlaySettings');
-  if (settings) settings.open = state.videoOverlayEnabled;
+  // video by default -- open (and close) both copies of it in step with
+  // the feature itself, since there's nothing to tune once it's off.
+  for (const settings of overlaySettingsEls) settings.open = state.videoOverlayEnabled;
 });
-$('overlayModeSelect')?.addEventListener('change', (event) => {
+for (const el of overlayModeSelectEls) el.addEventListener('change', (event) => {
+  syncGroupValue(overlayModeSelectEls, event);
   state.videoOverlayMode = event.target.value;
   updateVideoOverlay(getCurrentTime());
 });
-$('overlayOpacitySlider')?.addEventListener('input', (event) => {
+for (const el of overlayOpacitySliderEls) el.addEventListener('input', (event) => {
+  syncGroupValue(overlayOpacitySliderEls, event);
   state.videoOverlayOpacity = Number(event.target.value) / 100;
   updateVideoOverlay(getCurrentTime());
 });
-$('overlayOpacityTargetSelect')?.addEventListener('change', (event) => {
+for (const el of overlayOpacityTargetSelectEls) el.addEventListener('change', (event) => {
+  syncGroupValue(overlayOpacityTargetSelectEls, event);
   state.videoOverlayOpacityTarget = event.target.value;
   updateVideoOverlay(getCurrentTime());
 });
-$('overlayIdleSelect')?.addEventListener('change', (event) => {
+for (const el of overlayIdleSelectEls) el.addEventListener('change', (event) => {
+  syncGroupValue(overlayIdleSelectEls, event);
   state.videoOverlayIdleMode = event.target.value;
   updateVideoOverlay(getCurrentTime());
 });
-$('overlayZoomSlider')?.addEventListener('input', (event) => {
+for (const el of overlayZoomSliderEls) el.addEventListener('input', (event) => {
+  syncGroupValue(overlayZoomSliderEls, event);
   state.videoOverlayZoom = Number(event.target.value) / 100;
   updateVideoOverlay(getCurrentTime());
 });
-$('overlayResetPositionButton')?.addEventListener('click', () => {
+for (const el of overlayResetPositionButtonEls) el.addEventListener('click', () => {
   state.videoOverlayZoom = 1;
   state.videoOverlayPanX = 0;
   state.videoOverlayPanY = 0;
@@ -2126,6 +2217,8 @@ scrubber.addEventListener('pointermove', handleScrubPointer);
 scrubber.addEventListener('pointerenter', handleScrubPointer);
 scrubber.addEventListener('pointerleave', () => { $('scrubPreview').hidden = true; });
 $('inlinePlayButton')?.addEventListener('click', togglePlay);
+for (const el of volumeSliderEls) el.addEventListener('input', (event) => setVolume(Number(event.target.value)));
+for (const button of muteButtonEls) button.addEventListener('click', () => setMuted(!isMuted()));
 
 for (const button of document.querySelectorAll('.view-switch button')) {
   button.addEventListener('click', () => {
