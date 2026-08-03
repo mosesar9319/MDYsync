@@ -370,6 +370,15 @@
     .volume-button svg { width: 18px; height: 18px; }
     .volume-slider { width: 80px; accent-color: var(--accent, var(--gold)); }
 
+    /* "Skip to reading" (see app.js's refreshChazaraGuide/skipToNextReading):
+       hidden until a synced Chazarah Daf counterpart for the daf on screen
+       is known, then disabled rather than hidden once there's nothing left
+       ahead to skip to (or playback's already at a part the review shiur
+       also covers), so its state stays legible instead of just vanishing. */
+    #fastForwardButton:disabled, #inlineFastForwardButton:disabled { opacity: .35; cursor: not-allowed; }
+    .video-inline-fast-forward { width: 22px; height: 22px; padding: 0; border: none; background: none; color: white; cursor: pointer; display: grid; place-items: center; flex-shrink: 0; }
+    .video-inline-fast-forward svg { width: 16px; height: 16px; }
+
     .watch-layout { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(390px,.8fr); gap: 24px; align-items: start; }
     .about-card { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); padding: 24px; margin-top: 24px; }
     .about-card h2 { color: var(--navy); font: 700 25px Georgia,"Times New Roman",serif; }
@@ -602,6 +611,9 @@
                 <svg class="play-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z" fill="currentColor"/></svg>
                 <svg class="pause-icon" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M7 5h4v14H7zm6 0h4v14h-4z" fill="currentColor"/></svg>
               </button>
+              <button class="video-inline-fast-forward" id="inlineFastForwardButton" type="button" aria-label="Skip to next reading" title="Skip ahead to the next part the review shiur covers" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 6v12l8-6-8-6Z" fill="currentColor"/><path d="M11 6v12l8-6-8-6Z" fill="currentColor"/><rect x="19.5" y="6" width="2.2" height="12" rx="1" fill="currentColor"/></svg>
+              </button>
               <input id="inlineScrubber" class="inline-scrubber" type="range" min="0" max="100" step="0.01" value="0" aria-label="Video timeline" />
               <span class="inline-time" id="inlineTimeLabel">0:00 / 0:00</span>
               <button class="video-inline-mute" id="inlineMuteButton" aria-label="Mute">
@@ -747,6 +759,9 @@
               <svg class="pause-icon" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M7 5h4v14H7zm6 0h4v14h-4z" fill="currentColor"/></svg>
             </button>
             <button class="icon-button" id="forwardButton" aria-label="Forward 10 seconds">+10</button>
+            <button class="icon-button" id="fastForwardButton" type="button" aria-label="Skip to next reading" title="Skip ahead to the next part the review shiur covers" hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 6v12l8-6-8-6Z" fill="currentColor"/><path d="M11 6v12l8-6-8-6Z" fill="currentColor"/><rect x="19.5" y="6" width="2.2" height="12" rx="1" fill="currentColor"/></svg>
+            </button>
             <div class="control-divider"></div>
             <button class="icon-button volume-button" id="muteButton" aria-label="Mute">
               <svg class="volume-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6L8 10H4Z" fill="currentColor"/><path d="M16 9c1.3 1.7 1.3 4.3 0 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>

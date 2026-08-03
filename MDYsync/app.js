@@ -38,7 +38,12 @@ const state = {
   vilnaPageZoom: 1,
   vilnaPdfPage: null,
   vilnaPdfContainerWidth: 0,
-  vilnaZoomRerenderTimer: null
+  vilnaZoomRerenderTimer: null,
+  // Set of segment.ref strings covered by the currently loaded (full) shiur's
+  // synced Chazarah Daf counterpart, or null when there isn't one (no such
+  // sync exists, the loaded ref is itself a Chazarah Daf, or nothing real is
+  // synced yet) -- see refreshChazaraGuide()/skipToNextReading().
+  chazaraRefs: null
 };
 
 const AUTO_SCROLL_RESUME_MS = 4000;
@@ -57,6 +62,7 @@ const scrubberEls = [scrubber, inlineScrubber].filter(Boolean);
 // in sync with each other.
 const volumeSliderEls = [$('volumeSlider'), $('inlineVolumeSlider')].filter(Boolean);
 const muteButtonEls = [$('muteButton'), $('inlineMuteButton')].filter(Boolean);
+const fastForwardButtonEls = [$('fastForwardButton'), $('inlineFastForwardButton')].filter(Boolean);
 const dafPage = $('dafPage');
 const editor = $('editor');
 const editorBody = $('editorBody');
@@ -240,6 +246,72 @@ async function fetchServerVideoLink(ref) {
   } catch {
     return null;
   }
+}
+
+// "Skip to reading": the channel's Chazarah Daf recording is a shorter
+// review cut of the same daf, covering only the actual gemara reading and
+// skipping the full shiur's explanation/discussion stretches. Once both are
+// synced, its segment refs double as a guide for which parts of the FULL
+// shiur's own timeline are "reading" vs "explanation" -- see
+// skipToNextReading() for how that's used. The join is by segment.ref (a
+// position in the canonical Sefaria text, e.g. "Chullin 95a:12"), which both
+// recordings' alignments share regardless of their own different runtimes,
+// not by either recording's own video timestamps.
+async function refreshChazaraGuide() {
+  const requestedRef = state.dafRef;
+  state.chazaraRefs = null;
+  updateFastForwardButtonUi();
+  const parsed = parseDafRef(requestedRef);
+  // Only meaningful from the full shiur's own side, and only once it has a
+  // real synced alignment of its own -- state.usingDefaultAlignment's
+  // even-spacing placeholder segments don't correspond to real reading
+  // boundaries, so there'd be nothing trustworthy to guide.
+  if (!parsed || parsed.variant === 'chazarah' || state.usingDefaultAlignment) return;
+  const languageSuffix = parsed.language === 'he' ? ' (Hebrew)' : '';
+  const chazaraRef = `${parsed.tractate} ${parsed.daf}${parsed.amud} (Chazarah Daf)${languageSuffix}`;
+  const alignment = await fetchServerAlignment(chazaraRef);
+  if (state.dafRef !== requestedRef) return; // navigated elsewhere while this was in flight
+  if (alignment && Array.isArray(alignment.segments) && alignment.segments.length) {
+    state.chazaraRefs = new Set(alignment.segments.map((segment) => String(segment.ref)));
+  }
+  updateFastForwardButtonUi();
+}
+
+// The next of the full shiur's own segments (after the one currently
+// playing) whose ref is also covered by the Chazarah Daf guide -- i.e. the
+// next real reading moment worth jumping to. -1 when there isn't one.
+function nextChazaraSegmentIndex() {
+  if (!state.chazaraRefs) return -1;
+  for (let i = state.activeIndex + 1; i < state.segments.length; i++) {
+    if (state.chazaraRefs.has(state.segments[i].ref)) return i;
+  }
+  return -1;
+}
+
+function updateFastForwardButtonUi() {
+  const available = Boolean(state.chazaraRefs);
+  const currentlyReading = available && state.chazaraRefs.has(state.segments[state.activeIndex]?.ref);
+  const targetIndex = available ? nextChazaraSegmentIndex() : -1;
+  for (const button of fastForwardButtonEls) {
+    button.hidden = !available;
+    button.disabled = currentlyReading || targetIndex === -1;
+    button.title = currentlyReading
+      ? 'Already at a part the review shiur also covers'
+      : targetIndex === -1
+        ? 'No further review-covered part ahead'
+        : 'Skip ahead to the next part the review shiur covers';
+  }
+}
+
+function skipToNextReading() {
+  // The no-op rule (already at a part the review shiur covers) has to be
+  // enforced here, not just by disabling the button -- this is the actual
+  // behavior contract, and the button's disabled state is only a UI
+  // reflection of it, not the other way around.
+  if (state.chazaraRefs?.has(state.segments[state.activeIndex]?.ref)) return;
+  const index = nextChazaraSegmentIndex();
+  if (index === -1) return; // nothing further ahead -- see updateFastForwardButtonUi
+  seekToSegment(index);
 }
 
 function saveVideoLinkToServer(ref, videoSource) {
@@ -1189,6 +1261,7 @@ function updateActiveSegment(force = false, timeOverride = null) {
     return;
   }
   state.activeIndex = index;
+  updateFastForwardButtonUi();
   const active = state.segments[index];
   if (!active) return;
 
@@ -1608,6 +1681,7 @@ async function loadDaf(refOverride = null, options = {}) {
     state.usingDefaultAlignment = true;
     state.alignmentStatus = 'placeholder';
     updateAlignmentStatus();
+    refreshChazaraGuide(); // no real alignment here -- just clears any stale guide from the previous daf
     $('dafTitle').textContent = data.heRef || ref;
     renderDaf();
     seek(0);
@@ -1962,6 +2036,7 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
   state.editingIndex = Math.min(Number(data.editingIndex) || 0, state.segments.length - 1);
   state.usingDefaultAlignment = false;
   updateAlignmentStatus();
+  refreshChazaraGuide(); // not awaited -- independent of the rest of this load
   $('dafRef').value = state.dafRef;
   syncDafPickerFromRef(state.dafRef);
   $('dafTitle').textContent = state.dafRef;
@@ -2286,6 +2361,7 @@ scrubber.addEventListener('pointerleave', () => { $('scrubPreview').hidden = tru
 $('inlinePlayButton')?.addEventListener('click', togglePlay);
 for (const el of volumeSliderEls) el.addEventListener('input', (event) => setVolume(Number(event.target.value)));
 for (const button of muteButtonEls) button.addEventListener('click', () => setMuted(!isMuted()));
+for (const button of fastForwardButtonEls) button.addEventListener('click', skipToNextReading);
 
 for (const button of document.querySelectorAll('.view-switch button')) {
   button.addEventListener('click', () => {
