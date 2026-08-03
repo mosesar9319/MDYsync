@@ -2860,6 +2860,12 @@ $('autoSyncToggle')?.addEventListener('change', async (event) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ autoSyncNewUploads: enabled }),
+      // Ticking the toggle and immediately navigating away (the reported bug)
+      // would otherwise let the browser abort this request mid-flight when
+      // the page unloads, silently dropping the save with no error shown --
+      // keepalive lets it finish in the background past unload, same as
+      // sendBeacon.
+      keepalive: true,
     });
     if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || 'Could not save the setting.');
     showToast(enabled
