@@ -69,6 +69,18 @@ function formatTime(seconds) {
 
 function showToast(message, type = 'normal') {
   const toast = $('toast');
+  // A toast fired while a <dialog> is open (e.g. a sync-dialog validation
+  // error -- "Sync from YouTube" clicked with the video not among the
+  // channel's recent uploads, say) would otherwise render invisibly behind
+  // that dialog: an open <dialog> paints in the browser's top layer, which
+  // sits above all regular content regardless of z-index, and .toast is
+  // just a regular fixed-position element. Re-parenting it into the open
+  // dialog puts it in that same top-layer stacking context so it's
+  // actually visible; parking it back under <body> once nothing's open
+  // keeps the normal (non-dialog) case working exactly as before.
+  const openDialog = document.querySelector('dialog[open]');
+  const targetParent = openDialog || document.body;
+  if (toast.parentElement !== targetParent) targetParent.appendChild(toast);
   clearTimeout(state.toastTimer);
   toast.textContent = message;
   toast.classList.toggle('error', type === 'error');
