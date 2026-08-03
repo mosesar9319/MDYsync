@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-03T19:52:07.948Z",
+  "generatedAt": "2026-08-03T20:00:50.949Z",
   "tractates": {
     "Chullin": [
       {
@@ -2086,6 +2086,16 @@
           "videoId": "NLN9mqsOBik",
           "label": "חזרה - חולין דף צג | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "4jhBCrmrOsE",
+          "label": "מרכז דף יומי - חולין דף צג. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
+        "regularEn": {
+          "videoId": "sn5OGfpiuso",
+          "label": "Daf Yomi Chullin Daf 94 by R' Eli Stefansky",
+          "amud": "b"
         }
       },
       {
@@ -2098,6 +2108,16 @@
         "chazarahHe": {
           "videoId": "wz5mpt_8fTc",
           "label": "חזרה - חולין דף צד | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "zv44rKCnBIE",
+          "label": "מרכז דף יומי - חולין דף צד. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
+        "regularEn": {
+          "videoId": "sn5OGfpiuso",
+          "label": "Daf Yomi Chullin Daf 94 by R' Eli Stefansky",
           "amud": "a"
         }
       },
