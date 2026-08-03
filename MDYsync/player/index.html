@@ -216,6 +216,82 @@
       body.player-page.is-admin .setup-strip { grid-template-columns: 1fr 1fr; }
     }
 
+    /* Vilna-page-on-video overlay controls: floats in the video's own
+       corner instead of styles.css's default always-visible row below the
+       video (studio/watch still use that) -- kept out of the way, tucked
+       into a <details> dropdown for everything past the on/off toggle
+       itself, and revealed the same way as .video-inline-controls so it
+       stays reachable in native fullscreen too, where only .video-frame's
+       own descendants render at all. */
+    .overlay-controls {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 7;
+      display: none;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 6px;
+      max-width: min(280px, calc(100% - 20px));
+    }
+    .video-frame:hover .overlay-controls,
+    .video-frame:focus-within .overlay-controls,
+    .video-frame:fullscreen .overlay-controls,
+    .video-frame:-webkit-full-screen .overlay-controls,
+    .video-frame.overlay-on .overlay-controls { display: flex; }
+    .overlay-controls .toggle-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 11px;
+      border-radius: 999px;
+      background: rgba(4,14,27,.78);
+      backdrop-filter: blur(6px);
+      color: #fff;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .overlay-controls .toggle-label em { color: rgba(255,255,255,.6); font-style: normal; }
+    .overlay-settings { position: relative; }
+    .overlay-settings summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 5px 11px;
+      border-radius: 999px;
+      background: rgba(4,14,27,.78);
+      backdrop-filter: blur(6px);
+      color: rgba(255,255,255,.85);
+      font-size: 12px;
+      text-align: right;
+      white-space: nowrap;
+    }
+    .overlay-settings summary::-webkit-details-marker { display: none; }
+    .overlay-settings summary::after { content: '⚙'; margin-left: 6px; }
+    .overlay-settings-body {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      z-index: 8;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: max-content;
+      max-width: 260px;
+      padding: 13px;
+      border-radius: 13px;
+      background: rgba(4,14,27,.92);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 14px 38px rgba(0,0,0,.4);
+      font-size: 12px;
+      color: rgba(255,255,255,.85);
+    }
+    .overlay-settings-body .overlay-mode-label,
+    .overlay-settings-body .overlay-opacity-label { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .overlay-settings-body select { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); color: #fff; border-radius: 8px; padding: 4px 6px; font-size: 12px; }
+    .overlay-settings-body input[type="range"] { accent-color: var(--gold); width: 100px; }
+    .overlay-settings-body .overlay-hint { opacity: .65; font-size: 11px; line-height: 1.4; }
+    .overlay-settings-body .button { align-self: flex-start; }
+
     .watch-layout { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(390px,.8fr); gap: 24px; align-items: start; }
     .about-card { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); padding: 24px; margin-top: 24px; }
     .about-card h2 { color: var(--navy); font: 700 25px Georgia,"Times New Roman",serif; }
@@ -436,45 +512,58 @@
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
             </div>
-          </div>
 
-          <div class="overlay-controls" id="overlayControls">
-            <label class="toggle-label">
-              <input type="checkbox" id="overlayToggle" />
-              <span class="toggle"></span>
-              Overlay Vilna page on video <em>(experimental)</em>
-            </label>
-            <label class="overlay-mode-label">
-              Style
-              <select id="overlayModeSelect">
-                <option value="full">Full page</option>
-                <option value="strip">Current lines</option>
-              </select>
-            </label>
-            <label class="overlay-opacity-label">
-              Opacity
-              <input type="range" id="overlayOpacitySlider" min="10" max="90" value="50" />
-            </label>
-            <label class="overlay-mode-label">
-              Fade to opacity
-              <select id="overlayOpacityTargetSelect">
-                <option value="both">Page + text</option>
-                <option value="background">Page only</option>
-              </select>
-            </label>
-            <label class="overlay-mode-label">
-              When not reading Gemara
-              <select id="overlayIdleSelect">
-                <option value="dim">Dim overlay</option>
-                <option value="hide">Hide overlay</option>
-              </select>
-            </label>
-            <label class="overlay-opacity-label">
-              Zoom
-              <input type="range" id="overlayZoomSlider" min="60" max="350" value="100" />
-            </label>
-            <button class="button ghost small" id="overlayResetPositionButton" type="button">Reset position</button>
-            <em class="overlay-hint">Scroll/pinch the overlay to zoom, drag to reposition</em>
+            <!-- Lives inside .video-frame (not below it, like studio/watch)
+                 so it's still reachable in native fullscreen -- only
+                 .video-frame's own descendants render there. Revealed the
+                 same way as .video-inline-controls (hover/focus/fullscreen/
+                 already-on) so it stays out of the way otherwise; the
+                 display settings beyond the on/off toggle itself are
+                 further tucked into a <details> dropdown, opened
+                 automatically when the toggle switches on. -->
+            <div class="overlay-controls" id="overlayControls">
+              <label class="toggle-label">
+                <input type="checkbox" id="overlayToggle" />
+                <span class="toggle"></span>
+                Overlay Vilna page <em>(experimental)</em>
+              </label>
+              <details class="overlay-settings" id="overlaySettings">
+                <summary>Display settings</summary>
+                <div class="overlay-settings-body">
+                  <label class="overlay-mode-label">
+                    Style
+                    <select id="overlayModeSelect">
+                      <option value="full">Full page</option>
+                      <option value="strip">Current lines</option>
+                    </select>
+                  </label>
+                  <label class="overlay-opacity-label">
+                    Opacity
+                    <input type="range" id="overlayOpacitySlider" min="10" max="90" value="50" />
+                  </label>
+                  <label class="overlay-mode-label">
+                    Fade to opacity
+                    <select id="overlayOpacityTargetSelect">
+                      <option value="both">Page + text</option>
+                      <option value="background">Page only</option>
+                    </select>
+                  </label>
+                  <label class="overlay-mode-label">
+                    When not reading Gemara
+                    <select id="overlayIdleSelect">
+                      <option value="dim">Dim overlay</option>
+                      <option value="hide">Hide overlay</option>
+                    </select>
+                  </label>
+                  <label class="overlay-opacity-label">
+                    Zoom
+                    <input type="range" id="overlayZoomSlider" min="60" max="350" value="100" />
+                  </label>
+                  <button class="button ghost small" id="overlayResetPositionButton" type="button">Reset position</button>
+                  <em class="overlay-hint">Scroll/pinch the overlay to zoom, drag to reposition</em>
+                </div>
+              </details>
+            </div>
           </div>
 
           <div class="scrubber-wrap">

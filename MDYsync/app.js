@@ -828,9 +828,22 @@ function seekToVilnaWord(ref, wordIndex) {
   const entry = state.wordTimeline.find(
     (e) => e.ref === ref && wordIndex >= e.w0 && wordIndex <= e.w1
   );
-  if (!entry) return;
+  if (entry) {
+    state.lastManualScrollAt = 0;
+    seek(entry.start + 0.03, true);
+    updateActiveSegment(true);
+    return;
+  }
+  // Most alignments only ever carry segment-level timing, not word-level --
+  // wordTimeline stays empty for those. Without this fallback, clicking a
+  // word on the Vilna page (either the standalone page view or the video
+  // overlay) silently did nothing whenever that was the case, while the
+  // plain text view kept working fine since .daf-segment's click (see
+  // seekToSegment) never depended on word-level data in the first place.
+  const segment = state.segments.find((s) => s.ref === ref);
+  if (!segment) return;
   state.lastManualScrollAt = 0;
-  seek(entry.start + 0.03, true);
+  seek(segment.start + 0.03, true);
   updateActiveSegment(true);
 }
 
@@ -2011,6 +2024,13 @@ $('overlayToggle')?.addEventListener('change', (event) => {
   state.videoOverlayEnabled = event.target.checked;
   $('videoFrame')?.classList.toggle('overlay-on', state.videoOverlayEnabled);
   updateVideoOverlay(getCurrentTime());
+  // The rest of the overlay's own display settings (style/opacity/zoom/etc)
+  // live tucked away in a <details> dropdown so they don't clutter the
+  // video by default -- open (and close) it in step with the feature
+  // itself, since there's nothing to tune once it's off. Only /player/'s
+  // markup has this element; other pages keep the settings always visible.
+  const settings = $('overlaySettings');
+  if (settings) settings.open = state.videoOverlayEnabled;
 });
 $('overlayModeSelect')?.addEventListener('change', (event) => {
   state.videoOverlayMode = event.target.value;
