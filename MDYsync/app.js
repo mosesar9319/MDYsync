@@ -2444,6 +2444,34 @@ function addSyncReading() {
   renderSyncReadings();
 }
 
+// Switching to the "YouTube link" tab with a daf already open on screen
+// means the reader almost always wants to sync *this* video against *this*
+// daf -- prefill both rather than making them re-pick everything the page
+// already knows. Only fires with an empty slate (readings list empty, url
+// input empty) so it never clobbers something already chosen by hand, e.g.
+// after switching tabs back and forth.
+function prefillYoutubeSyncTab() {
+  const urlInput = $('syncYoutubeUrlInput');
+  if (urlInput && !urlInput.value.trim() && state.videoSource?.type === 'youtube' && state.videoSource.url) {
+    urlInput.value = state.videoSource.url;
+  }
+  if (syncState.readings.length || !state.dafRef) return;
+  const parsed = parseDafRef(state.dafRef);
+  if (!parsed) return;
+  const variantSuffix = parsed.variant === 'chazarah' ? ' (Chazarah Daf)' : '';
+  const languageSuffix = parsed.language === 'he' ? ' (Hebrew)' : '';
+  // Both amudim of the current daf, not just whichever one happens to be on
+  // screen -- a shiur almost always covers the whole daf, and the reader
+  // can always remove the one it turns out not to.
+  const entry = syncState.talmudByName[parsed.tractate];
+  const sides = entry ? amudimForDaf(entry, parsed.daf) : ['a', 'b'];
+  for (const side of sides) {
+    const ref = `${parsed.tractate} ${parsed.daf}${side}${variantSuffix}${languageSuffix}`;
+    if (!syncState.readings.some((r) => r.ref === ref)) syncState.readings.push({ ref, display: ref });
+  }
+  renderSyncReadings();
+}
+
 function removeSyncReading(index) {
   syncState.readings.splice(index, 1);
   renderSyncReadings();
@@ -2895,5 +2923,6 @@ document.querySelectorAll('.sync-tab').forEach((tab) => {
     document.querySelectorAll('.sync-source-panel').forEach((panel) => {
       panel.hidden = panel.id !== tab.dataset.syncPanel;
     });
+    if (tab.dataset.syncPanel === 'syncYoutubePanel') prefillYoutubeSyncTab();
   });
 });

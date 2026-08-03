@@ -365,8 +365,16 @@
        class (below, via styles.css + watch-theme.css); this just adds the
        sticky behavior from the original player design. */
     .daf-card { position: sticky; top: 128px; }
-    .daf-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 17px 19px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-    .daf-header h2 { margin: 3px 0 0; color: var(--navy); font: 700 25px Georgia,"Times New Roman",serif; }
+    /* nowrap, not wrap: a long daf ref plus the view-switch/text-size
+       buttons is a tight fit at this column's usual width, and wrapping to
+       a second line made this header (and .video-header, its match on the
+       player-card side -- see the alignment comment near .watch-layout)
+       an unpredictable height depending on daf ref length/viewport width.
+       The title truncates instead; the tools never need to. */
+    .daf-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 17px 14px; border-bottom: 1px solid var(--line); flex-wrap: nowrap; }
+    .daf-header > div:first-child { min-width: 0; overflow: hidden; }
+    .daf-header h2 { margin: 3px 0 0; color: var(--navy); font: 700 25px Georgia,"Times New Roman",serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .daf-header .daf-tools { flex-shrink: 0; }
     .daf-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .tool-button { width: 36px; height: 36px; display: grid; place-items: center; color: #655e55; background: #fbf7ef; border: 1px solid var(--line); border-radius: 9px; }
     .tool-button:hover { color: var(--gold); border-color: #d9bd85; }
@@ -547,6 +555,9 @@
 
       <section class="watch-layout" aria-label="Shiur and synchronized daf">
         <article class="player-card card">
+          <header class="daf-header video-header">
+            <div><p class="eyebrow">Shiur video</p><h2>&nbsp;</h2></div>
+          </header>
           <div class="video-frame" id="videoFrame">
             <video id="video" preload="metadata" playsinline></video>
             <div class="youtube-player-host" id="youtubePlayerHost" hidden>
@@ -741,7 +752,7 @@
 
         <aside class="daf-card card" aria-labelledby="dafTitle">
           <header class="daf-header">
-            <div><p class="eyebrow">Following along</p><h2 id="dafTitle">No daf loaded</h2></div>
+            <div><p class="eyebrow">Following</p><h2 id="dafTitle">No daf loaded</h2></div>
             <div class="daf-tools">
               <div class="view-switch" role="group" aria-label="Daf display mode">
                 <button class="active" data-view="text">Text</button>
@@ -751,7 +762,6 @@
               <button class="tool-button" id="increase-text" aria-label="Increase text size" type="button">A+</button>
             </div>
           </header>
-          <div class="sync-note"><span>The highlighted words follow the current point in the shiur. Tap any passage to jump there.</span></div>
 
           <div class="daf-scroll" id="dafScroll">
             <div class="daf-page" id="dafPage" dir="rtl" lang="he">
