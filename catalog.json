@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-03T19:00:43.572Z",
+  "generatedAt": "2026-08-03T19:52:07.948Z",
   "tractates": {
     "Chullin": [
       {
@@ -2033,34 +2033,14 @@
           "label": "CHAZARAH - Chullin Daf 90 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
-        "regularEn": {
-          "videoId": "xeDdU9gImiA",
-          "label": "Daf Yomi Chullin Daf 90 by R' Eli Stefansky (unedited)",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "AKiPctp-Epw",
           "label": "חזרה - חולין דף צ | \"רק הדף\" עם ר' אלי סטפנסקי",
-          "amud": "a"
-        },
-        "regularHe": {
-          "videoId": "SRXH7dOVd30",
-          "label": "מרכז דף יומי -  חולין דף  צ. - ר' ידידיה קרמר שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 91,
-        "regularHe": {
-          "videoId": "e9S_je7J06U",
-          "label": "מרכז דף יומי -  חולין דף  צא. - ר' ידידיה קרמר שליט\"א",
-          "amud": "a"
-        },
-        "regularEn": {
-          "videoId": "uk3x6XPIZUY",
-          "label": "Daf Yomi Chullin Daf 91 by R' Eli Stefansky (unedited)",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "lmSVBE76h1Q",
           "label": "חזרה - חולין דף צא | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -2097,16 +2077,6 @@
       },
       {
         "daf": 93,
-        "regularHe": {
-          "videoId": "rGJcQffm7hw",
-          "label": "מרכז דף יומי -  חולין דף  צג. - ר' ידידיה קרמר שליט\"א",
-          "amud": "a"
-        },
-        "regularEn": {
-          "videoId": "lbCpbsWzLEo",
-          "label": "Daf Yomi Chullin Daf 93 by R' Eli Stefansky (unedited)",
-          "amud": "a"
-        },
         "chazarahEn": {
           "videoId": "REwHnUA9PiY",
           "label": "CHAZARAH - Chullin Daf 93 | \"Nothing but the Daf\" with R' Eli Stefansky",
@@ -2120,16 +2090,6 @@
       },
       {
         "daf": 94,
-        "regularHe": {
-          "videoId": "Bp9Pu72pXFg",
-          "label": "מרכז דף יומי -  חולין דף  צד. - ר' ידידיה קרמר שליט\"א",
-          "amud": "a"
-        },
-        "regularEn": {
-          "videoId": "fxggwPQ3LBs",
-          "label": "Daf Yomi Chullin Daf 94 by R' Eli Stefansky (unedited)",
-          "amud": "a"
-        },
         "chazarahEn": {
           "videoId": "EA7iBV1Rq4Q",
           "label": "CHAZARAH - Chullin Daf 94 | \"Nothing but the Daf\" with R' Eli Stefansky",
