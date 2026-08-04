@@ -81,6 +81,18 @@ function formatTime(seconds) {
     : `${minutes}:${String(secs).padStart(2, '0')}`;
 }
 
+// Whole seconds (formatTime) reads fine for a scrubber/current-time display,
+// but the alignment editor's nudge buttons move a segment by as little as
+// 0.1s -- flooring that away would make the fine nudge look like it did
+// nothing. Only used there.
+function formatTimePrecise(seconds) {
+  if (!Number.isFinite(seconds)) return '0:00.0';
+  const total = Math.max(0, seconds);
+  const minutes = Math.floor(total / 60);
+  const secs = total - minutes * 60;
+  return `${minutes}:${secs.toFixed(1).padStart(4, '0')}`;
+}
+
 function showToast(message, type = 'normal') {
   const toast = $('toast');
   // A toast fired while a <dialog> is open (e.g. a sync-dialog validation
@@ -1588,56 +1600,64 @@ function resetEvenSpacing(silent = false) {
   if (!silent) showToast('Segments reset to even spacing.');
 }
 
+// Setting a segment's start time this way (nudging, or "Use current time")
+// only ever touches .start, never .end directly -- normalizeSegmentOrder
+// already keeps the previous segment's .end chained to match, so a reader
+// only ever has to reason about "where does this phrase begin," not two
+// separately-editable, secretly-linked numbers for the same boundary (what
+// the old start/end input pair actually was, just not obviously so).
+function setSegmentStart(index, time) {
+  const clamped = Math.max(0, Number(time.toFixed(2)));
+  state.segments[index].start = clamped;
+  normalizeSegmentOrder(index, 'start');
+  state.usingDefaultAlignment = false;
+  state.alignmentStatus = index === state.segments.length - 1 ? 'complete' : 'in-progress';
+  updateAlignmentStatus();
+  renderDaf();
+  saveDraft(true);
+}
+
+const NUDGE_STEPS = [-1, -0.1, 0.1, 1];
+
 function renderEditor() {
   editorBody.innerHTML = '';
   state.segments.forEach((segment, index) => {
-    const row = document.createElement('tr');
+    const row = document.createElement('div');
     row.className = `editor-row${index === state.activeIndex ? ' active' : ''}${index === state.editingIndex ? ' mark-target-row' : ''}`;
+    const nudgeButtons = NUDGE_STEPS.map((delta) => `
+      <button type="button" class="nudge-btn" data-index="${index}" data-delta="${delta}"
+        aria-label="Nudge segment ${index + 1}'s start ${delta > 0 ? 'later' : 'earlier'} by ${Math.abs(delta)}s">
+        ${delta > 0 ? '+' : '−'}${Math.abs(delta)}
+      </button>`).join('');
     row.innerHTML = `
-      <td>${index + 1}</td>
-      <td><input type="number" min="0" step="0.1" value="${segment.start.toFixed(1)}" data-field="start" data-index="${index}" aria-label="Segment ${index + 1} start time"></td>
-      <td><input type="number" min="0" step="0.1" value="${segment.end.toFixed(1)}" data-field="end" data-index="${index}" aria-label="Segment ${index + 1} end time"></td>
-      <td class="editor-phrase">${escapeHtml(segment.he)}</td>
-      <td><button class="button secondary small use-time" data-index="${index}">Use current time</button></td>`;
+      <span class="editor-row-num">${index + 1}</span>
+      <span class="editor-time">
+        <span class="editor-time-display" aria-label="Segment ${index + 1} starts at">${formatTimePrecise(segment.start)}</span>
+        ${nudgeButtons}
+      </span>
+      <span class="editor-phrase">${escapeHtml(segment.he)}</span>
+      <button class="button secondary small use-time" data-index="${index}">Use current time</button>`;
     row.addEventListener('click', (event) => {
-      if (event.target.closest('input, button')) return;
+      if (event.target.closest('button')) return;
       selectEditingIndex(index);
     });
     editorBody.appendChild(row);
   });
 
-  editorBody.querySelectorAll('input[data-field]').forEach((input) => {
-    input.addEventListener('change', (event) => {
-      const target = event.currentTarget;
-      const index = Number(target.dataset.index);
-      const field = target.dataset.field;
-      const value = Math.max(0, Number(target.value) || 0);
-      state.segments[index][field] = value;
-      normalizeSegmentOrder(index, field);
-      state.usingDefaultAlignment = false;
-      state.alignmentStatus = 'in-progress';
-      updateAlignmentStatus();
-      renderDaf();
-      saveDraft(true);
+  editorBody.querySelectorAll('.nudge-btn').forEach((button) => {
+    button.addEventListener('click', (event) => {
+      const index = Number(event.currentTarget.dataset.index);
+      const delta = Number(event.currentTarget.dataset.delta);
+      setSegmentStart(index, state.segments[index].start + delta);
     });
   });
 
   editorBody.querySelectorAll('.use-time').forEach((button) => {
     button.addEventListener('click', (event) => {
       const index = Number(event.currentTarget.dataset.index);
-      const time = Number(getCurrentTime().toFixed(2));
-      state.segments[index].start = time;
-      if (index > 0) state.segments[index - 1].end = time;
-      if (state.segments[index].end <= time) {
-        const nextStart = state.segments[index + 1]?.start;
-        state.segments[index].end = nextStart && nextStart > time ? nextStart : time + 3;
-      }
-      state.usingDefaultAlignment = false;
+      const time = getCurrentTime();
+      setSegmentStart(index, time);
       state.editingIndex = Math.min(index + 1, state.segments.length - 1);
-      state.alignmentStatus = index === state.segments.length - 1 ? 'complete' : 'in-progress';
-      updateAlignmentStatus();
-      renderDaf();
-      saveDraft(true);
       showToast(`Segment ${index + 1} now begins at ${formatTime(time)}.`);
     });
   });

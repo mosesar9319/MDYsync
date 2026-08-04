@@ -883,21 +883,14 @@
           <div>
             <div class="eyebrow">Alignment editor</div>
             <h2>Correct the synchronization</h2>
-            <p>Select a phrase, play or seek to its correct point, then use “Mark here & advance” or press M. The previous phrase closes automatically.</p>
+            <p>Play the video and tap “Mark here & advance” (or press M) the moment each phrase starts -- the fastest way to fix most of the daf in one pass. For a single phrase that's just slightly off, nudge it with the +/− buttons below instead.</p>
           </div>
           <div class="editor-actions">
             <button class="button secondary small" id="evenSpacingButton">Reset evenly</button>
             <button class="button primary small" id="closeEditorButton">Done editing</button>
           </div>
         </div>
-        <div class="editor-table-wrap">
-          <table class="editor-table">
-            <thead>
-              <tr><th>#</th><th>Start</th><th>End</th><th>Phrase</th><th></th></tr>
-            </thead>
-            <tbody id="editorBody"></tbody>
-          </table>
-        </div>
+        <div class="editor-list" id="editorBody"></div>
       </section>
 
       <section class="about-card">
