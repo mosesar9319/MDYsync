@@ -720,6 +720,114 @@ function realDafRef(ref) {
   return parsed ? `${parsed.tractate} ${parsed.daf}${parsed.amud}` : String(ref || '').trim();
 }
 
+// Fetches a ref's full canonical text straight from Sefaria (proxied, with
+// a direct-API fallback) and returns it as one entry per paragraph -- the
+// same shape loadDaf()'s from-scratch fallback builds segments from, and
+// what fillMissingDafText() below diffs a loaded alignment against. `ref`
+// must already be Sefaria's own tractate/daf/amud form (see realDafRef),
+// not a display ref carrying a "(Chazarah Daf)"/"(Hebrew)" marker.
+async function fetchSefariaParagraphs(sefariaRef) {
+  let response;
+  try {
+    response = await fetch(`/api/sefaria?ref=${encodeURIComponent(sefariaRef)}`);
+    if (!response.ok) throw new Error('Proxy unavailable');
+  } catch {
+    response = await fetch(`https://www.sefaria.org/api/v3/texts/${encodeURIComponent(sefariaRef)}?version=source&version=translation&return_format=text_only`);
+  }
+  if (!response.ok) throw new Error(`Sefaria returned ${response.status}`);
+  const data = await response.json();
+  const versions = Array.isArray(data.versions) ? data.versions : [];
+  const sourceVersion = versions.find((version) => String(version.language || '').toLowerCase().includes('hebrew')) || versions[0];
+  const translationVersion = versions.find((version) => String(version.language || '').toLowerCase().includes('english')) || versions[1];
+  const he = flattenText(sourceVersion?.text ?? data.he).map(stripHtml).filter(Boolean);
+  const en = flattenText(translationVersion?.text ?? data.text).map(stripHtml).filter(Boolean);
+  if (!he.length) throw new Error('No Hebrew text was returned for this reference.');
+  return {
+    heRef: data.heRef || sefariaRef,
+    paragraphs: he.map((text, index) => ({
+      ref: data.sectionRef ? `${data.sectionRef}.${index + 1}` : `${sefariaRef}.${index + 1}`,
+      he: text,
+      en: en[index] || ''
+    }))
+  };
+}
+
+// A published alignment (OCR or voice) only ever carries segments for
+// canonical paragraphs a match actually covered at the time it was
+// generated -- older published files predate build_outputs() filling that
+// gap server-side (see caption_ocr_align.py's _fill_segment_gaps), and
+// even a fresh one only fills gaps *between* matches, not a paragraph a
+// relocalization jump skipped past entirely. Rather than requiring a slow
+// re-run of the actual transcription just to get the rest of the daf's
+// text on screen -- filling in missing text is a plain textual diff
+// against Sefaria, nothing the engine needs to redo -- this reconciles
+// state.segments against Sefaria's full paragraph list right after any
+// server alignment loads, inserting an "estimated" placeholder row for
+// any paragraph no segment covers at all, so the whole daf is always
+// there to review/correct regardless of how old or partial the published
+// file is. Returns true if it actually added anything.
+async function fillMissingDafText(sefariaRef) {
+  let paragraphs;
+  try {
+    ({ paragraphs } = await fetchSefariaParagraphs(sefariaRef));
+  } catch (error) {
+    console.error('Could not check for missing daf text.', error);
+    return false;
+  }
+  const coveredRefs = new Set(state.segments.map((s) => s.ref));
+  if (paragraphs.every((p) => coveredRefs.has(p.ref))) return false;
+
+  // Anchor time for each paragraph already covered: the earliest segment
+  // start touching it. Missing paragraphs interpolate/extrapolate a
+  // placeholder time from their nearest covered neighbors, same approach
+  // as _fill_segment_gaps server-side.
+  const anchors = paragraphs.map((p) => {
+    const covering = state.segments.filter((s) => s.ref === p.ref);
+    return covering.length ? Math.min(...covering.map((s) => s.start)) : null;
+  });
+
+  const additions = [];
+  for (let i = 0; i < paragraphs.length; i++) {
+    if (anchors[i] != null) continue;
+    let before = null, beforeIdx = -1;
+    for (let j = i - 1; j >= 0; j--) { if (anchors[j] != null) { before = anchors[j]; beforeIdx = j; break; } }
+    let after = null, afterIdx = -1;
+    for (let j = i + 1; j < paragraphs.length; j++) { if (anchors[j] != null) { after = anchors[j]; afterIdx = j; break; } }
+    let t;
+    if (before != null && after != null) t = before + (after - before) * (i - beforeIdx) / (afterIdx - beforeIdx);
+    else if (before != null) t = before + (i - beforeIdx);
+    else if (after != null) t = Math.max(0, after - (afterIdx - i));
+    else t = 0;
+    const words = paragraphs[i].he.trim().split(/\s+/);
+    additions.push({
+      id: `${paragraphs[i].ref.replace(/\W+/g, '-').toLowerCase()}-fill`,
+      ref: paragraphs[i].ref,
+      start: Number(t.toFixed(2)),
+      end: Number((t + 0.1).toFixed(2)),
+      he: paragraphs[i].he,
+      en: paragraphs[i].en,
+      estimated: true,
+      w0: 0,
+      w1: words.length - 1
+    });
+  }
+  if (!additions.length) return false;
+  state.segments = [...state.segments, ...additions].sort((a, b) => a.start - b.start);
+  // bankVoiceCorrection() diffs state.segments against voiceCorrectionBaseline
+  // by array position (see its own comment) -- since this just changed the
+  // segment count, the baseline (captured by loadAlignmentData before this
+  // ran) needs to be re-snapshotted now, or the newly-added placeholder rows
+  // alone would look like a "correction" the moment Save draft is clicked,
+  // with nothing the admin actually did yet to bank.
+  if (state.voiceCorrectionBaseline) {
+    state.voiceCorrectionBaseline = {
+      ref: state.dafRef,
+      segments: state.segments.map((s) => ({ ref: s.ref, start: s.start, end: s.end, he: s.he }))
+    };
+  }
+  return true;
+}
+
 function setVilnaPageStatus(message) {
   const status = $('vilnaPageStatus');
   const text = $('vilnaPageStatusText');
@@ -1842,6 +1950,12 @@ async function loadDaf(refOverride = null, options = {}) {
     const preferredVideoSource = await resolvePreferredVideoSource(ref, loadProjectForRef(ref));
     if (preferredVideoSource) serverAlignment.videoSource = preferredVideoSource;
     await loadAlignmentData(serverAlignment, { dafRefOverride: ref });
+    // Published alignments (especially older ones, or a voice sync that
+    // only ever locks onto part of the daf) can be missing whole
+    // paragraphs of canonical text -- fill those in from Sefaria directly
+    // rather than requiring a fresh sync job just to get the rest of the
+    // daf on screen for review.
+    if (await fillMissingDafText(realDafRef(ref))) renderDaf();
     if (!options.silent) showToast(`Loaded the synced alignment for ${ref} from the server.`);
     return;
   }
@@ -1876,35 +1990,21 @@ async function loadDaf(refOverride = null, options = {}) {
     // any chazarah/Hebrew ref that didn't already have a synced alignment
     // cached under by-ref/ (see realDafRef's own comment).
     const sefariaRef = realDafRef(ref);
-    let response;
-    try {
-      response = await fetch(`/api/sefaria?ref=${encodeURIComponent(sefariaRef)}`);
-      if (!response.ok) throw new Error('Proxy unavailable');
-    } catch {
-      response = await fetch(`https://www.sefaria.org/api/v3/texts/${encodeURIComponent(sefariaRef)}?version=source&version=translation&return_format=text_only`);
-    }
-    if (!response.ok) throw new Error(`Sefaria returned ${response.status}`);
-    const data = await response.json();
-    const versions = Array.isArray(data.versions) ? data.versions : [];
-    const sourceVersion = versions.find((version) => String(version.language || '').toLowerCase().includes('hebrew')) || versions[0];
-    const translationVersion = versions.find((version) => String(version.language || '').toLowerCase().includes('english')) || versions[1];
-    const he = flattenText(sourceVersion?.text ?? data.he).map(stripHtml).filter(Boolean);
-    const en = flattenText(translationVersion?.text ?? data.text).map(stripHtml).filter(Boolean);
-    if (!he.length) throw new Error('No Hebrew text was returned for this reference.');
+    const { heRef, paragraphs } = await fetchSefariaParagraphs(sefariaRef);
 
     state.dafRef = ref;
     state.wordTimeline = [];
     const duration = getDuration() || Number(scrubber.max) || 48;
-    const length = duration / he.length;
-    state.segments = he.map((text, index) => {
-      const words = text.trim().split(/\s+/);
+    const length = duration / paragraphs.length;
+    state.segments = paragraphs.map((paragraph, index) => {
+      const words = paragraph.he.trim().split(/\s+/);
       return {
         id: `${ref.replace(/\W+/g, '-').toLowerCase()}-${index + 1}`,
-        ref: data.sectionRef ? `${data.sectionRef}.${index + 1}` : `${ref}.${index + 1}`,
+        ref: paragraph.ref,
         start: Number((index * length).toFixed(2)),
         end: Number(((index + 1) * length).toFixed(2)),
-        he: text,
-        en: en[index] || '',
+        he: paragraph.he,
+        en: paragraph.en,
         // Whole-paragraph bounds to start -- splitSegmentAtWord narrows
         // these as the admin carves the paragraph into hand-picked phrases.
         w0: 0,
@@ -1929,10 +2029,10 @@ async function loadDaf(refOverride = null, options = {}) {
     state.usingDefaultAlignment = true;
     state.alignmentStatus = 'placeholder';
     updateAlignmentStatus();
-    $('dafTitle').textContent = data.heRef || ref;
+    $('dafTitle').textContent = heRef || ref;
     renderDaf();
     seek(0);
-    if (!options.silent) showToast(`Loaded ${he.length} text segments from Sefaria.`);
+    if (!options.silent) showToast(`Loaded ${paragraphs.length} text segments from Sefaria.`);
   } catch (error) {
     console.error(error);
     showToast(`Could not load the daf: ${error.message}`, 'error');
@@ -2355,6 +2455,10 @@ async function switchSyncMethod(method) {
   await loadAlignmentData(data, { restoreSource: false, dafRefOverride: state.dafRef, seekToStart: false });
   state.activeSyncMethod = method;
   updateSyncMethodSwitchUi();
+  // Same reasoning as loadDaf()'s server-alignment branch -- the method
+  // just switched to can be just as incomplete as the one switched away
+  // from, independently.
+  if (await fillMissingDafText(realDafRef(state.dafRef))) renderDaf();
   seek(resumeTime);
   showToast(method === 'voice' ? 'Switched to the voice-recognition sync.' : 'Switched to the caption-OCR sync.');
 }
