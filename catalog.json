@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-04T02:00:40.197Z",
+  "generatedAt": "2026-08-04T03:01:01.369Z",
   "tractates": {
     "Chullin": [
       {
@@ -2141,6 +2141,14 @@
         "chazarahHe": {
           "videoId": "sKs00zIS5dg",
           "label": "חזרה - חולין דף צה | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        }
+      },
+      {
+        "daf": 96,
+        "regularEn": {
+          "videoId": "PSgiXoFIc64",
+          "label": "Daf Yomi Chullin Daf 96 by R' Eli Stefansky (unedited)",
           "amud": "a"
         }
       }
