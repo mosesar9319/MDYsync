@@ -401,6 +401,16 @@
        class (below, via styles.css + watch-theme.css); this just adds the
        sticky behavior from the original player design. */
     .daf-card { position: sticky; top: 128px; }
+    /* The editor lives in the same sticky right-hand column as .daf-card
+       (see the HTML comment above it) so correcting the sync stays
+       parallel with the video instead of scrolling down to a full-width
+       section below it. styles.css's own .editor margin-top was sized for
+       that old below-the-fold placement; reset it here. The list itself
+       scrolls internally (like .daf-scroll does for the daf text) rather
+       than letting a long phrase list grow the whole column past the
+       video, which would defeat the point of keeping them side by side. */
+    .watch-layout .editor { margin-top: 0; position: sticky; top: 128px; max-height: calc(100vh - 148px); display: flex; flex-direction: column; }
+    .watch-layout .editor .editor-list { overflow-y: auto; flex: 1; min-height: 0; }
     /* nowrap, not wrap: a long daf ref plus the view-switch/text-size
        buttons is a tight fit at this column's usual width, and wrapping to
        a second line made this header (and .video-header, its match on the
@@ -423,6 +433,7 @@
     @media (max-width: 1120px) {
       .watch-layout { grid-template-columns: 1fr; }
       .daf-card { position: static; }
+      .watch-layout .editor { position: static; max-height: none; }
     }
     @media (max-width: 760px) {
       body { padding-bottom: 78px; }
@@ -810,7 +821,7 @@
           </div>
         </article>
 
-        <aside class="daf-card card" aria-labelledby="dafTitle">
+        <aside class="daf-card card" id="dafCard" aria-labelledby="dafTitle">
           <header class="daf-header">
             <div><p class="eyebrow">Following</p><h2 id="dafTitle">No daf loaded</h2></div>
             <div class="daf-tools">
@@ -876,22 +887,28 @@
             <span>Text retrieval: Sefaria API</span>
           </div>
         </aside>
-      </section>
 
-      <section class="editor card" id="editor" hidden>
-        <div class="editor-heading">
-          <div>
-            <div class="eyebrow">Alignment editor</div>
-            <h2>Correct the synchronization</h2>
-            <p>Play the video and tap “Mark here & advance” (or press M) the moment each phrase starts -- the fastest way to fix most of the daf in one pass. For a single phrase that's just slightly off, nudge it with the +/− buttons below instead.</p>
+        <!-- Sits in the same sticky right-hand grid column as .daf-card,
+             one or the other visible at a time (see editModeButton/
+             closeEditorButton in app.js) -- editing stays parallel with the
+             video instead of scrolling to a full-width section below it,
+             and the daf text pane is redundant with this anyway while
+             editing (the phrase list below already shows the same text). -->
+        <section class="editor card" id="editor" hidden>
+          <div class="editor-heading">
+            <div>
+              <div class="eyebrow">Alignment editor</div>
+              <h2>Correct the synchronization</h2>
+              <p>Play the video and tap “Mark here & advance” (or press M) the moment each phrase starts -- the fastest way to fix most of the daf in one pass. For a single phrase that's just slightly off, nudge it with the +/− buttons below instead.</p>
+            </div>
+            <div class="editor-actions">
+              <button class="button secondary small" id="phraseEditModeButton" title="Click a word in any phrase below to split it there">Split phrases</button>
+              <button class="button secondary small" id="evenSpacingButton">Reset evenly</button>
+              <button class="button primary small" id="closeEditorButton">Done editing</button>
+            </div>
           </div>
-          <div class="editor-actions">
-            <button class="button secondary small" id="phraseEditModeButton" title="Click a word in any phrase below to split it there">Split phrases</button>
-            <button class="button secondary small" id="evenSpacingButton">Reset evenly</button>
-            <button class="button primary small" id="closeEditorButton">Done editing</button>
-          </div>
-        </div>
-        <div class="editor-list" id="editorBody"></div>
+          <div class="editor-list" id="editorBody"></div>
+        </section>
       </section>
 
       <section class="about-card">

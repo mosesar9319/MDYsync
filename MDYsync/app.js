@@ -872,7 +872,13 @@ function vilnaPageRenderScale(baseViewportWidth, containerWidth, qualityMultipli
 async function renderVilnaPage() {
   const canvas = $('vilnaPageCanvas');
   const view = $('vilnaPlaceholder');
-  if (!canvas || !view || view.hidden) return;
+  // The daf card itself (not just the Vilna/text view-switch, checked via
+  // view.hidden below) can be hidden now too -- while the alignment editor
+  // is open, it takes this card's spot in the layout (see editModeButton).
+  // A hidden ancestor reports 0 for every size measurement below, so
+  // skip entirely rather than sizing the canvas off a bogus 0 width;
+  // closeEditorButton re-calls this once the card is visible again.
+  if (!canvas || !view || view.hidden || $('dafCard')?.hidden) return;
 
   // Follow the daf the video is actually on, not just whichever ref the
   // player started with -- a synced video can span more than one daf
@@ -2761,8 +2767,19 @@ $('transcriptInput').addEventListener('change', (event) => importTranscript(even
 $('exportButton').addEventListener('click', exportAlignment);
 $('evenSpacingButton').addEventListener('click', () => resetEvenSpacing(false));
 $('phraseEditModeButton').addEventListener('click', togglePhraseEditMode);
-$('editModeButton').addEventListener('click', () => { editor.hidden = false; editor.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
-$('closeEditorButton').addEventListener('click', () => { editor.hidden = true; document.querySelector('.workspace').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+// The editor sits in the same grid column as the daf card (see the HTML
+// comment above #editor) so correcting the sync stays parallel with the
+// video instead of scrolling to a full-width section below it -- the two
+// are mutually exclusive in that column, not stacked.
+$('editModeButton').addEventListener('click', () => {
+  $('dafCard').hidden = true;
+  editor.hidden = false;
+});
+$('closeEditorButton').addEventListener('click', () => {
+  editor.hidden = true;
+  $('dafCard').hidden = false;
+  renderVilnaPage();
+});
 
 document.querySelectorAll('.source-tab').forEach((tab) => {
   tab.addEventListener('click', () => setSourcePanel(tab.dataset.sourcePanel));
