@@ -1593,6 +1593,7 @@ function resetEvenSpacing(silent = false) {
 function setSegmentStart(index, time) {
   const clamped = Math.max(0, Number(time.toFixed(2)));
   state.segments[index].start = clamped;
+  state.segments[index].estimated = false;
   normalizeSegmentOrder(index, 'start');
   state.usingDefaultAlignment = false;
   state.alignmentStatus = index === state.segments.length - 1 ? 'complete' : 'in-progress';
@@ -1607,19 +1608,27 @@ function renderEditor() {
   editorBody.innerHTML = '';
   state.segments.forEach((segment, index) => {
     const row = document.createElement('div');
-    row.className = `editor-row${index === state.activeIndex ? ' active' : ''}${index === state.editingIndex ? ' mark-target-row' : ''}`;
+    row.className = `editor-row${index === state.activeIndex ? ' active' : ''}${index === state.editingIndex ? ' mark-target-row' : ''}${segment.estimated ? ' estimated' : ''}`;
     const nudgeButtons = NUDGE_STEPS.map((delta) => `
       <button type="button" class="nudge-btn" data-index="${index}" data-delta="${delta}"
         aria-label="Nudge segment ${index + 1}'s start ${delta > 0 ? 'later' : 'earlier'} by ${Math.abs(delta)}s">
         ${delta > 0 ? '+' : '−'}${Math.abs(delta)}
       </button>`).join('');
+    // "estimated" segments are ones voice_align.py (or an OCR pass with
+    // patchy caption coverage) never actually matched -- they're only here,
+    // with a guessed placeholder time, so the daf's full text is still
+    // visible and correctable instead of silently missing. The badge is the
+    // only thing telling a corrector "this one's a guess, not a real match."
+    const badge = segment.estimated
+      ? '<span class="editor-estimated-badge" title="Not matched automatically -- this time is only a rough placeholder.">needs review</span>'
+      : '';
     row.innerHTML = `
       <span class="editor-row-num">${index + 1}</span>
       <span class="editor-time">
         <span class="editor-time-display" aria-label="Segment ${index + 1} starts at">${formatTimePrecise(segment.start)}</span>
         ${nudgeButtons}
       </span>
-      <span class="editor-phrase">${escapeHtml(segment.he)}</span>
+      <span class="editor-phrase">${escapeHtml(segment.he)}${badge}</span>
       <button class="button secondary small use-time" data-index="${index}">Use current time</button>`;
     row.addEventListener('click', (event) => {
       if (event.target.closest('button')) return;
@@ -2110,7 +2119,8 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
     start: Number(segment.start) || 0,
     end: Number(segment.end) || (Number(segment.start) || 0) + 1,
     he: String(segment.he || segment.text || ''),
-    en: String(segment.en || segment.translation || '')
+    en: String(segment.en || segment.translation || ''),
+    estimated: Boolean(segment.estimated)
   })).sort((a, b) => a.start - b.start);
   state.wordTimeline = Array.isArray(data.wordTimeline)
     ? data.wordTimeline

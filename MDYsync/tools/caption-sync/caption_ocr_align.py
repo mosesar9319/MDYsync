@@ -436,6 +436,42 @@ def process_video(path, refs, crop=None, sample_fps=3.0, out_dir="out",
     return canon, segments, events, duration
 
 
+def _fill_segment_gaps(seg_times, n_segments, duration):
+    """seg_times: {seg_index: (start, end)} for segments a real match
+    covered. Returns {seg_index: (start, end, estimated)} for every index in
+    range(n_segments) -- see build_outputs for why every segment needs a row,
+    not just the confidently-matched ones."""
+    known = sorted(seg_times)
+    if not known:
+        # Nothing matched at all -- spread everything evenly so there's at
+        # least a plausible starting point to correct from.
+        step = duration / max(1, n_segments)
+        return {s: (round(s * step, 2), round(s * step, 2), True) for s in range(n_segments)}
+
+    result = {s: (seg_times[s][0], seg_times[s][1], False) for s in known}
+
+    for a, b in zip(known, known[1:]):
+        gap = b - a - 1
+        if gap <= 0:
+            continue
+        t0, t1 = seg_times[a][1], seg_times[b][0]
+        for k in range(1, gap + 1):
+            t = t0 + (t1 - t0) * k / (gap + 1)
+            result[a + k] = (round(t, 2), round(t, 2), True)
+
+    t0 = seg_times[known[0]][0]
+    for s in range(known[0] - 1, -1, -1):
+        t0 = max(0.0, t0 - 1.0)
+        result[s] = (round(t0, 2), round(t0, 2), True)
+
+    t1 = seg_times[known[-1]][1]
+    for s in range(known[-1] + 1, n_segments):
+        t1 = min(duration, t1 + 1.0)
+        result[s] = (round(t1, 2), round(t1, 2), True)
+
+    return result
+
+
 def build_outputs(canon, segments, events, duration, video_path, refs,
                    generator="caption_ocr_align.py", title_prefix="Caption OCR alignment"):
     """Collapse per-frame events into a word timeline and a segment alignment."""
@@ -491,15 +527,30 @@ def build_outputs(canon, segments, events, duration, video_path, refs,
             seg_entries.setdefault(s, []).append((entry["start"], entry["end"]))
     seg_times = {s: robust_span(spans) for s, spans in seg_entries.items()}
 
+    # A segment with no confident match (common for voice sync, which only
+    # ever locks onto the ~15-50% of runs it's sure about -- OCR usually
+    # covers nearly the whole daf since the captions scroll through all of
+    # it) used to be left out of align_segments entirely: not "unsynced",
+    # just gone, with no row in the manual-correction editor to fix it from.
+    # Every canonical segment gets a row now; the ones with no real match
+    # get a placeholder time interpolated between their confidently-matched
+    # neighbors (or extrapolated a second apart, past the first/last known
+    # one) and are flagged "estimated" so the editor can mark them as
+    # needing a real correction rather than looking already-done.
+    all_seg_times = _fill_segment_gaps(seg_times, len(segments), duration)
+
     align_segments = []
-    for s in sorted(seg_times):
-        t0, t1 = seg_times[s]
-        align_segments.append({
+    for s in sorted(all_seg_times):
+        t0, t1, estimated = all_seg_times[s]
+        entry = {
             "ref": segments[s]["ref"],
             "start": round(t0, 2),
             "end": round(t1, 2),
             "he": segments[s]["he"],
-        })
+        }
+        if estimated:
+            entry["estimated"] = True
+        align_segments.append(entry)
 
     # word timeline embedded in the alignment file, split per segment so the
     # player can highlight words by (ref, word index) directly
