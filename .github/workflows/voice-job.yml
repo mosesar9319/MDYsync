@@ -25,7 +25,13 @@ permissions:
 jobs:
   voice:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # CPU-bound whisper transcription runs at roughly 1.76x real-time on a
+    # standard 4-core runner (measured against a real 5:15 clip) -- a 40-min
+    # shiur alone needs ~70 min just to transcribe, before download/setup
+    # overhead, so 60 wasn't enough (copied from ocr-job.yml without
+    # checking it fit this much slower CPU-bound workload). 180 leaves
+    # headroom up to roughly a 90-100 min shiur at this same ratio.
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
 
