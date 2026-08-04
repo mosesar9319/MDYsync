@@ -1,0 +1,918 @@
+{
+  "schema": "dafsync-alignment-v2",
+  "title": "Caption OCR alignment — Chullin 95b (Chazarah Daf), Chullin 96a (Chazarah Daf), Chullin 96b (Chazarah Daf)",
+  "dafRef": "Chullin 95b (Chazarah Daf)",
+  "duration": 1513.13,
+  "alignmentStatus": "in-progress",
+  "generator": "caption_ocr_align.py",
+  "videoSource": {
+    "type": "local",
+    "url": "job-video.mp4"
+  },
+  "segments": [
+    {
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "start": 43.0,
+      "end": 421.0,
+      "he": "אֲמַר לֵיהּ רַב אַחָא בְּרֵיהּ דְּרָבָא לְרַב אָשֵׁי: וְכֹל ״הַכֹּל״ לְכַתְּחִלָּה הוּא? אֶלָּא מֵעַתָּה: הַכֹּל מְמִירִין, אֶחָד הָאֲנָשִׁים וְאֶחָד הַנָּשִׁים – הָכִי נָמֵי דִּלְכַתְּחִלָּה הוּא? וְהָא כְּתִיב: ״לֹא יַחֲלִיפֶנּוּ וְלֹא יָמִיר אֹתוֹ טוֹב בְּרָע אוֹ רַע בְּטוֹב״!"
+    },
+    {
+      "ref": "Chullin 95b (Chazarah Daf):4",
+      "start": 465.67,
+      "end": 549.67,
+      "he": "הָתָם, כִּדְקָתָנֵי טַעְמָא: לֹא שֶׁהָאָדָם רַשַּׁאי לְהָמִיר, אֶלָּא שֶׁאִם הֵמִיר – מוּמָר, וְסוֹפֵג אֶת הָאַרְבָּעִים."
+    },
+    {
+      "ref": "Chullin 95b (Chazarah Daf):5",
+      "start": 421.0,
+      "end": 607.0,
+      "he": "אֶלָּא הַכֹּל מַעֲרִיכִין וְנֶעֱרָכִין, נוֹדְרִין וְנִידָּרִין, הָכִי נָמֵי דִּלְכַתְּחִלָּה? וְהָא כְּתִיב: ״וְכִי תֶחְדַּל לִנְדֹּר לֹא יִהְיֶה בְךָ חֵטְא״!"
+    },
+    {
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "start": 434.0,
+      "end": 658.67,
+      "he": "וּכְתִיב: ״טוֹב אֲשֶׁר לֹא תִדֹּר מִשֶּׁתִּדּוֹר וְלֹא תְשַׁלֵּם״, וְתַנְיָא: טוֹב מִזֶּה וּמִזֶּה שֶׁאֵינוֹ נוֹדֵר כׇּל עִיקָּר, דִּבְרֵי רַבִּי מֵאִיר. רַבִּי יְהוּדָה אוֹמֵר: טוֹב מִזֶּה וּמִזֶּה נוֹדֵר וּמְשַׁלֵּם. וַאֲפִילּוּ רַבִּי יְהוּדָה לָא קָאָמַר אֶלָּא בְּאוֹמֵר ״הֲרֵי זוֹ״,"
+    },
+    {
+      "ref": "Chullin 96a (Chazarah Daf):3",
+      "start": 1061.33,
+      "end": 1169.67,
+      "he": "אֲמַר לֵיהּ רַב אַחָא בְּרֵיהּ דְּרָבָא לְרַב אָשֵׁי: וְכֹל ״הַכֹּל״ לְכַתְּחִלָּה הוּא? אֶלָּא מֵעַתָּה: הַכֹּל מְמִירִין, אֶחָד הָאֲנָשִׁים וְאֶחָד הַנָּשִׁים – הָכִי נָמֵי דִּלְכַתְּחִלָּה הוּא? וְהָא כְּתִיב: ״לֹא יַחֲלִיפֶנּוּ וְלֹא יָמִיר אֹתוֹ טוֹב בְּרָע אוֹ רַע בְּטוֹב״!"
+    },
+    {
+      "ref": "Chullin 96a (Chazarah Daf):4",
+      "start": 669.0,
+      "end": 669.67,
+      "he": "הָתָם, כִּדְקָתָנֵי טַעְמָא: לֹא שֶׁהָאָדָם רַשַּׁאי לְהָמִיר, אֶלָּא שֶׁאִם הֵמִיר – מוּמָר, וְסוֹפֵג אֶת הָאַרְבָּעִים."
+    },
+    {
+      "ref": "Chullin 96a (Chazarah Daf):5",
+      "start": 1169.67,
+      "end": 1256.0,
+      "he": "אֶלָּא הַכֹּל מַעֲרִיכִין וְנֶעֱרָכִין, נוֹדְרִין וְנִידָּרִין, הָכִי נָמֵי דִּלְכַתְּחִלָּה? וְהָא כְּתִיב: ״וְכִי תֶחְדַּל לִנְדֹּר לֹא יִהְיֶה בְךָ חֵטְא״!"
+    },
+    {
+      "ref": "Chullin 96a (Chazarah Daf):6",
+      "start": 669.67,
+      "end": 682.0,
+      "he": "וּכְתִיב: ״טוֹב אֲשֶׁר לֹא תִדֹּר מִשֶּׁתִּדּוֹר וְלֹא תְשַׁלֵּם״, וְתַנְיָא: טוֹב מִזֶּה וּמִזֶּה שֶׁאֵינוֹ נוֹדֵר כׇּל עִיקָּר, דִּבְרֵי רַבִּי מֵאִיר. רַבִּי יְהוּדָה אוֹמֵר: טוֹב מִזֶּה וּמִזֶּה נוֹדֵר וּמְשַׁלֵּם. וַאֲפִילּוּ רַבִּי יְהוּדָה לָא קָאָמַר אֶלָּא בְּאוֹמֵר ״הֲרֵי זוֹ״,"
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf):3",
+      "start": 682.0,
+      "end": 867.33,
+      "he": "אֲמַר לֵיהּ רַב אַחָא בְּרֵיהּ דְּרָבָא לְרַב אָשֵׁי: וְכֹל ״הַכֹּל״ לְכַתְּחִלָּה הוּא? אֶלָּא מֵעַתָּה: הַכֹּל מְמִירִין, אֶחָד הָאֲנָשִׁים וְאֶחָד הַנָּשִׁים – הָכִי נָמֵי דִּלְכַתְּחִלָּה הוּא? וְהָא כְּתִיב: ״לֹא יַחֲלִיפֶנּוּ וְלֹא יָמִיר אֹתוֹ טוֹב בְּרָע אוֹ רַע בְּטוֹב״!"
+    }
+  ],
+  "wordTimeline": [
+    {
+      "start": 43.0,
+      "end": 53.67,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 53.67,
+      "end": 54.0,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "start": 54.0,
+      "end": 104.33,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 104.33,
+      "end": 105.33,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "start": 105.33,
+      "end": 105.67,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 105.67,
+      "end": 121.67,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "start": 121.67,
+      "end": 123.0,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 3
+    },
+    {
+      "start": 123.0,
+      "end": 127.33,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 127.33,
+      "end": 128.0,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "start": 128.0,
+      "end": 128.33,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 3
+    },
+    {
+      "start": 128.33,
+      "end": 128.67,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 128.67,
+      "end": 129.0,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 3
+    },
+    {
+      "start": 129.0,
+      "end": 129.33,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 129.33,
+      "end": 130.0,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 3
+    },
+    {
+      "start": 130.0,
+      "end": 132.33,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 132.33,
+      "end": 133.33,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "start": 133.33,
+      "end": 133.67,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 133.67,
+      "end": 134.0,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "start": 134.0,
+      "end": 134.33,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 134.33,
+      "end": 134.67,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "start": 134.67,
+      "end": 135.0,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 135.0,
+      "end": 135.33,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "start": 135.33,
+      "end": 145.67,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 145.67,
+      "end": 146.33,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 3
+    },
+    {
+      "start": 146.33,
+      "end": 147.33,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 147.33,
+      "end": 147.67,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 3
+    },
+    {
+      "start": 147.67,
+      "end": 149.0,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 149.0,
+      "end": 149.33,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "start": 149.33,
+      "end": 151.33,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 151.33,
+      "end": 151.67,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 3
+    },
+    {
+      "start": 151.67,
+      "end": 153.33,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 153.33,
+      "end": 154.0,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 3
+    },
+    {
+      "start": 154.0,
+      "end": 154.33,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 154.33,
+      "end": 155.0,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "start": 155.0,
+      "end": 156.0,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 156.0,
+      "end": 196.33,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "start": 196.33,
+      "end": 230.33,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 25,
+      "w1": 25
+    },
+    {
+      "start": 230.33,
+      "end": 257.67,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 24,
+      "w1": 24
+    },
+    {
+      "start": 257.67,
+      "end": 269.33,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 21,
+      "w1": 21
+    },
+    {
+      "start": 269.33,
+      "end": 362.67,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 35,
+      "w1": 35
+    },
+    {
+      "start": 362.67,
+      "end": 391.0,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "start": 391.0,
+      "end": 421.0,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 4,
+      "w1": 4
+    },
+    {
+      "start": 421.0,
+      "end": 434.0,
+      "ref": "Chullin 95b (Chazarah Daf):5",
+      "w0": 11,
+      "w1": 11
+    },
+    {
+      "start": 434.0,
+      "end": 434.67,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 20,
+      "w1": 21
+    },
+    {
+      "start": 434.67,
+      "end": 435.0,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 19,
+      "w1": 21
+    },
+    {
+      "start": 435.0,
+      "end": 436.33,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 20,
+      "w1": 21
+    },
+    {
+      "start": 436.33,
+      "end": 436.67,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 19,
+      "w1": 21
+    },
+    {
+      "start": 436.67,
+      "end": 437.33,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 20,
+      "w1": 21
+    },
+    {
+      "start": 437.33,
+      "end": 438.0,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 19,
+      "w1": 21
+    },
+    {
+      "start": 438.0,
+      "end": 439.0,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 20,
+      "w1": 21
+    },
+    {
+      "start": 439.0,
+      "end": 439.33,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 20,
+      "w1": 22
+    },
+    {
+      "start": 439.33,
+      "end": 445.33,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 20,
+      "w1": 21
+    },
+    {
+      "start": 445.33,
+      "end": 446.33,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 20,
+      "w1": 22
+    },
+    {
+      "start": 446.33,
+      "end": 465.67,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 20,
+      "w1": 21
+    },
+    {
+      "start": 465.67,
+      "end": 473.67,
+      "ref": "Chullin 95b (Chazarah Daf):4",
+      "w0": 12,
+      "w1": 14
+    },
+    {
+      "start": 473.67,
+      "end": 518.0,
+      "ref": "Chullin 95b (Chazarah Daf):5",
+      "w0": 9,
+      "w1": 11
+    },
+    {
+      "start": 518.0,
+      "end": 519.0,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 20,
+      "w1": 21
+    },
+    {
+      "start": 519.0,
+      "end": 523.67,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 12,
+      "w1": 12
+    },
+    {
+      "start": 523.67,
+      "end": 549.67,
+      "ref": "Chullin 95b (Chazarah Daf):4",
+      "w0": 12,
+      "w1": 14
+    },
+    {
+      "start": 549.67,
+      "end": 580.0,
+      "ref": "Chullin 95b (Chazarah Daf):5",
+      "w0": 9,
+      "w1": 9
+    },
+    {
+      "start": 580.0,
+      "end": 607.0,
+      "ref": "Chullin 95b (Chazarah Daf):5",
+      "w0": 0,
+      "w1": 0
+    },
+    {
+      "start": 607.0,
+      "end": 611.67,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 3,
+      "w1": 4
+    },
+    {
+      "start": 611.67,
+      "end": 625.67,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 17,
+      "w1": 21
+    },
+    {
+      "start": 625.67,
+      "end": 628.67,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 18,
+      "w1": 18
+    },
+    {
+      "start": 628.67,
+      "end": 630.33,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 27,
+      "w1": 29
+    },
+    {
+      "start": 630.33,
+      "end": 630.67,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 18,
+      "w1": 20
+    },
+    {
+      "start": 630.67,
+      "end": 636.0,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 27,
+      "w1": 29
+    },
+    {
+      "start": 636.0,
+      "end": 636.33,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 17,
+      "w1": 20
+    },
+    {
+      "start": 636.33,
+      "end": 638.33,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 27,
+      "w1": 29
+    },
+    {
+      "start": 638.33,
+      "end": 639.0,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 18,
+      "w1": 20
+    },
+    {
+      "start": 639.0,
+      "end": 639.33,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 27,
+      "w1": 29
+    },
+    {
+      "start": 639.33,
+      "end": 639.67,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 16,
+      "w1": 20
+    },
+    {
+      "start": 639.67,
+      "end": 641.0,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 27,
+      "w1": 29
+    },
+    {
+      "start": 641.0,
+      "end": 641.67,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 17,
+      "w1": 20
+    },
+    {
+      "start": 641.67,
+      "end": 648.67,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 27,
+      "w1": 29
+    },
+    {
+      "start": 648.67,
+      "end": 649.0,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 16,
+      "w1": 20
+    },
+    {
+      "start": 649.0,
+      "end": 654.67,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 27,
+      "w1": 29
+    },
+    {
+      "start": 654.67,
+      "end": 655.0,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 32,
+      "w1": 33
+    },
+    {
+      "start": 655.0,
+      "end": 658.67,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 32,
+      "w1": 34
+    },
+    {
+      "start": 658.67,
+      "end": 667.67,
+      "ref": "Chullin 96a (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 667.67,
+      "end": 669.0,
+      "ref": "Chullin 96a (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "start": 669.0,
+      "end": 669.67,
+      "ref": "Chullin 96a (Chazarah Daf):4",
+      "w0": 7,
+      "w1": 9
+    },
+    {
+      "start": 669.67,
+      "end": 675.33,
+      "ref": "Chullin 96a (Chazarah Daf):6",
+      "w0": 18,
+      "w1": 19
+    },
+    {
+      "start": 675.33,
+      "end": 678.0,
+      "ref": "Chullin 96a (Chazarah Daf):6",
+      "w0": 12,
+      "w1": 13
+    },
+    {
+      "start": 678.0,
+      "end": 678.67,
+      "ref": "Chullin 96a (Chazarah Daf):6",
+      "w0": 18,
+      "w1": 18
+    },
+    {
+      "start": 678.67,
+      "end": 681.33,
+      "ref": "Chullin 96a (Chazarah Daf):6",
+      "w0": 18,
+      "w1": 19
+    },
+    {
+      "start": 681.33,
+      "end": 682.0,
+      "ref": "Chullin 96a (Chazarah Daf):6",
+      "w0": 18,
+      "w1": 18
+    },
+    {
+      "start": 682.0,
+      "end": 713.67,
+      "ref": "Chullin 96b (Chazarah Daf):3",
+      "w0": 5,
+      "w1": 6
+    },
+    {
+      "start": 713.67,
+      "end": 769.33,
+      "ref": "Chullin 96b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 769.33,
+      "end": 867.33,
+      "ref": "Chullin 96b (Chazarah Daf):3",
+      "w0": 34,
+      "w1": 34
+    },
+    {
+      "start": 867.33,
+      "end": 869.67,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "start": 869.67,
+      "end": 870.0,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 0
+    },
+    {
+      "start": 870.0,
+      "end": 872.33,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "start": 872.33,
+      "end": 876.0,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 3
+    },
+    {
+      "start": 876.0,
+      "end": 876.67,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "start": 876.67,
+      "end": 877.0,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 3
+    },
+    {
+      "start": 877.0,
+      "end": 908.67,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "start": 908.67,
+      "end": 918.67,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 19,
+      "w1": 21
+    },
+    {
+      "start": 918.67,
+      "end": 919.67,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 19,
+      "w1": 20
+    },
+    {
+      "start": 919.67,
+      "end": 930.0,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 20,
+      "w1": 20
+    },
+    {
+      "start": 930.0,
+      "end": 930.33,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 19,
+      "w1": 20
+    },
+    {
+      "start": 930.33,
+      "end": 935.67,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 20,
+      "w1": 20
+    },
+    {
+      "start": 935.67,
+      "end": 937.0,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 19,
+      "w1": 20
+    },
+    {
+      "start": 937.0,
+      "end": 997.0,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 20,
+      "w1": 20
+    },
+    {
+      "start": 997.0,
+      "end": 1040.0,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 19,
+      "w1": 20
+    },
+    {
+      "start": 1040.0,
+      "end": 1043.33,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 31,
+      "w1": 32
+    },
+    {
+      "start": 1043.33,
+      "end": 1044.67,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 30,
+      "w1": 31
+    },
+    {
+      "start": 1044.67,
+      "end": 1059.0,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 32,
+      "w1": 34
+    },
+    {
+      "start": 1059.0,
+      "end": 1060.0,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 29,
+      "w1": 29
+    },
+    {
+      "start": 1060.0,
+      "end": 1061.33,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 33,
+      "w1": 34
+    },
+    {
+      "start": 1061.33,
+      "end": 1063.33,
+      "ref": "Chullin 96a (Chazarah Daf):3",
+      "w0": 26,
+      "w1": 26
+    },
+    {
+      "start": 1063.33,
+      "end": 1112.33,
+      "ref": "Chullin 96a (Chazarah Daf):4",
+      "w0": 6,
+      "w1": 6
+    },
+    {
+      "start": 1112.33,
+      "end": 1115.0,
+      "ref": "Chullin 96a (Chazarah Daf):3",
+      "w0": 29,
+      "w1": 30
+    },
+    {
+      "start": 1115.0,
+      "end": 1169.67,
+      "ref": "Chullin 96a (Chazarah Daf):3",
+      "w0": 27,
+      "w1": 29
+    },
+    {
+      "start": 1169.67,
+      "end": 1256.0,
+      "ref": "Chullin 96a (Chazarah Daf):5",
+      "w0": 14,
+      "w1": 15
+    },
+    {
+      "start": 1256.0,
+      "end": 1359.0,
+      "ref": "Chullin 96a (Chazarah Daf):6",
+      "w0": 34,
+      "w1": 35
+    },
+    {
+      "start": 1359.0,
+      "end": 1388.33,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 36,
+      "w1": 36
+    },
+    {
+      "start": 1388.33,
+      "end": 1388.67,
+      "ref": "Chullin 95b (Chazarah Daf):3",
+      "w0": 29,
+      "w1": 29
+    },
+    {
+      "start": 1388.67,
+      "end": 1401.0,
+      "ref": "Chullin 95b (Chazarah Daf):4",
+      "w0": 7,
+      "w1": 7
+    },
+    {
+      "start": 1401.0,
+      "end": 1476.67,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 0,
+      "w1": 0
+    },
+    {
+      "start": 1476.67,
+      "end": 1478.67,
+      "ref": "Chullin 95b (Chazarah Daf):6",
+      "w0": 6,
+      "w1": 6
+    }
+  ],
+  "jobId": "f0d16c99883c4131a32af1e030f36ca7"
+}
