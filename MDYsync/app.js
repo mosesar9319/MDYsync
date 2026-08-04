@@ -556,10 +556,7 @@ function buildSegmentSpan(segment, index) {
   span.tabIndex = 0;
   span.setAttribute('role', 'button');
   span.setAttribute('aria-label', `Jump to ${formatTime(segment.start)}: ${segment.he}`);
-  const body = state.wordTimeline.length
-    ? segment.he.trim().split(/\s+/).map((word, w) => `<span class="daf-word" data-w="${w}">${escapeHtml(word)}</span>`).join(' ')
-    : escapeHtml(segment.he);
-  span.innerHTML = `<sup class="segment-marker">${index + 1}</sup>${body} `;
+  span.innerHTML = `<sup class="segment-marker">${index + 1}</sup>${escapeHtml(segment.he)} `;
   span.addEventListener('click', () => seekToSegment(index));
   span.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
@@ -1006,36 +1003,34 @@ function seekToVilnaWord(ref, wordIndex) {
   updateActiveSegment(true);
 }
 
-function updateVilnaOverlay(time) {
+// Highlights every word belonging to the current segment/phrase, not just
+// the ones a word-level timeline happens to cover -- segment start/end
+// timing is equally solid for both the OCR and voice sync engines, unlike
+// wordTimeline, which voice sync only ever populates sparsely (whole
+// matched phrases, not every word).
+function updateVilnaOverlay() {
   if (!state.vilnaWordEls) return;
-  if (!state.vilnaPageMap || $('vilnaPlaceholder').hidden || !state.wordTimeline.length) {
+  if (!state.vilnaPageMap || $('vilnaPlaceholder').hidden) {
     if (state.vilnaOverlayKey) {
       for (const el of state.vilnaWordEls.values()) el.classList.remove('active');
       state.vilnaOverlayKey = '';
     }
     return;
   }
-  const active = state.wordTimeline.filter((entry) => time >= entry.start && time < entry.end);
-  const activeKeys = new Set();
-  for (const entry of active) {
-    for (let idx = entry.w0; idx <= entry.w1; idx++) {
-      const k = `${entry.ref}:${idx}`;
-      if (state.vilnaWordEls.has(k)) activeKeys.add(k);
-    }
-  }
+  const activeRef = state.segments[state.activeIndex]?.ref || '';
 
   // The YouTube poll re-runs this every 100ms; without this check the
   // active class was being toggled on every single tick even when the
-  // highlighted words hadn't changed, restarting each box's CSS entrance
+  // highlighted phrase hadn't changed, restarting each box's CSS entrance
   // animation from opacity:0 before it ever finished fading in -- a
   // constant flicker that also read as much dimmer than the steady color
   // it's supposed to settle into.
-  const key = [...activeKeys].sort().join(',');
-  if (key === state.vilnaOverlayKey) return;
-  state.vilnaOverlayKey = key;
+  if (activeRef === state.vilnaOverlayKey) return;
+  state.vilnaOverlayKey = activeRef;
 
-  for (const [k, el] of state.vilnaWordEls) {
-    el.classList.toggle('active', activeKeys.has(k));
+  for (const box of state.vilnaPageMap.wordBoxes) {
+    const el = state.vilnaWordEls.get(`${box.ref}:${box.wordIndex}`);
+    if (el) el.classList.toggle('active', activeRef !== '' && box.ref === activeRef);
   }
 }
 
@@ -1077,8 +1072,11 @@ function updateVideoOverlay(time) {
     return;
   }
 
-  const active = state.wordTimeline.filter((entry) => time >= entry.start && time < entry.end);
-  const isIdle = active.length === 0;
+  const activeRef = state.segments[state.activeIndex]?.ref;
+  const activeBoxes = activeRef
+    ? state.vilnaPageMap.wordBoxes.filter((b) => b.ref === activeRef)
+    : [];
+  const isIdle = activeBoxes.length === 0;
   if (isIdle && state.videoOverlayIdleMode === 'hide') {
     wrap.hidden = true;
     return;
@@ -1107,13 +1105,6 @@ function updateVideoOverlay(time) {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  const activeBoxes = [];
-  for (const entry of active) {
-    for (let idx = entry.w0; idx <= entry.w1; idx++) {
-      const box = state.vilnaPageMap.wordBoxes.find((b) => b.ref === entry.ref && b.wordIndex === idx);
-      if (box) activeBoxes.push(box);
-    }
-  }
   const activeY = activeBoxes.length
     ? activeBoxes.reduce((sum, b) => sum + b.y + b.h / 2, 0) / activeBoxes.length
     : 0.15;
@@ -1319,20 +1310,13 @@ function toggleVideoFullscreen() {
   }
 }
 
+// The daf text itself needs no per-tick work any more -- .daf-segment.active
+// (set in buildSegmentSpan/renderDafWindow whenever the active segment
+// changes) is the whole highlight. Only the two page-image overlays track
+// playback position within a segment.
 function updateActiveWords(time) {
   updateVilnaOverlay(time);
   updateVideoOverlay(time);
-  if (!state.wordTimeline.length) return;
-  const active = state.wordTimeline.filter((entry) => time >= entry.start && time < entry.end);
-  document.querySelectorAll('.daf-segment').forEach((node) => {
-    const ref = state.segments[Number(node.dataset.index)]?.ref;
-    const spans = node.querySelectorAll('.daf-word');
-    const ranges = active.filter((entry) => entry.ref === ref);
-    spans.forEach((wordNode, w) => {
-      const hit = ranges.some((entry) => w >= entry.w0 && w <= entry.w1);
-      wordNode.classList.toggle('word-active', hit);
-    });
-  });
 }
 
 function updateActiveSegment(force = false, timeOverride = null) {
