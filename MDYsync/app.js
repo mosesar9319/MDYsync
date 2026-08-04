@@ -16,6 +16,7 @@ const state = {
   youtubePollTimer: null,
   usingDefaultAlignment: true,
   editingIndex: 0,
+  phraseEditMode: false,
   alignmentStatus: 'placeholder',
   currentProjectId: null,
   wordTimeline: [],
@@ -1529,6 +1530,33 @@ function markHereAndAdvance() {
   showToast(`Marked phrase ${index + 1} at ${formatTime(time)}${index < state.segments.length - 1 ? ' and advanced.' : '.'}`);
 }
 
+// Banks a from-scratch manual phrase sync (no automated engine's guess to
+// diff against -- see save-word-sync.mjs) as ground-truth training data:
+// the exact (phrase text, real timestamp) pairs the admin hand-defined and
+// tapped in. Skipped when voiceCorrectionBaseline is set, since
+// bankVoiceCorrection() already banks that case as a correction diff
+// instead -- the two shouldn't both fire for the same edit. Only called
+// from the explicit "Save draft" click, same reasoning as
+// bankVoiceCorrection: each call commits a file to the results branch.
+async function bankManualPhraseSync() {
+  if (state.voiceCorrectionBaseline) return;
+  if (state.usingDefaultAlignment || !state.segments.length) return;
+  try {
+    const response = await fetch('/api/save-word-sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ref: state.dafRef,
+        videoSource: state.videoSource,
+        segments: state.segments.map((s) => ({ ref: s.ref, start: s.start, end: s.end, he: s.he })),
+      }),
+    });
+    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || 'save failed');
+  } catch (error) {
+    console.error('Could not bank the manual phrase sync.', error);
+  }
+}
+
 function setPlaybackRate(rate) {
   if (state.playerType === 'youtube') {
     if (state.youtubeReady) state.youtubePlayer.setPlaybackRate(rate);
@@ -1623,6 +1651,69 @@ function setSegmentStart(index, time) {
   saveDraft(true);
 }
 
+// Manual phrase-boundary editing: instead of trusting a backend engine's
+// guess at where one phrase ends and the next begins, the admin carves the
+// text up themselves by clicking the word a new phrase should start at --
+// "full control of selecting individual words," just applied to defining a
+// phrase's boundaries rather than syncing single words. Only splits within
+// one segment's own text, so a segment's ref/w0/w1 (when known) always stay
+// inside their original parent paragraph.
+function splitSegmentAtWord(index, wordIndex) {
+  const segment = state.segments[index];
+  if (!segment) return;
+  const words = segment.he.trim().split(/\s+/);
+  if (wordIndex <= 0 || wordIndex >= words.length) return; // nothing to split there
+  const nextStart = state.segments[index + 1]?.start;
+  const placeholderStart = Math.max(segment.start, nextStart != null
+    ? (segment.start + nextStart) / 2
+    : segment.start + 1);
+  const newSegment = {
+    id: `${segment.id || 'segment'}-split-${Date.now()}`,
+    ref: segment.ref,
+    start: Number(placeholderStart.toFixed(2)),
+    end: segment.end,
+    he: words.slice(wordIndex).join(' '),
+    en: '',
+    estimated: true,
+    w0: segment.w0 != null ? segment.w0 + wordIndex : null,
+    w1: segment.w1 != null ? segment.w1 : null
+  };
+  segment.he = words.slice(0, wordIndex).join(' ');
+  segment.end = newSegment.start;
+  if (segment.w1 != null) segment.w1 = segment.w0 + wordIndex - 1;
+  state.segments.splice(index + 1, 0, newSegment);
+  if (state.editingIndex > index) state.editingIndex += 1;
+  state.usingDefaultAlignment = false;
+  renderDaf();
+  saveDraft(true);
+}
+
+// The inverse: undoing an over-eager split. Only offered between segments
+// that share a ref (the same parent paragraph) -- merging across a
+// paragraph boundary wouldn't mean anything for w0/w1 or for later
+// re-splitting.
+function mergeSegmentWithNext(index) {
+  const segment = state.segments[index];
+  const next = state.segments[index + 1];
+  if (!segment || !next || next.ref !== segment.ref) return;
+  segment.he = `${segment.he.trim()} ${next.he.trim()}`.trim();
+  segment.end = next.end;
+  if (segment.w1 != null && next.w1 != null) segment.w1 = next.w1;
+  state.segments.splice(index + 1, 1);
+  if (state.editingIndex > index + 1) state.editingIndex -= 1;
+  else if (state.editingIndex === index + 1) state.editingIndex = index;
+  state.activeIndex = Math.min(state.activeIndex, state.segments.length - 1);
+  state.usingDefaultAlignment = false;
+  renderDaf();
+  saveDraft(true);
+}
+
+function togglePhraseEditMode() {
+  state.phraseEditMode = !state.phraseEditMode;
+  $('phraseEditModeButton')?.classList.toggle('active', state.phraseEditMode);
+  renderEditor();
+}
+
 const NUDGE_STEPS = [-1, -0.1, 0.1, 1];
 
 function renderEditor() {
@@ -1643,19 +1734,44 @@ function renderEditor() {
     const badge = segment.estimated
       ? '<span class="editor-estimated-badge" title="Not matched automatically -- this time is only a rough placeholder.">needs review</span>'
       : '';
+    // Phrase-edit mode: click any word other than the first to split the
+    // phrase there -- the admin decides where phrases begin and end
+    // themselves, instead of a fixed word-count/pause-detection splitter
+    // deciding it for them.
+    const phraseBody = state.phraseEditMode
+      ? segment.he.trim().split(/\s+/).map((word, w) => `<span class="split-word${w === 0 ? ' split-word-first' : ''}" data-index="${index}" data-word="${w}" title="${w === 0 ? '' : 'Split the phrase here'}">${escapeHtml(word)}</span>`).join(' ')
+      : escapeHtml(segment.he);
+    const mergeButton = state.phraseEditMode && index < state.segments.length - 1 && state.segments[index + 1].ref === segment.ref
+      ? `<button type="button" class="button secondary small merge-next" data-index="${index}" title="Merge this phrase with the next one">⤒ Merge with next</button>`
+      : '';
     row.innerHTML = `
       <span class="editor-row-num">${index + 1}</span>
       <span class="editor-time">
         <span class="editor-time-display" aria-label="Segment ${index + 1} starts at">${formatTimePrecise(segment.start)}</span>
         ${nudgeButtons}
       </span>
-      <span class="editor-phrase">${escapeHtml(segment.he)}${badge}</span>
+      <span class="editor-phrase">${phraseBody}${badge}</span>
+      ${mergeButton}
       <button class="button secondary small use-time" data-index="${index}">Use current time</button>`;
     row.addEventListener('click', (event) => {
-      if (event.target.closest('button')) return;
+      if (event.target.closest('button, .split-word')) return;
       selectEditingIndex(index);
     });
     editorBody.appendChild(row);
+  });
+
+  editorBody.querySelectorAll('.split-word:not(.split-word-first)').forEach((el) => {
+    el.addEventListener('click', (event) => {
+      const index = Number(event.currentTarget.dataset.index);
+      const wordIndex = Number(event.currentTarget.dataset.word);
+      splitSegmentAtWord(index, wordIndex);
+    });
+  });
+
+  editorBody.querySelectorAll('.merge-next').forEach((button) => {
+    button.addEventListener('click', (event) => {
+      mergeSegmentWithNext(Number(event.currentTarget.dataset.index));
+    });
   });
 
   editorBody.querySelectorAll('.nudge-btn').forEach((button) => {
@@ -1780,14 +1896,21 @@ async function loadDaf(refOverride = null, options = {}) {
     state.wordTimeline = [];
     const duration = getDuration() || Number(scrubber.max) || 48;
     const length = duration / he.length;
-    state.segments = he.map((text, index) => ({
-      id: `${ref.replace(/\W+/g, '-').toLowerCase()}-${index + 1}`,
-      ref: data.sectionRef ? `${data.sectionRef}.${index + 1}` : `${ref}.${index + 1}`,
-      start: Number((index * length).toFixed(2)),
-      end: Number(((index + 1) * length).toFixed(2)),
-      he: text,
-      en: en[index] || ''
-    }));
+    state.segments = he.map((text, index) => {
+      const words = text.trim().split(/\s+/);
+      return {
+        id: `${ref.replace(/\W+/g, '-').toLowerCase()}-${index + 1}`,
+        ref: data.sectionRef ? `${data.sectionRef}.${index + 1}` : `${ref}.${index + 1}`,
+        start: Number((index * length).toFixed(2)),
+        end: Number(((index + 1) * length).toFixed(2)),
+        he: text,
+        en: en[index] || '',
+        // Whole-paragraph bounds to start -- splitSegmentAtWord narrows
+        // these as the admin carves the paragraph into hand-picked phrases.
+        w0: 0,
+        w1: words.length - 1
+      };
+    });
     state.activeIndex = 0;
     state.editingIndex = 0;
     // Reaching this branch at all means there was no real synced alignment
@@ -2335,7 +2458,7 @@ htmlVideo.addEventListener('error', () => {
 $('markerBackButton')?.addEventListener('click', () => selectEditingIndex(state.editingIndex - 1));
 $('markerForwardButton')?.addEventListener('click', () => selectEditingIndex(state.editingIndex + 1));
 $('markHereButton')?.addEventListener('click', markHereAndAdvance);
-$('saveDraftButton')?.addEventListener('click', () => { saveDraft(false); bankVoiceCorrection(); });
+$('saveDraftButton')?.addEventListener('click', () => { saveDraft(false); bankVoiceCorrection(); bankManualPhraseSync(); });
 
 $('playButton').addEventListener('click', togglePlay);
 $('largePlay').addEventListener('click', togglePlay);
@@ -2533,6 +2656,7 @@ $('alignmentInput').addEventListener('change', (event) => importAlignment(event.
 $('transcriptInput').addEventListener('change', (event) => importTranscript(event.target.files?.[0]));
 $('exportButton').addEventListener('click', exportAlignment);
 $('evenSpacingButton').addEventListener('click', () => resetEvenSpacing(false));
+$('phraseEditModeButton').addEventListener('click', togglePhraseEditMode);
 $('editModeButton').addEventListener('click', () => { editor.hidden = false; editor.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
 $('closeEditorButton').addEventListener('click', () => { editor.hidden = true; document.querySelector('.workspace').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
 
