@@ -108,11 +108,13 @@ export default async (request) => {
     );
   }
 
-  // Same publish path as the OCR job -- see trigger-ocr-job.mjs's own
-  // comment on why (any device can look up an already-synced daf directly,
-  // and results/by-ref/<ref>.json can't tell which engine produced it
-  // without opening the file and checking `generator`).
-  const keyPrefix = (language === 'he' ? 'Hebrew-' : '') + (variant === 'chazarah' ? 'Chazarah-Daf-' : '');
+  // A distinct 'Voice-' prefixed key, not the same by-ref/<ref>.json path
+  // trigger-ocr-job.mjs's own resultUrl points at -- publishing to the same
+  // path would let a caption-OCR sync and a voice-recognition sync started
+  // on the same daf race to silently overwrite each other's result (see
+  // voice-job.yml's publish step, which writes under this same prefix).
+  // The player fetches both keys and lets the reader choose between them.
+  const keyPrefix = 'Voice-' + (language === 'he' ? 'Hebrew-' : '') + (variant === 'chazarah' ? 'Chazarah-Daf-' : '');
   const refKey = keyPrefix + refs[0].trim().replace(/\s+/g, '-');
 
   return Response.json({

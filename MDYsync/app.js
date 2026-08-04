@@ -39,7 +39,14 @@ const state = {
   vilnaPdfPage: null,
   vilnaPdfContainerWidth: 0,
   vilnaZoomRerenderTimer: null,
-  voiceCorrectionBaseline: null
+  voiceCorrectionBaseline: null,
+  // Which synced-alignment methods actually have a published result for the
+  // daf currently on screen (raw alignment data or null per method), and
+  // which one is driving the daf text/highlighting right now -- see
+  // switchSyncMethod()/updateSyncMethodSwitchUi(). Both null means neither
+  // a caption-OCR nor a voice-recognition sync exists yet for this daf.
+  availableSyncMethods: { ocr: null, voice: null },
+  activeSyncMethod: null
 };
 
 const AUTO_SCROLL_RESUME_MS = 4000;
@@ -241,7 +248,7 @@ function loadProjectForRef(ref) {
 // shared source of truth across devices; local storage only still
 // matters for a manually imported file, which never gets published
 // anywhere.
-function refKey(ref) {
+function refKey(ref, { voice = false } = {}) {
   // GitHub's raw file serving is case-sensitive, and the server side
   // (trigger-ocr-job.mjs, the sync dialog's picker-built ref list) always
   // publishes under the canonical tractate capitalization, so the lookup
@@ -250,14 +257,20 @@ function refKey(ref) {
   // same key as "Chullin 86a").
   const parsed = parseDafRef(ref);
   if (!parsed) return String(ref || '').trim().replace(/\s+/g, '-');
+  // 'Voice-' is the outermost prefix, ahead of language/variant -- see
+  // trigger-voice-job.mjs/voice-job.yml, which publish under this same
+  // scheme. Kept separate from the caption-OCR engine's own by-ref/<ref>.json
+  // key entirely so the two never race to overwrite each other when synced
+  // for the same daf; the player fetches both and lets the reader choose.
+  const voicePrefix = voice ? VOICE_KEY_PREFIX : '';
   const languagePrefix = parsed.language === 'he' ? HEBREW_KEY_PREFIX : '';
   const variantPrefix = parsed.variant === 'chazarah' ? CHAZARAH_KEY_PREFIX : '';
-  return `${languagePrefix}${variantPrefix}${parsed.tractate.replace(/\s+/g, '-')}-${parsed.daf}${parsed.amud}`;
+  return `${voicePrefix}${languagePrefix}${variantPrefix}${parsed.tractate.replace(/\s+/g, '-')}-${parsed.daf}${parsed.amud}`;
 }
 
-async function fetchServerAlignment(ref) {
+async function fetchServerAlignment(ref, { voice = false } = {}) {
   try {
-    const url = `https://raw.githubusercontent.com/mosesar9319/MDYsync/results/by-ref/${refKey(ref)}.json?t=${Date.now()}`;
+    const url = `https://raw.githubusercontent.com/mosesar9319/MDYsync/results/by-ref/${refKey(ref, { voice })}.json?t=${Date.now()}`;
     const response = await fetch(url);
     if (!response.ok) return null;
     return await response.json();
@@ -619,6 +632,10 @@ const TRACTATE_NAME_BY_LOWERCASE = new Map(CANONICAL_TRACTATE_NAMES.map((name) =
 // this site tracks publishes all four combinations as separate recordings.
 const CHAZARAH_KEY_PREFIX = 'Chazarah-Daf-';
 const HEBREW_KEY_PREFIX = 'Hebrew-';
+// Namespaces the voice-recognition engine's own published alignment,
+// separate from the caption-OCR engine's -- must match
+// trigger-voice-job.mjs/voice-job.yml exactly. See refKey().
+const VOICE_KEY_PREFIX = 'Voice-';
 
 function parseDafRef(ref) {
   // Accepts both a bare daf ref ("Chullin 86a") and a segment ref, ignoring
@@ -1649,7 +1666,22 @@ async function loadDaf(refOverride = null, options = {}) {
   // device, not just the one that ran the sync. Only fall back to this
   // browser's own saved copy (a manual import, or a locally-synced video
   // that never goes through the server) if the server doesn't have it.
-  const serverAlignment = await fetchServerAlignment(ref);
+  // Caption-OCR and voice-recognition syncs publish under separate keys
+  // (see refKey()) specifically so both can exist for the same daf at
+  // once -- fetched together here so the switch UI (updateSyncMethodSwitchUi)
+  // knows immediately whether there's a choice to offer, not just whichever
+  // one happens to load first.
+  const [ocrAlignment, voiceAlignment] = await Promise.all([
+    fetchServerAlignment(ref),
+    fetchServerAlignment(ref, { voice: true }),
+  ]);
+  state.availableSyncMethods = { ocr: ocrAlignment, voice: voiceAlignment };
+  state.activeSyncMethod = ocrAlignment ? 'ocr' : (voiceAlignment ? 'voice' : null);
+  updateSyncMethodSwitchUi();
+  // Caption-OCR preferred as the default view when both exist -- it's the
+  // more established of the two engines; the reader can switch to voice
+  // recognition from the toggle this just made visible.
+  const serverAlignment = ocrAlignment || voiceAlignment;
   if (serverAlignment) {
     // The server's own videoSource is never actually playable -- it's
     // just the generic local filename the OCR job used internally
@@ -2066,7 +2098,7 @@ async function restoreVideoSource(source, saveRefs = null) {
 // identical to the regular shiur's -- see realDafRef), so callers that know
 // which shiur variant they actually asked for pass it back in here rather
 // than letting data.dafRef silently drop the "(Chazarah Daf)" marker.
-async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = null } = {}) {
+async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = null, seekToStart = true } = {}) {
   if (!Array.isArray(data.segments) || !data.segments.length) throw new Error('No segments found.');
   state.segments = data.segments.map((segment, index) => ({
     id: segment.id || `segment-${index + 1}`,
@@ -2119,7 +2151,58 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
   });
   if (restoreSource && data.videoSource) await restoreVideoSource(data.videoSource);
   if (data.title) $('lectureTitle').textContent = data.title;
-  seek(0);
+  // Switching between two sync methods for the same daf/video (see
+  // switchSyncMethod()) should leave playback right where the reader was,
+  // not yank them back to the start -- everything else about this function
+  // still needs to run (segments, word timeline, daf text) since the two
+  // methods' alignments differ.
+  if (seekToStart) seek(0);
+}
+
+// Shows/hides the "Caption sync / Voice sync" toggle and reflects which one
+// is active -- hidden entirely unless *both* methods actually have a
+// published result for the daf on screen, matching how every other
+// situational control on this page (fast-forward, overlay, etc.) only
+// appears when it'd actually do something.
+function updateSyncMethodSwitchUi() {
+  const wrap = $('syncMethodSwitch');
+  if (!wrap) return;
+  const bothAvailable = Boolean(state.availableSyncMethods.ocr) && Boolean(state.availableSyncMethods.voice);
+  wrap.hidden = !bothAvailable;
+  if (!bothAvailable) return;
+  for (const button of wrap.querySelectorAll('button[data-method]')) {
+    button.classList.toggle('active', button.dataset.method === state.activeSyncMethod);
+  }
+}
+
+// Reloads the daf-text/highlighting side of things from the *other*
+// already-fetched alignment (see refreshSyncMethodAvailability -- both are
+// fetched together, so this never needs a new network round-trip) without
+// touching the video at all -- it's the same video either way, only which
+// engine's guess at the timing is driving the sync changes. Keeps playback
+// exactly where the reader was (seekToStart: false) rather than jumping
+// back to the start, since the whole point is comparing the two methods at
+// the same moment.
+async function switchSyncMethod(method) {
+  const data = state.availableSyncMethods[method];
+  if (!data || method === state.activeSyncMethod) return;
+  const resumeTime = getCurrentTime();
+  await loadAlignmentData(data, { restoreSource: false, dafRefOverride: state.dafRef, seekToStart: false });
+  state.activeSyncMethod = method;
+  updateSyncMethodSwitchUi();
+  seek(resumeTime);
+  showToast(method === 'voice' ? 'Switched to the voice-recognition sync.' : 'Switched to the caption-OCR sync.');
+}
+
+// Checks whether the *other* method (whichever didn't just load/sync) also
+// has a published result for this ref, so the switch UI can offer it --
+// called after both loadDaf()'s own initial dual-fetch and after a sync job
+// finishes via the dialog, which only knows about the one method it just
+// ran.
+async function refreshOtherSyncMethod(ref, knownMethod) {
+  const otherMethod = knownMethod === 'ocr' ? 'voice' : 'ocr';
+  state.availableSyncMethods[otherMethod] = await fetchServerAlignment(ref, { voice: otherMethod === 'voice' });
+  updateSyncMethodSwitchUi();
 }
 
 async function importAlignment(file) {
@@ -2466,6 +2549,10 @@ for (const button of document.querySelectorAll('.view-switch button')) {
     $('vilnaPlaceholder').hidden = !pageView;
     if (pageView) renderVilnaPage();
   });
+}
+
+for (const button of document.querySelectorAll('.sync-method-switch button[data-method]')) {
+  button.addEventListener('click', () => switchSyncMethod(button.dataset.method));
 }
 
 $('helpButton').addEventListener('click', () => $('helpDialog').showModal());
@@ -2856,7 +2943,7 @@ async function startLocalSync() {
 // dafRefOverride is passed in rather than read from syncState.readings,
 // because quick sync never populates the dialog's reading list -- it has
 // only the daf on screen and the covered refs the video link carries.
-function pollServerSyncResult(jobId, resultUrl, successMessage, dafRefOverride) {
+function pollServerSyncResult(jobId, resultUrl, successMessage, dafRefOverride, method = 'ocr') {
   const startedAt = Date.now();
   const MAX_WAIT_SECONDS = 55 * 60; // GitHub Actions job has its own 60-min cap
   // A single fetch() to raw.githubusercontent.com can fail at the network
@@ -2907,6 +2994,14 @@ function pollServerSyncResult(jobId, resultUrl, successMessage, dafRefOverride) 
       // playback from a mismatched video.
       const hadSpecificSource = alignment?.videoSource?.type === 'local';
       await loadAlignmentData(alignment, { dafRefOverride });
+      state.availableSyncMethods[method] = alignment;
+      state.activeSyncMethod = method;
+      updateSyncMethodSwitchUi();
+      // This dialog only ever knows about the one method it just ran --
+      // check whether the *other* one also already has a published result
+      // for this ref, so the switch UI can offer it immediately rather than
+      // only appearing after the reader happens to reload the page.
+      refreshOtherSyncMethod(dafRefOverride || state.dafRef, method);
       if (!hadSpecificSource) {
         showToast(successMessage);
       }
@@ -3033,7 +3128,7 @@ async function startVoiceSync() {
   }
 
   pollServerSyncResult(jobId, resultUrl, 'Synced with voice recognition -- review it in the editor before trusting it.',
-    syncState.readings[0].ref);
+    syncState.readings[0].ref, 'voice');
 }
 
 // ---------------------------------------------------------------------------

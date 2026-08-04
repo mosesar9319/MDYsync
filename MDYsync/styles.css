@@ -186,7 +186,10 @@ h2 { margin-bottom: 0; }
 .view-switch { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: rgba(0,0,0,.18); border: 1px solid var(--line); }
 .view-switch button { border: 0; background: transparent; color: var(--muted); border-radius: 8px; padding: 7px 10px; cursor: pointer; font-size: 13px; }
 .view-switch button.active { background: rgba(255,255,255,.08); color: var(--text); }
-.daf-toolbar { justify-content: space-between; gap: 14px; margin-bottom: 12px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 10px 0; }
+.daf-toolbar { justify-content: space-between; gap: 14px; margin-bottom: 12px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 10px 0; flex-wrap: wrap; }
+.sync-method-switch { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: rgba(0,0,0,.18); border: 1px solid var(--line); }
+.sync-method-switch button { border: 0; background: transparent; color: var(--muted); border-radius: 8px; padding: 7px 10px; cursor: pointer; font-size: 13px; }
+.sync-method-switch button.active { background: rgba(255,255,255,.08); color: var(--text); }
 .toggle-label { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; cursor: pointer; }
 .toggle-label input { position: absolute; opacity: 0; }
 .toggle { width: 34px; height: 19px; border-radius: 999px; background: rgba(255,255,255,.14); position: relative; transition: .2s; }

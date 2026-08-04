@@ -134,7 +134,14 @@ jobs:
           python3 -c "
           import json, re, os
           refs = json.loads('''$REFS_JSON''')
-          prefix = ('Hebrew-' if os.environ.get('LANGUAGE') == 'he' else '') + \
+          # 'Voice-' is the outermost prefix, ahead of the existing variant/
+          # language ones -- this engine publishes to its own key entirely
+          # separate from ocr-job.yml's, rather than the same
+          # by-ref/<ref>.json path, so a caption-OCR sync and a voice-
+          # recognition sync started on the same daf never race to
+          # overwrite each other's result. The player fetches both and
+          # lets the reader pick which one to view (see app.js).
+          prefix = 'Voice-' + ('Hebrew-' if os.environ.get('LANGUAGE') == 'he' else '') + \
                    ('Chazarah-Daf-' if os.environ.get('VARIANT') == 'chazarah' else '')
           with open('MDYsync/tools/caption-sync/job-out/alignment.json') as f:
               alignment = json.load(f)

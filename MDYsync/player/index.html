@@ -854,6 +854,15 @@
 
           <div class="daf-toolbar">
             <span class="alignment-badge needs-work" id="alignmentStatus">Needs alignment</span>
+            <!-- Only shown when both a caption-OCR and a voice-recognition
+                 sync are published for the daf on screen (see
+                 updateSyncMethodSwitchUi() in app.js) -- switching reloads
+                 just the daf text/highlighting from the other one, keeping
+                 playback position and the video itself untouched. -->
+            <div class="sync-method-switch" id="syncMethodSwitch" role="group" aria-label="Sync method" hidden>
+              <button class="active" type="button" data-method="ocr">Caption sync</button>
+              <button type="button" data-method="voice">Voice sync</button>
+            </div>
             <label class="toggle-label">
               <input type="checkbox" id="autoScroll" checked />
               <span class="toggle"></span>
