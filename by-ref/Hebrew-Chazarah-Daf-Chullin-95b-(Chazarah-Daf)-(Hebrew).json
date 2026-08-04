@@ -1,0 +1,70 @@
+{
+  "schema": "dafsync-alignment-v2",
+  "title": "Caption OCR alignment — Chullin 94b (Chazarah Daf) (Hebrew), Chullin 95a (Chazarah Daf) (Hebrew), Chullin 95b (Chazarah Daf) (Hebrew)",
+  "dafRef": "Chullin 94b (Chazarah Daf) (Hebrew)",
+  "duration": 2360.36,
+  "alignmentStatus": "in-progress",
+  "generator": "caption_ocr_align.py",
+  "videoSource": {
+    "type": "local",
+    "url": "job-video.mp4"
+  },
+  "segments": [
+    {
+      "ref": "Chullin 94b (Chazarah Daf) (Hebrew):3",
+      "start": 1384.38,
+      "end": 1404.4,
+      "he": "אֲמַר לֵיהּ רַב אַחָא בְּרֵיהּ דְּרָבָא לְרַב אָשֵׁי: וְכֹל ״הַכֹּל״ לְכַתְּחִלָּה הוּא? אֶלָּא מֵעַתָּה: הַכֹּל מְמִירִין, אֶחָד הָאֲנָשִׁים וְאֶחָד הַנָּשִׁים – הָכִי נָמֵי דִּלְכַתְּחִלָּה הוּא? וְהָא כְּתִיב: ״לֹא יַחֲלִיפֶנּוּ וְלֹא יָמִיר אֹתוֹ טוֹב בְּרָע אוֹ רַע בְּטוֹב״!"
+    },
+    {
+      "ref": "Chullin 94b (Chazarah Daf) (Hebrew):4",
+      "start": 1404.4,
+      "end": 1406.4,
+      "he": "הָתָם, כִּדְקָתָנֵי טַעְמָא: לֹא שֶׁהָאָדָם רַשַּׁאי לְהָמִיר, אֶלָּא שֶׁאִם הֵמִיר – מוּמָר, וְסוֹפֵג אֶת הָאַרְבָּעִים."
+    },
+    {
+      "ref": "Chullin 94b (Chazarah Daf) (Hebrew):6",
+      "start": 350.02,
+      "end": 1384.38,
+      "he": "וּכְתִיב: ״טוֹב אֲשֶׁר לֹא תִדֹּר מִשֶּׁתִּדּוֹר וְלֹא תְשַׁלֵּם״, וְתַנְיָא: טוֹב מִזֶּה וּמִזֶּה שֶׁאֵינוֹ נוֹדֵר כׇּל עִיקָּר, דִּבְרֵי רַבִּי מֵאִיר. רַבִּי יְהוּדָה אוֹמֵר: טוֹב מִזֶּה וּמִזֶּה נוֹדֵר וּמְשַׁלֵּם. וַאֲפִילּוּ רַבִּי יְהוּדָה לָא קָאָמַר אֶלָּא בְּאוֹמֵר ״הֲרֵי זוֹ״,"
+    }
+  ],
+  "wordTimeline": [
+    {
+      "start": 350.02,
+      "end": 482.82,
+      "ref": "Chullin 94b (Chazarah Daf) (Hebrew):6",
+      "w0": 2,
+      "w1": 3
+    },
+    {
+      "start": 482.82,
+      "end": 1225.22,
+      "ref": "Chullin 94b (Chazarah Daf) (Hebrew):6",
+      "w0": 14,
+      "w1": 14
+    },
+    {
+      "start": 1225.22,
+      "end": 1384.38,
+      "ref": "Chullin 94b (Chazarah Daf) (Hebrew):6",
+      "w0": 1,
+      "w1": 2
+    },
+    {
+      "start": 1384.38,
+      "end": 1404.4,
+      "ref": "Chullin 94b (Chazarah Daf) (Hebrew):3",
+      "w0": 11,
+      "w1": 11
+    },
+    {
+      "start": 1404.4,
+      "end": 1406.4,
+      "ref": "Chullin 94b (Chazarah Daf) (Hebrew):4",
+      "w0": 13,
+      "w1": 13
+    }
+  ],
+  "jobId": "9f693c007cee436dbc3143977422f5b9"
+}
