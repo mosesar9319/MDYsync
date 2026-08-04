@@ -1,8 +1,8 @@
 {
   "schema": "dafsync-alignment-v2",
-  "title": "Caption OCR alignment — Chullin 95b (Hebrew), Chullin 96a (Hebrew), Chullin 96b (Hebrew)",
-  "dafRef": "Chullin 95b (Hebrew)",
-  "duration": 3003.83,
+  "title": "Caption OCR alignment — Chullin 94b (Hebrew), Chullin 95a (Hebrew), Chullin 95b (Hebrew)",
+  "dafRef": "Chullin 94b (Hebrew)",
+  "duration": 3039.74,
   "alignmentStatus": "in-progress",
   "generator": "caption_ocr_align.py",
   "videoSource": {
@@ -11,40 +11,67 @@
   },
   "segments": [
     {
-      "ref": "Chullin 95b (Hebrew):6",
-      "start": 48.05,
-      "end": 219.55,
-      "he": "וּכְתִיב: ״טוֹב אֲשֶׁר לֹא תִדֹּר מִשֶּׁתִּדּוֹר וְלֹא תְשַׁלֵּם״, וְתַנְיָא: טוֹב מִזֶּה וּמִזֶּה שֶׁאֵינוֹ נוֹדֵר כׇּל עִיקָּר, דִּבְרֵי רַבִּי מֵאִיר. רַבִּי יְהוּדָה אוֹמֵר: טוֹב מִזֶּה וּמִזֶּה נוֹדֵר וּמְשַׁלֵּם. וַאֲפִילּוּ רַבִּי יְהוּדָה לָא קָאָמַר אֶלָּא בְּאוֹמֵר ״הֲרֵי זוֹ״,"
+      "ref": "Chullin 94b (Hebrew):2",
+      "start": 1904.9,
+      "end": 1912.58,
+      "he": "גְּמָ׳ ״הַכֹּל שׁוֹחֲטִין״ – לְכַתְּחִלָּה, ״וּשְׁחִיטָתָן כְּשֵׁרָה״ – דִּיעֲבַד!"
     },
     {
-      "ref": "Chullin 96a (Hebrew):3",
-      "start": 219.55,
-      "end": 221.55,
+      "ref": "Chullin 94b (Hebrew):3",
+      "start": 715.05,
+      "end": 1947.94,
       "he": "אֲמַר לֵיהּ רַב אַחָא בְּרֵיהּ דְּרָבָא לְרַב אָשֵׁי: וְכֹל ״הַכֹּל״ לְכַתְּחִלָּה הוּא? אֶלָּא מֵעַתָּה: הַכֹּל מְמִירִין, אֶחָד הָאֲנָשִׁים וְאֶחָד הַנָּשִׁים – הָכִי נָמֵי דִּלְכַתְּחִלָּה הוּא? וְהָא כְּתִיב: ״לֹא יַחֲלִיפֶנּוּ וְלֹא יָמִיר אֹתוֹ טוֹב בְּרָע אוֹ רַע בְּטוֹב״!"
+    },
+    {
+      "ref": "Chullin 94b (Hebrew):5",
+      "start": 1883.88,
+      "end": 1904.9,
+      "he": "אֶלָּא הַכֹּל מַעֲרִיכִין וְנֶעֱרָכִין, נוֹדְרִין וְנִידָּרִין, הָכִי נָמֵי דִּלְכַתְּחִלָּה? וְהָא כְּתִיב: ״וְכִי תֶחְדַּל לִנְדֹּר לֹא יִהְיֶה בְךָ חֵטְא״!"
     }
   ],
   "wordTimeline": [
     {
-      "start": 48.05,
-      "end": 219.22,
-      "ref": "Chullin 95b (Hebrew):6",
-      "w0": 13,
-      "w1": 14
-    },
-    {
-      "start": 219.22,
-      "end": 219.55,
-      "ref": "Chullin 95b (Hebrew):6",
-      "w0": 35,
+      "start": 715.05,
+      "end": 1883.88,
+      "ref": "Chullin 94b (Hebrew):3",
+      "w0": 33,
       "w1": 35
     },
     {
-      "start": 219.55,
-      "end": 221.55,
-      "ref": "Chullin 96a (Hebrew):3",
-      "w0": 8,
-      "w1": 8
+      "start": 1883.88,
+      "end": 1904.9,
+      "ref": "Chullin 94b (Hebrew):5",
+      "w0": 11,
+      "w1": 11
+    },
+    {
+      "start": 1904.9,
+      "end": 1912.58,
+      "ref": "Chullin 94b (Hebrew):2",
+      "w0": 0,
+      "w1": 0
+    },
+    {
+      "start": 1912.58,
+      "end": 1914.25,
+      "ref": "Chullin 94b (Hebrew):3",
+      "w0": 7,
+      "w1": 7
+    },
+    {
+      "start": 1914.25,
+      "end": 1945.94,
+      "ref": "Chullin 94b (Hebrew):3",
+      "w0": 34,
+      "w1": 34
+    },
+    {
+      "start": 1945.94,
+      "end": 1947.94,
+      "ref": "Chullin 94b (Hebrew):3",
+      "w0": 34,
+      "w1": 35
     }
   ],
-  "jobId": "529c5831754c415cada2dcb23d0b5471"
+  "jobId": "efc3f73f67a54455978818c90cb78b28"
 }
