@@ -472,6 +472,32 @@ def _fill_segment_gaps(seg_times, n_segments, duration):
     return result
 
 
+# A whole Sefaria segment (one "he" list entry for a ref) is often a full
+# paragraph -- fine as the *matching* unit (that's the granularity the fuzzy
+# search reasons about), but too long as the *highlighting* unit: a reader
+# watching one multi-sentence block light up all at once for 30+ seconds
+# doesn't get much signal from it. This splits each one into shorter,
+# evenly-sized phrase chunks purely for display/editing, without touching
+# the underlying canonical word indexing.
+PHRASE_TARGET_WORDS = 8
+
+
+def _split_word_ranges(n_words, target=PHRASE_TARGET_WORDS):
+    """(start_idx, end_idx) word-index pairs (inclusive, 0-based, matching
+    CanonWord.word_index) splitting a segment's n_words into evenly-sized
+    ~target-word chunks -- balanced sizes rather than a fixed chunk size
+    that leaves a small leftover tail on the last one."""
+    if n_words <= 0:
+        return [(0, 0)]
+    if n_words <= target:
+        return [(0, n_words - 1)]
+    n_chunks = max(1, round(n_words / target))
+    size = n_words / n_chunks
+    bounds = sorted({round(i * size) for i in range(n_chunks + 1)})
+    bounds[0], bounds[-1] = 0, n_words
+    return [(bounds[i], bounds[i + 1] - 1) for i in range(len(bounds) - 1)]
+
+
 def build_outputs(canon, segments, events, duration, video_path, refs,
                    generator="caption_ocr_align.py", title_prefix="Caption OCR alignment"):
     """Collapse per-frame events into a word timeline and a segment alignment."""
@@ -542,15 +568,32 @@ def build_outputs(canon, segments, events, duration, video_path, refs,
     align_segments = []
     for s in sorted(all_seg_times):
         t0, t1, estimated = all_seg_times[s]
-        entry = {
-            "ref": segments[s]["ref"],
-            "start": round(t0, 2),
-            "end": round(t1, 2),
-            "he": segments[s]["he"],
-        }
-        if estimated:
-            entry["estimated"] = True
-        align_segments.append(entry)
+        seg_words = segments[s]["he"].split()
+        n_words = len(seg_words)
+        if n_words == 0:
+            continue  # nothing to time or highlight in a blank segment
+        for w0, w1 in _split_word_ranges(n_words):
+            if t1 > t0:
+                frac0, frac1 = w0 / n_words, (w1 + 1) / n_words
+                chunk_start, chunk_end = t0 + (t1 - t0) * frac0, t0 + (t1 - t0) * frac1
+            else:
+                # t0 == t1 -- an estimated placeholder (see
+                # _fill_segment_gaps), not a real timed span to interpolate
+                # across. Nudging each chunk a hair apart still gives every
+                # phrase its own sortable, individually-correctable time
+                # instead of several rows collapsing onto one instant.
+                chunk_start, chunk_end = t0 + 0.01 * w0, t0 + 0.01 * (w1 + 1)
+            entry = {
+                "ref": segments[s]["ref"],
+                "start": round(chunk_start, 2),
+                "end": round(chunk_end, 2),
+                "he": " ".join(seg_words[w0:w1 + 1]),
+                "w0": w0,
+                "w1": w1,
+            }
+            if estimated:
+                entry["estimated"] = True
+            align_segments.append(entry)
 
     # word timeline embedded in the alignment file, split per segment so the
     # player can highlight words by (ref, word index) directly

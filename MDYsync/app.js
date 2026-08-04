@@ -168,9 +168,14 @@ function saveDraft(silent = false) {
 async function bankVoiceCorrection() {
   const baseline = state.voiceCorrectionBaseline;
   if (!baseline || baseline.ref !== state.dafRef) return;
-  const current = new Map(state.segments.map((s) => [s.ref, s]));
-  const changed = baseline.segments.some((orig) => {
-    const now = current.get(orig.ref);
+  // Paired by array position, not by ref -- a ref can now span several
+  // phrase-chunk segments (see caption_ocr_align.py's _split_word_ranges),
+  // so it no longer identifies a single segment. Splitting is deterministic
+  // and the editor never adds/removes rows, so the baseline and current
+  // arrays always stay the same length and order; position is what
+  // actually identifies "the same phrase" here.
+  const changed = baseline.segments.length !== state.segments.length || baseline.segments.some((orig, i) => {
+    const now = state.segments[i];
     return !now || Math.abs(now.start - orig.start) > 0.05 || Math.abs(now.end - orig.end) > 0.05 || now.he !== orig.he;
   });
   if (!changed) return; // nothing actually corrected -- don't bank a no-op
@@ -996,7 +1001,12 @@ function seekToVilnaWord(ref, wordIndex) {
   // overlay) silently did nothing whenever that was the case, while the
   // plain text view kept working fine since .daf-segment's click (see
   // seekToSegment) never depended on word-level data in the first place.
-  const segment = state.segments.find((s) => s.ref === ref);
+  // A ref can now span several phrase-chunk segments (see
+  // caption_ocr_align.py's _split_word_ranges), so prefer the one whose
+  // own w0/w1 actually covers this word before falling back to just the
+  // first segment with a matching ref.
+  const segment = state.segments.find((s) => s.ref === ref && s.w0 !== null && wordIndex >= s.w0 && wordIndex <= s.w1)
+    || state.segments.find((s) => s.ref === ref);
   if (!segment) return;
   state.lastManualScrollAt = 0;
   seek(segment.start + 0.03, true);
@@ -1017,20 +1027,29 @@ function updateVilnaOverlay() {
     }
     return;
   }
-  const activeRef = state.segments[state.activeIndex]?.ref || '';
+  const activeSegment = state.segments[state.activeIndex];
 
   // The YouTube poll re-runs this every 100ms; without this check the
   // active class was being toggled on every single tick even when the
   // highlighted phrase hadn't changed, restarting each box's CSS entrance
   // animation from opacity:0 before it ever finished fading in -- a
   // constant flicker that also read as much dimmer than the steady color
-  // it's supposed to settle into.
-  if (activeRef === state.vilnaOverlayKey) return;
-  state.vilnaOverlayKey = activeRef;
+  // it's supposed to settle into. Keyed on activeIndex, not just the ref,
+  // since sibling phrase chunks of the same long Sefaria paragraph (see
+  // caption_ocr_align.py's _split_word_ranges) share one ref -- deduping on
+  // ref alone would miss moving from one phrase to the next within it.
+  const dedupKey = activeSegment ? `${state.activeIndex}:${activeSegment.ref}` : '';
+  if (dedupKey === state.vilnaOverlayKey) return;
+  state.vilnaOverlayKey = dedupKey;
 
+  const activeRef = activeSegment?.ref || '';
+  const hasRange = activeSegment && activeSegment.w0 !== null && activeSegment.w1 !== null;
   for (const box of state.vilnaPageMap.wordBoxes) {
     const el = state.vilnaWordEls.get(`${box.ref}:${box.wordIndex}`);
-    if (el) el.classList.toggle('active', activeRef !== '' && box.ref === activeRef);
+    if (!el) continue;
+    const hit = activeRef !== '' && box.ref === activeRef
+      && (!hasRange || (box.wordIndex >= activeSegment.w0 && box.wordIndex <= activeSegment.w1));
+    el.classList.toggle('active', hit);
   }
 }
 
@@ -1072,9 +1091,11 @@ function updateVideoOverlay(time) {
     return;
   }
 
-  const activeRef = state.segments[state.activeIndex]?.ref;
-  const activeBoxes = activeRef
-    ? state.vilnaPageMap.wordBoxes.filter((b) => b.ref === activeRef)
+  const activeSegment = state.segments[state.activeIndex];
+  const hasRange = activeSegment && activeSegment.w0 !== null && activeSegment.w1 !== null;
+  const activeBoxes = activeSegment
+    ? state.vilnaPageMap.wordBoxes.filter((b) => b.ref === activeSegment.ref
+        && (!hasRange || (b.wordIndex >= activeSegment.w0 && b.wordIndex <= activeSegment.w1)))
     : [];
   const isIdle = activeBoxes.length === 0;
   if (isIdle && state.videoOverlayIdleMode === 'hide') {
@@ -2120,7 +2141,14 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
     end: Number(segment.end) || (Number(segment.start) || 0) + 1,
     he: String(segment.he || segment.text || ''),
     en: String(segment.en || segment.translation || ''),
-    estimated: Boolean(segment.estimated)
+    estimated: Boolean(segment.estimated),
+    // A ref (one Sefaria paragraph) can now span several shorter phrase
+    // segments -- see caption_ocr_align.py's _split_word_ranges -- so w0/w1
+    // (word-index bounds within that ref, null on older alignments that
+    // predate the split) are what the overlays use to highlight just this
+    // phrase's words instead of the whole paragraph's.
+    w0: Number.isFinite(Number(segment.w0)) ? Number(segment.w0) : null,
+    w1: Number.isFinite(Number(segment.w1)) ? Number(segment.w1) : null
   })).sort((a, b) => a.start - b.start);
   state.wordTimeline = Array.isArray(data.wordTimeline)
     ? data.wordTimeline
