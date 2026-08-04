@@ -1,0 +1,77 @@
+{
+  "schema": "dafsync-alignment-v2",
+  "title": "Caption OCR alignment — Chullin 94b (Hebrew), Chullin 95a (Hebrew), Chullin 95b (Hebrew)",
+  "dafRef": "Chullin 94b (Hebrew)",
+  "duration": 3039.74,
+  "alignmentStatus": "in-progress",
+  "generator": "caption_ocr_align.py",
+  "videoSource": {
+    "type": "local",
+    "url": "job-video.mp4"
+  },
+  "segments": [
+    {
+      "ref": "Chullin 94b (Hebrew):2",
+      "start": 1904.9,
+      "end": 1912.58,
+      "he": "גְּמָ׳ ״הַכֹּל שׁוֹחֲטִין״ – לְכַתְּחִלָּה, ״וּשְׁחִיטָתָן כְּשֵׁרָה״ – דִּיעֲבַד!"
+    },
+    {
+      "ref": "Chullin 94b (Hebrew):3",
+      "start": 715.05,
+      "end": 1947.94,
+      "he": "אֲמַר לֵיהּ רַב אַחָא בְּרֵיהּ דְּרָבָא לְרַב אָשֵׁי: וְכֹל ״הַכֹּל״ לְכַתְּחִלָּה הוּא? אֶלָּא מֵעַתָּה: הַכֹּל מְמִירִין, אֶחָד הָאֲנָשִׁים וְאֶחָד הַנָּשִׁים – הָכִי נָמֵי דִּלְכַתְּחִלָּה הוּא? וְהָא כְּתִיב: ״לֹא יַחֲלִיפֶנּוּ וְלֹא יָמִיר אֹתוֹ טוֹב בְּרָע אוֹ רַע בְּטוֹב״!"
+    },
+    {
+      "ref": "Chullin 94b (Hebrew):5",
+      "start": 1883.88,
+      "end": 1904.9,
+      "he": "אֶלָּא הַכֹּל מַעֲרִיכִין וְנֶעֱרָכִין, נוֹדְרִין וְנִידָּרִין, הָכִי נָמֵי דִּלְכַתְּחִלָּה? וְהָא כְּתִיב: ״וְכִי תֶחְדַּל לִנְדֹּר לֹא יִהְיֶה בְךָ חֵטְא״!"
+    }
+  ],
+  "wordTimeline": [
+    {
+      "start": 715.05,
+      "end": 1883.88,
+      "ref": "Chullin 94b (Hebrew):3",
+      "w0": 33,
+      "w1": 35
+    },
+    {
+      "start": 1883.88,
+      "end": 1904.9,
+      "ref": "Chullin 94b (Hebrew):5",
+      "w0": 11,
+      "w1": 11
+    },
+    {
+      "start": 1904.9,
+      "end": 1912.58,
+      "ref": "Chullin 94b (Hebrew):2",
+      "w0": 0,
+      "w1": 0
+    },
+    {
+      "start": 1912.58,
+      "end": 1914.25,
+      "ref": "Chullin 94b (Hebrew):3",
+      "w0": 7,
+      "w1": 7
+    },
+    {
+      "start": 1914.25,
+      "end": 1945.94,
+      "ref": "Chullin 94b (Hebrew):3",
+      "w0": 34,
+      "w1": 34
+    },
+    {
+      "start": 1945.94,
+      "end": 1947.94,
+      "ref": "Chullin 94b (Hebrew):3",
+      "w0": 34,
+      "w1": 35
+    }
+  ],
+  "jobId": "ecf7973acfd14041a45359fdfb562684"
+}
