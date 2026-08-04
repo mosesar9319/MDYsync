@@ -152,7 +152,13 @@ def transcribe(audio_path, model_size="small"):
     for seg in segments:
         for w in (seg.words or []):
             words.append({"start": w.start, "end": w.end, "text": w.word, "prob": w.probability})
-    return words
+    # info.duration is the real audio file length -- NOT the same as the
+    # last recognized word's end time, which used to be used for this and
+    # under-reports whenever there's trailing content after the last word
+    # Whisper picks up (outro music, silence, etc.). The player warns (and
+    # degrades highlighting accuracy) whenever this doesn't match the
+    # video's own real duration, so it has to be right.
+    return words, info.duration
 
 
 def hebrew_script_runs(words):
@@ -241,15 +247,14 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
     for c in canon:
         c.phon = phonetic(c.norm)
 
-    words = transcribe(video_path, model_size)
-    print(f"Transcribed {len(words)} words")
+    words, duration = transcribe(video_path, model_size)
+    print(f"Transcribed {len(words)} words ({duration:.1f}s audio)")
     runs = hebrew_script_runs(words)
     print(f"{len(runs)} Hebrew-script word runs")
 
     events = match_runs(canon, runs, debug=debug)
     print(f"Matched {len(events)} of {len(runs)} runs")
 
-    duration = words[-1]["end"] if words else 0.0
     return canon, segments, events, duration
 
 
