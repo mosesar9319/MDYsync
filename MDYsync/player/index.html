@@ -972,6 +972,7 @@
       <button class="sync-tab active" type="button" data-sync-panel="syncLocalPanel" role="tab" aria-selected="true">Local file (Desktop App)</button>
       <button class="sync-tab" type="button" data-sync-panel="syncDrivePanel" role="tab" aria-selected="false">Google Drive link</button>
       <button class="sync-tab" type="button" data-sync-panel="syncYoutubePanel" role="tab" aria-selected="false">YouTube link</button>
+      <button class="sync-tab" type="button" data-sync-panel="syncVoicePanel" role="tab" aria-selected="false">Voice recognition (beta)</button>
     </div>
 
     <div class="sync-source-panel" id="syncLocalPanel" role="tabpanel">
@@ -1005,6 +1006,19 @@
       </label>
       <span class="field-note">Restricted to recent Mercaz Daf Yomi uploads. Processing runs on our server and can take a few minutes.</span>
       <button class="button primary" id="syncYoutubeStartButton" type="button">Sync from YouTube</button>
+    </div>
+
+    <div class="sync-source-panel" id="syncVoicePanel" role="tabpanel" hidden>
+      <label class="sync-field">
+        <span>YouTube video link</span>
+        <input id="syncVoiceUrlInput" type="url" placeholder="https://www.youtube.com/watch?v=…" spellcheck="false" />
+      </label>
+      <span class="field-note">
+        Experimental: no on-screen caption box needed -- transcribes the audio and anchors it against the daf's
+        own text instead. Accuracy is still rough in places; review the result in the editor before trusting it,
+        same as any other draft sync. Restricted to recent Mercaz Daf Yomi uploads. Can take several minutes.
+      </span>
+      <button class="button primary" id="syncVoiceStartButton" type="button">Sync from voice recognition</button>
     </div>
 
     <div class="sync-progress-wrap" id="syncProgressWrap" hidden>

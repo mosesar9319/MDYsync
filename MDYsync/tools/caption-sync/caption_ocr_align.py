@@ -436,7 +436,8 @@ def process_video(path, refs, crop=None, sample_fps=3.0, out_dir="out",
     return canon, segments, events, duration
 
 
-def build_outputs(canon, segments, events, duration, video_path, refs):
+def build_outputs(canon, segments, events, duration, video_path, refs,
+                   generator="caption_ocr_align.py", title_prefix="Caption OCR alignment"):
     """Collapse per-frame events into a word timeline and a segment alignment."""
     # word-level timeline: merge consecutive samples with the same span
     timeline = []
@@ -520,11 +521,11 @@ def build_outputs(canon, segments, events, duration, video_path, refs):
 
     alignment = {
         "schema": "dafsync-alignment-v2",
-        "title": f"Caption OCR alignment — {', '.join(refs)}",
+        "title": f"{title_prefix} — {', '.join(refs)}",
         "dafRef": refs[0].replace(".", " "),
         "duration": round(duration, 2),
         "alignmentStatus": "in-progress",
-        "generator": "caption_ocr_align.py",
+        "generator": generator,
         "videoSource": {"type": "local", "url": os.path.basename(video_path)},
         "segments": align_segments,
         "wordTimeline": word_timeline,

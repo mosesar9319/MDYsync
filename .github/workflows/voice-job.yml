@@ -1,0 +1,153 @@
+name: Server-side voice recognition job
+
+# Triggered by the trigger-voice-job Netlify Function on an admin's behalf
+# (never called directly with a public token) from the sync dialog's "Voice
+# recognition (beta)" tab. Downloads the video (YouTube only for now, same
+# channel restriction trigger-voice-job.mjs enforces before dispatch), runs
+# voice_align.py (a pretrained speech model anchored against the daf's
+# canonical text -- see that script's own docstring), and publishes the
+# result to the `results` branch exactly the way ocr-job.yml does, so the
+# player can't tell the two apart -- same results/by-ref/<ref>.json path,
+# same polling, same schema.
+#
+# Kept as its own workflow rather than folded into ocr-job.yml: the
+# dependencies barely overlap (faster-whisper/torch vs tesseract/opencv),
+# and every OCR run installing a speech model it'll never use (or vice
+# versa) would slow down both paths for no benefit.
+
+on:
+  repository_dispatch:
+    types: [run-voice-job]
+
+permissions:
+  contents: write
+
+jobs:
+  voice:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+
+      - name: Install Python dependencies
+        run: pip install faster-whisper rapidfuzz yt-dlp
+
+      # Lets yt-dlp solve YouTube's signature-decipher JS challenge itself --
+      # see ocr-job.yml's own copy of these two steps for the full story on
+      # why both this and the PO token provider below are needed.
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Start the PO token provider
+        run: |
+          pip install bgutil-ytdlp-pot-provider
+          docker run --name bgutil-provider -d -p 4416:4416 \
+            brainicism/bgutil-ytdlp-pot-provider
+          for _ in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:4416/ping >/dev/null 2>&1; then
+              echo "PO token provider is up."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "PO token provider never became ready:"
+          docker logs bgutil-provider || true
+          exit 1
+
+      - name: Download the video from YouTube
+        working-directory: MDYsync/tools/caption-sync
+        env:
+          YOUTUBE_URL: ${{ github.event.client_payload.youtubeUrl }}
+          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
+        run: |
+          set -e
+          if [ -z "$YOUTUBE_COOKIES" ]; then
+            echo "YOUTUBE_COOKIES repo secret is not set -- see ocr-job.yml's" \
+                 "own copy of this step for what it needs to be."
+            exit 1
+          fi
+          printf '%s' "$YOUTUBE_COOKIES" > cookies.txt
+          # Audio only (bestaudio) -- this engine never looks at video
+          # frames, unlike the OCR path, so there's no reason to fetch or
+          # mux a video stream at all.
+          yt-dlp --cookies cookies.txt \
+            --remote-components ejs:github \
+            -f "bestaudio/best" \
+            -x --audio-format mp3 --audio-quality 0 \
+            -o job-audio.mp3 "$YOUTUBE_URL"
+          rm -f cookies.txt
+          size=$(stat -c%s job-audio.mp3)
+          echo "Downloaded $size bytes"
+          if [ "$size" -lt 100000 ]; then
+            echo "Downloaded file is suspiciously small for audio."
+            exit 1
+          fi
+          ls -la job-audio.mp3
+
+      - name: Run the voice alignment engine
+        working-directory: MDYsync/tools/caption-sync
+        env:
+          REFS_JSON: ${{ toJSON(github.event.client_payload.refs) }}
+        run: |
+          python3 voice_align.py job-audio.mp3 \
+            --refs-json "$REFS_JSON" \
+            --model small \
+            --out-dir job-out
+
+      - name: Publish the result to the results branch
+        env:
+          JOB_ID: ${{ github.event.client_payload.jobId }}
+          REFS_JSON: ${{ toJSON(github.event.client_payload.refs) }}
+          VARIANT: ${{ github.event.client_payload.variant }}
+          LANGUAGE: ${{ github.event.client_payload.language }}
+        run: |
+          set -e
+          mkdir -p /tmp/results-checkout
+          git config user.name "dafsync-bot"
+          git config user.email "dafsync-bot@users.noreply.github.com"
+
+          git fetch origin results 2>/dev/null || true
+          if git show-ref --verify --quiet refs/remotes/origin/results; then
+            git worktree add /tmp/results-checkout origin/results
+          else
+            git worktree add --detach /tmp/results-checkout
+            (cd /tmp/results-checkout && git checkout --orphan results && git rm -rf . >/dev/null 2>&1 || true)
+          fi
+
+          mkdir -p /tmp/results-checkout/by-ref
+          python3 -c "
+          import json, re, os
+          refs = json.loads('''$REFS_JSON''')
+          prefix = ('Hebrew-' if os.environ.get('LANGUAGE') == 'he' else '') + \
+                   ('Chazarah-Daf-' if os.environ.get('VARIANT') == 'chazarah' else '')
+          with open('MDYsync/tools/caption-sync/job-out/alignment.json') as f:
+              alignment = json.load(f)
+          alignment['jobId'] = os.environ.get('JOB_ID')
+          for ref in refs:
+              key = prefix + re.sub(r'\s+', '-', ref.strip())
+              with open(f'/tmp/results-checkout/by-ref/{key}.json', 'w') as f:
+                  json.dump(alignment, f, ensure_ascii=False, indent=2)
+              print(f'Published for {ref} -> by-ref/{key}.json')
+          "
+
+          cd /tmp/results-checkout
+          git add by-ref
+          git commit -m "Add voice-recognition result for job ${JOB_ID}"
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:results; then
+              break
+            fi
+            git fetch origin results
+            git rebase origin/results
+            sleep 2
+          done

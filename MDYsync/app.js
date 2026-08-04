@@ -38,7 +38,8 @@ const state = {
   vilnaPageZoom: 1,
   vilnaPdfPage: null,
   vilnaPdfContainerWidth: 0,
-  vilnaZoomRerenderTimer: null
+  vilnaZoomRerenderTimer: null,
+  voiceCorrectionBaseline: null
 };
 
 const AUTO_SCROLL_RESUME_MS = 4000;
@@ -136,6 +137,45 @@ function saveDraft(silent = false) {
   } catch (error) {
     console.error(error);
     if (!silent) showToast('The browser could not save this draft.', 'error');
+  }
+}
+
+// Banks (what the voice engine originally guessed, what the admin actually
+// corrected it to) as training data -- see save-voice-correction.mjs's own
+// comment. Only fires from the explicit "Save draft" button click, not
+// silent auto-saves elsewhere in this file, since each call commits a new
+// file to the results branch -- an auto-save on every edit would spam it
+// with near-duplicate commits.
+async function bankVoiceCorrection() {
+  const baseline = state.voiceCorrectionBaseline;
+  if (!baseline || baseline.ref !== state.dafRef) return;
+  const current = new Map(state.segments.map((s) => [s.ref, s]));
+  const changed = baseline.segments.some((orig) => {
+    const now = current.get(orig.ref);
+    return !now || Math.abs(now.start - orig.start) > 0.05 || Math.abs(now.end - orig.end) > 0.05 || now.he !== orig.he;
+  });
+  if (!changed) return; // nothing actually corrected -- don't bank a no-op
+  try {
+    const response = await fetch('/api/save-voice-correction', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ref: state.dafRef,
+        original: baseline.segments,
+        corrected: state.segments.map((s) => ({ ref: s.ref, start: s.start, end: s.end, he: s.he })),
+      }),
+    });
+    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || 'save failed');
+    showToast('Correction banked to help improve future voice-recognition syncs.');
+    // The banked baseline is now the corrected version -- a second save
+    // this session should only bank what changes *from here*, not re-diff
+    // against the original engine guess again.
+    state.voiceCorrectionBaseline = {
+      ref: state.dafRef,
+      segments: state.segments.map((s) => ({ ref: s.ref, start: s.start, end: s.end, he: s.he })),
+    };
+  } catch (error) {
+    console.error('Could not bank the voice-recognition correction.', error);
   }
 }
 
@@ -2049,6 +2089,15 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
     : [];
   state.alignmentDuration = Number(data.duration) || 0;
   state.dafRef = dafRefOverride || data.dafRef || state.dafRef;
+  // A voice-recognition-sourced alignment's segments are the engine's own
+  // rough guess (see voice_align.py) -- retaining a copy of exactly what it
+  // guessed, before any admin edits touch state.segments, is what lets
+  // saveDraft() later bank (guess, correction) pairs as training data.
+  // Anything else (an OCR sync, a manual import) has no such baseline to
+  // diff against, so this stays null for those.
+  state.voiceCorrectionBaseline = data.generator === 'voice_align.py'
+    ? { ref: state.dafRef, segments: state.segments.map((s) => ({ ref: s.ref, start: s.start, end: s.end, he: s.he })) }
+    : null;
   state.currentProjectId = data.projectId || null;
   state.alignmentStatus = data.alignmentStatus || 'in-progress';
   state.editingIndex = Math.min(Number(data.editingIndex) || 0, state.segments.length - 1);
@@ -2161,7 +2210,7 @@ htmlVideo.addEventListener('error', () => {
 $('markerBackButton')?.addEventListener('click', () => selectEditingIndex(state.editingIndex - 1));
 $('markerForwardButton')?.addEventListener('click', () => selectEditingIndex(state.editingIndex + 1));
 $('markHereButton')?.addEventListener('click', markHereAndAdvance);
-$('saveDraftButton')?.addEventListener('click', () => saveDraft(false));
+$('saveDraftButton')?.addEventListener('click', () => { saveDraft(false); bankVoiceCorrection(); });
 
 $('playButton').addEventListener('click', togglePlay);
 $('largePlay').addEventListener('click', togglePlay);
@@ -2451,6 +2500,7 @@ updatePlayUi();
 
 const LOCAL_SERVER_BASE = 'http://127.0.0.1:8765';
 const TRIGGER_ENDPOINT = '/api/trigger-ocr-job';
+const TRIGGER_VOICE_ENDPOINT = '/api/trigger-voice-job';
 
 const syncState = {
   talmudByName: {},
@@ -2640,9 +2690,14 @@ function addSyncReading() {
 // input empty) so it never clobbers something already chosen by hand, e.g.
 // after switching tabs back and forth.
 function prefillYoutubeSyncTab() {
-  const urlInput = $('syncYoutubeUrlInput');
-  if (urlInput && !urlInput.value.trim() && state.videoSource?.type === 'youtube' && state.videoSource.url) {
-    urlInput.value = state.videoSource.url;
+  // Voice recognition is also YouTube-only for now (see syncVoicePanel),
+  // so it shares the same current-page-video prefill as the plain YouTube
+  // tab.
+  for (const id of ['syncYoutubeUrlInput', 'syncVoiceUrlInput']) {
+    const urlInput = $(id);
+    if (urlInput && !urlInput.value.trim() && state.videoSource?.type === 'youtube' && state.videoSource.url) {
+      urlInput.value = state.videoSource.url;
+    }
   }
   if (syncState.readings.length || !state.dafRef) return;
   const parsed = parseDafRef(state.dafRef);
@@ -2945,6 +3000,42 @@ async function startYoutubeSync() {
     syncState.readings[0].ref);
 }
 
+// Same shape as startYoutubeSync(), just against trigger-voice-job.mjs --
+// see voice_align.py's own docstring for what the engine actually does.
+// Publishes to the identical results/by-ref/<ref>.json path/schema, so
+// pollServerSyncResult needs no changes to handle either engine's result.
+async function startVoiceSync() {
+  if (!syncState.readings.length) {
+    showToast('Add at least one reading first.', 'error');
+    return;
+  }
+  const youtubeUrl = $('syncVoiceUrlInput').value.trim();
+  if (!/^https:\/\/(www\.)?(youtube\.com\/watch\?(.*&)?v=|youtu\.be\/)[\w-]{11}/.test(youtubeUrl)) {
+    showToast('Paste a valid YouTube video link.', 'error');
+    return;
+  }
+
+  const variant = parseDafRef(syncState.readings[0].ref)?.variant || 'regular';
+  const language = parseDafRef(syncState.readings[0].ref)?.language || 'en';
+  setSyncProgress(0, ['Starting the server-side job…']);
+  let jobId, resultUrl;
+  try {
+    const response = await fetch(TRIGGER_VOICE_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ youtubeUrl, refs: syncState.readings.map((r) => realDafRef(r.ref)), variant, language })
+    });
+    if (!response.ok) throw new Error((await response.json()).error || 'Could not start the job.');
+    ({ jobId, resultUrl } = await response.json());
+  } catch (error) {
+    showToast(`Could not start server sync: ${error.message}`, 'error');
+    return;
+  }
+
+  pollServerSyncResult(jobId, resultUrl, 'Synced with voice recognition -- review it in the editor before trusting it.',
+    syncState.readings[0].ref);
+}
+
 // ---------------------------------------------------------------------------
 // Quick sync: one click, straight from the daf page
 // ---------------------------------------------------------------------------
@@ -3140,6 +3231,7 @@ $('syncVideoInput')?.addEventListener('change', (event) => {
 $('syncLocalStartButton')?.addEventListener('click', startLocalSync);
 $('syncDriveStartButton')?.addEventListener('click', startDriveSync);
 $('syncYoutubeStartButton')?.addEventListener('click', startYoutubeSync);
+$('syncVoiceStartButton')?.addEventListener('click', startVoiceSync);
 $('quickSyncButton')?.addEventListener('click', startQuickSync);
 document.querySelectorAll('.sync-tab').forEach((tab) => {
   tab.addEventListener('click', () => {
@@ -3150,6 +3242,6 @@ document.querySelectorAll('.sync-tab').forEach((tab) => {
     document.querySelectorAll('.sync-source-panel').forEach((panel) => {
       panel.hidden = panel.id !== tab.dataset.syncPanel;
     });
-    if (tab.dataset.syncPanel === 'syncYoutubePanel') prefillYoutubeSyncTab();
+    if (tab.dataset.syncPanel === 'syncYoutubePanel' || tab.dataset.syncPanel === 'syncVoicePanel') prefillYoutubeSyncTab();
   });
 });
