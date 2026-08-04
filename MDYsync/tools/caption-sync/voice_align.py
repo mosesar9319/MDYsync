@@ -59,6 +59,19 @@ from caption_ocr_align import (  # noqa: E402
 
 BACK_WINDOW = 15
 FWD_WINDOW = 60
+# A matched run is usually already just one phrase, but whisper gives a real
+# timestamp for every word in it, not just the first -- splitting each run
+# into small real-timestamped sub-chunks (rather than one event anchored to
+# run[0]'s time alone) means a pause mid-run (the speaker stopping to
+# explain partway through a phrase that otherwise matched) shows up as a
+# real time gap for build_outputs' phrase-chunking to see, instead of
+# getting silently absorbed into one assumed-uniform-pace block. A word-
+# count target alone can't guarantee that -- the pause could land in the
+# middle of a count-based chunk just as easily as at its edge -- so a sub-
+# chunk boundary is also forced at any real gap between two consecutive
+# words in the run bigger than RUN_PAUSE_GAP_SECONDS.
+RUN_SUBCHUNK_WORDS = 4
+RUN_PAUSE_GAP_SECONDS = 1.0
 # Phonetic scores run higher than character scores on the same text (less
 # distinctive alphabet after collapsing confusable letters), so these two
 # axes need their own floors, calibrated separately -- see the module
@@ -194,9 +207,29 @@ def match_runs(canon, runs, debug=False):
     pending = None
     events = []
 
-    def make_event(run, s, e, score):
-        return WordEvent(round(run[0]["start"], 2), s, e, round(score, 1),
-                          " ".join(w["text"] for w in run))
+    def make_events(run, s, e, score):
+        """One WordEvent per real sub-chunk of the run's own ASR word
+        timings (see RUN_SUBCHUNK_WORDS/RUN_PAUSE_GAP_SECONDS), proportionally
+        mapped onto the matched canonical span -- rather than one event
+        anchored to just run[0]'s time for the whole thing."""
+        k = len(run)
+        span = e - s + 1
+        ranges = []
+        chunk_start = 0
+        for i in range(1, k):
+            gap = run[i]["start"] - run[i - 1]["end"]
+            if gap > RUN_PAUSE_GAP_SECONDS or (i - chunk_start) >= RUN_SUBCHUNK_WORDS:
+                ranges.append((chunk_start, i - 1))
+                chunk_start = i
+        ranges.append((chunk_start, k - 1))
+
+        out = []
+        for w0, w1 in ranges:
+            cs = s + min(span - 1, round(span * w0 / k))
+            ce = max(cs, s + min(span - 1, round(span * (w1 + 1) / k) - 1))
+            out.append(WordEvent(round(run[w0]["start"], 2), cs, ce, round(score, 1),
+                                  " ".join(w["text"] for w in run[w0:w1 + 1])))
+        return out
 
     for run in runs:
         hl_norm = [w["norm"] for w in run]
@@ -208,7 +241,7 @@ def match_runs(canon, runs, debug=False):
                 s, e, phon_score, char_score = m
                 cursor = s
                 local_misses = 0
-                events.append(make_event(run, s, e, phon_score))
+                events.extend(make_events(run, s, e, phon_score))
                 if debug:
                     print(f"  t={run[0]['start']:7.2f}  [{s}-{e}] phon={phon_score:.1f} char={char_score:.1f}  "
                           f"{' '.join(w['text'] for w in run)}")
@@ -227,8 +260,8 @@ def match_runs(canon, runs, debug=False):
             # Two consecutive global matches agreeing on forward progression
             # -- confirmed. Both the pending run and this one are now
             # trusted; the pending one was withheld until now.
-            events.append(make_event(pending["run"], pending["s"], pending["e"], pending["phon_score"]))
-            events.append(make_event(run, s, e, phon_score))
+            events.extend(make_events(pending["run"], pending["s"], pending["e"], pending["phon_score"]))
+            events.extend(make_events(run, s, e, phon_score))
             cursor = s
             locked = True
             local_misses = 0

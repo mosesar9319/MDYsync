@@ -498,6 +498,86 @@ def _split_word_ranges(n_words, target=PHRASE_TARGET_WORDS):
     return [(bounds[i], bounds[i + 1] - 1) for i in range(len(bounds) - 1)]
 
 
+def _robust_cluster(entries, gap_seconds):
+    """entries: dicts with "start"/"end" keys. Groups by time gap and keeps
+    only the largest cluster -- a short, ambiguous match landing far from
+    where a segment is actually read (an accidental fuzzy hit elsewhere in
+    a repetitive sugya, or minutes later on a second pass) shouldn't drag
+    the segment's recorded range across unrelated video the way a plain
+    min/max over every entry would."""
+    entries = sorted(entries, key=lambda e: e["start"])
+    clusters = [[entries[0]]]
+    for e in entries[1:]:
+        if e["start"] - clusters[-1][-1]["end"] > gap_seconds:
+            clusters.append([])
+        clusters[-1].append(e)
+    return max(clusters, key=len)
+
+
+CLUSTER_GAP_SECONDS = 180  # see _robust_cluster
+PAUSE_GAP_SECONDS = 2.0    # see _group_real_entries
+
+
+def _group_real_entries(entries, target=PHRASE_TARGET_WORDS):
+    """entries: real observed (start, end, w0, w1) samples for one segment
+    -- the cluster _robust_cluster already picked as the genuine one.
+    Merges adjacent entries into ~target-word phrase chunks using each
+    chunk's own first real timestamp; no interpolation is needed since a
+    chunk's boundaries are always real observed times. Crucially, this
+    never merges across a gap bigger than PAUSE_GAP_SECONDS -- that gap
+    usually means the speaker actually paused (to explain, etc.), and
+    assuming uniform pace across it the way word-count interpolation would
+    could put words on the wrong side of a real pause."""
+    entries = sorted(entries, key=lambda e: e["start"])
+    groups = []
+    current = None
+    for e in entries:
+        if current is None:
+            current = dict(e)
+        elif e["start"] - current["end"] > PAUSE_GAP_SECONDS or (current["w1"] - current["w0"] + 1) >= target:
+            groups.append(current)
+            current = dict(e)
+        else:
+            current["end"] = e["end"]
+            current["w1"] = e["w1"]
+    if current is not None:
+        groups.append(current)
+    return groups
+
+
+def _estimated_word_chunks(w_lo, w_hi, anchor_time, target=PHRASE_TARGET_WORDS):
+    """Placeholder phrase chunks (see _fill_segment_gaps) for a word range
+    with no real match at all, spaced a hair apart from anchor_time so each
+    still gets its own sortable, individually-correctable row."""
+    return [
+        {"start": anchor_time + 0.01 * w0, "end": anchor_time + 0.01 * (w1 + 1),
+         "w0": w_lo + w0, "w1": w_lo + w1, "estimated": True}
+        for w0, w1 in _split_word_ranges(w_hi - w_lo + 1, target)
+    ]
+
+
+def _segment_phrase_chunks(groups, n_words, fallback_time, target=PHRASE_TARGET_WORDS):
+    """Real phrase chunks (groups, from _group_real_entries) plus
+    "estimated" placeholder chunks filling any word range within the
+    segment that no real match actually covered (a run can match only part
+    of a paragraph). Ordered by word position (reading order) -- what the
+    "he" text reconstruction needs -- rather than by playback time, which
+    relocalization can occasionally make non-monotonic within one segment's
+    real matches."""
+    ordered = sorted(groups, key=lambda g: g["w0"])
+    chunks = []
+    cursor = 0
+    for g in ordered:
+        if g["w0"] > cursor:
+            chunks.extend(_estimated_word_chunks(cursor, g["w0"] - 1, g["start"], target))
+        chunks.append({**g, "estimated": False})
+        cursor = g["w1"] + 1
+    if cursor < n_words:
+        anchor = ordered[-1]["end"] if ordered else fallback_time
+        chunks.extend(_estimated_word_chunks(cursor, n_words - 1, anchor, target))
+    return chunks
+
+
 def build_outputs(canon, segments, events, duration, video_path, refs,
                    generator="caption_ocr_align.py", title_prefix="Caption OCR alignment"):
     """Collapse per-frame events into a word timeline and a segment alignment."""
@@ -506,11 +586,12 @@ def build_outputs(canon, segments, events, duration, video_path, refs,
     for ev in events:
         if timeline and timeline[-1]["startWord"] == ev.start_idx \
                 and timeline[-1]["endWord"] == ev.end_idx:
-            timeline[-1]["end"] = ev.t
+            timeline[-1]["end"] = timeline[-1]["realEnd"] = ev.t
             continue
         timeline.append({
             "start": ev.t,
             "end": ev.t,
+            "realEnd": ev.t,  # see the stretch step below
             "startWord": ev.start_idx,
             "endWord": ev.end_idx,
             "ref": canon[ev.start_idx].ref,
@@ -519,79 +600,88 @@ def build_outputs(canon, segments, events, duration, video_path, refs,
             "text": " ".join(c.text for c in canon[ev.start_idx:ev.end_idx + 1]),
             "score": ev.score,
         })
-    # stretch each entry to meet the next
+    # stretch each entry's "end" to meet the next -- word_timeline wants
+    # that (a word stays highlighted on screen until the next one appears),
+    # but it destroys the real gap between two entries, which is exactly
+    # what phrase-chunk pause detection below needs to see (_group_real_
+    # entries) -- so "realEnd" (each entry's own last actually-observed
+    # timestamp, untouched by this) is kept alongside it for that purpose.
     for a, b in zip(timeline, timeline[1:]):
         a["end"] = b["start"]
     if timeline:
         timeline[-1]["end"] = round(min(duration, timeline[-1]["end"] + 2.0), 2)
 
-    # segment-level alignment: first/last time each canonical segment is
-    # active. A segment can accumulate several timeline entries (repeats,
-    # relocalization after a gap, etc.), and a single stray one -- a short,
-    # ambiguous phrase that fuzzy-matched to the wrong position -- must not
-    # be able to drag the segment's whole recorded range across unrelated
-    # minutes of video the way a plain min/max would. So cluster each
-    # segment's entries by time first and keep only the largest cluster,
-    # treating isolated ones as mismatches rather than genuine repeats.
-    CLUSTER_GAP_SECONDS = 180
-
-    def robust_span(spans):
-        spans = sorted(spans)
-        clusters = [[spans[0]]]
-        for span in spans[1:]:
-            if span[0] - clusters[-1][-1][1] > CLUSTER_GAP_SECONDS:
-                clusters.append([])
-            clusters[-1].append(span)
-        largest = max(clusters, key=len)
-        return min(t0 for t0, t1 in largest), max(t1 for t0, t1 in largest)
+    # segment-level alignment. Each canonical segment can accumulate several
+    # timeline entries (repeats, relocalization after a gap, etc.); clip
+    # every entry to the portion of it that actually falls within a given
+    # segment (an entry can span a paragraph boundary), then keep only the
+    # largest same-segment time cluster (_robust_cluster) -- a single stray
+    # entry, a short ambiguous phrase that fuzzy-matched to the wrong spot,
+    # shouldn't drag the segment's recorded range across unrelated minutes
+    # of video the way a plain min/max over every entry would.
+    seg_word_bounds = {}
+    for i, c in enumerate(canon):
+        lo, hi = seg_word_bounds.get(c.seg_index, (i, i))
+        seg_word_bounds[c.seg_index] = (min(lo, i), max(hi, i))
 
     seg_entries = {}
     for entry in timeline:
         si = canon[entry["startWord"]].seg_index
         se = canon[entry["endWord"]].seg_index
         for s in range(si, se + 1):
-            seg_entries.setdefault(s, []).append((entry["start"], entry["end"]))
-    seg_times = {s: robust_span(spans) for s, spans in seg_entries.items()}
+            lo, hi = seg_word_bounds[s]
+            clipped_lo, clipped_hi = max(entry["startWord"], lo), min(entry["endWord"], hi)
+            seg_entries.setdefault(s, []).append({
+                # realEnd, not the stretched "end" -- see the timeline loop
+                # above for why the stretched value would hide real pauses
+                # from _group_real_entries.
+                "start": entry["start"], "end": entry["realEnd"],
+                "w0": canon[clipped_lo].word_index, "w1": canon[clipped_hi].word_index,
+            })
+    seg_clusters = {s: _robust_cluster(es, CLUSTER_GAP_SECONDS) for s, es in seg_entries.items()}
+    seg_times = {s: (c[0]["start"], c[-1]["end"]) for s, c in seg_clusters.items()}
 
-    # A segment with no confident match (common for voice sync, which only
-    # ever locks onto the ~15-50% of runs it's sure about -- OCR usually
-    # covers nearly the whole daf since the captions scroll through all of
-    # it) used to be left out of align_segments entirely: not "unsynced",
-    # just gone, with no row in the manual-correction editor to fix it from.
-    # Every canonical segment gets a row now; the ones with no real match
-    # get a placeholder time interpolated between their confidently-matched
-    # neighbors (or extrapolated a second apart, past the first/last known
-    # one) and are flagged "estimated" so the editor can mark them as
-    # needing a real correction rather than looking already-done.
+    # A segment with no confident match anywhere (common for voice sync,
+    # which only ever locks onto the ~15-50% of runs it's sure about --
+    # OCR usually covers nearly the whole daf since the captions scroll
+    # through all of it) used to be left out of align_segments entirely:
+    # not "unsynced", just gone, with no row in the manual-correction
+    # editor to fix it from. Every canonical segment gets a row now; the
+    # ones with no real match get a placeholder time interpolated between
+    # their confidently-matched neighbors (or extrapolated a second apart,
+    # past the first/last known one) and are flagged "estimated" so the
+    # editor can mark them as needing a real correction rather than
+    # looking already-done.
     all_seg_times = _fill_segment_gaps(seg_times, len(segments), duration)
 
     align_segments = []
     for s in sorted(all_seg_times):
-        t0, t1, estimated = all_seg_times[s]
+        t0, _t1, _estimated = all_seg_times[s]
         seg_words = segments[s]["he"].split()
         n_words = len(seg_words)
         if n_words == 0:
             continue  # nothing to time or highlight in a blank segment
-        for w0, w1 in _split_word_ranges(n_words):
-            if t1 > t0:
-                frac0, frac1 = w0 / n_words, (w1 + 1) / n_words
-                chunk_start, chunk_end = t0 + (t1 - t0) * frac0, t0 + (t1 - t0) * frac1
-            else:
-                # t0 == t1 -- an estimated placeholder (see
-                # _fill_segment_gaps), not a real timed span to interpolate
-                # across. Nudging each chunk a hair apart still gives every
-                # phrase its own sortable, individually-correctable time
-                # instead of several rows collapsing onto one instant.
-                chunk_start, chunk_end = t0 + 0.01 * w0, t0 + 0.01 * (w1 + 1)
+        # Real phrase-chunk boundaries/times come straight from actual
+        # observed matches (_group_real_entries), not an assumed-uniform
+        # pace across the segment's whole span -- a pause mid-segment (the
+        # speaker stopping to explain) already shows up as a real gap
+        # between two observed entries rather than getting smoothed over.
+        # Only the parts nothing ever actually matched fall back to an
+        # evenly-spaced guess, and those are flagged "estimated".
+        if s in seg_clusters:
+            chunks = _segment_phrase_chunks(_group_real_entries(seg_clusters[s]), n_words, t0)
+        else:
+            chunks = _estimated_word_chunks(0, n_words - 1, t0)
+        for c in chunks:
             entry = {
                 "ref": segments[s]["ref"],
-                "start": round(chunk_start, 2),
-                "end": round(chunk_end, 2),
-                "he": " ".join(seg_words[w0:w1 + 1]),
-                "w0": w0,
-                "w1": w1,
+                "start": round(c["start"], 2),
+                "end": round(c["end"], 2),
+                "he": " ".join(seg_words[c["w0"]:c["w1"] + 1]),
+                "w0": c["w0"],
+                "w1": c["w1"],
             }
-            if estimated:
+            if c["estimated"]:
                 entry["estimated"] = True
             align_segments.append(entry)
 
