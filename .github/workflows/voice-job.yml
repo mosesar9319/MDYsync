@@ -45,7 +45,14 @@ jobs:
           sudo apt-get install -y -qq ffmpeg
 
       - name: Install Python dependencies
-        run: pip install faster-whisper rapidfuzz yt-dlp
+        # opencv-python-headless/pytesseract are never actually used by this
+        # engine, but voice_align.py imports shared text-matching helpers
+        # (CanonWord, build_outputs, load_canonical, normalize_word) from
+        # caption_ocr_align.py, which does a module-level `import cv2` for
+        # its own OCR/video-frame code -- that import fails the whole module
+        # (and so voice_align.py's import of it) without these installed,
+        # even though nothing here calls into the OCR-specific parts of it.
+        run: pip install faster-whisper rapidfuzz yt-dlp opencv-python-headless pytesseract
 
       # Lets yt-dlp solve YouTube's signature-decipher JS challenge itself --
       # see ocr-job.yml's own copy of these two steps for the full story on
