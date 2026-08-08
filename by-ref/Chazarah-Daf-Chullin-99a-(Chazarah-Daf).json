@@ -1,0 +1,1122 @@
+{
+  "schema": "dafsync-alignment-v2",
+  "title": "Caption OCR alignment — Chullin 98b (Chazarah Daf), Chullin 99a (Chazarah Daf), Chullin 99b (Chazarah Daf)",
+  "dafRef": "Chullin 98b (Chazarah Daf)",
+  "duration": 1988.37,
+  "alignmentStatus": "in-progress",
+  "generator": "caption_ocr_align.py",
+  "videoSource": {
+    "type": "local",
+    "url": "job-video.mp4"
+  },
+  "segments": [
+    {
+      "ref": "Chullin 98b (Chazarah Daf):1",
+      "start": 448.67,
+      "end": 448.77,
+      "he": "מַתְנִי׳ הַכֹּל שׁוֹחֲטִין וּשְׁחִיטָתָן כְּשֵׁרָה, חוּץ מֵחֵרֵשׁ שׁוֹטֶה וְקָטָן, שֶׁמָּא",
+      "w0": 0,
+      "w1": 9,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):1",
+      "start": 448.77,
+      "end": 448.87,
+      "he": "יְקַלְקְלוּ אֶת שְׁחִיטָתָן. וְכוּלָּן שֶׁשָּׁחֲטוּ וַאֲחֵרִים רוֹאִין אוֹתָן – שְׁחִיטָתָן",
+      "w0": 10,
+      "w1": 19,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):1",
+      "start": 448.67,
+      "end": 450.67,
+      "he": "כְּשֵׁרָה.",
+      "w0": 20,
+      "w1": 20
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):2",
+      "start": 448.67,
+      "end": 450.67,
+      "he": "גְּמָ׳ ״הַכֹּל",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):2",
+      "start": 450.67,
+      "end": 450.74,
+      "he": "שׁוֹחֲטִין״ – לְכַתְּחִלָּה, ״וּשְׁחִיטָתָן כְּשֵׁרָה״ – דִּיעֲבַד!",
+      "w0": 2,
+      "w1": 8,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):3",
+      "start": 764.33,
+      "end": 765.67,
+      "he": "אֲמַר לֵיהּ רַב אַחָא בְּרֵיהּ דְּרָבָא לְרַב אָשֵׁי: וְכֹל ״הַכֹּל״ לְכַתְּחִלָּה הוּא? אֶלָּא מֵעַתָּה: הַכֹּל מְמִירִין,",
+      "w0": 0,
+      "w1": 15
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):3",
+      "start": 766.0,
+      "end": 766.06,
+      "he": "אֶחָד הָאֲנָשִׁים וְאֶחָד הַנָּשִׁים – הָכִי",
+      "w0": 16,
+      "w1": 21,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):3",
+      "start": 766.06,
+      "end": 766.13,
+      "he": "נָמֵי דִּלְכַתְּחִלָּה הוּא? וְהָא כְּתִיב: ״לֹא יַחֲלִיפֶנּוּ",
+      "w0": 22,
+      "w1": 28,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):3",
+      "start": 766.0,
+      "end": 766.33,
+      "he": "וְלֹא יָמִיר",
+      "w0": 29,
+      "w1": 30
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):3",
+      "start": 766.33,
+      "end": 766.39,
+      "he": "אֹתוֹ טוֹב בְּרָע אוֹ רַע בְּטוֹב״!",
+      "w0": 31,
+      "w1": 36,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):4",
+      "start": 967.33,
+      "end": 967.33,
+      "he": "הָתָם, כִּדְקָתָנֵי",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):4",
+      "start": 955.0,
+      "end": 955.04,
+      "he": "טַעְמָא: לֹא שֶׁהָאָדָם רַשַּׁאי",
+      "w0": 2,
+      "w1": 5,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):4",
+      "start": 955.0,
+      "end": 956.0,
+      "he": "לְהָמִיר,",
+      "w0": 6,
+      "w1": 6
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):4",
+      "start": 956.0,
+      "end": 956.08,
+      "he": "אֶלָּא שֶׁאִם הֵמִיר – מוּמָר, וְסוֹפֵג אֶת הָאַרְבָּעִים.",
+      "w0": 7,
+      "w1": 14,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):5",
+      "start": 532.0,
+      "end": 532.07,
+      "he": "אֶלָּא הַכֹּל מַעֲרִיכִין וְנֶעֱרָכִין, נוֹדְרִין וְנִידָּרִין, הָכִי",
+      "w0": 0,
+      "w1": 6,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):5",
+      "start": 532.07,
+      "end": 532.14,
+      "he": "נָמֵי דִּלְכַתְּחִלָּה? וְהָא כְּתִיב: ״וְכִי תֶחְדַּל לִנְדֹּר",
+      "w0": 7,
+      "w1": 13,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):5",
+      "start": 532.0,
+      "end": 547.33,
+      "he": "",
+      "w0": 14,
+      "w1": 6
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):5",
+      "start": 547.33,
+      "end": 547.44,
+      "he": "נָמֵי דִּלְכַתְּחִלָּה? וְהָא כְּתִיב: ״וְכִי תֶחְדַּל לִנְדֹּר לֹא יִהְיֶה בְךָ חֵטְא״!",
+      "w0": 7,
+      "w1": 17,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):6",
+      "start": 968.0,
+      "end": 968.08,
+      "he": "וּכְתִיב: ״טוֹב אֲשֶׁר לֹא תִדֹּר מִשֶּׁתִּדּוֹר וְלֹא תְשַׁלֵּם״,",
+      "w0": 0,
+      "w1": 7,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):6",
+      "start": 968.0,
+      "end": 969.33,
+      "he": "וְתַנְיָא:",
+      "w0": 8,
+      "w1": 8
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):6",
+      "start": 1242.67,
+      "end": 1242.74,
+      "he": "טוֹב מִזֶּה וּמִזֶּה שֶׁאֵינוֹ נוֹדֵר כׇּל עִיקָּר,",
+      "w0": 9,
+      "w1": 15,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):6",
+      "start": 1242.74,
+      "end": 1242.81,
+      "he": "דִּבְרֵי רַבִּי מֵאִיר. רַבִּי יְהוּדָה אוֹמֵר: טוֹב",
+      "w0": 16,
+      "w1": 22,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):6",
+      "start": 1242.81,
+      "end": 1242.88,
+      "he": "מִזֶּה וּמִזֶּה נוֹדֵר וּמְשַׁלֵּם. וַאֲפִילּוּ רַבִּי יְהוּדָה",
+      "w0": 23,
+      "w1": 29,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):6",
+      "start": 1242.67,
+      "end": 1243.33,
+      "he": "לָא",
+      "w0": 30,
+      "w1": 30
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):6",
+      "start": 1088.67,
+      "end": 1088.68,
+      "he": "קָאָמַר",
+      "w0": 31,
+      "w1": 31,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):6",
+      "start": 1088.67,
+      "end": 1090.33,
+      "he": "אֶלָּא בְּאוֹמֵר",
+      "w0": 32,
+      "w1": 33
+    },
+    {
+      "ref": "Chullin 98b (Chazarah Daf):6",
+      "start": 1168.0,
+      "end": 1168.0,
+      "he": "״הֲרֵי זוֹ״,",
+      "w0": 34,
+      "w1": 35
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):1",
+      "start": 1168.0,
+      "end": 1168.0,
+      "he": "מַתְנִי׳",
+      "w0": 0,
+      "w1": 0
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):1",
+      "start": 1321.33,
+      "end": 1321.39,
+      "he": "הַכֹּל שׁוֹחֲטִין וּשְׁחִיטָתָן כְּשֵׁרָה, חוּץ מֵחֵרֵשׁ",
+      "w0": 1,
+      "w1": 6,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):1",
+      "start": 1321.39,
+      "end": 1321.45,
+      "he": "שׁוֹטֶה וְקָטָן, שֶׁמָּא יְקַלְקְלוּ אֶת שְׁחִיטָתָן.",
+      "w0": 7,
+      "w1": 12,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):1",
+      "start": 1321.33,
+      "end": 1321.33,
+      "he": "וְכוּלָּן",
+      "w0": 13,
+      "w1": 13
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):1",
+      "start": 1321.33,
+      "end": 1321.4,
+      "he": "שֶׁשָּׁחֲטוּ וַאֲחֵרִים רוֹאִין אוֹתָן – שְׁחִיטָתָן כְּשֵׁרָה.",
+      "w0": 14,
+      "w1": 20,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):2",
+      "start": 1319.66,
+      "end": 1319.75,
+      "he": "גְּמָ׳ ״הַכֹּל שׁוֹחֲטִין״ – לְכַתְּחִלָּה, ״וּשְׁחִיטָתָן כְּשֵׁרָה״ – דִּיעֲבַד!",
+      "w0": 0,
+      "w1": 8,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):3",
+      "start": 1363.0,
+      "end": 1379.67,
+      "he": "אֲמַר לֵיהּ",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):3",
+      "start": 1318.0,
+      "end": 1318.0,
+      "he": "לֵיהּ",
+      "w0": 1,
+      "w1": 1
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):3",
+      "start": 1386.0,
+      "end": 1386.08,
+      "he": "רַב אַחָא בְּרֵיהּ דְּרָבָא לְרַב אָשֵׁי: וְכֹל ״הַכֹּל״",
+      "w0": 2,
+      "w1": 9,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):3",
+      "start": 1386.08,
+      "end": 1386.17,
+      "he": "לְכַתְּחִלָּה הוּא? אֶלָּא מֵעַתָּה: הַכֹּל מְמִירִין, אֶחָד הָאֲנָשִׁים וְאֶחָד",
+      "w0": 10,
+      "w1": 18,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):3",
+      "start": 1386.17,
+      "end": 1386.25,
+      "he": "הַנָּשִׁים – הָכִי נָמֵי דִּלְכַתְּחִלָּה הוּא? וְהָא כְּתִיב:",
+      "w0": 19,
+      "w1": 26,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):3",
+      "start": 1386.0,
+      "end": 1386.33,
+      "he": "״לֹא",
+      "w0": 27,
+      "w1": 27
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):3",
+      "start": 1386.33,
+      "end": 1386.42,
+      "he": "יַחֲלִיפֶנּוּ וְלֹא יָמִיר אֹתוֹ טוֹב בְּרָע אוֹ רַע בְּטוֹב״!",
+      "w0": 28,
+      "w1": 36,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):4",
+      "start": 1394.22,
+      "end": 1394.3,
+      "he": "הָתָם, כִּדְקָתָנֵי טַעְמָא: לֹא שֶׁהָאָדָם רַשַּׁאי לְהָמִיר, אֶלָּא",
+      "w0": 0,
+      "w1": 7,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):4",
+      "start": 1394.3,
+      "end": 1394.37,
+      "he": "שֶׁאִם הֵמִיר – מוּמָר, וְסוֹפֵג אֶת הָאַרְבָּעִים.",
+      "w0": 8,
+      "w1": 14,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):5",
+      "start": 1402.11,
+      "end": 1402.2,
+      "he": "אֶלָּא הַכֹּל מַעֲרִיכִין וְנֶעֱרָכִין, נוֹדְרִין וְנִידָּרִין, הָכִי נָמֵי דִּלְכַתְּחִלָּה?",
+      "w0": 0,
+      "w1": 8,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):5",
+      "start": 1402.2,
+      "end": 1402.29,
+      "he": "וְהָא כְּתִיב: ״וְכִי תֶחְדַּל לִנְדֹּר לֹא יִהְיֶה בְךָ חֵטְא״!",
+      "w0": 9,
+      "w1": 17,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "start": 1410.0,
+      "end": 1410.02,
+      "he": "וּכְתִיב: ״טוֹב",
+      "w0": 0,
+      "w1": 1,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "start": 1410.0,
+      "end": 1411.0,
+      "he": "אֲשֶׁר לֹא תִדֹּר מִשֶּׁתִּדּוֹר וְלֹא תְשַׁלֵּם״, וְתַנְיָא: טוֹב מִזֶּה וּמִזֶּה שֶׁאֵינוֹ נוֹדֵר כׇּל עִיקָּר, דִּבְרֵי רַבִּי מֵאִיר. רַבִּי",
+      "w0": 2,
+      "w1": 19
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "start": 1732.0,
+      "end": 1732.0,
+      "he": "וְתַנְיָא:",
+      "w0": 8,
+      "w1": 8
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "start": 1550.67,
+      "end": 1550.76,
+      "he": "טוֹב מִזֶּה וּמִזֶּה שֶׁאֵינוֹ נוֹדֵר כׇּל עִיקָּר, דִּבְרֵי רַבִּי",
+      "w0": 9,
+      "w1": 17,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "start": 1550.67,
+      "end": 1562.33,
+      "he": "מֵאִיר. רַבִּי יְהוּדָה אוֹמֵר: טוֹב מִזֶּה וּמִזֶּה נוֹדֵר וּמְשַׁלֵּם. וַאֲפִילּוּ רַבִּי יְהוּדָה לָא קָאָמַר",
+      "w0": 18,
+      "w1": 31
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "start": 1562.67,
+      "end": 1563.67,
+      "he": "מֵאִיר. רַבִּי יְהוּדָה אוֹמֵר: טוֹב מִזֶּה וּמִזֶּה נוֹדֵר וּמְשַׁלֵּם. וַאֲפִילּוּ רַבִּי יְהוּדָה לָא",
+      "w0": 18,
+      "w1": 30
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "start": 1564.0,
+      "end": 1571.0,
+      "he": "מֵאִיר. רַבִּי יְהוּדָה",
+      "w0": 18,
+      "w1": 20
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "start": 1601.33,
+      "end": 1601.33,
+      "he": "רַבִּי יְהוּדָה",
+      "w0": 19,
+      "w1": 20
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "start": 1412.0,
+      "end": 1413.0,
+      "he": "יְהוּדָה אוֹמֵר:",
+      "w0": 20,
+      "w1": 21
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "start": 1588.33,
+      "end": 1588.33,
+      "he": "טוֹב",
+      "w0": 22,
+      "w1": 22
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "start": 1801.67,
+      "end": 1801.71,
+      "he": "מִזֶּה וּמִזֶּה נוֹדֵר וּמְשַׁלֵּם.",
+      "w0": 23,
+      "w1": 26,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "start": 1801.67,
+      "end": 1802.33,
+      "he": "וַאֲפִילּוּ רַבִּי יְהוּדָה",
+      "w0": 27,
+      "w1": 29
+    },
+    {
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "start": 1802.33,
+      "end": 1802.39,
+      "he": "לָא קָאָמַר אֶלָּא בְּאוֹמֵר ״הֲרֵי זוֹ״,",
+      "w0": 30,
+      "w1": 35,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99b (Chazarah Daf):1",
+      "start": 1808.33,
+      "end": 1808.4,
+      "he": "מַתְנִי׳ הַכֹּל שׁוֹחֲטִין וּשְׁחִיטָתָן כְּשֵׁרָה, חוּץ מֵחֵרֵשׁ",
+      "w0": 0,
+      "w1": 6,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99b (Chazarah Daf):1",
+      "start": 1808.4,
+      "end": 1808.47,
+      "he": "שׁוֹטֶה וְקָטָן, שֶׁמָּא יְקַלְקְלוּ אֶת שְׁחִיטָתָן. וְכוּלָּן",
+      "w0": 7,
+      "w1": 13,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99b (Chazarah Daf):1",
+      "start": 1808.47,
+      "end": 1808.54,
+      "he": "שֶׁשָּׁחֲטוּ וַאֲחֵרִים רוֹאִין אוֹתָן – שְׁחִיטָתָן כְּשֵׁרָה.",
+      "w0": 14,
+      "w1": 20,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99b (Chazarah Daf):2",
+      "start": 1814.33,
+      "end": 1814.42,
+      "he": "גְּמָ׳ ״הַכֹּל שׁוֹחֲטִין״ – לְכַתְּחִלָּה, ״וּשְׁחִיטָתָן כְּשֵׁרָה״ – דִּיעֲבַד!",
+      "w0": 0,
+      "w1": 8,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99b (Chazarah Daf):3",
+      "start": 1820.33,
+      "end": 1823.33,
+      "he": "אֲמַר לֵיהּ רַב",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "ref": "Chullin 99b (Chazarah Daf):3",
+      "start": 1864.67,
+      "end": 1866.0,
+      "he": "אֲמַר לֵיהּ",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "ref": "Chullin 99b (Chazarah Daf):3",
+      "start": 1883.0,
+      "end": 1883.67,
+      "he": "אֲמַר לֵיהּ",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "ref": "Chullin 99b (Chazarah Daf):3",
+      "start": 1878.67,
+      "end": 1880.67,
+      "he": "לֵיהּ רַב אַחָא בְּרֵיהּ",
+      "w0": 1,
+      "w1": 4
+    },
+    {
+      "ref": "Chullin 99b (Chazarah Daf):3",
+      "start": 1880.67,
+      "end": 1880.75,
+      "he": "דְּרָבָא לְרַב אָשֵׁי: וְכֹל ״הַכֹּל״ לְכַתְּחִלָּה הוּא? אֶלָּא",
+      "w0": 5,
+      "w1": 12,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99b (Chazarah Daf):3",
+      "start": 1880.75,
+      "end": 1880.83,
+      "he": "מֵעַתָּה: הַכֹּל מְמִירִין, אֶחָד הָאֲנָשִׁים וְאֶחָד הַנָּשִׁים –",
+      "w0": 13,
+      "w1": 20,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99b (Chazarah Daf):3",
+      "start": 1880.83,
+      "end": 1880.91,
+      "he": "הָכִי נָמֵי דִּלְכַתְּחִלָּה הוּא? וְהָא כְּתִיב: ״לֹא יַחֲלִיפֶנּוּ",
+      "w0": 21,
+      "w1": 28,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99b (Chazarah Daf):3",
+      "start": 1880.91,
+      "end": 1880.99,
+      "he": "וְלֹא יָמִיר אֹתוֹ טוֹב בְּרָע אוֹ רַע בְּטוֹב״!",
+      "w0": 29,
+      "w1": 36,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99b (Chazarah Daf):4",
+      "start": 1884.67,
+      "end": 1884.75,
+      "he": "הָתָם, כִּדְקָתָנֵי טַעְמָא: לֹא שֶׁהָאָדָם רַשַּׁאי לְהָמִיר, אֶלָּא",
+      "w0": 0,
+      "w1": 7,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99b (Chazarah Daf):4",
+      "start": 1884.75,
+      "end": 1884.82,
+      "he": "שֶׁאִם הֵמִיר – מוּמָר, וְסוֹפֵג אֶת הָאַרְבָּעִים.",
+      "w0": 8,
+      "w1": 14,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99b (Chazarah Daf):5",
+      "start": 1885.67,
+      "end": 1885.76,
+      "he": "אֶלָּא הַכֹּל מַעֲרִיכִין וְנֶעֱרָכִין, נוֹדְרִין וְנִידָּרִין, הָכִי נָמֵי דִּלְכַתְּחִלָּה?",
+      "w0": 0,
+      "w1": 8,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99b (Chazarah Daf):5",
+      "start": 1885.76,
+      "end": 1885.85,
+      "he": "וְהָא כְּתִיב: ״וְכִי תֶחְדַּל לִנְדֹּר לֹא יִהְיֶה בְךָ חֵטְא״!",
+      "w0": 9,
+      "w1": 17,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99b (Chazarah Daf):6",
+      "start": 1886.67,
+      "end": 1886.76,
+      "he": "וּכְתִיב: ״טוֹב אֲשֶׁר לֹא תִדֹּר מִשֶּׁתִּדּוֹר וְלֹא תְשַׁלֵּם״, וְתַנְיָא:",
+      "w0": 0,
+      "w1": 8,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99b (Chazarah Daf):6",
+      "start": 1886.76,
+      "end": 1886.85,
+      "he": "טוֹב מִזֶּה וּמִזֶּה שֶׁאֵינוֹ נוֹדֵר כׇּל עִיקָּר, דִּבְרֵי רַבִּי",
+      "w0": 9,
+      "w1": 17,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99b (Chazarah Daf):6",
+      "start": 1886.85,
+      "end": 1886.94,
+      "he": "מֵאִיר. רַבִּי יְהוּדָה אוֹמֵר: טוֹב מִזֶּה וּמִזֶּה נוֹדֵר וּמְשַׁלֵּם.",
+      "w0": 18,
+      "w1": 26,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 99b (Chazarah Daf):6",
+      "start": 1886.94,
+      "end": 1887.03,
+      "he": "וַאֲפִילּוּ רַבִּי יְהוּדָה לָא קָאָמַר אֶלָּא בְּאוֹמֵר ״הֲרֵי זוֹ״,",
+      "w0": 27,
+      "w1": 35,
+      "estimated": true
+    }
+  ],
+  "wordTimeline": [
+    {
+      "start": 448.67,
+      "end": 529.67,
+      "ref": "Chullin 98b (Chazarah Daf):1",
+      "w0": 20,
+      "w1": 20
+    },
+    {
+      "start": 448.67,
+      "end": 529.67,
+      "ref": "Chullin 98b (Chazarah Daf):2",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 529.67,
+      "end": 532.0,
+      "ref": "Chullin 98b (Chazarah Daf):3",
+      "w0": 21,
+      "w1": 21
+    },
+    {
+      "start": 532.0,
+      "end": 532.33,
+      "ref": "Chullin 98b (Chazarah Daf):5",
+      "w0": 14,
+      "w1": 15
+    },
+    {
+      "start": 532.33,
+      "end": 535.33,
+      "ref": "Chullin 98b (Chazarah Daf):5",
+      "w0": 6,
+      "w1": 6
+    },
+    {
+      "start": 535.33,
+      "end": 535.67,
+      "ref": "Chullin 98b (Chazarah Daf):5",
+      "w0": 14,
+      "w1": 15
+    },
+    {
+      "start": 535.67,
+      "end": 537.67,
+      "ref": "Chullin 98b (Chazarah Daf):5",
+      "w0": 6,
+      "w1": 6
+    },
+    {
+      "start": 537.67,
+      "end": 538.0,
+      "ref": "Chullin 98b (Chazarah Daf):5",
+      "w0": 14,
+      "w1": 15
+    },
+    {
+      "start": 538.0,
+      "end": 541.0,
+      "ref": "Chullin 98b (Chazarah Daf):5",
+      "w0": 6,
+      "w1": 6
+    },
+    {
+      "start": 541.0,
+      "end": 541.67,
+      "ref": "Chullin 98b (Chazarah Daf):5",
+      "w0": 14,
+      "w1": 15
+    },
+    {
+      "start": 541.67,
+      "end": 584.33,
+      "ref": "Chullin 98b (Chazarah Daf):5",
+      "w0": 6,
+      "w1": 6
+    },
+    {
+      "start": 584.33,
+      "end": 585.33,
+      "ref": "Chullin 98b (Chazarah Daf):6",
+      "w0": 17,
+      "w1": 18
+    },
+    {
+      "start": 585.33,
+      "end": 676.33,
+      "ref": "Chullin 98b (Chazarah Daf):6",
+      "w0": 30,
+      "w1": 30
+    },
+    {
+      "start": 676.33,
+      "end": 764.33,
+      "ref": "Chullin 98b (Chazarah Daf):6",
+      "w0": 1,
+      "w1": 2
+    },
+    {
+      "start": 764.33,
+      "end": 765.33,
+      "ref": "Chullin 98b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "start": 765.33,
+      "end": 766.0,
+      "ref": "Chullin 98b (Chazarah Daf):3",
+      "w0": 14,
+      "w1": 15
+    },
+    {
+      "start": 766.0,
+      "end": 955.0,
+      "ref": "Chullin 98b (Chazarah Daf):3",
+      "w0": 29,
+      "w1": 30
+    },
+    {
+      "start": 955.0,
+      "end": 967.33,
+      "ref": "Chullin 98b (Chazarah Daf):4",
+      "w0": 6,
+      "w1": 6
+    },
+    {
+      "start": 967.33,
+      "end": 967.67,
+      "ref": "Chullin 98b (Chazarah Daf):3",
+      "w0": 36,
+      "w1": 36
+    },
+    {
+      "start": 967.33,
+      "end": 967.67,
+      "ref": "Chullin 98b (Chazarah Daf):4",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 967.67,
+      "end": 968.0,
+      "ref": "Chullin 98b (Chazarah Daf):5",
+      "w0": 15,
+      "w1": 15
+    },
+    {
+      "start": 968.0,
+      "end": 1088.67,
+      "ref": "Chullin 98b (Chazarah Daf):6",
+      "w0": 8,
+      "w1": 8
+    },
+    {
+      "start": 1088.67,
+      "end": 1168.0,
+      "ref": "Chullin 98b (Chazarah Daf):6",
+      "w0": 32,
+      "w1": 33
+    },
+    {
+      "start": 1168.0,
+      "end": 1242.67,
+      "ref": "Chullin 98b (Chazarah Daf):6",
+      "w0": 34,
+      "w1": 35
+    },
+    {
+      "start": 1168.0,
+      "end": 1242.67,
+      "ref": "Chullin 99a (Chazarah Daf):1",
+      "w0": 0,
+      "w1": 0
+    },
+    {
+      "start": 1242.67,
+      "end": 1318.0,
+      "ref": "Chullin 98b (Chazarah Daf):6",
+      "w0": 30,
+      "w1": 30
+    },
+    {
+      "start": 1318.0,
+      "end": 1321.33,
+      "ref": "Chullin 99a (Chazarah Daf):3",
+      "w0": 1,
+      "w1": 1
+    },
+    {
+      "start": 1321.33,
+      "end": 1363.0,
+      "ref": "Chullin 99a (Chazarah Daf):1",
+      "w0": 13,
+      "w1": 13
+    },
+    {
+      "start": 1363.0,
+      "end": 1386.0,
+      "ref": "Chullin 99a (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 1386.0,
+      "end": 1410.0,
+      "ref": "Chullin 99a (Chazarah Daf):3",
+      "w0": 27,
+      "w1": 27
+    },
+    {
+      "start": 1410.0,
+      "end": 1411.0,
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "w0": 2,
+      "w1": 2
+    },
+    {
+      "start": 1411.0,
+      "end": 1412.0,
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "w0": 18,
+      "w1": 19
+    },
+    {
+      "start": 1412.0,
+      "end": 1412.33,
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "w0": 20,
+      "w1": 22
+    },
+    {
+      "start": 1412.33,
+      "end": 1550.67,
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "w0": 19,
+      "w1": 21
+    },
+    {
+      "start": 1550.67,
+      "end": 1562.0,
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "w0": 18,
+      "w1": 20
+    },
+    {
+      "start": 1562.0,
+      "end": 1562.33,
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "w0": 20,
+      "w1": 22
+    },
+    {
+      "start": 1562.33,
+      "end": 1562.67,
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "w0": 29,
+      "w1": 31
+    },
+    {
+      "start": 1562.67,
+      "end": 1563.0,
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "w0": 18,
+      "w1": 20
+    },
+    {
+      "start": 1563.0,
+      "end": 1563.67,
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "w0": 20,
+      "w1": 21
+    },
+    {
+      "start": 1563.67,
+      "end": 1564.0,
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "w0": 29,
+      "w1": 30
+    },
+    {
+      "start": 1564.0,
+      "end": 1564.33,
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "w0": 18,
+      "w1": 20
+    },
+    {
+      "start": 1564.33,
+      "end": 1564.67,
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "w0": 19,
+      "w1": 20
+    },
+    {
+      "start": 1564.67,
+      "end": 1565.0,
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "w0": 18,
+      "w1": 20
+    },
+    {
+      "start": 1565.0,
+      "end": 1565.67,
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "w0": 20,
+      "w1": 21
+    },
+    {
+      "start": 1565.67,
+      "end": 1566.67,
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "w0": 18,
+      "w1": 20
+    },
+    {
+      "start": 1566.67,
+      "end": 1567.0,
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "w0": 20,
+      "w1": 21
+    },
+    {
+      "start": 1567.0,
+      "end": 1569.33,
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "w0": 18,
+      "w1": 20
+    },
+    {
+      "start": 1569.33,
+      "end": 1569.67,
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "w0": 19,
+      "w1": 20
+    },
+    {
+      "start": 1569.67,
+      "end": 1588.33,
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "w0": 18,
+      "w1": 20
+    },
+    {
+      "start": 1588.33,
+      "end": 1601.33,
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "w0": 22,
+      "w1": 22
+    },
+    {
+      "start": 1601.33,
+      "end": 1732.0,
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "w0": 19,
+      "w1": 20
+    },
+    {
+      "start": 1732.0,
+      "end": 1801.67,
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "w0": 8,
+      "w1": 8
+    },
+    {
+      "start": 1801.67,
+      "end": 1820.33,
+      "ref": "Chullin 99a (Chazarah Daf):6",
+      "w0": 27,
+      "w1": 29
+    },
+    {
+      "start": 1820.33,
+      "end": 1822.0,
+      "ref": "Chullin 99b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 4
+    },
+    {
+      "start": 1822.0,
+      "end": 1822.33,
+      "ref": "Chullin 99b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "start": 1822.33,
+      "end": 1823.33,
+      "ref": "Chullin 99b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 1823.33,
+      "end": 1864.67,
+      "ref": "Chullin 99b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "start": 1864.67,
+      "end": 1878.67,
+      "ref": "Chullin 99b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 1878.67,
+      "end": 1880.67,
+      "ref": "Chullin 99b (Chazarah Daf):3",
+      "w0": 1,
+      "w1": 1
+    },
+    {
+      "start": 1880.67,
+      "end": 1883.0,
+      "ref": "Chullin 99b (Chazarah Daf):3",
+      "w0": 1,
+      "w1": 4
+    },
+    {
+      "start": 1883.0,
+      "end": 1883.33,
+      "ref": "Chullin 99b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "start": 1883.33,
+      "end": 1883.67,
+      "ref": "Chullin 99b (Chazarah Daf):3",
+      "w0": 4,
+      "w1": 4
+    },
+    {
+      "start": 1883.67,
+      "end": 1885.67,
+      "ref": "Chullin 99b (Chazarah Daf):3",
+      "w0": 0,
+      "w1": 1
+    }
+  ],
+  "jobId": "c0929540deca4257b4aa27745bea70dc"
+}
