@@ -1,0 +1,99 @@
+name: Refresh voice-recognition confusion table
+
+# Turns banked manual corrections (results/voice-corrections/*.json, written
+# by save-voice-correction.mjs whenever an admin corrects a voice-recognition
+# alignment -- including via the Vilna-page "Mark words" editor) into
+# tools/caption-sync/voice_confusions.json, the phonetic-confusion override
+# voice_align.py already knows how to load (see its load_phonetic_classes())
+# but that, until this workflow existed, nothing ever generated. See
+# build_voice_confusions.py's own docstring for what "training" means here
+# (no model weights touched) and why it's evidence-gated.
+#
+# Runs weekly since corrections accumulate slowly and each run is cheap, plus
+# workflow_dispatch for an on-demand refresh right after a correction pass.
+# Unlike backfill-video-links.yml/voice-job.yml, the output belongs on main
+# (it ships with the engine script), not the results branch -- only the input
+# (voice-corrections/) is read from results.
+
+on:
+  schedule:
+    - cron: '0 6 * * 0'
+  workflow_dispatch:
+    inputs:
+      min_evidence:
+        description: 'Minimum independent occurrences of a letter pair before merging its class'
+        required: true
+        default: '2'
+      min_total:
+        description: 'Minimum usable banked corrections required before writing anything'
+        required: true
+        default: '5'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        # opencv-python-headless/pytesseract/numpy are never used by this
+        # script itself, but it imports normalize_word from
+        # caption_ocr_align.py, which does a module-level `import cv2` --
+        # see voice-job.yml's own copy of this note.
+        run: pip install rapidfuzz opencv-python-headless pytesseract numpy
+
+      - name: Check out the results branch
+        run: |
+          git fetch origin results 2>/dev/null || true
+          if git show-ref --verify --quiet refs/remotes/origin/results; then
+            git worktree add /tmp/results-checkout origin/results
+          else
+            git worktree add --detach /tmp/results-checkout
+            (cd /tmp/results-checkout && git checkout --orphan results && git rm -rf . >/dev/null 2>&1 || true)
+          fi
+
+      - name: Build the confusion table
+        working-directory: MDYsync/tools/caption-sync
+        env:
+          MIN_EVIDENCE: ${{ github.event.inputs.min_evidence || '2' }}
+          MIN_TOTAL: ${{ github.event.inputs.min_total || '5' }}
+        run: |
+          python3 build_voice_confusions.py \
+            --corrections-dir /tmp/results-checkout/voice-corrections \
+            --min-evidence "$MIN_EVIDENCE" \
+            --min-total "$MIN_TOTAL"
+
+      - name: Commit the refreshed table, if it changed
+        run: |
+          set -e
+          git config user.name "dafsync-bot"
+          git config user.email "dafsync-bot@users.noreply.github.com"
+          if [ ! -f MDYsync/tools/caption-sync/voice_confusions.json ]; then
+            echo "Not enough evidence yet -- the script left no file to commit."
+            exit 0
+          fi
+          # `git diff` alone misses this file the first time it's ever
+          # created (untracked files don't show up in a plain diff), so
+          # stage first and check the staged diff instead.
+          git add MDYsync/tools/caption-sync/voice_confusions.json
+          if git diff --cached --quiet; then
+            echo "No change to voice_confusions.json (not enough new evidence yet)."
+            exit 0
+          fi
+          git commit -m "Refresh voice-recognition confusion table from banked corrections"
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:main; then
+              break
+            fi
+            git fetch origin main
+            git rebase origin/main
+            sleep 2
+          done
