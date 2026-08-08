@@ -434,8 +434,30 @@
       .watch-layout { grid-template-columns: 1fr; }
       .daf-card { position: static; }
       .watch-layout .editor { position: static; max-height: none; }
+      /* No room for side-by-side columns down here -- the editor and the
+         video just stack in document order instead (see .watch-layout
+         .editor above). Pinning the video to the top of the screen while
+         editing is what keeps it "parallel" (in view together) at this
+         width: it stays put as the phrase list scrolls underneath it.
+         A sticky *grid item* only stays stuck within its own grid cell,
+         though -- in the single-column layout each item gets its own
+         content-sized row, so the video would stop sticking the moment
+         its own (short) row scrolled past, long before the taller editor
+         beneath it finished scrolling. Dropping to plain block layout
+         while editing makes .watch-layout's height the natural sum of its
+         two visible children (video + editor; the daf card is hidden the
+         whole time editing is open), giving the sticky video a tall
+         enough containing block to actually stick across the editor's
+         full scroll range. gap doesn't apply outside flex/grid, so the
+         spacing it normally provides is replaced with an explicit margin.
+         top: 104px clears the still-sticky topbar at this breakpoint (see
+         .topbar); the 760px breakpoint below lowers it to 0 once the
+         topbar itself stops being sticky. */
+      .watch-layout.editing { display: block; }
+      .watch-layout.editing .player-card { position: sticky; top: 104px; z-index: 10; margin-bottom: 24px; }
     }
     @media (max-width: 760px) {
+      .watch-layout.editing .player-card { top: 0; margin-bottom: 16px; }
       body { padding-bottom: 78px; }
       .sidebar { display: none; }
       .page { margin-left: 0; }

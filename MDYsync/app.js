@@ -2770,14 +2770,45 @@ $('phraseEditModeButton').addEventListener('click', togglePhraseEditMode);
 // The editor sits in the same grid column as the daf card (see the HTML
 // comment above #editor) so correcting the sync stays parallel with the
 // video instead of scrolling to a full-width section below it -- the two
-// are mutually exclusive in that column, not stacked.
+// are mutually exclusive in that column, not stacked. Below 1120px that
+// grid collapses to one column (no room for side-by-side on a phone), so
+// the "editing" class instead pins the video to the top of the screen
+// while editing (see player/index.html's inline <style>), keeping it in
+// view as the phrase list scrolls beneath it -- parallel via sticky
+// positioning rather than columns, on screens too narrow for columns.
+//
+// Below 1120px, the full player card (video, playback controls, the
+// "Mark here & advance" bar, and the "now discussing" text) is taller
+// than a phone screen on its own -- sticking the whole thing while
+// editing would leave no room to see the editor at all. So on those
+// narrow widths only, the marking bar and now-learning block move into
+// the editor itself while editing (they scroll with the phrase list
+// instead), leaving just the compact video + basic playback controls in
+// the sticky card. The M key still marks the current phrase regardless of
+// where these elements are rendered. Above 1120px the side-by-side column
+// layout already has room for the full card next to the editor, so
+// nothing moves there -- this only applies where a plain 2-column view
+// isn't an option in the first place.
+const markingBar = document.querySelector('.marking-bar');
+const nowLearning = document.querySelector('.now-learning');
+const playerCard = document.querySelector('.player-card');
+const narrowLayoutQuery = window.matchMedia('(max-width: 1120px)');
 $('editModeButton').addEventListener('click', () => {
   $('dafCard').hidden = true;
   editor.hidden = false;
+  document.querySelector('.watch-layout')?.classList.add('editing');
+  if (narrowLayoutQuery.matches) {
+    const editorList = editor.querySelector('.editor-list');
+    editor.insertBefore(markingBar, editorList);
+    editor.insertBefore(nowLearning, editorList);
+  }
 });
 $('closeEditorButton').addEventListener('click', () => {
   editor.hidden = true;
   $('dafCard').hidden = false;
+  document.querySelector('.watch-layout')?.classList.remove('editing');
+  playerCard.appendChild(markingBar);
+  playerCard.appendChild(nowLearning);
   renderVilnaPage();
 });
 

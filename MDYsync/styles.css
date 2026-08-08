@@ -221,7 +221,7 @@ h2 { margin-bottom: 0; }
 .page-column.wide { background: repeating-linear-gradient(to bottom, #4b4439 0 2px, transparent 2px 8px); }
 .vilna-placeholder h3 { margin-bottom: 6px; }
 .vilna-placeholder p { max-width: 460px; margin: auto; line-height: 1.5; }
-.vilna-page-wrap { position: relative; width: 100%; transform-origin: 0 0; }
+.vilna-page-wrap { position: relative; width: 100%; max-width: 100%; transform-origin: 0 0; }
 /* .daf-scroll's own overflow:auto handles panning around a zoomed-in page --
    a CSS transform's rendered footprint still contributes to a scrolling
    ancestor's scrollable area, so no extra pan logic is needed here. */
@@ -298,6 +298,14 @@ dialog ol { color: #d8e2eb; padding-left: 21px; line-height: 1.6; }
   .workspace { grid-template-columns: 1fr; }
   .player-card, .daf-card { height: auto; }
   .daf-card { min-height: 460px; }
+  /* Unlike .daf-card just above, this was never relaxed for narrow
+     screens -- the desktop 640px floor stuck around, forcing a tall empty
+     card around what's really just a compact 16:9 video plus a couple of
+     control rows on a phone. Harmless on its own, but a real problem once
+     that card can become position:sticky (see player/index.html's
+     .watch-layout.editing rules): a stuck 640px+ element eats most of a
+     phone screen by itself, defeating the point of pinning it. */
+  .player-card { min-height: auto; }
 }
 @media (max-width: 700px) {
   .app-shell { width: min(100% - 18px, 1540px); }
