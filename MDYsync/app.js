@@ -17,6 +17,7 @@ const state = {
   usingDefaultAlignment: true,
   editingIndex: 0,
   phraseEditMode: false,
+  vilnaMarkMode: false,
   alignmentStatus: 'placeholder',
   currentProjectId: null,
   wordTimeline: [],
@@ -1094,10 +1095,14 @@ function renderVilnaWordBoxes() {
     el.style.top = `${box.y * 100}%`;
     el.style.width = `${box.w * 100}%`;
     el.style.height = `${box.h * 100}%`;
-    el.addEventListener('click', () => seekToVilnaWord(box.ref, box.wordIndex));
+    el.addEventListener('click', () => {
+      if (state.vilnaMarkMode) markSegmentAtVilnaWord(box.ref, box.wordIndex);
+      else seekToVilnaWord(box.ref, box.wordIndex);
+    });
     overlay.appendChild(el);
     state.vilnaWordEls.set(`${box.ref}:${box.wordIndex}`, el);
   }
+  updateVilnaMarkTarget();
 }
 
 function seekToVilnaWord(ref, wordIndex) {
@@ -1126,6 +1131,26 @@ function seekToVilnaWord(ref, wordIndex) {
   state.lastManualScrollAt = 0;
   seek(segment.start + 0.03, true);
   updateActiveSegment(true);
+}
+
+// The Vilna-page equivalent of the marking-bar's "Mark here & advance" (or
+// the phrase-list editor's "Use current time") -- lets an admin correct
+// alignment by clicking the actual word on the real page as the speaker
+// says it, instead of stepping through a text list in order. Same
+// ref/wordIndex-to-segment resolution as seekToVilnaWord (prefer the
+// segment whose own w0/w1 covers this word, since one ref can span several
+// phrase chunks; fall back to the first segment with a matching ref), and
+// reuses setSegmentStart so this banks/autosaves exactly like every other
+// correction path already does.
+function markSegmentAtVilnaWord(ref, wordIndex) {
+  const index = state.segments.findIndex((s) => s.ref === ref && s.w0 !== null && wordIndex >= s.w0 && wordIndex <= s.w1);
+  const resolvedIndex = index !== -1 ? index : state.segments.findIndex((s) => s.ref === ref);
+  if (resolvedIndex === -1) return;
+  const time = getCurrentTime();
+  setSegmentStart(resolvedIndex, time);
+  state.editingIndex = Math.min(resolvedIndex + 1, state.segments.length - 1);
+  updateMarkTargetUi();
+  showToast(`Marked phrase ${resolvedIndex + 1} at ${formatTime(time)}.`);
 }
 
 // Highlights every word belonging to the current segment/phrase, not just
@@ -1165,6 +1190,26 @@ function updateVilnaOverlay() {
     const hit = activeRef !== '' && box.ref === activeRef
       && (!hasRange || (box.wordIndex >= activeSegment.w0 && box.wordIndex <= activeSegment.w1));
     el.classList.toggle('active', hit);
+  }
+}
+
+// While vilnaMarkMode is on, outlines the word(s) belonging to the phrase
+// that's about to be marked (state.editingIndex) -- a distinct highlight
+// from updateVilnaOverlay's "currently playing" one above, the same
+// distinction the phrase-list editor draws between .active and
+// .mark-target-row. Called whenever editingIndex changes (updateMarkTargetUi)
+// or mark mode itself is toggled, not on every playback tick, so it doesn't
+// need updateVilnaOverlay's dedup-key guard.
+function updateVilnaMarkTarget() {
+  if (!state.vilnaWordEls) return;
+  const target = state.vilnaMarkMode ? state.segments[state.editingIndex] : null;
+  const hasRange = target && target.w0 !== null && target.w1 !== null;
+  for (const box of state.vilnaPageMap?.wordBoxes || []) {
+    const el = state.vilnaWordEls.get(`${box.ref}:${box.wordIndex}`);
+    if (!el) continue;
+    const hit = Boolean(target) && box.ref === target.ref
+      && (!hasRange || (box.wordIndex >= target.w0 && box.wordIndex <= target.w1));
+    el.classList.toggle('mark-target', hit);
   }
 }
 
@@ -1618,6 +1663,7 @@ function updateMarkTargetUi() {
   if (label) label.textContent = total ? `${index + 1} of ${total}` : 'No phrase';
   renderDafWindow();
   document.querySelectorAll('.editor-row').forEach((node, i) => node.classList.toggle('mark-target-row', i === index));
+  updateVilnaMarkTarget();
 }
 
 function selectEditingIndex(index) {
@@ -1826,6 +1872,29 @@ function togglePhraseEditMode() {
   state.phraseEditMode = !state.phraseEditMode;
   $('phraseEditModeButton')?.classList.toggle('active', state.phraseEditMode);
   renderEditor();
+}
+
+// Turns Vilna-page word clicks from "seek there" into "mark this phrase's
+// start at the current playback time" (see markSegmentAtVilnaWord) --
+// correcting alignment by clicking the real word on the real page as the
+// speaker says it, instead of stepping through the phrase list. Works
+// alongside the marking-bar/phrase-list editor, not instead of them: they
+// all drive the same state.editingIndex/state.segments, so a correction
+// started one way can be finished the other. Only meaningful while looking
+// at the page itself (word click targets don't exist in the plain-text
+// view), so turning it on switches there; it doesn't switch back off when
+// turned off, since an admin may still want the page visible afterward.
+function toggleVilnaMarkMode() {
+  if (!state.vilnaMarkMode && !state.vilnaPageMap) {
+    showToast("This daf's Vilna page hasn't been synced yet -- open the Vilna page tab first.", 'error');
+    return;
+  }
+  state.vilnaMarkMode = !state.vilnaMarkMode;
+  $('vilnaMarkModeButton')?.classList.toggle('active', state.vilnaMarkMode);
+  $('vilnaMarkModeButton')?.setAttribute('aria-pressed', String(state.vilnaMarkMode));
+  $('vilnaPageWrap')?.classList.toggle('mark-mode', state.vilnaMarkMode);
+  if (state.vilnaMarkMode) switchDafView('page');
+  updateVilnaMarkTarget();
 }
 
 const NUDGE_STEPS = [-1, -0.1, 0.1, 1];
@@ -2767,6 +2836,7 @@ $('transcriptInput').addEventListener('change', (event) => importTranscript(even
 $('exportButton').addEventListener('click', exportAlignment);
 $('evenSpacingButton').addEventListener('click', () => resetEvenSpacing(false));
 $('phraseEditModeButton').addEventListener('click', togglePhraseEditMode);
+$('vilnaMarkModeButton')?.addEventListener('click', toggleVilnaMarkMode);
 // The editor sits in the same grid column as the daf card (see the HTML
 // comment above #editor) so correcting the sync stays parallel with the
 // video instead of scrolling to a full-width section below it -- the two
@@ -2859,14 +2929,16 @@ for (const el of volumeSliderEls) el.addEventListener('input', (event) => setVol
 for (const button of muteButtonEls) button.addEventListener('click', () => setMuted(!isMuted()));
 for (const button of fastForwardButtonEls) button.addEventListener('click', skipToNextReading);
 
+function switchDafView(mode) {
+  const pageView = mode === 'page';
+  document.querySelectorAll('.view-switch button').forEach((item) => item.classList.toggle('active', (item.dataset.view === 'page') === pageView));
+  dafPage.hidden = pageView;
+  $('vilnaPlaceholder').hidden = !pageView;
+  if (pageView) renderVilnaPage();
+}
+
 for (const button of document.querySelectorAll('.view-switch button')) {
-  button.addEventListener('click', () => {
-    document.querySelectorAll('.view-switch button').forEach((item) => item.classList.toggle('active', item === button));
-    const pageView = button.dataset.view === 'page';
-    dafPage.hidden = pageView;
-    $('vilnaPlaceholder').hidden = !pageView;
-    if (pageView) renderVilnaPage();
-  });
+  button.addEventListener('click', () => switchDafView(button.dataset.view));
 }
 
 for (const button of document.querySelectorAll('.sync-method-switch button[data-method]')) {
