@@ -1,0 +1,634 @@
+{
+  "schema": "dafsync-alignment-v2",
+  "title": "Caption OCR alignment — Chullin 96b (Chazarah Daf) (Hebrew), Chullin 97a (Chazarah Daf) (Hebrew), Chullin 97b (Chazarah Daf) (Hebrew)",
+  "dafRef": "Chullin 96b (Chazarah Daf) (Hebrew)",
+  "duration": 2154.99,
+  "alignmentStatus": "in-progress",
+  "generator": "caption_ocr_align.py",
+  "videoSource": {
+    "type": "local",
+    "url": "job-video.mp4"
+  },
+  "segments": [
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):1",
+      "start": 258.93,
+      "end": 259.0,
+      "he": "מַתְנִי׳ הַכֹּל שׁוֹחֲטִין וּשְׁחִיטָתָן כְּשֵׁרָה, חוּץ מֵחֵרֵשׁ",
+      "w0": 0,
+      "w1": 6,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):1",
+      "start": 259.0,
+      "end": 259.07,
+      "he": "שׁוֹטֶה וְקָטָן, שֶׁמָּא יְקַלְקְלוּ אֶת שְׁחִיטָתָן. וְכוּלָּן",
+      "w0": 7,
+      "w1": 13,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):1",
+      "start": 259.07,
+      "end": 259.14,
+      "he": "שֶׁשָּׁחֲטוּ וַאֲחֵרִים רוֹאִין אוֹתָן – שְׁחִיטָתָן כְּשֵׁרָה.",
+      "w0": 14,
+      "w1": 20,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):2",
+      "start": 259.93,
+      "end": 260.02,
+      "he": "גְּמָ׳ ״הַכֹּל שׁוֹחֲטִין״ – לְכַתְּחִלָּה, ״וּשְׁחִיטָתָן כְּשֵׁרָה״ – דִּיעֲבַד!",
+      "w0": 0,
+      "w1": 8,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):3",
+      "start": 260.93,
+      "end": 261.02,
+      "he": "אֲמַר לֵיהּ רַב אַחָא בְּרֵיהּ דְּרָבָא לְרַב אָשֵׁי: וְכֹל",
+      "w0": 0,
+      "w1": 8,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):3",
+      "start": 261.02,
+      "end": 261.11,
+      "he": "״הַכֹּל״ לְכַתְּחִלָּה הוּא? אֶלָּא מֵעַתָּה: הַכֹּל מְמִירִין, אֶחָד הָאֲנָשִׁים",
+      "w0": 9,
+      "w1": 17,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):3",
+      "start": 260.93,
+      "end": 260.93,
+      "he": "וְאֶחָד",
+      "w0": 18,
+      "w1": 18
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):3",
+      "start": 287.95,
+      "end": 288.0,
+      "he": "הַנָּשִׁים – הָכִי נָמֵי דִּלְכַתְּחִלָּה",
+      "w0": 19,
+      "w1": 23,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):3",
+      "start": 287.95,
+      "end": 287.95,
+      "he": "הוּא?",
+      "w0": 24,
+      "w1": 24
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):3",
+      "start": 300.3,
+      "end": 301.63,
+      "he": "וְהָא",
+      "w0": 25,
+      "w1": 25
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):3",
+      "start": 303.64,
+      "end": 303.67,
+      "he": "כְּתִיב: ״לֹא יַחֲלִיפֶנּוּ",
+      "w0": 26,
+      "w1": 28,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):3",
+      "start": 303.64,
+      "end": 303.64,
+      "he": "וְלֹא",
+      "w0": 29,
+      "w1": 29
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):3",
+      "start": 297.96,
+      "end": 298.0,
+      "he": "יָמִיר אֹתוֹ טוֹב בְּרָע",
+      "w0": 30,
+      "w1": 33,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):3",
+      "start": 297.96,
+      "end": 297.96,
+      "he": "אוֹ",
+      "w0": 34,
+      "w1": 34
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):3",
+      "start": 297.96,
+      "end": 297.98,
+      "he": "רַע בְּטוֹב״!",
+      "w0": 35,
+      "w1": 36,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):4",
+      "start": 314.43,
+      "end": 314.51,
+      "he": "הָתָם, כִּדְקָתָנֵי טַעְמָא: לֹא שֶׁהָאָדָם רַשַּׁאי לְהָמִיר, אֶלָּא",
+      "w0": 0,
+      "w1": 7,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):4",
+      "start": 314.51,
+      "end": 314.58,
+      "he": "שֶׁאִם הֵמִיר – מוּמָר, וְסוֹפֵג אֶת הָאַרְבָּעִים.",
+      "w0": 8,
+      "w1": 14,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):5",
+      "start": 325.21,
+      "end": 325.3,
+      "he": "אֶלָּא הַכֹּל מַעֲרִיכִין וְנֶעֱרָכִין, נוֹדְרִין וְנִידָּרִין, הָכִי נָמֵי דִּלְכַתְּחִלָּה?",
+      "w0": 0,
+      "w1": 8,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):5",
+      "start": 325.3,
+      "end": 325.39,
+      "he": "וְהָא כְּתִיב: ״וְכִי תֶחְדַּל לִנְדֹּר לֹא יִהְיֶה בְךָ חֵטְא״!",
+      "w0": 9,
+      "w1": 17,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):6",
+      "start": 336.0,
+      "end": 336.08,
+      "he": "וּכְתִיב: ״טוֹב אֲשֶׁר לֹא תִדֹּר מִשֶּׁתִּדּוֹר וְלֹא תְשַׁלֵּם״,",
+      "w0": 0,
+      "w1": 7,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):6",
+      "start": 336.08,
+      "end": 336.17,
+      "he": "וְתַנְיָא: טוֹב מִזֶּה וּמִזֶּה שֶׁאֵינוֹ נוֹדֵר כׇּל עִיקָּר, דִּבְרֵי",
+      "w0": 8,
+      "w1": 16,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):6",
+      "start": 336.17,
+      "end": 336.26,
+      "he": "רַבִּי מֵאִיר. רַבִּי יְהוּדָה אוֹמֵר: טוֹב מִזֶּה וּמִזֶּה נוֹדֵר",
+      "w0": 17,
+      "w1": 25,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):6",
+      "start": 336.26,
+      "end": 336.34,
+      "he": "וּמְשַׁלֵּם. וַאֲפִילּוּ רַבִּי יְהוּדָה לָא קָאָמַר אֶלָּא בְּאוֹמֵר",
+      "w0": 26,
+      "w1": 33,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):6",
+      "start": 336.0,
+      "end": 336.0,
+      "he": "״הֲרֵי זוֹ״,",
+      "w0": 34,
+      "w1": 35
+    },
+    {
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):1",
+      "start": 336.56,
+      "end": 336.63,
+      "he": "מַתְנִי׳ הַכֹּל שׁוֹחֲטִין וּשְׁחִיטָתָן כְּשֵׁרָה, חוּץ מֵחֵרֵשׁ",
+      "w0": 0,
+      "w1": 6,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):1",
+      "start": 336.63,
+      "end": 336.7,
+      "he": "שׁוֹטֶה וְקָטָן, שֶׁמָּא יְקַלְקְלוּ אֶת שְׁחִיטָתָן. וְכוּלָּן",
+      "w0": 7,
+      "w1": 13,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):1",
+      "start": 336.7,
+      "end": 336.77,
+      "he": "שֶׁשָּׁחֲטוּ וַאֲחֵרִים רוֹאִין אוֹתָן – שְׁחִיטָתָן כְּשֵׁרָה.",
+      "w0": 14,
+      "w1": 20,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):2",
+      "start": 337.11,
+      "end": 337.2,
+      "he": "גְּמָ׳ ״הַכֹּל שׁוֹחֲטִין״ – לְכַתְּחִלָּה, ״וּשְׁחִיטָתָן כְּשֵׁרָה״ – דִּיעֲבַד!",
+      "w0": 0,
+      "w1": 8,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):3",
+      "start": 370.37,
+      "end": 370.44,
+      "he": "אֲמַר לֵיהּ רַב אַחָא בְּרֵיהּ דְּרָבָא לְרַב",
+      "w0": 0,
+      "w1": 6,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):3",
+      "start": 370.37,
+      "end": 371.37,
+      "he": "",
+      "w0": 7,
+      "w1": 6
+    },
+    {
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):3",
+      "start": 337.67,
+      "end": 337.72,
+      "he": "אָשֵׁי: וְכֹל ״הַכֹּל״ לְכַתְּחִלָּה הוּא?",
+      "w0": 7,
+      "w1": 11,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):3",
+      "start": 337.67,
+      "end": 337.67,
+      "he": "אֶלָּא מֵעַתָּה:",
+      "w0": 12,
+      "w1": 13
+    },
+    {
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):3",
+      "start": 400.07,
+      "end": 400.17,
+      "he": "הַכֹּל מְמִירִין, אֶחָד הָאֲנָשִׁים וְאֶחָד הַנָּשִׁים – הָכִי נָמֵי דִּלְכַתְּחִלָּה",
+      "w0": 14,
+      "w1": 23,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):3",
+      "start": 400.17,
+      "end": 400.27,
+      "he": "הוּא? וְהָא כְּתִיב: ״לֹא יַחֲלִיפֶנּוּ וְלֹא יָמִיר אֹתוֹ טוֹב בְּרָע",
+      "w0": 24,
+      "w1": 33,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):3",
+      "start": 400.07,
+      "end": 400.07,
+      "he": "אוֹ",
+      "w0": 34,
+      "w1": 34
+    },
+    {
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):3",
+      "start": 400.07,
+      "end": 400.09,
+      "he": "רַע בְּטוֹב״!",
+      "w0": 35,
+      "w1": 36,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):4",
+      "start": 401.07,
+      "end": 401.15,
+      "he": "הָתָם, כִּדְקָתָנֵי טַעְמָא: לֹא שֶׁהָאָדָם רַשַּׁאי לְהָמִיר, אֶלָּא",
+      "w0": 0,
+      "w1": 7,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):4",
+      "start": 401.15,
+      "end": 401.22,
+      "he": "שֶׁאִם הֵמִיר – מוּמָר, וְסוֹפֵג אֶת הָאַרְבָּעִים.",
+      "w0": 8,
+      "w1": 14,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):5",
+      "start": 402.07,
+      "end": 402.16,
+      "he": "אֶלָּא הַכֹּל מַעֲרִיכִין וְנֶעֱרָכִין, נוֹדְרִין וְנִידָּרִין, הָכִי נָמֵי דִּלְכַתְּחִלָּה?",
+      "w0": 0,
+      "w1": 8,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):5",
+      "start": 402.16,
+      "end": 402.25,
+      "he": "וְהָא כְּתִיב: ״וְכִי תֶחְדַּל לִנְדֹּר לֹא יִהְיֶה בְךָ חֵטְא״!",
+      "w0": 9,
+      "w1": 17,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):6",
+      "start": 403.07,
+      "end": 403.16,
+      "he": "וּכְתִיב: ״טוֹב אֲשֶׁר לֹא תִדֹּר מִשֶּׁתִּדּוֹר וְלֹא תְשַׁלֵּם״, וְתַנְיָא:",
+      "w0": 0,
+      "w1": 8,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):6",
+      "start": 403.16,
+      "end": 403.25,
+      "he": "טוֹב מִזֶּה וּמִזֶּה שֶׁאֵינוֹ נוֹדֵר כׇּל עִיקָּר, דִּבְרֵי רַבִּי",
+      "w0": 9,
+      "w1": 17,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):6",
+      "start": 403.25,
+      "end": 403.34,
+      "he": "מֵאִיר. רַבִּי יְהוּדָה אוֹמֵר: טוֹב מִזֶּה וּמִזֶּה נוֹדֵר וּמְשַׁלֵּם.",
+      "w0": 18,
+      "w1": 26,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):6",
+      "start": 403.34,
+      "end": 403.43,
+      "he": "וַאֲפִילּוּ רַבִּי יְהוּדָה לָא קָאָמַר אֶלָּא בְּאוֹמֵר ״הֲרֵי זוֹ״,",
+      "w0": 27,
+      "w1": 35,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97b (Chazarah Daf) (Hebrew):1",
+      "start": 404.07,
+      "end": 404.14,
+      "he": "מַתְנִי׳ הַכֹּל שׁוֹחֲטִין וּשְׁחִיטָתָן כְּשֵׁרָה, חוּץ מֵחֵרֵשׁ",
+      "w0": 0,
+      "w1": 6,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97b (Chazarah Daf) (Hebrew):1",
+      "start": 404.14,
+      "end": 404.21,
+      "he": "שׁוֹטֶה וְקָטָן, שֶׁמָּא יְקַלְקְלוּ אֶת שְׁחִיטָתָן. וְכוּלָּן",
+      "w0": 7,
+      "w1": 13,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97b (Chazarah Daf) (Hebrew):1",
+      "start": 404.21,
+      "end": 404.28,
+      "he": "שֶׁשָּׁחֲטוּ וַאֲחֵרִים רוֹאִין אוֹתָן – שְׁחִיטָתָן כְּשֵׁרָה.",
+      "w0": 14,
+      "w1": 20,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97b (Chazarah Daf) (Hebrew):2",
+      "start": 405.07,
+      "end": 405.16,
+      "he": "גְּמָ׳ ״הַכֹּל שׁוֹחֲטִין״ – לְכַתְּחִלָּה, ״וּשְׁחִיטָתָן כְּשֵׁרָה״ – דִּיעֲבַד!",
+      "w0": 0,
+      "w1": 8,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97b (Chazarah Daf) (Hebrew):3",
+      "start": 406.07,
+      "end": 406.14,
+      "he": "אֲמַר לֵיהּ רַב אַחָא בְּרֵיהּ דְּרָבָא לְרַב",
+      "w0": 0,
+      "w1": 6,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97b (Chazarah Daf) (Hebrew):3",
+      "start": 406.14,
+      "end": 406.22,
+      "he": "אָשֵׁי: וְכֹל ״הַכֹּל״ לְכַתְּחִלָּה הוּא? אֶלָּא מֵעַתָּה: הַכֹּל",
+      "w0": 7,
+      "w1": 14,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97b (Chazarah Daf) (Hebrew):3",
+      "start": 406.22,
+      "end": 406.29,
+      "he": "מְמִירִין, אֶחָד הָאֲנָשִׁים וְאֶחָד הַנָּשִׁים – הָכִי",
+      "w0": 15,
+      "w1": 21,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97b (Chazarah Daf) (Hebrew):3",
+      "start": 406.29,
+      "end": 406.37,
+      "he": "נָמֵי דִּלְכַתְּחִלָּה הוּא? וְהָא כְּתִיב: ״לֹא יַחֲלִיפֶנּוּ וְלֹא",
+      "w0": 22,
+      "w1": 29,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97b (Chazarah Daf) (Hebrew):3",
+      "start": 406.37,
+      "end": 406.44,
+      "he": "יָמִיר אֹתוֹ טוֹב בְּרָע אוֹ רַע בְּטוֹב״!",
+      "w0": 30,
+      "w1": 36,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97b (Chazarah Daf) (Hebrew):4",
+      "start": 407.07,
+      "end": 407.15,
+      "he": "הָתָם, כִּדְקָתָנֵי טַעְמָא: לֹא שֶׁהָאָדָם רַשַּׁאי לְהָמִיר, אֶלָּא",
+      "w0": 0,
+      "w1": 7,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97b (Chazarah Daf) (Hebrew):4",
+      "start": 407.15,
+      "end": 407.22,
+      "he": "שֶׁאִם הֵמִיר – מוּמָר, וְסוֹפֵג אֶת הָאַרְבָּעִים.",
+      "w0": 8,
+      "w1": 14,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97b (Chazarah Daf) (Hebrew):5",
+      "start": 408.07,
+      "end": 408.16,
+      "he": "אֶלָּא הַכֹּל מַעֲרִיכִין וְנֶעֱרָכִין, נוֹדְרִין וְנִידָּרִין, הָכִי נָמֵי דִּלְכַתְּחִלָּה?",
+      "w0": 0,
+      "w1": 8,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97b (Chazarah Daf) (Hebrew):5",
+      "start": 408.16,
+      "end": 408.25,
+      "he": "וְהָא כְּתִיב: ״וְכִי תֶחְדַּל לִנְדֹּר לֹא יִהְיֶה בְךָ חֵטְא״!",
+      "w0": 9,
+      "w1": 17,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97b (Chazarah Daf) (Hebrew):6",
+      "start": 409.07,
+      "end": 409.16,
+      "he": "וּכְתִיב: ״טוֹב אֲשֶׁר לֹא תִדֹּר מִשֶּׁתִּדּוֹר וְלֹא תְשַׁלֵּם״, וְתַנְיָא:",
+      "w0": 0,
+      "w1": 8,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97b (Chazarah Daf) (Hebrew):6",
+      "start": 409.16,
+      "end": 409.25,
+      "he": "טוֹב מִזֶּה וּמִזֶּה שֶׁאֵינוֹ נוֹדֵר כׇּל עִיקָּר, דִּבְרֵי רַבִּי",
+      "w0": 9,
+      "w1": 17,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97b (Chazarah Daf) (Hebrew):6",
+      "start": 409.25,
+      "end": 409.34,
+      "he": "מֵאִיר. רַבִּי יְהוּדָה אוֹמֵר: טוֹב מִזֶּה וּמִזֶּה נוֹדֵר וּמְשַׁלֵּם.",
+      "w0": 18,
+      "w1": 26,
+      "estimated": true
+    },
+    {
+      "ref": "Chullin 97b (Chazarah Daf) (Hebrew):6",
+      "start": 409.34,
+      "end": 409.43,
+      "he": "וַאֲפִילּוּ רַבִּי יְהוּדָה לָא קָאָמַר אֶלָּא בְּאוֹמֵר ״הֲרֵי זוֹ״,",
+      "w0": 27,
+      "w1": 35,
+      "estimated": true
+    }
+  ],
+  "wordTimeline": [
+    {
+      "start": 260.93,
+      "end": 287.95,
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):3",
+      "w0": 18,
+      "w1": 18
+    },
+    {
+      "start": 287.95,
+      "end": 297.96,
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):3",
+      "w0": 24,
+      "w1": 24
+    },
+    {
+      "start": 297.96,
+      "end": 300.3,
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):3",
+      "w0": 34,
+      "w1": 34
+    },
+    {
+      "start": 300.3,
+      "end": 303.64,
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):3",
+      "w0": 25,
+      "w1": 25
+    },
+    {
+      "start": 303.64,
+      "end": 336.0,
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):3",
+      "w0": 29,
+      "w1": 29
+    },
+    {
+      "start": 336.0,
+      "end": 337.67,
+      "ref": "Chullin 96b (Chazarah Daf) (Hebrew):6",
+      "w0": 34,
+      "w1": 35
+    },
+    {
+      "start": 337.67,
+      "end": 370.37,
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):3",
+      "w0": 12,
+      "w1": 13
+    },
+    {
+      "start": 370.37,
+      "end": 370.7,
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):3",
+      "w0": 7,
+      "w1": 8
+    },
+    {
+      "start": 370.7,
+      "end": 400.07,
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):3",
+      "w0": 6,
+      "w1": 6
+    },
+    {
+      "start": 400.07,
+      "end": 943.28,
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):3",
+      "w0": 34,
+      "w1": 34
+    },
+    {
+      "start": 943.28,
+      "end": 945.28,
+      "ref": "Chullin 97a (Chazarah Daf) (Hebrew):3",
+      "w0": 29,
+      "w1": 29
+    }
+  ],
+  "jobId": "2a82a8fdf7c8451da246cc60ae3c4a41"
+}
