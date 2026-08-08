@@ -161,6 +161,20 @@ function saveDraft(silent = false) {
   }
 }
 
+// The raw text the engine actually heard for a segment's word range, pulled
+// from state.wordTimeline (see loadAlignment()'s heardText mapping) rather
+// than stored on the segment itself -- segments only carry the matched
+// canonical text (he), never what was transcribed before matching. This is
+// the "heard" half of the (heard, actual) pairs build_voice_confusions.py
+// diffs to find real letter confusions.
+function heardTextForSegment(segment) {
+  if (!segment || segment.w0 == null || segment.w1 == null) return '';
+  const parts = state.wordTimeline
+    .filter((e) => e.ref === segment.ref && e.w1 >= segment.w0 && e.w0 <= segment.w1 && e.heardText)
+    .map((e) => e.heardText);
+  return [...new Set(parts)].join(' ').trim();
+}
+
 // Banks (what the voice engine originally guessed, what the admin actually
 // corrected it to) as training data -- see save-voice-correction.mjs's own
 // comment. Only fires from the explicit "Save draft" button click, not
@@ -181,13 +195,14 @@ async function bankVoiceCorrection() {
     return !now || Math.abs(now.start - orig.start) > 0.05 || Math.abs(now.end - orig.end) > 0.05 || now.he !== orig.he;
   });
   if (!changed) return; // nothing actually corrected -- don't bank a no-op
+  const withHeardText = (s) => ({ ref: s.ref, start: s.start, end: s.end, he: s.he, heardText: heardTextForSegment(s) });
   try {
     const response = await fetch('/api/save-voice-correction', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ref: state.dafRef,
-        original: baseline.segments,
+        original: baseline.segments.map(withHeardText),
         corrected: state.segments.map((s) => ({ ref: s.ref, start: s.start, end: s.end, he: s.he })),
       }),
     });
@@ -198,7 +213,7 @@ async function bankVoiceCorrection() {
     // against the original engine guess again.
     state.voiceCorrectionBaseline = {
       ref: state.dafRef,
-      segments: state.segments.map((s) => ({ ref: s.ref, start: s.start, end: s.end, he: s.he })),
+      segments: state.segments.map((s) => ({ ref: s.ref, start: s.start, end: s.end, he: s.he, w0: s.w0, w1: s.w1 })),
     };
   } catch (error) {
     console.error('Could not bank the voice-recognition correction.', error);
@@ -2456,7 +2471,8 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
           end: Number(entry.end) || Number(entry.start),
           ref: String(entry.ref),
           w0: Number(entry.w0) || 0,
-          w1: Number(entry.w1) || 0
+          w1: Number(entry.w1) || 0,
+          heardText: typeof entry.heardText === 'string' ? entry.heardText : ''
         }))
     : [];
   state.alignmentDuration = Number(data.duration) || 0;
@@ -2468,7 +2484,7 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
   // Anything else (an OCR sync, a manual import) has no such baseline to
   // diff against, so this stays null for those.
   state.voiceCorrectionBaseline = data.generator === 'voice_align.py'
-    ? { ref: state.dafRef, segments: state.segments.map((s) => ({ ref: s.ref, start: s.start, end: s.end, he: s.he })) }
+    ? { ref: state.dafRef, segments: state.segments.map((s) => ({ ref: s.ref, start: s.start, end: s.end, he: s.he, w0: s.w0, w1: s.w1 })) }
     : null;
   state.currentProjectId = data.projectId || null;
   state.alignmentStatus = data.alignmentStatus || 'in-progress';
