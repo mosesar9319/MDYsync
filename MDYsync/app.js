@@ -1477,17 +1477,38 @@ function scoreQuadConfidence(orderedPoints, imageWidth, imageHeight) {
   return { score, reason: score >= CORNER_CONFIDENCE_THRESHOLD ? 'ok' : 'low-confidence' };
 }
 
+// Generous, but bounded -- a real end-to-end trial against this exact code
+// path (a realistic synthetic photo run through the real OpenCV.js library)
+// surfaced that the library's async init can, at least in some browser
+// environments, simply never settle: neither resolve nor reject, well past
+// the point a normal load or WASM compile would ever take (confirmed
+// separately that both the network fetch and the raw WebAssembly.compile
+// step for this exact ~7.5MB module are fast on their own -- the stall is
+// somewhere in the library's own runtime bring-up). A bare `await` with no
+// timeout would leave the reader stuck on "Finding the page…" forever in
+// that case, which is worse than just falling back to the manual step --
+// this bounds the wait so a stuck (or merely slow-on-a-weak-device) load
+// always degrades gracefully instead.
+const AUTO_DETECT_TIMEOUT_MS = 8000;
+
+function withTimeout(promise, ms, message) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
+  ]);
+}
+
 // Tries automatic detection first; only falls back to the manual
-// drag-corners screen when detection fails outright or isn't confident
-// enough to trust unattended. On success, skips straight past the align
-// screen into confirmScan -- the whole point of this feature -- so a normal
-// scan really is just "snap the photo."
+// drag-corners screen when detection fails outright, times out, or isn't
+// confident enough to trust unattended. On success, skips straight past the
+// align screen into confirmScan -- the whole point of this feature -- so a
+// normal scan really is just "snap the photo."
 async function autoDetectAndProceed() {
   showScanStatus('Finding the page…', 'busy');
   let orderedFractionCorners = null;
   let confidence = 0;
   try {
-    const cv = await loadOpenCv();
+    const cv = await withTimeout(loadOpenCv(), AUTO_DETECT_TIMEOUT_MS, 'Timed out loading the page-detection library.');
     const img = await loadImageElement(state.scanPhotoDataUrl);
     const quad = detectPageCorners(cv, img);
     if (quad) {
@@ -1496,9 +1517,9 @@ async function autoDetectAndProceed() {
       orderedFractionCorners = ordered.map(([x, y]) => [x / state.scanImageWidth, y / state.scanImageHeight]);
     }
   } catch (error) {
-    // Best-effort enhancement -- any failure (library didn't load, no
-    // network, WASM unsupported, nothing found) just falls back to the
-    // manual step below rather than blocking the scan entirely.
+    // Best-effort enhancement -- any failure (library didn't load, timed
+    // out, no network, WASM unsupported, nothing found) just falls back to
+    // the manual step below rather than blocking the scan entirely.
     console.error('Automatic page detection failed:', error);
   }
 
