@@ -1282,8 +1282,240 @@ const SCAN_MAX_DIMENSION = 1600;
 // Corners default to a generous inward inset, not the photo's own edges --
 // most photos have some background/table visible around the book, so
 // starting the drag handles a little inside a typical framing needs less
-// adjustment than starting at the raw edges would.
+// adjustment than starting at the raw edges would. Only actually used now
+// when automatic detection (below) can't find anything at all to seed from.
 const SCAN_DEFAULT_INSET = 0.06;
+const DEFAULT_SCAN_CORNERS = [
+  [SCAN_DEFAULT_INSET, SCAN_DEFAULT_INSET],
+  [1 - SCAN_DEFAULT_INSET, SCAN_DEFAULT_INSET],
+  [1 - SCAN_DEFAULT_INSET, 1 - SCAN_DEFAULT_INSET],
+  [SCAN_DEFAULT_INSET, 1 - SCAN_DEFAULT_INSET],
+];
+
+// --- Automatic page-corner detection --------------------------------------
+// The reader shouldn't have to drag four corners into place for every scan
+// -- most of the time the page's edges can be found automatically the
+// instant the photo is taken, the same way real "scanner" apps work: find
+// the page's quadrilateral in the frame, then feed those corners into the
+// exact same homography-projection path the manual step already produces
+// (scanCorners, confirmScan). The manual screen survives only as a fallback
+// for a photo detection can't read confidently (see autoDetectAndProceed
+// and CORNER_CONFIDENCE_THRESHOLD below) -- silently mis-projecting every
+// word position on a bad guess would be worse than one extra tap.
+//
+// NOT YET VALIDATED AGAINST REAL PHONE PHOTOS: this sandbox's headless
+// browser has no outbound network access at all (confirmed directly -- even
+// a bare `fetch()` to the CDN below fails here), so neither the OpenCV.js
+// load nor the detection pipeline's actual accuracy on a real photographed
+// page could be exercised end to end during development. The geometry/
+// confidence math below (orderQuadPoints, scoreQuadConfidence) is tested
+// directly; the CV pipeline itself follows the standard, well-established
+// technique real scanner apps use, but its real-world hit rate on an actual
+// phone photo is unverified -- same caveat scan-daf-page.mjs already
+// documents for the header-OCR step it feeds into.
+
+const OPENCV_JS_VERSION = '4.9.0-release.1';
+let openCvPromise = null;
+
+// Lazily loads OpenCV.js (a large WASM build, ~10MB) only once the camera
+// scan feature actually needs it -- mirrors loadPdfJs's lazy-CDN-script
+// pattern above so nothing else in the app pays for it. Emscripten builds
+// have varied across versions in how they signal "actually ready to use"
+// (immediately usable, a thenable Module, or an onRuntimeInitialized
+// callback) -- this handles all three rather than assuming one, since
+// guessing wrong here would just make every scan quietly fall back to the
+// manual corner step instead of failing loudly.
+function loadOpenCv() {
+  if (window.cv?.Mat) return Promise.resolve(window.cv);
+  if (openCvPromise) return openCvPromise;
+  openCvPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = `https://cdn.jsdelivr.net/npm/@techstark/opencv-js@${OPENCV_JS_VERSION}/dist/opencv.js`;
+    script.async = true;
+    script.onerror = () => {
+      openCvPromise = null;
+      reject(new Error('Could not load the page-detection library.'));
+    };
+    script.onload = async () => {
+      try {
+        let cv = window.cv;
+        if (!cv) throw new Error('Page-detection library did not attach itself.');
+        if (typeof cv.then === 'function') cv = await cv;
+        if (!cv.Mat) await new Promise((ready) => { cv['onRuntimeInitialized'] = ready; });
+        window.cv = cv;
+        resolve(cv);
+      } catch (error) {
+        openCvPromise = null;
+        reject(error);
+      }
+    };
+    document.head.appendChild(script);
+  });
+  return openCvPromise;
+}
+
+// Runs the standard "flatten a photographed document" pipeline (grayscale ->
+// blur -> edge detection -> contour finding -> largest convex 4-sided
+// shape) to find the page's corners without the reader marking them by
+// hand. Returns 4 corner points in image-pixel space (unordered), or null
+// if nothing plausible was found.
+function detectPageCorners(cv, imageSource) {
+  const src = cv.imread(imageSource);
+  const gray = new cv.Mat();
+  const blurred = new cv.Mat();
+  const edges = new cv.Mat();
+  const dilated = new cv.Mat();
+  const kernel = cv.Mat.ones(3, 3, cv.CV_8U);
+  const contours = new cv.MatVector();
+  const hierarchy = new cv.Mat();
+  try {
+    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+    cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
+    cv.Canny(blurred, edges, 50, 150);
+    cv.dilate(edges, dilated, kernel);
+    cv.findContours(dilated, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+
+    let best = null;
+    let bestArea = 0;
+    for (let i = 0; i < contours.size(); i++) {
+      const contour = contours.get(i);
+      const approx = new cv.Mat();
+      try {
+        const perimeter = cv.arcLength(contour, true);
+        cv.approxPolyDP(contour, approx, 0.02 * perimeter, true);
+        if (approx.rows === 4 && cv.isContourConvex(approx)) {
+          const area = cv.contourArea(approx);
+          if (area > bestArea) {
+            bestArea = area;
+            best = [];
+            for (let r = 0; r < 4; r++) best.push([approx.data32S[r * 2], approx.data32S[r * 2 + 1]]);
+          }
+        }
+      } finally {
+        approx.delete();
+        contour.delete();
+      }
+    }
+    return best;
+  } finally {
+    src.delete();
+    gray.delete();
+    blurred.delete();
+    edges.delete();
+    dilated.delete();
+    kernel.delete();
+    contours.delete();
+    hierarchy.delete();
+  }
+}
+
+// Orders 4 arbitrary quad points into [top-left, top-right, bottom-right,
+// bottom-left] -- the standard sum/diff trick (top-left has the smallest
+// x+y, bottom-right the largest; top-right has the smallest y-x,
+// bottom-left the largest). Matches the order scanCorners has always used
+// (see the state comment above), so a detected quad slots in exactly where
+// a manually-dragged one would.
+function orderQuadPoints(points) {
+  const bySum = [...points].sort((a, b) => (a[0] + a[1]) - (b[0] + b[1]));
+  const byDiff = [...points].sort((a, b) => (a[1] - a[0]) - (b[1] - b[0]));
+  return [bySum[0], byDiff[0], bySum[3], byDiff[3]]; // top-left, top-right, bottom-right, bottom-left
+}
+
+// A physical Vilna Shas page's own height/width proportion (not the photo's)
+// -- used below to sanity-check a detected quad actually looks like a book
+// page rather than some other rectangular thing in frame.
+const PAGE_ASPECT_RATIO = 1.42;
+const CORNER_CONFIDENCE_THRESHOLD = 0.55;
+
+// Scores how likely a detected (and already-ordered) quadrilateral really is
+// the photographed page, so a bad or uncertain detection can fall back to
+// manual adjustment instead of silently mis-projecting every word position.
+// Not a real probability -- just a monotonic 0-1 heuristic combining three
+// signals: how rectangular it is (opposite sides roughly equal length), how
+// closely its apparent proportions match a real page's, and how much of the
+// frame it fills.
+function scoreQuadConfidence(orderedPoints, imageWidth, imageHeight) {
+  if (!orderedPoints || orderedPoints.length !== 4 || !imageWidth || !imageHeight) {
+    return { score: 0, reason: 'no-quad-found' };
+  }
+  const [tl, tr, br, bl] = orderedPoints;
+
+  const area = 0.5 * Math.abs(
+    (tl[0] * tr[1] - tr[0] * tl[1]) + (tr[0] * br[1] - br[0] * tr[1]) +
+    (br[0] * bl[1] - bl[0] * br[1]) + (bl[0] * tl[1] - tl[0] * bl[1])
+  );
+  const areaRatio = area / (imageWidth * imageHeight);
+  if (areaRatio < 0.15) return { score: Math.max(0, 0.1 * (areaRatio / 0.15)), reason: 'too-small' };
+
+  // A quad matching the photo's own four corners almost exactly means no
+  // distinct edge was actually found (the same fallback scan-daf-page.mjs
+  // uses server-side when no corners are supplied at all) --
+  // indistinguishable from "detection didn't really happen."
+  const edgeEps = 0.01;
+  const bounds = [[0, 0], [imageWidth, 0], [imageWidth, imageHeight], [0, imageHeight]];
+  const looksLikeFullFrame = orderedPoints.every(([x, y], i) => {
+    const [bx, by] = bounds[i];
+    return Math.abs(x - bx) < imageWidth * edgeEps && Math.abs(y - by) < imageHeight * edgeEps;
+  });
+  if (looksLikeFullFrame) return { score: 0.15, reason: 'matches-full-frame' };
+
+  const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  const topW = dist(tl, tr), bottomW = dist(bl, br);
+  const leftH = dist(tl, bl), rightH = dist(tr, br);
+  const widthRatio = Math.min(topW, bottomW) / (Math.max(topW, bottomW) || 1);
+  const heightRatio = Math.min(leftH, rightH) / (Math.max(leftH, rightH) || 1);
+  const shapeScore = (widthRatio + heightRatio) / 2; // 1 = perfectly parallel opposite sides
+
+  const avgW = (topW + bottomW) / 2, avgH = (leftH + rightH) / 2;
+  const apparentRatio = avgH / (avgW || 1);
+  const ratioDeviation = Math.abs(apparentRatio - PAGE_ASPECT_RATIO) / PAGE_ASPECT_RATIO;
+  const aspectScore = Math.max(0, 1 - ratioDeviation / 0.6); // tolerates up to ~60% deviation (perspective foreshortening)
+
+  const areaScore = Math.min(1, (areaRatio - 0.15) / 0.35); // ramps 0->1 from 15%->50% frame coverage
+
+  const score = Math.max(0, Math.min(1, 0.4 * shapeScore + 0.3 * aspectScore + 0.3 * areaScore));
+  return { score, reason: score >= CORNER_CONFIDENCE_THRESHOLD ? 'ok' : 'low-confidence' };
+}
+
+// Tries automatic detection first; only falls back to the manual
+// drag-corners screen when detection fails outright or isn't confident
+// enough to trust unattended. On success, skips straight past the align
+// screen into confirmScan -- the whole point of this feature -- so a normal
+// scan really is just "snap the photo."
+async function autoDetectAndProceed() {
+  showScanStatus('Finding the page…', 'busy');
+  let orderedFractionCorners = null;
+  let confidence = 0;
+  try {
+    const cv = await loadOpenCv();
+    const img = await loadImageElement(state.scanPhotoDataUrl);
+    const quad = detectPageCorners(cv, img);
+    if (quad) {
+      const ordered = orderQuadPoints(quad);
+      confidence = scoreQuadConfidence(ordered, state.scanImageWidth, state.scanImageHeight).score;
+      orderedFractionCorners = ordered.map(([x, y]) => [x / state.scanImageWidth, y / state.scanImageHeight]);
+    }
+  } catch (error) {
+    // Best-effort enhancement -- any failure (library didn't load, no
+    // network, WASM unsupported, nothing found) just falls back to the
+    // manual step below rather than blocking the scan entirely.
+    console.error('Automatic page detection failed:', error);
+  }
+
+  if (orderedFractionCorners && confidence >= CORNER_CONFIDENCE_THRESHOLD) {
+    state.scanCorners = orderedFractionCorners;
+    await confirmScan();
+    return;
+  }
+
+  state.scanCorners = orderedFractionCorners || DEFAULT_SCAN_CORNERS;
+  $('scanAlignHint').textContent = orderedFractionCorners
+    ? "We took a guess at the page's edges — drag any corner that's off, then confirm."
+    : "Couldn't find the page automatically — drag the four corners to match its real edges, then confirm.";
+  $('scanStatus').hidden = true;
+  $('scanAlign').hidden = false;
+  renderScanCorners();
+}
 
 function resetScanUi() {
   $('scanIntro').hidden = false;
@@ -1341,18 +1573,10 @@ async function handleScanFileSelected(file) {
     state.scanPhotoDataUrl = downscaled.dataUrl;
     state.scanImageWidth = downscaled.width;
     state.scanImageHeight = downscaled.height;
-    state.scanCorners = [
-      [SCAN_DEFAULT_INSET, SCAN_DEFAULT_INSET],
-      [1 - SCAN_DEFAULT_INSET, SCAN_DEFAULT_INSET],
-      [1 - SCAN_DEFAULT_INSET, 1 - SCAN_DEFAULT_INSET],
-      [SCAN_DEFAULT_INSET, 1 - SCAN_DEFAULT_INSET],
-    ];
     $('scanPhoto').src = state.scanPhotoDataUrl;
     $('scanIntro').hidden = true;
     $('scanResult').hidden = true;
-    $('scanStatus').hidden = true;
-    $('scanAlign').hidden = false;
-    renderScanCorners();
+    await autoDetectAndProceed();
   } catch (error) {
     console.error(error);
     showScanStatus(`Could not load that photo: ${error.message}`, 'error');
@@ -1412,6 +1636,15 @@ async function confirmScan() {
   } catch (error) {
     console.error(error);
     showScanStatus(error.message, 'error');
+    // A failed scan needs a concrete next step -- reveal the corner
+    // adjustment screen (already seeded with whatever corners were used,
+    // auto-detected or not) rather than a dead end. This matters most for
+    // the auto-detect path above, which normally skips this screen entirely
+    // and would otherwise leave the reader stranded on just an error message
+    // with no visible way to retry.
+    $('scanAlignHint').textContent = "That didn't work — check the corners match the page's real edges, then try again.";
+    $('scanAlign').hidden = false;
+    renderScanCorners();
   } finally {
     $('scanConfirmButton').disabled = false;
   }
