@@ -49,15 +49,23 @@
     /* This page is a page-by-page reader, not a video player -- app.js still
        expects the full player DOM to exist (see the hard-required elements
        kept below, same contract watch/index.html and player/index.html
-       satisfy), but only the daf-card half of it is ever actually shown
-       here. Hiding .player-card via CSS (not omitting it from the markup)
-       keeps every element app.js's many un-optional-chained $('id') calls
-       expect present, without duplicating any of its rendering logic for a
-       second, browse-specific "page view." */
+       satisfy), but only the daf-card half is shown by default. Keeping
+       .player-card in the markup unhidden (rather than the old blanket
+       display:none) and gating it on a .revealed class instead lets
+       playWordInline() (app.js) reveal it in place the first time a word is
+       tapped, without duplicating any of app.js's video-loading/rendering
+       logic for a second, browse-specific player. */
     body[data-page="browse"] .workspace { display: block; }
-    body[data-page="browse"] .player-card { display: none; }
+    body[data-page="browse"] .player-card:not(.revealed) { display: none; }
+    body[data-page="browse"] .player-card.revealed {
+      min-height: auto;
+      margin-bottom: 18px;
+    }
+    body[data-page="browse"] .player-card.revealed .video-frame { max-height: 40vh; }
     body[data-page="browse"] .daf-card { min-height: 82vh; }
     body[data-page="browse"] .setup-strip .video-field { display: none; }
+    #browseHideVideoButton { display: none; }
+    body[data-page="browse"] .player-card.revealed #browseHideVideoButton { display: inline-flex; }
     .browse-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
     .browse-nav-label { color: var(--muted); font-size: 13px; text-align: center; flex: 1; }
   </style>
@@ -175,7 +183,7 @@
       </div>
 
       <section class="workspace">
-        <article class="player-card card" hidden>
+        <article class="player-card card">
           <div class="card-heading">
             <div>
               <div class="eyebrow">Shiur player</div>
@@ -185,6 +193,7 @@
               <span>Current location</span>
               <strong id="currentRef">No daf loaded</strong>
               <button class="favorite-button" id="favoriteButton" type="button" aria-label="Favorite this daf" title="Save to favorites" hidden>☆</button>
+              <button class="button ghost small" id="browseHideVideoButton" type="button">Hide video</button>
             </div>
           </div>
 
