@@ -1214,6 +1214,20 @@ async function playWordInline(ref, wordIndex) {
       return;
     }
   }
+  // loadAlignmentData() (shared with the player/studio) deliberately shows
+  // the alignment job's own internal title there ("Caption OCR alignment --
+  // Chullin 100b, Chullin 101a, Chullin 101b") -- useful for an admin
+  // reviewing a sync job, meaningless to a reader just watching. The
+  // video's own real title (state.videoSource.label -- the actual channel
+  // upload title, once loadDaf's restoreVideoSource has resolved) is what
+  // belongs here instead; falls back to the plain daf ref if a video ever
+  // has no real label of its own.
+  // 'YouTube'/'Direct link' are loadYouTubeVideo/loadDirectVideoUrl's own
+  // generic placeholder labels for a source with no real title of its own
+  // -- not worth showing over the plain daf ref either.
+  const genericLabels = ['YouTube', 'Direct link'];
+  const realLabel = state.videoSource?.label && !genericLabels.includes(state.videoSource.label) ? state.videoSource.label : null;
+  $('lectureTitle').textContent = realLabel || realDafRef(ref);
   seekToVilnaWord(ref, wordIndex);
   if (isPaused()) await togglePlay();
 }
