@@ -137,6 +137,12 @@ h2 { margin-bottom: 0; }
 .video-frame:fullscreen .video-inline-controls,
 .video-frame:-webkit-full-screen .video-inline-controls,
 .video-frame.overlay-on .video-inline-controls { display: flex; }
+/* :hover never reliably fires on touch devices, so a hover-only reveal makes this
+   bar -- the only way to reach fullscreen at all -- permanently invisible on phones
+   and tablets. Show it unconditionally wherever hover isn't supported. */
+@media (hover: none) {
+  .video-inline-controls { display: flex; }
+}
 .video-inline-play { width: 24px; height: 24px; padding: 0; border: none; background: none; color: white; cursor: pointer; display: grid; place-items: center; flex-shrink: 0; }
 .video-inline-play svg { width: 17px; height: 17px; }
 .inline-scrubber { flex: 1; accent-color: var(--accent); cursor: pointer; height: 4px; }
