@@ -1155,11 +1155,11 @@ function renderVilnaWordBoxes() {
     el.style.width = `${box.w * 100}%`;
     el.style.height = `${box.h * 100}%`;
     el.addEventListener('click', () => {
-      // The Daf browser has no loaded video/alignment to seek within at all
-      // -- seekToVilnaWord's own state (wordTimeline/segments) belongs to
-      // whatever the player last loaded, not this page -- so a tap there
-      // deep-links to the real player instead, landing at the same moment.
-      if (state.browseMode) navigateToPlayerAtWord(box.ref, box.wordIndex);
+      // The Daf browser has its own (initially hidden) video player on the
+      // same page -- a tap reveals and plays into that in place, rather
+      // than navigating away the way the scan-only page's tapScannedWord
+      // still has to (it has no video-player DOM at all to play into).
+      if (state.browseMode) playWordInline(box.ref, box.wordIndex);
       else if (state.vilnaMarkMode) markSegmentAtVilnaWord(box.ref, box.wordIndex);
       else seekToVilnaWord(box.ref, box.wordIndex);
     });
@@ -1181,6 +1181,30 @@ function navigateToPlayerAtWord(ref, wordIndex) {
   if (parsed.variant === 'chazarah') params.set('variant', 'chazarah');
   if (parsed.language === 'he') params.set('language', 'hebrew');
   location.href = `/player/?${params.toString()}`;
+}
+
+// The Daf browser's own in-page equivalent of navigateToPlayerAtWord above --
+// same "load the tapped word's daf if it isn't already on screen" shape as
+// tapScannedWord, but reveals and plays into browse/index.html's own
+// .player-card (present in the DOM, just hidden until first needed -- see
+// browse/index.html's own comment) instead of leaving the page. Loading a
+// different ref here never disturbs which page image is shown: renderVilnaPage
+// (via currentVilnaPageKey) always prefers state.browsePageRef over anything
+// video/segment-derived, and loadDaf() never touches the view-switch itself.
+async function playWordInline(ref, wordIndex) {
+  playerCard.classList.add('revealed');
+  playerCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (state.dafRef !== ref) {
+    try {
+      await loadDaf(ref);
+    } catch (error) {
+      console.error(error);
+      showToast(`Could not load ${ref}: ${error.message}`, 'error');
+      return;
+    }
+  }
+  seekToVilnaWord(ref, wordIndex);
+  if (isPaused()) await togglePlay();
 }
 
 function seekToVilnaWord(ref, wordIndex) {
@@ -1887,18 +1911,55 @@ async function togglePlay() {
 // seek -- e.g. a resume-on-load retry still pending when the reader drags the
 // scrubber themselves a moment later. Every fresh top-level call (attempt 0)
 // claims a new generation; a retry only fires if nothing newer has started.
+//
+// 20 attempts (~8s) rather than the original 5 (~2s): a *freshly constructed*
+// player cueing its very first video -- the Daf browser's inline video and
+// the camera-scan page's deep link both hit exactly this case on every tap,
+// not just the occasional "resume where I left off" -- can take meaningfully
+// longer than 2 seconds to become seek-ready, especially on a slower
+// connection. The old budget gave up silently well within that window,
+// which is exactly what "tapping a word just plays from the beginning"
+// looked like: not a missing retry, just not enough of it.
 let seekGeneration = 0;
 function seekYouTubePlayer(time, allowSeekAhead, attempt = 0, generation = ++seekGeneration) {
   const player = state.youtubePlayer;
   if (!player?.seekTo) return;
   player.seekTo(time, allowSeekAhead);
-  if (attempt >= 4) return;
+  if (attempt >= 20) return;
   setTimeout(() => {
     if (generation !== seekGeneration) return; // superseded by a newer seek request
     if (state.playerType !== 'youtube' || state.youtubePlayer !== player) return; // moved on since
     const actual = Number(player.getCurrentTime?.()) || 0;
     if (Math.abs(actual - time) > 2) seekYouTubePlayer(time, allowSeekAhead, attempt + 1, generation);
   }, 400);
+}
+
+// Unlike YouTube's IFrame API (no reliable "ready to seek" event -- see
+// seekYouTubePlayer's own comment above), a plain <video> element does have
+// one: readyState reaches HAVE_METADATA (1) once seeking is actually honored.
+// Setting currentTime before that is silently ignored -- the same "looks
+// like it worked, the video just plays from wherever it actually started"
+// failure as the YouTube race, just for the direct-video-link path instead
+// (loadDirectVideoUrl reassigns src/calls load() without waiting for
+// anything, so a seek requested moments later -- e.g. the Daf browser's
+// inline video, tapping a word right after the daf/video finish loading --
+// routinely lands before metadata's in). `token` is the same kind of guard
+// as seekYouTubePlayer's `generation`: if the src changes again (a newer
+// video) before this fires, the stale listener must not seek the new video
+// to the old target.
+let htmlSeekToken = 0;
+function seekHtmlVideo(time) {
+  const token = ++htmlSeekToken;
+  if (htmlVideo.readyState >= 1) {
+    htmlVideo.currentTime = time;
+    return;
+  }
+  const onLoadedMetadata = () => {
+    htmlVideo.removeEventListener('loadedmetadata', onLoadedMetadata);
+    if (token !== htmlSeekToken) return; // superseded by a newer seek/video since
+    htmlVideo.currentTime = time;
+  };
+  htmlVideo.addEventListener('loadedmetadata', onLoadedMetadata);
 }
 
 function seek(time, allowSeekAhead = true) {
@@ -1908,7 +1969,7 @@ function seek(time, allowSeekAhead = true) {
   if (state.playerType === 'youtube') {
     if (state.youtubeReady) seekYouTubePlayer(clamped, allowSeekAhead);
   } else {
-    htmlVideo.currentTime = clamped;
+    seekHtmlVideo(clamped);
   }
 
   scrubberEls.forEach((el) => { el.value = String(clamped); });
@@ -4156,6 +4217,11 @@ document.querySelectorAll('#dafLanguageToggle .language-option').forEach((button
 // everywhere else, same pattern as the camera-scan listeners above.
 $('browsePrevButton')?.addEventListener('click', () => stepBrowseDaf(-1));
 $('browseNextButton')?.addEventListener('click', () => stepBrowseDaf(1));
+$('browseHideVideoButton')?.addEventListener('click', () => {
+  playerCard.classList.remove('revealed');
+  if (state.playerType === 'youtube') { if (state.youtubeReady) state.youtubePlayer.pauseVideo(); }
+  else htmlVideo.pause();
+});
 // A catalog link (?ref=Chullin+86a&variant=chazarah&language=hebrew) should
 // land straight on that daf instead of the built-in demo -- but the picker
 // it feeds (syncDafPickerFromRef) needs the tractate index loaded first, so
