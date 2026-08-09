@@ -72,6 +72,14 @@ export default async (request) => {
     url: videoSource.url,
     videoId: typeof videoSource.videoId === 'string' ? videoSource.videoId.slice(0, 32) : undefined,
     label: typeof videoSource.label === 'string' ? videoSource.label.slice(0, 100) : undefined,
+    source: 'manual',
+    // Off by default -- see youtube-channel-sync.mjs's own comment. Only
+    // true when the reader explicitly ticks "Lock this video," so a plain
+    // sync/paste (most saves) stays eligible for the hourly job to replace
+    // with a genuinely newer channel upload of the same daf (e.g. the
+    // finished edit replacing a rough cut), instead of losing that
+    // eligibility forever just for having been saved through this endpoint.
+    locked: videoSource.locked === true,
   };
 
   const dispatchResponse = await fetch(

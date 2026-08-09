@@ -20,17 +20,22 @@
 // channel's RSS feed carries -- backfilling anything older is what the
 // manually-dispatched backfill-video-links workflow is for.
 //
-// A link is normally left alone once it exists, so a reader's own pasted
-// correction is never silently overwritten by a later poll. The one
-// exception: the channel sometimes posts an unedited cut of a shiur first,
-// then replaces it on YouTube with the finished edit under a fresh upload
-// (same daf/variant/language, new videoId) once it's ready. When a newly
-// seen upload resolves to a ref that's already linked, but the existing
-// link is itself channel-derived (see the `source: 'channel-auto'` marker
-// below, also written by backfill-video-links.mjs) rather than a reader's
-// own paste, the new video replaces it. A link with no marker at all --
-// anything saved through save-video-link.mjs, or written before this
-// marker existed -- is never touched.
+// A link is replaced whenever a newly seen upload resolves to the same
+// ref's *primary* reading and points at a different videoId -- covering
+// the channel sometimes posting an unedited cut of a shiur first, then
+// replacing it on YouTube with the finished edit under a fresh upload
+// (same daf/variant/language, new videoId) once it's ready. The one
+// exception is a link explicitly marked `locked: true` (see
+// save-video-link.mjs) -- a reader/admin can tick "Lock this video" when
+// saving one to keep this job from ever touching it, but that's opt-in,
+// not the default for every manual save. (Older behavior gated on a
+// `source: 'channel-auto'` marker instead, which meant *any* save made
+// through save-video-link.mjs -- including just syncing against whatever
+// cut was live when OCR/alignment work started -- silently and permanently
+// lost eligibility for this replacement the moment it was saved, even
+// though nothing about it was a deliberate override. `locked` fixes that:
+// it defaults to false, so a plain sync stays replaceable by a real newer
+// upload, and only an explicit lock opts a link out.)
 //
 // Optionally (results/settings.json's autoSyncNewUploads, toggled from the
 // player's admin-only sync dialog and written by save-settings.mjs), a
@@ -197,9 +202,9 @@ export default async (request) => {
           }
         }
         if (!existingLink || existingLink.videoId === entry.videoId) continue; // already up to date, tail reading, or unreadable
-        if (existingLink.source !== 'channel-auto') continue; // a reader's own paste -- never auto-replaced
-        // Falls through: this video's own daf, the existing link is
-        // channel-derived, and it points at a different video (the
+        if (existingLink.locked) continue; // explicitly pinned -- never auto-replaced
+        // Falls through: this video's own daf, the existing link isn't
+        // locked, and it points at a different video (the
         // unedited-cut-replaced-by-the-finished-edit case) -- overwrite it
         // below instead of skipping.
       }

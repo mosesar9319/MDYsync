@@ -58,7 +58,19 @@ const state = {
   scanImageWidth: 0,
   scanImageHeight: 0,
   scanCorners: null,
-  scanDraggingCorner: null
+  scanDraggingCorner: null,
+  // Daf browser (browse/index.html) -- browseMode is detected below from
+  // <body data-page="browse">, not set by a separate script, since app.js
+  // is one big deferred script with no mid-file hook another script tag
+  // could use to inject state between this declaration and the code further
+  // down that reads it. Every other page (player, studio, watch) has no
+  // such marker, so this stays false there and today's video-driven
+  // behavior is untouched. browsePageRef (a picker-built ref, same shape as
+  // dafPickerRef()'s output) drives which page currentVilnaPageKey()
+  // resolves to when set, standing in for the "currently playing video's
+  // segment" that page normally reads instead.
+  browseMode: document.body.dataset.page === 'browse',
+  browsePageRef: null,
 };
 
 const AUTO_SCROLL_RESUME_MS = 4000;
@@ -470,11 +482,21 @@ function saveVideoLinkForCoveredRefs(videoSource, refs = null) {
   }
 }
 
+// The server copy wins whenever it exists: saveVideoLinkToServer() already
+// pushes every local save there in lockstep, so it's the more authoritative
+// (and, since youtube-channel-sync.mjs can replace it later, potentially
+// fresher) of the two -- preferring the local cache unconditionally used to
+// mean this device's own browser could keep showing an outdated cut of a
+// shiur even after the server had already healed to the finished edit. The
+// local copy is only a fallback for when the server has nothing yet (e.g. a
+// save made while offline never reached it).
 async function resolvePreferredVideoSource(ref, localSaved) {
+  const serverSource = await fetchServerVideoLink(ref);
+  if (serverSource) return serverSource;
   if (localSaved?.videoSource && ['youtube', 'direct'].includes(localSaved.videoSource.type)) {
     return localSaved.videoSource;
   }
-  return fetchServerVideoLink(ref);
+  return null;
 }
 
 function flattenText(value) {
@@ -872,7 +894,7 @@ function setVilnaPageStatus(message) {
 // to the new amud's word positions, landing highlights in blank space that
 // belonged on a page that was no longer the one on screen.
 function currentVilnaPageKey() {
-  const activeRef = state.segments[state.activeIndex]?.ref || state.dafRef;
+  const activeRef = state.browsePageRef || state.segments[state.activeIndex]?.ref || state.dafRef;
   const parsed = parseDafRef(activeRef);
   if (!parsed) return { parsed: null, key: null };
   return { parsed, key: `${parsed.tractate}|${parsed.daf}|${parsed.amud}` };
@@ -1121,13 +1143,32 @@ function renderVilnaWordBoxes() {
     el.style.width = `${box.w * 100}%`;
     el.style.height = `${box.h * 100}%`;
     el.addEventListener('click', () => {
-      if (state.vilnaMarkMode) markSegmentAtVilnaWord(box.ref, box.wordIndex);
+      // The Daf browser has no loaded video/alignment to seek within at all
+      // -- seekToVilnaWord's own state (wordTimeline/segments) belongs to
+      // whatever the player last loaded, not this page -- so a tap there
+      // deep-links to the real player instead, landing at the same moment.
+      if (state.browseMode) navigateToPlayerAtWord(box.ref, box.wordIndex);
+      else if (state.vilnaMarkMode) markSegmentAtVilnaWord(box.ref, box.wordIndex);
       else seekToVilnaWord(box.ref, box.wordIndex);
     });
     overlay.appendChild(el);
     state.vilnaWordEls.set(`${box.ref}:${box.wordIndex}`, el);
   }
   updateVilnaMarkTarget();
+}
+
+// Builds the same ?ref=&variant=&language= deep link player/index.html's
+// own loadTalmudIndex().then(...) block already resolves (see there), plus
+// ?seekWord= so it lands at this exact word instead of the top of the daf.
+// box.ref is always the plain, variant-/language-less ref (see
+// renderVilnaWordBoxes above) -- the variant/language actually being
+// browsed live only in the picker, via state.browsePageRef.
+function navigateToPlayerAtWord(ref, wordIndex) {
+  const parsed = parseDafRef(state.browsePageRef) || {};
+  const params = new URLSearchParams({ ref, seekWord: String(wordIndex) });
+  if (parsed.variant === 'chazarah') params.set('variant', 'chazarah');
+  if (parsed.language === 'he') params.set('language', 'hebrew');
+  location.href = `/player/?${params.toString()}`;
 }
 
 function seekToVilnaWord(ref, wordIndex) {
@@ -2505,7 +2546,7 @@ function stopYouTubePoll() {
   state.youtubePollTimer = null;
 }
 
-async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs = null, label = null) {
+async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs = null, label = null, locked = false) {
   if (!validateYouTubeId(videoId)) throw new Error('A valid YouTube video link is required.');
   cleanupObjectUrl();
   await ensureYouTubePlayer(videoId);
@@ -2513,7 +2554,8 @@ async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs =
     type: 'youtube',
     videoId,
     url: `https://www.youtube.com/watch?v=${videoId}`,
-    label: label || 'YouTube'
+    label: label || 'YouTube',
+    locked,
   };
   state.currentProjectId = null;
   $('videoUrl').value = state.videoSource.url;
@@ -2536,7 +2578,7 @@ function titleFromUrl(url) {
   }
 }
 
-function loadDirectVideoUrl(url, saveRefs = null) {
+function loadDirectVideoUrl(url, saveRefs = null, locked = false) {
   let parsed;
   try {
     parsed = new URL(url);
@@ -2547,7 +2589,7 @@ function loadDirectVideoUrl(url, saveRefs = null) {
 
   cleanupObjectUrl();
   switchPlayerType('html5');
-  state.videoSource = { type: 'direct', url: parsed.href, label: 'Direct link' };
+  state.videoSource = { type: 'direct', url: parsed.href, label: 'Direct link', locked };
   htmlVideo.src = parsed.href;
   htmlVideo.load();
   $('lectureTitle').textContent = titleFromUrl(parsed.href);
@@ -2567,9 +2609,10 @@ async function loadVideoFromUrl() {
   button.disabled = true;
   button.textContent = 'Loading…';
   try {
+    const locked = $('lockVideoCheckbox')?.checked === true;
     const youtubeId = extractYouTubeId(input);
-    if (youtubeId) await loadYouTubeVideo(input, youtubeId);
-    else loadDirectVideoUrl(input);
+    if (youtubeId) await loadYouTubeVideo(input, youtubeId, null, null, locked);
+    else loadDirectVideoUrl(input, null, locked);
   } catch (error) {
     console.error(error);
     showToast(error.message || 'Could not load this video link.', 'error');
@@ -2628,10 +2671,10 @@ async function restoreVideoSource(source, saveRefs = null) {
     // just that same generic 'YouTube' sentinel (see loadYouTubeVideo), so
     // it's excluded rather than shown as if it meant something.
     const realLabel = source.label && source.label !== 'YouTube' ? source.label : null;
-    await loadYouTubeVideo(source.url || source.videoId, source.videoId, saveRefs, realLabel);
+    await loadYouTubeVideo(source.url || source.videoId, source.videoId, saveRefs, realLabel, source.locked === true);
   } else if (source.type === 'direct' && source.url) {
     $('videoUrl').value = source.url;
-    loadDirectVideoUrl(source.url, saveRefs);
+    loadDirectVideoUrl(source.url, saveRefs, source.locked === true);
   } else if (source.type === 'local') {
     setSourcePanel('fileSourcePanel');
     showToast(`Choose the exact video file that was analyzed: ${source.fileName || source.url || 'lecture video'}.`);
@@ -3049,7 +3092,10 @@ $('alignmentInput').addEventListener('change', (event) => importAlignment(event.
 $('transcriptInput').addEventListener('change', (event) => importTranscript(event.target.files?.[0]));
 $('exportButton').addEventListener('click', exportAlignment);
 $('evenSpacingButton').addEventListener('click', () => resetEvenSpacing(false));
-$('phraseEditModeButton').addEventListener('click', togglePhraseEditMode);
+// Optional chaining: this button only exists on pages with the alignment
+// editor's phrase-splitting UI (player/studio) -- not watch/index.html or
+// browse/index.html, which otherwise share this same top-level script.
+$('phraseEditModeButton')?.addEventListener('click', togglePhraseEditMode);
 $('vilnaMarkModeButton')?.addEventListener('click', toggleVilnaMarkMode);
 // The editor sits in the same grid column as the daf card (see the HTML
 // comment above #editor) so correcting the sync stays parallel with the
@@ -3144,10 +3190,15 @@ for (const button of muteButtonEls) button.addEventListener('click', () => setMu
 for (const button of fastForwardButtonEls) button.addEventListener('click', skipToNextReading);
 
 function switchDafView(mode) {
+  // Not every page that loads app.js has all three views -- watch/index.html
+  // and browse/index.html only have Text/Vilna page, no Scan -- so each
+  // target element is optional here, unlike dafPage (present everywhere).
   document.querySelectorAll('.view-switch button').forEach((item) => item.classList.toggle('active', item.dataset.view === mode));
   dafPage.hidden = mode !== 'text';
-  $('vilnaPlaceholder').hidden = mode !== 'page';
-  $('scanPlaceholder').hidden = mode !== 'scan';
+  const vilnaPlaceholder = $('vilnaPlaceholder');
+  if (vilnaPlaceholder) vilnaPlaceholder.hidden = mode !== 'page';
+  const scanPlaceholder = $('scanPlaceholder');
+  if (scanPlaceholder) scanPlaceholder.hidden = mode !== 'scan';
   if (mode === 'page') renderVilnaPage();
   if (mode === 'scan') resetScanUi();
 }
@@ -3347,7 +3398,82 @@ function dafPickerRef() {
 function onDafPickerChanged() {
   const ref = dafPickerRef();
   if (!ref) return;
+  if (state.browseMode) {
+    state.browsePageRef = ref;
+    const titleEl = $('dafTitle');
+    if (titleEl) titleEl.textContent = ref;
+    renderVilnaPage();
+    return;
+  }
   loadDaf(ref);
+}
+
+// Steps the picker's own tractate/daf/amud selection by one amud in either
+// direction (b -> the next daf's a, rolling into the next tractate at a
+// startDaf/endDaf boundary) and applies it -- reuses the exact same
+// talmud_index.json-driven helpers the picker's dropdowns already use
+// (amudimForDaf/dafOptionsFor for which amudim/dapim actually exist,
+// refreshDafPickerOptions/refreshDafPickerAmud to keep the dropdowns
+// themselves in sync with the new tractate), so there's no separate
+// "is this a real daf" logic to keep correct in two places.
+function stepBrowseDaf(direction) {
+  const tractate = $('dafTractateSelect')?.value;
+  const entry = syncState.talmudByName[tractate];
+  if (!entry) return;
+  const daf = Number($('dafDafSelect').value);
+  const amud = activeAmud('dafAmudToggle');
+  const sides = amudimForDaf(entry, daf);
+  const sideIndex = sides.indexOf(amud);
+  const dafOptions = dafOptionsFor(entry);
+  const dafIndex = dafOptions.indexOf(daf);
+  const tractateIndex = syncState.tractateNames.indexOf(tractate);
+
+  let nextTractate = tractate;
+  let nextDaf = daf;
+  let nextSide;
+
+  if (direction > 0) {
+    if (sideIndex !== -1 && sideIndex + 1 < sides.length) {
+      nextSide = sides[sideIndex + 1];
+    } else if (dafIndex !== -1 && dafIndex + 1 < dafOptions.length) {
+      nextDaf = dafOptions[dafIndex + 1];
+      nextSide = amudimForDaf(entry, nextDaf)[0];
+    } else if (tractateIndex !== -1 && tractateIndex + 1 < syncState.tractateNames.length) {
+      nextTractate = syncState.tractateNames[tractateIndex + 1];
+      const nextEntry = syncState.talmudByName[nextTractate];
+      const nextOptions = dafOptionsFor(nextEntry);
+      nextDaf = nextOptions[0];
+      nextSide = amudimForDaf(nextEntry, nextDaf)[0];
+    } else {
+      return; // already at the very last amud of the very last tractate
+    }
+  } else {
+    if (sideIndex > 0) {
+      nextSide = sides[sideIndex - 1];
+    } else if (dafIndex > 0) {
+      nextDaf = dafOptions[dafIndex - 1];
+      const prevSides = amudimForDaf(entry, nextDaf);
+      nextSide = prevSides[prevSides.length - 1];
+    } else if (tractateIndex > 0) {
+      nextTractate = syncState.tractateNames[tractateIndex - 1];
+      const prevEntry = syncState.talmudByName[nextTractate];
+      const prevOptions = dafOptionsFor(prevEntry);
+      nextDaf = prevOptions[prevOptions.length - 1];
+      const prevSides = amudimForDaf(prevEntry, nextDaf);
+      nextSide = prevSides[prevSides.length - 1];
+    } else {
+      return; // already at the very first amud of the very first tractate
+    }
+  }
+
+  $('dafTractateSelect').value = nextTractate;
+  refreshDafPickerOptions();
+  $('dafDafSelect').value = String(nextDaf);
+  refreshDafPickerAmud();
+  document.querySelectorAll('#dafAmudToggle .amud-option').forEach((button) => {
+    if (!button.disabled) button.classList.toggle('active', button.dataset.side === nextSide);
+  });
+  onDafPickerChanged();
 }
 
 // Reflects an externally-set ref (loaded via import, restored project,
@@ -3903,20 +4029,49 @@ document.querySelectorAll('#dafLanguageToggle .language-option').forEach((button
     onDafPickerChanged();
   });
 });
+// Only present on browse/index.html -- optional chaining makes this a no-op
+// everywhere else, same pattern as the camera-scan listeners above.
+$('browsePrevButton')?.addEventListener('click', () => stepBrowseDaf(-1));
+$('browseNextButton')?.addEventListener('click', () => stepBrowseDaf(1));
 // A catalog link (?ref=Chullin+86a&variant=chazarah&language=hebrew) should
 // land straight on that daf instead of the built-in demo -- but the picker
 // it feeds (syncDafPickerFromRef) needs the tractate index loaded first, so
 // this waits on the same loadTalmudIndex() call the picker itself depends on.
 loadTalmudIndex().then(() => {
   const params = new URLSearchParams(location.search);
+  // ?view=scan (from the home page's "Scan a page" link) jumps straight to
+  // the Scan view -- independent of whether a ref was also given, since the
+  // scan flow resolves its own daf once a photo is scanned.
+  if (params.get('view') === 'scan') switchDafView('scan');
   const ref = params.get('ref');
+  // The Daf browser (browse/index.html) has no video to load -- either land
+  // on whatever ref the query string names, or fall back to the picker's
+  // own default selection (its <select>s already default to their first
+  // option once loadTalmudIndex() populates them) so the page never opens
+  // to a blank state.
+  if (state.browseMode) {
+    if (ref) syncDafPickerFromRef(ref);
+    switchDafView('page'); // the whole point of this page is the page image, not plain text
+    onDafPickerChanged();
+    return;
+  }
   if (!ref) return;
   const wantsChazarah = params.get('variant') === 'chazarah';
   const wantsHebrew = params.get('language') === 'hebrew' || params.get('language') === 'he';
   let fullRef = ref;
   if (wantsChazarah && !/chazarah/i.test(fullRef)) fullRef += ' (Chazarah Daf)';
   if (wantsHebrew && !/hebrew/i.test(fullRef)) fullRef += ' (Hebrew)';
-  loadDaf(fullRef);
+  loadDaf(fullRef).then(() => {
+    // ?seekWord=<n> (from the Daf browser's tap-a-word deep link) jumps
+    // straight to that word's moment once the alignment's finished loading,
+    // instead of just landing on the daf from the top -- seekToVilnaWord
+    // wants the plain, variant-/language-less ref its own wordTimeline/
+    // segments are keyed under (see realDafRef), not fullRef itself.
+    const seekWord = params.get('seekWord');
+    if (seekWord !== null && !Number.isNaN(Number(seekWord))) {
+      seekToVilnaWord(realDafRef(fullRef), Number(seekWord));
+    }
+  });
 });
 document.querySelectorAll('#syncAmudToggle .amud-option').forEach((button) => {
   button.addEventListener('click', () => {
