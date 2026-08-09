@@ -587,6 +587,8 @@ def build_outputs(canon, segments, events, duration, video_path, refs,
         if timeline and timeline[-1]["startWord"] == ev.start_idx \
                 and timeline[-1]["endWord"] == ev.end_idx:
             timeline[-1]["end"] = timeline[-1]["realEnd"] = ev.t
+            if ev.ocr_text and ev.ocr_text not in timeline[-1]["heardText"]:
+                timeline[-1]["heardText"] = f'{timeline[-1]["heardText"]} {ev.ocr_text}'.strip()
             continue
         timeline.append({
             "start": ev.t,
@@ -599,6 +601,12 @@ def build_outputs(canon, segments, events, duration, video_path, refs,
             "wordIndexEnd": canon[ev.end_idx].word_index,
             "text": " ".join(c.text for c in canon[ev.start_idx:ev.end_idx + 1]),
             "score": ev.score,
+            # Raw OCR/ASR-recognized text for this span, before it was
+            # matched to canonical text -- kept so a later manual correction
+            # can be diffed against it as real confusion-table evidence (see
+            # build_voice_confusions.py). Empty for engines that don't
+            # populate WordEvent.ocr_text.
+            "heardText": ev.ocr_text or "",
         })
     # stretch each entry's "end" to meet the next -- word_timeline wants
     # that (a word stays highlighted on screen until the next one appears),
@@ -701,6 +709,7 @@ def build_outputs(canon, segments, events, duration, video_path, refs,
                 "ref": segments[s]["ref"],
                 "w0": w0,
                 "w1": w1,
+                "heardText": entry["heardText"],
             })
 
     alignment = {

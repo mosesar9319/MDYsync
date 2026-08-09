@@ -59,6 +59,20 @@ export function refDisplay({ tractate, daf, amud, variant, language }) {
   return `${tractate} ${daf}${amud}${variantSuffix}${languageSuffix}`;
 }
 
+// The real Sefaria reference alone, with no variant/language marker -- for
+// anything that ends up fetched from Sefaria (caption_ocr_align.py's own
+// load_canonical/fetch_sefaria) or matched against app.js's realDafRef()/
+// gui_app.py's real_ref(), which strip those same markers back off a
+// refDisplay() string before use. Passing refDisplay()'s output (with the
+// marker still attached) to one of those call sites instead of this produces
+// a ref Sefaria's API doesn't recognize -- e.g. "Chullin 100b (Hebrew)" --
+// which either 500s outright or, worse, resolves to the wrong/empty
+// canonical text and silently fails downstream (0 caption-highlight matches
+// against text that was never the right text to begin with).
+export function plainRef({ tractate, daf, amud }) {
+  return `${tractate} ${daf}${amud}`;
+}
+
 export function buildTalmudLookup(talmudIndex) {
   const byName = new Map();
   const byHebrewName = new Map();

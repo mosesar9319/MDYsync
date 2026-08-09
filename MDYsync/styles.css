@@ -246,6 +246,20 @@ h2 { margin-bottom: 0; }
   from { opacity: 0; }
   to { opacity: 1; }
 }
+/* The word about to be marked (vilnaMarkMode) -- an outline, not a fill, so
+   it stays visible layered under/next to .active's solid yellow fill
+   instead of the two competing for the same pixels. */
+.vilna-word-box.mark-target {
+  outline: 2px dashed rgba(159, 85, 0, .8);
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+.vilna-mark-toggle { width: auto; padding: 0 10px; font-size: 12px; white-space: nowrap; }
+.vilna-mark-toggle.active { background: var(--accent-strong); color: #06201c; border-color: transparent; }
+/* Signals "clicking marks this word" instead of the normal "clicking seeks
+   here" -- the same crosshair browsers already show over an editable
+   region, so it doesn't need an explanatory label to read as different. */
+.vilna-page-wrap.mark-mode .vilna-word-box { cursor: crosshair; }
 .daf-footer { justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 12px; }
 
 .scan-placeholder { min-height: 100%; padding: 20px; color: #453c2e; text-align: center; }

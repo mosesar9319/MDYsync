@@ -17,6 +17,7 @@ const state = {
   usingDefaultAlignment: true,
   editingIndex: 0,
   phraseEditMode: false,
+  vilnaMarkMode: false,
   alignmentStatus: 'placeholder',
   currentProjectId: null,
   wordTimeline: [],
@@ -170,6 +171,20 @@ function saveDraft(silent = false) {
   }
 }
 
+// The raw text the engine actually heard for a segment's word range, pulled
+// from state.wordTimeline (see loadAlignment()'s heardText mapping) rather
+// than stored on the segment itself -- segments only carry the matched
+// canonical text (he), never what was transcribed before matching. This is
+// the "heard" half of the (heard, actual) pairs build_voice_confusions.py
+// diffs to find real letter confusions.
+function heardTextForSegment(segment) {
+  if (!segment || segment.w0 == null || segment.w1 == null) return '';
+  const parts = state.wordTimeline
+    .filter((e) => e.ref === segment.ref && e.w1 >= segment.w0 && e.w0 <= segment.w1 && e.heardText)
+    .map((e) => e.heardText);
+  return [...new Set(parts)].join(' ').trim();
+}
+
 // Banks (what the voice engine originally guessed, what the admin actually
 // corrected it to) as training data -- see save-voice-correction.mjs's own
 // comment. Only fires from the explicit "Save draft" button click, not
@@ -190,13 +205,14 @@ async function bankVoiceCorrection() {
     return !now || Math.abs(now.start - orig.start) > 0.05 || Math.abs(now.end - orig.end) > 0.05 || now.he !== orig.he;
   });
   if (!changed) return; // nothing actually corrected -- don't bank a no-op
+  const withHeardText = (s) => ({ ref: s.ref, start: s.start, end: s.end, he: s.he, heardText: heardTextForSegment(s) });
   try {
     const response = await fetch('/api/save-voice-correction', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ref: state.dafRef,
-        original: baseline.segments,
+        original: baseline.segments.map(withHeardText),
         corrected: state.segments.map((s) => ({ ref: s.ref, start: s.start, end: s.end, he: s.he })),
       }),
     });
@@ -207,7 +223,7 @@ async function bankVoiceCorrection() {
     // against the original engine guess again.
     state.voiceCorrectionBaseline = {
       ref: state.dafRef,
-      segments: state.segments.map((s) => ({ ref: s.ref, start: s.start, end: s.end, he: s.he })),
+      segments: state.segments.map((s) => ({ ref: s.ref, start: s.start, end: s.end, he: s.he, w0: s.w0, w1: s.w1 })),
     };
   } catch (error) {
     console.error('Could not bank the voice-recognition correction.', error);
@@ -1104,10 +1120,14 @@ function renderVilnaWordBoxes() {
     el.style.top = `${box.y * 100}%`;
     el.style.width = `${box.w * 100}%`;
     el.style.height = `${box.h * 100}%`;
-    el.addEventListener('click', () => seekToVilnaWord(box.ref, box.wordIndex));
+    el.addEventListener('click', () => {
+      if (state.vilnaMarkMode) markSegmentAtVilnaWord(box.ref, box.wordIndex);
+      else seekToVilnaWord(box.ref, box.wordIndex);
+    });
     overlay.appendChild(el);
     state.vilnaWordEls.set(`${box.ref}:${box.wordIndex}`, el);
   }
+  updateVilnaMarkTarget();
 }
 
 function seekToVilnaWord(ref, wordIndex) {
@@ -1326,6 +1346,26 @@ async function tapScannedWord(scannedRef, wordRef, wordIndex) {
   seekToVilnaWord(wordRef, wordIndex);
 }
 
+// The Vilna-page equivalent of the marking-bar's "Mark here & advance" (or
+// the phrase-list editor's "Use current time") -- lets an admin correct
+// alignment by clicking the actual word on the real page as the speaker
+// says it, instead of stepping through a text list in order. Same
+// ref/wordIndex-to-segment resolution as seekToVilnaWord (prefer the
+// segment whose own w0/w1 covers this word, since one ref can span several
+// phrase chunks; fall back to the first segment with a matching ref), and
+// reuses setSegmentStart so this banks/autosaves exactly like every other
+// correction path already does.
+function markSegmentAtVilnaWord(ref, wordIndex) {
+  const index = state.segments.findIndex((s) => s.ref === ref && s.w0 !== null && wordIndex >= s.w0 && wordIndex <= s.w1);
+  const resolvedIndex = index !== -1 ? index : state.segments.findIndex((s) => s.ref === ref);
+  if (resolvedIndex === -1) return;
+  const time = getCurrentTime();
+  setSegmentStart(resolvedIndex, time);
+  state.editingIndex = Math.min(resolvedIndex + 1, state.segments.length - 1);
+  updateMarkTargetUi();
+  showToast(`Marked phrase ${resolvedIndex + 1} at ${formatTime(time)}.`);
+}
+
 // Highlights every word belonging to the current segment/phrase, not just
 // the ones a word-level timeline happens to cover -- segment start/end
 // timing is equally solid for both the OCR and voice sync engines, unlike
@@ -1363,6 +1403,26 @@ function updateVilnaOverlay() {
     const hit = activeRef !== '' && box.ref === activeRef
       && (!hasRange || (box.wordIndex >= activeSegment.w0 && box.wordIndex <= activeSegment.w1));
     el.classList.toggle('active', hit);
+  }
+}
+
+// While vilnaMarkMode is on, outlines the word(s) belonging to the phrase
+// that's about to be marked (state.editingIndex) -- a distinct highlight
+// from updateVilnaOverlay's "currently playing" one above, the same
+// distinction the phrase-list editor draws between .active and
+// .mark-target-row. Called whenever editingIndex changes (updateMarkTargetUi)
+// or mark mode itself is toggled, not on every playback tick, so it doesn't
+// need updateVilnaOverlay's dedup-key guard.
+function updateVilnaMarkTarget() {
+  if (!state.vilnaWordEls) return;
+  const target = state.vilnaMarkMode ? state.segments[state.editingIndex] : null;
+  const hasRange = target && target.w0 !== null && target.w1 !== null;
+  for (const box of state.vilnaPageMap?.wordBoxes || []) {
+    const el = state.vilnaWordEls.get(`${box.ref}:${box.wordIndex}`);
+    if (!el) continue;
+    const hit = Boolean(target) && box.ref === target.ref
+      && (!hasRange || (box.wordIndex >= target.w0 && box.wordIndex <= target.w1));
+    el.classList.toggle('mark-target', hit);
   }
 }
 
@@ -1816,6 +1876,7 @@ function updateMarkTargetUi() {
   if (label) label.textContent = total ? `${index + 1} of ${total}` : 'No phrase';
   renderDafWindow();
   document.querySelectorAll('.editor-row').forEach((node, i) => node.classList.toggle('mark-target-row', i === index));
+  updateVilnaMarkTarget();
 }
 
 function selectEditingIndex(index) {
@@ -2024,6 +2085,29 @@ function togglePhraseEditMode() {
   state.phraseEditMode = !state.phraseEditMode;
   $('phraseEditModeButton')?.classList.toggle('active', state.phraseEditMode);
   renderEditor();
+}
+
+// Turns Vilna-page word clicks from "seek there" into "mark this phrase's
+// start at the current playback time" (see markSegmentAtVilnaWord) --
+// correcting alignment by clicking the real word on the real page as the
+// speaker says it, instead of stepping through the phrase list. Works
+// alongside the marking-bar/phrase-list editor, not instead of them: they
+// all drive the same state.editingIndex/state.segments, so a correction
+// started one way can be finished the other. Only meaningful while looking
+// at the page itself (word click targets don't exist in the plain-text
+// view), so turning it on switches there; it doesn't switch back off when
+// turned off, since an admin may still want the page visible afterward.
+function toggleVilnaMarkMode() {
+  if (!state.vilnaMarkMode && !state.vilnaPageMap) {
+    showToast("This daf's Vilna page hasn't been synced yet -- open the Vilna page tab first.", 'error');
+    return;
+  }
+  state.vilnaMarkMode = !state.vilnaMarkMode;
+  $('vilnaMarkModeButton')?.classList.toggle('active', state.vilnaMarkMode);
+  $('vilnaMarkModeButton')?.setAttribute('aria-pressed', String(state.vilnaMarkMode));
+  $('vilnaPageWrap')?.classList.toggle('mark-mode', state.vilnaMarkMode);
+  if (state.vilnaMarkMode) switchDafView('page');
+  updateVilnaMarkTarget();
 }
 
 const NUDGE_STEPS = [-1, -0.1, 0.1, 1];
@@ -2585,7 +2669,8 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
           end: Number(entry.end) || Number(entry.start),
           ref: String(entry.ref),
           w0: Number(entry.w0) || 0,
-          w1: Number(entry.w1) || 0
+          w1: Number(entry.w1) || 0,
+          heardText: typeof entry.heardText === 'string' ? entry.heardText : ''
         }))
     : [];
   state.alignmentDuration = Number(data.duration) || 0;
@@ -2597,7 +2682,7 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
   // Anything else (an OCR sync, a manual import) has no such baseline to
   // diff against, so this stays null for those.
   state.voiceCorrectionBaseline = data.generator === 'voice_align.py'
-    ? { ref: state.dafRef, segments: state.segments.map((s) => ({ ref: s.ref, start: s.start, end: s.end, he: s.he })) }
+    ? { ref: state.dafRef, segments: state.segments.map((s) => ({ ref: s.ref, start: s.start, end: s.end, he: s.he, w0: s.w0, w1: s.w1 })) }
     : null;
   state.currentProjectId = data.projectId || null;
   state.alignmentStatus = data.alignmentStatus || 'in-progress';
@@ -2965,6 +3050,7 @@ $('transcriptInput').addEventListener('change', (event) => importTranscript(even
 $('exportButton').addEventListener('click', exportAlignment);
 $('evenSpacingButton').addEventListener('click', () => resetEvenSpacing(false));
 $('phraseEditModeButton').addEventListener('click', togglePhraseEditMode);
+$('vilnaMarkModeButton')?.addEventListener('click', toggleVilnaMarkMode);
 // The editor sits in the same grid column as the daf card (see the HTML
 // comment above #editor) so correcting the sync stays parallel with the
 // video instead of scrolling to a full-width section below it -- the two
@@ -3057,16 +3143,17 @@ for (const el of volumeSliderEls) el.addEventListener('input', (event) => setVol
 for (const button of muteButtonEls) button.addEventListener('click', () => setMuted(!isMuted()));
 for (const button of fastForwardButtonEls) button.addEventListener('click', skipToNextReading);
 
+function switchDafView(mode) {
+  document.querySelectorAll('.view-switch button').forEach((item) => item.classList.toggle('active', item.dataset.view === mode));
+  dafPage.hidden = mode !== 'text';
+  $('vilnaPlaceholder').hidden = mode !== 'page';
+  $('scanPlaceholder').hidden = mode !== 'scan';
+  if (mode === 'page') renderVilnaPage();
+  if (mode === 'scan') resetScanUi();
+}
+
 for (const button of document.querySelectorAll('.view-switch button')) {
-  button.addEventListener('click', () => {
-    document.querySelectorAll('.view-switch button').forEach((item) => item.classList.toggle('active', item === button));
-    const view = button.dataset.view;
-    dafPage.hidden = view !== 'text';
-    $('vilnaPlaceholder').hidden = view !== 'page';
-    $('scanPlaceholder').hidden = view !== 'scan';
-    if (view === 'page') renderVilnaPage();
-    if (view === 'scan') resetScanUi();
-  });
+  button.addEventListener('click', () => switchDafView(button.dataset.view));
 }
 
 for (const button of document.querySelectorAll('.sync-method-switch button[data-method]')) {

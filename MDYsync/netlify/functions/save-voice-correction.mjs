@@ -27,7 +27,8 @@ const MAX_SEGMENTS = 500;
 function isValidSegmentArray(value) {
   return Array.isArray(value) && value.length > 0 && value.length <= MAX_SEGMENTS
     && value.every((s) => s && typeof s.ref === 'string'
-      && Number.isFinite(s.start) && Number.isFinite(s.end) && typeof s.he === 'string');
+      && Number.isFinite(s.start) && Number.isFinite(s.end) && typeof s.he === 'string'
+      && (s.heardText === undefined || typeof s.heardText === 'string'));
 }
 
 export default async (request) => {
@@ -68,8 +69,13 @@ export default async (request) => {
     // Trimmed to just what a future confusion-table/threshold pass would
     // actually use -- not the full alignment (video source, duration,
     // etc.), which is already published separately under by-ref/ and would
-    // just be duplicated dead weight here.
-    original: original.map((s) => ({ ref: s.ref, start: s.start, end: s.end, he: s.he })),
+    // just be duplicated dead weight here. original[i].heardText (when
+    // present) is what the engine actually recognized for that guess,
+    // before it was matched to canonical text -- see app.js's
+    // heardTextForSegment() -- the real evidence build_voice_confusions.py
+    // diffs against corrected[i].he to find which letters this engine
+    // actually confuses.
+    original: original.map((s) => ({ ref: s.ref, start: s.start, end: s.end, he: s.he, heardText: s.heardText || '' })),
     corrected: corrected.map((s) => ({ ref: s.ref, start: s.start, end: s.end, he: s.he })),
     savedAt: new Date().toISOString(),
   };

@@ -50,6 +50,7 @@ import {
   readingsForVideo,
   refKeyFor,
   refDisplay,
+  plainRef,
 } from '../../shared/mdy-channel.mjs';
 
 const OWNER = 'mosesar9319';
@@ -253,7 +254,14 @@ export default async (request) => {
               client_payload: {
                 driveUrl: null,
                 youtubeUrl: videoSource.url,
-                refs: readings.map((r) => refDisplay(r)),
+                // Plain refs, no variant/language marker -- these get
+                // fetched straight from Sefaria by caption_ocr_align.py,
+                // which doesn't understand "(Chazarah Daf)"/"(Hebrew)" (see
+                // plainRef's own comment). Every auto-dispatched Hebrew/
+                // Chazarah job was failing at that fetch (or worse,
+                // resolving to the wrong text and silently matching zero
+                // captions) before this fix.
+                refs: readings.map((r) => plainRef(r)),
                 jobId: crypto.randomUUID().replace(/-/g, ''),
                 variant: parsed.variant || 'regular',
                 language: parsed.language || 'en',
