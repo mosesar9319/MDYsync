@@ -850,6 +850,7 @@
               <div class="view-switch" role="group" aria-label="Daf display mode">
                 <button class="active" data-view="text">Text</button>
                 <button data-view="page" title="Real Vilna-edition page image (private-use source)">Vilna page</button>
+                <button data-view="scan" title="Scan a printed page with your camera">Scan page</button>
               </div>
               <button class="tool-button" id="decrease-text" aria-label="Decrease text size" type="button">A−</button>
               <button class="tool-button" id="increase-text" aria-label="Increase text size" type="button">A+</button>
@@ -882,6 +883,53 @@
                 <canvas id="vilnaPageCanvas" hidden></canvas>
                 <div class="vilna-page-overlay" id="vilnaPageOverlay"></div>
               </div>
+            </div>
+
+            <!-- Point the camera at a physical printed page; recognize
+                 which daf it is from just the header (not the body text --
+                 see scan-daf-page.mjs), then tap any word to jump the
+                 video there the same way Vilna-page-view taps already do
+                 (seekToVilnaWord). Three sub-states: intro (camera entry
+                 point) -> align (drag the 4 page corners to match the
+                 photo) -> result (tappable word overlay on the photo). -->
+            <div class="scan-placeholder" id="scanPlaceholder" hidden>
+              <div class="scan-intro" id="scanIntro">
+                <div class="page-silhouette">
+                  <div class="page-column narrow"></div>
+                  <div class="page-column wide"></div>
+                  <div class="page-column narrow"></div>
+                </div>
+                <p>Point your camera at a printed Gemara page. We'll figure out which daf it is and let you tap any word to jump the video there.</p>
+                <label class="button primary" for="scanCameraInput">Open camera</label>
+                <input type="file" id="scanCameraInput" accept="image/*" capture="environment" hidden />
+              </div>
+
+              <div class="scan-align" id="scanAlign" hidden>
+                <p class="scan-hint">Drag the four corners to match the page's real edges, then confirm.</p>
+                <div class="scan-align-wrap" id="scanAlignWrap">
+                  <img id="scanPhoto" alt="Captured page photo" />
+                  <svg class="scan-corner-lines" id="scanCornerLines" preserveAspectRatio="none"></svg>
+                  <div class="scan-corner-handle" data-corner="0" tabindex="0" role="button" aria-label="Top-left corner"></div>
+                  <div class="scan-corner-handle" data-corner="1" tabindex="0" role="button" aria-label="Top-right corner"></div>
+                  <div class="scan-corner-handle" data-corner="2" tabindex="0" role="button" aria-label="Bottom-right corner"></div>
+                  <div class="scan-corner-handle" data-corner="3" tabindex="0" role="button" aria-label="Bottom-left corner"></div>
+                </div>
+                <div class="scan-align-actions">
+                  <button class="button secondary small" id="scanRetakeButton" type="button">Retake</button>
+                  <button class="button primary small" id="scanConfirmButton" type="button">Scan this page</button>
+                </div>
+              </div>
+
+              <div class="scan-result" id="scanResult" hidden>
+                <div class="scan-result-wrap" id="scanResultWrap">
+                  <img id="scanResultPhoto" alt="Scanned page" />
+                  <div class="scan-word-overlay" id="scanWordOverlay"></div>
+                </div>
+                <p class="scan-hint" id="scanResultHint"></p>
+                <button class="button secondary small" id="scanAgainButton" type="button">Scan another page</button>
+              </div>
+
+              <div class="scan-status" id="scanStatus" hidden></div>
             </div>
           </div>
 

@@ -18,3 +18,14 @@
   for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+# The sitewide rule above locks camera access down everywhere by default --
+# only the player page needs it, for the "scan a printed daf page" feature
+# (see scan-daf-page.mjs). Netlify applies the most specific matching path's
+# value for a given header when multiple [[headers]] blocks match the same
+# request, so this overrides just the Permissions-Policy value here, not the
+# other two.
+[[headers]]
+  for = "/player/*"
+  [headers.values]
+    Permissions-Policy = "camera=(self), microphone=(), geolocation=()"

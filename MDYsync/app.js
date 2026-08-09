@@ -47,7 +47,17 @@ const state = {
   // switchSyncMethod()/updateSyncMethodSwitchUi(). Both null means neither
   // a caption-OCR nor a voice-recognition sync exists yet for this daf.
   availableSyncMethods: { ocr: null, voice: null },
-  activeSyncMethod: null
+  activeSyncMethod: null,
+  // Camera-scan feature (see scan-daf-page.mjs) -- scanImageWidth/Height
+  // are the actual pixel dimensions of the (possibly downscaled) captured
+  // photo; scanCorners are the four page-corner points the reader drags
+  // into place, each stored as [xFraction, yFraction] of that photo (0-1),
+  // in [top-left, top-right, bottom-right, bottom-left] order.
+  scanPhotoDataUrl: null,
+  scanImageWidth: 0,
+  scanImageHeight: 0,
+  scanCorners: null,
+  scanDraggingCorner: null
 };
 
 const AUTO_SCROLL_RESUME_MS = 4000;
@@ -1126,6 +1136,194 @@ function seekToVilnaWord(ref, wordIndex) {
   state.lastManualScrollAt = 0;
   seek(segment.start + 0.03, true);
   updateActiveSegment(true);
+}
+
+// --- Camera-scan feature (see scan-daf-page.mjs) ---------------------------
+// Point the camera at a physical printed page, recognize which daf it is
+// from just its header, then tap any word on the photo to jump the video
+// there -- reuses seekToVilnaWord() above, since a scanned word's
+// (ref, wordIndex) means the same thing regardless of which view found it.
+
+// Keeps the upload small (scan-daf-page.mjs caps the decoded photo at 8MB)
+// and keeps OCR/homography work proportionate -- a raw phone photo can be
+// several times this size for no benefit to a small header crop.
+const SCAN_MAX_DIMENSION = 1600;
+// Corners default to a generous inward inset, not the photo's own edges --
+// most photos have some background/table visible around the book, so
+// starting the drag handles a little inside a typical framing needs less
+// adjustment than starting at the raw edges would.
+const SCAN_DEFAULT_INSET = 0.06;
+
+function resetScanUi() {
+  $('scanIntro').hidden = false;
+  $('scanAlign').hidden = true;
+  $('scanResult').hidden = true;
+  $('scanStatus').hidden = true;
+  $('scanCameraInput').value = '';
+  state.scanPhotoDataUrl = null;
+  state.scanCorners = null;
+}
+
+function showScanStatus(message, kind) {
+  const el = $('scanStatus');
+  el.textContent = message;
+  el.className = `scan-status${kind ? ` ${kind}` : ''}`;
+  el.hidden = false;
+}
+
+function loadImageElement(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Could not decode that image.'));
+    img.src = src;
+  });
+}
+
+function downscaleImageFile(file, maxDimension) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read the file.'));
+    reader.onload = async () => {
+      try {
+        const img = await loadImageElement(reader.result);
+        const scale = Math.min(1, maxDimension / Math.max(img.naturalWidth, img.naturalHeight));
+        const width = Math.round(img.naturalWidth * scale);
+        const height = Math.round(img.naturalHeight * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve({ dataUrl: canvas.toDataURL('image/jpeg', 0.85), width, height });
+      } catch (error) {
+        reject(error);
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleScanFileSelected(file) {
+  if (!file) return;
+  try {
+    const downscaled = await downscaleImageFile(file, SCAN_MAX_DIMENSION);
+    state.scanPhotoDataUrl = downscaled.dataUrl;
+    state.scanImageWidth = downscaled.width;
+    state.scanImageHeight = downscaled.height;
+    state.scanCorners = [
+      [SCAN_DEFAULT_INSET, SCAN_DEFAULT_INSET],
+      [1 - SCAN_DEFAULT_INSET, SCAN_DEFAULT_INSET],
+      [1 - SCAN_DEFAULT_INSET, 1 - SCAN_DEFAULT_INSET],
+      [SCAN_DEFAULT_INSET, 1 - SCAN_DEFAULT_INSET],
+    ];
+    $('scanPhoto').src = state.scanPhotoDataUrl;
+    $('scanIntro').hidden = true;
+    $('scanResult').hidden = true;
+    $('scanStatus').hidden = true;
+    $('scanAlign').hidden = false;
+    renderScanCorners();
+  } catch (error) {
+    console.error(error);
+    showScanStatus(`Could not load that photo: ${error.message}`, 'error');
+  }
+}
+
+function renderScanCorners() {
+  if (!state.scanCorners) return;
+  document.querySelectorAll('.scan-corner-handle').forEach((handle) => {
+    const [x, y] = state.scanCorners[Number(handle.dataset.corner)];
+    handle.style.left = `${x * 100}%`;
+    handle.style.top = `${y * 100}%`;
+  });
+  const points = state.scanCorners.map(([x, y]) => `${x * 100},${y * 100}`).join(' ');
+  $('scanCornerLines').innerHTML = `<polygon points="${points}"></polygon>`;
+}
+
+function handleScanCornerPointerDown(event) {
+  state.scanDraggingCorner = Number(event.currentTarget.dataset.corner);
+  event.currentTarget.setPointerCapture(event.pointerId);
+}
+
+function handleScanCornerPointerMove(event) {
+  if (state.scanDraggingCorner === null) return;
+  const rect = $('scanAlignWrap').getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  const x = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+  const y = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
+  state.scanCorners[state.scanDraggingCorner] = [x, y];
+  renderScanCorners();
+}
+
+function handleScanCornerPointerUp() {
+  state.scanDraggingCorner = null;
+}
+
+async function confirmScan() {
+  if (!state.scanPhotoDataUrl || !state.scanCorners) return;
+  showScanStatus('Reading the page header…', 'busy');
+  $('scanConfirmButton').disabled = true;
+  try {
+    const imageBase64 = state.scanPhotoDataUrl.split(',')[1];
+    const corners = state.scanCorners.map(([x, y]) => [x * state.scanImageWidth, y * state.scanImageHeight]);
+    const response = await fetch('/api/scan-daf-page', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imageBase64,
+        imageWidth: state.scanImageWidth,
+        imageHeight: state.scanImageHeight,
+        corners,
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Could not scan this page.');
+    showScanResult(result);
+  } catch (error) {
+    console.error(error);
+    showScanStatus(error.message, 'error');
+  } finally {
+    $('scanConfirmButton').disabled = false;
+  }
+}
+
+function showScanResult(result) {
+  $('scanResultPhoto').src = state.scanPhotoDataUrl;
+  $('scanAlign').hidden = true;
+  $('scanResult').hidden = false;
+  $('scanStatus').hidden = true;
+  $('scanResultHint').textContent = `Recognized ${result.ref} — tap any word to jump the video there.`;
+
+  const overlay = $('scanWordOverlay');
+  overlay.innerHTML = '';
+  for (const box of result.wordBoxes) {
+    const el = document.createElement('div');
+    el.className = 'scan-word-box';
+    el.style.left = `${box.x * 100}%`;
+    el.style.top = `${box.y * 100}%`;
+    el.style.width = `${box.w * 100}%`;
+    el.style.height = `${box.h * 100}%`;
+    el.tabIndex = 0;
+    el.setAttribute('role', 'button');
+    el.addEventListener('click', () => tapScannedWord(result.ref, box.ref, box.wordIndex));
+    overlay.appendChild(el);
+  }
+}
+
+// A scanned word can belong to a different daf than whatever's currently
+// loaded (the reader might scan a page before ever loading its video) --
+// seekToVilnaWord only knows about the *currently loaded* daf's segments/
+// wordTimeline, so load the scanned daf first if it isn't already on screen.
+async function tapScannedWord(scannedRef, wordRef, wordIndex) {
+  if (state.dafRef !== scannedRef) {
+    try {
+      await loadDaf(scannedRef);
+    } catch (error) {
+      console.error(error);
+      showToast(`Could not load ${scannedRef}: ${error.message}`, 'error');
+      return;
+    }
+  }
+  seekToVilnaWord(wordRef, wordIndex);
 }
 
 // Highlights every word belonging to the current segment/phrase, not just
@@ -2862,16 +3060,28 @@ for (const button of fastForwardButtonEls) button.addEventListener('click', skip
 for (const button of document.querySelectorAll('.view-switch button')) {
   button.addEventListener('click', () => {
     document.querySelectorAll('.view-switch button').forEach((item) => item.classList.toggle('active', item === button));
-    const pageView = button.dataset.view === 'page';
-    dafPage.hidden = pageView;
-    $('vilnaPlaceholder').hidden = !pageView;
-    if (pageView) renderVilnaPage();
+    const view = button.dataset.view;
+    dafPage.hidden = view !== 'text';
+    $('vilnaPlaceholder').hidden = view !== 'page';
+    $('scanPlaceholder').hidden = view !== 'scan';
+    if (view === 'page') renderVilnaPage();
+    if (view === 'scan') resetScanUi();
   });
 }
 
 for (const button of document.querySelectorAll('.sync-method-switch button[data-method]')) {
   button.addEventListener('click', () => switchSyncMethod(button.dataset.method));
 }
+
+$('scanCameraInput')?.addEventListener('change', (event) => handleScanFileSelected(event.target.files?.[0]));
+$('scanRetakeButton')?.addEventListener('click', resetScanUi);
+$('scanAgainButton')?.addEventListener('click', resetScanUi);
+$('scanConfirmButton')?.addEventListener('click', confirmScan);
+for (const handle of document.querySelectorAll('.scan-corner-handle')) {
+  handle.addEventListener('pointerdown', handleScanCornerPointerDown);
+}
+document.addEventListener('pointermove', handleScanCornerPointerMove);
+document.addEventListener('pointerup', handleScanCornerPointerUp);
 
 $('helpButton').addEventListener('click', () => $('helpDialog').showModal());
 $('closeHelp').addEventListener('click', () => $('helpDialog').close());

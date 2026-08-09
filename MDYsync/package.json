@@ -1,0 +1,10 @@
+{
+  "name": "mdysync",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A browser-based prototype for synchronizing a Daf Yomi lecture video with the exact portion of Gemara currently being discussed.",
+  "dependencies": {
+    "jimp": "^1.6.1",
+    "tesseract.js": "^7.0.0"
+  }
+}

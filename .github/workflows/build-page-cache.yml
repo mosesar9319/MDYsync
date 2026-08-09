@@ -1,0 +1,112 @@
+name: Pre-build the Vilna page cache
+
+# Manual counterpart to the on-demand path (trigger-page-ocr-job.mjs ->
+# page-ocr-job.yml, one page at a time, only when someone actually views
+# that daf). Runs batch_page_ocr.py across a whole daf range for a
+# tractate, publishing results/pages/<key>.json for all of it ahead of
+# time -- both a normal page-load speedup and a prerequisite for the
+# camera-scan feature (scan-daf-page.mjs), which can only recognize a daf
+# it already has word-position data for and needs that lookup to be
+# instant, not a fresh OCR job per scan.
+#
+# Deliberately manual (workflow_dispatch), not automatic -- OCR work here
+# scales with how many dapim are requested, and a whole tractate can take
+# a while (see the timeout below); this is meant to be run deliberately
+# per tractate as they come into active use, not on every push.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tractate:
+        description: 'Tractate to pre-build (e.g. Chullin)'
+        required: true
+        default: 'Chullin'
+      daf_start:
+        description: 'First daf to try (Vilna pagination starts at 2, not 1)'
+        required: true
+        default: '2'
+      daf_end:
+        description: 'Last daf to try -- generous is fine, real fetch failures stop the run early (see batch_page_ocr.py)'
+        required: true
+        default: '180'
+      amud:
+        description: 'Which amud(s) to build'
+        type: choice
+        options: ['both', 'a', 'b']
+        default: 'both'
+
+permissions:
+  contents: write
+
+jobs:
+  build-cache:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Tesseract with Hebrew and poppler
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-heb poppler-utils
+
+      - name: Install Python dependencies
+        run: pip install opencv-python-headless pytesseract rapidfuzz
+
+      - name: Check out the results branch
+        run: |
+          git fetch origin results 2>/dev/null || true
+          if git show-ref --verify --quiet refs/remotes/origin/results; then
+            git worktree add /tmp/results-checkout origin/results
+          else
+            git worktree add --detach /tmp/results-checkout
+            (cd /tmp/results-checkout && git checkout --orphan results && git rm -rf . >/dev/null 2>&1 || true)
+          fi
+          cd /tmp/results-checkout
+          git config user.name "dafsync-bot"
+          git config user.email "dafsync-bot@users.noreply.github.com"
+
+      - name: Run the batch page OCR
+        working-directory: MDYsync/tools/caption-sync
+        env:
+          TRACTATE: ${{ github.event.inputs.tractate }}
+          DAF_START: ${{ github.event.inputs.daf_start }}
+          DAF_END: ${{ github.event.inputs.daf_end }}
+          AMUD: ${{ github.event.inputs.amud }}
+        run: |
+          python3 batch_page_ocr.py \
+            --tractate "$TRACTATE" \
+            --daf-start "$DAF_START" \
+            --daf-end "$DAF_END" \
+            --amud "$AMUD" \
+            --results-dir /tmp/results-checkout \
+            --work-dir batch-page-out
+
+      # Committing/pushing once at the end (rather than per-page) keeps
+      # this from spamming the results branch with hundreds of tiny
+      # commits -- if the job times out partway through, whatever pages it
+      # already wrote to the worktree are lost with it; re-running the
+      # workflow picks up where it left off either way, since already-
+      # present pages/<key>.json files are skipped (see batch_page_ocr.py).
+      - name: Publish whatever was generated
+        run: |
+          set -e
+          cd /tmp/results-checkout
+          if git diff --quiet && [ -z "$(git status --porcelain)" ]; then
+            echo "Nothing new to publish."
+            exit 0
+          fi
+          git add pages
+          git commit -m "Pre-build page cache for ${{ github.event.inputs.tractate }} (${{ github.event.inputs.daf_start }}-${{ github.event.inputs.daf_end }}${{ github.event.inputs.amud }})"
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:results; then
+              break
+            fi
+            git fetch origin results
+            git rebase origin/results
+            sleep 2
+          done
