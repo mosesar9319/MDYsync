@@ -41,6 +41,15 @@ const state = {
   vilnaPdfPage: null,
   vilnaPdfContainerWidth: 0,
   vilnaZoomRerenderTimer: null,
+  // A dedicated, higher-resolution rasterization of the same PDF page, used
+  // only as the video overlay's crop/zoom source -- see updateVideoOverlay
+  // and renderVilnaOverlaySource. Keyed the same way vilnaPageKey is, plus
+  // the overlay's own display width, so a stale one (still rendering, or
+  // left over from a page/size the reader has since moved on from) is never
+  // drawn onto the wrong page.
+  vilnaOverlaySourceCanvas: null,
+  vilnaOverlaySourceKey: '',
+  vilnaOverlaySourceRenderingKey: '',
   voiceCorrectionBaseline: null,
   // Which synced-alignment methods actually have a published result for the
   // daf currently on screen (raw alignment data or null per method), and
@@ -1555,11 +1564,75 @@ const IDLE_OPACITY_FLOOR = 0.1;
 // shows more. Clamped so the crop never needs to exceed the source image.
 const OVERLAY_ZOOM_MIN = 0.6;
 const OVERLAY_ZOOM_MAX = 3.5;
+// The main page canvas (vilnaPageCanvas) is sized for the reading column it
+// sits in -- fine on its own, but the overlay then crops a narrower band out
+// of it and blows that crop up further (up to OVERLAY_ZOOM_MAX), so the same
+// bitmap that looks crisp in the reader turns visibly soft once magnified
+// this way. renderVilnaOverlaySource below rasterizes a second, dedicated
+// copy of the same PDF page at a resolution chosen for that magnification,
+// so the overlay is downsampling a denser source instead of upsampling a
+// fixed one. Capped higher than the main page's MAX_CANVAS_WIDTH_PX since
+// it's optional/background work, not something every daf-card render pays
+// for.
+const OVERLAY_SOURCE_MAX_WIDTH_PX = 3600;
 
-// Experimental: draws a cropped/zoomed slice of the already-rendered Vilna
-// page canvas as a semi-transparent layer over the video itself, panning to
-// keep the currently-spoken line in view. Reuses the main canvas as a
-// drawImage source rather than re-rendering the page separately.
+function overlaySourceRenderScale(baseViewportWidth, wrapWidthPx) {
+  const dpr = window.devicePixelRatio || 1;
+  const bandFrac = COMMENTARY_X1_FRAC - COMMENTARY_X0_FRAC; // the widest crop band either mode uses
+  const neededWidthPx = (wrapWidthPx * dpr * OVERLAY_ZOOM_MAX) / bandFrac;
+  const scale = neededWidthPx / baseViewportWidth;
+  const maxScale = OVERLAY_SOURCE_MAX_WIDTH_PX / baseViewportWidth;
+  return Math.min(scale, maxScale);
+}
+
+// Kicks off (at most one at a time) a background re-rasterization of the
+// current Vilna page sized for the video overlay's own display size, then
+// swaps it in for later draws once ready. Never awaited by updateVideoOverlay
+// itself -- that runs on every playback tick and a pdf.js render pass is far
+// too slow to do inline there, so each tick just draws with whatever source
+// is already cached (the plain page canvas until this resolves, the sharper
+// one after) rather than blocking on it.
+function maybeRefreshVilnaOverlaySource(wrap) {
+  const page = state.vilnaPdfPage;
+  if (!page || !state.vilnaPageKey) return;
+  // Rounded to the nearest 20px so ordinary layout jitter (e.g. a scrollbar
+  // appearing) doesn't constantly invalidate and re-render this.
+  const wrapWidth = Math.round((wrap.clientWidth || 0) / 20) * 20;
+  if (!wrapWidth) return;
+  const key = `${state.vilnaPageKey}|${wrapWidth}`;
+  if (state.vilnaOverlaySourceKey === key || state.vilnaOverlaySourceRenderingKey === key) return;
+  state.vilnaOverlaySourceRenderingKey = key;
+  renderVilnaOverlaySource(page, key, wrapWidth).finally(() => {
+    if (state.vilnaOverlaySourceRenderingKey === key) state.vilnaOverlaySourceRenderingKey = null;
+  });
+}
+
+async function renderVilnaOverlaySource(page, key, wrapWidth) {
+  try {
+    const baseViewport = page.getViewport({ scale: 1 });
+    const scale = overlaySourceRenderScale(baseViewport.width, wrapWidth);
+    const viewport = page.getViewport({ scale });
+    const canvas = state.vilnaOverlaySourceCanvas || document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    state.vilnaOverlaySourceCanvas = canvas;
+    state.vilnaOverlaySourceKey = key;
+    // Repaint immediately with the now-sharper source rather than waiting for
+    // the next playback tick to happen to fire.
+    if (state.videoOverlayEnabled) updateVideoOverlay(getCurrentTime());
+  } catch {
+    // Quality-only background enhancement -- leave the existing fallback
+    // (the shared page canvas) in place rather than surfacing an error.
+  }
+}
+
+// Draws a cropped/zoomed slice of a Vilna page rasterization as a
+// semi-transparent layer over the video itself, panning to keep the
+// currently-spoken line in view. Prefers the dedicated, higher-resolution
+// source above once it's ready (see renderVilnaOverlaySource); falls back to
+// the shared page canvas (the same bitmap the regular reader shows) until
+// then, or if the daf has since moved on and that source is now stale.
 function updateVideoOverlay(time) {
   const wrap = $('videoVilnaOverlay');
   if (!wrap) return;
@@ -1608,12 +1681,17 @@ function updateVideoOverlay(time) {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  maybeRefreshVilnaOverlaySource(wrap);
+  const overlaySourceReady = state.vilnaOverlaySourceCanvas
+    && state.vilnaOverlaySourceKey.startsWith(`${state.vilnaPageKey}|`);
+  const source = overlaySourceReady ? state.vilnaOverlaySourceCanvas : mainCanvas;
+
   const activeY = activeBoxes.length
     ? activeBoxes.reduce((sum, b) => sum + b.y + b.h / 2, 0) / activeBoxes.length
     : 0.15;
 
-  const pageW = mainCanvas.width;
-  const pageH = mainCanvas.height;
+  const pageW = source.width;
+  const pageH = source.height;
   const x0 = state.videoOverlayMode === 'strip' ? GEMARA_X0_FRAC : COMMENTARY_X0_FRAC;
   const x1 = state.videoOverlayMode === 'strip' ? GEMARA_X1_FRAC : COMMENTARY_X1_FRAC;
   const zoom = Math.max(OVERLAY_ZOOM_MIN, Math.min(OVERLAY_ZOOM_MAX, state.videoOverlayZoom || 1));
@@ -1629,7 +1707,7 @@ function updateVideoOverlay(time) {
   const visibleSourceH = canvas.height / scale;
   const centerY = (activeY + state.videoOverlayPanY) * pageH;
   const sourceY = Math.max(0, Math.min(Math.max(0, pageH - visibleSourceH), centerY - visibleSourceH / 2));
-  ctx.drawImage(mainCanvas, sx, sourceY, sw, visibleSourceH, 0, 0, canvas.width, canvas.height);
+  ctx.drawImage(source, sx, sourceY, sw, visibleSourceH, 0, 0, canvas.width, canvas.height);
   // Saved so a click on the canvas can be translated back into page-fraction
   // coordinates and matched against a word box (see the click handler below).
   state.videoOverlayTransform = { sx, sourceY, scale, pageW, pageH };
