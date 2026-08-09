@@ -427,7 +427,6 @@
     .sync-note { display: flex; align-items: center; gap: 9px; margin: 14px 17px 0; padding: 11px 13px; color: #68501f; background: #fbf4e5; border: 1px solid #ead8af; border-radius: 11px; font-size: 12px; line-height: 1.45; }
     .daf-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px 17px; color: var(--muted); border-top: 1px solid var(--line); font-size: 12px; }
 
-    .mobile-nav { display: none; }
     :focus-visible { outline: 3px solid rgba(186,132,34,.42); outline-offset: 3px; }
 
     @media (max-width: 1120px) {
@@ -480,22 +479,22 @@
       .daf-header { padding: 15px 16px; }
       .sync-note { margin: 12px 13px 0; }
       .about-card { padding: 18px; }
-      .mobile-nav {
-        position: fixed;
-        inset: auto 0 0;
-        z-index: 30;
-        height: calc(72px + env(safe-area-inset-bottom));
-        display: grid;
-        grid-template-columns: repeat(4,1fr);
-        padding: 8px 3px env(safe-area-inset-bottom);
-        background: rgba(255,253,248,.96);
-        border-top: 1px solid var(--line);
-        backdrop-filter: blur(15px);
-      }
-      .mobile-nav a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #625b52; text-decoration: none; font-size: 11px; }
-      .mobile-nav a.active { color: var(--gold); }
+      /* .mobile-nav itself is now rendered by nav.js, styled by the
+         shared rules in styles.css (see there) -- this stale, hand-
+         duplicated copy (hardcoded href="/" on every link, "Today's
+         Daf" always marked active) predates that and is removed. */
     }
     @media (prefers-reduced-motion: reduce) { *,*::before,*::after { scroll-behavior: auto !important; transition-duration: .01ms !important; } }
+
+    /* ?view=scan (see app.js's loadTalmudIndex().then(...)) -- the camera-
+       scan flow determines its own daf from the photo, so neither the
+       video player nor the daf-reference picker apply here; hiding both
+       leaves just the scan card, full width, as the whole page. */
+    body.scan-only .setup-strip { display: none; }
+    body.scan-only .watch-layout { display: block; }
+    body.scan-only .player-card { display: none; }
+    body.scan-only .daf-card { min-height: 82vh; }
+    body.scan-only .view-switch { display: none; }
   </style>
 </head>
 <body class="player-page">
@@ -996,8 +995,6 @@
     </main>
   </div>
 
-  <nav class="mobile-nav" aria-label="Mobile navigation"><a href="/"><span data-icon="home"></span><span>Home</span></a><a class="active" href="/"><span data-icon="calendar"></span><span>Today’s Daf</span></a><a href="/"><span data-icon="books"></span><span>Masechtos</span></a><a href="/"><span data-icon="teacher"></span><span>Maggidei Shiur</span></a></nav>
-
   <dialog id="helpDialog">
     <button class="dialog-close" id="closeHelp" aria-label="Close">×</button>
     <div class="eyebrow">Guide</div>
@@ -1203,5 +1200,6 @@
   <script src="../auth.js"></script>
   <script src="../app.js" defer></script>
   <script src="../account-features.js" defer></script>
+  <script src="../nav.js" defer></script>
 </body>
 </html>

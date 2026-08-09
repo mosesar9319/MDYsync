@@ -42,6 +42,7 @@ import { createWorker } from 'tesseract.js';
 import { Jimp } from 'jimp';
 import { solveHomography, applyHomography } from '../../shared/perspective-transform.mjs';
 import { buildHeaderVocabulary, matchHeader, MASECHTA_HEBREW } from '../../shared/daf-header-vocabulary.mjs';
+import { parsePageKey } from '../../shared/daf-key-parsing.mjs';
 
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
@@ -74,23 +75,6 @@ function boundingBox(points) {
   };
 }
 
-// results/pages/<key>.json filenames are "<Tractate-slug>-<daf><amud>.json"
-// (see pageMapKey in app.js and the pageKey built in trigger-page-ocr-
-// job.mjs) -- tractate names can themselves contain a hyphen once
-// slugified (e.g. "Bava-Kamma"), so this can't just split on the first
-// hyphen; it matches against the known tractate list instead.
-function parsePageKey(filename) {
-  const base = filename.replace(/\.json$/, '');
-  for (const tractate of Object.keys(MASECHTA_HEBREW)) {
-    const prefix = `${tractate.replace(/\s+/g, '-')}-`;
-    if (base.startsWith(prefix)) {
-      const match = base.slice(prefix.length).match(/^(\d+)([ab])$/);
-      if (match) return { tractate, daf: Number(match[1]), amud: match[2] };
-    }
-  }
-  return null;
-}
-
 async function listAvailablePages(token) {
   const response = await fetch(
     `https://api.github.com/repos/${OWNER}/${REPO}/contents/pages?ref=results`,
@@ -99,7 +83,7 @@ async function listAvailablePages(token) {
   if (!response.ok) return [];
   const entries = await response.json();
   if (!Array.isArray(entries)) return [];
-  return entries.map((entry) => parsePageKey(entry.name)).filter(Boolean);
+  return entries.map((entry) => parsePageKey(entry.name, Object.keys(MASECHTA_HEBREW))).filter(Boolean);
 }
 
 export default async (request) => {

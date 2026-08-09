@@ -1509,6 +1509,16 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       language: "all", variant: "all", sortOrder: "new", query: "", catalog: [], today: null,
     };
 
+    // A "Today's Daf"/"Masechtos" tab tapped from nav.js's shared bottom bar
+    // on another page links back here as /?nav=today or /?nav=masechtos
+    // (nav.js's own NAV_ITEMS build those hrefs) -- land pre-filtered
+    // instead of always opening on the plain "Home" view, matching what
+    // tapping that same tab in-page already does (see navMarkup's click
+    // handler below).
+    const navParam = new URLSearchParams(location.search).get("nav");
+    if (navParam === "today") { state.activeNav = "Today’s Daf"; state.filter = "Today"; }
+    else if (navParam === "masechtos") { state.activeNav = "Masechtos"; state.filter = "All Masechtos"; }
+
     const desktopNav = document.querySelector(".desktop-navigation");
     const mobileNav = document.querySelector(".mobile-nav");
     const filterBar = document.querySelector("#filters");

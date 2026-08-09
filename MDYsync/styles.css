@@ -614,3 +614,50 @@ body.studio-locked .app-shell { visibility: hidden; }
 .catalog-legend .chazarah-dot, .catalog-legend .hebrew-dot { position: static; display: inline-block; }
 .catalog-legend .chazarah-dot { background: var(--blue); }
 .catalog-legend .hebrew-dot { background: var(--highlight); }
+
+/* Sitewide bottom tab bar (see nav.js) -- rendered on every page except
+   index.html, which has its own equivalent inline copy (it doesn't load
+   this stylesheet at all, so there's no conflict/duplication risk).
+   Breakpoint and values kept pixel-identical to index.html's own copy on
+   purpose, so the bar looks the same everywhere. */
+.mobile-nav { display: none; }
+@media (max-width: 760px) {
+  .mobile-nav {
+    align-items: stretch;
+    background: rgba(255, 253, 248, 0.96);
+    border-top: 1px solid var(--line);
+    bottom: 0;
+    box-shadow: 0 -5px 20px rgba(61, 43, 23, 0.06);
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    left: 0;
+    padding: 8px max(6px, env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-right));
+    position: fixed;
+    right: 0;
+    z-index: 30;
+  }
+
+  .mobile-nav button,
+  .mobile-nav a {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    color: #5f5951;
+    display: flex;
+    flex-direction: column;
+    font-size: 10px;
+    gap: 4px;
+    padding: 4px 1px;
+    text-decoration: none;
+  }
+
+  .mobile-nav button.active,
+  .mobile-nav a.active {
+    color: var(--accent);
+  }
+}
+.mobile-nav button:focus-visible,
+.mobile-nav a:focus-visible {
+  outline: 3px solid rgba(186, 132, 34, 0.45);
+  outline-offset: 2px;
+}
