@@ -155,6 +155,7 @@ button {
   height: 102px;
   justify-content: center;
   padding: 8px 2px;
+  text-decoration: none;
   transition: background 180ms ease, color 180ms ease;
 }
 
@@ -947,7 +948,7 @@ h1 {
     bottom: 0;
     box-shadow: 0 -5px 20px rgba(61, 43, 23, 0.06);
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     left: 0;
     padding: 8px max(6px, env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-right));
     position: fixed;
@@ -955,7 +956,8 @@ h1 {
     z-index: 30;
   }
 
-  .mobile-nav button {
+  .mobile-nav button,
+  .mobile-nav a {
     align-items: center;
     background: transparent;
     border: 0;
@@ -965,9 +967,11 @@ h1 {
     font-size: 10px;
     gap: 4px;
     padding: 4px 1px;
+    text-decoration: none;
   }
 
-  .mobile-nav button.active {
+  .mobile-nav button.active,
+  .mobile-nav a.active {
     color: var(--gold);
   }
 
@@ -1022,7 +1026,7 @@ h1 {
 [hidden]{display:none!important}
 .brand{text-decoration:none}
 .desktop-navigation{display:flex;flex-direction:column}
-.shiur-card:focus-visible,.hero-card:focus-visible,.filters button:focus-visible,.side-link:focus-visible,.mobile-nav button:focus-visible,.profile-button:focus-visible{outline:3px solid rgba(186,132,34,.45);outline-offset:2px}
+.shiur-card:focus-visible,.hero-card:focus-visible,.filters button:focus-visible,.side-link:focus-visible,.mobile-nav button:focus-visible,.mobile-nav a:focus-visible,.profile-button:focus-visible{outline:3px solid rgba(186,132,34,.45);outline-offset:2px}
 
 /* Account sign-in: the site's one login affordance, mainly there so an
    admin can reach the /studio/ backend (see the account dropdown's
@@ -1340,7 +1344,9 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       play: '<path d="m9 7 8 5-8 5V7Z" fill="currentColor" stroke="none"/>',
       clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
       close: '<path d="m6 6 12 12M18 6 6 18"/>',
-      chevron: '<path d="m9 6 6 6-6 6"/>'
+      chevron: '<path d="m9 6 6 6-6 6"/>',
+      camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+      bookOpen: '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>'
     };
 
     const icon = (name, size = 22) =>
@@ -1490,6 +1496,13 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       { label: "Home", icon: "home" },
       { label: "Today’s Daf", icon: "calendar" },
       { label: "Masechtos", icon: "books" },
+      // These two are plain links to dedicated pages, not in-page filters --
+      // Scan needs the camera permission scoped to /player/* in netlify.toml,
+      // and both need app.js's daf-loading machinery this lightweight home
+      // page deliberately doesn't load. `href` present is what distinguishes
+      // a link entry from a filter entry below (see navMarkup/renderNavigation).
+      { label: "Scan a page", icon: "camera", href: "/player/?view=scan" },
+      { label: "Daf browser", icon: "bookOpen", href: "/browse/" },
     ];
     const state = {
       activeNav: "Home", filter: "All Masechtos", filters: ["All Masechtos"],
@@ -1512,7 +1525,11 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     const modal = document.querySelector("#modal");
 
     function navMarkup(item, mobile = false) {
-      return `<button class="${mobile ? "" : "side-link "}${state.activeNav === item.label ? "active" : ""}" data-nav="${item.label}" type="button">${icon(item.icon, mobile ? 23 : 27)}<span>${item.label}</span></button>`;
+      const classes = `${mobile ? "" : "side-link "}${state.activeNav === item.label ? "active" : ""}`;
+      const content = `${icon(item.icon, mobile ? 23 : 27)}<span>${item.label}</span>`;
+      return item.href
+        ? `<a class="${classes}" href="${item.href}">${content}</a>`
+        : `<button class="${classes}" data-nav="${item.label}" type="button">${content}</button>`;
     }
 
     function renderNavigation() {
