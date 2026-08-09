@@ -262,6 +262,48 @@ h2 { margin-bottom: 0; }
 .vilna-page-wrap.mark-mode .vilna-word-box { cursor: crosshair; }
 .daf-footer { justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 12px; }
 
+.scan-placeholder { min-height: 100%; padding: 20px; color: #453c2e; text-align: center; }
+.scan-intro p { max-width: 420px; margin: 0 auto 18px; line-height: 1.5; }
+.scan-hint { max-width: 420px; margin: 0 auto 14px; color: #6b6153; font-size: 13px; line-height: 1.5; }
+.scan-align-wrap, .scan-result-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto 14px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 12px 35px rgba(50,43,31,.18);
+  touch-action: none; /* the corner handles do their own drag handling */
+}
+.scan-align-wrap img, .scan-result-wrap img { display: block; width: 100%; height: auto; }
+.scan-corner-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.scan-corner-lines polygon { fill: rgba(56,214,193,.14); stroke: #38d6c1; stroke-width: 2; }
+.scan-corner-handle {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  margin: -13px 0 0 -13px;
+  border-radius: 50%;
+  background: #38d6c1;
+  border: 3px solid #06201c;
+  box-shadow: 0 2px 8px rgba(0,0,0,.35);
+  cursor: grab;
+  touch-action: none;
+}
+.scan-corner-handle:active { cursor: grabbing; transform: scale(1.15); }
+.scan-align-actions { display: flex; justify-content: center; gap: 10px; }
+.scan-word-overlay { position: absolute; inset: 0; }
+.scan-word-box {
+  position: absolute;
+  transform: scale(1.25, 1.8);
+  cursor: pointer;
+  border-radius: 2px;
+}
+.scan-word-box:hover, .scan-word-box:focus-visible { background: rgba(56,214,193,.28); }
+.scan-status { max-width: 420px; margin: 14px auto 0; padding: 11px 14px; border-radius: 10px; font-size: 13px; line-height: 1.5; }
+.scan-status.error { background: rgba(255,124,137,.14); color: #7a2530; border: 1px solid rgba(255,124,137,.35); }
+.scan-status.busy { background: rgba(56,214,193,.12); color: #1c4a44; border: 1px solid rgba(56,214,193,.3); }
+
 .editor { margin-top: 18px; padding: 21px; }
 .editor-heading { justify-content: space-between; gap: 18px; align-items: flex-start; }
 .editor-heading h2 { margin-bottom: 6px; }

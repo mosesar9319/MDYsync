@@ -1,3 +1,10 @@
 .netlify/
 node_modules/
 .DS_Store
+
+# tesseract.js (scan-daf-page.mjs) downloads its Hebrew language model into
+# the working directory the first time it runs there, unless explicitly
+# configured otherwise -- harmless at runtime (Netlify Functions get a
+# fresh filesystem each invocation), but not something to commit if a local
+# test run drops one here.
+*.traineddata
