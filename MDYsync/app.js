@@ -1194,7 +1194,18 @@ function navigateToPlayerAtWord(ref, wordIndex) {
 async function playWordInline(ref, wordIndex) {
   playerCard.classList.add('revealed');
   playerCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  if (state.dafRef !== ref) {
+  // ref here is a word box's own per-paragraph ref (e.g. "Berakhot 2a:3" --
+  // see page_ocr_align.py/caption_ocr_align.py's shared load_canonical()),
+  // but state.dafRef is always the plain daf-level ref (loadDaf() strips
+  // the paragraph suffix via canonicalDafRef() before storing it) -- comparing
+  // them directly was always unequal, so every single tap re-triggered a
+  // full reload (re-cueing the video from scratch, interrupting whatever
+  // was already playing) even for a second word on the same, already-loaded
+  // page. realDafRef(ref) normalizes to the same plain form state.dafRef
+  // actually holds, so a repeat tap on the same daf now correctly skips
+  // straight to seeking the already-stable, already-playing video instead
+  // of re-racing the YouTube cue-then-seek gap on every tap.
+  if (state.dafRef !== realDafRef(ref)) {
     try {
       await loadDaf(ref);
     } catch (error) {
