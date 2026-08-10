@@ -1303,110 +1303,78 @@ const DEFAULT_SCAN_CORNERS = [
 // and CORNER_CONFIDENCE_THRESHOLD below) -- silently mis-projecting every
 // word position on a bad guess would be worse than one extra tap.
 //
+// The actual OpenCV.js pipeline (loading the library, running the edge/
+// contour detection) lives in scan-detect-worker.js, run in a Web Worker
+// rather than here on the main thread -- a real end-to-end trial against an
+// earlier main-thread version found the library's own runtime bring-up can
+// monopolize its thread for a long time before settling, in at least some
+// browser environments. Off the main thread that only delays this one
+// background task (still bounded by AUTO_DETECT_TIMEOUT_MS below); on the
+// main thread it would have frozen the whole page's UI while it happened,
+// which a JS-level timeout can't rescue (a stuck synchronous block can't be
+// interrupted by a pending setTimeout). This function's job is just getting
+// the photo's pixels to the worker and its answer back.
+//
 // NOT YET VALIDATED AGAINST REAL PHONE PHOTOS: this sandbox's headless
 // browser has no outbound network access at all (confirmed directly -- even
-// a bare `fetch()` to the CDN below fails here), so neither the OpenCV.js
-// load nor the detection pipeline's actual accuracy on a real photographed
-// page could be exercised end to end during development. The geometry/
-// confidence math below (orderQuadPoints, scoreQuadConfidence) is tested
-// directly; the CV pipeline itself follows the standard, well-established
-// technique real scanner apps use, but its real-world hit rate on an actual
-// phone photo is unverified -- same caveat scan-daf-page.mjs already
-// documents for the header-OCR step it feeds into.
+// a bare `fetch()` to the CDN the worker loads from fails here), so neither
+// the OpenCV.js load nor the detection pipeline's actual accuracy on a real
+// photographed page could be exercised end to end during development. The
+// geometry/confidence math below (orderQuadPoints, scoreQuadConfidence) is
+// tested directly; the CV pipeline itself follows the standard,
+// well-established technique real scanner apps use, but its real-world hit
+// rate on an actual phone photo is unverified -- same caveat
+// scan-daf-page.mjs already documents for the header-OCR step it feeds into.
 
-const OPENCV_JS_VERSION = '4.9.0-release.1';
-let openCvPromise = null;
+let scanDetectWorker = null;
+let scanDetectRequestId = 0;
+const scanDetectPendingRequests = new Map();
 
-// Lazily loads OpenCV.js (a large WASM build, ~10MB) only once the camera
-// scan feature actually needs it -- mirrors loadPdfJs's lazy-CDN-script
-// pattern above so nothing else in the app pays for it. Emscripten builds
-// have varied across versions in how they signal "actually ready to use"
-// (immediately usable, a thenable Module, or an onRuntimeInitialized
-// callback) -- this handles all three rather than assuming one, since
-// guessing wrong here would just make every scan quietly fall back to the
-// manual corner step instead of failing loudly.
-function loadOpenCv() {
-  if (window.cv?.Mat) return Promise.resolve(window.cv);
-  if (openCvPromise) return openCvPromise;
-  openCvPromise = new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = `https://cdn.jsdelivr.net/npm/@techstark/opencv-js@${OPENCV_JS_VERSION}/dist/opencv.js`;
-    script.async = true;
-    script.onerror = () => {
-      openCvPromise = null;
-      reject(new Error('Could not load the page-detection library.'));
-    };
-    script.onload = async () => {
-      try {
-        let cv = window.cv;
-        if (!cv) throw new Error('Page-detection library did not attach itself.');
-        if (typeof cv.then === 'function') cv = await cv;
-        if (!cv.Mat) await new Promise((ready) => { cv['onRuntimeInitialized'] = ready; });
-        window.cv = cv;
-        resolve(cv);
-      } catch (error) {
-        openCvPromise = null;
-        reject(error);
-      }
-    };
-    document.head.appendChild(script);
-  });
-  return openCvPromise;
+function ensureScanDetectWorker() {
+  if (scanDetectWorker) return scanDetectWorker;
+  scanDetectWorker = new Worker('/scan-detect-worker.js');
+  scanDetectWorker.onmessage = (event) => {
+    const { id, quad, error } = event.data;
+    const pending = scanDetectPendingRequests.get(id);
+    if (!pending) return; // already timed out / no longer wanted
+    scanDetectPendingRequests.delete(id);
+    if (error) pending.reject(new Error(error));
+    else pending.resolve(quad);
+  };
+  scanDetectWorker.onerror = (event) => {
+    // A worker-level failure (e.g. the worker script itself 404s) can't be
+    // attributed to one in-flight request -- fail all of them, and drop the
+    // worker so the next scan attempt spins up a fresh one rather than
+    // reusing one that's already in a bad state.
+    for (const pending of scanDetectPendingRequests.values()) {
+      pending.reject(new Error(event.message || 'Page-detection worker failed.'));
+    }
+    scanDetectPendingRequests.clear();
+    scanDetectWorker = null;
+  };
+  return scanDetectWorker;
 }
 
-// Runs the standard "flatten a photographed document" pipeline (grayscale ->
-// blur -> edge detection -> contour finding -> largest convex 4-sided
-// shape) to find the page's corners without the reader marking them by
-// hand. Returns 4 corner points in image-pixel space (unordered), or null
-// if nothing plausible was found.
-function detectPageCorners(cv, imageSource) {
-  const src = cv.imread(imageSource);
-  const gray = new cv.Mat();
-  const blurred = new cv.Mat();
-  const edges = new cv.Mat();
-  const dilated = new cv.Mat();
-  const kernel = cv.Mat.ones(3, 3, cv.CV_8U);
-  const contours = new cv.MatVector();
-  const hierarchy = new cv.Mat();
-  try {
-    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-    cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
-    cv.Canny(blurred, edges, 50, 150);
-    cv.dilate(edges, dilated, kernel);
-    cv.findContours(dilated, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+// Decodes the photo into raw RGBA pixels (the worker has no DOM/canvas/Image
+// element of its own to decode with) and hands them to the detection
+// worker, transferring the pixel buffer rather than copying it. Returns the
+// detected quad in image-pixel space (unordered), or null if nothing
+// plausible was found.
+async function detectPageCornersInWorker(photoDataUrl, width, height) {
+  const img = await loadImageElement(photoDataUrl);
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, width, height);
+  const { data } = ctx.getImageData(0, 0, width, height);
 
-    let best = null;
-    let bestArea = 0;
-    for (let i = 0; i < contours.size(); i++) {
-      const contour = contours.get(i);
-      const approx = new cv.Mat();
-      try {
-        const perimeter = cv.arcLength(contour, true);
-        cv.approxPolyDP(contour, approx, 0.02 * perimeter, true);
-        if (approx.rows === 4 && cv.isContourConvex(approx)) {
-          const area = cv.contourArea(approx);
-          if (area > bestArea) {
-            bestArea = area;
-            best = [];
-            for (let r = 0; r < 4; r++) best.push([approx.data32S[r * 2], approx.data32S[r * 2 + 1]]);
-          }
-        }
-      } finally {
-        approx.delete();
-        contour.delete();
-      }
-    }
-    return best;
-  } finally {
-    src.delete();
-    gray.delete();
-    blurred.delete();
-    edges.delete();
-    dilated.delete();
-    kernel.delete();
-    contours.delete();
-    hierarchy.delete();
-  }
+  const worker = ensureScanDetectWorker();
+  const id = ++scanDetectRequestId;
+  return new Promise((resolve, reject) => {
+    scanDetectPendingRequests.set(id, { resolve, reject });
+    worker.postMessage({ id, width, height, buffer: data.buffer }, [data.buffer]);
+  });
 }
 
 // Orders 4 arbitrary quad points into [top-left, top-right, bottom-right,
@@ -1477,18 +1445,13 @@ function scoreQuadConfidence(orderedPoints, imageWidth, imageHeight) {
   return { score, reason: score >= CORNER_CONFIDENCE_THRESHOLD ? 'ok' : 'low-confidence' };
 }
 
-// Generous, but bounded -- a real end-to-end trial against this exact code
-// path (a realistic synthetic photo run through the real OpenCV.js library)
-// surfaced that the library's async init can, at least in some browser
-// environments, simply never settle: neither resolve nor reject, well past
-// the point a normal load or WASM compile would ever take (confirmed
-// separately that both the network fetch and the raw WebAssembly.compile
-// step for this exact ~7.5MB module are fast on their own -- the stall is
-// somewhere in the library's own runtime bring-up). A bare `await` with no
-// timeout would leave the reader stuck on "Finding the page…" forever in
-// that case, which is worse than just falling back to the manual step --
-// this bounds the wait so a stuck (or merely slow-on-a-weak-device) load
-// always degrades gracefully instead.
+// Moving detection into a worker (above) stops a stuck library load from
+// freezing the page, but the *promise* waiting on that worker's answer can
+// still hang just as long -- a real trial found this library's own runtime
+// bring-up can simply never settle in some environments. Generous, but
+// bounded: a stuck (or merely slow-on-a-weak-device) detection always
+// degrades gracefully to the manual step instead of leaving the reader on
+// "Finding the page…" forever.
 const AUTO_DETECT_TIMEOUT_MS = 8000;
 
 function withTimeout(promise, ms, message) {
@@ -1508,9 +1471,11 @@ async function autoDetectAndProceed() {
   let orderedFractionCorners = null;
   let confidence = 0;
   try {
-    const cv = await withTimeout(loadOpenCv(), AUTO_DETECT_TIMEOUT_MS, 'Timed out loading the page-detection library.');
-    const img = await loadImageElement(state.scanPhotoDataUrl);
-    const quad = detectPageCorners(cv, img);
+    const quad = await withTimeout(
+      detectPageCornersInWorker(state.scanPhotoDataUrl, state.scanImageWidth, state.scanImageHeight),
+      AUTO_DETECT_TIMEOUT_MS,
+      'Timed out detecting the page automatically.'
+    );
     if (quad) {
       const ordered = orderQuadPoints(quad);
       confidence = scoreQuadConfidence(ordered, state.scanImageWidth, state.scanImageHeight).score;
