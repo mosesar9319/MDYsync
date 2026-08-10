@@ -1177,6 +1177,24 @@ function renderVilnaWordBoxes() {
   updateVilnaMarkTarget();
 }
 
+// loadAlignmentData() (shared with the player/studio) deliberately shows
+// the alignment job's own internal title there ("Caption OCR alignment --
+// Chullin 100b, Chullin 101a, Chullin 101b") -- useful for an admin
+// reviewing a sync job, meaningless to a reader just watching. The video's
+// own real title (state.videoSource.label -- the actual channel upload
+// title, once loadDaf's restoreVideoSource has resolved) belongs here
+// instead; falls back to the plain daf ref if a video ever has no real
+// label of its own. 'YouTube'/'Direct link' are loadYouTubeVideo/
+// loadDirectVideoUrl's own generic placeholder labels for a source with no
+// real title of its own -- not worth showing over the plain daf ref either.
+// Shared by every "load/reveal the inline player" entry point (the Daf
+// browser's playWordInline, the scan feature's tapScannedWord/showScanResult).
+function applyRealVideoTitle(ref) {
+  const genericLabels = ['YouTube', 'Direct link'];
+  const realLabel = state.videoSource?.label && !genericLabels.includes(state.videoSource.label) ? state.videoSource.label : null;
+  $('lectureTitle').textContent = realLabel || realDafRef(ref);
+}
+
 // The Daf browser's own in-page equivalent of tapScannedWord below --
 // same "load the tapped word's daf if it isn't already on screen" shape,
 // but reveals and plays into browse/index.html's own
@@ -1208,20 +1226,7 @@ async function playWordInline(ref, wordIndex) {
       return;
     }
   }
-  // loadAlignmentData() (shared with the player/studio) deliberately shows
-  // the alignment job's own internal title there ("Caption OCR alignment --
-  // Chullin 100b, Chullin 101a, Chullin 101b") -- useful for an admin
-  // reviewing a sync job, meaningless to a reader just watching. The
-  // video's own real title (state.videoSource.label -- the actual channel
-  // upload title, once loadDaf's restoreVideoSource has resolved) is what
-  // belongs here instead; falls back to the plain daf ref if a video ever
-  // has no real label of its own.
-  // 'YouTube'/'Direct link' are loadYouTubeVideo/loadDirectVideoUrl's own
-  // generic placeholder labels for a source with no real title of its own
-  // -- not worth showing over the plain daf ref either.
-  const genericLabels = ['YouTube', 'Direct link'];
-  const realLabel = state.videoSource?.label && !genericLabels.includes(state.videoSource.label) ? state.videoSource.label : null;
-  $('lectureTitle').textContent = realLabel || realDafRef(ref);
+  applyRealVideoTitle(ref);
   seekToVilnaWord(ref, wordIndex);
   if (isPaused()) await togglePlay();
 }
@@ -1385,7 +1390,17 @@ function orderQuadPoints(points) {
 // -- used below to sanity-check a detected quad actually looks like a book
 // page rather than some other rectangular thing in frame.
 const PAGE_ASPECT_RATIO = 1.42;
-const CORNER_CONFIDENCE_THRESHOLD = 0.55;
+// Was 0.55 -- a real trial still needed the manual fallback after widening
+// scan-detect-worker.js's edge detection (see there), and without real
+// telemetry from that trial there's no way to tell whether the failure was
+// "no quad found at all" (which a looser edge threshold addresses) or "a
+// quad was found but scored under the old threshold" (which only this
+// helps). Nudged down as a second, independent hedge against the latter,
+// still comfortably above the 0.15 "looks like a mis-detection" scores
+// above -- a real page's quad in a normal photo should still clear this
+// easily; this only changes the margin for a borderline, hard-to-classify
+// case like the one reported.
+const CORNER_CONFIDENCE_THRESHOLD = 0.45;
 
 // Scores how likely a detected (and already-ordered) quadrilateral really is
 // the photographed page, so a bad or uncertain detection can fall back to
@@ -1612,7 +1627,7 @@ async function confirmScan() {
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Could not scan this page.');
-    showScanResult(result);
+    await showScanResult(result);
   } catch (error) {
     console.error(error);
     showScanStatus(error.message, 'error');
@@ -1630,13 +1645,28 @@ async function confirmScan() {
   }
 }
 
-function showScanResult(result) {
+async function showScanResult(result) {
   $('scanResultPhoto').src = state.scanPhotoDataUrl;
   $('scanAlign').hidden = true;
   $('scanResult').hidden = false;
   $('scanStatus').hidden = true;
   $('scanResultHint').textContent = `Recognized ${result.ref} — tap any word to jump the video there. Pinch or scroll to zoom in.`;
   resetScanResultZoom();
+
+  // A page was just identified -- this is the first point the video player
+  // has anything useful to show, so reveal it now (see the ?view=scan
+  // handler's scan-pending class) and load the matched daf's video right
+  // away, instead of waiting for the reader's first word tap.
+  document.body.classList.remove('scan-pending');
+  if (state.dafRef !== result.ref) {
+    try {
+      await loadDaf(result.ref);
+      applyRealVideoTitle(result.ref);
+    } catch (error) {
+      console.error(error);
+      showToast(`Could not load ${result.ref}: ${error.message}`, 'error');
+    }
+  }
 
   const overlay = $('scanWordOverlay');
   overlay.innerHTML = '';
@@ -1794,12 +1824,7 @@ async function tapScannedWord(scannedRef, wordRef, wordIndex) {
       return;
     }
   }
-  // Mirror playWordInline's title override (see there for the full
-  // rationale) -- loadDaf's loadAlignmentData otherwise leaves the sync
-  // job's own internal "Caption OCR alignment -- ..." label showing here too.
-  const genericLabels = ['YouTube', 'Direct link'];
-  const realLabel = state.videoSource?.label && !genericLabels.includes(state.videoSource.label) ? state.videoSource.label : null;
-  $('lectureTitle').textContent = realLabel || realDafRef(scannedRef);
+  applyRealVideoTitle(scannedRef);
   seekToVilnaWord(wordRef, wordIndex);
   if (isPaused()) await togglePlay();
 }
@@ -4685,6 +4710,11 @@ loadTalmudIndex().then(() => {
   // player-page layout (see tapScannedWord), the same as any other daf.
   if (params.get('view') === 'scan') {
     switchDafView('scan');
+    // Arriving here fresh (no ref already given to load) has no video to
+    // show yet -- keep the player panel hidden, full-width scan card only,
+    // until a photo is actually scanned and matched (see showScanResult),
+    // rather than showing an empty player next to it from the first paint.
+    if (!params.get('ref')) document.body.classList.add('scan-pending');
   }
   const ref = params.get('ref');
   // The Daf browser (browse/index.html) has no video to load -- either land
