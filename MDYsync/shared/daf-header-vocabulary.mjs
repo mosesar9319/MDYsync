@@ -80,6 +80,12 @@ export function buildHeaderVocabulary(availableDapim) {
 // page/photo anyway). Whichever amud is actually being read has to come
 // from elsewhere (the reader picking it, or defaulting to 'a').
 
+function scoreEntry(tokens, entry) {
+  const hebrewScore = Math.max(...tokens.map((t) => ratio(t, entry.hebrew)));
+  const gematriaScore = Math.max(...tokens.map((t) => ratio(t, entry.gematria)));
+  return { entry, score: (hebrewScore + gematriaScore) / 2, hebrewScore, gematriaScore };
+}
+
 /**
  * Matches OCR'd header text against the vocabulary. The physical header
  * has two pieces of text (Masechta name, daf gematria) whose left-to-right
@@ -88,18 +94,41 @@ export function buildHeaderVocabulary(availableDapim) {
  * on, and how tesseract happens to walk the region -- so this matches each
  * vocabulary entry's two pieces against whichever OCR'd token fits best,
  * independent of order, rather than assuming a fixed order.
+ *
+ * minMargin guards against a specific, confirmed failure mode: many
+ * gematria values are literal prefixes of each other (100's "ק" is the
+ * first letter of 101's "קא", 110's "קי" of 111's "קיא", etc.), so an OCR
+ * misread that drops just the LAST letter of the real value doesn't
+ * produce noise -- it produces an exact, confident-looking match for a
+ * different, real, available daf. Reproduced directly: OCR of a real photo
+ * losing "קא"'s trailing א left "ק" (100) and "קא" (101) in an exact score
+ * tie. minScore alone can't catch this (a tied wrong guess clears it just
+ * as easily as the right one would) -- only checking that the winner
+ * actually stands apart from the next different candidate can. Failing
+ * closed on a near-tie is deliberate: guessing wrong here silently
+ * mis-projects every word position onto the wrong page, worse than
+ * returning "couldn't identify" and letting the reader retry the scan.
  */
-export function matchHeader(ocrText, vocabulary, minScore = 55) {
+export function matchHeader(ocrText, vocabulary, minScore = 55, minMargin = 10) {
   const tokens = ocrText.split(/\s+/).map((t) => t.trim()).filter(Boolean);
   if (!tokens.length || !vocabulary.length) return null;
 
   let best = null;
   for (const entry of vocabulary) {
-    const hebrewScore = Math.max(...tokens.map((t) => ratio(t, entry.hebrew)));
-    const gematriaScore = Math.max(...tokens.map((t) => ratio(t, entry.gematria)));
-    const score = (hebrewScore + gematriaScore) / 2;
-    if (!best || score > best.score) best = { entry, score, hebrewScore, gematriaScore };
+    const scored = scoreEntry(tokens, entry);
+    if (!best || scored.score > best.score) best = scored;
   }
   if (!best || best.score < minScore) return null;
+
+  // The next-best candidate that isn't just the other amud of the same daf
+  // (identical hebrew + gematria -- not a meaningfully different guess).
+  let runnerUp = null;
+  for (const entry of vocabulary) {
+    if (entry.tractate === best.entry.tractate && entry.daf === best.entry.daf) continue;
+    const scored = scoreEntry(tokens, entry);
+    if (!runnerUp || scored.score > runnerUp.score) runnerUp = scored;
+  }
+  if (runnerUp && best.score - runnerUp.score < minMargin) return null;
+
   return best;
 }
