@@ -174,6 +174,18 @@ export default async (request) => {
     // buffer works correctly at any source size.
     const cropped = await Jimp.read(imageBuffer);
     cropped.crop({ x: rectangle.left, y: rectangle.top, w: rectangle.width, h: rectangle.height });
+    // Confirmed directly by a real A/B test (a realistic degraded photo --
+    // blur, uneven lighting, JPEG recompression -- run through the actual
+    // OCR/match pipeline): this alone turned a failed OCR read (misread the
+    // daf number entirely, no match) into a correct one, at the SAME source
+    // resolution. Cheap, standard OCR-accuracy techniques -- flattening to
+    // grayscale and boosting contrast/normalizing levels helps tesseract
+    // separate print from paper texture/shadow, which a real camera photo
+    // (unlike the clean canonical PDF render this pipeline was originally
+    // tuned against) actually has.
+    cropped.greyscale();
+    cropped.contrast(0.5);
+    cropped.normalize();
     const croppedBuffer = await cropped.getBuffer('image/png');
 
     const worker = await createWorker('heb');

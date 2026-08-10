@@ -1275,10 +1275,17 @@ function seekToVilnaWord(ref, wordIndex) {
 // there -- reuses seekToVilnaWord() above, since a scanned word's
 // (ref, wordIndex) means the same thing regardless of which view found it.
 
-// Keeps the upload small (scan-daf-page.mjs caps the decoded photo at 8MB)
-// and keeps OCR/homography work proportionate -- a raw phone photo can be
-// several times this size for no benefit to a small header crop.
-const SCAN_MAX_DIMENSION = 1600;
+// Was 1600 -- raised after a direct A/B test (a realistic degraded photo:
+// blur + uneven lighting + JPEG recompression, run through the real OCR/
+// match pipeline) showed the header text simply wasn't legible enough at
+// 1600 on that photo, while the identical photo at 2400 OCR'd and matched
+// correctly. Header OCR only has the header's own printed text to work
+// with -- unlike the word-tap overlay, which can tolerate some blur since
+// a reader is aiming for a whole word, not a single character -- so losing
+// a letter of a 2-3 character gematria number is enough to misidentify the
+// page (see matchHeader's minMargin). Still well clear of scan-daf-page.mjs's
+// 8MB cap: a real degraded test photo at 2400 came out under 450KB as JPEG.
+const SCAN_MAX_DIMENSION = 2400;
 // Corners default to a generous inward inset, not the photo's own edges --
 // most photos have some background/table visible around the book, so
 // starting the drag handles a little inside a typical framing needs less
