@@ -80,9 +80,39 @@ export function buildHeaderVocabulary(availableDapim) {
 // page/photo anyway). Whichever amud is actually being read has to come
 // from elsewhere (the reader picking it, or defaulting to 'a').
 
-function scoreEntry(tokens, entry) {
+// Tesseract occasionally hallucinates a stray niqqud/cantillation mark onto
+// otherwise-correct Hebrew text (confirmed directly on a real photo: a
+// clean "קא" came out "קאָ" -- a phantom kamatz, U+05B8, that isn't on the
+// printed page at all, Vilna Shas headers are unvocalized). Neither this
+// project's Hebrew vocabulary strings (MASECHTA_HEBREW, toGematria's
+// output) nor a real header ever intentionally contains one, so stripping
+// the whole Unicode niqqud/cantillation block before comparing only ever
+// removes OCR noise, never real signal.
+function stripNiqqud(s) {
+  return s.replace(/[\u0591-\u05C7]/g, '');
+}
+
+// The printed daf number is always followed by a period (e.g. "קא.") --
+// confirmed directly, across every real and synthetic OCR sample collected
+// while building this, tesseract consistently preserves that as a trailing
+// "." or "," (comma misreads of a period are common) on the token it reads
+// as the daf number specifically, while unrelated noise tokens (stray
+// margin-annotation fragments, misread punctuation elsewhere in the crop)
+// essentially never carry one. Restricting the gematria comparison to
+// punctuated tokens when any exist is a cheap, targeted way to stop random
+// short noise fragments from ever outscoring the real (if imperfectly
+// OCR'd) daf-number token -- confirmed directly: this alone fixed a real
+// photo where a stray fragment ("רה", no punctuation) was fuzzy-matching a
+// different daf's gematria closely enough to trip the minMargin check
+// against the correct match.
+function gematriaCandidates(tokens) {
+  const punctuated = tokens.filter((t) => /[.,]$/.test(t));
+  return punctuated.length ? punctuated : tokens;
+}
+
+function scoreEntry(tokens, gematriaTokens, entry) {
   const hebrewScore = Math.max(...tokens.map((t) => ratio(t, entry.hebrew)));
-  const gematriaScore = Math.max(...tokens.map((t) => ratio(t, entry.gematria)));
+  const gematriaScore = Math.max(...gematriaTokens.map((t) => ratio(t, entry.gematria)));
   return { entry, score: (hebrewScore + gematriaScore) / 2, hebrewScore, gematriaScore };
 }
 
@@ -110,12 +140,13 @@ function scoreEntry(tokens, entry) {
  * returning "couldn't identify" and letting the reader retry the scan.
  */
 export function matchHeader(ocrText, vocabulary, minScore = 55, minMargin = 10) {
-  const tokens = ocrText.split(/\s+/).map((t) => t.trim()).filter(Boolean);
+  const tokens = ocrText.split(/\s+/).map((t) => stripNiqqud(t.trim())).filter(Boolean);
   if (!tokens.length || !vocabulary.length) return null;
+  const gematriaTokens = gematriaCandidates(tokens);
 
   let best = null;
   for (const entry of vocabulary) {
-    const scored = scoreEntry(tokens, entry);
+    const scored = scoreEntry(tokens, gematriaTokens, entry);
     if (!best || scored.score > best.score) best = scored;
   }
   if (!best || best.score < minScore) return null;
@@ -125,7 +156,7 @@ export function matchHeader(ocrText, vocabulary, minScore = 55, minMargin = 10) 
   let runnerUp = null;
   for (const entry of vocabulary) {
     if (entry.tractate === best.entry.tractate && entry.daf === best.entry.daf) continue;
-    const scored = scoreEntry(tokens, entry);
+    const scored = scoreEntry(tokens, gematriaTokens, entry);
     if (!runnerUp || scored.score > runnerUp.score) runnerUp = scored;
   }
   if (runnerUp && best.score - runnerUp.score < minMargin) return null;
