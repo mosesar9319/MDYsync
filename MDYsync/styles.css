@@ -264,6 +264,7 @@ h2 { margin-bottom: 0; }
 
 .scan-placeholder { min-height: 100%; padding: 20px; color: #453c2e; text-align: center; }
 .scan-intro p { max-width: 420px; margin: 0 auto 18px; line-height: 1.5; }
+.scan-intro-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
 .scan-hint { max-width: 420px; margin: 0 auto 14px; color: #6b6153; font-size: 13px; line-height: 1.5; }
 .scan-align-wrap, .scan-result-wrap {
   position: relative;

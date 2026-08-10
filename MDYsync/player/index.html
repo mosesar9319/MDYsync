@@ -905,8 +905,12 @@
                   <div class="page-column narrow"></div>
                 </div>
                 <p>Point your camera at a printed Gemara page. We'll figure out which daf it is and let you tap any word to jump the video there.</p>
-                <label class="button primary" for="scanCameraInput">Open camera</label>
-                <input type="file" id="scanCameraInput" accept="image/*" capture="environment" hidden />
+                <div class="scan-intro-actions">
+                  <label class="button primary" for="scanCameraInput">Take a photo</label>
+                  <input type="file" id="scanCameraInput" accept="image/*" capture="environment" hidden />
+                  <label class="button secondary" for="scanLibraryInput">Choose from library</label>
+                  <input type="file" id="scanLibraryInput" accept="image/*" hidden />
+                </div>
               </div>
 
               <div class="scan-align" id="scanAlign" hidden>

@@ -1544,6 +1544,7 @@ function resetScanUi() {
   $('scanResult').hidden = true;
   $('scanStatus').hidden = true;
   $('scanCameraInput').value = '';
+  $('scanLibraryInput').value = '';
   state.scanPhotoDataUrl = null;
   state.scanCorners = null;
 }
@@ -3649,6 +3650,7 @@ for (const button of document.querySelectorAll('.sync-method-switch button[data-
 }
 
 $('scanCameraInput')?.addEventListener('change', (event) => handleScanFileSelected(event.target.files?.[0]));
+$('scanLibraryInput')?.addEventListener('change', (event) => handleScanFileSelected(event.target.files?.[0]));
 $('scanRetakeButton')?.addEventListener('click', resetScanUi);
 $('scanAgainButton')?.addEventListener('click', resetScanUi);
 $('scanConfirmButton')?.addEventListener('click', confirmScan);
@@ -4585,7 +4587,7 @@ $('browseHideVideoButton')?.addEventListener('click', () => {
 // this waits on the same loadTalmudIndex() call the picker itself depends on.
 loadTalmudIndex().then(() => {
   const params = new URLSearchParams(location.search);
-  // ?view=scan (from the shared nav's "Scan a page" tab) jumps straight to
+  // ?view=scan (from the shared nav's "Daf Scan" tab) jumps straight to
   // the Scan view -- independent of whether a ref was also given, since the
   // scan flow resolves its own daf once a photo is scanned. body.scan-only
   // (styles scoped to it in player/index.html's own <style>) hides the
