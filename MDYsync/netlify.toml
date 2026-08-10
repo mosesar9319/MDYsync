@@ -2,6 +2,38 @@
   publish = "."
   functions = "netlify/functions"
 
+# scan-daf-page.mjs's tesseract.js dependency needed its actual WASM OCR
+# engine binaries (tesseract.js-core's *.wasm / *.wasm.js -- several MB
+# each, one per CPU-feature variant that tesseract picks between at runtime)
+# to reach production, and they weren't -- confirmed directly by running
+# this project's real Netlify Functions bundler (@netlify/zip-it-and-ship-it,
+# the "nft" bundler these .mjs functions use) locally: it correctly traces
+# and includes tesseract.js's own JS files (its worker-thread spawn code
+# and worker-script), but its static analysis can't follow the runtime,
+# feature-detection-driven path that picks which *.wasm variant to load, so
+# every one of them was silently left out of the deployed bundle. That
+# produced a real, reproduced-live crash: the deployed function returned a
+# raw 502 ("An unknown error has occurred") for every scan attempt, well
+# before reaching any of scan-daf-page.mjs's own error handling. (Also
+# confirmed the fix directly: rebundling with this config actually adds the
+# *.wasm files -- 1.3MB to 19.8MB for this one function.)
+#
+# externalNodeModules (the more commonly reached-for fix for this class of
+# bug) has NO effect here -- it's an esbuild-only option, and esbuild isn't
+# the bundler in play for these functions. included_files is bundler-
+# agnostic: it's applied by zip-it-and-ship-it itself as an explicit,
+# glob-based addition, regardless of which bundler traced (or failed to
+# trace) something. All CPU-feature variants are kept, not just the
+# default, since which one the Lambda runtime's CPU actually gets offered
+# is a runtime decision (wasm-feature-detect), not a build-time one --
+# trimming to one variant risks the exact same crash for whichever runtime
+# picks a different one. Scoped to just this function (not [functions]
+# globally) so the other 12 functions -- none of which use tesseract.js --
+# don't each also ship an extra ~18MB of OCR-engine binaries they never
+# touch.
+[functions."scan-daf-page"]
+  included_files = ["node_modules/tesseract.js-core/*.wasm", "node_modules/tesseract.js-core/*.wasm.js"]
+
 [[redirects]]
   from = "/studio"
   to = "/studio/"
