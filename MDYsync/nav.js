@@ -12,7 +12,7 @@ const NAV_ITEMS = [
   { label: 'Home', icon: 'home', href: '/' },
   { label: 'Today’s Daf', icon: 'calendar', href: '/?nav=today' },
   { label: 'Masechtos', icon: 'books', href: '/?nav=masechtos' },
-  { label: 'Scan a page', icon: 'camera', href: '/player/?view=scan' },
+  { label: 'Daf Scan', icon: 'camera', href: '/player/?view=scan' },
   { label: 'Daf browser', icon: 'bookOpen', href: '/browse/' },
 ];
 
@@ -32,9 +32,9 @@ function navIcon(name) {
   return `<svg aria-hidden="true" class="icon" fill="none" height="23" viewBox="0 0 24 24" width="23">${NAV_ICON_PATHS[name]}</svg>`;
 }
 
-// The Scan tab's own destination is /player/?view=scan -- only that
+// The Daf Scan tab's own destination is /player/?view=scan -- only that
 // specific combination should read as "active," not every /player/
-// visit (e.g. an ordinary loaded shiur shouldn't light up "Scan a page").
+// visit (e.g. an ordinary loaded shiur shouldn't light up "Daf Scan").
 function isItemActive(item) {
   const url = new URL(item.href, location.origin);
   if (url.pathname !== location.pathname) return false;
