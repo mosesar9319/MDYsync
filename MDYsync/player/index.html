@@ -486,15 +486,6 @@
     }
     @media (prefers-reduced-motion: reduce) { *,*::before,*::after { scroll-behavior: auto !important; transition-duration: .01ms !important; } }
 
-    /* ?view=scan (see app.js's loadTalmudIndex().then(...)) -- the camera-
-       scan flow determines its own daf from the photo, so neither the
-       video player nor the daf-reference picker apply here; hiding both
-       leaves just the scan card, full width, as the whole page. */
-    body.scan-only .setup-strip { display: none; }
-    body.scan-only .watch-layout { display: block; }
-    body.scan-only .player-card { display: none; }
-    body.scan-only .daf-card { min-height: 82vh; }
-    body.scan-only .view-switch { display: none; }
   </style>
 </head>
 <body class="player-page">
@@ -931,8 +922,10 @@
 
               <div class="scan-result" id="scanResult" hidden>
                 <div class="scan-result-wrap" id="scanResultWrap">
-                  <img id="scanResultPhoto" alt="Scanned page" />
-                  <div class="scan-word-overlay" id="scanWordOverlay"></div>
+                  <div class="scan-result-zoom" id="scanResultZoom">
+                    <img id="scanResultPhoto" alt="Scanned page" />
+                    <div class="scan-word-overlay" id="scanWordOverlay"></div>
+                  </div>
                 </div>
                 <p class="scan-hint" id="scanResultHint"></p>
                 <button class="button secondary small" id="scanAgainButton" type="button">Scan another page</button>

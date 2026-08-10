@@ -68,6 +68,12 @@ const state = {
   scanImageHeight: 0,
   scanCorners: null,
   scanDraggingCorner: null,
+  // Pinch/pan zoom on the synced result photo (see wireScanResultZoom) --
+  // a plain CSS transform on #scanResultZoom (translate in wrap-relative
+  // px, then scale), reset to identity each time a fresh photo is shown.
+  scanResultZoom: 1,
+  scanResultPanX: 0,
+  scanResultPanY: 0,
   // Daf browser (browse/index.html) -- browseMode is detected below from
   // <body data-page="browse">, not set by a separate script, since app.js
   // is one big deferred script with no mid-file hook another script tag
@@ -80,12 +86,6 @@ const state = {
   // segment" that page normally reads instead.
   browseMode: document.body.dataset.page === 'browse',
   browsePageRef: null,
-  // Camera-scan-only mode (?view=scan, see loadTalmudIndex().then(...) near
-  // the bottom of this file) -- unlike browseMode, this can't be detected
-  // from a static HTML attribute at state-init time (the query string is
-  // only known once the deferred script runs), so it starts false and gets
-  // flipped where the ?view=scan check itself runs.
-  scanOnlyMode: false,
   // Daf browser only -- fetched once from list-synced-dapim.mjs (see
   // loadTalmudIndex()), { "<Tractate>": { "<daf><amud>": ["regularEn",...] } }.
   // loadTalmudIndex() awaits that fetch before building either picker, so
@@ -1165,9 +1165,8 @@ function renderVilnaWordBoxes() {
     el.style.height = `${box.h * 100}%`;
     el.addEventListener('click', () => {
       // The Daf browser has its own (initially hidden) video player on the
-      // same page -- a tap reveals and plays into that in place, rather
-      // than navigating away the way the scan-only page's tapScannedWord
-      // still has to (it has no video-player DOM at all to play into).
+      // same page -- a tap reveals and plays into that in place instead of
+      // navigating away (same idea as the scan feature's tapScannedWord).
       if (state.browseMode) playWordInline(box.ref, box.wordIndex);
       else if (state.vilnaMarkMode) markSegmentAtVilnaWord(box.ref, box.wordIndex);
       else seekToVilnaWord(box.ref, box.wordIndex);
@@ -1178,23 +1177,9 @@ function renderVilnaWordBoxes() {
   updateVilnaMarkTarget();
 }
 
-// Builds the same ?ref=&variant=&language= deep link player/index.html's
-// own loadTalmudIndex().then(...) block already resolves (see there), plus
-// ?seekWord= so it lands at this exact word instead of the top of the daf.
-// box.ref is always the plain, variant-/language-less ref (see
-// renderVilnaWordBoxes above) -- the variant/language actually being
-// browsed live only in the picker, via state.browsePageRef.
-function navigateToPlayerAtWord(ref, wordIndex) {
-  const parsed = parseDafRef(state.browsePageRef) || {};
-  const params = new URLSearchParams({ ref, seekWord: String(wordIndex) });
-  if (parsed.variant === 'chazarah') params.set('variant', 'chazarah');
-  if (parsed.language === 'he') params.set('language', 'hebrew');
-  location.href = `/player/?${params.toString()}`;
-}
-
-// The Daf browser's own in-page equivalent of navigateToPlayerAtWord above --
-// same "load the tapped word's daf if it isn't already on screen" shape as
-// tapScannedWord, but reveals and plays into browse/index.html's own
+// The Daf browser's own in-page equivalent of tapScannedWord below --
+// same "load the tapped word's daf if it isn't already on screen" shape,
+// but reveals and plays into browse/index.html's own
 // .player-card (present in the DOM, just hidden until first needed -- see
 // browse/index.html's own comment) instead of leaving the page. Loading a
 // different ref here never disturbs which page image is shown: renderVilnaPage
@@ -1519,6 +1504,7 @@ function resetScanUi() {
   $('scanLibraryInput').value = '';
   state.scanPhotoDataUrl = null;
   state.scanCorners = null;
+  resetScanResultZoom();
 }
 
 function showScanStatus(message, kind) {
@@ -1649,7 +1635,8 @@ function showScanResult(result) {
   $('scanAlign').hidden = true;
   $('scanResult').hidden = false;
   $('scanStatus').hidden = true;
-  $('scanResultHint').textContent = `Recognized ${result.ref} — tap any word to jump the video there.`;
+  $('scanResultHint').textContent = `Recognized ${result.ref} — tap any word to jump the video there. Pinch or scroll to zoom in.`;
+  resetScanResultZoom();
 
   const overlay = $('scanWordOverlay');
   overlay.innerHTML = '';
@@ -1667,18 +1654,137 @@ function showScanResult(result) {
   }
 }
 
+// Pinch-to-zoom on the synced result photo. A CSS transform on
+// #scanResultZoom (the img + its word-tap overlay, moved together as one
+// unit) inside #scanResultWrap, which stays the fixed-size, overflow:hidden
+// viewport -- same "pointer map + pinch/drag baseline" shape as the video
+// overlay's handleOverlayPointerDown/Move/Up (see there), simplified since a
+// plain CSS translate/scale needs no canvas-pixel/page-fraction conversion.
+const SCAN_RESULT_ZOOM_MIN = 1;
+const SCAN_RESULT_ZOOM_MAX = 4;
+const scanResultPointers = new Map();
+let scanResultDragMoved = false;
+let scanResultDragStart = null; // { x, y, panX, panY }
+let scanResultPinchStart = null; // { dist, midX, midY, zoom, panX, panY }
+
+function applyScanResultZoom() {
+  const layer = $('scanResultZoom');
+  if (layer) layer.style.transform = `translate(${state.scanResultPanX}px, ${state.scanResultPanY}px) scale(${state.scanResultZoom})`;
+}
+
+function resetScanResultZoom() {
+  state.scanResultZoom = 1;
+  state.scanResultPanX = 0;
+  state.scanResultPanY = 0;
+  applyScanResultZoom();
+}
+
+function scanResultPointerMidpoint() {
+  const [a, b] = [...scanResultPointers.values()];
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+function scanResultPointerDistance() {
+  const [a, b] = [...scanResultPointers.values()];
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function handleScanResultPointerDown(event) {
+  $('scanResultWrap').setPointerCapture(event.pointerId);
+  scanResultPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (scanResultPointers.size === 1) {
+    scanResultDragMoved = false;
+    scanResultDragStart = { x: event.clientX, y: event.clientY, panX: state.scanResultPanX, panY: state.scanResultPanY };
+    scanResultPinchStart = null;
+  } else if (scanResultPointers.size === 2) {
+    scanResultDragMoved = true; // a pinch is never a click, on either finger
+    const mid = scanResultPointerMidpoint();
+    scanResultPinchStart = {
+      dist: scanResultPointerDistance(),
+      midX: mid.x,
+      midY: mid.y,
+      zoom: state.scanResultZoom,
+      panX: state.scanResultPanX,
+      panY: state.scanResultPanY,
+    };
+  }
+  $('scanResultZoom').classList.add('dragging');
+}
+
+function handleScanResultPointerMove(event) {
+  if (!scanResultPointers.has(event.pointerId)) return;
+  scanResultPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (scanResultPointers.size >= 2 && scanResultPinchStart) {
+    const dist = scanResultPointerDistance();
+    const ratio = dist / (scanResultPinchStart.dist || dist || 1);
+    state.scanResultZoom = Math.max(SCAN_RESULT_ZOOM_MIN, Math.min(SCAN_RESULT_ZOOM_MAX, scanResultPinchStart.zoom * ratio));
+    const mid = scanResultPointerMidpoint();
+    state.scanResultPanX = scanResultPinchStart.panX + (mid.x - scanResultPinchStart.midX);
+    state.scanResultPanY = scanResultPinchStart.panY + (mid.y - scanResultPinchStart.midY);
+    clampScanResultPanAtMinZoom();
+    applyScanResultZoom();
+  } else if (scanResultDragStart && state.scanResultZoom > SCAN_RESULT_ZOOM_MIN) {
+    const pt = scanResultPointers.get(event.pointerId);
+    const dx = pt.x - scanResultDragStart.x;
+    const dy = pt.y - scanResultDragStart.y;
+    if (Math.hypot(dx, dy) > 6) scanResultDragMoved = true;
+    state.scanResultPanX = scanResultDragStart.panX + dx;
+    state.scanResultPanY = scanResultDragStart.panY + dy;
+    applyScanResultZoom();
+  }
+}
+
+// Snaps pan back to centered once fully zoomed back out, so pinching back
+// to 1x always returns to the original, un-panned view instead of leaving
+// the photo stuck off to one side.
+function clampScanResultPanAtMinZoom() {
+  if (state.scanResultZoom > SCAN_RESULT_ZOOM_MIN) return;
+  state.scanResultPanX = 0;
+  state.scanResultPanY = 0;
+}
+
+function handleScanResultPointerUp(event) {
+  scanResultPointers.delete(event.pointerId);
+  if (scanResultPointers.size < 2) scanResultPinchStart = null;
+  if (scanResultPointers.size === 1) {
+    // Re-baseline from the remaining finger's current position so the pan
+    // doesn't jump when the second finger lifts mid-pinch.
+    const [remaining] = scanResultPointers.values();
+    scanResultDragStart = { x: remaining.x, y: remaining.y, panX: state.scanResultPanX, panY: state.scanResultPanY };
+  } else if (scanResultPointers.size === 0) {
+    scanResultDragStart = null;
+    $('scanResultZoom').classList.remove('dragging');
+  }
+}
+
+function handleScanResultWheel(event) {
+  if (!event.ctrlKey) return; // trackpad pinch on desktop; leave normal page scroll alone
+  event.preventDefault();
+  const factor = event.deltaY < 0 ? 1.1 : 1 / 1.1;
+  state.scanResultZoom = Math.max(SCAN_RESULT_ZOOM_MIN, Math.min(SCAN_RESULT_ZOOM_MAX, state.scanResultZoom * factor));
+  clampScanResultPanAtMinZoom();
+  applyScanResultZoom();
+}
+
+// A pinch/drag that ends on a word box shouldn't also register as a tap on
+// it -- capture-phase so this runs before the word box's own bubbling click
+// listener (see showScanResult).
+function suppressScanResultClickAfterDrag(event) {
+  if (scanResultDragMoved) {
+    event.stopPropagation();
+    scanResultDragMoved = false;
+  }
+}
+
 // A scanned word can belong to a different daf than whatever's currently
 // loaded (the reader might scan a page before ever loading its video) --
 // seekToVilnaWord only knows about the *currently loaded* daf's segments/
 // wordTimeline, so load the scanned daf first if it isn't already on screen.
+// scannedRef (result.ref from scan-daf-page.mjs) is already a plain
+// daf-level ref ("Chullin 101a"), the same shape state.dafRef holds, so
+// (unlike playWordInline's per-paragraph wordRef) no realDafRef() normalizing
+// is needed here to compare them.
 async function tapScannedWord(scannedRef, wordRef, wordIndex) {
-  // Scan-only mode (?view=scan) has no video player on this page at all to
-  // seek within -- deep-link to the real player instead, same as the Daf
-  // browser's own word taps already do via navigateToPlayerAtWord.
-  if (state.scanOnlyMode) {
-    navigateToPlayerAtWord(wordRef, wordIndex);
-    return;
-  }
   if (state.dafRef !== scannedRef) {
     try {
       await loadDaf(scannedRef);
@@ -1688,7 +1794,14 @@ async function tapScannedWord(scannedRef, wordRef, wordIndex) {
       return;
     }
   }
+  // Mirror playWordInline's title override (see there for the full
+  // rationale) -- loadDaf's loadAlignmentData otherwise leaves the sync
+  // job's own internal "Caption OCR alignment -- ..." label showing here too.
+  const genericLabels = ['YouTube', 'Direct link'];
+  const realLabel = state.videoSource?.label && !genericLabels.includes(state.videoSource.label) ? state.videoSource.label : null;
+  $('lectureTitle').textContent = realLabel || realDafRef(scannedRef);
   seekToVilnaWord(wordRef, wordIndex);
+  if (isPaused()) await togglePlay();
 }
 
 // The Vilna-page equivalent of the marking-bar's "Mark here & advance" (or
@@ -3631,6 +3744,12 @@ for (const handle of document.querySelectorAll('.scan-corner-handle')) {
 }
 document.addEventListener('pointermove', handleScanCornerPointerMove);
 document.addEventListener('pointerup', handleScanCornerPointerUp);
+$('scanResultWrap')?.addEventListener('pointerdown', handleScanResultPointerDown);
+$('scanResultWrap')?.addEventListener('pointermove', handleScanResultPointerMove);
+$('scanResultWrap')?.addEventListener('pointerup', handleScanResultPointerUp);
+$('scanResultWrap')?.addEventListener('pointercancel', handleScanResultPointerUp);
+$('scanResultWrap')?.addEventListener('wheel', handleScanResultWheel, { passive: false });
+$('scanResultWrap')?.addEventListener('click', suppressScanResultClickAfterDrag, { capture: true });
 
 $('helpButton').addEventListener('click', () => $('helpDialog').showModal());
 $('closeHelp').addEventListener('click', () => $('helpDialog').close());
@@ -4561,16 +4680,11 @@ loadTalmudIndex().then(() => {
   const params = new URLSearchParams(location.search);
   // ?view=scan (from the shared nav's "Daf Scan" tab) jumps straight to
   // the Scan view -- independent of whether a ref was also given, since the
-  // scan flow resolves its own daf once a photo is scanned. body.scan-only
-  // (styles scoped to it in player/index.html's own <style>) hides the
-  // video player and daf-reference picker entirely, so the camera-open
-  // button is the whole page instead of competing for space next to an
-  // empty player -- as close to "opens directly into the camera" as a
-  // page load can get without a user gesture already on the file input.
+  // scan flow resolves its own daf once a photo is scanned. Tapping a
+  // recognized word then loads/seeks the video right here on the normal
+  // player-page layout (see tapScannedWord), the same as any other daf.
   if (params.get('view') === 'scan') {
     switchDafView('scan');
-    document.body.classList.add('scan-only');
-    state.scanOnlyMode = true;
   }
   const ref = params.get('ref');
   // The Daf browser (browse/index.html) has no video to load -- either land

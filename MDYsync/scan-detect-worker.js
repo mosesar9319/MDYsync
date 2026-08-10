@@ -61,10 +61,28 @@ function detectPageCorners(cv, width, height, rgba) {
   const kernel = cv.Mat.ones(3, 3, cv.CV_8U);
   const contours = new cv.MatVector();
   const hierarchy = new cv.Mat();
+  const otsuMask = new cv.Mat();
   try {
     cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
     cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
-    cv.Canny(blurred, edges, 50, 150);
+    // Canny's two thresholds used to be a fixed 50/150 -- reasonable for a
+    // well-lit, high-contrast page-on-dark-background photo, but a real
+    // failure case (a scan that needed a manual corner fallback) had a page
+    // sitting against a comparatively light, low-contrast background, where
+    // the actual page/background luminance step can fall below a fixed
+    // lower threshold of 50 and produce no boundary edge at all -- the
+    // detector then has nothing to find a quad in, regardless of how the
+    // downstream contour/confidence scoring is tuned (see scoreQuadConfidence
+    // in app.js, which is never even reached in that case). Otsu's method
+    // computes the threshold that best separates this specific image's own
+    // two dominant intensity populations (page vs. background), so deriving
+    // Canny's thresholds from it -- the standard high=otsu, low=0.5*otsu
+    // pairing -- adapts per-photo instead of assuming every photo has the
+    // same fixed contrast. Floored at 30 so a near-blank/uniform frame
+    // (Otsu threshold near 0) doesn't collapse Canny to a no-op.
+    const otsuLevel = cv.threshold(blurred, otsuMask, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
+    const cannyUpper = Math.max(30, otsuLevel);
+    cv.Canny(blurred, edges, cannyUpper * 0.5, cannyUpper);
     cv.dilate(edges, dilated, kernel);
     cv.findContours(dilated, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 
@@ -99,6 +117,7 @@ function detectPageCorners(cv, width, height, rgba) {
     kernel.delete();
     contours.delete();
     hierarchy.delete();
+    otsuMask.delete();
   }
 }
 

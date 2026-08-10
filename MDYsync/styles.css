@@ -277,6 +277,11 @@ h2 { margin-bottom: 0; }
   touch-action: none; /* the corner handles do their own drag handling */
 }
 .scan-align-wrap img, .scan-result-wrap img { display: block; width: 100%; height: auto; }
+/* Pinch/pan zoom target (see wireScanResultZoom in app.js) -- transformed
+   as one unit so the img and its word-tap overlay always stay aligned;
+   .scan-result-wrap above stays the fixed-size, overflow:hidden viewport. */
+.scan-result-zoom { transform-origin: 0 0; cursor: grab; }
+.scan-result-zoom.dragging { cursor: grabbing; }
 .scan-corner-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .scan-corner-lines polygon { fill: rgba(56,214,193,.14); stroke: #38d6c1; stroke-width: 2; }
 .scan-corner-handle {
