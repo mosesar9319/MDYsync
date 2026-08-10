@@ -52,10 +52,28 @@ const ALLOWED_ORIGINS = new Set([
   'http://localhost:8080',
 ]);
 
-// Comfortably generous, not tight -- editions vary a little in exactly how
-// tall the header prints, and OCR just needs the region to *contain* the
-// header, not exclude everything else.
-const HEADER_BAND = [[0, 0], [1, 0], [1, 0.09], [0, 0.09]];
+// Was 0.09 (9% of page height) -- confirmed directly (rendering the real
+// canonical PDF for a real daf, OCRing progressively taller crops) that this
+// reached 3-4 lines into body text below the actual header line, which sits
+// in roughly the top 4.5%. That mattered more than it looks like it should:
+// matchHeader takes the *best-scoring token anywhere in the OCR'd text* for
+// the daf-number comparison, and a daf's gematria is only 1-3 Hebrew
+// letters -- long enough body text will essentially always contain some
+// random substring that reads as an exact or near-exact accidental match
+// for a *different* daf's gematria, deterministically outscoring the real
+// (slightly OCR-noisy) header line and misidentifying the page. This is
+// exactly what happened live: a real scan of Chullin 101a (gematria "קא")
+// was misidentified as Chullin 86a. Reproducing the same daf with the old
+// 0.09 crop (rendering the real canonical page, no camera noise at all)
+// landed on a *different* wrong daf, 96a -- the literal substring "צו"
+// (96's gematria) happened to appear verbatim in that wider crop's body-text
+// OCR noise. Different wrong answer, same mechanism: the bug isn't one
+// unlucky misread, it's that any sufficiently long OCR'd blob will
+// eventually contain an accidental exact match for *some* short gematria
+// string. 0.05 keeps a real margin above the measured ~4.5% the header line
+// itself needs (real camera photos won't crop as precisely as a clean PDF
+// render) while staying well clear of body text.
+const HEADER_BAND = [[0, 0], [1, 0], [1, 0.05], [0, 0.05]];
 const CANONICAL_CORNERS = [[0, 0], [1, 0], [1, 1], [0, 1]];
 
 // A phone photo, base64-encoded, inflated ~33% by that encoding -- this
