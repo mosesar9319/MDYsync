@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-10T16:01:07.273Z",
+  "generatedAt": "2026-08-10T19:00:58.269Z",
   "tractates": {
     "Chullin": [
       {
@@ -2297,6 +2297,14 @@
         "chazarahHe": {
           "videoId": "hSyLme5GBeg",
           "label": "חזרה - חולין דף קב | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        }
+      },
+      {
+        "daf": 103,
+        "regularHe": {
+          "videoId": "kk61-DeRLCE",
+          "label": "מרכז דף יומי -  חולין דף  קג. - ר' ידידיה קרמר שליט\"א",
           "amud": "a"
         }
       }
