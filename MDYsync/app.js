@@ -39,6 +39,17 @@ const state = {
   scanOverlayKey: '',
   scanWordBoxes: null,
   scanWordEls: null,
+  // The exact ref (with whatever "(Chazarah Daf)"/"(Hebrew)" suffix is
+  // currently chosen) the scan-result video picker last loaded -- the
+  // single source of truth tapScannedWord compares state.dafRef against to
+  // decide whether it needs to (re)load a video. Deliberately NOT just the
+  // raw scanned daf ref (result.ref, always the plain unsuffixed form):
+  // once the reader picks a non-default combo, state.dafRef itself carries
+  // that suffix (loadDaf stores canonicalDafRef's output, which preserves
+  // it), so comparing against the plain ref would treat every subsequent
+  // word tap as "wrong video loaded" and silently revert to the default
+  // combo on every tap.
+  scanSelectedRef: null,
   videoOverlayEnabled: false,
   videoOverlayMode: 'full',
   videoOverlayOpacity: 0.5,
@@ -573,7 +584,16 @@ function getDuration() {
 
 function isPaused() {
   if (state.playerType === 'youtube') {
-    return state.youtubeState !== 1;
+    // Reads the player's own live state via getPlayerState() rather than
+    // trusting state.youtubeState (a mirror only updated by the
+    // onStateChange event) -- reported directly: the play/pause button
+    // could get stuck showing "play" even though the video was visibly
+    // progressing, meaning onStateChange isn't reliably firing for every
+    // real transition in every environment. getPlayerState() asks the
+    // player what it's actually doing right now, so the icon can't go
+    // stale even if a state-change event was missed. Falls back to the
+    // mirrored value only if the player object itself isn't ready yet.
+    return (state.youtubePlayer?.getPlayerState?.() ?? state.youtubeState) !== 1;
   }
   return htmlVideo.paused;
 }
@@ -1581,6 +1601,9 @@ function resetScanUi() {
   state.scanWordBoxes = null;
   state.scanWordEls = null;
   state.scanOverlayKey = '';
+  state.scanSelectedRef = null;
+  const picker = $('scanVideoPicker');
+  if (picker) picker.hidden = true;
   resetScanResultZoom();
 }
 
@@ -1720,6 +1743,7 @@ async function showScanResult(result) {
   // handler's scan-pending class) and load the matched daf's video right
   // away, instead of waiting for the reader's first word tap.
   document.body.classList.remove('scan-pending');
+  state.scanSelectedRef = result.ref;
   if (state.dafRef !== result.ref) {
     try {
       await loadDaf(result.ref);
@@ -1747,11 +1771,75 @@ async function showScanResult(result) {
     el.style.height = `${box.h * 100}%`;
     el.tabIndex = 0;
     el.setAttribute('role', 'button');
-    el.addEventListener('click', () => tapScannedWord(result.ref, box.ref, box.wordIndex));
+    el.addEventListener('click', () => tapScannedWord(box.ref, box.wordIndex));
     overlay.appendChild(el);
     state.scanWordEls.set(`${box.ref}:${box.wordIndex}`, el);
   }
   updateScanOverlay(getCurrentTime());
+
+  await refreshScanVideoPicker(result.tractate, result.daf);
+}
+
+// Vilna pagination doesn't record which amud a scanned header belongs to
+// (see scan-daf-page.mjs's own "KNOWN v1 LIMITATION" comment) -- the scan
+// flow only ever resolves amud 'a', so that's the only dafAmud key worth
+// looking up here.
+function scanDafAmudKey(daf) {
+  return `${daf}a`;
+}
+
+// Shows/hides and populates the "which video" picker on the scan-result
+// screen once a daf's actually been identified -- mirrors the Daf browser's
+// own refreshDafPickerVariantLanguage (see there), reusing the exact same
+// activeShiurVariant/setActiveShiurVariant/activeLanguage/setActiveLanguage
+// helpers and list-synced-dapim.mjs data, just against a reader-facing
+// picker instead of the admin-only setup-strip one (which is hidden for a
+// normal reader -- see body.player-page:not(.is-admin) .setup-strip in
+// player/index.html).
+async function refreshScanVideoPicker(tractate, daf) {
+  const picker = $('scanVideoPicker');
+  if (!picker) return;
+  const syncedDapim = await ensureSyncedDapimLoaded();
+  const combos = syncedDapim[tractate]?.[scanDafAmudKey(daf)] || [];
+  // Nothing to choose between -- only one (or zero, though a successful
+  // match implies at least one) combo synced for this daf, so the picker
+  // would just offer a single always-disabled option. Not worth showing.
+  if (combos.length < 2) {
+    picker.hidden = true;
+    return;
+  }
+  picker.hidden = false;
+
+  document.querySelectorAll('#scanShiurToggle .shiur-variant-option').forEach((button) => {
+    button.disabled = !combos.some((c) => c.startsWith(button.dataset.variant === 'chazarah' ? 'chazarah' : 'regular'));
+  });
+  document.querySelectorAll('#scanLanguageToggle .language-option').forEach((button) => {
+    button.disabled = !combos.some((c) => c.endsWith(button.dataset.language === 'he' ? 'He' : 'En'));
+  });
+  if (!combos.includes(comboKeyFor(activeShiurVariant('scanShiurToggle'), activeLanguage('scanLanguageToggle')))) {
+    const fallback = combos[0];
+    setActiveShiurVariant('scanShiurToggle', fallback.startsWith('chazarah') ? 'chazarah' : 'regular');
+    setActiveLanguage('scanLanguageToggle', fallback.endsWith('He') ? 'he' : 'en');
+  }
+}
+
+// Loads whichever combo the scan-result video picker's toggles now select --
+// wired to both toggles' buttons (see the DOM listeners near switchDafView).
+async function switchScanVideo() {
+  const parsed = parseDafRef(state.scanSelectedRef);
+  if (!parsed) return;
+  const variantSuffix = activeShiurVariant('scanShiurToggle') === 'chazarah' ? ' (Chazarah Daf)' : '';
+  const languageSuffix = activeLanguage('scanLanguageToggle') === 'he' ? ' (Hebrew)' : '';
+  const ref = `${parsed.tractate} ${parsed.daf}${parsed.amud}${variantSuffix}${languageSuffix}`;
+  if (ref === state.scanSelectedRef) return;
+  state.scanSelectedRef = ref;
+  try {
+    await loadDaf(ref);
+    applyRealVideoTitle(ref);
+  } catch (error) {
+    console.error(error);
+    showToast(`Could not load ${ref}: ${error.message}`, 'error');
+  }
 }
 
 // Live "highlight the word being spoken right now" on the scanned photo --
@@ -1906,11 +1994,19 @@ function suppressScanResultClickAfterDrag(event) {
 // loaded (the reader might scan a page before ever loading its video) --
 // seekToVilnaWord only knows about the *currently loaded* daf's segments/
 // wordTimeline, so load the scanned daf first if it isn't already on screen.
-// scannedRef (result.ref from scan-daf-page.mjs) is already a plain
-// daf-level ref ("Chullin 101a"), the same shape state.dafRef holds, so
-// (unlike playWordInline's per-paragraph wordRef) no realDafRef() normalizing
-// is needed here to compare them.
-async function tapScannedWord(scannedRef, wordRef, wordIndex) {
+// Reads state.scanSelectedRef (set in showScanResult, updated by the
+// video-variant picker's switchScanVideo) rather than taking a ref
+// parameter -- it's already a plain daf-level ref ("Chullin 101a", or that
+// plus a "(Chazarah Daf)"/"(Hebrew)" suffix once the reader's picked a
+// non-default combo), the same shape state.dafRef holds, so (unlike
+// playWordInline's per-paragraph wordRef) no realDafRef() normalizing is
+// needed to compare them -- and reading it fresh from state here, instead
+// of a value captured in each word box's own click-handler closure at
+// showScanResult time, means every word tap respects whichever combo is
+// CURRENTLY selected, not just whatever was selected when the photo was
+// first scanned.
+async function tapScannedWord(wordRef, wordIndex) {
+  const scannedRef = state.scanSelectedRef;
   if (state.dafRef !== scannedRef) {
     try {
       await loadDaf(scannedRef);
@@ -2427,6 +2523,13 @@ function updateTimeline() {
   if ($('inlineTimeLabel')) $('inlineTimeLabel').textContent = `${formatTime(current)} / ${formatTime(duration)}`;
   updateScrubberFill();
   updateActiveSegment();
+  // Self-corrects the play/pause icon on every poll tick (this runs every
+  // 100ms during YouTube playback -- see startYouTubePoll), independent of
+  // whichever discrete event last fired -- a defense-in-depth backstop for
+  // the same missed-onStateChange-event risk isPaused() above already
+  // reads around directly, so the icon can never drift for more than one
+  // tick even in an environment where events are unreliable.
+  updatePlayUi();
 }
 
 function updateScrubberFill() {
@@ -3880,6 +3983,20 @@ $('scanResultWrap')?.addEventListener('pointerup', handleScanResultPointerUp);
 $('scanResultWrap')?.addEventListener('pointercancel', handleScanResultPointerUp);
 $('scanResultWrap')?.addEventListener('wheel', handleScanResultWheel, { passive: false });
 $('scanResultWrap')?.addEventListener('click', suppressScanResultClickAfterDrag, { capture: true });
+document.querySelectorAll('#scanShiurToggle .shiur-variant-option').forEach((button) => {
+  button.addEventListener('click', () => {
+    if (button.disabled) return;
+    setActiveShiurVariant('scanShiurToggle', button.dataset.variant);
+    switchScanVideo();
+  });
+});
+document.querySelectorAll('#scanLanguageToggle .language-option').forEach((button) => {
+  button.addEventListener('click', () => {
+    if (button.disabled) return;
+    setActiveLanguage('scanLanguageToggle', button.dataset.language);
+    switchScanVideo();
+  });
+});
 
 $('helpButton').addEventListener('click', () => $('helpDialog').showModal());
 $('closeHelp').addEventListener('click', () => $('helpDialog').close());
@@ -3963,6 +4080,25 @@ function browsableDafOptions(entry) {
   return options;
 }
 
+// Fetches list-synced-dapim.mjs's { "<Tractate>": { "<daf><amud>":
+// ["regularEn",...] } } map once and caches it on state -- shared by the
+// Daf browser's own picker (loadTalmudIndex, gated to browseMode) and the
+// scan feature's video-variant picker (showScanResult), which needs the
+// exact same "which combos are actually synced for this daf" answer but on
+// pages where browseMode is false. state.syncedDapim starts null and
+// becomes {} even on failure, so that alone is the "already tried" memo --
+// callers never need their own separate loaded-flag.
+async function ensureSyncedDapimLoaded() {
+  if (state.syncedDapim) return state.syncedDapim;
+  try {
+    const response = await fetch('/api/list-synced-dapim');
+    state.syncedDapim = response.ok ? await response.json() : {};
+  } catch {
+    state.syncedDapim = {};
+  }
+  return state.syncedDapim;
+}
+
 async function loadTalmudIndex() {
   if (!syncState.tractateNames.length) {
     const response = await fetch('/talmud_index.json');
@@ -3972,17 +4108,12 @@ async function loadTalmudIndex() {
   }
   // The Daf browser only wants dapim that already have both a synced
   // alignment and page word-position data (see list-synced-dapim.mjs and
-  // amudimForDaf's own check below) -- fetched once and cached on state,
-  // gated to browseMode so every other page's picker (which is for picking
-  // *any* daf, including ones still needing a sync) is unaffected.
-  if (state.browseMode && !state.syncedDapim) {
-    try {
-      const response = await fetch('/api/list-synced-dapim');
-      state.syncedDapim = response.ok ? await response.json() : {};
-    } catch {
-      state.syncedDapim = {};
-    }
-  }
+  // amudimForDaf's own check below) -- fetched here (browseMode) and lazily
+  // by the scan feature's own video-variant picker (see
+  // ensureSyncedDapimLoaded/showScanResult), gated so every other page's
+  // picker (which is for picking *any* daf, including ones still needing a
+  // sync) is unaffected.
+  if (state.browseMode) await ensureSyncedDapimLoaded();
   const optionsHtml = syncState.tractateNames
     .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
   $('syncTractateSelect').innerHTML = optionsHtml;
