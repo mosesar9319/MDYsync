@@ -39,6 +39,22 @@ from page_ocr_align import process_page  # noqa: E402
 # rest of the job's time budget on dapim that don't exist.
 CONSECUTIVE_FAILURE_LIMIT = 4
 
+# The current schema page_ocr_align.py's process_page writes -- keep this in
+# sync with its own 'schema' value. Anything older (or missing/unreadable)
+# gets regenerated automatically on the next batch run, so a schema change
+# (like v1 -> v2's new textBlock field) rolls out just by re-running the
+# same workflow that originally built the cache, no separate --force flag
+# or manual deletion needed.
+CURRENT_SCHEMA = 'dafsync-pagemap-v2'
+
+
+def needs_regeneration(out_path):
+    try:
+        with open(out_path, encoding='utf-8') as f:
+            return json.load(f).get('schema') != CURRENT_SCHEMA
+    except (OSError, ValueError):
+        return True  # unreadable/corrupt -- safest to just regenerate it
+
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -69,8 +85,8 @@ def main():
         for amud in amuds:
             key = f"{args.tractate.replace(' ', '-')}-{daf}{amud}"
             out_path = os.path.join(pages_dir, f'{key}.json')
-            if os.path.exists(out_path):
-                print(f'{key}: already have a page map, skipping.')
+            if os.path.exists(out_path) and not needs_regeneration(out_path):
+                print(f'{key}: already have a current page map, skipping.')
                 skipped += 1
                 daf_had_any_success = True  # a prior run already confirmed this daf exists
                 continue
