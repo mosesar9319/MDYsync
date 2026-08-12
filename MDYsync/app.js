@@ -3001,11 +3001,41 @@ function updateTimeline() {
   updatePlayUi();
 }
 
+// How much of the video has actually downloaded, 0-1 -- matches YouTube's
+// own lighter-gray "buffered ahead of playback" fill, distinct from
+// updateScrubberFill's existing accent-colored "played so far" fill below.
+// YouTube: getVideoLoadedFraction() is a single 0-1 number already covering
+// however much has buffered from the start (its own player never shows
+// buffered *behind* the current position either, so this matches that).
+// Direct video: HTMLMediaElement.buffered is a TimeRanges set (a browser can
+// buffer in several disjoint chunks, e.g. after a seek into an unbuffered
+// spot) -- the chunk that actually covers (or, if playback hasn't reached it
+// yet, starts at/before) the current time is the one relevant to "how far
+// ahead can the reader scrub without waiting," same as what YouTube shows.
+function getLoadedFraction() {
+  if (state.playerType === 'youtube') {
+    return state.youtubeReady ? (Number(state.youtubePlayer.getVideoLoadedFraction?.()) || 0) : 0;
+  }
+  const duration = htmlVideo.duration;
+  if (!Number.isFinite(duration) || duration <= 0) return 0;
+  const buffered = htmlVideo.buffered;
+  const current = htmlVideo.currentTime;
+  for (let i = 0; i < buffered.length; i++) {
+    if (buffered.start(i) <= current && current <= buffered.end(i)) return buffered.end(i) / duration;
+  }
+  return 0;
+}
+
 function updateScrubberFill() {
   const max = Number(scrubber.max) || 1;
+  const loadedPercent = Math.min(100, Math.max(0, getLoadedFraction() * 100));
   for (const el of scrubberEls) {
-    const percent = Math.min(100, Math.max(0, (Number(el.value) || 0) / max * 100));
-    el.style.background = `linear-gradient(to right, var(--accent) 0%, var(--accent) ${percent}%, rgba(255,255,255,.14) ${percent}%, rgba(255,255,255,.14) 100%)`;
+    const playedPercent = Math.min(100, Math.max(0, (Number(el.value) || 0) / max * 100));
+    // Buffered can never trail behind played (a player doesn't un-buffer
+    // what it's already shown) -- clamps against rounding/staleness between
+    // this and the poll/timeupdate tick that last refreshed loadedPercent.
+    const bufferedPercent = Math.max(playedPercent, loadedPercent);
+    el.style.background = `linear-gradient(to right, var(--accent) 0%, var(--accent) ${playedPercent}%, rgba(255,255,255,.4) ${playedPercent}%, rgba(255,255,255,.4) ${bufferedPercent}%, rgba(255,255,255,.14) ${bufferedPercent}%, rgba(255,255,255,.14) 100%)`;
   }
 }
 
@@ -4149,6 +4179,11 @@ function handleScrubPointer(event) {
 
 htmlVideo.addEventListener('loadedmetadata', () => { applyDuration(htmlVideo.duration); syncVolumeUi(); });
 htmlVideo.addEventListener('timeupdate', updateTimeline);
+// 'progress' (native, fires as bytes actually download) rather than relying
+// on 'timeupdate' alone -- timeupdate only fires during playback, so the
+// buffered fill would otherwise sit frozen at 0 while a reader has a video
+// paused and loading for the first time.
+htmlVideo.addEventListener('progress', updateScrubberFill);
 htmlVideo.addEventListener('play', updatePlayUi);
 htmlVideo.addEventListener('pause', updatePlayUi);
 htmlVideo.addEventListener('ended', updatePlayUi);

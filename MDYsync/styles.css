@@ -149,7 +149,40 @@ h2 { margin-bottom: 0; }
    own bottom offset above) rather than content-driven sizing, so that offset
    stays reliably correct regardless of what's actually in the bar. */
 .scrubber-wrap { position: absolute; left: 0; right: 0; bottom: 42px; z-index: 6; height: 30px; padding: 10px 12px 0; background: linear-gradient(to top, rgba(4,14,27,.55), rgba(4,14,27,0)); }
-.scrubber { width: 100%; accent-color: var(--accent); cursor: pointer; }
+/* A plain `background` on <input type="range"> is a no-op in every
+   browser's native (accent-color-driven) track rendering -- confirmed
+   directly (a computed 3-stop gradient with genuinely distinct colors
+   painted as flat, identical pixels across the whole unfilled track). The
+   "played" position readers already saw was accent-color's own native fill,
+   not this CSS -- fine for a plain two-color slider, but there's no
+   accent-color equivalent for a THIRD color (the buffered-but-unplayed
+   segment updateScrubberFill's now-3-stop gradient in app.js computes).
+   appearance:none + explicit track/thumb pseudo-elements is the only
+   reliable cross-browser way to make a JS-driven multi-color track actually
+   render; `background: inherit` on the track pulls in whatever gradient
+   app.js set on the input itself. Scoped to .scrubber only -- the volume/
+   opacity sliders don't need a third color and keep their native
+   accent-color rendering as-is. */
+.scrubber {
+  width: 100%;
+  height: 4px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+.scrubber::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: inherit; }
+.scrubber::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+.scrubber::-moz-range-track { height: 4px; border-radius: 2px; background: inherit; }
+.scrubber::-moz-range-thumb { width: 16px; height: 16px; border: none; border-radius: 50%; background: var(--accent); cursor: pointer; }
 .scrub-preview { position: absolute; top: -51px; left: 0; width: min(290px, 68%); transform: translateX(-50%); padding: 9px 11px; background: #162b43; border: 1px solid var(--line-strong); border-radius: 10px; box-shadow: 0 12px 35px rgba(0,0,0,.35); pointer-events: none; z-index: 4; }
 .scrub-preview::after { content: ""; position: absolute; bottom: -6px; left: 50%; width: 10px; height: 10px; background: #162b43; border-right: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); transform: translateX(-50%) rotate(45deg); }
 .scrub-preview strong, .scrub-preview span { display: block; }
