@@ -908,8 +908,6 @@
                 <div class="scan-intro-actions">
                   <button class="button primary" id="scanCameraOpenButton" type="button">Take a photo</button>
                   <input type="file" id="scanCameraInput" accept="image/*" capture="environment" hidden />
-                  <label class="button secondary" for="scanLibraryInput">Choose from library</label>
-                  <input type="file" id="scanLibraryInput" accept="image/*" hidden />
                 </div>
               </div>
 
@@ -921,16 +919,35 @@
                    (captureScanPhotoFromCamera), so the resulting corners are
                    just the full frame -- no OpenCV detection involved on this
                    path at all. Falls back to the plain scanCameraInput file
-                   picker above if getUserMedia isn't available/denied. -->
+                   picker above if getUserMedia isn't available/denied.
+
+                   The library button (scanCameraLibraryButton) lives here too,
+                   next to the shutter, rather than as its own separate entry
+                   point on the intro screen -- picking a photo swaps this same
+                   view into "photo" mode (scanCameraPhotoWrap, hidden in "live"
+                   mode) so a chosen photo gets the identical cutout-crop
+                   treatment: pinch/drag it into place behind the cutout, then
+                   tap the checkmark instead of the shutter (see
+                   showScanCameraPhotoCrop/handleScanCameraConfirmCrop). -->
               <div class="scan-camera-view" id="scanCameraView" hidden>
                 <video class="scan-camera-video" id="scanCameraVideo" autoplay playsinline muted></video>
+                <div class="scan-camera-photo-wrap" id="scanCameraPhotoWrap" hidden>
+                  <img class="scan-camera-photo" id="scanCameraPhotoZoom" alt="Selected page photo" />
+                </div>
                 <div class="scan-camera-overlay">
                   <div class="scan-camera-cutout" id="scanCameraCutout"></div>
                 </div>
-                <p class="scan-camera-hint">Fit the page inside the frame, then tap to capture.</p>
+                <p class="scan-camera-hint" id="scanCameraHint">Fit the page inside the frame, then tap to capture.</p>
                 <div class="scan-camera-controls">
-                  <button class="button secondary" id="scanCameraCancelButton" type="button">Cancel</button>
+                  <button class="button secondary scan-camera-controls-cancel" id="scanCameraCancelButton" type="button">Cancel</button>
                   <button class="scan-camera-shutter" id="scanCameraShutterButton" type="button" aria-label="Capture photo"></button>
+                  <button class="scan-camera-confirm" id="scanCameraConfirmCropButton" type="button" aria-label="Use this crop" hidden>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                  <button class="button secondary scan-camera-controls-library" id="scanCameraLibraryButton" type="button" aria-label="Choose from library">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="8.5" cy="10" r="1.5" fill="currentColor"/><path d="M21 15.5 15.5 10 7 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                  <input type="file" id="scanLibraryInput" accept="image/*" hidden />
                 </div>
               </div>
 

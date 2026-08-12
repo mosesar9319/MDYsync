@@ -1787,9 +1787,17 @@ async function handleScanFileSelected(file) {
 // tapping the shutter. captureScanPhotoFromCamera() then crops the captured
 // photo to exactly that cutout region, so the crop IS the alignment step --
 // the resulting corners are just the full frame of the (already-cropped)
-// photo, no detection needed. Only applies to "Take a photo" -- "Choose from
-// library" (handleScanFileSelected above) keeps the OpenCV auto-detect +
-// manual-align fallback, since a pre-existing photo's framing is unknown.
+// photo, no detection needed.
+//
+// "Choose from library" lives inside this same view now (a button next to
+// the shutter) rather than as its own separate entry point, and gets the
+// identical cutout-crop treatment: picking a photo swaps the view from
+// "live" mode into "photo" mode (scanCameraPhotoWrap) -- the chosen photo,
+// pinch/drag-positioned behind the same cutout, cropped by a checkmark
+// button instead of the shutter. Since the reader can't physically move a
+// photo that's already been taken the way they can move a printed page in
+// front of a live camera, positioning it themselves is the closest
+// equivalent -- see computeCropSourceRect below.
 let scanCameraStream = null;
 
 // Nothing here can be exercised against a real camera in this sandbox (no
@@ -1817,13 +1825,21 @@ async function openScanCamera() {
   $('scanCameraView').hidden = false;
 }
 
-function stopScanCamera() {
+// Stops the live stream without closing the whole camera view -- used when
+// switching into "photo" mode (see showScanCameraPhotoCrop), where the live
+// feed isn't needed anymore but the view itself stays open.
+function stopScanCameraStream() {
   scanCameraStream?.getTracks().forEach((track) => track.stop());
   scanCameraStream = null;
   const video = $('scanCameraVideo');
   if (video) video.srcObject = null;
+}
+
+function stopScanCamera() {
+  stopScanCameraStream();
   const view = $('scanCameraView');
   if (view) view.hidden = true;
+  hideScanCameraPhotoCrop(); // leave it reset to "live" mode for next time
 }
 
 // Maps the on-screen cutout rectangle back into the video's own native pixel
@@ -1868,8 +1884,9 @@ function computeCaptureSourceRect(videoEl, cutoutEl) {
 }
 
 // The reader already aligned the page to the cutout's edges before tapping
-// the shutter -- the crop below IS that alignment, so the corners are simply
-// the resulting photo's own full frame, no OpenCV detection involved.
+// the shutter (or, for a library photo, before tapping the checkmark) -- the
+// crop below IS that alignment, so the corners are simply the resulting
+// photo's own full frame, no OpenCV detection involved either way.
 const FULL_FRAME_SCAN_CORNERS = [[0, 0], [1, 0], [1, 1], [0, 1]];
 
 function captureScanPhotoFromCamera() {
@@ -1886,22 +1903,215 @@ function captureScanPhotoFromCamera() {
   return { dataUrl: canvas.toDataURL('image/jpeg', 0.85), width, height };
 }
 
+async function proceedWithScanCorners(dataUrl, width, height) {
+  state.scanPhotoDataUrl = dataUrl;
+  state.scanImageWidth = width;
+  state.scanImageHeight = height;
+  state.scanCorners = FULL_FRAME_SCAN_CORNERS.map((point) => [...point]); // fresh copy -- confirmScan's own fallback screen lets the reader drag these
+  state.scanCornersManuallyEdited = false;
+  $('scanPhoto').src = dataUrl;
+  $('scanIntro').hidden = true;
+  $('scanResult').hidden = true;
+  await confirmScan();
+}
+
 async function handleScanCameraCapture() {
   try {
     const { dataUrl, width, height } = captureScanPhotoFromCamera();
     stopScanCamera();
-    state.scanPhotoDataUrl = dataUrl;
-    state.scanImageWidth = width;
-    state.scanImageHeight = height;
-    state.scanCorners = FULL_FRAME_SCAN_CORNERS.map((point) => [...point]); // fresh copy -- confirmScan's own fallback screen lets the reader drag these
-    state.scanCornersManuallyEdited = false;
-    $('scanPhoto').src = dataUrl;
-    $('scanIntro').hidden = true;
-    $('scanResult').hidden = true;
-    await confirmScan();
+    await proceedWithScanCorners(dataUrl, width, height);
   } catch (error) {
     console.error(error);
     showScanStatus(`Could not capture that photo: ${error.message}`, 'error');
+  }
+}
+
+// --- Library photo: same cutout, pinch/drag instead of physically framing --
+// A separate, small pinch/pan/zoom controller from the scan-result photo's
+// (wireScanResultZoom et al) rather than sharing one -- same underlying math,
+// but kept independent so a change here can't regress that already-shipped
+// screen, and vice versa.
+const SCAN_CROP_ZOOM_MIN = 1;
+const SCAN_CROP_ZOOM_MAX = 4;
+let scanCropZoom = 1, scanCropPanX = 0, scanCropPanY = 0;
+const scanCropPointers = new Map();
+let scanCropDragStart = null; // { x, y, panX, panY }
+let scanCropPinchStart = null; // { dist, midX, midY, zoom, panX, panY }
+
+function applyScanCropTransform() {
+  const layer = $('scanCameraPhotoZoom');
+  if (layer) layer.style.transform = `translate(${scanCropPanX}px, ${scanCropPanY}px) scale(${scanCropZoom})`;
+}
+
+function resetScanCropTransform() {
+  scanCropZoom = 1;
+  scanCropPanX = 0;
+  scanCropPanY = 0;
+  applyScanCropTransform();
+}
+
+function scanCropPointerMidpoint() {
+  const [a, b] = [...scanCropPointers.values()];
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+function scanCropPointerDistance() {
+  const [a, b] = [...scanCropPointers.values()];
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function clampScanCropPanAtMinZoom() {
+  if (scanCropZoom > SCAN_CROP_ZOOM_MIN) return;
+  scanCropPanX = 0;
+  scanCropPanY = 0;
+}
+
+function handleScanCropPointerDown(event) {
+  $('scanCameraPhotoWrap').setPointerCapture(event.pointerId);
+  scanCropPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (scanCropPointers.size === 1) {
+    scanCropDragStart = { x: event.clientX, y: event.clientY, panX: scanCropPanX, panY: scanCropPanY };
+    scanCropPinchStart = null;
+  } else if (scanCropPointers.size === 2) {
+    const mid = scanCropPointerMidpoint();
+    scanCropPinchStart = {
+      dist: scanCropPointerDistance(),
+      midX: mid.x,
+      midY: mid.y,
+      zoom: scanCropZoom,
+      panX: scanCropPanX,
+      panY: scanCropPanY,
+    };
+  }
+  $('scanCameraPhotoZoom')?.classList.add('dragging');
+}
+
+function handleScanCropPointerMove(event) {
+  if (!scanCropPointers.has(event.pointerId)) return;
+  scanCropPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (scanCropPointers.size >= 2 && scanCropPinchStart) {
+    const dist = scanCropPointerDistance();
+    const ratio = dist / (scanCropPinchStart.dist || dist || 1);
+    scanCropZoom = Math.max(SCAN_CROP_ZOOM_MIN, Math.min(SCAN_CROP_ZOOM_MAX, scanCropPinchStart.zoom * ratio));
+    const mid = scanCropPointerMidpoint();
+    scanCropPanX = scanCropPinchStart.panX + (mid.x - scanCropPinchStart.midX);
+    scanCropPanY = scanCropPinchStart.panY + (mid.y - scanCropPinchStart.midY);
+    clampScanCropPanAtMinZoom();
+    applyScanCropTransform();
+  } else if (scanCropDragStart) {
+    const pt = scanCropPointers.get(event.pointerId);
+    scanCropPanX = scanCropDragStart.panX + (pt.x - scanCropDragStart.x);
+    scanCropPanY = scanCropDragStart.panY + (pt.y - scanCropDragStart.y);
+    applyScanCropTransform();
+  }
+}
+
+function handleScanCropPointerUp(event) {
+  scanCropPointers.delete(event.pointerId);
+  if (scanCropPointers.size < 2) scanCropPinchStart = null;
+  if (scanCropPointers.size === 1) {
+    const [remaining] = scanCropPointers.values();
+    scanCropDragStart = { x: remaining.x, y: remaining.y, panX: scanCropPanX, panY: scanCropPanY };
+  } else if (scanCropPointers.size === 0) {
+    scanCropDragStart = null;
+    $('scanCameraPhotoZoom')?.classList.remove('dragging');
+  }
+}
+
+function showScanCameraPhotoCrop(dataUrl) {
+  stopScanCameraStream(); // no need to keep the live feed running while cropping a chosen photo
+  resetScanCropTransform();
+  $('scanCameraPhotoZoom').src = dataUrl;
+  $('scanCameraVideo').hidden = true;
+  $('scanCameraPhotoWrap').hidden = false;
+  $('scanCameraShutterButton').hidden = true;
+  $('scanCameraConfirmCropButton').hidden = false;
+  $('scanCameraLibraryButton').hidden = true;
+  $('scanCameraHint').textContent = "Pinch or drag the photo to fit the page inside the frame, then tap the checkmark.";
+  $('scanCameraView').hidden = false;
+}
+
+function hideScanCameraPhotoCrop() {
+  $('scanCameraVideo').hidden = false;
+  $('scanCameraPhotoWrap').hidden = true;
+  $('scanCameraShutterButton').hidden = false;
+  $('scanCameraConfirmCropButton').hidden = true;
+  $('scanCameraLibraryButton').hidden = false;
+  $('scanCameraHint').textContent = 'Fit the page inside the frame, then tap to capture.';
+}
+
+async function handleLibraryPhotoSelected(file) {
+  if (!file) return;
+  try {
+    const downscaled = await downscaleImageFile(file, SCAN_MAX_DIMENSION);
+    showScanCameraPhotoCrop(downscaled.dataUrl);
+  } catch (error) {
+    console.error(error);
+    showScanStatus(`Could not load that photo: ${error.message}`, 'error');
+  }
+}
+
+// Same object-fit:cover-inverse idea as computeCaptureSourceRect, but for a
+// photo positioned by a CSS translate/scale transform (see
+// applyScanCropTransform) instead of the camera's fixed object-fit: cover --
+// the img is laid out at width:100% of its wrap (height:auto, so
+// displayedWidth == wrap's width) before that transform is applied on top,
+// with transform-origin: 0 0, so a screen point maps back to the image's own
+// natural pixel space by first undoing the pan/scale, then undoing the
+// width:100% display scale. Pure function of its arguments (only reads
+// getBoundingClientRect()/naturalWidth/naturalHeight), so it's testable with
+// plain stand-in objects and explicit pan/zoom values, no real image needed.
+function computeCropSourceRect(imgEl, wrapEl, cutoutEl, panX, panY, zoom) {
+  const wrapRect = wrapEl.getBoundingClientRect();
+  const cutoutRect = cutoutEl.getBoundingClientRect();
+  const nw = imgEl.naturalWidth, nh = imgEl.naturalHeight;
+  if (!nw || !nh || !wrapRect.width) return null;
+
+  const displayedWidth = wrapRect.width; // the img is styled width:100% of the wrap
+  const nativeScale = nw / displayedWidth; // == nh / (displayedWidth * nh/nw)
+
+  const cutoutLeftInWrap = cutoutRect.left - wrapRect.left;
+  const cutoutTopInWrap = cutoutRect.top - wrapRect.top;
+
+  const localLeft = (cutoutLeftInWrap - panX) / zoom;
+  const localTop = (cutoutTopInWrap - panY) / zoom;
+  const localWidth = cutoutRect.width / zoom;
+  const localHeight = cutoutRect.height / zoom;
+
+  const sx = localLeft * nativeScale;
+  const sy = localTop * nativeScale;
+  const sWidth = localWidth * nativeScale;
+  const sHeight = localHeight * nativeScale;
+
+  // Unlike the live camera (object-fit: cover geometrically guarantees the
+  // cutout is always fully covered), a reader can zoom/pan a library photo
+  // so the cutout only partly overlaps it -- clamp to the photo's own
+  // bounds rather than trusting that geometrically.
+  const clampedX = Math.max(0, Math.min(sx, nw));
+  const clampedY = Math.max(0, Math.min(sy, nh));
+  return {
+    sx: clampedX,
+    sy: clampedY,
+    sWidth: Math.max(1, Math.min(sWidth, nw - clampedX)),
+    sHeight: Math.max(1, Math.min(sHeight, nh - clampedY)),
+  };
+}
+
+async function handleScanCameraConfirmCrop() {
+  try {
+    const img = $('scanCameraPhotoZoom');
+    const source = computeCropSourceRect(img, $('scanCameraPhotoWrap'), $('scanCameraCutout'), scanCropPanX, scanCropPanY, scanCropZoom);
+    if (!source) throw new Error('The photo is not ready yet.');
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(source.sWidth);
+    canvas.height = Math.round(source.sHeight);
+    canvas.getContext('2d').drawImage(img, source.sx, source.sy, source.sWidth, source.sHeight, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    stopScanCamera();
+    await proceedWithScanCorners(dataUrl, canvas.width, canvas.height);
+  } catch (error) {
+    console.error(error);
+    showScanStatus(`Could not crop that photo: ${error.message}`, 'error');
   }
 }
 
@@ -4218,8 +4428,14 @@ $('scanCameraCancelButton')?.addEventListener('click', () => {
   $('scanIntro').hidden = false;
 });
 $('scanCameraShutterButton')?.addEventListener('click', handleScanCameraCapture);
+$('scanCameraConfirmCropButton')?.addEventListener('click', handleScanCameraConfirmCrop);
+$('scanCameraLibraryButton')?.addEventListener('click', () => $('scanLibraryInput').click());
 $('scanCameraInput')?.addEventListener('change', (event) => handleScanFileSelected(event.target.files?.[0]));
-$('scanLibraryInput')?.addEventListener('change', (event) => handleScanFileSelected(event.target.files?.[0]));
+$('scanLibraryInput')?.addEventListener('change', (event) => handleLibraryPhotoSelected(event.target.files?.[0]));
+$('scanCameraPhotoWrap')?.addEventListener('pointerdown', handleScanCropPointerDown);
+$('scanCameraPhotoWrap')?.addEventListener('pointermove', handleScanCropPointerMove);
+$('scanCameraPhotoWrap')?.addEventListener('pointerup', handleScanCropPointerUp);
+$('scanCameraPhotoWrap')?.addEventListener('pointercancel', handleScanCropPointerUp);
 $('scanRetakeButton')?.addEventListener('click', resetScanUi);
 $('scanAgainButton')?.addEventListener('click', resetScanUi);
 $('scanConfirmButton')?.addEventListener('click', confirmScan);
