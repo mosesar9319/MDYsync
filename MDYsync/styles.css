@@ -312,6 +312,14 @@ h2 { margin-bottom: 0; }
   border-radius: 2px;
 }
 .scan-word-box:hover, .scan-word-box:focus-visible { background: rgba(56,214,193,.28); }
+/* The word being spoken right now (updateScanOverlay in app.js) -- same
+   treatment as .vilna-word-box.active, so the scanned photo and the Vilna
+   page view read as the same feature. */
+.scan-word-box.active {
+  background: #ffd400;
+  mix-blend-mode: multiply;
+  animation: vilna-highlight-in .12s ease-out;
+}
 .scan-status { max-width: 420px; margin: 14px auto 0; padding: 11px 14px; border-radius: 10px; font-size: 13px; line-height: 1.5; }
 .scan-status.error { background: rgba(255,124,137,.14); color: #7a2530; border: 1px solid rgba(255,124,137,.35); }
 .scan-status.busy { background: rgba(56,214,193,.12); color: #1c4a44; border: 1px solid rgba(56,214,193,.3); }

@@ -29,6 +29,16 @@ const state = {
   vilnaOverlayKey: '',
   vilnaWordEls: null,
   vilnaPageLoadingKey: null,
+  // Live word-highlight-during-playback for the scanned photo -- the same
+  // idea as vilnaOverlayKey/vilnaWordEls above (dedup key + ref/wordIndex ->
+  // DOM element map), just for #scanWordOverlay's .scan-word-box elements
+  // instead of the Vilna page's .vilna-word-box ones. scanWordBoxes is the
+  // source list (updateScanOverlay needs to iterate it the same way
+  // updateVilnaOverlay iterates state.vilnaPageMap.wordBoxes); scanWordEls
+  // is populated alongside it in showScanResult.
+  scanOverlayKey: '',
+  scanWordBoxes: null,
+  scanWordEls: null,
   videoOverlayEnabled: false,
   videoOverlayMode: 'full',
   videoOverlayOpacity: 0.5,
@@ -1459,7 +1469,38 @@ function scoreQuadConfidence(orderedPoints, imageWidth, imageHeight) {
 // bounded: a stuck (or merely slow-on-a-weak-device) detection always
 // degrades gracefully to the manual step instead of leaving the reader on
 // "Finding the page…" forever.
-const AUTO_DETECT_TIMEOUT_MS = 8000;
+// Was 8000 -- a real trial reported auto-detect still always falling back
+// to manual alignment even after two rounds of Canny/confidence tuning
+// (see scan-detect-worker.js and CORNER_CONFIDENCE_THRESHOLD above), which
+// pointed at a different, previously-untested bottleneck: opencv.js is a
+// multi-megabyte WASM download+compile, and 8 seconds may simply not be
+// enough time for BOTH that cold load AND the actual detection on a real
+// mobile connection -- in which case every threshold tweak was irrelevant,
+// since detection never got far enough to run at all (see prewarmScanDetection
+// below, which now also starts that download well before it's needed).
+// Widened generously since a real, successful detection itself only takes a
+// fraction of a second once the library's loaded; the budget mostly needs to
+// cover a slow network's worst case, not the compute.
+const AUTO_DETECT_TIMEOUT_MS = 20000;
+
+// Fired as soon as the reader opens the Scan view (switchDafView('scan')),
+// well before they've actually taken or picked a photo -- gives the
+// multi-megabyte opencv.js WASM download+compile (see the worker's own
+// ensureCv()) a head start during the natural dwell time of framing a shot,
+// instead of that cold-load cost eating into AUTO_DETECT_TIMEOUT_MS's
+// budget at the moment detection is actually needed. Harmless to call
+// repeatedly -- the worker's own ensureCv() is idempotent (caches its
+// promise/result), and this only ever fires the request once per page load.
+let scanDetectWarmupStarted = false;
+function prewarmScanDetection() {
+  if (scanDetectWarmupStarted) return;
+  scanDetectWarmupStarted = true;
+  try {
+    ensureScanDetectWorker().postMessage({ warmup: true });
+  } catch (error) {
+    console.error('Could not prewarm the page-detection worker:', error);
+  }
+}
 
 function withTimeout(promise, ms, message) {
   return Promise.race([
@@ -1477,6 +1518,7 @@ async function autoDetectAndProceed() {
   showScanStatus('Finding the page…', 'busy');
   let orderedFractionCorners = null;
   let confidence = 0;
+  let failureDetail = null; // set only on a caught error -- see buildAutoDetectHint
   try {
     const quad = await withTimeout(
       detectPageCornersInWorker(state.scanPhotoDataUrl, state.scanImageWidth, state.scanImageHeight),
@@ -1493,6 +1535,7 @@ async function autoDetectAndProceed() {
     // out, no network, WASM unsupported, nothing found) just falls back to
     // the manual step below rather than blocking the scan entirely.
     console.error('Automatic page detection failed:', error);
+    failureDetail = error.message;
   }
 
   if (orderedFractionCorners && confidence >= CORNER_CONFIDENCE_THRESHOLD) {
@@ -1502,12 +1545,28 @@ async function autoDetectAndProceed() {
   }
 
   state.scanCorners = orderedFractionCorners || DEFAULT_SCAN_CORNERS;
-  $('scanAlignHint').textContent = orderedFractionCorners
-    ? "We took a guess at the page's edges — drag any corner that's off, then confirm."
-    : "Couldn't find the page automatically — drag the four corners to match its real edges, then confirm.";
+  $('scanAlignHint').textContent = buildAutoDetectHint(orderedFractionCorners, confidence, failureDetail);
   $('scanStatus').hidden = true;
   $('scanAlign').hidden = false;
   renderScanCorners();
+}
+
+// Surfaces WHY auto-detect fell back to manual alignment, not just THAT it
+// did -- without this, every fallback looked identical from the outside
+// (silently swallowed into a console.error only the developer console could
+// see), so a report of "still needed manual alignment" carried no way to
+// tell a genuine detection miss apart from, say, the library timing out
+// before it ever got to look at the photo. The exact wording here is what a
+// reader would see and could quote back, turning the next report into real
+// data instead of another guess.
+function buildAutoDetectHint(orderedFractionCorners, confidence, failureDetail) {
+  if (orderedFractionCorners) {
+    return `We took a guess at the page's edges (${Math.round(confidence * 100)}% confidence) — drag any corner that's off, then confirm.`;
+  }
+  if (failureDetail) {
+    return `Couldn't find the page automatically (${failureDetail}) — drag the four corners to match its real edges, then confirm.`;
+  }
+  return "Couldn't find the page automatically (no page-shaped edges found) — drag the four corners to match its real edges, then confirm.";
 }
 
 function resetScanUi() {
@@ -1519,6 +1578,9 @@ function resetScanUi() {
   $('scanLibraryInput').value = '';
   state.scanPhotoDataUrl = null;
   state.scanCorners = null;
+  state.scanWordBoxes = null;
+  state.scanWordEls = null;
+  state.scanOverlayKey = '';
   resetScanResultZoom();
 }
 
@@ -1670,6 +1732,12 @@ async function showScanResult(result) {
 
   const overlay = $('scanWordOverlay');
   overlay.innerHTML = '';
+  // scanWordBoxes/scanWordEls drive updateScanOverlay's live "highlight the
+  // word being spoken right now" pass, the same way vilnaPageMap.wordBoxes/
+  // vilnaWordEls drive updateVilnaOverlay for the Vilna page view.
+  state.scanWordBoxes = result.wordBoxes;
+  state.scanWordEls = new Map();
+  state.scanOverlayKey = '';
   for (const box of result.wordBoxes) {
     const el = document.createElement('div');
     el.className = 'scan-word-box';
@@ -1681,6 +1749,34 @@ async function showScanResult(result) {
     el.setAttribute('role', 'button');
     el.addEventListener('click', () => tapScannedWord(result.ref, box.ref, box.wordIndex));
     overlay.appendChild(el);
+    state.scanWordEls.set(`${box.ref}:${box.wordIndex}`, el);
+  }
+  updateScanOverlay(getCurrentTime());
+}
+
+// Live "highlight the word being spoken right now" on the scanned photo --
+// the scan feature's equivalent of updateVilnaOverlay (see there for the
+// full rationale, including why this is keyed on the whole segment/phrase
+// rather than just wordTimeline, and why the dedup key exists). Reads from
+// scanWordBoxes/scanWordEls (populated in showScanResult) instead of
+// vilnaPageMap.wordBoxes/vilnaWordEls, since a scanned photo isn't
+// necessarily showing the same daf as state.vilnaPageMap would resolve to
+// (Vilna-page and Scan are independent view-switch tabs on the same daf).
+function updateScanOverlay(time) {
+  if (!state.scanWordEls || !state.scanWordEls.size) return;
+  const activeSegment = state.segments[state.activeIndex];
+  const dedupKey = activeSegment ? `${state.activeIndex}:${activeSegment.ref}` : '';
+  if (dedupKey === state.scanOverlayKey) return;
+  state.scanOverlayKey = dedupKey;
+
+  const activeRef = activeSegment?.ref || '';
+  const hasRange = activeSegment && activeSegment.w0 !== null && activeSegment.w1 !== null;
+  for (const box of state.scanWordBoxes) {
+    const el = state.scanWordEls.get(`${box.ref}:${box.wordIndex}`);
+    if (!el) continue;
+    const hit = activeRef !== '' && box.ref === activeRef
+      && (!hasRange || (box.wordIndex >= activeSegment.w0 && box.wordIndex <= activeSegment.w1));
+    el.classList.toggle('active', hit);
   }
 }
 
@@ -2262,6 +2358,7 @@ function toggleVideoFullscreen() {
 // playback position within a segment.
 function updateActiveWords(time) {
   updateVilnaOverlay(time);
+  updateScanOverlay(time);
   updateVideoOverlay(time);
 }
 
@@ -3748,7 +3845,15 @@ function switchDafView(mode) {
   const scanPlaceholder = $('scanPlaceholder');
   if (scanPlaceholder) scanPlaceholder.hidden = mode !== 'scan';
   if (mode === 'page') renderVilnaPage();
-  if (mode === 'scan') resetScanUi();
+  // Only reset to the fresh "open the camera" screen the first time the
+  // reader lands on Scan with nothing captured yet -- once a photo's been
+  // scanned (matched or still mid-align), switching away to Text/Vilna page
+  // and back (see the Sefaria/scanned-photo toggle) must not throw that
+  // work away.
+  if (mode === 'scan') {
+    if (!state.scanPhotoDataUrl) resetScanUi();
+    if (scanPlaceholder) prewarmScanDetection();
+  }
 }
 
 for (const button of document.querySelectorAll('.view-switch button')) {
