@@ -126,17 +126,18 @@ const $ = (id) => document.getElementById(id);
 const htmlVideo = $('video');
 const youtubeHost = $('youtubePlayerHost');
 const scrubber = $('scrubber');
-const inlineScrubber = $('inlineScrubber');
-// Both scrubbers stay in sync so the in-frame one (the only one visible in
-// fullscreen, and the only one reachable through a "full page" overlay) works
-// identically to the one below the player.
-const scrubberEls = [scrubber, inlineScrubber].filter(Boolean);
-// Same idea as scrubberEls -- the primary control-bar volume slider/button
-// and the compact in-frame copy (the only one reachable in fullscreen) stay
-// in sync with each other.
-const volumeSliderEls = [$('volumeSlider'), $('inlineVolumeSlider')].filter(Boolean);
-const muteButtonEls = [$('muteButton'), $('inlineMuteButton')].filter(Boolean);
-const fastForwardButtonEls = [$('fastForwardButton'), $('inlineFastForwardButton')].filter(Boolean);
+// Kept as (now single-element) arrays rather than rewritten to plain
+// element references -- .player-controls/.scrubber-wrap used to carry a
+// second "inline" copy of each of these (the only one reachable in native
+// fullscreen, back when this bar sat below the video instead of docked
+// inside .video-frame itself, see the HTML comment there), and every call
+// site below already loops over the group rather than assuming exactly one
+// element. Now that there's only ever one of each, .filter(Boolean) still
+// does the right thing with zero behavior change.
+const scrubberEls = [scrubber].filter(Boolean);
+const volumeSliderEls = [$('volumeSlider')].filter(Boolean);
+const muteButtonEls = [$('muteButton')].filter(Boolean);
+const fastForwardButtonEls = [$('fastForwardButton')].filter(Boolean);
 const dafPage = $('dafPage');
 const editor = $('editor');
 const editorBody = $('editorBody');
@@ -625,6 +626,15 @@ function switchPlayerType(type) {
   $('videoFrame').classList.toggle('youtube-active', isYouTube);
 
   if (isYouTube) startYouTubePoll(); else stopYouTubePoll();
+  // A direct-link <video> has no quality ladder to expose -- hide the
+  // control immediately rather than waiting for a stale YouTube-only value
+  // to linger on screen. Switching TO YouTube re-shows it itself, from
+  // ensureYouTubePlayer's onStateChange/onPlaybackQualityChange handlers
+  // (see refreshQualityOptions) once real levels are actually known.
+  if (!isYouTube) {
+    const control = $('qualityControl');
+    if (control) control.hidden = true;
+  }
   updatePlayUi();
 }
 
@@ -1837,8 +1847,13 @@ function stopScanCameraStream() {
 
 function stopScanCamera() {
   stopScanCameraStream();
+  // The Daf Scan camera view only exists on player/index.html -- switchDafView
+  // calls this unconditionally on every page that shares app.js (browse,
+  // watch, studio have no Daf Scan tab at all), so this whole guided-capture
+  // teardown needs to no-op cleanly rather than assume the markup is there.
   const view = $('scanCameraView');
-  if (view) view.hidden = true;
+  if (!view) return;
+  view.hidden = true;
   hideScanCameraPhotoCrop(); // leave it reset to "live" mode for next time
 }
 
@@ -2975,7 +2990,6 @@ function updateTimeline() {
   if (!state.seeking) scrubberEls.forEach((el) => { el.value = String(Math.min(current, duration || current)); });
   $('currentTime').textContent = formatTime(current);
   $('duration').textContent = formatTime(duration);
-  if ($('inlineTimeLabel')) $('inlineTimeLabel').textContent = `${formatTime(current)} / ${formatTime(duration)}`;
   updateScrubberFill();
   updateActiveSegment();
   // Self-corrects the play/pause icon on every poll tick (this runs every
@@ -3001,7 +3015,6 @@ function updatePlayUi() {
   document.querySelectorAll('.pause-icon').forEach((el) => { el.hidden = paused; });
   $('largePlay').hidden = !state.videoSource || !paused || getCurrentTime() > 0.15;
   $('playButton').setAttribute('aria-label', paused ? 'Play' : 'Pause');
-  $('inlinePlayButton')?.setAttribute('aria-label', paused ? 'Play' : 'Pause');
 }
 
 async function togglePlay() {
@@ -3097,7 +3110,6 @@ function seek(time, allowSeekAhead = true) {
 
   scrubberEls.forEach((el) => { el.value = String(clamped); });
   $('currentTime').textContent = formatTime(clamped);
-  if ($('inlineTimeLabel')) $('inlineTimeLabel').textContent = `${formatTime(clamped)} / ${formatTime(max)}`;
   updateScrubberFill();
   updateActiveSegment(true, clamped);
 }
@@ -3180,6 +3192,43 @@ function setPlaybackRate(rate) {
   } else {
     htmlVideo.playbackRate = rate;
   }
+}
+
+// Video-quality selection, YouTube only -- a direct-link <video> has no
+// server-side rendition ladder to pick from, so #qualityControl just stays
+// hidden for that source. YouTube's own getAvailableQualityLevels() often
+// returns an empty list until playback actually starts buffering (see the
+// onStateChange/onPlaybackQualityChange calls in ensureYouTubePlayer), so
+// this is re-run at each of those points rather than assumed available the
+// moment the player's merely ready.
+//
+// NOT VERIFIABLE FROM HERE: YouTube's setPlaybackQuality is a request, not a
+// guarantee -- their own adaptive-bitrate logic can still override it
+// depending on buffer/network conditions, a known, documented limitation of
+// this API rather than a bug in this wiring. This UI offers the same choice
+// YouTube's own (now-hidden) native quality menu did, no more and no less.
+function refreshQualityOptions() {
+  const control = $('qualityControl');
+  const select = $('qualitySelect');
+  if (!control || !select) return;
+  if (state.playerType !== 'youtube' || !state.youtubeReady || !state.youtubePlayer.getAvailableQualityLevels) {
+    control.hidden = true;
+    return;
+  }
+  const levels = state.youtubePlayer.getAvailableQualityLevels();
+  if (!levels || !levels.length) {
+    control.hidden = true;
+    return;
+  }
+  const labels = {
+    highres: 'Highest', hd2160: '2160p', hd1440: '1440p', hd1080: '1080p',
+    hd720: '720p', large: '480p', medium: '360p', small: '240p', tiny: '144p', auto: 'Auto'
+  };
+  const current = state.youtubePlayer.getPlaybackQuality?.();
+  select.innerHTML = levels.map((level) =>
+    `<option value="${level}"${level === current ? ' selected' : ''}>${labels[level] || level}</option>`
+  ).join('');
+  control.hidden = false;
 }
 
 // Volume: 0-100 either way, matching the sliders -- YouTube's own API is
@@ -3669,7 +3718,17 @@ async function ensureYouTubePlayer(videoId) {
       const playerVars = {
         playsinline: 1,
         rel: 0,
-        controls: 1,
+        // YouTube's own control bar (scrubber, play, volume, quality gear,
+        // fullscreen, captions) is replaced entirely by this app's own
+        // .player-controls bar, now docked directly onto the video frame --
+        // see the HTML comment on .video-frame in each page that embeds this
+        // player. Every one of those YouTube-native controls has a rebuilt
+        // equivalent here driven through this same IFrame API (seek/play via
+        // seekYouTubePlayer &c., setVolume/setMuted, setPlaybackRate,
+        // setPlaybackQuality via refreshQualityOptions, and our own
+        // fullscreenButton), so nothing YouTube's bar offered is actually
+        // lost by turning it off.
+        controls: 0,
         enablejsapi: 1,
         // YouTube's own fullscreen button only fullscreens the iframe itself,
         // leaving the Vilna page overlay (a sibling element) behind -- our
@@ -3705,7 +3764,13 @@ async function ensureYouTubePlayer(videoId) {
             updateTimeline();
             const duration = getDuration();
             if (duration > 0) applyDuration(duration);
+            // getAvailableQualityLevels() often reports nothing until the
+            // player has actually started buffering a video -- state 3
+            // (buffering) or 1 (playing) is the first reliable point real
+            // levels show up, not onReady (see refreshQualityOptions).
+            if (event.data === 3 || event.data === 1) refreshQualityOptions();
           },
+          onPlaybackQualityChange: () => refreshQualityOptions(),
           onError: (event) => {
             const message = youtubeErrorMessage(event.data);
             showToast(message, 'error');
@@ -4104,6 +4169,7 @@ $('largePlay').addEventListener('click', togglePlay);
 $('backButton').addEventListener('click', () => seek(getCurrentTime() - 10));
 $('forwardButton').addEventListener('click', () => seek(getCurrentTime() + 10));
 $('speedSelect').addEventListener('change', (event) => setPlaybackRate(Number(event.target.value)));
+$('qualitySelect')?.addEventListener('change', (event) => state.youtubePlayer?.setPlaybackQuality?.(event.target.value));
 $('fullscreenButton')?.addEventListener('click', toggleVideoFullscreen);
 document.addEventListener('fullscreenchange', () => updateVideoOverlay(getCurrentTime()));
 $('videoVilnaCanvas')?.addEventListener('click', handleVideoOverlayClick);
@@ -4112,14 +4178,17 @@ $('videoVilnaCanvas')?.addEventListener('pointermove', handleOverlayPointerMove)
 $('videoVilnaCanvas')?.addEventListener('pointerup', handleOverlayPointerUp);
 $('videoVilnaCanvas')?.addEventListener('pointercancel', handleOverlayPointerUp);
 $('videoVilnaCanvas')?.addEventListener('wheel', handleOverlayWheel, { passive: false });
-// /player/ carries two copies of the overlay controls -- the canonical one
-// in normal page flow, and a compact floating one inside .video-frame
-// itself for when that's unreachable (fullscreen). Same idea as
-// scrubberEls above: each "...InVideo"-suffixed id is that same control's
+// /player/ carries two copies of the overlay (Vilna-page-on-video) display
+// settings -- the canonical one in normal page flow, and a compact floating
+// one inside .video-frame itself, draggable, for adjusting them without
+// leaving fullscreen. Each "...InVideo"-suffixed id is that same control's
 // second instance, kept in sync by running the one real handler for
 // whichever one the reader actually touched and mirroring its value onto
 // the other. On pages without the floating copy (studio/watch), the
-// InVideo lookup is just null and drops out of the group.
+// InVideo lookup is just null and drops out of the group. (Playback
+// controls -- scrubber, play, volume, speed, quality, fullscreen -- don't
+// need this: they now live directly inside .video-frame on every page, so
+// there's only ever the one copy of each.)
 function overlayControlGroup(id) {
   return [$(id), $(`${id}InVideo`)].filter(Boolean);
 }
@@ -4362,10 +4431,6 @@ function handleScrubInput(event) {
   const time = Number(event.target.value);
   scrubberEls.forEach((el) => { if (el !== event.target) el.value = event.target.value; });
   $('currentTime').textContent = formatTime(time);
-  if ($('inlineTimeLabel')) {
-    const duration = getDuration() || Number(scrubber.max) || 0;
-    $('inlineTimeLabel').textContent = `${formatTime(time)} / ${formatTime(duration)}`;
-  }
   updateScrubberFill();
   updateActiveSegment(true, time);
   if (state.playerType === 'youtube') {
@@ -4387,7 +4452,6 @@ for (const el of scrubberEls) {
 scrubber.addEventListener('pointermove', handleScrubPointer);
 scrubber.addEventListener('pointerenter', handleScrubPointer);
 scrubber.addEventListener('pointerleave', () => { $('scrubPreview').hidden = true; });
-$('inlinePlayButton')?.addEventListener('click', togglePlay);
 for (const el of volumeSliderEls) el.addEventListener('input', (event) => setVolume(Number(event.target.value)));
 for (const button of muteButtonEls) button.addEventListener('click', () => setMuted(!isMuted()));
 for (const button of fastForwardButtonEls) button.addEventListener('click', skipToNextReading);
