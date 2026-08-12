@@ -937,6 +937,23 @@
                   </div>
                 </div>
                 <p class="scan-hint" id="scanResultHint"></p>
+                <!-- Only shown once a daf is matched AND more than one
+                     shiur video is actually synced for it (see
+                     refreshScanVideoPicker in app.js) -- lets the reader
+                     pick which recording plays, the same Regular/Chazarah
+                     Daf x English/Hebrew choice the admin-only setup-strip
+                     picker offers, just reader-facing. -->
+                <div class="scan-video-picker" id="scanVideoPicker" hidden>
+                  <span class="scan-video-picker-label">Video:</span>
+                  <div class="shiur-variant-toggle" id="scanShiurToggle" role="group" aria-label="Shiur type">
+                    <button type="button" class="shiur-variant-option active" data-variant="regular">Regular</button>
+                    <button type="button" class="shiur-variant-option" data-variant="chazarah">Chazarah Daf</button>
+                  </div>
+                  <div class="shiur-variant-toggle" id="scanLanguageToggle" role="group" aria-label="Shiur language">
+                    <button type="button" class="language-option active" data-language="en">English</button>
+                    <button type="button" class="language-option" data-language="he">Hebrew</button>
+                  </div>
+                </div>
                 <button class="button secondary small" id="scanAgainButton" type="button">Scan another page</button>
               </div>
 
