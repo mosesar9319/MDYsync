@@ -223,17 +223,56 @@
             <div class="video-vilna-overlay" id="videoVilnaOverlay" hidden>
               <canvas id="videoVilnaCanvas"></canvas>
             </div>
-            <!-- Lives inside .video-frame (not a sibling) so it survives native
-                 fullscreen -- the scrubber-wrap below the frame does not, and
-                 the overlay canvas otherwise sits on top of the YouTube
-                 iframe's own hover controls, blocking them. -->
-            <div class="video-inline-controls" id="videoInlineControls">
-              <button class="video-inline-play" id="inlinePlayButton" aria-label="Play">
+
+            <!-- Playback controls, docked directly onto the bottom of the
+                 video frame instead of sitting below it (see styles.css) --
+                 same ids app.js already wires, just relocated. Being real
+                 descendants of .video-frame now also means they're reachable
+                 in native fullscreen, where only .video-frame's own
+                 descendants ever render at all. -->
+            <div class="scrubber-wrap">
+              <div class="scrub-preview" id="scrubPreview" hidden>
+                <strong id="previewTime">0:00</strong>
+                <span id="previewText"></span>
+              </div>
+              <input id="scrubber" class="scrubber" type="range" min="0" max="100" step="0.01" value="0" aria-label="Video timeline" />
+              <div class="time-row">
+                <span id="currentTime">0:00</span>
+                <span id="duration">0:00</span>
+              </div>
+            </div>
+
+            <div class="player-controls">
+              <button class="icon-button" id="backButton" aria-label="Back 10 seconds">−10</button>
+              <button class="play-button" id="playButton" aria-label="Play">
                 <svg class="play-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z" fill="currentColor"/></svg>
                 <svg class="pause-icon" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M7 5h4v14H7zm6 0h4v14h-4z" fill="currentColor"/></svg>
               </button>
-              <input id="inlineScrubber" class="inline-scrubber" type="range" min="0" max="100" step="0.01" value="0" aria-label="Video timeline" />
-              <span class="inline-time" id="inlineTimeLabel">0:00 / 0:00</span>
+              <button class="icon-button" id="forwardButton" aria-label="Forward 10 seconds">+10</button>
+              <div class="control-divider"></div>
+              <button class="icon-button volume-button" id="muteButton" aria-label="Mute">
+                <svg class="volume-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6L8 10H4Z" fill="currentColor"/><path d="M16 9c1.3 1.7 1.3 4.3 0 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                <svg class="muted-icon" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M4 10v4h4l5 4V6L8 10H4Z" fill="currentColor"/><path d="m15.5 9.5 5 5m0-5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              </button>
+              <input id="volumeSlider" class="volume-slider" type="range" min="0" max="100" step="1" value="100" aria-label="Volume" />
+              <div class="control-divider control-divider-end"></div>
+              <details class="video-settings" id="videoSettings">
+                <summary aria-label="Video settings"></summary>
+                <div class="video-settings-body">
+                  <label class="speed-control">Speed
+                    <select id="speedSelect">
+                      <option value="0.75">0.75×</option>
+                      <option value="1" selected>1×</option>
+                      <option value="1.25">1.25×</option>
+                      <option value="1.5">1.5×</option>
+                      <option value="2">2×</option>
+                    </select>
+                  </label>
+                  <label class="quality-control" id="qualityControl" hidden>Quality
+                    <select id="qualitySelect"></select>
+                  </label>
+                </div>
+              </details>
               <button class="video-fullscreen-button" id="fullscreenButton" aria-label="Fullscreen" title="Fullscreen">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
@@ -279,35 +318,7 @@
             <em class="overlay-hint">Scroll/pinch the overlay to zoom, drag to reposition</em>
           </div>
 
-          <div class="scrubber-wrap">
-            <div class="scrub-preview" id="scrubPreview" hidden>
-              <strong id="previewTime">0:00</strong>
-              <span id="previewText"></span>
-            </div>
-            <input id="scrubber" class="scrubber" type="range" min="0" max="100" step="0.01" value="0" aria-label="Video timeline" />
-            <div class="time-row">
-              <span id="currentTime">0:00</span>
-              <span id="duration">0:00</span>
-            </div>
-          </div>
-
-          <div class="player-controls">
-            <button class="icon-button" id="backButton" aria-label="Back 10 seconds">−10</button>
-            <button class="play-button" id="playButton" aria-label="Play">
-              <svg class="play-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z" fill="currentColor"/></svg>
-              <svg class="pause-icon" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M7 5h4v14H7zm6 0h4v14h-4z" fill="currentColor"/></svg>
-            </button>
-            <button class="icon-button" id="forwardButton" aria-label="Forward 10 seconds">+10</button>
-            <div class="control-divider"></div>
-            <label class="speed-control">Speed
-              <select id="speedSelect">
-                <option value="0.75">0.75×</option>
-                <option value="1" selected>1×</option>
-                <option value="1.25">1.25×</option>
-                <option value="1.5">1.5×</option>
-                <option value="2">2×</option>
-              </select>
-            </label>
+          <div class="edit-mode-row">
             <button class="button secondary small push-right admin-only" id="editModeButton">Edit synchronization</button>
           </div>
 

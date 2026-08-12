@@ -126,17 +126,18 @@ const $ = (id) => document.getElementById(id);
 const htmlVideo = $('video');
 const youtubeHost = $('youtubePlayerHost');
 const scrubber = $('scrubber');
-const inlineScrubber = $('inlineScrubber');
-// Both scrubbers stay in sync so the in-frame one (the only one visible in
-// fullscreen, and the only one reachable through a "full page" overlay) works
-// identically to the one below the player.
-const scrubberEls = [scrubber, inlineScrubber].filter(Boolean);
-// Same idea as scrubberEls -- the primary control-bar volume slider/button
-// and the compact in-frame copy (the only one reachable in fullscreen) stay
-// in sync with each other.
-const volumeSliderEls = [$('volumeSlider'), $('inlineVolumeSlider')].filter(Boolean);
-const muteButtonEls = [$('muteButton'), $('inlineMuteButton')].filter(Boolean);
-const fastForwardButtonEls = [$('fastForwardButton'), $('inlineFastForwardButton')].filter(Boolean);
+// Kept as (now single-element) arrays rather than rewritten to plain
+// element references -- .player-controls/.scrubber-wrap used to carry a
+// second "inline" copy of each of these (the only one reachable in native
+// fullscreen, back when this bar sat below the video instead of docked
+// inside .video-frame itself, see the HTML comment there), and every call
+// site below already loops over the group rather than assuming exactly one
+// element. Now that there's only ever one of each, .filter(Boolean) still
+// does the right thing with zero behavior change.
+const scrubberEls = [scrubber].filter(Boolean);
+const volumeSliderEls = [$('volumeSlider')].filter(Boolean);
+const muteButtonEls = [$('muteButton')].filter(Boolean);
+const fastForwardButtonEls = [$('fastForwardButton')].filter(Boolean);
 const dafPage = $('dafPage');
 const editor = $('editor');
 const editorBody = $('editorBody');
@@ -625,6 +626,15 @@ function switchPlayerType(type) {
   $('videoFrame').classList.toggle('youtube-active', isYouTube);
 
   if (isYouTube) startYouTubePoll(); else stopYouTubePoll();
+  // A direct-link <video> has no quality ladder to expose -- hide the
+  // control immediately rather than waiting for a stale YouTube-only value
+  // to linger on screen. Switching TO YouTube re-shows it itself, from
+  // ensureYouTubePlayer's onStateChange/onPlaybackQualityChange handlers
+  // (see refreshQualityOptions) once real levels are actually known.
+  if (!isYouTube) {
+    const control = $('qualityControl');
+    if (control) control.hidden = true;
+  }
   updatePlayUi();
 }
 
@@ -1787,9 +1797,17 @@ async function handleScanFileSelected(file) {
 // tapping the shutter. captureScanPhotoFromCamera() then crops the captured
 // photo to exactly that cutout region, so the crop IS the alignment step --
 // the resulting corners are just the full frame of the (already-cropped)
-// photo, no detection needed. Only applies to "Take a photo" -- "Choose from
-// library" (handleScanFileSelected above) keeps the OpenCV auto-detect +
-// manual-align fallback, since a pre-existing photo's framing is unknown.
+// photo, no detection needed.
+//
+// "Choose from library" lives inside this same view now (a button next to
+// the shutter) rather than as its own separate entry point, and gets the
+// identical cutout-crop treatment: picking a photo swaps the view from
+// "live" mode into "photo" mode (scanCameraPhotoWrap) -- the chosen photo,
+// pinch/drag-positioned behind the same cutout, cropped by a checkmark
+// button instead of the shutter. Since the reader can't physically move a
+// photo that's already been taken the way they can move a printed page in
+// front of a live camera, positioning it themselves is the closest
+// equivalent -- see computeCropSourceRect below.
 let scanCameraStream = null;
 
 // Nothing here can be exercised against a real camera in this sandbox (no
@@ -1817,13 +1835,26 @@ async function openScanCamera() {
   $('scanCameraView').hidden = false;
 }
 
-function stopScanCamera() {
+// Stops the live stream without closing the whole camera view -- used when
+// switching into "photo" mode (see showScanCameraPhotoCrop), where the live
+// feed isn't needed anymore but the view itself stays open.
+function stopScanCameraStream() {
   scanCameraStream?.getTracks().forEach((track) => track.stop());
   scanCameraStream = null;
   const video = $('scanCameraVideo');
   if (video) video.srcObject = null;
+}
+
+function stopScanCamera() {
+  stopScanCameraStream();
+  // The Daf Scan camera view only exists on player/index.html -- switchDafView
+  // calls this unconditionally on every page that shares app.js (browse,
+  // watch, studio have no Daf Scan tab at all), so this whole guided-capture
+  // teardown needs to no-op cleanly rather than assume the markup is there.
   const view = $('scanCameraView');
-  if (view) view.hidden = true;
+  if (!view) return;
+  view.hidden = true;
+  hideScanCameraPhotoCrop(); // leave it reset to "live" mode for next time
 }
 
 // Maps the on-screen cutout rectangle back into the video's own native pixel
@@ -1868,8 +1899,9 @@ function computeCaptureSourceRect(videoEl, cutoutEl) {
 }
 
 // The reader already aligned the page to the cutout's edges before tapping
-// the shutter -- the crop below IS that alignment, so the corners are simply
-// the resulting photo's own full frame, no OpenCV detection involved.
+// the shutter (or, for a library photo, before tapping the checkmark) -- the
+// crop below IS that alignment, so the corners are simply the resulting
+// photo's own full frame, no OpenCV detection involved either way.
 const FULL_FRAME_SCAN_CORNERS = [[0, 0], [1, 0], [1, 1], [0, 1]];
 
 function captureScanPhotoFromCamera() {
@@ -1886,22 +1918,217 @@ function captureScanPhotoFromCamera() {
   return { dataUrl: canvas.toDataURL('image/jpeg', 0.85), width, height };
 }
 
+async function proceedWithScanCorners(dataUrl, width, height) {
+  state.scanPhotoDataUrl = dataUrl;
+  state.scanImageWidth = width;
+  state.scanImageHeight = height;
+  state.scanCorners = FULL_FRAME_SCAN_CORNERS.map((point) => [...point]); // fresh copy -- confirmScan's own fallback screen lets the reader drag these
+  state.scanCornersManuallyEdited = false;
+  $('scanPhoto').src = dataUrl;
+  $('scanIntro').hidden = true;
+  $('scanResult').hidden = true;
+  await confirmScan();
+}
+
 async function handleScanCameraCapture() {
   try {
     const { dataUrl, width, height } = captureScanPhotoFromCamera();
     stopScanCamera();
-    state.scanPhotoDataUrl = dataUrl;
-    state.scanImageWidth = width;
-    state.scanImageHeight = height;
-    state.scanCorners = FULL_FRAME_SCAN_CORNERS.map((point) => [...point]); // fresh copy -- confirmScan's own fallback screen lets the reader drag these
-    state.scanCornersManuallyEdited = false;
-    $('scanPhoto').src = dataUrl;
-    $('scanIntro').hidden = true;
-    $('scanResult').hidden = true;
-    await confirmScan();
+    await proceedWithScanCorners(dataUrl, width, height);
   } catch (error) {
     console.error(error);
     showScanStatus(`Could not capture that photo: ${error.message}`, 'error');
+  }
+}
+
+// --- Library photo: same cutout, pinch/drag instead of physically framing --
+// A separate, small pinch/pan/zoom controller from the scan-result photo's
+// (wireScanResultZoom et al) rather than sharing one -- same underlying math,
+// but kept independent so a change here can't regress that already-shipped
+// screen, and vice versa.
+const SCAN_CROP_ZOOM_MIN = 1;
+const SCAN_CROP_ZOOM_MAX = 4;
+let scanCropZoom = 1, scanCropPanX = 0, scanCropPanY = 0;
+const scanCropPointers = new Map();
+let scanCropDragStart = null; // { x, y, panX, panY }
+let scanCropPinchStart = null; // { dist, midX, midY, zoom, panX, panY }
+
+function applyScanCropTransform() {
+  const layer = $('scanCameraPhotoZoom');
+  if (layer) layer.style.transform = `translate(${scanCropPanX}px, ${scanCropPanY}px) scale(${scanCropZoom})`;
+}
+
+function resetScanCropTransform() {
+  scanCropZoom = 1;
+  scanCropPanX = 0;
+  scanCropPanY = 0;
+  applyScanCropTransform();
+}
+
+function scanCropPointerMidpoint() {
+  const [a, b] = [...scanCropPointers.values()];
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+function scanCropPointerDistance() {
+  const [a, b] = [...scanCropPointers.values()];
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function clampScanCropPanAtMinZoom() {
+  if (scanCropZoom > SCAN_CROP_ZOOM_MIN) return;
+  scanCropPanX = 0;
+  scanCropPanY = 0;
+}
+
+function handleScanCropPointerDown(event) {
+  $('scanCameraPhotoWrap').setPointerCapture(event.pointerId);
+  scanCropPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (scanCropPointers.size === 1) {
+    scanCropDragStart = { x: event.clientX, y: event.clientY, panX: scanCropPanX, panY: scanCropPanY };
+    scanCropPinchStart = null;
+  } else if (scanCropPointers.size === 2) {
+    const mid = scanCropPointerMidpoint();
+    scanCropPinchStart = {
+      dist: scanCropPointerDistance(),
+      midX: mid.x,
+      midY: mid.y,
+      zoom: scanCropZoom,
+      panX: scanCropPanX,
+      panY: scanCropPanY,
+    };
+  }
+  $('scanCameraPhotoZoom')?.classList.add('dragging');
+}
+
+function handleScanCropPointerMove(event) {
+  if (!scanCropPointers.has(event.pointerId)) return;
+  scanCropPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (scanCropPointers.size >= 2 && scanCropPinchStart) {
+    const dist = scanCropPointerDistance();
+    const ratio = dist / (scanCropPinchStart.dist || dist || 1);
+    scanCropZoom = Math.max(SCAN_CROP_ZOOM_MIN, Math.min(SCAN_CROP_ZOOM_MAX, scanCropPinchStart.zoom * ratio));
+    const mid = scanCropPointerMidpoint();
+    scanCropPanX = scanCropPinchStart.panX + (mid.x - scanCropPinchStart.midX);
+    scanCropPanY = scanCropPinchStart.panY + (mid.y - scanCropPinchStart.midY);
+    clampScanCropPanAtMinZoom();
+    applyScanCropTransform();
+  } else if (scanCropDragStart) {
+    const pt = scanCropPointers.get(event.pointerId);
+    scanCropPanX = scanCropDragStart.panX + (pt.x - scanCropDragStart.x);
+    scanCropPanY = scanCropDragStart.panY + (pt.y - scanCropDragStart.y);
+    applyScanCropTransform();
+  }
+}
+
+function handleScanCropPointerUp(event) {
+  scanCropPointers.delete(event.pointerId);
+  if (scanCropPointers.size < 2) scanCropPinchStart = null;
+  if (scanCropPointers.size === 1) {
+    const [remaining] = scanCropPointers.values();
+    scanCropDragStart = { x: remaining.x, y: remaining.y, panX: scanCropPanX, panY: scanCropPanY };
+  } else if (scanCropPointers.size === 0) {
+    scanCropDragStart = null;
+    $('scanCameraPhotoZoom')?.classList.remove('dragging');
+  }
+}
+
+function showScanCameraPhotoCrop(dataUrl) {
+  stopScanCameraStream(); // no need to keep the live feed running while cropping a chosen photo
+  resetScanCropTransform();
+  $('scanCameraPhotoZoom').src = dataUrl;
+  $('scanCameraVideo').hidden = true;
+  $('scanCameraPhotoWrap').hidden = false;
+  $('scanCameraShutterButton').hidden = true;
+  $('scanCameraConfirmCropButton').hidden = false;
+  $('scanCameraLibraryButton').hidden = true;
+  $('scanCameraHint').textContent = "Pinch or drag the photo to fit the page inside the frame, then tap the checkmark.";
+  $('scanCameraTips').hidden = true; // framing tips (hold flat, avoid shadows) don't apply to an already-taken photo
+  $('scanCameraView').hidden = false;
+}
+
+function hideScanCameraPhotoCrop() {
+  $('scanCameraVideo').hidden = false;
+  $('scanCameraPhotoWrap').hidden = true;
+  $('scanCameraShutterButton').hidden = false;
+  $('scanCameraConfirmCropButton').hidden = true;
+  $('scanCameraLibraryButton').hidden = false;
+  $('scanCameraHint').textContent = 'Fit the page inside the frame, then tap to capture.';
+  $('scanCameraTips').hidden = false;
+}
+
+async function handleLibraryPhotoSelected(file) {
+  if (!file) return;
+  try {
+    const downscaled = await downscaleImageFile(file, SCAN_MAX_DIMENSION);
+    showScanCameraPhotoCrop(downscaled.dataUrl);
+  } catch (error) {
+    console.error(error);
+    showScanStatus(`Could not load that photo: ${error.message}`, 'error');
+  }
+}
+
+// Same object-fit:cover-inverse idea as computeCaptureSourceRect, but for a
+// photo positioned by a CSS translate/scale transform (see
+// applyScanCropTransform) instead of the camera's fixed object-fit: cover --
+// the img is laid out at width:100% of its wrap (height:auto, so
+// displayedWidth == wrap's width) before that transform is applied on top,
+// with transform-origin: 0 0, so a screen point maps back to the image's own
+// natural pixel space by first undoing the pan/scale, then undoing the
+// width:100% display scale. Pure function of its arguments (only reads
+// getBoundingClientRect()/naturalWidth/naturalHeight), so it's testable with
+// plain stand-in objects and explicit pan/zoom values, no real image needed.
+function computeCropSourceRect(imgEl, wrapEl, cutoutEl, panX, panY, zoom) {
+  const wrapRect = wrapEl.getBoundingClientRect();
+  const cutoutRect = cutoutEl.getBoundingClientRect();
+  const nw = imgEl.naturalWidth, nh = imgEl.naturalHeight;
+  if (!nw || !nh || !wrapRect.width) return null;
+
+  const displayedWidth = wrapRect.width; // the img is styled width:100% of the wrap
+  const nativeScale = nw / displayedWidth; // == nh / (displayedWidth * nh/nw)
+
+  const cutoutLeftInWrap = cutoutRect.left - wrapRect.left;
+  const cutoutTopInWrap = cutoutRect.top - wrapRect.top;
+
+  const localLeft = (cutoutLeftInWrap - panX) / zoom;
+  const localTop = (cutoutTopInWrap - panY) / zoom;
+  const localWidth = cutoutRect.width / zoom;
+  const localHeight = cutoutRect.height / zoom;
+
+  const sx = localLeft * nativeScale;
+  const sy = localTop * nativeScale;
+  const sWidth = localWidth * nativeScale;
+  const sHeight = localHeight * nativeScale;
+
+  // Unlike the live camera (object-fit: cover geometrically guarantees the
+  // cutout is always fully covered), a reader can zoom/pan a library photo
+  // so the cutout only partly overlaps it -- clamp to the photo's own
+  // bounds rather than trusting that geometrically.
+  const clampedX = Math.max(0, Math.min(sx, nw));
+  const clampedY = Math.max(0, Math.min(sy, nh));
+  return {
+    sx: clampedX,
+    sy: clampedY,
+    sWidth: Math.max(1, Math.min(sWidth, nw - clampedX)),
+    sHeight: Math.max(1, Math.min(sHeight, nh - clampedY)),
+  };
+}
+
+async function handleScanCameraConfirmCrop() {
+  try {
+    const img = $('scanCameraPhotoZoom');
+    const source = computeCropSourceRect(img, $('scanCameraPhotoWrap'), $('scanCameraCutout'), scanCropPanX, scanCropPanY, scanCropZoom);
+    if (!source) throw new Error('The photo is not ready yet.');
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(source.sWidth);
+    canvas.height = Math.round(source.sHeight);
+    canvas.getContext('2d').drawImage(img, source.sx, source.sy, source.sWidth, source.sHeight, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    stopScanCamera();
+    await proceedWithScanCorners(dataUrl, canvas.width, canvas.height);
+  } catch (error) {
+    console.error(error);
+    showScanStatus(`Could not crop that photo: ${error.message}`, 'error');
   }
 }
 
@@ -2763,7 +2990,6 @@ function updateTimeline() {
   if (!state.seeking) scrubberEls.forEach((el) => { el.value = String(Math.min(current, duration || current)); });
   $('currentTime').textContent = formatTime(current);
   $('duration').textContent = formatTime(duration);
-  if ($('inlineTimeLabel')) $('inlineTimeLabel').textContent = `${formatTime(current)} / ${formatTime(duration)}`;
   updateScrubberFill();
   updateActiveSegment();
   // Self-corrects the play/pause icon on every poll tick (this runs every
@@ -2775,11 +3001,41 @@ function updateTimeline() {
   updatePlayUi();
 }
 
+// How much of the video has actually downloaded, 0-1 -- matches YouTube's
+// own lighter-gray "buffered ahead of playback" fill, distinct from
+// updateScrubberFill's existing accent-colored "played so far" fill below.
+// YouTube: getVideoLoadedFraction() is a single 0-1 number already covering
+// however much has buffered from the start (its own player never shows
+// buffered *behind* the current position either, so this matches that).
+// Direct video: HTMLMediaElement.buffered is a TimeRanges set (a browser can
+// buffer in several disjoint chunks, e.g. after a seek into an unbuffered
+// spot) -- the chunk that actually covers (or, if playback hasn't reached it
+// yet, starts at/before) the current time is the one relevant to "how far
+// ahead can the reader scrub without waiting," same as what YouTube shows.
+function getLoadedFraction() {
+  if (state.playerType === 'youtube') {
+    return state.youtubeReady ? (Number(state.youtubePlayer.getVideoLoadedFraction?.()) || 0) : 0;
+  }
+  const duration = htmlVideo.duration;
+  if (!Number.isFinite(duration) || duration <= 0) return 0;
+  const buffered = htmlVideo.buffered;
+  const current = htmlVideo.currentTime;
+  for (let i = 0; i < buffered.length; i++) {
+    if (buffered.start(i) <= current && current <= buffered.end(i)) return buffered.end(i) / duration;
+  }
+  return 0;
+}
+
 function updateScrubberFill() {
   const max = Number(scrubber.max) || 1;
+  const loadedPercent = Math.min(100, Math.max(0, getLoadedFraction() * 100));
   for (const el of scrubberEls) {
-    const percent = Math.min(100, Math.max(0, (Number(el.value) || 0) / max * 100));
-    el.style.background = `linear-gradient(to right, var(--accent) 0%, var(--accent) ${percent}%, rgba(255,255,255,.14) ${percent}%, rgba(255,255,255,.14) 100%)`;
+    const playedPercent = Math.min(100, Math.max(0, (Number(el.value) || 0) / max * 100));
+    // Buffered can never trail behind played (a player doesn't un-buffer
+    // what it's already shown) -- clamps against rounding/staleness between
+    // this and the poll/timeupdate tick that last refreshed loadedPercent.
+    const bufferedPercent = Math.max(playedPercent, loadedPercent);
+    el.style.background = `linear-gradient(to right, var(--accent) 0%, var(--accent) ${playedPercent}%, rgba(255,255,255,.4) ${playedPercent}%, rgba(255,255,255,.4) ${bufferedPercent}%, rgba(255,255,255,.14) ${bufferedPercent}%, rgba(255,255,255,.14) 100%)`;
   }
 }
 
@@ -2789,7 +3045,6 @@ function updatePlayUi() {
   document.querySelectorAll('.pause-icon').forEach((el) => { el.hidden = paused; });
   $('largePlay').hidden = !state.videoSource || !paused || getCurrentTime() > 0.15;
   $('playButton').setAttribute('aria-label', paused ? 'Play' : 'Pause');
-  $('inlinePlayButton')?.setAttribute('aria-label', paused ? 'Play' : 'Pause');
 }
 
 async function togglePlay() {
@@ -2885,7 +3140,6 @@ function seek(time, allowSeekAhead = true) {
 
   scrubberEls.forEach((el) => { el.value = String(clamped); });
   $('currentTime').textContent = formatTime(clamped);
-  if ($('inlineTimeLabel')) $('inlineTimeLabel').textContent = `${formatTime(clamped)} / ${formatTime(max)}`;
   updateScrubberFill();
   updateActiveSegment(true, clamped);
 }
@@ -2968,6 +3222,43 @@ function setPlaybackRate(rate) {
   } else {
     htmlVideo.playbackRate = rate;
   }
+}
+
+// Video-quality selection, YouTube only -- a direct-link <video> has no
+// server-side rendition ladder to pick from, so #qualityControl just stays
+// hidden for that source. YouTube's own getAvailableQualityLevels() often
+// returns an empty list until playback actually starts buffering (see the
+// onStateChange/onPlaybackQualityChange calls in ensureYouTubePlayer), so
+// this is re-run at each of those points rather than assumed available the
+// moment the player's merely ready.
+//
+// NOT VERIFIABLE FROM HERE: YouTube's setPlaybackQuality is a request, not a
+// guarantee -- their own adaptive-bitrate logic can still override it
+// depending on buffer/network conditions, a known, documented limitation of
+// this API rather than a bug in this wiring. This UI offers the same choice
+// YouTube's own (now-hidden) native quality menu did, no more and no less.
+function refreshQualityOptions() {
+  const control = $('qualityControl');
+  const select = $('qualitySelect');
+  if (!control || !select) return;
+  if (state.playerType !== 'youtube' || !state.youtubeReady || !state.youtubePlayer.getAvailableQualityLevels) {
+    control.hidden = true;
+    return;
+  }
+  const levels = state.youtubePlayer.getAvailableQualityLevels();
+  if (!levels || !levels.length) {
+    control.hidden = true;
+    return;
+  }
+  const labels = {
+    highres: 'Highest', hd2160: '2160p', hd1440: '1440p', hd1080: '1080p',
+    hd720: '720p', large: '480p', medium: '360p', small: '240p', tiny: '144p', auto: 'Auto'
+  };
+  const current = state.youtubePlayer.getPlaybackQuality?.();
+  select.innerHTML = levels.map((level) =>
+    `<option value="${level}"${level === current ? ' selected' : ''}>${labels[level] || level}</option>`
+  ).join('');
+  control.hidden = false;
 }
 
 // Volume: 0-100 either way, matching the sliders -- YouTube's own API is
@@ -3457,7 +3748,17 @@ async function ensureYouTubePlayer(videoId) {
       const playerVars = {
         playsinline: 1,
         rel: 0,
-        controls: 1,
+        // YouTube's own control bar (scrubber, play, volume, quality gear,
+        // fullscreen, captions) is replaced entirely by this app's own
+        // .player-controls bar, now docked directly onto the video frame --
+        // see the HTML comment on .video-frame in each page that embeds this
+        // player. Every one of those YouTube-native controls has a rebuilt
+        // equivalent here driven through this same IFrame API (seek/play via
+        // seekYouTubePlayer &c., setVolume/setMuted, setPlaybackRate,
+        // setPlaybackQuality via refreshQualityOptions, and our own
+        // fullscreenButton), so nothing YouTube's bar offered is actually
+        // lost by turning it off.
+        controls: 0,
         enablejsapi: 1,
         // YouTube's own fullscreen button only fullscreens the iframe itself,
         // leaving the Vilna page overlay (a sibling element) behind -- our
@@ -3493,7 +3794,13 @@ async function ensureYouTubePlayer(videoId) {
             updateTimeline();
             const duration = getDuration();
             if (duration > 0) applyDuration(duration);
+            // getAvailableQualityLevels() often reports nothing until the
+            // player has actually started buffering a video -- state 3
+            // (buffering) or 1 (playing) is the first reliable point real
+            // levels show up, not onReady (see refreshQualityOptions).
+            if (event.data === 3 || event.data === 1) refreshQualityOptions();
           },
+          onPlaybackQualityChange: () => refreshQualityOptions(),
           onError: (event) => {
             const message = youtubeErrorMessage(event.data);
             showToast(message, 'error');
@@ -3872,6 +4179,11 @@ function handleScrubPointer(event) {
 
 htmlVideo.addEventListener('loadedmetadata', () => { applyDuration(htmlVideo.duration); syncVolumeUi(); });
 htmlVideo.addEventListener('timeupdate', updateTimeline);
+// 'progress' (native, fires as bytes actually download) rather than relying
+// on 'timeupdate' alone -- timeupdate only fires during playback, so the
+// buffered fill would otherwise sit frozen at 0 while a reader has a video
+// paused and loading for the first time.
+htmlVideo.addEventListener('progress', updateScrubberFill);
 htmlVideo.addEventListener('play', updatePlayUi);
 htmlVideo.addEventListener('pause', updatePlayUi);
 htmlVideo.addEventListener('ended', updatePlayUi);
@@ -3892,6 +4204,7 @@ $('largePlay').addEventListener('click', togglePlay);
 $('backButton').addEventListener('click', () => seek(getCurrentTime() - 10));
 $('forwardButton').addEventListener('click', () => seek(getCurrentTime() + 10));
 $('speedSelect').addEventListener('change', (event) => setPlaybackRate(Number(event.target.value)));
+$('qualitySelect')?.addEventListener('change', (event) => state.youtubePlayer?.setPlaybackQuality?.(event.target.value));
 $('fullscreenButton')?.addEventListener('click', toggleVideoFullscreen);
 document.addEventListener('fullscreenchange', () => updateVideoOverlay(getCurrentTime()));
 $('videoVilnaCanvas')?.addEventListener('click', handleVideoOverlayClick);
@@ -3900,14 +4213,17 @@ $('videoVilnaCanvas')?.addEventListener('pointermove', handleOverlayPointerMove)
 $('videoVilnaCanvas')?.addEventListener('pointerup', handleOverlayPointerUp);
 $('videoVilnaCanvas')?.addEventListener('pointercancel', handleOverlayPointerUp);
 $('videoVilnaCanvas')?.addEventListener('wheel', handleOverlayWheel, { passive: false });
-// /player/ carries two copies of the overlay controls -- the canonical one
-// in normal page flow, and a compact floating one inside .video-frame
-// itself for when that's unreachable (fullscreen). Same idea as
-// scrubberEls above: each "...InVideo"-suffixed id is that same control's
+// /player/ carries two copies of the overlay (Vilna-page-on-video) display
+// settings -- the canonical one in normal page flow, and a compact floating
+// one inside .video-frame itself, draggable, for adjusting them without
+// leaving fullscreen. Each "...InVideo"-suffixed id is that same control's
 // second instance, kept in sync by running the one real handler for
 // whichever one the reader actually touched and mirroring its value onto
 // the other. On pages without the floating copy (studio/watch), the
-// InVideo lookup is just null and drops out of the group.
+// InVideo lookup is just null and drops out of the group. (Playback
+// controls -- scrubber, play, volume, speed, quality, fullscreen -- don't
+// need this: they now live directly inside .video-frame on every page, so
+// there's only ever the one copy of each.)
 function overlayControlGroup(id) {
   return [$(id), $(`${id}InVideo`)].filter(Boolean);
 }
@@ -4150,10 +4466,6 @@ function handleScrubInput(event) {
   const time = Number(event.target.value);
   scrubberEls.forEach((el) => { if (el !== event.target) el.value = event.target.value; });
   $('currentTime').textContent = formatTime(time);
-  if ($('inlineTimeLabel')) {
-    const duration = getDuration() || Number(scrubber.max) || 0;
-    $('inlineTimeLabel').textContent = `${formatTime(time)} / ${formatTime(duration)}`;
-  }
   updateScrubberFill();
   updateActiveSegment(true, time);
   if (state.playerType === 'youtube') {
@@ -4175,7 +4487,6 @@ for (const el of scrubberEls) {
 scrubber.addEventListener('pointermove', handleScrubPointer);
 scrubber.addEventListener('pointerenter', handleScrubPointer);
 scrubber.addEventListener('pointerleave', () => { $('scrubPreview').hidden = true; });
-$('inlinePlayButton')?.addEventListener('click', togglePlay);
 for (const el of volumeSliderEls) el.addEventListener('input', (event) => setVolume(Number(event.target.value)));
 for (const button of muteButtonEls) button.addEventListener('click', () => setMuted(!isMuted()));
 for (const button of fastForwardButtonEls) button.addEventListener('click', skipToNextReading);
@@ -4218,8 +4529,14 @@ $('scanCameraCancelButton')?.addEventListener('click', () => {
   $('scanIntro').hidden = false;
 });
 $('scanCameraShutterButton')?.addEventListener('click', handleScanCameraCapture);
+$('scanCameraConfirmCropButton')?.addEventListener('click', handleScanCameraConfirmCrop);
+$('scanCameraLibraryButton')?.addEventListener('click', () => $('scanLibraryInput').click());
 $('scanCameraInput')?.addEventListener('change', (event) => handleScanFileSelected(event.target.files?.[0]));
-$('scanLibraryInput')?.addEventListener('change', (event) => handleScanFileSelected(event.target.files?.[0]));
+$('scanLibraryInput')?.addEventListener('change', (event) => handleLibraryPhotoSelected(event.target.files?.[0]));
+$('scanCameraPhotoWrap')?.addEventListener('pointerdown', handleScanCropPointerDown);
+$('scanCameraPhotoWrap')?.addEventListener('pointermove', handleScanCropPointerMove);
+$('scanCameraPhotoWrap')?.addEventListener('pointerup', handleScanCropPointerUp);
+$('scanCameraPhotoWrap')?.addEventListener('pointercancel', handleScanCropPointerUp);
 $('scanRetakeButton')?.addEventListener('click', resetScanUi);
 $('scanAgainButton')?.addEventListener('click', resetScanUi);
 $('scanConfirmButton')?.addEventListener('click', confirmScan);

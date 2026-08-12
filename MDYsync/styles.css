@@ -112,44 +112,16 @@ h2 { margin-bottom: 0; }
 .large-play:hover { transform: scale(1.05); background: rgba(56,214,193,.85); color: #03211d; }
 .large-play svg { width: 38px; height: 38px; }
 
-/* Bottom 34px is reserved for .video-inline-controls in both modes, so the
-   overlay never visually covers (or, via its pointer-events:auto canvas,
-   blocks clicks on) the scrubber/play/fullscreen bar or the native YouTube
-   player's own hover controls underneath it. */
-.video-vilna-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 34px; pointer-events: none; overflow: hidden; z-index: 3; }
+/* Bottom 72px is reserved for the docked scrubber-wrap (30px) + player-controls
+   (42px) bar below, so the Vilna-page overlay never visually covers (or, via
+   its pointer-events:auto canvas, blocks clicks on) it. */
+.video-vilna-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 72px; pointer-events: none; overflow: hidden; z-index: 3; }
 .video-vilna-overlay.mode-strip { top: auto; height: 30%; }
 #videoVilnaCanvas { width: 100%; height: 100%; display: block; pointer-events: auto; cursor: grab; touch-action: none; }
 #videoVilnaCanvas:active { cursor: grabbing; }
 
-/* Hidden by default -- the scrubber-wrap/player-controls below the card
-   already cover play/scrub during normal viewing. Shown when those become
-   unreachable: in native fullscreen (where only .video-frame's own
-   descendants render) and whenever the Vilna overlay is on (its canvas
-   otherwise sits on top of the YouTube iframe's own hover controls,
-   blocking them) -- and also on hover/focus, since #fullscreenButton in
-   here is the *only* way to ever reach fullscreen in the first place
-   (YouTube's own native fullscreen button is deliberately disabled, see
-   the `fs: 0` playerVar in app.js) and it can't be reachable exclusively
-   from states that require already being in fullscreen. */
-.video-inline-controls { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; display: none; align-items: center; gap: 9px; height: 34px; padding: 0 8px; background: linear-gradient(to top, rgba(4,14,27,.88), rgba(4,14,27,0)); }
-.video-frame:hover .video-inline-controls,
-.video-frame:focus-within .video-inline-controls,
-.video-frame:fullscreen .video-inline-controls,
-.video-frame:-webkit-full-screen .video-inline-controls,
-.video-frame.overlay-on .video-inline-controls { display: flex; }
-/* :hover never reliably fires on touch devices, so a hover-only reveal makes this
-   bar -- the only way to reach fullscreen at all -- permanently invisible on phones
-   and tablets. Show it unconditionally wherever hover isn't supported. */
-@media (hover: none) {
-  .video-inline-controls { display: flex; }
-}
-.video-inline-play { width: 24px; height: 24px; padding: 0; border: none; background: none; color: white; cursor: pointer; display: grid; place-items: center; flex-shrink: 0; }
-.video-inline-play svg { width: 17px; height: 17px; }
-.inline-scrubber { flex: 1; accent-color: var(--accent); cursor: pointer; height: 4px; }
-.inline-time { font-size: 11px; color: white; opacity: .85; white-space: nowrap; flex-shrink: 0; }
-
-.video-fullscreen-button { flex-shrink: 0; width: 24px; height: 24px; padding: 0; border: none; background: none; color: white; display: grid; place-items: center; cursor: pointer; }
-.video-fullscreen-button:hover { color: var(--accent); }
+.video-fullscreen-button { flex-shrink: 0; width: 30px; height: 30px; padding: 0; border: none; background: none; color: white; display: grid; place-items: center; cursor: pointer; border-radius: 8px; }
+.video-fullscreen-button:hover { color: var(--accent); background: rgba(255,255,255,.1); }
 .video-fullscreen-button svg { width: 16px; height: 16px; }
 
 /* The overlay canvas is a sibling of the video/iframe, not inside either --
@@ -165,23 +137,112 @@ h2 { margin-bottom: 0; }
 .overlay-mode-label select { background: rgba(255,255,255,.05); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 4px 8px; }
 .overlay-opacity-label input[type="range"] { accent-color: var(--accent); width: 110px; }
 
-.scrubber-wrap { position: relative; padding-top: 20px; }
-.scrubber { width: 100%; accent-color: var(--accent); cursor: pointer; }
+/* Playback controls -- scrubber+time, then play/seek/volume/settings/
+   fullscreen -- docked directly onto the bottom of the video frame (see the
+   HTML comment on .video-frame in every page that embeds this player)
+   instead of sitting below it in normal page flow, replacing YouTube's own
+   (now hidden -- see the `controls: 0` playerVar in app.js) control bar with
+   this app's own. Real descendants of .video-frame this way, unlike their
+   old below-the-card position, which is also what makes the FULL control set
+   reachable in native fullscreen: only .video-frame's own descendants render
+   at all there. Fixed pixel heights (kept in sync with .video-vilna-overlay's
+   own bottom offset above) rather than content-driven sizing, so that offset
+   stays reliably correct regardless of what's actually in the bar. */
+.scrubber-wrap { position: absolute; left: 0; right: 0; bottom: 42px; z-index: 6; height: 30px; padding: 10px 12px 0; background: linear-gradient(to top, rgba(4,14,27,.55), rgba(4,14,27,0)); }
+/* A plain `background` on <input type="range"> is a no-op in every
+   browser's native (accent-color-driven) track rendering -- confirmed
+   directly (a computed 3-stop gradient with genuinely distinct colors
+   painted as flat, identical pixels across the whole unfilled track). The
+   "played" position readers already saw was accent-color's own native fill,
+   not this CSS -- fine for a plain two-color slider, but there's no
+   accent-color equivalent for a THIRD color (the buffered-but-unplayed
+   segment updateScrubberFill's now-3-stop gradient in app.js computes).
+   appearance:none + explicit track/thumb pseudo-elements is the only
+   reliable cross-browser way to make a JS-driven multi-color track actually
+   render; `background: inherit` on the track pulls in whatever gradient
+   app.js set on the input itself. Scoped to .scrubber only -- the volume/
+   opacity sliders don't need a third color and keep their native
+   accent-color rendering as-is. */
+.scrubber {
+  width: 100%;
+  height: 4px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+.scrubber::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: inherit; }
+.scrubber::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+.scrubber::-moz-range-track { height: 4px; border-radius: 2px; background: inherit; }
+.scrubber::-moz-range-thumb { width: 16px; height: 16px; border: none; border-radius: 50%; background: var(--accent); cursor: pointer; }
 .scrub-preview { position: absolute; top: -51px; left: 0; width: min(290px, 68%); transform: translateX(-50%); padding: 9px 11px; background: #162b43; border: 1px solid var(--line-strong); border-radius: 10px; box-shadow: 0 12px 35px rgba(0,0,0,.35); pointer-events: none; z-index: 4; }
 .scrub-preview::after { content: ""; position: absolute; bottom: -6px; left: 50%; width: 10px; height: 10px; background: #162b43; border-right: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); transform: translateX(-50%) rotate(45deg); }
 .scrub-preview strong, .scrub-preview span { display: block; }
 .scrub-preview strong { color: var(--accent); font-size: 12px; }
 .scrub-preview span { direction: rtl; text-align: right; font-family: "Frank Ruhl Libre", serif; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.time-row { justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: -2px; }
-.player-controls { gap: 9px; margin-top: 9px; }
-.icon-button, .play-button { border: 1px solid var(--line); cursor: pointer; background: rgba(255,255,255,.05); }
-.icon-button { width: 44px; height: 40px; border-radius: 11px; font-weight: 700; }
-.play-button { width: 50px; height: 50px; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: #03211d; }
-.play-button svg { width: 24px; height: 24px; }
-.control-divider { width: 1px; height: 29px; background: var(--line); margin: 0 3px; }
-.speed-control { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
-.speed-control select { width: auto; padding: 7px 28px 7px 9px; }
+.time-row { justify-content: space-between; color: rgba(255,255,255,.85); font-size: 11px; margin-top: 3px; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+.player-controls { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; height: 42px; gap: 6px; padding: 0 10px; background: linear-gradient(to top, rgba(4,14,27,.92), rgba(4,14,27,.6)); }
+.icon-button, .play-button { border: 1px solid rgba(255,255,255,.25); cursor: pointer; background: rgba(255,255,255,.1); color: #fff; }
+.icon-button { width: 30px; height: 30px; border-radius: 8px; font-size: 10px; font-weight: 700; }
+.play-button { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: #03211d; border-color: transparent; }
+.play-button svg { width: 18px; height: 18px; }
+.control-divider { width: 1px; height: 18px; background: rgba(255,255,255,.25); margin: 0 2px; flex-shrink: 0; }
+/* Separates the left-aligned playback controls from the right-aligned
+   settings/fullscreen group -- NOT the shared .push-right (below), which the
+   narrow-viewport media query (max-width:700px) stretches to width:100% for
+   its one other use (#editModeButton, alone in .edit-mode-row); reusing it
+   here would stretch this divider to the same 100% at that breakpoint and
+   wrap the settings/fullscreen buttons clean out of the (fixed-height,
+   never-wrapping) bar. */
+.control-divider-end { margin-left: auto; }
+.volume-button svg { width: 16px; height: 16px; }
+.volume-slider { width: 54px; accent-color: var(--accent); flex-shrink: 0; }
+.speed-control { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: inherit; font-size: 12px; }
+.speed-control select { width: auto; padding: 4px 20px 4px 6px; }
 .push-right { margin-left: auto; }
+
+/* Edit-mode-row (admin-only "Edit synchronization" button, the one control
+   that was in .player-controls but ISN'T a playback control -- it opens a
+   whole separate sync-editing UI, not something that belongs floating over
+   the video itself) -- back in normal page flow below the video frame. */
+.edit-mode-row { margin-top: 9px; display: flex; }
+
+/* Speed + quality tucked behind a small gear -- the same <details> pattern
+   as .overlay-settings (player/index.html's own inline <style>) -- instead
+   of two always-visible selects, since there's no room for those alongside
+   everything else in a bar docked over a phone-width video. */
+.video-settings { position: relative; flex-shrink: 0; }
+.video-settings summary { list-style: none; cursor: pointer; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; color: #fff; }
+.video-settings summary:hover { background: rgba(255,255,255,.12); }
+.video-settings summary::-webkit-details-marker { display: none; }
+.video-settings summary::after { content: '⚙'; font-size: 15px; }
+.video-settings-body {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 150px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(10,20,32,.96);
+  border: 1px solid rgba(255,255,255,.15);
+  box-shadow: 0 14px 38px rgba(0,0,0,.45);
+  font-size: 12px;
+  color: rgba(255,255,255,.9);
+}
+.video-settings-body select { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.25); color: #fff; border-radius: 6px; padding: 4px 6px; }
+.quality-control { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: inherit; font-size: 12px; }
 
 .now-learning { margin-top: 17px; padding: 15px 17px; border-radius: 14px; border: 1px solid rgba(56,214,193,.24); background: linear-gradient(135deg, rgba(56,214,193,.11), rgba(82,167,255,.06)); min-height: 113px; }
 .now-label { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 5px; }
@@ -343,6 +404,14 @@ h2 { margin-bottom: 0; }
   height: 100%;
   object-fit: cover;
 }
+/* "Photo" mode (a library photo being positioned behind the cutout, see
+   showScanCameraPhotoCrop in app.js) -- overflow:hidden fixed-size viewport,
+   same shape as .scan-result-wrap, with the img inside transformed by
+   computeCropSourceRect's matching pinch/pan/zoom controller. width:100% +
+   height:auto lets a landscape photo still pan into a portrait cutout. */
+.scan-camera-photo-wrap { position: absolute; inset: 0; overflow: hidden; touch-action: none; }
+.scan-camera-photo { display: block; width: 100%; height: auto; transform-origin: 0 0; cursor: grab; }
+.scan-camera-photo.dragging { cursor: grabbing; }
 /* The cutout div's own box IS the alignment target -- captureScanPhotoFromCamera
    reads its real rendered getBoundingClientRect() rather than duplicating
    this sizing math in JS, so this rule is the only place the guide's size
@@ -359,28 +428,42 @@ h2 { margin-bottom: 0; }
   border-radius: 10px;
   box-shadow: 0 0 0 100vmax rgba(0,0,0,.62);
 }
-.scan-camera-hint { position: absolute; top: max(18px, env(safe-area-inset-top)); left: 16px; right: 16px; text-align: center; color: #fff; font-size: 13px; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
+.scan-camera-top-text { position: absolute; top: max(18px, env(safe-area-inset-top)); left: 16px; right: 16px; text-align: center; }
+.scan-camera-hint { color: #fff; font-size: 13px; margin: 0 0 6px; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
+.scan-camera-tips { color: rgba(255,255,255,.8); font-size: 11.5px; line-height: 1.4; margin: 0; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
+/* Three fixed slots (cancel / shutter-or-confirm / library) on a grid rather
+   than a centered flex row, so the shutter stays perfectly centered whether
+   or not the library button on the right is visible (hidden while a library
+   photo is being cropped -- see showScanCameraPhotoCrop). */
 .scan-camera-controls {
   position: absolute;
   bottom: max(28px, env(safe-area-inset-bottom));
   left: 0;
   right: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: center;
-  gap: 28px;
+  padding: 0 24px;
 }
+.scan-camera-controls-cancel { justify-self: start; }
+.scan-camera-controls-library { justify-self: end; }
 .scan-camera-controls .button { color: #fff; border-color: rgba(255,255,255,.5); background: rgba(0,0,0,.35); }
-.scan-camera-shutter {
+.scan-camera-controls-library { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; }
+.scan-camera-controls-library svg { width: 22px; height: 22px; }
+.scan-camera-shutter, .scan-camera-confirm {
+  justify-self: center;
+  grid-column: 2;
+  grid-row: 1;
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  background: #fff;
-  border: 4px solid rgba(255,255,255,.5);
   box-shadow: 0 2px 10px rgba(0,0,0,.4);
   cursor: pointer;
 }
-.scan-camera-shutter:active { transform: scale(0.92); }
+.scan-camera-shutter { background: #fff; border: 4px solid rgba(255,255,255,.5); }
+.scan-camera-shutter:active, .scan-camera-confirm:active { transform: scale(0.92); }
+.scan-camera-confirm { background: #38d6c1; border: 4px solid rgba(255,255,255,.7); display: flex; align-items: center; justify-content: center; color: #06201c; }
+.scan-camera-confirm svg { width: 30px; height: 30px; }
 
 .scan-status { max-width: 420px; margin: 14px auto 0; padding: 11px 14px; border-radius: 10px; font-size: 13px; line-height: 1.5; }
 .scan-status.error { background: rgba(255,124,137,.14); color: #7a2530; border: 1px solid rgba(255,124,137,.35); }
@@ -457,7 +540,6 @@ dialog ol { color: #d8e2eb; padding-left: 21px; line-height: 1.6; }
   .player-card, .daf-card { padding: 14px; border-radius: 16px; }
   .card-heading { align-items: flex-start; }
   .live-location { display: none; }
-  .player-controls { flex-wrap: wrap; }
   .push-right { width: 100%; margin-left: 0; margin-top: 4px; }
   .now-learning { min-height: 125px; }
   .daf-toolbar { align-items: flex-start; }
