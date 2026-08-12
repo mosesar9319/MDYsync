@@ -486,6 +486,15 @@
     }
     @media (prefers-reduced-motion: reduce) { *,*::before,*::after { scroll-behavior: auto !important; transition-duration: .01ms !important; } }
 
+    /* Set only on a fresh "Daf Scan" nav entry with no video to show yet
+       (see app.js's loadTalmudIndex().then(...) and showScanResult, which
+       clears this once a photo is actually scanned and matched) -- unlike
+       the old scan-only mode this stripped, this is a one-way transition
+       for THIS load, not a permanently different page. */
+    body.scan-pending .setup-strip { display: none; }
+    body.scan-pending .watch-layout { display: block; }
+    body.scan-pending .player-card { display: none; }
+    body.scan-pending .daf-card { min-height: 82vh; }
   </style>
 </head>
 <body class="player-page">

@@ -42,47 +42,60 @@ function ensureCv() {
   return cvReadyPromise;
 }
 
-// Runs the standard "flatten a photographed document" pipeline (grayscale ->
-// blur -> edge detection -> contour finding -> largest convex 4-sided
-// shape) to find the page's corners without the reader marking them by
-// hand. Identical logic to the old main-thread detectPageCorners, just
-// building the source Mat directly from raw RGBA bytes instead of
-// cv.imread(<img>) -- a Worker has no DOM, canvas, or Image element to read
-// from, only the pixel buffer the main thread decoded and transferred over.
-// Returns 4 corner points in image-pixel space (unordered), or null if
-// nothing plausible was found.
-function detectPageCorners(cv, width, height, rgba) {
-  const src = new cv.Mat(height, width, cv.CV_8UC4);
-  src.data.set(rgba);
-  const gray = new cv.Mat();
-  const blurred = new cv.Mat();
+// Canny's two thresholds have no single value that works across every
+// photo's contrast -- a real failure case (a scan that needed a manual
+// corner fallback) had a page sitting against a comparatively low-contrast
+// background, where the page/background luminance step can fall below a
+// fixed lower threshold and produce no boundary edge at all, leaving
+// nothing for the contour step below to find a quad in regardless of how
+// the downstream confidence scoring (scoreQuadConfidence in app.js) is
+// tuned. Tries, in order, until one finds a plausible quad:
+//   1. Otsu's method -- computes the threshold that best separates this
+//      specific image's own two dominant intensity populations (page vs.
+//      background), so it adapts per-photo instead of assuming a fixed
+//      contrast. Wrapped in its own try/catch since it's a less
+//      battle-tested call in this environment than plain Canny -- if it
+//      throws for any reason, the fixed-threshold strategies below still
+//      run instead of the whole detection silently failing.
+//   2. The original fixed 50/150 pair -- works fine on a typical, well-lit
+//      photo, kept as a proven fallback.
+//   3. A deliberately oversensitive fixed pair, as a last resort for a
+//      photo low-contrast enough that even Otsu's own threshold sits too
+//      high -- picks up weak/noisy edges too, but findLargestQuad's own
+//      "must be a 4-sided convex shape, take the largest" filter and
+//      app.js's confidence scoring downstream both exist specifically to
+//      reject a bad guess rather than trust it blindly.
+function cannyThresholdStrategies(cv, blurred) {
+  const strategies = [];
+  try {
+    const otsuMask = new cv.Mat();
+    let otsuLevel;
+    try {
+      otsuLevel = cv.threshold(blurred, otsuMask, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
+    } finally {
+      otsuMask.delete();
+    }
+    const upper = Math.max(30, otsuLevel);
+    strategies.push({ low: upper * 0.5, high: upper });
+  } catch (error) {
+    console.error('Otsu threshold unavailable, skipping:', error);
+  }
+  strategies.push({ low: 50, high: 150 });
+  strategies.push({ low: 20, high: 60 });
+  return strategies;
+}
+
+// One Canny + contour pass at a given threshold pair -- the largest convex
+// 4-sided contour found, or null. Shared by every strategy in
+// cannyThresholdStrategies so detectPageCorners can just pick whichever
+// pass's result is most convincing (largest area).
+function findLargestQuad(cv, blurred, kernel, lowThreshold, highThreshold) {
   const edges = new cv.Mat();
   const dilated = new cv.Mat();
-  const kernel = cv.Mat.ones(3, 3, cv.CV_8U);
   const contours = new cv.MatVector();
   const hierarchy = new cv.Mat();
-  const otsuMask = new cv.Mat();
   try {
-    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-    cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
-    // Canny's two thresholds used to be a fixed 50/150 -- reasonable for a
-    // well-lit, high-contrast page-on-dark-background photo, but a real
-    // failure case (a scan that needed a manual corner fallback) had a page
-    // sitting against a comparatively light, low-contrast background, where
-    // the actual page/background luminance step can fall below a fixed
-    // lower threshold of 50 and produce no boundary edge at all -- the
-    // detector then has nothing to find a quad in, regardless of how the
-    // downstream contour/confidence scoring is tuned (see scoreQuadConfidence
-    // in app.js, which is never even reached in that case). Otsu's method
-    // computes the threshold that best separates this specific image's own
-    // two dominant intensity populations (page vs. background), so deriving
-    // Canny's thresholds from it -- the standard high=otsu, low=0.5*otsu
-    // pairing -- adapts per-photo instead of assuming every photo has the
-    // same fixed contrast. Floored at 30 so a near-blank/uniform frame
-    // (Otsu threshold near 0) doesn't collapse Canny to a no-op.
-    const otsuLevel = cv.threshold(blurred, otsuMask, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
-    const cannyUpper = Math.max(30, otsuLevel);
-    cv.Canny(blurred, edges, cannyUpper * 0.5, cannyUpper);
+    cv.Canny(blurred, edges, lowThreshold, highThreshold);
     cv.dilate(edges, dilated, kernel);
     cv.findContours(dilated, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 
@@ -107,17 +120,46 @@ function detectPageCorners(cv, width, height, rgba) {
         contour.delete();
       }
     }
-    return best;
+    return best ? { points: best, area: bestArea } : null;
+  } finally {
+    edges.delete();
+    dilated.delete();
+    contours.delete();
+    hierarchy.delete();
+  }
+}
+
+// Runs the standard "flatten a photographed document" pipeline (grayscale ->
+// blur -> edge detection -> contour finding -> largest convex 4-sided
+// shape) to find the page's corners without the reader marking them by
+// hand, trying multiple Canny threshold strategies (see
+// cannyThresholdStrategies) and keeping whichever finds the largest
+// plausible page-shaped contour. Builds the source Mat directly from raw
+// RGBA bytes instead of cv.imread(<img>) -- a Worker has no DOM, canvas, or
+// Image element to read from, only the pixel buffer the main thread decoded
+// and transferred over. Returns 4 corner points in image-pixel space
+// (unordered), or null if nothing plausible was found by any strategy.
+function detectPageCorners(cv, width, height, rgba) {
+  const src = new cv.Mat(height, width, cv.CV_8UC4);
+  src.data.set(rgba);
+  const gray = new cv.Mat();
+  const blurred = new cv.Mat();
+  const kernel = cv.Mat.ones(3, 3, cv.CV_8U);
+  try {
+    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+    cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
+
+    let best = null;
+    for (const { low, high } of cannyThresholdStrategies(cv, blurred)) {
+      const found = findLargestQuad(cv, blurred, kernel, low, high);
+      if (found && (!best || found.area > best.area)) best = found;
+    }
+    return best ? best.points : null;
   } finally {
     src.delete();
     gray.delete();
     blurred.delete();
-    edges.delete();
-    dilated.delete();
     kernel.delete();
-    contours.delete();
-    hierarchy.delete();
-    otsuMask.delete();
   }
 }
 
