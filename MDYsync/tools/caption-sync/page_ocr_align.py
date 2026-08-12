@@ -245,15 +245,69 @@ def align_words_to_canon(canon, words):
     return pairs
 
 
+def compute_text_block(words, page_w, page_h, crop_w, crop_h, padding_lines=0.5):
+    """The Gemara column's own bounding box on THIS page, as fractions of
+    the full (CropBox-equivalent) page -- horizontally the same fixed
+    BAND_X0_FRAC/BAND_X1_FRAC crop every page uses (a property of shas.org's
+    fixed PDF template, not this specific page -- but expressed as a
+    fraction of the MediaBox-rendered PNG's own width, same as ocr_band_words
+    uses it, so it's rescaled here to a CropBox-equivalent fraction the same
+    way word positions themselves are below), vertically the real extent of
+    the words actually OCR'd on this page (every page has a different
+    number of lines, so this can't be a fixed constant the way the
+    horizontal band is).
+
+    padding_lines pads the vertical extent by a fraction of the median
+    line's own height, so the box doesn't clip the first/last line's
+    ascenders/descenders right at the boundary.
+
+    This is what word positions get normalized against instead of the whole
+    page (see build_word_boxes) -- the fix for a real, confirmed bug: two
+    different physical printings of a Vilna-paginated page can have
+    different outer margins even though the typeset content itself is
+    identical, so a word position stored as a fraction of the WHOLE page
+    silently assumes the reader's own physical book has the exact same
+    margins as this reference PDF. Fractions of the text block itself carry
+    no such assumption -- see shared/text-block-detect.mjs, the client/
+    server counterpart that measures a photographed page's OWN text block
+    the same way instead of trusting this reference's margins to transfer.
+    """
+    if not words:
+        return None
+    tops = sorted(w['y'] for w in words)
+    bottoms = sorted(w['y'] + w['h'] for w in words)
+    heights = sorted(w['h'] for w in words)
+    median_h = heights[len(heights) // 2]
+    pad = median_h * padding_lines
+    # Clamped to crop_h, not page_h -- a stray OCR'd word in the bleed
+    # margin outside the CropBox (rare, but the MediaBox render OCR runs
+    # against does include that margin) would otherwise push this past 1.0
+    # once divided by crop_h below, which every consumer assumes is a valid
+    # 0..1 page fraction.
+    top_px = max(0.0, tops[0] - pad)
+    bottom_px = min(crop_h, bottoms[-1] + pad)
+    return {
+        'left': (BAND_X0_FRAC * page_w) / crop_w,
+        'top': top_px / crop_h,
+        'right': (BAND_X1_FRAC * page_w) / crop_w,
+        'bottom': bottom_px / crop_h,
+    }
+
+
 def build_word_boxes(canon, words, pairs, crop_w, crop_h):
     """One box per aligned canonical word, taken directly from its matched
     OCR word's real bounding box (no chunk-distribution approximation
     needed now that alignment is word-for-word).
 
-    crop_w/crop_h must be the CropBox-equivalent pixel dimensions (see
-    CROPBOX_WIDTH_FRAC/CROPBOX_HEIGHT_FRAC above), not the raw OCR'd PNG's
-    own (MediaBox-sized) dimensions -- these are what the browser's canvas
-    actually represents, and box positions are stored as fractions of them.
+    Deliberately UNCHANGED, still fractions of the whole (CropBox-
+    equivalent) page, not the text block computed above -- the Vilna-page
+    view (renderVilnaWordBoxes in app.js) positions these as CSS percentages
+    directly against the full canonical page image, so changing what these
+    fractions mean would break that consumer too. Only scan-daf-page.mjs
+    needs text-block-relative positions (to project onto a photographed
+    page whose margins may not match this reference's), and it derives them
+    itself at request time from these page-fractions plus the textBlock
+    field below -- see this function's own caller.
     """
     out = []
     for ocr_i, canon_i, score in pairs:
@@ -296,13 +350,20 @@ def process_page(tractate, daf, amud, out_dir, cache_dir=None):
     covered = len(boxes)
     print(f'Aligned {covered}/{len(canon)} words ({covered / max(1, len(canon)):.0%} coverage)')
 
+    text_block = compute_text_block(words, page_w, page_h, crop_w, crop_h)
+
     result = {
-        'schema': 'dafsync-pagemap-v1',
+        # v2: adds textBlock (see compute_text_block) -- wordBoxes/pageWidth/
+        # pageHeight are unchanged from v1, so anything only reading those
+        # still works against a v2 file without modification; only
+        # scan-daf-page.mjs actually needs the new field.
+        'schema': 'dafsync-pagemap-v2',
         'tractate': tractate,
         'daf': daf,
         'amud': amud,
         'pageWidth': crop_w,
         'pageHeight': crop_h,
+        'textBlock': text_block,
         'wordBoxes': boxes,
     }
     out_path = os.path.join(out_dir, 'pagemap.json')

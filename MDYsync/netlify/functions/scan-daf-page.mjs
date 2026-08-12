@@ -39,10 +39,11 @@
 // this in production.
 
 import { createWorker } from 'tesseract.js';
-import { Jimp } from 'jimp';
+import { Jimp, intToRGBA } from 'jimp';
 import { solveHomography, applyHomography } from '../../shared/perspective-transform.mjs';
 import { buildHeaderVocabulary, matchHeader, MASECHTA_HEBREW } from '../../shared/daf-header-vocabulary.mjs';
 import { parsePageKey } from '../../shared/daf-key-parsing.mjs';
+import { detectTextBlockQuad } from '../../shared/text-block-detect.mjs';
 
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
@@ -217,15 +218,60 @@ export default async (request) => {
   }
   const pageData = await pageResponse.json();
 
-  // Project each canonical word box through the same homography, then back
+  // Word positions were originally projected straight through the marked
+  // PAGE corners' own homography -- correct only if the reader's physical
+  // book has the exact same margin proportions as shas.org's reference PDF
+  // (what pageData.wordBoxes' x/y/w/h are fractions of). Different print
+  // runs/publishers trim pages and set margins differently even when the
+  // underlying typeset content is identical, and that mismatch compounds
+  // into several line-heights of drift by the lower part of a page (a real,
+  // confirmed failure -- see shared/text-block-detect.mjs's own module
+  // comment for the full story and the direct simulation that quantified
+  // it). pageData.textBlock (schema v2+) is the Gemara column's own bounds
+  // on the REFERENCE page; detecting the SAME column's bounds on THIS
+  // photo and projecting through a homography built from THAT instead
+  // removes the assumption entirely, since neither side needs the other's
+  // margins to match. Falls back to the original page-homography
+  // projection (unchanged behavior) for an older (v1) page map, or if
+  // detection itself isn't confident enough on this specific photo --
+  // never worse than what shipped before, only better when it can be.
+  let wordProjectionHomography = homography;
+  let textBlockOrigin = { left: 0, top: 0, width: 1, height: 1 }; // identity: box.x/y already in this space
+  if (pageData.textBlock) {
+    try {
+      // imageBuffer above is scoped to the header-OCR try block -- decoded
+      // again here rather than threading it out, a cheap base64 decode
+      // against the same bytes.
+      const textBlockImage = await Jimp.read(Buffer.from(imageBase64, 'base64'));
+      const detected = detectTextBlockQuad(
+        (x, y) => intToRGBA(textBlockImage.getPixelColor(x, y)),
+        homography,
+        imageWidth,
+        imageHeight
+      );
+      if (detected) {
+        wordProjectionHomography = solveHomography(CANONICAL_CORNERS, detected.corners);
+        const tb = pageData.textBlock;
+        textBlockOrigin = { left: tb.left, top: tb.top, width: tb.right - tb.left, height: tb.bottom - tb.top };
+      }
+    } catch (error) {
+      console.error('Text-block detection failed, falling back to page-relative word positions:', error);
+    }
+  }
+
+  // Project each canonical word box through the homography above, then back
   // into photo-relative fractions (0-1) -- so the frontend can position
   // overlay elements with simple percentages, exactly the way it already
   // does for the Vilna-page view (renderVilnaWordBoxes in app.js).
   const wordBoxes = (pageData.wordBoxes || []).map((box) => {
+    const relX = (box.x - textBlockOrigin.left) / textBlockOrigin.width;
+    const relY = (box.y - textBlockOrigin.top) / textBlockOrigin.height;
+    const relW = box.w / textBlockOrigin.width;
+    const relH = box.h / textBlockOrigin.height;
     const corners2 = [
-      [box.x, box.y], [box.x + box.w, box.y],
-      [box.x + box.w, box.y + box.h], [box.x, box.y + box.h],
-    ].map(([x, y]) => applyHomography(homography, x, y));
+      [relX, relY], [relX + relW, relY],
+      [relX + relW, relY + relH], [relX, relY + relH],
+    ].map(([x, y]) => applyHomography(wordProjectionHomography, x, y));
     const projected = boundingBox(corners2);
     return {
       ref: box.ref,

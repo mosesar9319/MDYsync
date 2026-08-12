@@ -164,6 +164,21 @@ function detectPageCorners(cv, width, height, rgba) {
 }
 
 self.onmessage = async (event) => {
+  // A warmup message (see app.js's prewarmScanDetection) just starts the
+  // opencv.js download+compile early -- no id, no pixels, no reply expected
+  // (app.js fires this and moves on without waiting). Letting a real
+  // detection request race in behind it is fine either way: ensureCv()
+  // caches its promise, so a request that arrives before warmup finishes
+  // just awaits the same in-flight load instead of starting a second one.
+  if (event.data.warmup) {
+    try {
+      await ensureCv();
+    } catch (error) {
+      console.error('Page-detection warmup failed:', error.message);
+    }
+    return;
+  }
+
   const { id, width, height, buffer } = event.data;
   try {
     const cv = await ensureCv();
