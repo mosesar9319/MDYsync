@@ -1703,6 +1703,7 @@ function buildAutoDetectHint(orderedFractionCorners, confidence, failureDetail) 
 }
 
 function resetScanUi() {
+  stopScanCamera();
   $('scanIntro').hidden = false;
   $('scanAlign').hidden = true;
   $('scanResult').hidden = true;
@@ -1774,6 +1775,133 @@ async function handleScanFileSelected(file) {
   } catch (error) {
     console.error(error);
     showScanStatus(`Could not load that photo: ${error.message}`, 'error');
+  }
+}
+
+// --- Guided-capture camera view -------------------------------------------
+// The idea behind this whole block: instead of taking a photo blind (via the
+// plain scanCameraInput file picker below, which hands off to the OS's own
+// camera app) and THEN figuring out the page's corners after the fact (either
+// by OpenCV guesswork or by dragging four handles), show a live camera feed
+// with a page-shaped cutout the reader fits the physical page into BEFORE
+// tapping the shutter. captureScanPhotoFromCamera() then crops the captured
+// photo to exactly that cutout region, so the crop IS the alignment step --
+// the resulting corners are just the full frame of the (already-cropped)
+// photo, no detection needed. Only applies to "Take a photo" -- "Choose from
+// library" (handleScanFileSelected above) keeps the OpenCV auto-detect +
+// manual-align fallback, since a pre-existing photo's framing is unknown.
+let scanCameraStream = null;
+
+// Nothing here can be exercised against a real camera in this sandbox (no
+// camera hardware, and getUserMedia is unavailable in a headless browser
+// with no device) -- verified instead with a synthetic MediaStream-shaped
+// stub and, separately, the pure coordinate math in
+// computeCaptureSourceRect below against hand-computed expected crops.
+async function openScanCamera() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    $('scanCameraInput').click(); // no live-camera support -- fall back to the plain file picker
+    return;
+  }
+  try {
+    scanCameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1920 } },
+      audio: false,
+    });
+  } catch (error) {
+    console.error('Could not open the camera:', error);
+    $('scanCameraInput').click(); // denied/unavailable -- same fallback
+    return;
+  }
+  const video = $('scanCameraVideo');
+  video.srcObject = scanCameraStream;
+  $('scanCameraView').hidden = false;
+}
+
+function stopScanCamera() {
+  scanCameraStream?.getTracks().forEach((track) => track.stop());
+  scanCameraStream = null;
+  const video = $('scanCameraVideo');
+  if (video) video.srcObject = null;
+  const view = $('scanCameraView');
+  if (view) view.hidden = true;
+}
+
+// Maps the on-screen cutout rectangle back into the video's own native pixel
+// space, so the captured frame can be cropped to exactly what the reader saw
+// framed. videoEl is styled with object-fit: cover (see styles.css), which
+// scales the video uniformly to fully cover its CSS box and crops whichever
+// axis overflows -- this is that same transform's inverse. A pure function
+// of its two arguments' rects/dimensions (no globals), so it's fully
+// unit-testable by mocking getBoundingClientRect() and videoWidth/videoHeight
+// without a real camera.
+function computeCaptureSourceRect(videoEl, cutoutEl) {
+  const videoRect = videoEl.getBoundingClientRect();
+  const cutoutRect = cutoutEl.getBoundingClientRect();
+  const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
+  if (!vw || !vh || !videoRect.width || !videoRect.height) return null;
+
+  const coverScale = Math.max(videoRect.width / vw, videoRect.height / vh);
+  const displayedVideoWidth = vw * coverScale;
+  const displayedVideoHeight = vh * coverScale;
+  const croppedX = (displayedVideoWidth - videoRect.width) / 2;
+  const croppedY = (displayedVideoHeight - videoRect.height) / 2;
+
+  const relLeft = (cutoutRect.left - videoRect.left) + croppedX;
+  const relTop = (cutoutRect.top - videoRect.top) + croppedY;
+
+  const sx = relLeft / coverScale;
+  const sy = relTop / coverScale;
+  const sWidth = cutoutRect.width / coverScale;
+  const sHeight = cutoutRect.height / coverScale;
+
+  // The cutout is designed to always sit inside the video's covered area --
+  // clamp defensively against any rounding/layout edge case rather than
+  // trusting that geometrically.
+  const clampedX = Math.max(0, Math.min(sx, vw));
+  const clampedY = Math.max(0, Math.min(sy, vh));
+  return {
+    sx: clampedX,
+    sy: clampedY,
+    sWidth: Math.max(1, Math.min(sWidth, vw - clampedX)),
+    sHeight: Math.max(1, Math.min(sHeight, vh - clampedY)),
+  };
+}
+
+// The reader already aligned the page to the cutout's edges before tapping
+// the shutter -- the crop below IS that alignment, so the corners are simply
+// the resulting photo's own full frame, no OpenCV detection involved.
+const FULL_FRAME_SCAN_CORNERS = [[0, 0], [1, 0], [1, 1], [0, 1]];
+
+function captureScanPhotoFromCamera() {
+  const video = $('scanCameraVideo');
+  const source = computeCaptureSourceRect(video, $('scanCameraCutout'));
+  if (!source) throw new Error('The camera is not ready yet.');
+  const scale = Math.min(1, SCAN_MAX_DIMENSION / Math.max(source.sWidth, source.sHeight));
+  const width = Math.round(source.sWidth * scale);
+  const height = Math.round(source.sHeight * scale);
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext('2d').drawImage(video, source.sx, source.sy, source.sWidth, source.sHeight, 0, 0, width, height);
+  return { dataUrl: canvas.toDataURL('image/jpeg', 0.85), width, height };
+}
+
+async function handleScanCameraCapture() {
+  try {
+    const { dataUrl, width, height } = captureScanPhotoFromCamera();
+    stopScanCamera();
+    state.scanPhotoDataUrl = dataUrl;
+    state.scanImageWidth = width;
+    state.scanImageHeight = height;
+    state.scanCorners = FULL_FRAME_SCAN_CORNERS.map((point) => [...point]); // fresh copy -- confirmScan's own fallback screen lets the reader drag these
+    state.scanCornersManuallyEdited = false;
+    $('scanPhoto').src = dataUrl;
+    $('scanIntro').hidden = true;
+    $('scanResult').hidden = true;
+    await confirmScan();
+  } catch (error) {
+    console.error(error);
+    showScanStatus(`Could not capture that photo: ${error.message}`, 'error');
   }
 }
 
@@ -4071,6 +4199,8 @@ function switchDafView(mode) {
   if (mode === 'scan') {
     if (!state.scanPhotoDataUrl) resetScanUi();
     if (scanPlaceholder) prewarmScanDetection();
+  } else {
+    stopScanCamera(); // don't leave the camera light on if the reader navigates away mid-frame
   }
 }
 
@@ -4082,6 +4212,12 @@ for (const button of document.querySelectorAll('.sync-method-switch button[data-
   button.addEventListener('click', () => switchSyncMethod(button.dataset.method));
 }
 
+$('scanCameraOpenButton')?.addEventListener('click', openScanCamera);
+$('scanCameraCancelButton')?.addEventListener('click', () => {
+  stopScanCamera();
+  $('scanIntro').hidden = false;
+});
+$('scanCameraShutterButton')?.addEventListener('click', handleScanCameraCapture);
 $('scanCameraInput')?.addEventListener('change', (event) => handleScanFileSelected(event.target.files?.[0]));
 $('scanLibraryInput')?.addEventListener('change', (event) => handleScanFileSelected(event.target.files?.[0]));
 $('scanRetakeButton')?.addEventListener('click', resetScanUi);
