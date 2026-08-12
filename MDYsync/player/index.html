@@ -906,10 +906,31 @@
                 </div>
                 <p>Point your camera at a printed Gemara page. We'll figure out which daf it is and let you tap any word to jump the video there.</p>
                 <div class="scan-intro-actions">
-                  <label class="button primary" for="scanCameraInput">Take a photo</label>
+                  <button class="button primary" id="scanCameraOpenButton" type="button">Take a photo</button>
                   <input type="file" id="scanCameraInput" accept="image/*" capture="environment" hidden />
                   <label class="button secondary" for="scanLibraryInput">Choose from library</label>
                   <input type="file" id="scanLibraryInput" accept="image/*" hidden />
+                </div>
+              </div>
+
+              <!-- Live camera view for "Take a photo" (see openScanCamera in
+                   app.js) -- a page-shaped cutout the reader fits the physical
+                   page into before tapping the shutter, so the alignment step
+                   happens WHILE framing the shot instead of after. The photo
+                   is cropped to exactly that cutout region at capture time
+                   (captureScanPhotoFromCamera), so the resulting corners are
+                   just the full frame -- no OpenCV detection involved on this
+                   path at all. Falls back to the plain scanCameraInput file
+                   picker above if getUserMedia isn't available/denied. -->
+              <div class="scan-camera-view" id="scanCameraView" hidden>
+                <video class="scan-camera-video" id="scanCameraVideo" autoplay playsinline muted></video>
+                <div class="scan-camera-overlay">
+                  <div class="scan-camera-cutout" id="scanCameraCutout"></div>
+                </div>
+                <p class="scan-camera-hint">Fit the page inside the frame, then tap to capture.</p>
+                <div class="scan-camera-controls">
+                  <button class="button secondary" id="scanCameraCancelButton" type="button">Cancel</button>
+                  <button class="scan-camera-shutter" id="scanCameraShutterButton" type="button" aria-label="Capture photo"></button>
                 </div>
               </div>
 

@@ -89,6 +89,11 @@ const state = {
   scanImageHeight: 0,
   scanCorners: null,
   scanDraggingCorner: null,
+  // True once the reader has grabbed a corner handle themselves -- guards
+  // applyLateDetectionIfStillUseful() below from overwriting a manual
+  // correction with a slower automatic result that only shows up after they've
+  // already started fixing it by hand.
+  scanCornersManuallyEdited: false,
   // Pinch/pan zoom on the synced result photo (see wireScanResultZoom) --
   // a plain CSS transform on #scanResultZoom (translate in wrap-relative
   // px, then scale), reset to identity each time a fresh photo is shown.
@@ -1357,6 +1362,13 @@ let scanDetectWorker = null;
 let scanDetectRequestId = 0;
 const scanDetectPendingRequests = new Map();
 
+// Bumped once per autoDetectAndProceed() call -- lets a detection promise
+// that resolves LATE (after its own timeout already fired, see
+// applyLateDetectionIfStillUseful below) recognize it's answering a photo
+// the reader has since moved on from (retook the photo, or a second scan
+// entirely) and skip applying its stale result.
+let scanAttemptToken = 0;
+
 function ensureScanDetectWorker() {
   if (scanDetectWorker) return scanDetectWorker;
   scanDetectWorker = new Worker('/scan-detect-worker.js');
@@ -1553,6 +1565,22 @@ function scoreQuadConfidence(orderedPoints, imageWidth, imageHeight) {
 // Widened generously since a real, successful detection itself only takes a
 // fraction of a second once the library's loaded; the budget mostly needs to
 // cover a slow network's worst case, not the compute.
+//
+// A second real trial (with the phase diagnostics this comment used to only
+// hope for) confirmed the library-load branch specifically: the detector
+// never even reached 'cv-ready' inside this budget. Investigated directly
+// (not guessed) whether that's a self-hosting/compression problem -- it
+// isn't: jsdelivr already serves this file brotli-compressed (~2.9MB, not
+// the ~10MB raw size), so there's no obvious network win left to chase by
+// vendoring it. What's actually unverifiable from here is whether a slow
+// device/connection would have finished at 25s, 40s, or never -- picking a
+// bigger number would be the same blind tuning that already failed twice.
+// So the budget here stays put, and detectPageCornersInWorker's own promise
+// is deliberately NOT abandoned when this timeout fires -- see
+// autoDetectAndProceed's use of applyLateDetectionIfStillUseful below, which
+// keeps listening after the reader's already moved to the manual screen and
+// applies the result if it lands late, instead of the already-spent
+// download+compute going to waste on every slow-load case.
 const AUTO_DETECT_TIMEOUT_MS = 20000;
 
 // Fired as soon as the reader opens the Scan view (switchDafView('scan')),
@@ -1592,15 +1620,14 @@ function withTimeout(promise, ms, message) {
 // normal scan really is just "snap the photo."
 async function autoDetectAndProceed() {
   showScanStatus('Finding the page…', 'busy');
+  state.scanCornersManuallyEdited = false;
+  const attemptToken = ++scanAttemptToken;
   let orderedFractionCorners = null;
   let confidence = 0;
   let failureDetail = null; // set only on a caught error -- see buildAutoDetectHint
+  const detectionPromise = detectPageCornersInWorker(state.scanPhotoDataUrl, state.scanImageWidth, state.scanImageHeight);
   try {
-    const quad = await withTimeout(
-      detectPageCornersInWorker(state.scanPhotoDataUrl, state.scanImageWidth, state.scanImageHeight),
-      AUTO_DETECT_TIMEOUT_MS,
-      describeDetectionTimeout
-    );
+    const quad = await withTimeout(detectionPromise, AUTO_DETECT_TIMEOUT_MS, describeDetectionTimeout);
     if (quad) {
       const ordered = orderQuadPoints(quad);
       confidence = scoreQuadConfidence(ordered, state.scanImageWidth, state.scanImageHeight).score;
@@ -1609,9 +1636,14 @@ async function autoDetectAndProceed() {
   } catch (error) {
     // Best-effort enhancement -- any failure (library didn't load, timed
     // out, no network, WASM unsupported, nothing found) just falls back to
-    // the manual step below rather than blocking the scan entirely.
+    // the manual step below rather than blocking the scan entirely. A
+    // timeout specifically (as opposed to a hard error like a 404) means the
+    // underlying detectionPromise is still running, not dead -- worth
+    // keeping an ear out for in case it finishes late (see below) rather
+    // than just discarding it along with the race.
     console.error('Automatic page detection failed:', error);
     failureDetail = error.message;
+    applyLateDetectionIfStillUseful(detectionPromise, attemptToken);
   }
 
   if (orderedFractionCorners && confidence >= CORNER_CONFIDENCE_THRESHOLD) {
@@ -1625,6 +1657,31 @@ async function autoDetectAndProceed() {
   $('scanStatus').hidden = true;
   $('scanAlign').hidden = false;
   renderScanCorners();
+}
+
+// A timed-out detection isn't a dead one -- Promise.race in withTimeout just
+// stops WAITING on detectionPromise, it doesn't cancel the worker's own
+// opencv.js load+scan, which keeps running regardless. Most of the time
+// that's wasted effort once the reader's already looking at (or has already
+// finished) the manual screen, but it's still real work already paid for in
+// download bytes and battery -- if it lands while they're still there and
+// haven't started dragging a corner themselves, showing it beats throwing it
+// away and asking them to redo by hand what the detector was about to hand
+// them anyway.
+function applyLateDetectionIfStillUseful(detectionPromise, attemptToken) {
+  detectionPromise.then((quad) => {
+    if (!quad) return; // detector finished but found nothing -- nothing to offer
+    if (attemptToken !== scanAttemptToken) return; // a newer photo/attempt has since started
+    if (state.scanCornersManuallyEdited) return; // don't clobber a correction they've already made
+    if ($('scanAlign').hidden) return; // they've moved on (confirmed, or left the scan flow) already
+    const ordered = orderQuadPoints(quad);
+    const confidence = scoreQuadConfidence(ordered, state.scanImageWidth, state.scanImageHeight).score;
+    state.scanCorners = ordered.map(([x, y]) => [x / state.scanImageWidth, y / state.scanImageHeight]);
+    $('scanAlignHint').textContent = confidence >= CORNER_CONFIDENCE_THRESHOLD
+      ? `Found the page after all (${Math.round(confidence * 100)}% confidence) — drag any corner that's off, then confirm.`
+      : "Found a possible match after all, though we're not fully confident — check the corners, then confirm.";
+    renderScanCorners();
+  }).catch(() => {}); // the original failure is already reflected in the hint shown at the timeout
 }
 
 // Surfaces WHY auto-detect fell back to manual alignment, not just THAT it
@@ -1646,6 +1703,7 @@ function buildAutoDetectHint(orderedFractionCorners, confidence, failureDetail) 
 }
 
 function resetScanUi() {
+  stopScanCamera();
   $('scanIntro').hidden = false;
   $('scanAlign').hidden = true;
   $('scanResult').hidden = true;
@@ -1654,6 +1712,7 @@ function resetScanUi() {
   $('scanLibraryInput').value = '';
   state.scanPhotoDataUrl = null;
   state.scanCorners = null;
+  state.scanCornersManuallyEdited = false;
   state.scanWordBoxes = null;
   state.scanWordEls = null;
   state.scanOverlayKey = '';
@@ -1719,6 +1778,133 @@ async function handleScanFileSelected(file) {
   }
 }
 
+// --- Guided-capture camera view -------------------------------------------
+// The idea behind this whole block: instead of taking a photo blind (via the
+// plain scanCameraInput file picker below, which hands off to the OS's own
+// camera app) and THEN figuring out the page's corners after the fact (either
+// by OpenCV guesswork or by dragging four handles), show a live camera feed
+// with a page-shaped cutout the reader fits the physical page into BEFORE
+// tapping the shutter. captureScanPhotoFromCamera() then crops the captured
+// photo to exactly that cutout region, so the crop IS the alignment step --
+// the resulting corners are just the full frame of the (already-cropped)
+// photo, no detection needed. Only applies to "Take a photo" -- "Choose from
+// library" (handleScanFileSelected above) keeps the OpenCV auto-detect +
+// manual-align fallback, since a pre-existing photo's framing is unknown.
+let scanCameraStream = null;
+
+// Nothing here can be exercised against a real camera in this sandbox (no
+// camera hardware, and getUserMedia is unavailable in a headless browser
+// with no device) -- verified instead with a synthetic MediaStream-shaped
+// stub and, separately, the pure coordinate math in
+// computeCaptureSourceRect below against hand-computed expected crops.
+async function openScanCamera() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    $('scanCameraInput').click(); // no live-camera support -- fall back to the plain file picker
+    return;
+  }
+  try {
+    scanCameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1920 } },
+      audio: false,
+    });
+  } catch (error) {
+    console.error('Could not open the camera:', error);
+    $('scanCameraInput').click(); // denied/unavailable -- same fallback
+    return;
+  }
+  const video = $('scanCameraVideo');
+  video.srcObject = scanCameraStream;
+  $('scanCameraView').hidden = false;
+}
+
+function stopScanCamera() {
+  scanCameraStream?.getTracks().forEach((track) => track.stop());
+  scanCameraStream = null;
+  const video = $('scanCameraVideo');
+  if (video) video.srcObject = null;
+  const view = $('scanCameraView');
+  if (view) view.hidden = true;
+}
+
+// Maps the on-screen cutout rectangle back into the video's own native pixel
+// space, so the captured frame can be cropped to exactly what the reader saw
+// framed. videoEl is styled with object-fit: cover (see styles.css), which
+// scales the video uniformly to fully cover its CSS box and crops whichever
+// axis overflows -- this is that same transform's inverse. A pure function
+// of its two arguments' rects/dimensions (no globals), so it's fully
+// unit-testable by mocking getBoundingClientRect() and videoWidth/videoHeight
+// without a real camera.
+function computeCaptureSourceRect(videoEl, cutoutEl) {
+  const videoRect = videoEl.getBoundingClientRect();
+  const cutoutRect = cutoutEl.getBoundingClientRect();
+  const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
+  if (!vw || !vh || !videoRect.width || !videoRect.height) return null;
+
+  const coverScale = Math.max(videoRect.width / vw, videoRect.height / vh);
+  const displayedVideoWidth = vw * coverScale;
+  const displayedVideoHeight = vh * coverScale;
+  const croppedX = (displayedVideoWidth - videoRect.width) / 2;
+  const croppedY = (displayedVideoHeight - videoRect.height) / 2;
+
+  const relLeft = (cutoutRect.left - videoRect.left) + croppedX;
+  const relTop = (cutoutRect.top - videoRect.top) + croppedY;
+
+  const sx = relLeft / coverScale;
+  const sy = relTop / coverScale;
+  const sWidth = cutoutRect.width / coverScale;
+  const sHeight = cutoutRect.height / coverScale;
+
+  // The cutout is designed to always sit inside the video's covered area --
+  // clamp defensively against any rounding/layout edge case rather than
+  // trusting that geometrically.
+  const clampedX = Math.max(0, Math.min(sx, vw));
+  const clampedY = Math.max(0, Math.min(sy, vh));
+  return {
+    sx: clampedX,
+    sy: clampedY,
+    sWidth: Math.max(1, Math.min(sWidth, vw - clampedX)),
+    sHeight: Math.max(1, Math.min(sHeight, vh - clampedY)),
+  };
+}
+
+// The reader already aligned the page to the cutout's edges before tapping
+// the shutter -- the crop below IS that alignment, so the corners are simply
+// the resulting photo's own full frame, no OpenCV detection involved.
+const FULL_FRAME_SCAN_CORNERS = [[0, 0], [1, 0], [1, 1], [0, 1]];
+
+function captureScanPhotoFromCamera() {
+  const video = $('scanCameraVideo');
+  const source = computeCaptureSourceRect(video, $('scanCameraCutout'));
+  if (!source) throw new Error('The camera is not ready yet.');
+  const scale = Math.min(1, SCAN_MAX_DIMENSION / Math.max(source.sWidth, source.sHeight));
+  const width = Math.round(source.sWidth * scale);
+  const height = Math.round(source.sHeight * scale);
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext('2d').drawImage(video, source.sx, source.sy, source.sWidth, source.sHeight, 0, 0, width, height);
+  return { dataUrl: canvas.toDataURL('image/jpeg', 0.85), width, height };
+}
+
+async function handleScanCameraCapture() {
+  try {
+    const { dataUrl, width, height } = captureScanPhotoFromCamera();
+    stopScanCamera();
+    state.scanPhotoDataUrl = dataUrl;
+    state.scanImageWidth = width;
+    state.scanImageHeight = height;
+    state.scanCorners = FULL_FRAME_SCAN_CORNERS.map((point) => [...point]); // fresh copy -- confirmScan's own fallback screen lets the reader drag these
+    state.scanCornersManuallyEdited = false;
+    $('scanPhoto').src = dataUrl;
+    $('scanIntro').hidden = true;
+    $('scanResult').hidden = true;
+    await confirmScan();
+  } catch (error) {
+    console.error(error);
+    showScanStatus(`Could not capture that photo: ${error.message}`, 'error');
+  }
+}
+
 function renderScanCorners() {
   if (!state.scanCorners) return;
   document.querySelectorAll('.scan-corner-handle').forEach((handle) => {
@@ -1732,6 +1918,7 @@ function renderScanCorners() {
 
 function handleScanCornerPointerDown(event) {
   state.scanDraggingCorner = Number(event.currentTarget.dataset.corner);
+  state.scanCornersManuallyEdited = true;
   event.currentTarget.setPointerCapture(event.pointerId);
 }
 
@@ -4012,6 +4199,8 @@ function switchDafView(mode) {
   if (mode === 'scan') {
     if (!state.scanPhotoDataUrl) resetScanUi();
     if (scanPlaceholder) prewarmScanDetection();
+  } else {
+    stopScanCamera(); // don't leave the camera light on if the reader navigates away mid-frame
   }
 }
 
@@ -4023,6 +4212,12 @@ for (const button of document.querySelectorAll('.sync-method-switch button[data-
   button.addEventListener('click', () => switchSyncMethod(button.dataset.method));
 }
 
+$('scanCameraOpenButton')?.addEventListener('click', openScanCamera);
+$('scanCameraCancelButton')?.addEventListener('click', () => {
+  stopScanCamera();
+  $('scanIntro').hidden = false;
+});
+$('scanCameraShutterButton')?.addEventListener('click', handleScanCameraCapture);
 $('scanCameraInput')?.addEventListener('change', (event) => handleScanFileSelected(event.target.files?.[0]));
 $('scanLibraryInput')?.addEventListener('change', (event) => handleScanFileSelected(event.target.files?.[0]));
 $('scanRetakeButton')?.addEventListener('click', resetScanUi);
