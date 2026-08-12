@@ -1361,9 +1361,20 @@ function ensureScanDetectWorker() {
   if (scanDetectWorker) return scanDetectWorker;
   scanDetectWorker = new Worker('/scan-detect-worker.js');
   scanDetectWorker.onmessage = (event) => {
-    const { id, quad, error } = event.data;
+    const { id, quad, error, phase, cvAlreadyWarm, cvLoadMs } = event.data;
     const pending = scanDetectPendingRequests.get(id);
     if (!pending) return; // already timed out / no longer wanted
+    // A progress update (see scan-detect-worker.js's own phase posts), not
+    // the final answer -- record it and keep waiting. This is what lets a
+    // timeout later report WHERE the budget actually went (library never
+    // finished loading vs. loaded fine but the scan itself was slow)
+    // instead of just "timed out" with no further signal.
+    if (phase) {
+      pending.phase = phase;
+      pending.cvAlreadyWarm = cvAlreadyWarm;
+      pending.cvLoadMs = cvLoadMs;
+      return;
+    }
     scanDetectPendingRequests.delete(id);
     if (error) pending.reject(new Error(error));
     else pending.resolve(quad);
@@ -1382,26 +1393,67 @@ function ensureScanDetectWorker() {
   return scanDetectWorker;
 }
 
+// Corner/edge detection doesn't need OCR-quality resolution -- unlike the
+// header crop (which reads small printed characters), finding a page-shaped
+// quad only needs enough pixels to see its edges. A real trial still hit
+// the auto-detect timeout even after prewarming the library and widening
+// the budget to 20s, which the phase diagnostics below should clarify, but
+// this shrinks the OTHER lever regardless of which one it turns out to be:
+// scan-detect-worker.js now runs Canny/contour detection up to 3 times per
+// attempt (see cannyThresholdStrategies), and that compute cost scales with
+// pixel count -- detecting on a much smaller copy of the photo cuts it
+// substantially, for free, whether or not the library's own load time is
+// also a factor.
+const DETECT_MAX_DIMENSION = 900;
+
 // Decodes the photo into raw RGBA pixels (the worker has no DOM/canvas/Image
 // element of its own to decode with) and hands them to the detection
 // worker, transferring the pixel buffer rather than copying it. Returns the
-// detected quad in image-pixel space (unordered), or null if nothing
-// plausible was found.
+// detected quad in ORIGINAL image-pixel space (unordered), or null if
+// nothing plausible was found -- detection itself runs on a downscaled copy
+// (see DETECT_MAX_DIMENSION above), so points are rescaled back up before
+// returning, transparent to every caller.
+let lastScanDetectRequestId = null;
 async function detectPageCornersInWorker(photoDataUrl, width, height) {
   const img = await loadImageElement(photoDataUrl);
+  const scale = Math.min(1, DETECT_MAX_DIMENSION / Math.max(width, height));
+  const detectWidth = Math.round(width * scale);
+  const detectHeight = Math.round(height * scale);
   const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width = detectWidth;
+  canvas.height = detectHeight;
   const ctx = canvas.getContext('2d');
-  ctx.drawImage(img, 0, 0, width, height);
-  const { data } = ctx.getImageData(0, 0, width, height);
+  ctx.drawImage(img, 0, 0, detectWidth, detectHeight);
+  const { data } = ctx.getImageData(0, 0, detectWidth, detectHeight);
 
   const worker = ensureScanDetectWorker();
   const id = ++scanDetectRequestId;
-  return new Promise((resolve, reject) => {
-    scanDetectPendingRequests.set(id, { resolve, reject });
-    worker.postMessage({ id, width, height, buffer: data.buffer }, [data.buffer]);
+  lastScanDetectRequestId = id;
+  const quad = await new Promise((resolve, reject) => {
+    scanDetectPendingRequests.set(id, { resolve, reject, phase: 'queued' });
+    worker.postMessage({ id, width: detectWidth, height: detectHeight, buffer: data.buffer }, [data.buffer]);
   });
+  return quad ? quad.map(([x, y]) => [x / scale, y / scale]) : null;
+}
+
+// Reads back whatever progress the LAST detection request reported before a
+// timeout fires (see ensureScanDetectWorker's phase handling) -- lets the
+// timeout message tell the difference between "the library never finished
+// loading" (a network/WASM-compile bottleneck, where prewarming/budget
+// tuning are the only levers) and "it loaded fine but scanning this photo
+// itself was slow" (a compute bottleneck, where DETECT_MAX_DIMENSION/the
+// number of Canny strategies tried are the levers instead) -- real signal
+// for the next report instead of another blind guess between those two.
+function describeDetectionTimeout() {
+  const pending = scanDetectPendingRequests.get(lastScanDetectRequestId);
+  if (!pending || pending.phase === 'queued') {
+    return 'Timed out detecting the page automatically (the detector never finished loading).';
+  }
+  if (pending.phase === 'cv-ready') {
+    const loadNote = pending.cvAlreadyWarm ? 'was already warmed up' : `took ${pending.cvLoadMs}ms to load`;
+    return `Timed out detecting the page automatically (the detector ${loadNote} but scanning this photo took too long).`;
+  }
+  return 'Timed out detecting the page automatically.';
 }
 
 // Orders 4 arbitrary quad points into [top-left, top-right, bottom-right,
@@ -1522,10 +1574,14 @@ function prewarmScanDetection() {
   }
 }
 
+// message may be a plain string or a function -- the function form is
+// evaluated only if/when the timeout actually fires, so it can report
+// whatever's true AT THAT MOMENT (see describeDetectionTimeout) rather than
+// a message fixed before the race even started.
 function withTimeout(promise, ms, message) {
   return Promise.race([
     promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
+    new Promise((_, reject) => setTimeout(() => reject(new Error(typeof message === 'function' ? message() : message)), ms)),
   ]);
 }
 
@@ -1543,7 +1599,7 @@ async function autoDetectAndProceed() {
     const quad = await withTimeout(
       detectPageCornersInWorker(state.scanPhotoDataUrl, state.scanImageWidth, state.scanImageHeight),
       AUTO_DETECT_TIMEOUT_MS,
-      'Timed out detecting the page automatically.'
+      describeDetectionTimeout
     );
     if (quad) {
       const ordered = orderQuadPoints(quad);

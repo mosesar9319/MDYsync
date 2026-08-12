@@ -180,8 +180,17 @@ self.onmessage = async (event) => {
   }
 
   const { id, width, height, buffer } = event.data;
+  // Progress reports, not the final answer -- app.js's ensureScanDetectWorker
+  // records these against the pending request and, only if the whole thing
+  // times out, uses whichever was most recent to say WHERE the budget went
+  // (still loading the library vs. loaded fine but the scan itself was
+  // slow) instead of just "timed out" with no further signal.
+  const cvAlreadyWarm = Boolean(self.cv?.Mat);
+  self.postMessage({ id, phase: 'queued', cvAlreadyWarm });
   try {
+    const loadStart = Date.now();
     const cv = await ensureCv();
+    self.postMessage({ id, phase: 'cv-ready', cvAlreadyWarm, cvLoadMs: Date.now() - loadStart });
     const quad = detectPageCorners(cv, width, height, new Uint8ClampedArray(buffer));
     self.postMessage({ id, quad });
   } catch (error) {
