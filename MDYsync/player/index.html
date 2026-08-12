@@ -937,7 +937,19 @@
                 <div class="scan-camera-overlay">
                   <div class="scan-camera-cutout" id="scanCameraCutout"></div>
                 </div>
-                <p class="scan-camera-hint" id="scanCameraHint">Fit the page inside the frame, then tap to capture.</p>
+                <div class="scan-camera-top-text">
+                  <p class="scan-camera-hint" id="scanCameraHint">Fit the page inside the frame, then tap to capture.</p>
+                  <!-- Only shown in "live" mode (see showScanCameraPhotoCrop/
+                       hideScanCameraPhotoCrop) -- these are framing tips for a
+                       photo not yet taken, so they don't apply once a library
+                       photo is already being positioned. Specifically calls
+                       out the header line because scan-daf-page.mjs's
+                       HEADER_BAND only OCRs the top ~5% of the cropped page
+                       to identify the daf -- that's the one region that
+                       actually has to be sharp, level, and fully in frame for
+                       a match to work, more than the body text below it. -->
+                  <p class="scan-camera-tips" id="scanCameraTips">For the best match: hold the phone flat and directly above the page, make sure the very top line is fully visible and in focus, and avoid shadows or glare.</p>
+                </div>
                 <div class="scan-camera-controls">
                   <button class="button secondary scan-camera-controls-cancel" id="scanCameraCancelButton" type="button">Cancel</button>
                   <button class="scan-camera-shutter" id="scanCameraShutterButton" type="button" aria-label="Capture photo"></button>

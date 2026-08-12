@@ -2028,6 +2028,7 @@ function showScanCameraPhotoCrop(dataUrl) {
   $('scanCameraConfirmCropButton').hidden = false;
   $('scanCameraLibraryButton').hidden = true;
   $('scanCameraHint').textContent = "Pinch or drag the photo to fit the page inside the frame, then tap the checkmark.";
+  $('scanCameraTips').hidden = true; // framing tips (hold flat, avoid shadows) don't apply to an already-taken photo
   $('scanCameraView').hidden = false;
 }
 
@@ -2038,6 +2039,7 @@ function hideScanCameraPhotoCrop() {
   $('scanCameraConfirmCropButton').hidden = true;
   $('scanCameraLibraryButton').hidden = false;
   $('scanCameraHint').textContent = 'Fit the page inside the frame, then tap to capture.';
+  $('scanCameraTips').hidden = false;
 }
 
 async function handleLibraryPhotoSelected(file) {
