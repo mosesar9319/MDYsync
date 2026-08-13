@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0c263d">
   <meta name="description" content="Browse Daf Yomi shiurim by daf, masechta, and maggid shiur.">
-  <link rel="icon" href="/assets/dafsync-mark.svg" type="image/svg+xml">
   <title>DafSync — Daily Daf Yomi Shiurim</title>
   <style>
 
@@ -90,7 +89,7 @@ button {
   align-items: center;
   color: var(--navy);
   display: flex;
-  gap: 10px;
+  gap: 13px;
   white-space: nowrap;
 }
 
@@ -100,32 +99,38 @@ button {
   justify-content: center;
 }
 
-.brand-emblem {
-  display: block;
-  flex: 0 0 auto;
-  height: 72px;
-  width: 72px;
+.brand-mark {
+  align-items: center;
+  border: 1.5px solid var(--gold);
+  border-radius: 11px;
+  color: var(--gold);
+  display: flex;
+  height: 54px;
+  justify-content: center;
+  position: relative;
+  width: 54px;
 }
 
-.brand-emblem img {
-  display: block;
-  height: 100%;
-  width: 100%;
+.brand-mark::after {
+  background: var(--gold);
+  bottom: -5px;
+  content: "";
+  height: 1px;
+  position: absolute;
+  transform: rotate(-8deg);
+  width: 26px;
+}
+
+.brand-book {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 25px;
 }
 
 .brand-name {
   font-family: Georgia, "Times New Roman", serif;
   font-size: clamp(28px, 2.7vw, 43px);
-  font-weight: 400;
-  letter-spacing: -1.8px;
-}
-
-.brand-name .brand-daf {
-  color: var(--navy);
-}
-
-.brand-name .brand-sync {
-  color: var(--gold);
+  font-weight: 700;
+  letter-spacing: -1.5px;
 }
 
 .sidebar .brand-name {
@@ -804,9 +809,14 @@ h1 {
     gap: 9px;
   }
 
-  .mobile-brand .brand-emblem {
-    height: 54px;
-    width: 54px;
+  .mobile-brand .brand-mark {
+    border-radius: 9px;
+    height: 41px;
+    width: 41px;
+  }
+
+  .mobile-brand .brand-book {
+    font-size: 20px;
   }
 
   .mobile-brand .brand-name {
@@ -994,9 +1004,9 @@ h1 {
     font-size: 27px;
   }
 
-  .mobile-brand .brand-emblem {
-    height: 48px;
-    width: 48px;
+  .mobile-brand .brand-mark {
+    height: 38px;
+    width: 38px;
   }
 
   .card-copy strong {
@@ -1175,8 +1185,8 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
   <div class="app-shell">
     <aside class="sidebar">
       <a class="brand" href="#" aria-label="DafSync home">
-        <span class="brand-emblem" aria-hidden="true"><img src="/assets/dafsync-mark.svg" alt=""></span>
-        <span class="brand-name"><span class="brand-daf">Daf</span><span class="brand-sync">Sync</span></span>
+        <span class="brand-mark"><span class="brand-book">DS</span></span>
+        <span class="brand-name">DafSync</span>
       </a>
       <nav class="desktop-navigation" aria-label="Primary navigation"></nav>
     </aside>
@@ -1185,8 +1195,8 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       <header class="topbar">
         <div class="mobile-brand">
           <a class="brand" href="#" aria-label="DafSync home">
-            <span class="brand-emblem" aria-hidden="true"><img src="/assets/dafsync-mark.svg" alt=""></span>
-            <span class="brand-name"><span class="brand-daf">Daf</span><span class="brand-sync">Sync</span></span>
+            <span class="brand-mark"><span class="brand-book">DS</span></span>
+            <span class="brand-name">DafSync</span>
           </a>
         </div>
         <label class="search-box">
