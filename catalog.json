@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-13T18:03:05.785Z",
+  "generatedAt": "2026-08-13T19:01:26.883Z",
   "tractates": {
     "Chullin": [
       {
@@ -2351,6 +2351,19 @@
         "regularEn": {
           "videoId": "dp_G-j2bH_A",
           "label": "Daf Yomi Chullin Daf 105 by R' Eli Stefansky",
+          "amud": "a"
+        },
+        "chazarahEn": {
+          "videoId": "4E_OiguwRsk",
+          "label": "CHAZARAH - Chullin Daf 105 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a"
+        }
+      },
+      {
+        "daf": 106,
+        "regularEn": {
+          "videoId": "gtlhD6GbuvM",
+          "label": "Daf Yomi Chullin Daf 106 by R’ Eli Stefansky (unedited)",
           "amud": "a"
         }
       }
