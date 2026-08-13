@@ -1946,20 +1946,52 @@ async function handleScanCameraCapture() {
 // (wireScanResultZoom et al) rather than sharing one -- same underlying math,
 // but kept independent so a change here can't regress that already-shipped
 // screen, and vice versa.
-const SCAN_CROP_ZOOM_MIN = 1;
+// Was a flat 1 -- a real report caught the actual bug this caused directly:
+// the img is laid out at width:100% of its wrap (see .scan-camera-photo),
+// so "zoom 1" means "as wide as the screen," which for a portrait daf photo
+// is routinely TALLER than the cutout. With no way to zoom below that, the
+// reader could shrink the photo no further than the screenshot they sent
+// showed -- page cut off top and bottom, no amount of pinching-out helped,
+// because 1 was already the floor. computeMinCropZoom() replaces that fixed
+// floor with whatever zoom actually fits the WHOLE photo inside the cutout
+// on both axes (same idea as CSS object-fit: contain) -- recomputed fresh
+// per photo in showScanCameraPhotoCrop, since it depends on that photo's own
+// dimensions, not a constant that could ever be right for every photo.
+let scanCropZoomMin = 1;
 const SCAN_CROP_ZOOM_MAX = 4;
 let scanCropZoom = 1, scanCropPanX = 0, scanCropPanY = 0;
 const scanCropPointers = new Map();
 let scanCropDragStart = null; // { x, y, panX, panY }
 let scanCropPinchStart = null; // { dist, midX, midY, zoom, panX, panY }
 
+function computeMinCropZoom() {
+  const img = $('scanCameraPhotoZoom');
+  const wrap = $('scanCameraPhotoWrap');
+  const cutout = $('scanCameraCutout');
+  if (!img?.naturalWidth || !img.naturalHeight) return 1;
+  const wrapRect = wrap.getBoundingClientRect();
+  const cutoutRect = cutout.getBoundingClientRect();
+  if (!wrapRect.width || !cutoutRect.width || !cutoutRect.height) return 1;
+  const displayedWidth = wrapRect.width; // the img is styled width:100% of the wrap at zoom 1
+  const displayedHeight = displayedWidth * (img.naturalHeight / img.naturalWidth);
+  // Whichever axis needs to shrink MORE to fit is the one that actually
+  // constrains "does the whole photo fit" -- using the smaller of the two
+  // guarantees BOTH axes end up at or under the cutout's size, not just one.
+  return Math.min(cutoutRect.width / displayedWidth, cutoutRect.height / displayedHeight);
+}
+
 function applyScanCropTransform() {
   const layer = $('scanCameraPhotoZoom');
   if (layer) layer.style.transform = `translate(${scanCropPanX}px, ${scanCropPanY}px) scale(${scanCropZoom})`;
 }
 
+// Starts at scanCropZoomMin (the whole photo visible, fit inside the
+// cutout) rather than always centered/zoomed-to-1 -- a reader who took a
+// well-framed photo shouldn't have to manually zoom out on every single
+// scan just to see the page they already have in frame.
 function resetScanCropTransform() {
-  scanCropZoom = 1;
+  scanCropZoomMin = computeMinCropZoom();
+  scanCropZoom = scanCropZoomMin;
   scanCropPanX = 0;
   scanCropPanY = 0;
   applyScanCropTransform();
@@ -1976,7 +2008,7 @@ function scanCropPointerDistance() {
 }
 
 function clampScanCropPanAtMinZoom() {
-  if (scanCropZoom > SCAN_CROP_ZOOM_MIN) return;
+  if (scanCropZoom > scanCropZoomMin) return;
   scanCropPanX = 0;
   scanCropPanY = 0;
 }
@@ -2007,7 +2039,7 @@ function handleScanCropPointerMove(event) {
   if (scanCropPointers.size >= 2 && scanCropPinchStart) {
     const dist = scanCropPointerDistance();
     const ratio = dist / (scanCropPinchStart.dist || dist || 1);
-    scanCropZoom = Math.max(SCAN_CROP_ZOOM_MIN, Math.min(SCAN_CROP_ZOOM_MAX, scanCropPinchStart.zoom * ratio));
+    scanCropZoom = Math.max(scanCropZoomMin, Math.min(SCAN_CROP_ZOOM_MAX, scanCropPinchStart.zoom * ratio));
     const mid = scanCropPointerMidpoint();
     scanCropPanX = scanCropPinchStart.panX + (mid.x - scanCropPinchStart.midX);
     scanCropPanY = scanCropPinchStart.panY + (mid.y - scanCropPinchStart.midY);
@@ -2033,10 +2065,8 @@ function handleScanCropPointerUp(event) {
   }
 }
 
-function showScanCameraPhotoCrop(dataUrl) {
+async function showScanCameraPhotoCrop(dataUrl) {
   stopScanCameraStream(); // no need to keep the live feed running while cropping a chosen photo
-  resetScanCropTransform();
-  $('scanCameraPhotoZoom').src = dataUrl;
   $('scanCameraVideo').hidden = true;
   $('scanCameraPhotoWrap').hidden = false;
   $('scanCameraShutterButton').hidden = true;
@@ -2044,7 +2074,19 @@ function showScanCameraPhotoCrop(dataUrl) {
   $('scanCameraLibraryButton').hidden = true;
   $('scanCameraHint').textContent = "Pinch or drag the photo to fit the page inside the frame, then tap the checkmark.";
   $('scanCameraTips').hidden = true; // framing tips (hold flat, avoid shadows) don't apply to an already-taken photo
-  $('scanCameraView').hidden = false;
+  $('scanCameraView').hidden = false; // must happen before decode() below -- computeMinCropZoom needs real layout, which a hidden view doesn't have
+
+  const img = $('scanCameraPhotoZoom');
+  img.src = dataUrl;
+  try {
+    await img.decode();
+  } catch (error) {
+    console.error('Could not decode the chosen photo:', error);
+  }
+  // Only now does the img have real naturalWidth/Height to fit against --
+  // resetScanCropTransform's computeMinCropZoom falls back to zoom 1 if
+  // decode() failed above, same as it always did before this existed.
+  resetScanCropTransform();
 }
 
 function hideScanCameraPhotoCrop() {
@@ -2061,7 +2103,7 @@ async function handleLibraryPhotoSelected(file) {
   if (!file) return;
   try {
     const downscaled = await downscaleImageFile(file, SCAN_MAX_DIMENSION);
-    showScanCameraPhotoCrop(downscaled.dataUrl);
+    await showScanCameraPhotoCrop(downscaled.dataUrl);
   } catch (error) {
     console.error(error);
     showScanStatus(`Could not load that photo: ${error.message}`, 'error');
