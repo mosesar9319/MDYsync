@@ -4538,6 +4538,7 @@ function switchDafView(mode) {
   // and browse/index.html only have Text/Vilna page, no Scan -- so each
   // target element is optional here, unlike dafPage (present everywhere).
   document.querySelectorAll('.view-switch button').forEach((item) => item.classList.toggle('active', item.dataset.view === mode));
+  document.querySelector('.daf-card')?.setAttribute('data-daf-view', mode);
   dafPage.hidden = mode !== 'text';
   const vilnaPlaceholder = $('vilnaPlaceholder');
   if (vilnaPlaceholder) vilnaPlaceholder.hidden = mode !== 'page';
