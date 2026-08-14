@@ -4432,6 +4432,59 @@ $('vilnaPageWrap')?.addEventListener('wheel', (event) => {
   event.preventDefault();
   setVilnaPageZoom(state.vilnaPageZoom + (event.deltaY < 0 ? VILNA_ZOOM_STEP : -VILNA_ZOOM_STEP));
 }, { passive: false });
+
+// Native two-finger pinch zoom for the standalone Vilna daf.  A single
+// finger remains ordinary scrolling/panning; only a genuine two-touch
+// gesture is intercepted.  Keep the point between the reader's fingers in
+// the same place while scaling so the page zooms toward what they are
+// looking at instead of pulling toward its top-left transform origin.
+let vilnaPinchGesture = null;
+
+function vilnaTouchDistance(touches) {
+  const dx = touches[1].clientX - touches[0].clientX;
+  const dy = touches[1].clientY - touches[0].clientY;
+  return Math.hypot(dx, dy);
+}
+
+function vilnaTouchMidpoint(touches, rect) {
+  return {
+    x: (touches[0].clientX + touches[1].clientX) / 2 - rect.left,
+    y: (touches[0].clientY + touches[1].clientY) / 2 - rect.top,
+  };
+}
+
+const vilnaScroll = $('dafScroll');
+vilnaScroll?.addEventListener('touchstart', (event) => {
+  if (event.touches.length !== 2 || $('vilnaPlaceholder')?.hidden) return;
+  const rect = vilnaScroll.getBoundingClientRect();
+  const midpoint = vilnaTouchMidpoint(event.touches, rect);
+  const startZoom = state.vilnaPageZoom;
+  vilnaPinchGesture = {
+    distance: Math.max(1, vilnaTouchDistance(event.touches)),
+    zoom: startZoom,
+    contentX: (vilnaScroll.scrollLeft + midpoint.x) / startZoom,
+    contentY: (vilnaScroll.scrollTop + midpoint.y) / startZoom,
+  };
+  event.preventDefault();
+}, { passive: false });
+
+vilnaScroll?.addEventListener('touchmove', (event) => {
+  if (!vilnaPinchGesture || event.touches.length !== 2) return;
+  event.preventDefault();
+  const rect = vilnaScroll.getBoundingClientRect();
+  const midpoint = vilnaTouchMidpoint(event.touches, rect);
+  const ratio = vilnaTouchDistance(event.touches) / vilnaPinchGesture.distance;
+  const nextZoom = Math.max(VILNA_ZOOM_MIN, Math.min(VILNA_ZOOM_MAX, vilnaPinchGesture.zoom * ratio));
+  setVilnaPageZoom(nextZoom);
+  vilnaScroll.scrollLeft = vilnaPinchGesture.contentX * nextZoom - midpoint.x;
+  vilnaScroll.scrollTop = vilnaPinchGesture.contentY * nextZoom - midpoint.y;
+}, { passive: false });
+
+function finishVilnaPinch(event) {
+  if (event.touches.length < 2) vilnaPinchGesture = null;
+}
+vilnaScroll?.addEventListener('touchend', finishVilnaPinch, { passive: true });
+vilnaScroll?.addEventListener('touchcancel', finishVilnaPinch, { passive: true });
 $('videoInput').addEventListener('change', (event) => handleVideoFile(event.target.files?.[0]));
 $('loadVideoUrlButton').addEventListener('click', loadVideoFromUrl);
 $('videoUrl').addEventListener('keydown', (event) => { if (event.key === 'Enter') loadVideoFromUrl(); });
