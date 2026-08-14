@@ -382,7 +382,7 @@
        also covers), so its state stays legible instead of just vanishing. */
     #fastForwardButton:disabled { opacity: .35; cursor: not-allowed; }
 
-    .watch-layout { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(390px,.8fr); gap: 24px; align-items: start; }
+    .watch-layout { display: grid; grid-template-columns: minmax(0,1.25fr) minmax(420px,.9fr); gap: 22px; align-items: start; }
     .about-card { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); padding: 24px; margin-top: 24px; }
     .about-card h2 { color: var(--navy); font: 700 25px Georgia,"Times New Roman",serif; }
     .about-card p { color: var(--muted); line-height: 1.7; }
@@ -438,10 +438,10 @@
       box-shadow: none;
       scrollbar-color: rgba(90,66,34,.25) transparent;
     }
-    .daf-card[data-daf-view="page"] .daf-scroll { background: transparent; }
+    .daf-card[data-daf-view="page"] .daf-scroll { background: transparent; touch-action: pan-x pan-y; }
     .daf-card[data-daf-view="page"] .vilna-placeholder {
       min-height: 100%;
-      padding: 0 18px 22px;
+      padding: 0 8px 18px;
       color: #453c2e;
       background:
         radial-gradient(circle at 50% 0, rgba(255,255,255,.94), transparent 260px),
@@ -565,7 +565,7 @@
       .daf-header { padding: 15px 14px; gap: 7px; }
       .daf-header h2 { font-size: 22px; }
       .daf-card .view-switch button { padding: 7px 8px; font-size: 12px; }
-      .daf-card[data-daf-view="page"] .vilna-placeholder { padding: 0 10px 14px; }
+      .daf-card[data-daf-view="page"] .vilna-placeholder { padding: 0 5px 12px; }
       .daf-card[data-daf-view="page"] .vilna-zoom-controls { top: 8px; margin-top: 9px; }
       .daf-card .daf-toolbar { padding: 10px 14px; }
       .daf-card .daf-footer { padding: 11px 14px 13px; }
