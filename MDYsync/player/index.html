@@ -382,7 +382,7 @@
        also covers), so its state stays legible instead of just vanishing. */
     #fastForwardButton:disabled { opacity: .35; cursor: not-allowed; }
 
-    .watch-layout { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(390px,.8fr); gap: 24px; align-items: start; }
+    .watch-layout { display: grid; grid-template-columns: minmax(0,1.25fr) minmax(420px,.9fr); gap: 22px; align-items: start; }
     .about-card { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); padding: 24px; margin-top: 24px; }
     .about-card h2 { color: var(--navy); font: 700 25px Georgia,"Times New Roman",serif; }
     .about-card p { color: var(--muted); line-height: 1.7; }
@@ -392,7 +392,19 @@
     /* The right-hand daf card keeps its box styling from the shared .card
        class (below, via styles.css + watch-theme.css); this just adds the
        sticky behavior from the original player design. */
-    .daf-card { position: sticky; top: 128px; }
+    /* A single calm reading surface. The old Vilna view stacked a tan
+       scroller, a second toolbar, and a shadowed PDF inside the outer card,
+       which made the daf feel pasted onto the page. Keep the useful card
+       boundary, but let the reader, controls, and footer flow edge-to-edge. */
+    .daf-card {
+      position: sticky;
+      top: 128px;
+      padding: 0;
+      overflow: hidden;
+      background: rgba(255,253,248,.84);
+      border-color: rgba(90,66,34,.12);
+      box-shadow: 0 16px 42px rgba(63,45,23,.075);
+    }
     /* The editor lives in the same sticky right-hand column as .daf-card
        (see the HTML comment above it) so correcting the sync stays
        parallel with the video instead of scrolling down to a full-width
@@ -409,13 +421,95 @@
        player-card side -- see the alignment comment near .watch-layout)
        an unpredictable height depending on daf ref length/viewport width.
        The title truncates instead; the tools never need to. */
-    .daf-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 17px 14px; border-bottom: 1px solid var(--line); flex-wrap: nowrap; }
+    .daf-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 18px 18px 15px; border-bottom: 1px solid rgba(90,66,34,.1); flex-wrap: nowrap; background: rgba(255,253,248,.72); }
     .daf-header > div:first-child { min-width: 0; overflow: hidden; }
     .daf-header h2 { margin: 3px 0 0; color: var(--navy); font: 700 25px Georgia,"Times New Roman",serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .daf-header .daf-tools { flex-shrink: 0; }
-    .daf-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .tool-button { width: 36px; height: 36px; display: grid; place-items: center; color: #655e55; background: #fbf7ef; border: 1px solid var(--line); border-radius: 9px; }
+    .daf-tools { display: flex; align-items: center; gap: 7px; flex-wrap: nowrap; }
+    .daf-card .view-switch { padding: 3px; border: 1px solid rgba(90,66,34,.1); background: #f7f1e7; }
+    .daf-card .view-switch button { padding: 7px 9px; white-space: nowrap; }
+    .tool-button { width: 34px; height: 34px; display: grid; place-items: center; color: #655e55; background: transparent; border: 1px solid rgba(90,66,34,.14); border-radius: 999px; }
     .tool-button:hover { color: var(--gold); border-color: #d9bd85; }
+    .daf-card:not([data-daf-view="text"]) .tool-button { display: none; }
+
+    .daf-card .daf-scroll {
+      min-height: 510px;
+      border-radius: 0;
+      box-shadow: none;
+      scrollbar-color: rgba(90,66,34,.25) transparent;
+    }
+    .daf-card[data-daf-view="page"] .daf-scroll { background: transparent; touch-action: pan-x pan-y; }
+    .daf-card[data-daf-view="page"] .vilna-placeholder {
+      min-height: 100%;
+      padding: 0 8px 18px;
+      color: #453c2e;
+      background:
+        radial-gradient(circle at 50% 0, rgba(255,255,255,.94), transparent 260px),
+        linear-gradient(180deg, rgba(247,241,230,.64), rgba(251,248,242,.3));
+    }
+    .daf-card[data-daf-view="page"] .vilna-zoom-controls {
+      top: 10px;
+      width: max-content;
+      max-width: 100%;
+      margin: 12px auto 16px;
+      padding: 5px 6px;
+      gap: 5px;
+      border: 1px solid rgba(90,66,34,.13);
+      border-radius: 999px;
+      background: rgba(255,253,248,.93);
+      box-shadow: 0 8px 22px rgba(63,45,23,.08);
+      backdrop-filter: blur(12px);
+    }
+    .daf-card[data-daf-view="page"] .vilna-zoom-btn,
+    .daf-card[data-daf-view="page"] .vilna-fullscreen-button {
+      width: 30px;
+      height: 30px;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--navy);
+    }
+    .daf-card[data-daf-view="page"] .vilna-zoom-btn:hover,
+    .daf-card[data-daf-view="page"] .vilna-fullscreen-button:hover { background: var(--gold-wash); color: var(--gold); }
+    .daf-card[data-daf-view="page"] #vilnaZoomLabel { color: #6c6358; font-variant-numeric: tabular-nums; }
+    .daf-card[data-daf-view="page"] .vilna-zoom-reset {
+      padding: 6px 10px;
+      border: 0;
+      border-left: 1px solid rgba(90,66,34,.12);
+      border-right: 1px solid rgba(90,66,34,.12);
+      border-radius: 0;
+      background: transparent;
+      color: #6c6358;
+    }
+    .daf-card[data-daf-view="page"] .vilna-zoom-reset:hover { color: var(--gold); background: transparent; }
+    .daf-card[data-daf-view="page"] .vilna-mark-toggle { width: auto; padding: 0 10px; }
+    .daf-card[data-daf-view="page"] .vilna-mark-toggle.active { color: #fff; background: var(--gold); }
+    .daf-card[data-daf-view="page"] .vilna-fullscreen-button { margin-left: 2px; }
+    .daf-card[data-daf-view="page"] .vilna-page-status { padding: 30px 12px 38px; }
+    .daf-card[data-daf-view="page"] .page-silhouette {
+      border-color: rgba(90,66,34,.18);
+      border-radius: 2px;
+      box-shadow: 0 14px 34px rgba(63,45,23,.11);
+    }
+    .daf-card[data-daf-view="page"] .vilna-page-wrap { max-width: 100%; margin: 0 auto; }
+    .daf-card[data-daf-view="page"] #vilnaPageCanvas {
+      border: 1px solid rgba(90,66,34,.11);
+      border-radius: 2px;
+      background: #fffefa;
+      box-shadow: 0 12px 32px rgba(63,45,23,.11);
+    }
+    .daf-card .daf-toolbar {
+      margin: 0;
+      padding: 11px 18px;
+      border-color: rgba(90,66,34,.1);
+      background: rgba(255,253,248,.78);
+    }
+    .daf-card .daf-footer {
+      margin: 0;
+      padding: 12px 18px 14px;
+      border-top-color: rgba(90,66,34,.1);
+      background: rgba(255,253,248,.78);
+    }
     .sync-note { display: flex; align-items: center; gap: 9px; margin: 14px 17px 0; padding: 11px 13px; color: #68501f; background: #fbf4e5; border: 1px solid #ead8af; border-radius: 11px; font-size: 12px; line-height: 1.45; }
     .daf-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px 17px; color: var(--muted); border-top: 1px solid var(--line); font-size: 12px; }
 
@@ -468,7 +562,13 @@
       .teacher { font-size: 16px; }
       .title-actions { margin-top: 16px; overflow-x: auto; }
       .watch-layout { gap: 16px; }
-      .daf-header { padding: 15px 16px; }
+      .daf-header { padding: 15px 14px; gap: 7px; }
+      .daf-header h2 { font-size: 22px; }
+      .daf-card .view-switch button { padding: 7px 8px; font-size: 12px; }
+      .daf-card[data-daf-view="page"] .vilna-placeholder { padding: 0 5px 12px; }
+      .daf-card[data-daf-view="page"] .vilna-zoom-controls { top: 8px; margin-top: 9px; }
+      .daf-card .daf-toolbar { padding: 10px 14px; }
+      .daf-card .daf-footer { padding: 11px 14px 13px; }
       .sync-note { margin: 12px 13px 0; }
       .about-card { padding: 18px; }
       /* .mobile-nav itself is now rendered by nav.js, styled by the
@@ -851,14 +951,14 @@
           </div>
         </article>
 
-        <aside class="daf-card card" id="dafCard" aria-labelledby="dafTitle">
+        <aside class="daf-card card" id="dafCard" data-daf-view="text" aria-labelledby="dafTitle">
           <header class="daf-header">
             <div><p class="eyebrow">Following</p><h2 id="dafTitle">No daf loaded</h2></div>
             <div class="daf-tools">
               <div class="view-switch" role="group" aria-label="Daf display mode">
                 <button class="active" data-view="text">Text</button>
-                <button data-view="page" title="Real Vilna-edition page image (private-use source)">Vilna page</button>
-                <button data-view="scan" title="Scan a printed page with your camera">Scan page</button>
+                <button data-view="page" title="Real Vilna-edition page image (private-use source)">Vilna</button>
+                <button data-view="scan" title="Scan a printed page with your camera">Scan</button>
               </div>
               <button class="tool-button" id="decrease-text" aria-label="Decrease text size" type="button">A−</button>
               <button class="tool-button" id="increase-text" aria-label="Increase text size" type="button">A+</button>
