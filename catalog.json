@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-15T21:01:35.210Z",
+  "generatedAt": "2026-08-15T22:00:48.647Z",
   "tractates": {
     "Chullin": [
       {
@@ -2344,8 +2344,8 @@
       {
         "daf": 105,
         "regularHe": {
-          "videoId": "Lr1E3t5I8Vw",
-          "label": "מרכז דף יומי -  חולין דף  קה. - ר' ידידיה קרמר שליט\"א",
+          "videoId": "ueypgkE0H1A",
+          "label": "מרכז דף יומי - חולין דף קה. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         },
         "regularEn": {
@@ -2397,6 +2397,11 @@
         "regularEn": {
           "videoId": "NUgWXGY2SZA",
           "label": "Daf Yomi Chullin Daf 107 by R’ Eli Stefansky (unedited)",
+          "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "pB2qQspdvcE",
+          "label": "חזרה - חולין דף קז | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
         }
       },
