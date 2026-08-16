@@ -1555,11 +1555,11 @@
       document.querySelectorAll('[data-icon]').forEach((node) => node.outerHTML = icon(node.dataset.icon, 22));
 
       const dafPage = document.querySelector('#dafPage');
-      document.querySelector('#increase-text').addEventListener('click', () => {
+      document.querySelector('#increase-text')?.addEventListener('click', () => {
         const current = parseFloat(getComputedStyle(dafPage).fontSize);
         dafPage.style.fontSize = `${Math.min(32,current + 2)}px`;
       });
-      document.querySelector('#decrease-text').addEventListener('click', () => {
+      document.querySelector('#decrease-text')?.addEventListener('click', () => {
         const current = parseFloat(getComputedStyle(dafPage).fontSize);
         dafPage.style.fontSize = `${Math.max(18,current - 2)}px`;
       });
