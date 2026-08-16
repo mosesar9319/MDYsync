@@ -986,6 +986,22 @@ function currentVilnaPageKey() {
 // stretching any raster image is, vector source or not).
 const QUALITY_OVERSAMPLE = 1.6;
 const MAX_CANVAS_WIDTH_PX = 2600;
+let vilnaCanvasRenderQueue = Promise.resolve();
+
+// PDF.js rejects if the same canvas is used by two render tasks at once.
+// Reading Mode, fullscreen, and a pinch-zoom can all request a new raster
+// size within the same moment, so serialize main-page paints. Each queued
+// job reads the newest page/zoom dimensions before it is scheduled by its
+// caller; a later job then naturally settles the canvas on the latest size.
+function renderVilnaCanvas(page, canvas, viewport) {
+  const job = async () => {
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+  };
+  vilnaCanvasRenderQueue = vilnaCanvasRenderQueue.catch(() => {}).then(job);
+  return vilnaCanvasRenderQueue;
+}
 
 function vilnaPageRenderScale(baseViewportWidth, containerWidth, qualityMultiplier) {
   const scale = (containerWidth / baseViewportWidth) * (window.devicePixelRatio || 1) * QUALITY_OVERSAMPLE * qualityMultiplier;
@@ -1052,11 +1068,9 @@ async function renderVilnaPage() {
     const scale = vilnaPageRenderScale(baseViewport.width, containerWidth, 1);
     const viewport = page.getViewport({ scale });
 
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
     canvas.style.width = `${containerWidth}px`;
     canvas.style.removeProperty('height');
-    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    await renderVilnaCanvas(page, canvas, viewport);
     if (!stillWanted()) return;
 
     state.vilnaPageKey = key;
@@ -1202,12 +1216,10 @@ async function rerenderVilnaPageForZoom() {
   const scale = vilnaPageRenderScale(baseViewport.width, containerWidth, qualityMultiplier);
   const viewport = page.getViewport({ scale });
   if (Math.round(viewport.width) === canvas.width) return; // already at this resolution (e.g. capped by MAX_CANVAS_WIDTH_PX)
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
   // The per-word click targets are positioned in percentages of the wrap's
   // CSS layout box (unchanged here -- only the canvas's internal pixel
   // resolution is), so they stay aligned without needing to be rebuilt.
-  await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+  await renderVilnaCanvas(page, canvas, viewport);
 }
 
 function toggleVilnaFullscreen() {
