@@ -3167,9 +3167,7 @@ function activeVilnaWordElements() {
     .filter((el) => el?.isConnected);
 }
 
-function unionClientRects(elements) {
-  if (!elements.length) return null;
-  const rects = elements.map((el) => el.getBoundingClientRect()).filter((rect) => rect.width && rect.height);
+function unionRects(rects) {
   if (!rects.length) return null;
   return {
     left: Math.min(...rects.map((rect) => rect.left)),
@@ -3179,11 +3177,33 @@ function unionClientRects(elements) {
   };
 }
 
+// Page OCR occasionally assigns one or two words from a paragraph to a
+// distant marginal note. Using the full min/max rectangle for follow mode
+// would then make a normal highlighted phrase appear hundreds of pixels tall
+// and send the player toward that outlier. Anchor to the representative
+// lower-middle line cluster instead: low enough to sit beneath a multi-line
+// phrase, while still following where most of its highlighted words actually
+// are.
+function activeVilnaReadingAnchor() {
+  const rects = activeVilnaWordElements()
+    .map((el) => el.getBoundingClientRect())
+    .filter((rect) => rect.width && rect.height);
+  if (!rects.length) return null;
+  const byCenter = [...rects].sort((a, b) => (a.top + a.bottom) - (b.top + b.bottom));
+  const anchorIndex = Math.floor((byCenter.length - 1) * 0.65);
+  const anchorCenter = (byCenter[anchorIndex].top + byCenter[anchorIndex].bottom) / 2;
+  const heights = rects.map((rect) => rect.height).sort((a, b) => a - b);
+  const medianHeight = heights[Math.floor(heights.length / 2)] || 8;
+  const tolerance = Math.max(18, medianHeight * 2.5);
+  const cluster = rects.filter((rect) => Math.abs((rect.top + rect.bottom) / 2 - anchorCenter) <= tolerance);
+  return unionRects(cluster.length ? cluster : rects);
+}
+
 function positionReadingVideoBelowActiveWords(force = false) {
   if (!state.readingModeEnabled || !state.readingVideoFollow || readingVideoDrag || readingVideoResize) return;
   const float = $('readingVideoFloat');
   const bounds = readingVideoBounds();
-  const anchor = unionClientRects(activeVilnaWordElements());
+  const anchor = activeVilnaReadingAnchor();
   if (!float || !bounds || !anchor) return;
 
   const floatRect = float.getBoundingClientRect();
@@ -3214,7 +3234,7 @@ function positionReadingVideoBelowActiveWords(force = false) {
   }
 
   const freshBounds = readingVideoBounds();
-  const freshAnchor = unionClientRects(activeVilnaWordElements());
+  const freshAnchor = activeVilnaReadingAnchor();
   if (!freshBounds || !freshAnchor) return;
   const current = readingVideoPosition();
   let targetScreenTop = freshAnchor.bottom + gap;
