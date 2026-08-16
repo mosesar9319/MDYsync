@@ -1078,6 +1078,22 @@ function pageMapKey(parsed) {
   return `${parsed.tractate.replace(/\s+/g, '-')}-${parsed.daf}${parsed.amud}`;
 }
 
+// Sefaria's text API returns paragraph refs with a period ("Chullin
+// 81a.15"), while the page-OCR pipeline historically published the same
+// refs with a colon ("Chullin 81a:15"). They identify the exact same text,
+// but every word-highlight/seek lookup is intentionally an exact match. Put
+// incoming page-map refs into Sefaria's canonical shape once at the boundary
+// so the existing player, scanner, and Reading Mode all share one key.
+function normalizeDafParagraphRef(ref) {
+  return String(ref || '').trim().replace(/(\d+[ab])[:.](\d+)$/i, '$1.$2');
+}
+
+function normalizePageWordBoxes(wordBoxes) {
+  return Array.isArray(wordBoxes)
+    ? wordBoxes.map((box) => ({ ...box, ref: normalizeDafParagraphRef(box.ref) }))
+    : [];
+}
+
 function stopVilnaPagePoll() {
   if (state.vilnaPagePollTimer) {
     clearInterval(state.vilnaPagePollTimer);
@@ -1106,6 +1122,7 @@ async function loadVilnaPageMap(parsed, stillWanted = () => true) {
       if (!response.ok) return false;
       const data = await response.json();
       if (!stillWanted()) return true;
+      data.wordBoxes = normalizePageWordBoxes(data.wordBoxes);
       state.vilnaPageMap = data;
       renderVilnaWordBoxes();
       updateVilnaOverlay(getCurrentTime());
@@ -2285,10 +2302,11 @@ async function showScanResult(result) {
   // scanWordBoxes/scanWordEls drive updateScanOverlay's live "highlight the
   // word being spoken right now" pass, the same way vilnaPageMap.wordBoxes/
   // vilnaWordEls drive updateVilnaOverlay for the Vilna page view.
-  state.scanWordBoxes = result.wordBoxes;
+  const normalizedWordBoxes = normalizePageWordBoxes(result.wordBoxes);
+  state.scanWordBoxes = normalizedWordBoxes;
   state.scanWordEls = new Map();
   state.scanOverlayKey = '';
-  for (const box of result.wordBoxes) {
+  for (const box of normalizedWordBoxes) {
     const el = document.createElement('div');
     el.className = 'scan-word-box';
     el.style.left = `${box.x * 100}%`;
