@@ -58,6 +58,16 @@ const state = {
   videoOverlayZoom: 1,
   videoOverlayPanX: 0,
   videoOverlayPanY: 0,
+  // Player-page Reading Mode: the inverse of videoOverlayEnabled. The same
+  // live #videoFrame is temporarily moved over the printed Vilna page, so
+  // these values only describe that shell (follow/size/position), never a
+  // second media player or a second playback clock.
+  readingModeEnabled: false,
+  readingVideoFollow: true,
+  readingVideoWidth: null,
+  readingVideoX: null,
+  readingVideoY: null,
+  readingModePreviousOverlayEnabled: false,
   vilnaPageZoom: 1,
   vilnaPdfPage: null,
   vilnaPdfContainerWidth: 0,
@@ -1143,6 +1153,9 @@ function applyVilnaPageZoom() {
   if (wrap) wrap.style.transform = `scale(${state.vilnaPageZoom})`;
   const label = $('vilnaZoomLabel');
   if (label) label.textContent = `${Math.round(state.vilnaPageZoom * 100)}%`;
+  // Zooming changes the active words' screen coordinates even while the
+  // shiur is paused, outside the normal playback-update path.
+  scheduleReadingVideoFollow(false, 180);
 }
 
 function setVilnaPageZoom(zoom) {
@@ -1220,6 +1233,7 @@ function renderVilnaWordBoxes() {
     state.vilnaWordEls.set(`${box.ref}:${box.wordIndex}`, el);
   }
   updateVilnaMarkTarget();
+  scheduleReadingVideoFollow(true, 0);
 }
 
 // loadAlignmentData() (shared with the player/studio) deliberately shows
@@ -2951,6 +2965,482 @@ function handleOverlayWheel(event) {
   updateVideoOverlay(getCurrentTime());
 }
 
+// --- Reading Mode: video on the printed daf -------------------------------
+// This is deliberately the inverse of the canvas-based "daf on video"
+// overlay above. It moves the existing #videoFrame into a floating shell on
+// #dafCard; it never creates a second <video> or YouTube player. That keeps
+// playback, buffering, captions, quality selection, and the synchronization
+// clock completely continuous when entering or leaving the mode.
+const READING_VIDEO_PREFS_KEY = 'dafsync-reading-video-v1';
+const READING_VIDEO_MIN_WIDTH = 190;
+const READING_VIDEO_MAX_WIDTH = 560;
+let readingVideoHomeParent = null;
+let readingVideoHomeNextSibling = null;
+let readingVideoDrag = null;
+let readingVideoResize = null;
+let readingFollowTimer = null;
+let readingFollowScrollUntil = 0;
+let readingPageLayoutTimer = null;
+let readingModeTipTimer = null;
+
+function clampReadingValue(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function loadReadingVideoPreferences() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(READING_VIDEO_PREFS_KEY) || 'null');
+    if (!saved || typeof saved !== 'object') return;
+    if (Number.isFinite(saved.width)) state.readingVideoWidth = saved.width;
+    if (Number.isFinite(saved.x)) state.readingVideoX = clampReadingValue(saved.x, 0, 1);
+    if (Number.isFinite(saved.y)) state.readingVideoY = clampReadingValue(saved.y, 0, 1);
+    if (typeof saved.follow === 'boolean') state.readingVideoFollow = saved.follow;
+  } catch {
+    // A malformed preference should never keep the player from opening.
+  }
+}
+
+function saveReadingVideoPreferences() {
+  try {
+    localStorage.setItem(READING_VIDEO_PREFS_KEY, JSON.stringify({
+      width: state.readingVideoWidth,
+      x: state.readingVideoX,
+      y: state.readingVideoY,
+      follow: state.readingVideoFollow,
+    }));
+  } catch {
+    // Private browsing/storage denial is harmless; the live controls work.
+  }
+}
+
+// Coordinates are relative to the daf card, but bounds are the visible
+// #dafScroll viewport. The mini-player therefore stays on screen while the
+// PDF itself scrolls underneath it and can still be moved anywhere in the
+// actual reading surface (never over the daf header/footer).
+function readingVideoBounds() {
+  const card = $('dafCard');
+  const scroll = $('dafScroll');
+  if (!card || !scroll) return null;
+  const cardRect = card.getBoundingClientRect();
+  const scrollRect = scroll.getBoundingClientRect();
+  if (!scrollRect.width || !scrollRect.height) return null;
+  const inset = 10;
+  return {
+    left: scrollRect.left - cardRect.left + inset,
+    top: scrollRect.top - cardRect.top + inset,
+    right: scrollRect.right - cardRect.left - inset,
+    bottom: scrollRect.bottom - cardRect.top - inset,
+    width: Math.max(0, scrollRect.width - inset * 2),
+    height: Math.max(0, scrollRect.height - inset * 2),
+    cardRect,
+    scrollRect,
+  };
+}
+
+function readingVideoPosition() {
+  const float = $('readingVideoFloat');
+  const card = $('dafCard');
+  if (!float || !card) return { left: 0, top: 0 };
+  const floatRect = float.getBoundingClientRect();
+  const cardRect = card.getBoundingClientRect();
+  return { left: floatRect.left - cardRect.left, top: floatRect.top - cardRect.top };
+}
+
+function placeReadingVideo(left, top) {
+  const float = $('readingVideoFloat');
+  const bounds = readingVideoBounds();
+  if (!float || !bounds) return;
+  const width = float.offsetWidth;
+  const height = float.offsetHeight;
+  const maxLeft = Math.max(bounds.left, bounds.right - width);
+  const maxTop = Math.max(bounds.top, bounds.bottom - height);
+  float.style.left = `${clampReadingValue(left, bounds.left, maxLeft)}px`;
+  float.style.top = `${clampReadingValue(top, bounds.top, maxTop)}px`;
+}
+
+function captureReadingVideoPosition() {
+  const float = $('readingVideoFloat');
+  const bounds = readingVideoBounds();
+  if (!float || !bounds) return;
+  const { left, top } = readingVideoPosition();
+  const rangeX = Math.max(1, bounds.width - float.offsetWidth);
+  const rangeY = Math.max(1, bounds.height - float.offsetHeight);
+  state.readingVideoX = clampReadingValue((left - bounds.left) / rangeX, 0, 1);
+  state.readingVideoY = clampReadingValue((top - bounds.top) / rangeY, 0, 1);
+  saveReadingVideoPreferences();
+}
+
+function maxReadingVideoWidth() {
+  const bounds = readingVideoBounds();
+  if (!bounds) return READING_VIDEO_MAX_WIDTH;
+  // 38px is the floating header; the media frame beneath remains 16:9.
+  const maxByHeight = Math.max(0, (bounds.height - 38) * (16 / 9));
+  return Math.max(1, Math.min(READING_VIDEO_MAX_WIDTH, bounds.width, maxByHeight));
+}
+
+function setReadingVideoWidth(width, { persist = true } = {}) {
+  const float = $('readingVideoFloat');
+  if (!float) return;
+  const maxWidth = maxReadingVideoWidth();
+  const minWidth = Math.min(READING_VIDEO_MIN_WIDTH, maxWidth);
+  const nextWidth = Math.round(clampReadingValue(Number(width) || minWidth, minWidth, maxWidth));
+  state.readingVideoWidth = nextWidth;
+  float.style.width = `${nextWidth}px`;
+  requestAnimationFrame(() => {
+    const pos = readingVideoPosition();
+    placeReadingVideo(pos.left, pos.top);
+    if (state.readingVideoFollow && !readingVideoDrag && !readingVideoResize) scheduleReadingVideoFollow(true, 0);
+  });
+  if (persist) saveReadingVideoPreferences();
+}
+
+function restoreReadingVideoPlacement() {
+  const float = $('readingVideoFloat');
+  const bounds = readingVideoBounds();
+  if (!float || !bounds) return;
+  const defaultWidth = window.innerWidth <= 760 ? 260 : 360;
+  setReadingVideoWidth(state.readingVideoWidth || defaultWidth, { persist: false });
+  requestAnimationFrame(() => {
+    const latestBounds = readingVideoBounds();
+    if (!latestBounds) return;
+    const rangeX = Math.max(0, latestBounds.width - float.offsetWidth);
+    const rangeY = Math.max(0, latestBounds.height - float.offsetHeight);
+    const x = state.readingVideoX == null ? 0.04 : state.readingVideoX;
+    const y = state.readingVideoY == null ? 0.82 : state.readingVideoY;
+    placeReadingVideo(latestBounds.left + rangeX * x, latestBounds.top + rangeY * y);
+    if (state.readingVideoFollow) scheduleReadingVideoFollow(true, 0);
+  });
+}
+
+function updateReadingVideoFollowUi() {
+  const button = $('readingVideoFollowButton');
+  const label = $('readingVideoFollowLabel');
+  if (button) {
+    button.classList.toggle('active', state.readingVideoFollow);
+    button.setAttribute('aria-pressed', String(state.readingVideoFollow));
+    button.title = state.readingVideoFollow
+      ? 'Following the highlighted words — click to keep the video in place'
+      : 'Keep the video near the highlighted words';
+  }
+  if (label) label.textContent = state.readingVideoFollow ? 'Following' : 'Follow';
+}
+
+function setReadingVideoFollow(enabled, { announce = false, persist = true } = {}) {
+  state.readingVideoFollow = Boolean(enabled);
+  updateReadingVideoFollowUi();
+  if (!state.readingVideoFollow) clearTimeout(readingFollowTimer);
+  else if (state.readingModeEnabled) scheduleReadingVideoFollow(true, 0);
+  if (persist) saveReadingVideoPreferences();
+  if (announce) {
+    showToast(state.readingVideoFollow
+      ? 'The mini-player will follow the highlighted words.'
+      : 'Follow paused. The mini-player will stay where you put it.');
+  }
+}
+
+function activeVilnaWordElements() {
+  const active = state.segments[state.activeIndex];
+  if (!active || !state.vilnaPageMap || !state.vilnaWordEls) return [];
+  const hasRange = active.w0 !== null && active.w1 !== null;
+  return state.vilnaPageMap.wordBoxes
+    .filter((box) => box.ref === active.ref
+      && (!hasRange || (box.wordIndex >= active.w0 && box.wordIndex <= active.w1)))
+    .map((box) => state.vilnaWordEls.get(`${box.ref}:${box.wordIndex}`))
+    .filter((el) => el?.isConnected);
+}
+
+function unionClientRects(elements) {
+  if (!elements.length) return null;
+  const rects = elements.map((el) => el.getBoundingClientRect()).filter((rect) => rect.width && rect.height);
+  if (!rects.length) return null;
+  return {
+    left: Math.min(...rects.map((rect) => rect.left)),
+    top: Math.min(...rects.map((rect) => rect.top)),
+    right: Math.max(...rects.map((rect) => rect.right)),
+    bottom: Math.max(...rects.map((rect) => rect.bottom)),
+  };
+}
+
+function positionReadingVideoBelowActiveWords(force = false) {
+  if (!state.readingModeEnabled || !state.readingVideoFollow || readingVideoDrag || readingVideoResize) return;
+  const float = $('readingVideoFloat');
+  const bounds = readingVideoBounds();
+  const anchor = unionClientRects(activeVilnaWordElements());
+  if (!float || !bounds || !anchor) return;
+
+  const floatRect = float.getBoundingClientRect();
+  const gap = 12;
+  const currentGap = floatRect.top - anchor.bottom;
+  const comfortablyFollowing = currentGap >= gap - 2
+    && currentGap <= 68
+    && floatRect.bottom <= bounds.scrollRect.bottom - 8
+    && anchor.top >= bounds.scrollRect.top + 8;
+  if (comfortablyFollowing && !force) return;
+
+  // A calm follow: only scroll once the highlighted words and the video no
+  // longer fit together. Put the words in the upper fifth, leaving a stable
+  // reading area plus enough room for the mini-player immediately beneath.
+  const needsScroll = anchor.top < bounds.scrollRect.top + 18
+    || anchor.bottom > bounds.scrollRect.bottom - 18
+    || anchor.bottom + gap + floatRect.height > bounds.scrollRect.bottom - 8;
+  if (needsScroll && Date.now() >= readingFollowScrollUntil) {
+    const targetAnchorTop = bounds.scrollRect.top + Math.min(120, Math.max(34, bounds.scrollRect.height * 0.18));
+    const delta = anchor.top - targetAnchorTop;
+    if (Math.abs(delta) > 2) {
+      readingFollowScrollUntil = Date.now() + (force ? 80 : 340);
+      $('dafScroll').scrollBy({ top: delta, behavior: force ? 'auto' : 'smooth' });
+      clearTimeout(readingFollowTimer);
+      readingFollowTimer = setTimeout(() => positionReadingVideoBelowActiveWords(true), force ? 30 : 360);
+      return;
+    }
+  }
+
+  const freshBounds = readingVideoBounds();
+  const freshAnchor = unionClientRects(activeVilnaWordElements());
+  if (!freshBounds || !freshAnchor) return;
+  const current = readingVideoPosition();
+  let targetScreenTop = freshAnchor.bottom + gap;
+  if (targetScreenTop + float.offsetHeight > freshBounds.scrollRect.bottom - 8) {
+    targetScreenTop = freshAnchor.top - float.offsetHeight - gap;
+  }
+  placeReadingVideo(current.left, targetScreenTop - freshBounds.cardRect.top);
+}
+
+function scheduleReadingVideoFollow(force = false, delay = 70) {
+  if (!state.readingModeEnabled || !state.readingVideoFollow) return;
+  if (!force) {
+    const cooldownRemaining = AUTO_SCROLL_RESUME_MS - (Date.now() - state.lastManualScrollAt);
+    if (cooldownRemaining > 0) {
+      clearTimeout(readingFollowTimer);
+      readingFollowTimer = setTimeout(() => scheduleReadingVideoFollow(false, 0), cooldownRemaining + 30);
+      return;
+    }
+    if (Date.now() < readingFollowScrollUntil) return;
+  }
+  clearTimeout(readingFollowTimer);
+  readingFollowTimer = setTimeout(() => positionReadingVideoBelowActiveWords(force), delay);
+}
+
+// Expanding the daf from a narrow side column to Reading Mode's full-width
+// surface changes the ideal PDF raster size. Reuse the already-loaded vector
+// PDF page, update its CSS footprint immediately, and let the existing crisp
+// zoom renderer repaint it at the new resolution in the background.
+function scheduleVilnaPageLayoutRefresh(delay = 80) {
+  clearTimeout(readingPageLayoutTimer);
+  readingPageLayoutTimer = setTimeout(() => {
+    const wrap = $('vilnaPageWrap');
+    const canvas = $('vilnaPageCanvas');
+    if (!wrap || !canvas || canvas.hidden) {
+      renderVilnaPage();
+      return;
+    }
+    const width = Math.round(wrap.clientWidth || 0);
+    if (!width) return;
+    state.vilnaPdfContainerWidth = width;
+    canvas.style.width = `${width}px`;
+    canvas.style.removeProperty('height');
+    rerenderVilnaPageForZoom().finally(() => {
+      applyVilnaPageZoom();
+      if (state.readingModeEnabled) scheduleReadingVideoFollow(true, 0);
+    });
+  }, delay);
+}
+
+function applyVideoOverlayEnabled(enabled) {
+  state.videoOverlayEnabled = Boolean(enabled);
+  for (const id of ['overlayToggle', 'overlayToggleInVideo']) {
+    const toggle = $(id);
+    if (toggle) toggle.checked = state.videoOverlayEnabled;
+  }
+  $('videoFrame')?.classList.toggle('overlay-on', state.videoOverlayEnabled);
+  if ($('overlaySettings')) $('overlaySettings').open = state.videoOverlayEnabled;
+  updateVideoOverlay(getCurrentTime());
+}
+
+function updateReadingModeUi() {
+  const button = $('readingModeButton');
+  const label = $('readingModeButtonLabel');
+  if (button) {
+    button.classList.toggle('active', state.readingModeEnabled);
+    button.setAttribute('aria-pressed', String(state.readingModeEnabled));
+    button.title = state.readingModeEnabled ? 'Return to split view' : 'Place the shiur video over the printed daf';
+  }
+  if (label) label.textContent = state.readingModeEnabled ? 'Exit Reading mode' : 'Video on daf';
+}
+
+function showReadingModeTip() {
+  const tip = $('readingModeTip');
+  if (!tip) return;
+  clearTimeout(readingModeTipTimer);
+  tip.classList.add('show');
+  readingModeTipTimer = setTimeout(() => tip.classList.remove('show'), 5200);
+}
+
+function setReadingMode(enabled) {
+  const frame = $('videoFrame');
+  const float = $('readingVideoFloat');
+  const slot = $('readingVideoSlot');
+  if (!frame || !float || !slot || state.browseMode) return;
+  const nextEnabled = Boolean(enabled);
+  if (nextEnabled === state.readingModeEnabled) return;
+
+  if (nextEnabled) {
+    // Reading Mode is a Vilna-page experience even when reached after the
+    // dedicated camera route or an admin-only view change.
+    if ($('vilnaPlaceholder')?.hidden) switchDafView('page');
+    if (!readingVideoHomeParent) {
+      readingVideoHomeParent = frame.parentNode;
+      readingVideoHomeNextSibling = frame.nextSibling;
+    }
+    state.readingModePreviousOverlayEnabled = state.videoOverlayEnabled;
+    applyVideoOverlayEnabled(false); // the inverse modes are mutually exclusive
+    state.readingModeEnabled = true;
+    document.body.classList.add('reading-mode-active');
+    float.hidden = false;
+    slot.appendChild(frame);
+    updateReadingModeUi();
+    updateReadingVideoFollowUi();
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      restoreReadingVideoPlacement();
+      scheduleVilnaPageLayoutRefresh(0);
+      showReadingModeTip();
+    }));
+    return;
+  }
+
+  state.readingModeEnabled = false;
+  clearTimeout(readingFollowTimer);
+  clearTimeout(readingModeTipTimer);
+  $('readingModeTip')?.classList.remove('show');
+  if (readingVideoHomeParent) {
+    const validSibling = readingVideoHomeNextSibling?.parentNode === readingVideoHomeParent
+      ? readingVideoHomeNextSibling
+      : null;
+    readingVideoHomeParent.insertBefore(frame, validSibling);
+  }
+  float.hidden = true;
+  float.classList.remove('is-dragging', 'is-resizing');
+  document.body.classList.remove('reading-mode-active');
+  applyVideoOverlayEnabled(state.readingModePreviousOverlayEnabled);
+  updateReadingModeUi();
+  scheduleVilnaPageLayoutRefresh(0);
+}
+
+(function initReadingMode() {
+  const toggle = $('readingModeButton');
+  const close = $('readingVideoCloseButton');
+  const follow = $('readingVideoFollowButton');
+  const smaller = $('readingVideoSmallerButton');
+  const larger = $('readingVideoLargerButton');
+  const float = $('readingVideoFloat');
+  const dragHandle = $('readingVideoDragHandle');
+  const resizeHandle = $('readingVideoResizeHandle');
+  const frame = $('videoFrame');
+  if (!toggle || !float || !dragHandle || !resizeHandle || !frame) return;
+
+  readingVideoHomeParent = frame.parentNode;
+  readingVideoHomeNextSibling = frame.nextSibling;
+  loadReadingVideoPreferences();
+  updateReadingVideoFollowUi();
+
+  toggle.addEventListener('click', () => setReadingMode(!state.readingModeEnabled));
+  close?.addEventListener('click', () => setReadingMode(false));
+  follow?.addEventListener('click', () => setReadingVideoFollow(!state.readingVideoFollow, { announce: true }));
+  smaller?.addEventListener('click', () => setReadingVideoWidth((state.readingVideoWidth || float.offsetWidth) - 40));
+  larger?.addEventListener('click', () => setReadingVideoWidth((state.readingVideoWidth || float.offsetWidth) + 40));
+
+  dragHandle.addEventListener('pointerdown', (event) => {
+    if (!state.readingModeEnabled) return;
+    const pos = readingVideoPosition();
+    readingVideoDrag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, left: pos.left, top: pos.top, moved: false };
+    dragHandle.setPointerCapture(event.pointerId);
+    float.classList.add('is-dragging');
+    event.preventDefault();
+  });
+  dragHandle.addEventListener('pointermove', (event) => {
+    if (!readingVideoDrag || readingVideoDrag.pointerId !== event.pointerId) return;
+    const dx = event.clientX - readingVideoDrag.startX;
+    const dy = event.clientY - readingVideoDrag.startY;
+    if (!readingVideoDrag.moved && Math.hypot(dx, dy) > 5) {
+      readingVideoDrag.moved = true;
+      setReadingVideoFollow(false, { announce: false });
+    }
+    placeReadingVideo(readingVideoDrag.left + dx, readingVideoDrag.top + dy);
+  });
+  function finishReadingVideoDrag(event) {
+    if (!readingVideoDrag || (event && readingVideoDrag.pointerId !== event.pointerId)) return;
+    const moved = readingVideoDrag.moved;
+    readingVideoDrag = null;
+    float.classList.remove('is-dragging');
+    if (moved) captureReadingVideoPosition();
+  }
+  dragHandle.addEventListener('pointerup', finishReadingVideoDrag);
+  dragHandle.addEventListener('pointercancel', finishReadingVideoDrag);
+  dragHandle.addEventListener('keydown', (event) => {
+    const moves = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+    if (!state.readingModeEnabled || !moves[event.key]) return;
+    event.preventDefault();
+    setReadingVideoFollow(false, { announce: false });
+    const pos = readingVideoPosition();
+    const amount = event.shiftKey ? 30 : 10;
+    placeReadingVideo(pos.left + moves[event.key][0] * amount, pos.top + moves[event.key][1] * amount);
+    captureReadingVideoPosition();
+  });
+
+  resizeHandle.addEventListener('pointerdown', (event) => {
+    if (!state.readingModeEnabled) return;
+    readingVideoResize = { pointerId: event.pointerId, startX: event.clientX, width: float.offsetWidth };
+    resizeHandle.setPointerCapture(event.pointerId);
+    float.classList.add('is-resizing');
+    event.preventDefault();
+  });
+  resizeHandle.addEventListener('pointermove', (event) => {
+    if (!readingVideoResize || readingVideoResize.pointerId !== event.pointerId) return;
+    setReadingVideoWidth(readingVideoResize.width + (event.clientX - readingVideoResize.startX), { persist: false });
+  });
+  function finishReadingVideoResize(event) {
+    if (!readingVideoResize || (event && readingVideoResize.pointerId !== event.pointerId)) return;
+    readingVideoResize = null;
+    float.classList.remove('is-resizing');
+    captureReadingVideoPosition();
+    saveReadingVideoPreferences();
+    if (state.readingVideoFollow) scheduleReadingVideoFollow(true, 0);
+  }
+  resizeHandle.addEventListener('pointerup', finishReadingVideoResize);
+  resizeHandle.addEventListener('pointercancel', finishReadingVideoResize);
+  resizeHandle.addEventListener('keydown', (event) => {
+    if (!state.readingModeEnabled || !['ArrowLeft', 'ArrowRight', '-', '+', '='].includes(event.key)) return;
+    event.preventDefault();
+    const largerKey = event.key === 'ArrowRight' || event.key === '+' || event.key === '=';
+    setReadingVideoWidth((state.readingVideoWidth || float.offsetWidth) + (largerKey ? 30 : -30));
+  });
+
+  window.addEventListener('resize', () => {
+    if (!state.readingModeEnabled) return;
+    setReadingVideoWidth(state.readingVideoWidth || float.offsetWidth, { persist: false });
+    const pos = readingVideoPosition();
+    placeReadingVideo(pos.left, pos.top);
+    scheduleVilnaPageLayoutRefresh(120);
+  });
+  document.addEventListener('fullscreenchange', () => {
+    if (!state.readingModeEnabled) return;
+    requestAnimationFrame(() => {
+      setReadingVideoWidth(state.readingVideoWidth || float.offsetWidth, { persist: false });
+      restoreReadingVideoPlacement();
+    });
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && state.readingModeEnabled && !document.fullscreenElement && !document.querySelector('dialog[open]')) {
+      setReadingMode(false);
+    }
+  });
+  $('dafScroll')?.addEventListener('scroll', () => {
+    if (state.readingModeEnabled && state.readingVideoFollow && Date.now() >= readingFollowScrollUntil) {
+      scheduleReadingVideoFollow(false, 100);
+    }
+  }, { passive: true });
+})();
+
 function toggleVideoFullscreen() {
   const frame = $('videoFrame');
   if (document.fullscreenElement === frame) {
@@ -2968,6 +3458,10 @@ function updateActiveWords(time) {
   updateVilnaOverlay(time);
   updateScanOverlay(time);
   updateVideoOverlay(time);
+  // In Reading Mode this is intentionally gentle: the scheduler only moves
+  // once the current words and mini-player no longer fit comfortably
+  // together, and respects the same manual-scroll cooldown as the text view.
+  scheduleReadingVideoFollow(false);
 }
 
 function updateActiveSegment(force = false, timeOverride = null) {
@@ -4282,9 +4776,7 @@ const overlayResetPositionButtonEls = overlayControlGroup('overlayResetPositionB
 
 for (const el of overlayToggleEls) el.addEventListener('change', (event) => {
   syncGroupValue(overlayToggleEls, event, 'checked');
-  state.videoOverlayEnabled = event.target.checked;
-  $('videoFrame')?.classList.toggle('overlay-on', state.videoOverlayEnabled);
-  updateVideoOverlay(getCurrentTime());
+  applyVideoOverlayEnabled(event.target.checked);
   // The rest of the overlay's own display settings (style/opacity/zoom/etc)
   // live tucked away in a <details> dropdown so they don't clutter the
   // video by default -- open (and close) the canonical, always-in-page-flow
@@ -4293,7 +4785,6 @@ for (const el of overlayToggleEls) el.addEventListener('change', (event) => {
   // (reader opens it with the gear icon) -- it sits over the video itself,
   // so auto-expanding it every time the overlay turns on would be exactly
   // the kind of intrusive default it's meant to avoid.
-  if ($('overlaySettings')) $('overlaySettings').open = state.videoOverlayEnabled;
 });
 for (const el of overlayModeSelectEls) el.addEventListener('change', (event) => {
   syncGroupValue(overlayModeSelectEls, event);
