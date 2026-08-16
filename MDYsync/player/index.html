@@ -951,25 +951,16 @@
           </div>
         </article>
 
-        <aside class="daf-card card" id="dafCard" data-daf-view="text" aria-labelledby="dafTitle">
+        <aside class="daf-card card" id="dafCard" data-daf-view="page" aria-labelledby="dafTitle">
           <header class="daf-header">
             <div><p class="eyebrow">Following</p><h2 id="dafTitle">No daf loaded</h2></div>
-            <div class="daf-tools">
-              <div class="view-switch" role="group" aria-label="Daf display mode">
-                <button class="active" data-view="text">Text</button>
-                <button data-view="page" title="Real Vilna-edition page image (private-use source)">Vilna</button>
-                <button data-view="scan" title="Scan a printed page with your camera">Scan</button>
-              </div>
-              <button class="tool-button" id="decrease-text" aria-label="Decrease text size" type="button">A−</button>
-              <button class="tool-button" id="increase-text" aria-label="Increase text size" type="button">A+</button>
-            </div>
           </header>
 
           <div class="daf-scroll" id="dafScroll">
-            <div class="daf-page" id="dafPage" dir="rtl" lang="he">
+            <div class="daf-page" id="dafPage" dir="rtl" lang="he" hidden>
               <p class="daf-empty-note">No daf loaded yet. Enter a reference above and press "Load daf."</p>
             </div>
-            <div class="vilna-placeholder" id="vilnaPlaceholder" hidden>
+            <div class="vilna-placeholder" id="vilnaPlaceholder">
               <div class="vilna-zoom-controls" id="vilnaZoomControls">
                 <button class="vilna-zoom-btn" id="vilnaZoomOutButton" type="button" aria-label="Zoom out">−</button>
                 <span id="vilnaZoomLabel">100%</span>

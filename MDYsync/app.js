@@ -5603,6 +5603,12 @@ $('browseHideVideoButton')?.addEventListener('click', () => {
 // this waits on the same loadTalmudIndex() call the picker itself depends on.
 loadTalmudIndex().then(() => {
   const params = new URLSearchParams(location.search);
+  // The player is a video + printed-daf experience. Start in the Vilna
+  // view before loading the requested lesson so renderDaf() can fetch and
+  // paint the page immediately, without briefly showing the old text view.
+  // Daf Scan remains reachable from its dedicated navigation entry, but it
+  // is no longer offered as a mode switch inside the regular player.
+  if (!state.browseMode && params.get('view') !== 'scan') switchDafView('page');
   // ?view=scan (from the shared nav's "Daf Scan" tab) jumps straight to
   // the Scan view -- independent of whether a ref was also given, since the
   // scan flow resolves its own daf once a photo is scanned. Tapping a
