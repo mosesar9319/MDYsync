@@ -775,6 +775,7 @@ body.studio-locked .app-shell { visibility: hidden; }
 }
 #noteBodyInput:focus { border-color: rgba(56,214,193,.8); box-shadow: 0 0 0 3px rgba(56,214,193,.1); }
 .note-compose-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.note-mod-actions { margin-top: 8px; display: flex; justify-content: flex-end; }
 
 /* --- Catalog browser ------------------------------------------------------ */
 .catalog-card { padding: 20px 22px; margin-bottom: 18px; }

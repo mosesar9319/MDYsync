@@ -225,3 +225,100 @@ if (document.readyState === 'loading') {
 } else {
   initNoteDialog();
 }
+
+// --- Studio moderation queue: every live (non-private) note, site-wide -----
+// Only wired up on studio/index.html, which ships #moderationList and is
+// already gated behind a real admin sign-in (see studio-locked in that
+// page). Everywhere else this section is a no-op, same as initNoteDialog
+// above.
+
+let moderationRows = [];
+let moderationFilter = 'visible';
+
+function moderationRefDisplay(row) {
+  return row.daf_ref_key.replace(/-/g, ' ');
+}
+
+function renderModerationList() {
+  const list = $('moderationList');
+  const rows = moderationRows.filter((row) => {
+    if (moderationFilter === 'visible') return !row.hidden;
+    if (moderationFilter === 'hidden') return row.hidden;
+    return true;
+  });
+  if (!rows.length) {
+    list.innerHTML = '<p class="field-note">No notes here.</p>';
+    return;
+  }
+  list.innerHTML = rows.map((row) => `
+    <div class="note-item" data-id="${row.id}">
+      <div class="note-item-head">
+        <span class="note-item-author">${escapeHtml(row.author_display_name || 'Anonymous')}</span>
+        <a class="note-pill note-pill-live" href="../browse/index.html?ref=${encodeURIComponent(moderationRefDisplay(row))}" target="_blank" rel="noopener">${escapeHtml(moderationRefDisplay(row))}</a>
+        ${row.hidden ? '<span class="note-pill note-pill-hidden">Hidden</span>' : ''}
+        <span class="note-item-time">${formatNoteTime(row.created_at)}</span>
+      </div>
+      <p class="note-item-body">${escapeHtml(row.body)}</p>
+      <div class="note-mod-actions">
+        <button type="button" class="button ${row.hidden ? 'primary' : 'secondary'} small mod-toggle-button" data-id="${row.id}" data-hidden="${row.hidden}">
+          ${row.hidden ? 'Unhide' : 'Hide'}
+        </button>
+      </div>
+    </div>`).join('');
+  list.querySelectorAll('.mod-toggle-button').forEach((button) => {
+    button.addEventListener('click', () => toggleModerationHidden(button.dataset.id, button.dataset.hidden !== 'true'));
+  });
+}
+
+async function toggleModerationHidden(id, hidden) {
+  const auth = window.DafSyncAuth;
+  const { error } = await auth.client.rpc('set_note_hidden', { p_note_id: id, p_hidden: hidden });
+  if (error) {
+    showToast(error.message || 'Could not update this note.', 'error');
+    return;
+  }
+  const row = moderationRows.find((r) => r.id === id);
+  if (row) row.hidden = hidden;
+  renderModerationList();
+}
+
+async function loadModerationQueue() {
+  const auth = window.DafSyncAuth;
+  const list = $('moderationList');
+  list.innerHTML = '<p class="field-note">Loading…</p>';
+  const { data, error } = await auth.client
+    .from('line_notes').select('*')
+    .eq('is_private', false)
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (error) {
+    list.innerHTML = '<p class="field-note">Could not load the moderation queue.</p>';
+    return;
+  }
+  moderationRows = data || [];
+  renderModerationList();
+}
+
+function initModerationQueue() {
+  const list = $('moderationList');
+  if (!list) return; // not on studio -- nothing to attach to
+
+  $('refreshModerationButton').addEventListener('click', loadModerationQueue);
+  $('moderationFilter').querySelectorAll('button').forEach((button) => {
+    button.addEventListener('click', () => {
+      moderationFilter = button.dataset.filter;
+      $('moderationFilter').querySelectorAll('button').forEach((b) => b.classList.toggle('active', b === button));
+      renderModerationList();
+    });
+  });
+
+  window.DafSyncAuth?.onChange((user, profile) => {
+    if (user && profile?.is_admin) loadModerationQueue();
+  });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initModerationQueue);
+} else {
+  initModerationQueue();
+}

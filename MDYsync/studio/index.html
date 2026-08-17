@@ -435,6 +435,27 @@
           <div><h3>Publish alignment</h3><p>Export a reusable JSON map for the final hosted video.</p></div>
         </article>
       </section>
+
+      <section class="card admin-only" id="moderationSection">
+        <div class="editor-heading">
+          <div>
+            <div class="eyebrow">Moderation</div>
+            <h2>Live notes</h2>
+            <p>Notes readers posted publicly on Talmud lines. Hiding a note removes it from everyone's view except its own author.</p>
+          </div>
+          <div class="editor-actions">
+            <button class="button ghost small" id="refreshModerationButton" type="button">Refresh</button>
+          </div>
+        </div>
+        <div class="view-switch" role="group" aria-label="Filter" id="moderationFilter">
+          <button class="active" data-filter="visible" type="button">Visible</button>
+          <button data-filter="hidden" type="button">Hidden</button>
+          <button data-filter="all" type="button">All</button>
+        </div>
+        <div class="note-list" id="moderationList">
+          <p class="field-note">Loading…</p>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -615,6 +636,7 @@
   <script src="../app.js" defer></script>
   <script src="../catalog.js" defer></script>
   <script src="../account-features.js" defer></script>
+  <script src="../notes.js" defer></script>
   <script src="../nav.js" defer></script>
 </body>
 </html>
