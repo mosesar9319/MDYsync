@@ -513,6 +513,186 @@
     .sync-note { display: flex; align-items: center; gap: 9px; margin: 14px 17px 0; padding: 11px 13px; color: #68501f; background: #fbf4e5; border: 1px solid #ead8af; border-radius: 11px; font-size: 12px; line-height: 1.45; }
     .daf-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px 17px; color: var(--muted); border-top: 1px solid var(--line); font-size: 12px; }
 
+    /* Reading Mode reverses the existing Vilna-on-video overlay: the daf
+       becomes the primary, full-width surface and the existing player card
+       becomes a floating shell. #videoFrame permanently stays in this same
+       DOM branch, so switching views cannot reload the YouTube iframe or
+       interrupt its timestamp, buffer, quality, or playing state. */
+    .reading-mode-entry {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 34px;
+      padding: 7px 11px;
+      border: 1px solid rgba(90,66,34,.16);
+      border-radius: 999px;
+      color: var(--navy);
+      background: #fffdf8;
+      font: 700 12px/1 "Assistant", sans-serif;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: color .16s ease, background .16s ease, border-color .16s ease, transform .16s ease;
+    }
+    .reading-mode-entry:hover { color: var(--gold); border-color: #d9bd85; transform: translateY(-1px); }
+    .reading-mode-entry.active { color: #fff; background: var(--navy); border-color: var(--navy); }
+    .reading-mode-entry svg { width: 16px; height: 16px; flex: 0 0 auto; }
+    .daf-card:not([data-daf-view="page"]) .reading-mode-entry { display: none; }
+    .reading-follow-entry { display: none; }
+    body.reading-mode-active .reading-follow-entry { display: inline-flex; }
+
+    body.reading-mode-active .watch-layout { position: relative; display: block; }
+    body.reading-mode-active .watch-layout > .player-card {
+      position: absolute;
+      z-index: 30;
+      inset: 0;
+      display: block;
+      min-height: 0;
+      padding: 0;
+      overflow: visible;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+      backdrop-filter: none;
+      pointer-events: none;
+    }
+    body.reading-mode-active .player-card > :not(.reading-video-float) { display: none !important; }
+    body.reading-mode-active .daf-card {
+      position: relative;
+      top: auto;
+      width: min(100%, 1320px);
+      height: max(700px, calc(100svh - 142px));
+      min-height: 700px;
+      margin: 0 auto;
+      box-shadow: 0 22px 58px rgba(63,45,23,.11);
+    }
+    body.reading-mode-active .daf-card .daf-scroll { min-height: 0; }
+    body.reading-mode-active .daf-card .vilna-placeholder { padding-inline: clamp(10px, 4vw, 48px); }
+    body.reading-mode-active .daf-card .vilna-page-wrap { width: 100%; max-width: 940px; }
+    body.reading-mode-active .about-card { max-width: 1320px; margin-inline: auto; }
+    /* The shared watch surface—not only .daf-card—is the fullscreen target
+       in Reading Mode, because the uninterrupted live player is its sibling.
+       Fill the top layer with the daf while the absolute player container
+       remains above it. */
+    body.reading-mode-active .watch-layout:fullscreen,
+    body.reading-mode-active .watch-layout:-webkit-full-screen {
+      width: 100vw;
+      height: 100vh;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #f5f0e7;
+    }
+    body.reading-mode-active .watch-layout:fullscreen .daf-card,
+    body.reading-mode-active .watch-layout:-webkit-full-screen .daf-card {
+      width: 100%;
+      max-width: none;
+      height: 100%;
+      min-height: 0;
+      margin: 0;
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    /* In split view this wrapper is deliberately layout-neutral. Reading
+       Mode adds the floating shell without ever moving its live video. */
+    .reading-video-float {
+      width: 100%;
+      min-width: 0;
+    }
+    body:not(.reading-mode-active) .reading-video-float { width: 100% !important; }
+    .reading-video-resize,
+    .reading-video-pinch-surface { display: none; }
+    .reading-video-slot { position: relative; width: 100%; }
+    body.reading-mode-active .reading-video-float {
+      position: absolute;
+      z-index: 30;
+      left: 18px;
+      top: 110px;
+      width: 340px;
+      min-width: 190px;
+      max-width: calc(100% - 20px);
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 15px;
+      color: #fff;
+      background: #071525;
+      box-shadow: 0 18px 48px rgba(4,14,27,.36), 0 0 0 1px rgba(4,14,27,.12);
+      transition: left .28s ease, top .28s ease, width .18s ease, box-shadow .18s ease;
+      isolation: isolate;
+      container-type: inline-size;
+      pointer-events: auto;
+    }
+    body.reading-mode-active .reading-video-float.is-dragging,
+    body.reading-mode-active .reading-video-float.is-resizing { transition: none; box-shadow: 0 24px 62px rgba(4,14,27,.46), 0 0 0 2px rgba(186,132,34,.42); }
+    body.reading-mode-active .reading-video-slot { background: #020812; }
+    body.reading-mode-active .reading-video-slot .video-frame { width: 100%; border: 0; border-radius: 0; }
+    /* The inverse overlay cannot be enabled while the player itself is on
+       the daf; keep its fullscreen widget out of this deliberately simple
+       mini-player surface as well. */
+    body.reading-mode-active .reading-video-float .overlay-controls,
+    body.reading-mode-active .reading-video-float .video-source-badge { display: none !important; }
+    body.reading-mode-active .reading-video-float .scrubber-wrap { bottom: 34px; height: 21px; padding: 8px 8px 0; }
+    body.reading-mode-active .reading-video-float .player-controls { height: 34px; padding: 0 36px 0 7px; gap: 4px; }
+    body.reading-mode-active .reading-video-float .time-row,
+    body.reading-mode-active .reading-video-float .volume-slider,
+    body.reading-mode-active .reading-video-float .control-divider:not(.control-divider-end) { display: none; }
+    body.reading-mode-active .reading-video-float .icon-button { width: 25px; height: 25px; border-radius: 7px; }
+    body.reading-mode-active .reading-video-float .play-button { width: 27px; height: 27px; }
+    body.reading-mode-active .reading-video-float .video-fullscreen-button { width: 26px; height: 26px; }
+    body.reading-mode-active .reading-video-pinch-surface {
+      position: absolute;
+      z-index: 11;
+      inset: 0 0 55px;
+      display: block;
+      cursor: grab;
+      pointer-events: auto;
+      touch-action: none;
+    }
+    body.reading-mode-active .reading-video-float.is-dragging .reading-video-pinch-surface { cursor: grabbing; }
+    body.reading-mode-active .reading-video-resize {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      z-index: 12;
+      width: 28px;
+      height: 28px;
+      border: 0;
+      border-radius: 12px 0 0 0;
+      color: rgba(255,255,255,.82);
+      background: linear-gradient(135deg, transparent 44%, rgba(4,14,27,.76) 45%);
+      cursor: nwse-resize;
+      touch-action: none;
+    }
+    .reading-video-resize::before,
+    .reading-video-resize::after { content: ""; position: absolute; right: 5px; bottom: 5px; width: 9px; height: 1px; background: currentColor; transform: rotate(-45deg); transform-origin: right center; }
+    .reading-video-resize::after { right: 4px; bottom: 10px; width: 5px; opacity: .72; }
+    .reading-mode-tip {
+      position: absolute;
+      z-index: 29;
+      left: 50%;
+      bottom: 64px;
+      transform: translateX(-50%);
+      max-width: calc(100% - 24px);
+      padding: 7px 11px;
+      border: 1px solid rgba(90,66,34,.14);
+      border-radius: 999px;
+      color: #625b51;
+      background: rgba(255,253,248,.94);
+      box-shadow: 0 8px 22px rgba(63,45,23,.1);
+      backdrop-filter: blur(10px);
+      font-size: 11px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .2s ease;
+    }
+    .reading-mode-tip.show { opacity: 1; }
+    @container (max-width: 225px) {
+      body.reading-mode-active .reading-video-float #muteButton,
+      body.reading-mode-active .reading-video-float #fastForwardButton { display: none; }
+    }
+
     :focus-visible { outline: 3px solid rgba(186,132,34,.42); outline-offset: 3px; }
 
     @media (max-width: 1120px) {
@@ -571,6 +751,13 @@
       .daf-card .daf-footer { padding: 11px 14px 13px; }
       .sync-note { margin: 12px 13px 0; }
       .about-card { padding: 18px; }
+      body.reading-mode-active main { padding-inline: 6px; }
+      body.reading-mode-active .title-row { padding-inline: 8px; }
+      body.reading-mode-active .daf-card { height: max(620px, calc(100svh - 18px)); min-height: 620px; border-radius: 15px; }
+      body.reading-mode-active .daf-card .vilna-placeholder { padding-inline: 5px; }
+      body.reading-mode-active .reading-mode-entry { min-height: 31px; padding: 6px 8px; gap: 5px; }
+      body.reading-mode-active .reading-video-float { border-radius: 13px; }
+      .reading-mode-tip { bottom: 54px; }
       /* .mobile-nav itself is now rendered by nav.js, styled by the
          shared rules in styles.css (see there) -- this stale, hand-
          duplicated copy (hardcoded href="/" on every link, "Today's
@@ -730,7 +917,9 @@
           <header class="daf-header video-header">
             <div><p class="eyebrow">Shiur video</p><h2>&nbsp;</h2></div>
           </header>
-          <div class="video-frame" id="videoFrame">
+          <div class="reading-video-float" id="readingVideoFloat" role="group" aria-label="Movable shiur video">
+            <div class="reading-video-slot" id="readingVideoSlot">
+              <div class="video-frame" id="videoFrame">
             <video id="video" preload="metadata" playsinline></video>
             <div class="youtube-player-host" id="youtubePlayerHost" hidden>
               <div id="youtubePlayer"></div>
@@ -877,6 +1066,10 @@
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
             </div>
+              </div>
+              <div class="reading-video-pinch-surface" id="readingVideoPinchSurface" role="button" tabindex="0" aria-label="Drag to move the video, pinch to resize, or press Space to play or pause"></div>
+            </div>
+            <span class="reading-video-resize" id="readingVideoResizeHandle" role="button" tabindex="0" aria-label="Drag to resize the video" title="Drag to resize"></span>
           </div>
 
           <!-- Canonical overlay controls, in normal page flow below the
@@ -951,25 +1144,27 @@
           </div>
         </article>
 
-        <aside class="daf-card card" id="dafCard" data-daf-view="text" aria-labelledby="dafTitle">
+        <aside class="daf-card card" id="dafCard" data-daf-view="page" aria-labelledby="dafTitle">
           <header class="daf-header">
             <div><p class="eyebrow">Following</p><h2 id="dafTitle">No daf loaded</h2></div>
             <div class="daf-tools">
-              <div class="view-switch" role="group" aria-label="Daf display mode">
-                <button class="active" data-view="text">Text</button>
-                <button data-view="page" title="Real Vilna-edition page image (private-use source)">Vilna</button>
-                <button data-view="scan" title="Scan a printed page with your camera">Scan</button>
-              </div>
-              <button class="tool-button" id="decrease-text" aria-label="Decrease text size" type="button">A−</button>
-              <button class="tool-button" id="increase-text" aria-label="Increase text size" type="button">A+</button>
+              <button class="reading-mode-entry reading-follow-entry" id="readingVideoFollowButton" type="button" aria-pressed="true" title="Keep the video near the highlighted words">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                <span id="readingVideoFollowLabel">Following</span>
+              </button>
+              <button class="reading-mode-entry" id="readingModeButton" type="button" aria-pressed="false" title="Place the shiur video over the printed daf">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="5.5" y="12" width="8.5" height="5.5" rx="1" fill="currentColor" opacity=".22"/><path d="m9 13.4 3.2 1.85L9 17.1v-3.7Z" fill="currentColor"/><path d="M7 8h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+                <span id="readingModeButtonLabel">Video on daf</span>
+              </button>
             </div>
           </header>
+          <div class="reading-mode-tip" id="readingModeTip" aria-hidden="true">Drag the video to move · pinch to resize · Follow daf tracks the highlighted words</div>
 
           <div class="daf-scroll" id="dafScroll">
-            <div class="daf-page" id="dafPage" dir="rtl" lang="he">
+            <div class="daf-page" id="dafPage" dir="rtl" lang="he" hidden>
               <p class="daf-empty-note">No daf loaded yet. Enter a reference above and press "Load daf."</p>
             </div>
-            <div class="vilna-placeholder" id="vilnaPlaceholder" hidden>
+            <div class="vilna-placeholder" id="vilnaPlaceholder">
               <div class="vilna-zoom-controls" id="vilnaZoomControls">
                 <button class="vilna-zoom-btn" id="vilnaZoomOutButton" type="button" aria-label="Zoom out">−</button>
                 <span id="vilnaZoomLabel">100%</span>
@@ -1384,11 +1579,11 @@
       document.querySelectorAll('[data-icon]').forEach((node) => node.outerHTML = icon(node.dataset.icon, 22));
 
       const dafPage = document.querySelector('#dafPage');
-      document.querySelector('#increase-text').addEventListener('click', () => {
+      document.querySelector('#increase-text')?.addEventListener('click', () => {
         const current = parseFloat(getComputedStyle(dafPage).fontSize);
         dafPage.style.fontSize = `${Math.min(32,current + 2)}px`;
       });
-      document.querySelector('#decrease-text').addEventListener('click', () => {
+      document.querySelector('#decrease-text')?.addEventListener('click', () => {
         const current = parseFloat(getComputedStyle(dafPage).fontSize);
         dafPage.style.fontSize = `${Math.max(18,current - 2)}px`;
       });
