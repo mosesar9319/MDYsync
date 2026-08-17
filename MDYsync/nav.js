@@ -71,8 +71,14 @@ function renderBottomNav() {
 // the compact .site-tabs rule in styles.css) between the brand mark and the
 // account widget.
 function renderDesktopNav() {
+  // side-link matters for player/index.html's own pre-existing sidebar --
+  // its local CSS styles that exact class (not just any <a> inside
+  // .desktop-navigation) into a stacked icon-over-label button; without it
+  // these rendered as plain unstyled/underlined text links. Harmless no-op
+  // on browse/watch/studio, where .site-tabs styles any <a> inside it
+  // regardless of class.
   const linksHtml = NAV_ITEMS.map((item) =>
-    `<a class="${isItemActive(item) ? 'active' : ''}" href="${item.href}" title="${item.label}" aria-label="${item.label}">${navIcon(item.icon)}<span>${item.label}</span></a>`
+    `<a class="side-link${isItemActive(item) ? ' active' : ''}" href="${item.href}" title="${item.label}" aria-label="${item.label}">${navIcon(item.icon)}<span>${item.label}</span></a>`
   ).join('');
 
   const existing = document.querySelector('.desktop-navigation');
