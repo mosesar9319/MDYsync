@@ -5508,6 +5508,14 @@ async function ensureSyncedDapimLoaded() {
   return state.syncedDapim;
 }
 
+// The site only has synced content for one tractate right now -- every
+// tractate picker (the reader-facing daf reference picker, the admin sync
+// dialog, the studio catalog grid) is locked to just this one instead of
+// offering all 36 tractates in talmud_index.json, most of which have
+// nothing synced and aren't even being worked on yet. Add to this list
+// once a second tractate is actually ready to publish.
+const SITE_ACTIVE_TRACTATES = ['Chullin'];
+
 async function loadTalmudIndex() {
   if (!syncState.tractateNames.length) {
     const response = await fetch('/talmud_index.json');
@@ -5523,19 +5531,22 @@ async function loadTalmudIndex() {
   // picker (which is for picking *any* daf, including ones still needing a
   // sync) is unaffected.
   if (state.browseMode) await ensureSyncedDapimLoaded();
-  const optionsHtml = syncState.tractateNames
+  const activeTractateNames = syncState.tractateNames.filter((name) => SITE_ACTIVE_TRACTATES.includes(name));
+  const optionsHtml = activeTractateNames
     .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
   $('syncTractateSelect').innerHTML = optionsHtml;
+  $('syncTractateSelect').disabled = activeTractateNames.length <= 1;
   onSyncTractateChange();
   if ($('dafTractateSelect') && !$('dafTractateSelect').options.length) {
     // Unlike the sync dialog's own tractate picker above (which needs
-    // every tractate -- an admin syncs *unsynced* dapim from there), a
-    // tractate with nothing synced yet is skipped entirely here.
+    // every active tractate -- an admin syncs *unsynced* dapim from
+    // there), a tractate with nothing synced yet is skipped entirely here.
     const dafPickerTractateNames = state.browseMode && state.syncedDapim
-      ? syncState.tractateNames.filter((name) => Object.keys(state.syncedDapim[name] || {}).length)
-      : syncState.tractateNames;
+      ? activeTractateNames.filter((name) => Object.keys(state.syncedDapim[name] || {}).length)
+      : activeTractateNames;
     $('dafTractateSelect').innerHTML = dafPickerTractateNames
       .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+    $('dafTractateSelect').disabled = dafPickerTractateNames.length <= 1;
     refreshDafPickerOptions();
   }
 }

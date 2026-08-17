@@ -117,8 +117,12 @@ function initCatalog() {
   (async () => {
     await loadTalmudIndex();
     const select = $('catalogTractateSelect');
-    select.innerHTML = syncState.tractateNames
+    // SITE_ACTIVE_TRACTATES (app.js) -- same lockdown as the other
+    // tractate pickers, since this site only has one active tractate.
+    const activeTractateNames = syncState.tractateNames.filter((name) => SITE_ACTIVE_TRACTATES.includes(name));
+    select.innerHTML = activeTractateNames
       .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+    select.disabled = activeTractateNames.length <= 1;
     await renderCatalogGrid();
   })();
 }
