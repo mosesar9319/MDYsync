@@ -4859,9 +4859,15 @@ function setSourcePanel(panelId) {
   });
 }
 
-function exportAlignment() {
+// Shared by exportAlignment (downloads a file) and publishAlignment (pushes
+// straight to the results branch) -- both need the same snapshot of the
+// current work, just delivered differently. wordTimeline is included (export
+// alone never carried it before) since it's what word highlighting/tap-to-
+// seek actually key off (see loadAlignmentData) -- publishing without it
+// would silently ship a daf with no word-level sync at all.
+function buildAlignmentPayload() {
   const duration = getDuration() || Number(scrubber.max) || 0;
-  const payload = {
+  return {
     schema: 'dafsync-alignment-v2',
     title: $('lectureTitle').textContent,
     dafRef: state.dafRef,
@@ -4870,10 +4876,71 @@ function exportAlignment() {
     projectId: state.currentProjectId,
     alignmentStatus: state.alignmentStatus,
     generatedAt: new Date().toISOString(),
-    segments: state.segments
+    segments: state.segments,
+    wordTimeline: state.wordTimeline
   };
-  downloadJson(payload, `${slugify(state.dafRef)}-alignment.json`);
+}
+
+function exportAlignment() {
+  downloadJson(buildAlignmentPayload(), `${slugify(state.dafRef)}-alignment.json`);
   showToast('Synchronization JSON exported with its video source.');
+}
+
+// Pushes the current alignment straight to the results branch via
+// publish-alignment.mjs -- previously only reachable through the desktop
+// app's own "Sync" button, requiring an export-then-reimport round trip to
+// get web-made corrections (e.g. from Mark words) actually live for other
+// readers. That endpoint has no notion of the voice-recognition engine's
+// separate key space (see refKey's Voice- prefix, used only by
+// trigger-voice-job.mjs/voice-job.yml) -- it always writes under the
+// caption-OCR keys, so publishing a voice-sourced alignment through it would
+// silently mislabel/overwrite the wrong thing.
+async function publishAlignment() {
+  if (!state.segments.length) {
+    showToast('Nothing to publish yet.', 'error');
+    return;
+  }
+  if (state.activeSyncMethod === 'voice') {
+    showToast('Publishing isn’t available for voice-recognition alignments yet -- export and use the desktop app instead.', 'error');
+    return;
+  }
+  // A single video/sync can cover more than one daf (see refKey()'s own
+  // comment) -- publish under every one its segments actually reference, the
+  // same way the desktop app's publish already does, so any of them resolves
+  // it.
+  const refSet = new Set();
+  for (const segment of state.segments) {
+    const parsed = parseDafRef(segment.ref);
+    if (parsed) refSet.add(`${parsed.tractate} ${parsed.daf}${parsed.amud}`);
+  }
+  if (!refSet.size) {
+    showToast('Could not tell which daf(s) this alignment covers.', 'error');
+    return;
+  }
+  const refs = [...refSet];
+  const parsedDafRef = parseDafRef(state.dafRef);
+  const variant = parsedDafRef?.variant === 'chazarah' ? 'chazarah' : 'regular';
+  const language = parsedDafRef?.language === 'he' ? 'he' : 'en';
+  if (!confirm(`Publish this alignment live for ${refs.join(', ')}? This replaces whatever's currently synced there for every reader.`)) return;
+
+  const button = $('publishAlignmentButton');
+  const original = button?.textContent;
+  if (button) { button.disabled = true; button.textContent = 'Publishing…'; }
+  try {
+    const response = await fetch('/api/publish-alignment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refs, variant, language, alignment: buildAlignmentPayload() }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `Server returned ${response.status}`);
+    showToast(`Published live for ${refs.join(', ')}.`);
+  } catch (error) {
+    console.error(error);
+    showToast(`Could not publish: ${error.message}`, 'error');
+  } finally {
+    if (button) { button.disabled = false; button.textContent = original || 'Publish live'; }
+  }
 }
 
 function downloadJson(data, filename) {
@@ -5390,6 +5457,7 @@ $('dafRef').addEventListener('keydown', (event) => { if (event.key === 'Enter') 
 $('alignmentInput').addEventListener('change', (event) => importAlignment(event.target.files?.[0]));
 $('transcriptInput').addEventListener('change', (event) => importTranscript(event.target.files?.[0]));
 $('exportButton').addEventListener('click', exportAlignment);
+$('publishAlignmentButton')?.addEventListener('click', publishAlignment);
 $('evenSpacingButton').addEventListener('click', () => resetEvenSpacing(false));
 // Optional chaining: this button only exists on pages with the alignment
 // editor's phrase-splitting UI (player/studio) -- not watch/index.html or
