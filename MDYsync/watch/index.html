@@ -542,11 +542,36 @@
     </div>
   </dialog>
 
+  <dialog id="noteDialog">
+    <button class="dialog-close" id="closeNoteDialog" aria-label="Close">×</button>
+    <div class="eyebrow" id="noteDialogRef">Note</div>
+    <h2>Line notes</h2>
+    <p class="dialog-note" id="noteDialogText"></p>
+    <div class="note-list" id="noteList">
+      <p class="field-note">Loading notes…</p>
+    </div>
+    <div class="note-compose" id="noteCompose" hidden>
+      <div class="note-privacy-toggle" id="notePrivacyToggle" role="group" aria-label="Note visibility">
+        <button type="button" class="note-privacy-option active" data-privacy="private">🔒 Private</button>
+        <button type="button" class="note-privacy-option" data-privacy="live">🌐 Live</button>
+      </div>
+      <textarea id="noteBodyInput" maxlength="2000" rows="3" placeholder="Write a note on this line…"></textarea>
+      <div class="note-compose-actions">
+        <span class="field-note" id="notePrivacyHint">Only you will see this note.</span>
+        <button class="button primary small" id="saveNoteButton" type="button">Save note</button>
+      </div>
+    </div>
+    <p class="dialog-note" id="noteSignInPrompt" hidden>
+      <button class="button secondary small" id="noteSignInButton" type="button">Sign in to add a note</button>
+    </p>
+  </dialog>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="../vendor/supabase-js.min.js"></script>
   <script src="../auth.js"></script>
   <script src="../app.js" defer></script>
   <script src="../account-features.js" defer></script>
+  <script src="../notes.js" defer></script>
   <script src="../nav.js" defer></script>
 </body>
 </html>

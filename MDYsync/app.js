@@ -673,17 +673,39 @@ function buildSegmentSpan(segment, index) {
   span.className = classes.join(' ');
   span.dataset.index = String(index);
   span.dataset.start = String(segment.start);
+  span.dataset.ref = segment.ref || '';
   span.tabIndex = 0;
   span.setAttribute('role', 'button');
   span.setAttribute('aria-label', `Jump to ${formatTime(segment.start)}: ${segment.he}`);
   span.innerHTML = `<sup class="segment-marker">${index + 1}</sup>${escapeHtml(segment.he)} `;
-  span.addEventListener('click', () => seekToSegment(index));
+  span.addEventListener('click', () => {
+    hapticTap();
+    seekToSegment(index);
+  });
   span.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
+      hapticTap();
       seekToSegment(index);
     }
   });
+  // The note button only exists on pages that ship notes.js's dialog markup
+  // (browse/player/watch) -- studio has no #noteDialog, so this stays a
+  // silent no-op there instead of needing its own page-mode check.
+  if (segment.ref && document.getElementById('noteDialog')) {
+    const noteButton = document.createElement('button');
+    noteButton.type = 'button';
+    noteButton.className = 'segment-note-button';
+    noteButton.dataset.ref = segment.ref;
+    noteButton.title = 'Notes for this line';
+    noteButton.setAttribute('aria-label', 'Notes for this line');
+    noteButton.textContent = '🗒';
+    noteButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      window.DafNotes?.open(segment.ref, segment.he);
+    });
+    span.appendChild(noteButton);
+  }
   return span;
 }
 
@@ -1190,6 +1212,16 @@ function toggleVilnaFullscreen() {
   }
 }
 
+// Word/segment taps across every daf view (Vilna page, scanned photo, video
+// overlay, plain text) share this -- a short buzz confirming the tap
+// registered. Android's Chrome/WebView support the Vibration API; iOS Safari
+// has never implemented it (a hard platform limitation with no workaround
+// from a web page), so this is a silent no-op there rather than something
+// that needs feature-specific handling per call site.
+function hapticTap() {
+  navigator.vibrate?.(15);
+}
+
 // Renders one persistent, clickable div per word on the page -- not just
 // the ones currently playing -- so a reader can click any word to jump the
 // video there, not only the word already lit up. updateVilnaOverlay below
@@ -1209,6 +1241,7 @@ function renderVilnaWordBoxes() {
     el.style.width = `${box.w * 100}%`;
     el.style.height = `${box.h * 100}%`;
     el.addEventListener('click', () => {
+      hapticTap();
       // The Daf browser has its own (initially hidden) video player on the
       // same page -- a tap reveals and plays into that in place instead of
       // navigating away (same idea as the scan feature's tapScannedWord).
@@ -2283,7 +2316,10 @@ async function showScanResult(result) {
     el.style.height = `${box.h * 100}%`;
     el.tabIndex = 0;
     el.setAttribute('role', 'button');
-    el.addEventListener('click', () => tapScannedWord(box.ref, box.wordIndex));
+    el.addEventListener('click', () => {
+      hapticTap();
+      tapScannedWord(box.ref, box.wordIndex);
+    });
     overlay.appendChild(el);
     state.scanWordEls.set(`${box.ref}:${box.wordIndex}`, el);
   }
@@ -2837,7 +2873,10 @@ function handleVideoOverlayClick(event) {
   const box = state.vilnaPageMap.wordBoxes.find(
     (b) => xFrac >= b.x && xFrac <= b.x + b.w && yFrac >= b.y && yFrac <= b.y + b.h
   );
-  if (box) seekToVilnaWord(box.ref, box.wordIndex);
+  if (box) {
+    hapticTap();
+    seekToVilnaWord(box.ref, box.wordIndex);
+  }
 }
 
 // Drag-to-pan and pinch-to-zoom on the video overlay, so a user can choose
