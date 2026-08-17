@@ -514,10 +514,10 @@
     .daf-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px 17px; color: var(--muted); border-top: 1px solid var(--line); font-size: 12px; }
 
     /* Reading Mode reverses the existing Vilna-on-video overlay: the daf
-       becomes the primary, full-width surface and the ONE live player is
-       moved into this floating shell. Moving the real frame (rather than
-       starting a second YouTube embed) preserves playback position, quality,
-       and the synchronization clock without a reload. */
+       becomes the primary, full-width surface and the existing player card
+       becomes a floating shell. #videoFrame permanently stays in this same
+       DOM branch, so switching views cannot reload the YouTube iframe or
+       interrupt its timestamp, buffer, quality, or playing state. */
     .reading-mode-entry {
       display: inline-flex;
       align-items: center;
@@ -537,9 +537,26 @@
     .reading-mode-entry.active { color: #fff; background: var(--navy); border-color: var(--navy); }
     .reading-mode-entry svg { width: 16px; height: 16px; flex: 0 0 auto; }
     .daf-card:not([data-daf-view="page"]) .reading-mode-entry { display: none; }
+    .reading-follow-entry { display: none; }
+    body.reading-mode-active .reading-follow-entry { display: inline-flex; }
 
-    body.reading-mode-active .watch-layout { display: block; }
-    body.reading-mode-active .watch-layout > .player-card { display: none; }
+    body.reading-mode-active .watch-layout { position: relative; display: block; }
+    body.reading-mode-active .watch-layout > .player-card {
+      position: absolute;
+      z-index: 30;
+      inset: 0;
+      display: block;
+      min-height: 0;
+      padding: 0;
+      overflow: visible;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+      backdrop-filter: none;
+      pointer-events: none;
+    }
+    body.reading-mode-active .player-card > :not(.reading-video-float) { display: none !important; }
     body.reading-mode-active .daf-card {
       position: relative;
       top: auto;
@@ -554,7 +571,18 @@
     body.reading-mode-active .daf-card .vilna-page-wrap { width: 100%; max-width: 940px; }
     body.reading-mode-active .about-card { max-width: 1320px; margin-inline: auto; }
 
+    /* In split view this wrapper is deliberately layout-neutral. Reading
+       Mode adds the floating shell without ever moving its live video. */
     .reading-video-float {
+      width: 100%;
+      min-width: 0;
+    }
+    body:not(.reading-mode-active) .reading-video-float { width: 100% !important; }
+    .reading-video-header,
+    .reading-video-resize,
+    .reading-video-pinch-surface { display: none; }
+    .reading-video-slot { position: relative; width: 100%; }
+    body.reading-mode-active .reading-video-float {
       position: absolute;
       z-index: 30;
       left: 18px;
@@ -571,22 +599,23 @@
       transition: left .28s ease, top .28s ease, width .18s ease, box-shadow .18s ease;
       isolation: isolate;
       container-type: inline-size;
+      pointer-events: auto;
     }
-    .reading-video-float.is-dragging,
-    .reading-video-float.is-resizing { transition: none; box-shadow: 0 24px 62px rgba(4,14,27,.46), 0 0 0 2px rgba(186,132,34,.42); }
-    .reading-video-header {
-      height: 38px;
+    body.reading-mode-active .reading-video-float.is-dragging,
+    body.reading-mode-active .reading-video-float.is-resizing { transition: none; box-shadow: 0 24px 62px rgba(4,14,27,.46), 0 0 0 2px rgba(186,132,34,.42); }
+    body.reading-mode-active .reading-video-header {
+      height: 28px;
       display: flex;
       align-items: center;
-      gap: 7px;
-      padding: 0 7px 0 8px;
+      gap: 4px;
+      padding: 0 4px;
       background: linear-gradient(180deg, #132941, #0a1d31);
       border-bottom: 1px solid rgba(255,255,255,.11);
       user-select: none;
     }
     .reading-video-grip {
-      width: 24px;
-      height: 26px;
+      width: 26px;
+      height: 28px;
       display: grid;
       place-items: center;
       flex: 0 0 auto;
@@ -597,16 +626,16 @@
     }
     .reading-video-grip:hover { color: #fff; background: rgba(255,255,255,.08); }
     .reading-video-grip:active { cursor: grabbing; }
-    .reading-video-caption { min-width: 0; margin-right: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgba(255,255,255,.88); font-size: 11px; font-weight: 700; }
-    .reading-video-actions { display: flex; align-items: center; gap: 3px; flex: 0 0 auto; }
+    .reading-video-caption { min-width: 0; margin-right: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgba(255,255,255,.82); font-size: 10px; font-weight: 700; }
+    .reading-video-actions { display: flex; align-items: center; gap: 1px; flex: 0 0 auto; }
     .reading-video-action {
-      min-width: 25px;
-      height: 25px;
+      min-width: 22px;
+      height: 22px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 4px;
-      padding: 0 6px;
+      padding: 0 5px;
       border: 0;
       border-radius: 7px;
       color: rgba(255,255,255,.75);
@@ -617,22 +646,30 @@
     .reading-video-action:hover { color: #fff; background: rgba(255,255,255,.1); }
     .reading-video-action.active { color: #132216; background: #ead39f; }
     .reading-video-action svg { width: 13px; height: 13px; }
-    .reading-video-slot { width: 100%; background: #020812; }
-    .reading-video-slot .video-frame { width: 100%; border: 0; border-radius: 0; }
+    body.reading-mode-active .reading-video-slot { background: #020812; }
+    body.reading-mode-active .reading-video-slot .video-frame { width: 100%; border: 0; border-radius: 0; }
     /* The inverse overlay cannot be enabled while the player itself is on
        the daf; keep its fullscreen widget out of this deliberately simple
        mini-player surface as well. */
-    .reading-video-float .overlay-controls,
-    .reading-video-float .video-source-badge { display: none !important; }
-    .reading-video-float .scrubber-wrap { bottom: 34px; height: 21px; padding: 8px 8px 0; }
-    .reading-video-float .player-controls { height: 34px; padding: 0 36px 0 7px; gap: 4px; }
-    .reading-video-float .time-row,
-    .reading-video-float .volume-slider,
-    .reading-video-float .control-divider:not(.control-divider-end) { display: none; }
-    .reading-video-float .icon-button { width: 25px; height: 25px; border-radius: 7px; }
-    .reading-video-float .play-button { width: 27px; height: 27px; }
-    .reading-video-float .video-fullscreen-button { width: 26px; height: 26px; }
-    .reading-video-resize {
+    body.reading-mode-active .reading-video-float .overlay-controls,
+    body.reading-mode-active .reading-video-float .video-source-badge { display: none !important; }
+    body.reading-mode-active .reading-video-float .scrubber-wrap { bottom: 34px; height: 21px; padding: 8px 8px 0; }
+    body.reading-mode-active .reading-video-float .player-controls { height: 34px; padding: 0 36px 0 7px; gap: 4px; }
+    body.reading-mode-active .reading-video-float .time-row,
+    body.reading-mode-active .reading-video-float .volume-slider,
+    body.reading-mode-active .reading-video-float .control-divider:not(.control-divider-end) { display: none; }
+    body.reading-mode-active .reading-video-float .icon-button { width: 25px; height: 25px; border-radius: 7px; }
+    body.reading-mode-active .reading-video-float .play-button { width: 27px; height: 27px; }
+    body.reading-mode-active .reading-video-float .video-fullscreen-button { width: 26px; height: 26px; }
+    body.reading-mode-active .reading-video-pinch-surface {
+      position: absolute;
+      z-index: 11;
+      inset: 0 0 55px;
+      display: block;
+      pointer-events: none;
+      touch-action: none;
+    }
+    body.reading-mode-active .reading-video-resize {
       position: absolute;
       right: 0;
       bottom: 0;
@@ -671,13 +708,15 @@
     }
     .reading-mode-tip.show { opacity: 1; }
     @container (max-width: 280px) {
-      .reading-video-caption,
-      #readingVideoFollowLabel { display: none; }
+      .reading-video-caption { display: none; }
       .reading-video-action { padding-inline: 5px; }
     }
     @container (max-width: 225px) {
-      .reading-video-float #muteButton,
-      .reading-video-float #fastForwardButton { display: none; }
+      body.reading-mode-active .reading-video-float #muteButton,
+      body.reading-mode-active .reading-video-float #fastForwardButton { display: none; }
+    }
+    @media (any-pointer: coarse) {
+      body.reading-mode-active .reading-video-pinch-surface { pointer-events: auto; }
     }
 
     :focus-visible { outline: 3px solid rgba(186,132,34,.42); outline-offset: 3px; }
@@ -742,11 +781,14 @@
       body.reading-mode-active .title-row { padding-inline: 8px; }
       body.reading-mode-active .daf-card { height: max(620px, calc(100svh - 18px)); min-height: 620px; border-radius: 15px; }
       body.reading-mode-active .daf-card .vilna-placeholder { padding-inline: 5px; }
-      .reading-mode-entry { padding-inline: 9px; }
-      .reading-video-float { border-radius: 13px; }
-      .reading-video-caption { display: none; }
-      .reading-video-header { gap: 3px; }
-      .reading-video-action { padding-inline: 5px; }
+      body.reading-mode-active .reading-mode-entry { min-height: 31px; padding: 6px 8px; gap: 5px; }
+      body.reading-mode-active .reading-video-float { border-radius: 13px; }
+      body.reading-mode-active .reading-video-caption,
+      body.reading-mode-active #readingVideoSmallerButton,
+      body.reading-mode-active #readingVideoLargerButton { display: none; }
+      body.reading-mode-active .reading-video-header { height: 26px; gap: 1px; padding-inline: 2px; }
+      body.reading-mode-active .reading-video-grip { height: 26px; }
+      body.reading-mode-active .reading-video-action { padding-inline: 4px; }
       .reading-mode-tip { bottom: 54px; }
       /* .mobile-nav itself is now rendered by nav.js, styled by the
          shared rules in styles.css (see there) -- this stale, hand-
@@ -907,7 +949,20 @@
           <header class="daf-header video-header">
             <div><p class="eyebrow">Shiur video</p><h2>&nbsp;</h2></div>
           </header>
-          <div class="video-frame" id="videoFrame">
+          <div class="reading-video-float" id="readingVideoFloat" role="group" aria-label="Movable shiur video">
+            <div class="reading-video-header">
+              <span class="reading-video-grip" id="readingVideoDragHandle" role="button" tabindex="0" aria-label="Drag the video around the daf" title="Drag to move">
+                <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 3v18M3 12h18M8 7l4-4 4 4M8 17l4 4 4-4M7 8l-4 4 4 4M17 8l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+              <span class="reading-video-caption">Drag video</span>
+              <div class="reading-video-actions">
+                <button class="reading-video-action" id="readingVideoSmallerButton" type="button" aria-label="Make video smaller" title="Make video smaller">−</button>
+                <button class="reading-video-action" id="readingVideoLargerButton" type="button" aria-label="Make video larger" title="Make video larger">+</button>
+                <button class="reading-video-action" id="readingVideoCloseButton" type="button" aria-label="Exit Reading Mode" title="Exit Reading Mode">×</button>
+              </div>
+            </div>
+            <div class="reading-video-slot" id="readingVideoSlot">
+              <div class="video-frame" id="videoFrame">
             <video id="video" preload="metadata" playsinline></video>
             <div class="youtube-player-host" id="youtubePlayerHost" hidden>
               <div id="youtubePlayer"></div>
@@ -1054,6 +1109,10 @@
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
             </div>
+              </div>
+              <div class="reading-video-pinch-surface" id="readingVideoPinchSurface" aria-hidden="true"></div>
+            </div>
+            <span class="reading-video-resize" id="readingVideoResizeHandle" role="button" tabindex="0" aria-label="Drag to resize the video" title="Drag to resize"></span>
           </div>
 
           <!-- Canonical overlay controls, in normal page flow below the
@@ -1132,33 +1191,17 @@
           <header class="daf-header">
             <div><p class="eyebrow">Following</p><h2 id="dafTitle">No daf loaded</h2></div>
             <div class="daf-tools">
+              <button class="reading-mode-entry reading-follow-entry" id="readingVideoFollowButton" type="button" aria-pressed="true" title="Keep the video near the highlighted words">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                <span id="readingVideoFollowLabel">Following</span>
+              </button>
               <button class="reading-mode-entry" id="readingModeButton" type="button" aria-pressed="false" title="Place the shiur video over the printed daf">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="5.5" y="12" width="8.5" height="5.5" rx="1" fill="currentColor" opacity=".22"/><path d="m9 13.4 3.2 1.85L9 17.1v-3.7Z" fill="currentColor"/><path d="M7 8h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
                 <span id="readingModeButtonLabel">Video on daf</span>
               </button>
             </div>
           </header>
-
-          <div class="reading-video-float" id="readingVideoFloat" hidden role="group" aria-label="Movable shiur video">
-            <div class="reading-video-header">
-              <span class="reading-video-grip" id="readingVideoDragHandle" role="button" tabindex="0" aria-label="Drag the video around the daf" title="Drag to move">
-                <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 3v18M3 12h18M8 7l4-4 4 4M8 17l4 4 4-4M7 8l-4 4 4 4M17 8l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </span>
-              <span class="reading-video-caption">Shiur over the daf</span>
-              <div class="reading-video-actions">
-                <button class="reading-video-action active" id="readingVideoFollowButton" type="button" aria-pressed="true" title="Keep the video near the highlighted words">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                  <span id="readingVideoFollowLabel">Following</span>
-                </button>
-                <button class="reading-video-action" id="readingVideoSmallerButton" type="button" aria-label="Make video smaller" title="Make video smaller">−</button>
-                <button class="reading-video-action" id="readingVideoLargerButton" type="button" aria-label="Make video larger" title="Make video larger">+</button>
-                <button class="reading-video-action" id="readingVideoCloseButton" type="button" aria-label="Exit Reading Mode" title="Exit Reading Mode">×</button>
-              </div>
-            </div>
-            <div class="reading-video-slot" id="readingVideoSlot"></div>
-            <span class="reading-video-resize" id="readingVideoResizeHandle" role="button" tabindex="0" aria-label="Drag to resize the video" title="Drag to resize"></span>
-          </div>
-          <div class="reading-mode-tip" id="readingModeTip" aria-hidden="true">Drag the top handle to move · drag the corner or use −/+ to resize · Following keeps pace with the highlighted words</div>
+          <div class="reading-mode-tip" id="readingModeTip" aria-hidden="true">Drag the slim top handle to move · pinch the video or drag its corner to resize · Follow daf keeps pace with the highlighted words</div>
 
           <div class="daf-scroll" id="dafScroll">
             <div class="daf-page" id="dafPage" dir="rtl" lang="he" hidden>
