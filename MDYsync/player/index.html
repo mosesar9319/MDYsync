@@ -570,6 +570,29 @@
     body.reading-mode-active .daf-card .vilna-placeholder { padding-inline: clamp(10px, 4vw, 48px); }
     body.reading-mode-active .daf-card .vilna-page-wrap { width: 100%; max-width: 940px; }
     body.reading-mode-active .about-card { max-width: 1320px; margin-inline: auto; }
+    /* The shared watch surface—not only .daf-card—is the fullscreen target
+       in Reading Mode, because the uninterrupted live player is its sibling.
+       Fill the top layer with the daf while the absolute player container
+       remains above it. */
+    body.reading-mode-active .watch-layout:fullscreen,
+    body.reading-mode-active .watch-layout:-webkit-full-screen {
+      width: 100vw;
+      height: 100vh;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #f5f0e7;
+    }
+    body.reading-mode-active .watch-layout:fullscreen .daf-card,
+    body.reading-mode-active .watch-layout:-webkit-full-screen .daf-card {
+      width: 100%;
+      max-width: none;
+      height: 100%;
+      min-height: 0;
+      margin: 0;
+      border-radius: 0;
+      box-shadow: none;
+    }
 
     /* In split view this wrapper is deliberately layout-neutral. Reading
        Mode adds the floating shell without ever moving its live video. */

@@ -1225,11 +1225,22 @@ async function rerenderVilnaPageForZoom() {
 function toggleVilnaFullscreen() {
   const card = document.querySelector('.daf-card');
   if (!card) return;
-  if (document.fullscreenElement === card) {
-    document.exitFullscreen();
-  } else {
-    card.requestFullscreen?.().catch((error) => showToast(`Fullscreen not available: ${error.message}`, 'error'));
+  // In Reading Mode the live player is a sibling of the daf card. Browser
+  // fullscreen only paints the chosen element and its descendants, so
+  // fullscreen the shared watch surface to keep both the daf and mini-player
+  // visible without moving/reloading the YouTube iframe. Everywhere else the
+  // daf card remains the correct, smaller fullscreen target.
+  const watchSurface = card.closest('.watch-layout');
+  const target = state.readingModeEnabled && !state.browseMode && watchSurface ? watchSurface : card;
+  const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
+  if (fullscreenElement) {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen;
+    if (exit) Promise.resolve(exit.call(document)).catch((error) => showToast(`Could not exit fullscreen: ${error.message}`, 'error'));
+    return;
   }
+  const request = target.requestFullscreen || target.webkitRequestFullscreen;
+  if (!request) return showToast('Fullscreen is not available in this browser.', 'error');
+  Promise.resolve(request.call(target)).catch((error) => showToast(`Fullscreen not available: ${error.message}`, 'error'));
 }
 
 // Renders one persistent, clickable div per word on the page -- not just
@@ -3316,12 +3327,18 @@ function applyVideoOverlayEnabled(enabled) {
 function updateReadingModeUi() {
   const button = $('readingModeButton');
   const label = $('readingModeButtonLabel');
+  const fullscreenButton = $('vilnaFullscreenButton');
   if (button) {
     button.classList.toggle('active', state.readingModeEnabled);
     button.setAttribute('aria-pressed', String(state.readingModeEnabled));
     button.title = state.readingModeEnabled ? 'Return to split view' : 'Place the shiur video over the printed daf';
   }
   if (label) label.textContent = state.readingModeEnabled ? 'Exit mode' : 'Video on daf';
+  if (fullscreenButton) {
+    const title = state.readingModeEnabled ? 'Fullscreen daf and video' : 'Fullscreen daf';
+    fullscreenButton.title = title;
+    fullscreenButton.setAttribute('aria-label', title);
+  }
 }
 
 function showReadingModeTip() {
@@ -3617,13 +3634,16 @@ function setReadingMode(enabled) {
     placeReadingVideo(pos.left, pos.top);
     scheduleVilnaPageLayoutRefresh(120);
   });
-  document.addEventListener('fullscreenchange', () => {
+  function handleReadingModeFullscreenChange() {
     if (!state.readingModeEnabled) return;
     requestAnimationFrame(() => {
       setReadingVideoWidth(state.readingVideoWidth || float.offsetWidth, { persist: false });
       restoreReadingVideoPlacement();
+      scheduleVilnaPageLayoutRefresh(0);
     });
-  });
+  }
+  document.addEventListener('fullscreenchange', handleReadingModeFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', handleReadingModeFullscreenChange);
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && state.readingModeEnabled && !document.fullscreenElement && !document.querySelector('dialog[open]')) {
       setReadingMode(false);
