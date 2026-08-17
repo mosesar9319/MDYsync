@@ -408,13 +408,19 @@ h2 { margin-bottom: 0; }
   from { opacity: 0; }
   to { opacity: 1; }
 }
-/* The word about to be marked (vilnaMarkMode) -- an outline, not a fill, so
-   it stays visible layered under/next to .active's solid yellow fill
+/* The phrase about to be marked (vilnaMarkMode) -- a separate overlay of
+   whole-line rectangles built by updateVilnaMarkTarget (app.js), not a class
+   toggled per word box, so a multi-word target renders as one clean outline
+   per printed line instead of many overlapping (deliberately oversized, for
+   easier tapping) individual word boxes. An outline, not a fill, so it stays
+   visible layered under/next to .vilna-word-box.active's solid yellow fill
    instead of the two competing for the same pixels. */
-.vilna-word-box.mark-target {
+.vilna-mark-target-overlay { position: absolute; inset: 0; pointer-events: none; }
+.vilna-mark-target-rect {
+  position: absolute;
   outline: 2px dashed rgba(159, 85, 0, .8);
   outline-offset: 1px;
-  border-radius: 3px;
+  border-radius: 4px;
 }
 .vilna-mark-toggle { width: auto; padding: 0 10px; font-size: 12px; white-space: nowrap; }
 .vilna-mark-toggle.active { background: var(--accent-strong); color: #06201c; border-color: transparent; }

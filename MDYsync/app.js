@@ -2724,27 +2724,59 @@ function updateVilnaOverlay() {
 // or mark mode itself is toggled, not on every playback tick, so it doesn't
 // need updateVilnaOverlay's dedup-key guard.
 function updateVilnaMarkTarget() {
-  if (!state.vilnaWordEls) return;
+  const overlay = $('vilnaMarkTargetOverlay');
+  if (!overlay) return;
+  overlay.innerHTML = '';
+  // No target box at all is a clearer state than a wrong one when the
+  // segment being corrected has no known word-level boundaries yet (w0/w1
+  // null -- the normal starting state before any mark-mode correction has
+  // been made for it, not a rare edge case) -- the phrase itself is still
+  // visible via mark-target-segment/mark-target-row in the text panel and
+  // editor table.
   const target = state.vilnaMarkMode ? state.segments[state.editingIndex] : null;
   const hasRange = target && target.w0 !== null && target.w1 !== null;
-  // Unlike updateVilnaOverlay's "currently playing" highlight (where falling
-  // back to the whole phrase when word-level boundaries aren't known yet is
-  // a reasonable approximation), that same fallback here means every word
-  // box in a segment gets the dashed mark-target outline at once the moment
-  // an admin starts correcting a segment that's never been word-marked
-  // before -- the normal, common starting state, not an edge case. With
-  // each box already deliberately oversized (scale(1.2, 1.7), for an easier
-  // tap target) for hit-testing, dozens of overlapping dashed outlines
-  // across several lines render as one unreadable block instead of
-  // anything a reader could click precisely. No target box is a clearer
-  // starting state than a wrong one -- the phrase itself is still visible
-  // via mark-target-segment/mark-target-row in the text panel/editor table.
-  for (const box of state.vilnaPageMap?.wordBoxes || []) {
-    const el = state.vilnaWordEls.get(`${box.ref}:${box.wordIndex}`);
-    if (!el) continue;
-    const hit = Boolean(target) && hasRange && box.ref === target.ref
-      && box.wordIndex >= target.w0 && box.wordIndex <= target.w1;
-    el.classList.toggle('mark-target', hit);
+  if (!target || !hasRange) return;
+  const boxes = (state.vilnaPageMap?.wordBoxes || [])
+    .filter((box) => box.ref === target.ref && box.wordIndex >= target.w0 && box.wordIndex <= target.w1)
+    .sort((a, b) => a.wordIndex - b.wordIndex);
+  if (!boxes.length) return;
+  // One outline per printed *line* the marked phrase covers, not one per
+  // word box -- each box is deliberately oversized (scale(1.2, 1.7), for an
+  // easier tap target), so outlining every one individually rendered a
+  // multi-word target as several overlapping oversized dashed rectangles: a
+  // jagged, hard-to-read block instead of a clean selection. Boxes are
+  // already in reading order (sorted by wordIndex above); a jump in y bigger
+  // than roughly half a line's own height means a line break, not just
+  // normal word-to-word spacing on the same line.
+  const rows = [];
+  let current = [];
+  let prevBox = null;
+  for (const box of boxes) {
+    if (prevBox && Math.abs(box.y - prevBox.y) > prevBox.h * 0.6) {
+      rows.push(current);
+      current = [];
+    }
+    current.push(box);
+    prevBox = box;
+  }
+  if (current.length) rows.push(current);
+  for (const row of rows) {
+    const left = Math.min(...row.map((b) => b.x));
+    const right = Math.max(...row.map((b) => b.x + b.w));
+    const top = Math.min(...row.map((b) => b.y));
+    const bottom = Math.max(...row.map((b) => b.y + b.h));
+    // A little breathing room around the tight glyph bounds, same spirit as
+    // .vilna-word-box's own oversize -- proportional to the row's own size
+    // instead of a fixed amount, so it still looks right at any zoom level.
+    const padX = (right - left) * 0.04 + 0.004;
+    const padY = (bottom - top) * 0.18 + 0.002;
+    const rect = document.createElement('div');
+    rect.className = 'vilna-mark-target-rect';
+    rect.style.left = `${(left - padX) * 100}%`;
+    rect.style.top = `${(top - padY) * 100}%`;
+    rect.style.width = `${(right - left + padX * 2) * 100}%`;
+    rect.style.height = `${(bottom - top + padY * 2) * 100}%`;
+    overlay.appendChild(rect);
   }
 }
 
