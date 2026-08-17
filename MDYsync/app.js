@@ -673,6 +673,7 @@ function buildSegmentSpan(segment, index) {
   span.className = classes.join(' ');
   span.dataset.index = String(index);
   span.dataset.start = String(segment.start);
+  span.dataset.ref = segment.ref || '';
   span.tabIndex = 0;
   span.setAttribute('role', 'button');
   span.setAttribute('aria-label', `Jump to ${formatTime(segment.start)}: ${segment.he}`);
@@ -688,6 +689,23 @@ function buildSegmentSpan(segment, index) {
       seekToSegment(index);
     }
   });
+  // The note button only exists on pages that ship notes.js's dialog markup
+  // (browse/player/watch) -- studio has no #noteDialog, so this stays a
+  // silent no-op there instead of needing its own page-mode check.
+  if (segment.ref && document.getElementById('noteDialog')) {
+    const noteButton = document.createElement('button');
+    noteButton.type = 'button';
+    noteButton.className = 'segment-note-button';
+    noteButton.dataset.ref = segment.ref;
+    noteButton.title = 'Notes for this line';
+    noteButton.setAttribute('aria-label', 'Notes for this line');
+    noteButton.textContent = '🗒';
+    noteButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      window.DafNotes?.open(segment.ref, segment.he);
+    });
+    span.appendChild(noteButton);
+  }
   return span;
 }
 
