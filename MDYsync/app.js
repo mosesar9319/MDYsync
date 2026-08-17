@@ -2666,7 +2666,23 @@ async function tapScannedWord(wordRef, wordIndex) {
 // reuses setSegmentStart so this banks/autosaves exactly like every other
 // correction path already does.
 function markSegmentAtVilnaWord(ref, wordIndex) {
-  const index = state.segments.findIndex((s) => s.ref === ref && s.w0 !== null && wordIndex >= s.w0 && wordIndex <= s.w1);
+  // Prefer the phrase actually being corrected (state.editingIndex, the
+  // "next phrase to mark" the dashed outline points at) over any other
+  // segment that merely happens to share this ref and word range -- a
+  // paragraph the rebbe revisits or repeats later in the shiur can produce
+  // several same-ref segments with the same (or overlapping) w0/w1 word
+  // range but wildly different start times (confirmed in real synced data:
+  // one ref in Chullin 100a has 26 such segments spanning a 200+ second
+  // range). A blind first-array-match (state.segments is sorted by start
+  // time) always resolved to whichever occurrence happens to sort earliest,
+  // not the one actually on screen/being worked on -- surfacing to an admin
+  // as the mark landing on an unrelated phrase elsewhere in the shiur.
+  const editing = state.segments[state.editingIndex];
+  const editingMatches = editing && editing.ref === ref
+    && (editing.w0 === null || (wordIndex >= editing.w0 && wordIndex <= editing.w1));
+  const index = editingMatches
+    ? state.editingIndex
+    : state.segments.findIndex((s) => s.ref === ref && s.w0 !== null && wordIndex >= s.w0 && wordIndex <= s.w1);
   const resolvedIndex = index !== -1 ? index : state.segments.findIndex((s) => s.ref === ref);
   if (resolvedIndex === -1) return;
   const time = getCurrentTime();
