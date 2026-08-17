@@ -1261,8 +1261,8 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
           <div class="card-grid" id="card-grid"></div>
           <div class="empty-state" id="empty-state" hidden>
             <span data-icon="search"></span>
-            <h3>No shiurim found</h3>
-            <p>Try another masechta, daf, or maggid shiur.</p>
+            <h3 id="empty-title">No shiurim found</h3>
+            <p id="empty-message">Try another masechta, daf, or maggid shiur.</p>
             <button id="empty-clear" type="button">Clear search</button>
           </div>
         </section>
@@ -1432,10 +1432,13 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         for (const tractate of SITE_TRACTATES) {
           for (const row of data.tractates?.[tractate] || []) rows.push({ tractate, ...row });
         }
-        return rows.sort((a, b) => a.tractate.localeCompare(b.tractate) || a.daf - b.daf);
+        return { rows: rows.sort((a, b) => a.tractate.localeCompare(b.tractate) || a.daf - b.daf), failed: false };
       } catch (error) {
         console.error("Could not load the video catalog.", error);
-        return [];
+        // Distinguished from a genuinely empty catalog below (state.catalogFailed)
+        // -- a fetch failure isn't the same thing as "this daf has no shiur yet",
+        // and telling a reader the wrong one of those is actively misleading.
+        return { rows: [], failed: true };
       }
     }
 
@@ -1502,6 +1505,12 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     const state = {
       activeNav: "Home", filter: "All Masechtos", filters: ["All Masechtos"],
       language: "all", variant: "all", sortOrder: "new", query: "", catalog: [], today: null,
+      // catalogLoading distinguishes "haven't heard back yet" from a
+      // genuinely empty result, and catalogFailed distinguishes a real fetch
+      // failure from "this daf/search really has nothing" -- collapsing
+      // either into "No shiurim found" is what made a transient 429 look
+      // like missing content instead of a network problem (see get-catalog.mjs).
+      catalogLoading: true, catalogFailed: false,
     };
 
     // A "Today's Daf"/"Masechtos" tab tapped from nav.js's shared bottom bar
@@ -1524,6 +1533,9 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     const sortOrderFilter = document.querySelector("#sort-order");
     const grid = document.querySelector("#card-grid");
     const empty = document.querySelector("#empty-state");
+    const emptyTitle = document.querySelector("#empty-title");
+    const emptyMessage = document.querySelector("#empty-message");
+    const emptyClearButton = document.querySelector("#empty-clear");
     const todaySection = document.querySelector("#today-section");
     const sectionTitle = document.querySelector("#section-title");
     const sectionEyebrow = document.querySelector("#section-eyebrow");
@@ -1655,19 +1667,40 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     }
 
     function renderCards() {
-      const items = cardItems();
+      const items = state.catalogLoading ? [] : cardItems();
       todaySection.hidden = Boolean(state.query);
       clearSearch.hidden = !state.query;
       empty.hidden = items.length > 0;
       grid.hidden = items.length === 0;
+      // Loading and a genuine fetch failure each get their own honest
+      // message instead of falling back to "No shiurim found" -- that
+      // wording means "this daf/search really has nothing", which is
+      // actively misleading while still waiting on the catalog, or when a
+      // fetch actually failed (see get-catalog.mjs's own comment on why a
+      // failure used to look exactly like empty content).
+      if (state.catalogLoading) {
+        emptyTitle.textContent = "Loading shiurim…";
+        emptyMessage.textContent = "Just a moment.";
+        emptyClearButton.hidden = true;
+      } else if (state.catalogFailed) {
+        emptyTitle.textContent = "Couldn’t load shiurim";
+        emptyMessage.textContent = "Check your connection and try refreshing the page.";
+        emptyClearButton.hidden = true;
+      } else {
+        emptyTitle.textContent = "No shiurim found";
+        emptyMessage.textContent = "Try another masechta, daf, or maggid shiur.";
+        emptyClearButton.hidden = false;
+      }
       if (state.query) {
-        sectionEyebrow.textContent = `${items.length} RESULTS`;
+        sectionEyebrow.textContent = state.catalogLoading ? "SEARCHING" : `${items.length} RESULTS`;
         sectionTitle.textContent = `Results for “${state.query}”`;
       } else if (state.filter === "Today") {
         sectionEyebrow.textContent = "DAF YOMI";
         sectionTitle.textContent = "Today’s Daf";
       } else if (state.filter === "All Masechtos") {
-        sectionEyebrow.textContent = `${state.catalog.length} DAPIM AVAILABLE`;
+        sectionEyebrow.textContent = state.catalogLoading ? "LOADING"
+          : state.catalogFailed ? "COULDN’T LOAD"
+          : `${state.catalog.length} DAPIM AVAILABLE`;
         sectionTitle.textContent = "Browse shiurim";
       } else {
         sectionEyebrow.textContent = state.filter.toUpperCase();
@@ -1692,7 +1725,12 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       }
       const row = state.catalog.find((r) => r.tractate === state.today.tractate && r.daf === state.today.daf);
       if (!row) {
-        loading.textContent = `${state.today.tractate} ${state.today.daf} isn’t linked yet.`;
+        // catalogFailed means the catalog fetch itself broke (see
+        // get-catalog.mjs) -- today's daf may well be linked, we just
+        // couldn't check, which is a different message than "not synced yet".
+        loading.textContent = state.catalogFailed
+          ? "Couldn’t load today’s daf. Try refreshing the page."
+          : `${state.today.tractate} ${state.today.daf} isn’t linked yet.`;
         return;
       }
       loading.hidden = true;
@@ -1756,10 +1794,12 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     render();
 
     (async () => {
-      const [catalog, today] = await Promise.all([loadVideoCatalog(), loadTodaysDaf()]);
-      state.catalog = catalog;
+      const [catalogResult, today] = await Promise.all([loadVideoCatalog(), loadTodaysDaf()]);
+      state.catalog = catalogResult.rows;
+      state.catalogFailed = catalogResult.failed;
+      state.catalogLoading = false;
       state.today = today;
-      state.filters = ["Today", "All Masechtos", ...new Set(catalog.map((row) => row.tractate))].filter((v, i, a) => a.indexOf(v) === i);
+      state.filters = ["Today", "All Masechtos", ...new Set(catalogResult.rows.map((row) => row.tractate))].filter((v, i, a) => a.indexOf(v) === i);
       render();
       renderHero();
     })();

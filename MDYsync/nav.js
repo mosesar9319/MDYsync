@@ -59,4 +59,36 @@ function renderBottomNav() {
   document.body.appendChild(nav);
 }
 
+// Desktop-visible counterpart to the bottom bar above -- .mobile-nav is
+// CSS-hidden above 760px (see styles.css), so without this, every page
+// loading nav.js had no sitewide navigation at all on desktop.
+//
+// player/index.html already ships its own <nav class="desktop-navigation">
+// (a fixed left sidebar, styled locally by that page, not styles.css) --
+// reuse and fill that one in with real content and links instead of
+// building a second nav next to it. Every other page loading nav.js has no
+// such element, so one is created here and dropped into .topbar (styled by
+// the compact .site-tabs rule in styles.css) between the brand mark and the
+// account widget.
+function renderDesktopNav() {
+  const linksHtml = NAV_ITEMS.map((item) =>
+    `<a class="${isItemActive(item) ? 'active' : ''}" href="${item.href}" title="${item.label}" aria-label="${item.label}">${navIcon(item.icon)}<span>${item.label}</span></a>`
+  ).join('');
+
+  const existing = document.querySelector('.desktop-navigation');
+  if (existing) {
+    existing.innerHTML = linksHtml;
+    return;
+  }
+
+  const topbar = document.querySelector('.topbar');
+  if (!topbar) return; // page has neither -- nothing to attach to
+  const nav = document.createElement('nav');
+  nav.className = 'site-tabs';
+  nav.setAttribute('aria-label', 'Primary navigation');
+  nav.innerHTML = linksHtml;
+  topbar.insertBefore(nav, topbar.children[1] || null);
+}
+
 renderBottomNav();
+renderDesktopNav();
