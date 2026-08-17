@@ -384,7 +384,10 @@ function refKey(ref, { voice = false } = {}) {
 
 async function fetchServerAlignment(ref, { voice = false } = {}) {
   try {
-    const url = `https://raw.githubusercontent.com/mosesar9319/MDYsync/results/by-ref/${refKey(ref, { voice })}.json?t=${Date.now()}`;
+    // Proxied through get-results-file.mjs, not fetched straight from
+    // raw.githubusercontent.com -- see that function's own comment for why
+    // (a real reader hit a 429 on exactly this class of fetch).
+    const url = `/api/get-results-file?path=${encodeURIComponent(`by-ref/${refKey(ref, { voice })}.json`)}`;
     const response = await fetch(url);
     if (!response.ok) return null;
     return await response.json();
@@ -401,7 +404,8 @@ async function fetchServerAlignment(ref, { voice = false } = {}) {
 // device is still found on another.
 async function fetchServerVideoLink(ref) {
   try {
-    const url = `https://raw.githubusercontent.com/mosesar9319/MDYsync/results/video-links/${refKey(ref)}.json?t=${Date.now()}`;
+    // Proxied through get-results-file.mjs -- see fetchServerAlignment above.
+    const url = `/api/get-results-file?path=${encodeURIComponent(`video-links/${refKey(ref)}.json`)}`;
     const response = await fetch(url);
     if (!response.ok) return null;
     return await response.json();
@@ -1149,11 +1153,16 @@ async function loadVilnaPageMap(parsed, stillWanted = () => true) {
   state.vilnaWordEls = null;
   $('vilnaPageOverlay').innerHTML = '';
   const key = pageMapKey(parsed);
-  const resultUrl = `https://raw.githubusercontent.com/mosesar9319/MDYsync/results/pages/${key}.json`;
+  // Proxied through get-results-file.mjs, not fetched straight from
+  // raw.githubusercontent.com -- see that function's own comment. Matters
+  // especially here: a rate-limited fetch used to look identical to "never
+  // OCR'd" and trigger a redundant re-sync job plus this same poll loop
+  // hitting the same rate limit again.
+  const resultUrl = `/api/get-results-file?path=${encodeURIComponent(`pages/${key}.json`)}`;
 
   const tryFetch = async () => {
     try {
-      const response = await fetch(`${resultUrl}?t=${Date.now()}`);
+      const response = await fetch(resultUrl);
       if (!stillWanted()) return true; // a newer page has since taken over; stop polling, apply nothing
       if (!response.ok) return false;
       const data = await response.json();
@@ -5996,18 +6005,33 @@ async function startLocalSync() {
 // dafRefOverride is passed in rather than read from syncState.readings,
 // because quick sync never populates the dialog's reading list -- it has
 // only the daf on screen and the covered refs the video link carries.
+// trigger-ocr-job.mjs/trigger-voice-job.mjs/trigger-page-ocr-job.mjs each
+// return a resultUrl pointing straight at raw.githubusercontent.com --
+// rewritten here to go through get-results-file.mjs instead before this
+// function polls it every 6 seconds for up to 55 minutes. Unlike a one-shot
+// fetch, that volume of unauthenticated per-IP-rate-limited requests from a
+// single active sync would very plausibly exhaust the rate limit on its
+// own, let alone stacked with everyone else's.
+const RAW_RESULTS_PREFIX = 'https://raw.githubusercontent.com/mosesar9319/MDYsync/results/';
+function proxiedResultsUrl(rawUrl) {
+  return rawUrl.startsWith(RAW_RESULTS_PREFIX)
+    ? `/api/get-results-file?path=${encodeURIComponent(rawUrl.slice(RAW_RESULTS_PREFIX.length))}`
+    : rawUrl;
+}
+
 function pollServerSyncResult(jobId, resultUrl, successMessage, dafRefOverride, method = 'ocr') {
+  resultUrl = proxiedResultsUrl(resultUrl);
   const startedAt = Date.now();
   const MAX_WAIT_SECONDS = 55 * 60; // GitHub Actions job has its own 60-min cap
-  // A single fetch() to raw.githubusercontent.com can fail at the network
-  // level (a real "Failed to fetch" TypeError, not an HTTP error status) on
-  // any one poll -- a Wi-Fi blip, a background-tab throttle, whatever --
-  // with zero relation to whether the server-side job itself is fine. It
-  // usually is: the GitHub Actions job runs independently of this browser
-  // tab entirely. Giving up on the very first such hiccup used to end the
-  // poll (and tell the reader sync "failed") while the job kept right on
-  // running server-side regardless -- so tolerate a short run of
-  // consecutive failures before actually giving up.
+  // A single fetch() to the results proxy can fail at the network level (a
+  // real "Failed to fetch" TypeError, not an HTTP error status) on any one
+  // poll -- a Wi-Fi blip, a background-tab throttle, whatever -- with zero
+  // relation to whether the server-side job itself is fine. It usually is:
+  // the GitHub Actions job runs independently of this browser tab entirely.
+  // Giving up on the very first such hiccup used to end the poll (and tell
+  // the reader sync "failed") while the job kept right on running server-
+  // side regardless -- so tolerate a short run of consecutive failures
+  // before actually giving up.
   const MAX_CONSECUTIVE_FAILURES = 5;
   let consecutiveFailures = 0;
   stopSyncPolling();
@@ -6023,7 +6047,7 @@ function pollServerSyncResult(jobId, resultUrl, successMessage, dafRefOverride, 
       return;
     }
     try {
-      const response = await fetch(`${resultUrl}?t=${Date.now()}`);
+      const response = await fetch(resultUrl);
       if (response.status === 404) {
         consecutiveFailures = 0;
         setSyncProgress(Math.min(0.9, elapsed / 300), [`Processing on the server… (${elapsed}s elapsed)`]);
@@ -6276,7 +6300,8 @@ $('openSyncDialogButton')?.addEventListener('click', async () => {
 // last-clicked state, since another admin (or another tab) may have
 // changed it since.
 if ($('autoSyncToggle')) {
-  fetch(`https://raw.githubusercontent.com/mosesar9319/MDYsync/results/settings.json?t=${Date.now()}`)
+  // Proxied through get-results-file.mjs -- see fetchServerAlignment above.
+  fetch('/api/get-results-file?path=settings.json')
     .then((response) => (response.ok ? response.json() : null))
     .then((settings) => { if (settings) $('autoSyncToggle').checked = Boolean(settings.autoSyncNewUploads); })
     .catch(() => {}); // leave it unchecked, matching the server's own default-off behavior
