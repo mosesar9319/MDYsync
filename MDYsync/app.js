@@ -4810,7 +4810,19 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
   if (!Array.isArray(data.segments) || !data.segments.length) throw new Error('No segments found.');
   state.segments = data.segments.map((segment, index) => ({
     id: segment.id || `segment-${index + 1}`,
-    ref: segment.ref || data.dafRef || 'Unknown',
+    // caption_ocr_align.py/voice_align.py publish segment refs with a colon
+    // ("Chullin 86a:2"), but normalizePageWordBoxes puts every Vilna-page/
+    // scan word box's own ref through normalizeDafParagraphRef, which
+    // converts that same suffix to a dot ("Chullin 86a.2") to match
+    // Sefaria's own convention. Left un-normalized here, every word-box
+    // ref (dot) silently never equaled any segment/wordTimeline ref (colon)
+    // in the exact-string comparisons updateVilnaOverlay/updateScanOverlay/
+    // seekToVilnaWord all do -- breaking word highlighting and tap-to-seek
+    // for every synced daf on the Vilna page and scan photo alike (a fresh,
+    // never-synced daf's segments come from Sefaria directly instead, via
+    // loadDaf()'s own fallback below, already dot-formatted -- this is a
+    // no-op there).
+    ref: normalizeDafParagraphRef(segment.ref) || data.dafRef || 'Unknown',
     start: Number(segment.start) || 0,
     end: Number(segment.end) || (Number(segment.start) || 0) + 1,
     he: String(segment.he || segment.text || ''),
@@ -4830,7 +4842,7 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
         .map((entry) => ({
           start: Number(entry.start),
           end: Number(entry.end) || Number(entry.start),
-          ref: String(entry.ref),
+          ref: normalizeDafParagraphRef(entry.ref),
           w0: Number(entry.w0) || 0,
           w1: Number(entry.w1) || 0,
           heardText: typeof entry.heardText === 'string' ? entry.heardText : ''
