@@ -23,7 +23,7 @@ const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
 // The only four shapes ever fetched this way -- anything else is rejected
 // rather than proxying an arbitrary path through to GitHub.
-const ALLOWED_PATH = /^(by-ref|video-links|pages)\/[A-Za-z0-9][A-Za-z0-9._-]*\.json$|^settings\.json$/;
+const ALLOWED_PATH = /^(by-ref|video-links|pages)\/[A-Za-z0-9][A-Za-z0-9._-]*\.json$|^settings\.json$|^abbreviation-additions\.json$/;
 
 export default async (request) => {
   const url = new URL(request.url);
