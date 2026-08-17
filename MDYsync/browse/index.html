@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Flip through the Gemara page by page, tap any word, and jump straight to that moment in the synced shiur." />
-  <title>DafSync — Daf Browser</title>
+  <title>DafSync — Interactive Daf</title>
   <script>
     // Surfaces any otherwise-silent failure (a script that fails to load,
     // an uncaught exception, a rejected promise nobody caught) as a plain,
@@ -198,17 +198,14 @@
   </style>
 </head>
 <body data-page="browse">
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="DafSync home"><span class="brand-mark"><img src="/assets/dafsync-mark.svg" alt="" /></span><span class="brand-name">DafSync</span></a>
+    <nav class="desktop-navigation" aria-label="Primary navigation"></nav>
+  </aside>
+
   <div class="app-shell">
     <header class="topbar">
-      <div class="brand-group">
-        <div class="brand-mark" aria-hidden="true">
-          <img src="/assets/dafsync-mark.svg" alt="" />
-        </div>
-        <div>
-          <div class="brand-title">DafSync</div>
-          <div class="brand-subtitle">Flip through the Gemara, tap a word to watch it explained</div>
-        </div>
-      </div>
+      <div class="mobile-brand"><a class="brand" href="/"><span class="brand-mark"><img src="/assets/dafsync-mark.svg" alt="" /></span><span class="brand-name">DafSync</span></a></div>
       <div class="top-actions">
         <button class="button ghost" id="helpButton">How it works</button>
         <a class="button secondary small" href="/">Back to library</a>
@@ -540,10 +537,10 @@
   <dialog id="helpDialog">
     <button class="dialog-close" id="closeHelp" aria-label="Close">×</button>
     <div class="eyebrow">Guide</div>
-    <h2>How to use the Daf browser</h2>
+    <h2>How to use Interactive Daf</h2>
     <ol>
       <li>Pick a tractate, daf, and amud above, or use the "Previous page"/"Next page" buttons to flip through in order.</li>
-      <li>Tap any word on the page to open the real player at the exact moment it's discussed in the synced shiur.</li>
+      <li>Tap any word on the page to play the shiur right here, starting at the exact moment it's discussed.</li>
       <li>Switch English/Hebrew and Regular/Chazarah Daf above to browse whichever recording you want a tapped word to jump to.</li>
     </ol>
     <p class="dialog-note">Tapping a word only works for a daf that already has a synced shiur -- others will show what's available once it does.</p>
@@ -722,5 +719,6 @@
   <script src="../account-features.js" defer></script>
   <script src="../notes.js" defer></script>
   <script src="../nav.js" defer></script>
+  <script src="../collapse.js" defer></script>
 </body>
 </html>
