@@ -2727,11 +2727,23 @@ function updateVilnaMarkTarget() {
   if (!state.vilnaWordEls) return;
   const target = state.vilnaMarkMode ? state.segments[state.editingIndex] : null;
   const hasRange = target && target.w0 !== null && target.w1 !== null;
+  // Unlike updateVilnaOverlay's "currently playing" highlight (where falling
+  // back to the whole phrase when word-level boundaries aren't known yet is
+  // a reasonable approximation), that same fallback here means every word
+  // box in a segment gets the dashed mark-target outline at once the moment
+  // an admin starts correcting a segment that's never been word-marked
+  // before -- the normal, common starting state, not an edge case. With
+  // each box already deliberately oversized (scale(1.2, 1.7), for an easier
+  // tap target) for hit-testing, dozens of overlapping dashed outlines
+  // across several lines render as one unreadable block instead of
+  // anything a reader could click precisely. No target box is a clearer
+  // starting state than a wrong one -- the phrase itself is still visible
+  // via mark-target-segment/mark-target-row in the text panel/editor table.
   for (const box of state.vilnaPageMap?.wordBoxes || []) {
     const el = state.vilnaWordEls.get(`${box.ref}:${box.wordIndex}`);
     if (!el) continue;
-    const hit = Boolean(target) && box.ref === target.ref
-      && (!hasRange || (box.wordIndex >= target.w0 && box.wordIndex <= target.w1));
+    const hit = Boolean(target) && hasRange && box.ref === target.ref
+      && box.wordIndex >= target.w0 && box.wordIndex <= target.w1;
     el.classList.toggle('mark-target', hit);
   }
 }
