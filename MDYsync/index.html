@@ -1369,7 +1369,13 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     // Zevachim mock this shell originally shipped with.
     // -----------------------------------------------------------------
 
-    const CATALOG_URL = "https://raw.githubusercontent.com/mosesar9319/MDYsync/results/catalog.json";
+    // Proxied through our own backend (get-catalog.mjs) rather than fetched
+    // straight from raw.githubusercontent.com -- that's unauthenticated and
+    // rate-limited per source IP, and readers sharing an IP (a mobile
+    // carrier's NAT, a school/office network) can collectively exceed it and
+    // all start getting a flat 429, which loadVideoCatalog below silently
+    // swallows into an empty catalog. Confirmed live on a real device.
+    const CATALOG_URL = "/api/get-catalog";
     const SEFARIA_CALENDAR_URL = "https://www.sefaria.org/api/calendars";
     // Only tractates the site actually has shiurim for are worth surfacing --
     // catalog.json can carry stray entries from a title-matching misfire on
@@ -1413,14 +1419,13 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     // { videoId, label, amud }.
     async function loadVideoCatalog() {
       try {
-        // A plain Date.now() (not hour-bucketed) -- raw.githubusercontent.com
-        // itself only caches a given URL for 5 minutes (Cache-Control:
-        // max-age=300), so bucketing this any coarser than that just means a
-        // reader who loaded the page earlier in the same bucket keeps getting
-        // a stale cached response even on a deliberate refresh, for up to
-        // the rest of that bucket -- exactly what happened after removing a
-        // batch of dead video listings and having them still show up.
-        const response = await fetch(`${CATALOG_URL}?t=${Date.now()}`);
+        // No cache-busting query param here -- get-catalog.mjs itself sets a
+        // short, real Cache-Control (unlike raw.githubusercontent.com's
+        // fixed 5-minute one), and appending a unique query string on every
+        // load would just defeat Netlify's own CDN cache for this endpoint,
+        // reintroducing the per-reader request volume this proxy exists to
+        // avoid.
+        const response = await fetch(CATALOG_URL);
         if (!response.ok) throw new Error(`Catalog fetch returned ${response.status}`);
         const data = await response.json();
         const rows = [];
