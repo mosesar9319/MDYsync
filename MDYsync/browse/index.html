@@ -67,12 +67,134 @@
          ratio size the video normally, like a typical video embed. */
       max-width: 720px;
     }
-    body[data-page="browse"] .daf-card { min-height: 82vh; }
+    /* Match the calmer Vilna reader on the player page: one continuous
+       paper surface, with the page using almost the full browser width
+       instead of sitting inside several padded, shadowed boxes. */
+    body[data-page="browse"] .daf-card {
+      min-height: 82vh;
+      padding: 0;
+      overflow: hidden;
+      background: rgba(255,253,248,.84);
+      border-color: rgba(90,66,34,.12);
+      box-shadow: 0 16px 42px rgba(63,45,23,.075);
+    }
+    body[data-page="browse"] .daf-heading {
+      margin: 0;
+      padding: 18px 20px 15px;
+      border-bottom: 1px solid rgba(90,66,34,.1);
+      background: rgba(255,253,248,.72);
+    }
+    body[data-page="browse"] .daf-heading h2 { margin-top: 3px; }
+    body[data-page="browse"] .daf-card .view-switch {
+      padding: 3px;
+      border: 1px solid rgba(90,66,34,.1);
+      background: #f7f1e7;
+    }
+    body[data-page="browse"] .daf-card .view-switch button { padding: 7px 11px; }
+    body[data-page="browse"] .daf-scroll {
+      min-height: 68vh;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+      scrollbar-color: rgba(90,66,34,.25) transparent;
+    }
+    body[data-page="browse"] .daf-card[data-daf-view="page"] .daf-scroll {
+      touch-action: pan-x pan-y;
+    }
+    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-placeholder {
+      min-height: 100%;
+      padding: 0 8px 18px;
+      color: #453c2e;
+      background:
+        radial-gradient(circle at 50% 0, rgba(255,255,255,.94), transparent 300px),
+        linear-gradient(180deg, rgba(247,241,230,.64), rgba(251,248,242,.3));
+    }
+    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-zoom-controls {
+      top: 10px;
+      width: max-content;
+      max-width: 100%;
+      margin: 12px auto 16px;
+      padding: 5px 6px;
+      gap: 5px;
+      border: 1px solid rgba(90,66,34,.13);
+      border-radius: 999px;
+      background: rgba(255,253,248,.93);
+      box-shadow: 0 8px 22px rgba(63,45,23,.08);
+      backdrop-filter: blur(12px);
+    }
+    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-zoom-btn,
+    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-fullscreen-button {
+      width: 30px;
+      height: 30px;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--navy);
+    }
+    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-zoom-btn:hover,
+    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-fullscreen-button:hover {
+      color: var(--gold);
+      background: var(--gold-wash);
+    }
+    body[data-page="browse"] .daf-card[data-daf-view="page"] #vilnaZoomLabel {
+      color: #6c6358;
+      font-variant-numeric: tabular-nums;
+    }
+    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-zoom-reset {
+      padding: 6px 10px;
+      border: 0;
+      border-right: 1px solid rgba(90,66,34,.12);
+      border-left: 1px solid rgba(90,66,34,.12);
+      border-radius: 0;
+      color: #6c6358;
+      background: transparent;
+    }
+    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-zoom-reset:hover {
+      color: var(--gold);
+      background: transparent;
+    }
+    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-mark-toggle { width: auto; padding: 0 10px; }
+    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-mark-toggle.active { color: #fff; background: var(--gold); }
+    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-fullscreen-button { margin-left: 2px; }
+    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-page-status { padding: 34px 12px 42px; }
+    body[data-page="browse"] .daf-card[data-daf-view="page"] .page-silhouette {
+      border-color: rgba(90,66,34,.18);
+      border-radius: 2px;
+      box-shadow: 0 14px 34px rgba(63,45,23,.11);
+    }
+    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-page-wrap {
+      width: 100%;
+      max-width: 100%;
+      margin: 0 auto;
+    }
+    body[data-page="browse"] .daf-card[data-daf-view="page"] #vilnaPageCanvas {
+      border: 1px solid rgba(90,66,34,.11);
+      border-radius: 2px;
+      background: #fffefa;
+      box-shadow: 0 12px 32px rgba(63,45,23,.11);
+    }
+    body[data-page="browse"] .daf-toolbar {
+      margin: 0;
+      padding: 11px 18px;
+      border-color: rgba(90,66,34,.1);
+      background: rgba(255,253,248,.78);
+    }
+    body[data-page="browse"] .daf-footer {
+      margin: 0;
+      padding: 12px 18px 14px;
+      border-top-color: rgba(90,66,34,.1);
+      background: rgba(255,253,248,.78);
+    }
     body[data-page="browse"] .setup-strip .video-field { display: none; }
     #browseHideVideoButton { display: none; }
     body[data-page="browse"] .player-card.revealed #browseHideVideoButton { display: inline-flex; }
     .browse-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
     .browse-nav-label { color: var(--muted); font-size: 13px; text-align: center; flex: 1; }
+    @media (max-width: 640px) {
+      body[data-page="browse"] .daf-heading { padding: 15px 14px 13px; }
+      body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-placeholder { padding: 0 5px 12px; }
+      body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-zoom-controls { top: 8px; margin-top: 9px; }
+    }
   </style>
 </head>
 <body data-page="browse">
@@ -335,7 +457,7 @@
           </div>
         </article>
 
-        <article class="daf-card card" id="dafCard">
+        <article class="daf-card card" id="dafCard" data-daf-view="page">
           <div class="card-heading daf-heading">
             <div>
               <div class="eyebrow">Digital daf</div>
@@ -343,7 +465,7 @@
             </div>
             <div class="view-switch" role="group" aria-label="Daf display mode">
               <button data-view="text">Text</button>
-              <button class="active" data-view="page" title="Real Vilna-edition page image (private-use source)">Vilna page</button>
+              <button class="active" data-view="page" title="Real Vilna-edition page image (private-use source)">Vilna</button>
             </div>
           </div>
 
@@ -573,11 +695,36 @@
     </div>
   </dialog>
 
+  <dialog id="noteDialog">
+    <button class="dialog-close" id="closeNoteDialog" aria-label="Close">×</button>
+    <div class="eyebrow" id="noteDialogRef">Note</div>
+    <h2>Line notes</h2>
+    <p class="dialog-note" id="noteDialogText"></p>
+    <div class="note-list" id="noteList">
+      <p class="field-note">Loading notes…</p>
+    </div>
+    <div class="note-compose" id="noteCompose" hidden>
+      <div class="note-privacy-toggle" id="notePrivacyToggle" role="group" aria-label="Note visibility">
+        <button type="button" class="note-privacy-option active" data-privacy="private">🔒 Private</button>
+        <button type="button" class="note-privacy-option" data-privacy="live">🌐 Live</button>
+      </div>
+      <textarea id="noteBodyInput" maxlength="2000" rows="3" placeholder="Write a note on this line…"></textarea>
+      <div class="note-compose-actions">
+        <span class="field-note" id="notePrivacyHint">Only you will see this note.</span>
+        <button class="button primary small" id="saveNoteButton" type="button">Save note</button>
+      </div>
+    </div>
+    <p class="dialog-note" id="noteSignInPrompt" hidden>
+      <button class="button secondary small" id="noteSignInButton" type="button">Sign in to add a note</button>
+    </p>
+  </dialog>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="../vendor/supabase-js.min.js"></script>
   <script src="../auth.js"></script>
   <script src="../app.js" defer></script>
   <script src="../account-features.js" defer></script>
+  <script src="../notes.js" defer></script>
   <script src="../nav.js" defer></script>
 </body>
 </html>
