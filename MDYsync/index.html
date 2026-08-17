@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0c263d">
-  <meta name="description" content="Browse Daf Yomi shiurim by daf, masechta, and maggid shiur.">
+  <meta name="description" content="Browse Daf Yomi shiurim by daf and maggid shiur.">
   <link rel="icon" href="/assets/dafsync-mark.svg" type="image/svg+xml">
   <title>DafSync — Daily Daf Yomi Shiurim</title>
   <style>
@@ -469,6 +469,49 @@ h1 {
 
 .learning-section {
   margin-top: 28px;
+}
+
+.maggidim-section {
+  margin-top: 28px;
+}
+
+.maggid-card {
+  align-items: center;
+  background: var(--paper);
+  border: 1px solid #e4dacb;
+  border-radius: 13px;
+  box-shadow: 0 5px 14px rgba(55, 38, 18, 0.08);
+  display: flex;
+  gap: 16px;
+  margin: 14px 0;
+  padding: 18px 20px;
+}
+
+.maggid-avatar {
+  align-items: center;
+  background: var(--gold-light);
+  border-radius: 50%;
+  color: var(--navy);
+  display: grid;
+  flex: 0 0 auto;
+  height: 56px;
+  justify-content: center;
+  width: 56px;
+}
+
+.maggid-avatar svg {
+  height: 28px;
+  width: 28px;
+}
+
+.maggid-card strong {
+  display: block;
+  font-size: 17px;
+}
+
+.maggid-card span {
+  color: var(--muted);
+  font-size: 14px;
 }
 
 .section-heading {
@@ -1192,7 +1235,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         <label class="search-box">
           <span class="sr-only">Search shiurim</span>
           <span data-icon="search"></span>
-          <input id="search" placeholder="Search shiurim, masechtos, or maggidei shiur" type="search">
+          <input id="search" placeholder="Search shiurim or maggidei shiur" type="search">
           <button aria-label="Clear search" class="clear-search" id="clear-search" hidden type="button"></button>
         </label>
         <div class="auth-widget" id="authWidget">
@@ -1262,9 +1305,26 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
           <div class="empty-state" id="empty-state" hidden>
             <span data-icon="search"></span>
             <h3 id="empty-title">No shiurim found</h3>
-            <p id="empty-message">Try another masechta, daf, or maggid shiur.</p>
+            <p id="empty-message">Try a different search term.</p>
             <button id="empty-clear" type="button">Clear search</button>
           </div>
+        </section>
+
+        <section class="maggidim-section" id="maggidimSection" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">TEACHERS</p>
+              <h2>Maggidei Shiurim</h2>
+            </div>
+          </div>
+          <div class="maggid-card">
+            <span class="maggid-avatar" data-icon="teacher" aria-hidden="true"></span>
+            <div>
+              <strong>R’ Eli Stefansky</strong>
+              <span>Daf Yomi</span>
+            </div>
+          </div>
+          <p class="field-note">More maggidei shiur coming soon.</p>
         </section>
       </main>
     </div>
@@ -1329,7 +1389,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     const iconPaths = {
       home: '<path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10M9 20v-6h6v6"/>',
       calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',
-      books: '<path d="M4 19.5V5a2 2 0 0 1 2-2h5v18H6a2 2 0 0 1-2-1.5ZM11 3h7a2 2 0 0 1 2 2v14.5A1.5 1.5 0 0 0 18.5 18H11"/><path d="M15 7h2M15 11h2"/>',
+      teacher: '<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0 1 16 0v1"/>',
       search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
       play: '<path d="m9 7 8 5-8 5V7Z" fill="currentColor" stroke="none"/>',
       clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
@@ -1493,7 +1553,13 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     const navItems = [
       { label: "Home", icon: "home" },
       { label: "Today’s Daf", icon: "calendar" },
-      { label: "Masechtos", icon: "books" },
+      // Replaces the old "Masechtos" tab -- the site only has one active
+      // tractate (see SITE_TRACTATES below), so a "choose a masechta" tab
+      // implied a breadth the site doesn't have. Maggidei Shiurim isn't a
+      // filter of the video grid the way the other in-page tabs are -- see
+      // renderCards' maggidimActive branch, which swaps in a dedicated
+      // section instead.
+      { label: "Maggidei Shiurim", icon: "teacher" },
       // These two are plain links to dedicated pages, not in-page filters --
       // Scan needs the camera permission scoped to /player/* in netlify.toml,
       // and both need app.js's daf-loading machinery this lightweight home
@@ -1503,7 +1569,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       { label: "Daf browser", icon: "bookOpen", href: "/browse/" },
     ];
     const state = {
-      activeNav: "Home", filter: "All Masechtos", filters: ["All Masechtos"],
+      activeNav: "Home", filter: "All Shiurim", filters: ["All Shiurim"],
       language: "all", variant: "all", sortOrder: "new", query: "", catalog: [], today: null,
       // catalogLoading distinguishes "haven't heard back yet" from a
       // genuinely empty result, and catalogFailed distinguishes a real fetch
@@ -1513,15 +1579,15 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       catalogLoading: true, catalogFailed: false,
     };
 
-    // A "Today's Daf"/"Masechtos" tab tapped from nav.js's shared bottom bar
-    // on another page links back here as /?nav=today or /?nav=masechtos
-    // (nav.js's own NAV_ITEMS build those hrefs) -- land pre-filtered
-    // instead of always opening on the plain "Home" view, matching what
-    // tapping that same tab in-page already does (see navMarkup's click
-    // handler below).
+    // A "Today's Daf"/"Maggidei Shiurim" tab tapped from nav.js's shared
+    // bottom bar on another page links back here as /?nav=today or
+    // /?nav=maggidei (nav.js's own NAV_ITEMS build those hrefs) -- land
+    // pre-selected instead of always opening on the plain "Home" view,
+    // matching what tapping that same tab in-page already does (see
+    // navMarkup's click handler below).
     const navParam = new URLSearchParams(location.search).get("nav");
     if (navParam === "today") { state.activeNav = "Today’s Daf"; state.filter = "Today"; }
-    else if (navParam === "masechtos") { state.activeNav = "Masechtos"; state.filter = "All Masechtos"; }
+    else if (navParam === "maggidei") { state.activeNav = "Maggidei Shiurim"; }
 
     const desktopNav = document.querySelector(".desktop-navigation");
     const mobileNav = document.querySelector(".mobile-nav");
@@ -1556,8 +1622,10 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         button.addEventListener("click", () => {
           state.activeNav = button.dataset.nav;
           if (state.activeNav === "Today’s Daf") state.filter = "Today";
-          if (state.activeNav === "Masechtos") state.filter = "All Masechtos";
-          if (state.activeNav === "Home") { state.filter = "All Masechtos"; state.query = ""; }
+          // Maggidei Shiurim doesn't touch state.filter -- it swaps in its
+          // own dedicated section instead of filtering the video grid (see
+          // renderCards' maggidimActive branch).
+          if (state.activeNav === "Home") { state.filter = "All Shiurim"; state.query = ""; }
           search.value = state.query;
           render();
           window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1610,8 +1678,6 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       let rows = state.catalog;
       if (state.filter === "Today") {
         rows = state.today ? rows.filter((row) => row.tractate === state.today.tractate && row.daf === state.today.daf) : [];
-      } else if (state.filter !== "All Masechtos") {
-        rows = rows.filter((row) => row.tractate === state.filter);
       }
       const needle = state.query.trim().toLowerCase();
       if (needle) rows = rows.filter((row) => dafLabel(row).toLowerCase().includes(needle));
@@ -1667,6 +1733,17 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     }
 
     function renderCards() {
+      // Maggidei Shiurim swaps in its own dedicated section (a short
+      // teacher list, not a video filter) instead of anything below --
+      // hide the usual hero/filter/grid machinery entirely while it's active.
+      const maggidimActive = state.activeNav === "Maggidei Shiurim";
+      document.querySelector("#maggidimSection").hidden = !maggidimActive;
+      document.querySelector(".learning-section").hidden = maggidimActive;
+      if (maggidimActive) {
+        todaySection.hidden = true;
+        return;
+      }
+
       const items = state.catalogLoading ? [] : cardItems();
       todaySection.hidden = Boolean(state.query);
       clearSearch.hidden = !state.query;
@@ -1688,7 +1765,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         emptyClearButton.hidden = true;
       } else {
         emptyTitle.textContent = "No shiurim found";
-        emptyMessage.textContent = "Try another masechta, daf, or maggid shiur.";
+        emptyMessage.textContent = "Try a different search term.";
         emptyClearButton.hidden = false;
       }
       if (state.query) {
@@ -1697,7 +1774,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       } else if (state.filter === "Today") {
         sectionEyebrow.textContent = "DAF YOMI";
         sectionTitle.textContent = "Today’s Daf";
-      } else if (state.filter === "All Masechtos") {
+      } else if (state.filter === "All Shiurim") {
         sectionEyebrow.textContent = state.catalogLoading ? "LOADING"
           : state.catalogFailed ? "COULDN’T LOAD"
           : `${state.catalog.length} DAPIM AVAILABLE`;
@@ -1784,7 +1861,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     document.querySelectorAll(".brand").forEach((brand) => brand.addEventListener("click", (event) => {
       event.preventDefault();
       state.activeNav = "Home";
-      state.filter = "All Masechtos";
+      state.filter = "All Shiurim";
       state.query = "";
       search.value = "";
       render();
@@ -1799,7 +1876,11 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       state.catalogFailed = catalogResult.failed;
       state.catalogLoading = false;
       state.today = today;
-      state.filters = ["Today", "All Masechtos", ...new Set(catalogResult.rows.map((row) => row.tractate))].filter((v, i, a) => a.indexOf(v) === i);
+      // Fixed, not built from the catalog's own tractate names -- the site
+      // only has one active tractate (see app.js's SITE_ACTIVE_TRACTATES),
+      // so a per-tractate filter chip would just be a "choose a masechta"
+      // control with a single option.
+      state.filters = ["Today", "All Shiurim"];
       render();
       renderHero();
     })();
