@@ -3004,12 +3004,13 @@ function handleOverlayWheel(event) {
 const READING_VIDEO_PREFS_KEY = 'dafsync-reading-video-v1';
 const READING_VIDEO_MIN_WIDTH = 190;
 const READING_VIDEO_MAX_WIDTH = 560;
-const READING_VIDEO_HEADER_HEIGHT = 28;
 let readingVideoDrag = null;
 let readingVideoResize = null;
 const readingVideoPinchPointers = new Map();
 let readingVideoPinch = null;
 let readingVideoTap = null;
+let readingVideoNativeGesture = null;
+let readingVideoGestureSaveTimer = null;
 let readingFollowTimer = null;
 let readingFollowScrollUntil = 0;
 let readingPageLayoutTimer = null;
@@ -3106,8 +3107,7 @@ function captureReadingVideoPosition() {
 function maxReadingVideoWidth() {
   const bounds = readingVideoBounds();
   if (!bounds) return READING_VIDEO_MAX_WIDTH;
-  // The slim header has a fixed height; the media frame beneath remains 16:9.
-  const maxByHeight = Math.max(0, (bounds.height - READING_VIDEO_HEADER_HEIGHT) * (16 / 9));
+  const maxByHeight = Math.max(0, bounds.height * (16 / 9));
   return Math.max(1, Math.min(READING_VIDEO_MAX_WIDTH, bounds.width, maxByHeight));
 }
 
@@ -3123,7 +3123,7 @@ function setReadingVideoWidth(width, { persist = true, reposition = true } = {})
     requestAnimationFrame(() => {
       const pos = readingVideoPosition();
       placeReadingVideo(pos.left, pos.top);
-      if (state.readingVideoFollow && !readingVideoDrag && !readingVideoResize && !readingVideoPinch) scheduleReadingVideoFollow(true, 0);
+      if (state.readingVideoFollow && !readingVideoDrag && !readingVideoResize && !readingVideoPinch && !readingVideoNativeGesture) scheduleReadingVideoFollow(true, 0);
     });
   }
   if (persist) saveReadingVideoPreferences();
@@ -3218,7 +3218,7 @@ function activeVilnaReadingAnchor() {
 }
 
 function positionReadingVideoBelowActiveWords(force = false) {
-  if (!state.readingModeEnabled || !state.readingVideoFollow || readingVideoDrag || readingVideoResize || readingVideoPinch) return;
+  if (!state.readingModeEnabled || !state.readingVideoFollow || readingVideoDrag || readingVideoResize || readingVideoPinch || readingVideoNativeGesture) return;
   const float = $('readingVideoFloat');
   const bounds = readingVideoBounds();
   const anchor = activeVilnaReadingAnchor();
@@ -3364,6 +3364,8 @@ function setReadingMode(enabled) {
   readingVideoPinchPointers.clear();
   readingVideoPinch = null;
   readingVideoTap = null;
+  readingVideoNativeGesture = null;
+  clearTimeout(readingVideoGestureSaveTimer);
   document.body.classList.remove('reading-mode-active');
   applyVideoOverlayEnabled(state.readingModePreviousOverlayEnabled);
   updateReadingModeUi();
@@ -3372,30 +3374,24 @@ function setReadingMode(enabled) {
 
 (function initReadingMode() {
   const toggle = $('readingModeButton');
-  const close = $('readingVideoCloseButton');
   const follow = $('readingVideoFollowButton');
-  const smaller = $('readingVideoSmallerButton');
-  const larger = $('readingVideoLargerButton');
   const float = $('readingVideoFloat');
-  const dragHandle = $('readingVideoDragHandle');
   const resizeHandle = $('readingVideoResizeHandle');
   const pinchSurface = $('readingVideoPinchSurface');
-  if (!toggle || !float || !dragHandle || !resizeHandle) return;
+  if (!toggle || !float || !resizeHandle || !pinchSurface) return;
 
   loadReadingVideoPreferences();
   updateReadingVideoFollowUi();
 
   toggle.addEventListener('click', () => setReadingMode(!state.readingModeEnabled));
-  close?.addEventListener('click', () => setReadingMode(false));
   follow?.addEventListener('click', () => setReadingVideoFollow(!state.readingVideoFollow, { announce: true }));
-  smaller?.addEventListener('click', () => setReadingVideoWidth((state.readingVideoWidth || float.offsetWidth) - 40));
-  larger?.addEventListener('click', () => setReadingVideoWidth((state.readingVideoWidth || float.offsetWidth) + 40));
 
   // The YouTube iframe is cross-origin, so touch events inside it cannot
-  // bubble into this page. On touch devices a transparent surface covers
-  // only the video picture (never the custom controls beneath it), giving
-  // Reading Mode a reliable two-finger resize gesture. A quick one-finger
-  // tap retains the expected play/pause behavior.
+  // bubble into this page. A transparent surface therefore covers the video
+  // picture (never the custom controls beneath it). One pointer drags, two
+  // pointers resize, and a quick tap retains play/pause behavior. It is
+  // always enabled instead of relying on an unreliable coarse-pointer media
+  // query, which some touch-capable browsers report incorrectly.
   function pinchPair() {
     return [...readingVideoPinchPointers.values()].slice(0, 2);
   }
@@ -3405,59 +3401,95 @@ function setReadingMode(enabled) {
   function pinchMidpoint(a, b) {
     return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
   }
+  function readingVideoResizeBaseline(clientX, clientY) {
+    const rect = float.getBoundingClientRect();
+    const x = Number.isFinite(clientX) && clientX > 0 ? clientX : rect.left + rect.width / 2;
+    const y = Number.isFinite(clientY) && clientY > 0 ? clientY : rect.top + rect.height / 2;
+    return {
+      width: float.offsetWidth,
+      height: float.offsetHeight,
+      clientX: x,
+      clientY: y,
+      anchorX: x - rect.left,
+      anchorY: y - rect.top,
+    };
+  }
+  function resizeReadingVideoFromBaseline(baseline, targetWidth, clientX = baseline.clientX, clientY = baseline.clientY) {
+    const nextWidth = setReadingVideoWidth(targetWidth, { persist: false, reposition: false });
+    const bounds = readingVideoBounds();
+    if (!nextWidth || !bounds) return nextWidth;
+    const scaleX = nextWidth / baseline.width;
+    const scaleY = float.offsetHeight / baseline.height;
+    placeReadingVideo(
+      clientX - baseline.anchorX * scaleX - bounds.containerRect.left,
+      clientY - baseline.anchorY * scaleY - bounds.containerRect.top,
+    );
+    return nextWidth;
+  }
+  function finishReadingVideoGestureResize() {
+    clearTimeout(readingVideoGestureSaveTimer);
+    readingVideoPinch = null;
+    readingVideoNativeGesture = null;
+    float.classList.remove('is-resizing');
+    captureReadingVideoPosition();
+    saveReadingVideoPreferences();
+    if (state.readingVideoFollow) scheduleReadingVideoFollow(true, 0);
+  }
   function beginReadingVideoPinch() {
     const [a, b] = pinchPair();
     if (!a || !b) return;
-    const rect = float.getBoundingClientRect();
     const mid = pinchMidpoint(a, b);
     readingVideoPinch = {
+      ...readingVideoResizeBaseline(mid.x, mid.y),
       distance: Math.max(1, pinchDistance(a, b)),
-      width: float.offsetWidth,
-      height: float.offsetHeight,
-      anchorX: mid.x - rect.left,
-      anchorY: mid.y - rect.top,
     };
+    readingVideoDrag = null;
     readingVideoTap = null;
+    float.classList.remove('is-dragging');
     float.classList.add('is-resizing');
   }
-  pinchSurface?.addEventListener('pointerdown', (event) => {
-    if (!state.readingModeEnabled || event.pointerType !== 'touch') return;
+  pinchSurface.addEventListener('pointerdown', (event) => {
+    if (!state.readingModeEnabled || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    clearTimeout(readingVideoGestureSaveTimer);
+    readingVideoNativeGesture = null;
     const point = { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY };
     readingVideoPinchPointers.set(event.pointerId, point);
     if (readingVideoPinchPointers.size === 1) {
-      readingVideoTap = { pointerId: event.pointerId, startedAt: performance.now(), point };
+      const pos = readingVideoPosition();
+      readingVideoDrag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, left: pos.left, top: pos.top, moved: false };
+      readingVideoTap = { pointerId: event.pointerId, startedAt: performance.now() };
     } else if (readingVideoPinchPointers.size === 2) {
       beginReadingVideoPinch();
     }
     pinchSurface.setPointerCapture?.(event.pointerId);
     event.preventDefault();
   });
-  pinchSurface?.addEventListener('pointermove', (event) => {
+  pinchSurface.addEventListener('pointermove', (event) => {
     const point = readingVideoPinchPointers.get(event.pointerId);
     if (!point) return;
     point.x = event.clientX;
     point.y = event.clientY;
     if (!readingVideoPinch && readingVideoPinchPointers.size >= 2) beginReadingVideoPinch();
-    if (!readingVideoPinch) return;
-
-    const [a, b] = pinchPair();
-    if (!a || !b) return;
-    const mid = pinchMidpoint(a, b);
-    const ratio = pinchDistance(a, b) / readingVideoPinch.distance;
-    const nextWidth = setReadingVideoWidth(readingVideoPinch.width * ratio, { persist: false, reposition: false });
-    if (!nextWidth) return;
-
-    // Keep the point between the reader's fingers anchored while the shell
-    // grows or shrinks, including when both fingers translate together.
-    const bounds = readingVideoBounds();
-    if (bounds) {
-      const scaleX = nextWidth / readingVideoPinch.width;
-      const scaleY = float.offsetHeight / readingVideoPinch.height;
-      placeReadingVideo(
-        mid.x - readingVideoPinch.anchorX * scaleX - bounds.containerRect.left,
-        mid.y - readingVideoPinch.anchorY * scaleY - bounds.containerRect.top,
-      );
+    if (readingVideoPinch) {
+      const [a, b] = pinchPair();
+      if (!a || !b) return;
+      const mid = pinchMidpoint(a, b);
+      const ratio = pinchDistance(a, b) / readingVideoPinch.distance;
+      resizeReadingVideoFromBaseline(readingVideoPinch, readingVideoPinch.width * ratio, mid.x, mid.y);
+      event.preventDefault();
+      return;
     }
+
+    if (!readingVideoDrag || readingVideoDrag.pointerId !== event.pointerId) return;
+    const dx = event.clientX - readingVideoDrag.startX;
+    const dy = event.clientY - readingVideoDrag.startY;
+    if (!readingVideoDrag.moved && Math.hypot(dx, dy) > 5) {
+      readingVideoDrag.moved = true;
+      readingVideoTap = null;
+      setReadingVideoFollow(false, { announce: false });
+      float.classList.add('is-dragging');
+    }
+    if (readingVideoDrag.moved) placeReadingVideo(readingVideoDrag.left + dx, readingVideoDrag.top + dy);
     event.preventDefault();
   });
   function finishReadingVideoPinchPointer(event, cancelled = false) {
@@ -3468,55 +3500,80 @@ function setReadingMode(enabled) {
 
     if (wasPinching && readingVideoPinchPointers.size < 2) {
       readingVideoPinchPointers.clear();
-      readingVideoPinch = null;
+      readingVideoDrag = null;
       readingVideoTap = null;
-      float.classList.remove('is-resizing');
-      captureReadingVideoPosition();
-      saveReadingVideoPreferences();
-      if (state.readingVideoFollow) scheduleReadingVideoFollow(true, 0);
+      finishReadingVideoGestureResize();
       return;
     }
 
+    const drag = readingVideoDrag?.pointerId === event.pointerId ? readingVideoDrag : null;
+    readingVideoDrag = null;
+    float.classList.remove('is-dragging');
+    if (drag?.moved) captureReadingVideoPosition();
     const tap = readingVideoTap;
-    if (!cancelled && tap?.pointerId === event.pointerId && readingVideoPinchPointers.size === 0) {
+    if (!cancelled && !drag?.moved && tap?.pointerId === event.pointerId && readingVideoPinchPointers.size === 0) {
       const travel = Math.hypot(point.x - point.startX, point.y - point.startY);
       if (travel < 10 && performance.now() - tap.startedAt < 450) togglePlay();
     }
     if (readingVideoPinchPointers.size === 0) readingVideoTap = null;
   }
-  pinchSurface?.addEventListener('pointerup', (event) => finishReadingVideoPinchPointer(event));
-  pinchSurface?.addEventListener('pointercancel', (event) => finishReadingVideoPinchPointer(event, true));
+  pinchSurface.addEventListener('pointerup', (event) => finishReadingVideoPinchPointer(event));
+  pinchSurface.addEventListener('pointercancel', (event) => finishReadingVideoPinchPointer(event, true));
 
-  dragHandle.addEventListener('pointerdown', (event) => {
-    if (!state.readingModeEnabled) return;
-    const pos = readingVideoPosition();
-    readingVideoDrag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, left: pos.left, top: pos.top, moved: false };
-    dragHandle.setPointerCapture(event.pointerId);
-    float.classList.add('is-dragging');
+  // Chrome-style trackpad pinch arrives as Ctrl+wheel rather than two touch
+  // pointers. Resize around the cursor so it feels like the same gesture.
+  pinchSurface.addEventListener('wheel', (event) => {
+    if (!state.readingModeEnabled || !event.ctrlKey) return;
     event.preventDefault();
+    const baseline = readingVideoResizeBaseline(event.clientX, event.clientY);
+    readingVideoNativeGesture = baseline;
+    const factor = clampReadingValue(Math.exp(-event.deltaY * 0.01), 0.78, 1.28);
+    resizeReadingVideoFromBaseline(baseline, baseline.width * factor, baseline.clientX, baseline.clientY);
+    float.classList.add('is-resizing');
+    clearTimeout(readingVideoGestureSaveTimer);
+    readingVideoGestureSaveTimer = setTimeout(finishReadingVideoGestureResize, 180);
+  }, { passive: false });
+
+  // Safari exposes trackpad pinch through gesture events. Touchscreen Safari
+  // still uses the pointer path above; the pointer check prevents duplicate
+  // handling when both event families are present.
+  pinchSurface.addEventListener('gesturestart', (event) => {
+    if (!state.readingModeEnabled || readingVideoPinchPointers.size) return;
+    event.preventDefault();
+    clearTimeout(readingVideoGestureSaveTimer);
+    readingVideoNativeGesture = readingVideoResizeBaseline(event.clientX, event.clientY);
+    float.classList.add('is-resizing');
   });
-  dragHandle.addEventListener('pointermove', (event) => {
-    if (!readingVideoDrag || readingVideoDrag.pointerId !== event.pointerId) return;
-    const dx = event.clientX - readingVideoDrag.startX;
-    const dy = event.clientY - readingVideoDrag.startY;
-    if (!readingVideoDrag.moved && Math.hypot(dx, dy) > 5) {
-      readingVideoDrag.moved = true;
-      setReadingVideoFollow(false, { announce: false });
-    }
-    placeReadingVideo(readingVideoDrag.left + dx, readingVideoDrag.top + dy);
+  pinchSurface.addEventListener('gesturechange', (event) => {
+    if (!readingVideoNativeGesture) return;
+    event.preventDefault();
+    resizeReadingVideoFromBaseline(
+      readingVideoNativeGesture,
+      readingVideoNativeGesture.width * (Number(event.scale) || 1),
+      readingVideoNativeGesture.clientX,
+      readingVideoNativeGesture.clientY,
+    );
   });
-  function finishReadingVideoDrag(event) {
-    if (!readingVideoDrag || (event && readingVideoDrag.pointerId !== event.pointerId)) return;
-    const moved = readingVideoDrag.moved;
-    readingVideoDrag = null;
-    float.classList.remove('is-dragging');
-    if (moved) captureReadingVideoPosition();
-  }
-  dragHandle.addEventListener('pointerup', finishReadingVideoDrag);
-  dragHandle.addEventListener('pointercancel', finishReadingVideoDrag);
-  dragHandle.addEventListener('keydown', (event) => {
+  pinchSurface.addEventListener('gestureend', (event) => {
+    if (!readingVideoNativeGesture) return;
+    event.preventDefault();
+    finishReadingVideoGestureResize();
+  });
+
+  pinchSurface.addEventListener('keydown', (event) => {
     const moves = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
-    if (!state.readingModeEnabled || !moves[event.key]) return;
+    if (!state.readingModeEnabled) return;
+    if (event.key === ' ' || event.key === 'Enter') {
+      event.preventDefault();
+      togglePlay();
+      return;
+    }
+    if (['-', '+', '='].includes(event.key)) {
+      event.preventDefault();
+      setReadingVideoWidth((state.readingVideoWidth || float.offsetWidth) + (event.key === '-' ? -30 : 30));
+      return;
+    }
+    if (!moves[event.key]) return;
     event.preventDefault();
     setReadingVideoFollow(false, { announce: false });
     const pos = readingVideoPosition();

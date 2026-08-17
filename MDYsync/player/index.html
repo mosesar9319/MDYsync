@@ -578,7 +578,6 @@
       min-width: 0;
     }
     body:not(.reading-mode-active) .reading-video-float { width: 100% !important; }
-    .reading-video-header,
     .reading-video-resize,
     .reading-video-pinch-surface { display: none; }
     .reading-video-slot { position: relative; width: 100%; }
@@ -603,49 +602,6 @@
     }
     body.reading-mode-active .reading-video-float.is-dragging,
     body.reading-mode-active .reading-video-float.is-resizing { transition: none; box-shadow: 0 24px 62px rgba(4,14,27,.46), 0 0 0 2px rgba(186,132,34,.42); }
-    body.reading-mode-active .reading-video-header {
-      height: 28px;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      padding: 0 4px;
-      background: linear-gradient(180deg, #132941, #0a1d31);
-      border-bottom: 1px solid rgba(255,255,255,.11);
-      user-select: none;
-    }
-    .reading-video-grip {
-      width: 26px;
-      height: 28px;
-      display: grid;
-      place-items: center;
-      flex: 0 0 auto;
-      border-radius: 7px;
-      color: rgba(255,255,255,.68);
-      cursor: grab;
-      touch-action: none;
-    }
-    .reading-video-grip:hover { color: #fff; background: rgba(255,255,255,.08); }
-    .reading-video-grip:active { cursor: grabbing; }
-    .reading-video-caption { min-width: 0; margin-right: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgba(255,255,255,.82); font-size: 10px; font-weight: 700; }
-    .reading-video-actions { display: flex; align-items: center; gap: 1px; flex: 0 0 auto; }
-    .reading-video-action {
-      min-width: 22px;
-      height: 22px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 4px;
-      padding: 0 5px;
-      border: 0;
-      border-radius: 7px;
-      color: rgba(255,255,255,.75);
-      background: transparent;
-      font: 700 10px/1 "Assistant", sans-serif;
-      cursor: pointer;
-    }
-    .reading-video-action:hover { color: #fff; background: rgba(255,255,255,.1); }
-    .reading-video-action.active { color: #132216; background: #ead39f; }
-    .reading-video-action svg { width: 13px; height: 13px; }
     body.reading-mode-active .reading-video-slot { background: #020812; }
     body.reading-mode-active .reading-video-slot .video-frame { width: 100%; border: 0; border-radius: 0; }
     /* The inverse overlay cannot be enabled while the player itself is on
@@ -666,9 +622,11 @@
       z-index: 11;
       inset: 0 0 55px;
       display: block;
-      pointer-events: none;
+      cursor: grab;
+      pointer-events: auto;
       touch-action: none;
     }
+    body.reading-mode-active .reading-video-float.is-dragging .reading-video-pinch-surface { cursor: grabbing; }
     body.reading-mode-active .reading-video-resize {
       position: absolute;
       right: 0;
@@ -707,16 +665,9 @@
       transition: opacity .2s ease;
     }
     .reading-mode-tip.show { opacity: 1; }
-    @container (max-width: 280px) {
-      .reading-video-caption { display: none; }
-      .reading-video-action { padding-inline: 5px; }
-    }
     @container (max-width: 225px) {
       body.reading-mode-active .reading-video-float #muteButton,
       body.reading-mode-active .reading-video-float #fastForwardButton { display: none; }
-    }
-    @media (any-pointer: coarse) {
-      body.reading-mode-active .reading-video-pinch-surface { pointer-events: auto; }
     }
 
     :focus-visible { outline: 3px solid rgba(186,132,34,.42); outline-offset: 3px; }
@@ -783,12 +734,6 @@
       body.reading-mode-active .daf-card .vilna-placeholder { padding-inline: 5px; }
       body.reading-mode-active .reading-mode-entry { min-height: 31px; padding: 6px 8px; gap: 5px; }
       body.reading-mode-active .reading-video-float { border-radius: 13px; }
-      body.reading-mode-active .reading-video-caption,
-      body.reading-mode-active #readingVideoSmallerButton,
-      body.reading-mode-active #readingVideoLargerButton { display: none; }
-      body.reading-mode-active .reading-video-header { height: 26px; gap: 1px; padding-inline: 2px; }
-      body.reading-mode-active .reading-video-grip { height: 26px; }
-      body.reading-mode-active .reading-video-action { padding-inline: 4px; }
       .reading-mode-tip { bottom: 54px; }
       /* .mobile-nav itself is now rendered by nav.js, styled by the
          shared rules in styles.css (see there) -- this stale, hand-
@@ -950,17 +895,6 @@
             <div><p class="eyebrow">Shiur video</p><h2>&nbsp;</h2></div>
           </header>
           <div class="reading-video-float" id="readingVideoFloat" role="group" aria-label="Movable shiur video">
-            <div class="reading-video-header">
-              <span class="reading-video-grip" id="readingVideoDragHandle" role="button" tabindex="0" aria-label="Drag the video around the daf" title="Drag to move">
-                <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 3v18M3 12h18M8 7l4-4 4 4M8 17l4 4 4-4M7 8l-4 4 4 4M17 8l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </span>
-              <span class="reading-video-caption">Drag video</span>
-              <div class="reading-video-actions">
-                <button class="reading-video-action" id="readingVideoSmallerButton" type="button" aria-label="Make video smaller" title="Make video smaller">−</button>
-                <button class="reading-video-action" id="readingVideoLargerButton" type="button" aria-label="Make video larger" title="Make video larger">+</button>
-                <button class="reading-video-action" id="readingVideoCloseButton" type="button" aria-label="Exit Reading Mode" title="Exit Reading Mode">×</button>
-              </div>
-            </div>
             <div class="reading-video-slot" id="readingVideoSlot">
               <div class="video-frame" id="videoFrame">
             <video id="video" preload="metadata" playsinline></video>
@@ -1110,7 +1044,7 @@
               </button>
             </div>
               </div>
-              <div class="reading-video-pinch-surface" id="readingVideoPinchSurface" aria-hidden="true"></div>
+              <div class="reading-video-pinch-surface" id="readingVideoPinchSurface" role="button" tabindex="0" aria-label="Drag to move the video, pinch to resize, or press Space to play or pause"></div>
             </div>
             <span class="reading-video-resize" id="readingVideoResizeHandle" role="button" tabindex="0" aria-label="Drag to resize the video" title="Drag to resize"></span>
           </div>
@@ -1201,7 +1135,7 @@
               </button>
             </div>
           </header>
-          <div class="reading-mode-tip" id="readingModeTip" aria-hidden="true">Drag the slim top handle to move · pinch the video or drag its corner to resize · Follow daf keeps pace with the highlighted words</div>
+          <div class="reading-mode-tip" id="readingModeTip" aria-hidden="true">Drag the video to move · pinch to resize · Follow daf tracks the highlighted words</div>
 
           <div class="daf-scroll" id="dafScroll">
             <div class="daf-page" id="dafPage" dir="rtl" lang="he" hidden>
