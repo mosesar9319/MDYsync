@@ -39,7 +39,7 @@ body {
 
 .card { backdrop-filter: none; border: 1px solid var(--line); }
 
-#lectureTitle, .brand-title, .daf-heading h2 {
+#lectureTitle, .brand-name, .daf-heading h2 {
   font-family: Georgia, "Times New Roman", serif;
 }
 

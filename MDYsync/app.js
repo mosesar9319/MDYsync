@@ -870,6 +870,29 @@ function realDafRef(ref) {
   return parsed ? `${parsed.tractate} ${parsed.daf}${parsed.amud}` : String(ref || '').trim();
 }
 
+// Same Sefaria calendar lookup index.html's own hero card uses to find
+// today's Daf Yomi -- duplicated here (rather than shared) since the two
+// pages have no module system to share it through. Used by the Daf browser
+// to default to today's daf instead of the picker's arbitrary first option.
+// Returns a ref string like "Chullin 86a" (amud "a", the conventional
+// starting point for a daf someone hasn't specified a side for), or null if
+// the lookup fails or today isn't a Talmud Daf Yomi day.
+async function fetchTodaysDafRef() {
+  try {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const response = await fetch(`https://www.sefaria.org/api/calendars?timezone=${encodeURIComponent(timezone)}`);
+    if (!response.ok) throw new Error(`Sefaria returned ${response.status}`);
+    const data = await response.json();
+    const item = (data.calendar_items || []).find((i) => i.category === 'Talmud' && i.title?.en === 'Daf Yomi');
+    if (!item) return null;
+    const match = /^(.+?)\s+(\d+)$/.exec(String(item.displayValue?.en || '').trim());
+    return match ? `${match[1]} ${match[2]}a` : null;
+  } catch (error) {
+    console.error('Could not load today’s daf.', error);
+    return null;
+  }
+}
+
 // Fetches a ref's full canonical text straight from Sefaria (proxied, with
 // a direct-API fallback) and returns it as one entry per paragraph -- the
 // same shape loadDaf()'s from-scratch fallback builds segments from, and
@@ -6404,15 +6427,22 @@ loadTalmudIndex().then(() => {
     if (!params.get('ref')) document.body.classList.add('scan-pending');
   }
   const ref = params.get('ref');
-  // The Daf browser (browse/index.html) has no video to load -- either land
-  // on whatever ref the query string names, or fall back to the picker's
-  // own default selection (its <select>s already default to their first
-  // option once loadTalmudIndex() populates them) so the page never opens
-  // to a blank state.
+  // The Daf browser (browse/index.html) has no video to load -- land on
+  // whatever ref the query string names, or default to today's Daf Yomi
+  // (falling back to the picker's own first-option default if that lookup
+  // fails) so the page never opens to a blank/arbitrary state.
   if (state.browseMode) {
-    if (ref) syncDafPickerFromRef(ref);
-    switchDafView('page'); // the whole point of this page is the page image, not plain text
-    onDafPickerChanged();
+    if (ref) {
+      syncDafPickerFromRef(ref);
+      switchDafView('page'); // the whole point of this page is the page image, not plain text
+      onDafPickerChanged();
+    } else {
+      switchDafView('page');
+      fetchTodaysDafRef().then((todaysRef) => {
+        if (todaysRef) syncDafPickerFromRef(todaysRef);
+        onDafPickerChanged();
+      });
+    }
     return;
   }
   if (!ref) return;

@@ -34,7 +34,108 @@ body {
 button, input, select { font: inherit; }
 button { color: inherit; }
 
-.app-shell { width: min(1540px, calc(100% - 32px)); margin: 0 auto; padding-bottom: 56px; }
+/* Fixed left sidebar nav, matching player/index.html's own (locally-styled)
+   layout -- browse/watch/studio previously had no desktop-visible nav of
+   their own at all (see nav.js's renderDesktopNav), then a compact icon
+   strip in the topbar; this replaces that with the same full sidebar
+   every page now uses, populated by nav.js the same way it already fills
+   player.html's. Driven by the shared CSS custom properties, so it
+   automatically follows watch-theme.css's re-skin like everything else
+   here does. index.html and player/index.html each still define their own
+   copy locally (a different, non-shared page shell in both cases) --
+   duplicated by hand rather than factored out, matching this codebase's
+   established no-shared-HTML-partial approach elsewhere.
+   --sidebar-width is a real custom property (not just a literal 148px
+   repeated everywhere) so collapse.js's inline collapsed-width override
+   below has one source of truth to restore from. */
+:root { --sidebar-width: 148px; }
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 20;
+  width: var(--sidebar-width);
+  display: flex;
+  flex-direction: column;
+  background: var(--card-strong);
+  border-right: 1px solid var(--line);
+  overflow: hidden;
+  transition: width .2s ease;
+}
+.sidebar > .brand {
+  height: 104px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+  text-decoration: none;
+  color: var(--text);
+  white-space: nowrap;
+}
+.brand-mark { display: grid; place-items: center; color: var(--accent); }
+.brand-mark img, .brand-mark svg { width: 100%; height: 100%; object-fit: contain; }
+.sidebar .brand-mark { width: 54px; height: 54px; }
+.sidebar .brand-name { display: none; }
+.brand-name { font: 700 clamp(24px,2.4vw,34px) Georgia,"Times New Roman",serif; letter-spacing: -1px; color: var(--text); }
+/* Compact brand shown in the topbar only below the 760px breakpoint, once
+   the fixed sidebar (and the full-size brand living inside it) hides. */
+.mobile-brand { display: none; }
+.mobile-brand .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
+.mobile-brand .brand-mark { width: 40px; height: 40px; }
+.mobile-brand .brand-name { display: block; font-size: 24px; }
+@media (max-width: 760px) { .mobile-brand { display: block; } }
+.sidebar .desktop-navigation { display: flex; flex-direction: column; }
+.side-link {
+  height: 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  border-left: 3px solid transparent;
+  transition: .18s ease;
+}
+.side-link .icon { width: 22px; height: 22px; }
+.side-link:hover, .side-link.active { color: var(--accent); background: var(--accent-soft); border-left-color: var(--accent); }
+
+/* The button that hides/reveals the sidebar (collapse.js) -- pinned to the
+   sidebar's own right edge so it moves with it, flipping which way its
+   chevron points to match the action it now performs. */
+.sidebar-toggle {
+  position: fixed;
+  top: 50%;
+  left: var(--sidebar-width);
+  transform: translate(-50%, -50%);
+  z-index: 21;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--card-strong);
+  color: var(--muted);
+  cursor: pointer;
+  transition: left .2s ease;
+}
+.sidebar-toggle:hover { color: var(--accent); }
+.sidebar-toggle .icon { width: 14px; height: 14px; transition: transform .2s ease; }
+body.sidebar-collapsed .sidebar { width: 0; border-right: 0; }
+body.sidebar-collapsed .sidebar-toggle { left: 0; }
+body.sidebar-collapsed .sidebar-toggle .icon { transform: rotate(180deg); }
+
+.app-shell { width: min(1540px, calc(100% - 32px - var(--sidebar-width))); margin: 0 auto 0 var(--sidebar-width); padding-bottom: 56px; transition: margin-left .2s ease; }
+body.sidebar-collapsed .app-shell { margin-left: 0; width: min(1540px, calc(100% - 32px)); }
+@media (max-width: 760px) {
+  .sidebar, .sidebar-toggle { display: none; }
+  .app-shell { margin-left: 0; width: min(1540px, calc(100% - 32px)); }
+}
 .topbar {
   min-height: 90px;
   display: flex;
@@ -42,14 +143,8 @@ button { color: inherit; }
   justify-content: space-between;
   gap: 24px;
 }
-.brand-group, .top-actions, .file-row, .input-with-button, .compact-actions, .player-controls, .time-row,
+.top-actions, .file-row, .input-with-button, .compact-actions, .player-controls, .time-row,
 .card-heading, .editor-heading, .editor-actions, .daf-footer, .daf-toolbar, .workflow-card { display: flex; align-items: center; }
-.brand-group { gap: 13px; }
-.brand-mark { width: 45px; height: 45px; color: var(--accent); }
-.brand-mark svg, .brand-mark img { width: 100%; height: 100%; }
-.brand-title { font-weight: 700; font-size: 22px; letter-spacing: -0.3px; }
-.brand-title span { color: var(--accent); }
-.brand-subtitle { font-size: 13px; color: var(--muted); margin-top: 1px; }
 .top-actions { gap: 10px; }
 .status-pill {
   display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--line);
@@ -532,7 +627,6 @@ dialog ol { color: #d8e2eb; padding-left: 21px; line-height: 1.6; }
   .app-shell { width: min(100% - 18px, 1540px); }
   .topbar { align-items: flex-start; padding: 16px 0; }
   .top-actions .status-pill { display: none; }
-  .brand-subtitle { display: none; }
   .setup-strip { grid-template-columns: 1fr; padding: 15px; }
   .setup-field + .setup-field { border-left: 0; border-top: 1px solid var(--line); padding: 15px 0 0; }
   .action-field { grid-column: auto; }
@@ -686,7 +780,7 @@ body.studio-locked .studio-gate {
   background: rgba(5, 12, 22, 0.94);
   backdrop-filter: blur(6px);
 }
-body.studio-locked .app-shell { visibility: hidden; }
+body.studio-locked .app-shell, body.studio-locked .sidebar, body.studio-locked .sidebar-toggle { visibility: hidden; }
 .studio-gate-card {
   width: 100%;
   max-width: 360px;
@@ -858,32 +952,3 @@ body.studio-locked .app-shell { visibility: hidden; }
   outline-offset: 2px;
 }
 
-/* Desktop-visible equivalent of .mobile-nav above -- injected by nav.js
-   into .topbar on pages that don't build their own sidebar/tab nav (browse,
-   watch, studio; see nav.js's own comment). Icon-only and compact by
-   design: it sits between the brand mark and the account widget in a
-   fixed-height topbar, and a full labelled tab strip risks overflowing or
-   wrapping at in-between desktop widths this can't be visually verified
-   against here. player/index.html has its own pre-existing sidebar nav
-   instead (a different, wider layout already built for it) -- nav.js fills
-   that one's real content in rather than adding this alongside it. */
-.site-tabs { display: flex; align-items: center; gap: 2px; }
-.site-tabs a {
-  display: grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  color: var(--muted);
-  text-decoration: none;
-}
-.site-tabs a .icon { width: 20px; height: 20px; }
-/* Labels stay in the markup (nav.js shares it with player.html's labelled
-   sidebar nav) for the title/aria-label below to have real text to match --
-   just not shown here, where there's no room for a fifth text label. */
-.site-tabs a span { display: none; }
-.site-tabs a:hover { background: rgba(255, 255, 255, 0.06); color: var(--text); }
-.site-tabs a.active { color: var(--accent); background: var(--accent-soft); }
-@media (max-width: 760px) {
-  .site-tabs { display: none; }
-}

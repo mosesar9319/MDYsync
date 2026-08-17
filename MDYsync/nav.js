@@ -11,9 +11,9 @@
 const NAV_ITEMS = [
   { label: 'Home', icon: 'home', href: '/' },
   { label: 'Today’s Daf', icon: 'calendar', href: '/?nav=today' },
+  { label: 'Interactive Daf', icon: 'bookOpen', href: '/browse/' },
   { label: 'Maggidei Shiurim', icon: 'teacher', href: '/?nav=maggidei' },
   { label: 'Daf Scan', icon: 'camera', href: '/player/?view=scan' },
-  { label: 'Daf browser', icon: 'bookOpen', href: '/browse/' },
 ];
 
 // Same path data as index.html's own icon set, kept in sync by hand since
@@ -63,31 +63,21 @@ function renderBottomNav() {
 // CSS-hidden above 760px (see styles.css), so without this, every page
 // loading nav.js had no sitewide navigation at all on desktop.
 //
-// player/index.html already ships its own <nav class="desktop-navigation">
-// (a fixed left sidebar, styled locally by that page, not styles.css) --
-// reuse and fill that one in with real content and links instead of
-// building a second nav next to it. Every other page loading nav.js has no
-// such element, so one is created here and dropped into .topbar (styled by
-// the compact .site-tabs rule in styles.css) between the brand mark and the
-// account widget.
+// Every page loading nav.js (browse/watch/studio/player) now ships the same
+// fixed left <aside class="sidebar">...<nav class="desktop-navigation">
+// markup (see styles.css's shared .sidebar/.side-link rules) -- this just
+// fills that nav in with real content and links.
 function renderDesktopNav() {
+  // side-link is what styles.css's shared .side-link rule targets to turn
+  // each link into a stacked icon-over-label button; without it these
+  // render as plain unstyled/underlined text links.
   const linksHtml = NAV_ITEMS.map((item) =>
-    `<a class="${isItemActive(item) ? 'active' : ''}" href="${item.href}" title="${item.label}" aria-label="${item.label}">${navIcon(item.icon)}<span>${item.label}</span></a>`
+    `<a class="side-link${isItemActive(item) ? ' active' : ''}" href="${item.href}" title="${item.label}" aria-label="${item.label}">${navIcon(item.icon)}<span>${item.label}</span></a>`
   ).join('');
 
   const existing = document.querySelector('.desktop-navigation');
-  if (existing) {
-    existing.innerHTML = linksHtml;
-    return;
-  }
-
-  const topbar = document.querySelector('.topbar');
-  if (!topbar) return; // page has neither -- nothing to attach to
-  const nav = document.createElement('nav');
-  nav.className = 'site-tabs';
-  nav.setAttribute('aria-label', 'Primary navigation');
-  nav.innerHTML = linksHtml;
-  topbar.insertBefore(nav, topbar.children[1] || null);
+  if (!existing) return; // page has no sidebar -- nothing to attach to
+  existing.innerHTML = linksHtml;
 }
 
 renderBottomNav();

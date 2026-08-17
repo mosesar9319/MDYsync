@@ -169,7 +169,39 @@ button {
 .page {
   margin-left: 148px;
   min-width: 0;
+  transition: margin-left .2s ease;
 }
+
+/* The button that hides/reveals the sidebar (collapse.js) -- pinned to the
+   sidebar's own right edge so it moves with it, flipping which way its
+   chevron points to match the action it now performs. Kept in sync by hand
+   with the shared version in styles.css, since this page doesn't load that
+   stylesheet (see the "no shared HTML-partial mechanism" note elsewhere). */
+.sidebar-toggle {
+  align-items: center;
+  background: rgba(255, 253, 248, 0.96);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: #89837b;
+  cursor: pointer;
+  display: grid;
+  height: 26px;
+  justify-content: center;
+  left: 148px;
+  place-items: center;
+  position: fixed;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  transition: left .2s ease;
+  width: 26px;
+  z-index: 21;
+}
+.sidebar-toggle:hover { color: var(--gold); }
+.sidebar-toggle .icon { width: 14px; height: 14px; transition: transform .2s ease; }
+body.sidebar-collapsed .sidebar { width: 0; overflow: hidden; border-right: 0; }
+body.sidebar-collapsed .sidebar-toggle { left: 0; }
+body.sidebar-collapsed .sidebar-toggle .icon { transform: rotate(180deg); }
+body.sidebar-collapsed .page { margin-left: 0; }
 
 .topbar {
   align-items: center;
@@ -485,7 +517,14 @@ h1 {
   gap: 16px;
   margin: 14px 0;
   padding: 18px 20px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: box-shadow .15s ease, transform .15s ease;
 }
+.maggid-card:hover { box-shadow: 0 8px 20px rgba(55, 38, 18, 0.14); transform: translateY(-1px); }
 
 .maggid-avatar {
   align-items: center;
@@ -821,7 +860,7 @@ h1 {
     background: #fcf9f3;
   }
 
-  .sidebar {
+  .sidebar, .sidebar-toggle {
     display: none;
   }
 
@@ -1317,13 +1356,13 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
               <h2>Maggidei Shiurim</h2>
             </div>
           </div>
-          <div class="maggid-card">
+          <button class="maggid-card" id="maggidStefanskyCard" type="button">
             <span class="maggid-avatar" data-icon="teacher" aria-hidden="true"></span>
             <div>
               <strong>R’ Eli Stefansky</strong>
-              <span>Daf Yomi</span>
+              <span>Daf Yomi &middot; view all his shiurim</span>
             </div>
-          </div>
+          </button>
           <p class="field-note">More maggidei shiur coming soon.</p>
         </section>
       </main>
@@ -1384,6 +1423,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
 
   <script src="vendor/supabase-js.min.js"></script>
   <script src="auth.js"></script>
+  <script src="collapse.js" defer></script>
   <script>
   (() => {
     const iconPaths = {
@@ -1553,6 +1593,12 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     const navItems = [
       { label: "Home", icon: "home" },
       { label: "Today’s Daf", icon: "calendar" },
+      // These two are plain links to dedicated pages, not in-page filters --
+      // Scan needs the camera permission scoped to /player/* in netlify.toml,
+      // and both need app.js's daf-loading machinery this lightweight home
+      // page deliberately doesn't load. `href` present is what distinguishes
+      // a link entry from a filter entry below (see navMarkup/renderNavigation).
+      { label: "Interactive Daf", icon: "bookOpen", href: "/browse/" },
       // Replaces the old "Masechtos" tab -- the site only has one active
       // tractate (see SITE_TRACTATES below), so a "choose a masechta" tab
       // implied a breadth the site doesn't have. Maggidei Shiurim isn't a
@@ -1560,13 +1606,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       // renderCards' maggidimActive branch, which swaps in a dedicated
       // section instead.
       { label: "Maggidei Shiurim", icon: "teacher" },
-      // These two are plain links to dedicated pages, not in-page filters --
-      // Scan needs the camera permission scoped to /player/* in netlify.toml,
-      // and both need app.js's daf-loading machinery this lightweight home
-      // page deliberately doesn't load. `href` present is what distinguishes
-      // a link entry from a filter entry below (see navMarkup/renderNavigation).
       { label: "Daf Scan", icon: "camera", href: "/player/?view=scan" },
-      { label: "Daf browser", icon: "bookOpen", href: "/browse/" },
     ];
     const state = {
       activeNav: "Home", filter: "All Shiurim", filters: ["All Shiurim"],
@@ -1850,6 +1890,16 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       state.query = "";
       search.value = "";
       render();
+    });
+    document.querySelector("#maggidStefanskyCard").addEventListener("click", () => {
+      // Every shiur in the catalog is currently his, so "all his videos" is
+      // just the ordinary full grid -- same as tapping the Home tab.
+      state.activeNav = "Home";
+      state.filter = "All Shiurim";
+      state.query = "";
+      search.value = "";
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
     });
     document.querySelector("#modal-close").addEventListener("click", closeModal);
     modal.addEventListener("click", (event) => {
