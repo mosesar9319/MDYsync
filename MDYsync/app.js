@@ -18,6 +18,12 @@ const state = {
   editingIndex: 0,
   phraseEditMode: false,
   vilnaMarkMode: false,
+  // Snapshot of segments/editingIndex from when mark mode was turned on (or
+  // the last explicit Save) -- what "Discard changes" (see
+  // discardVilnaMarkChanges) reverts to. Serialized JSON, not a live
+  // object, so later mutations to state.segments can never silently corrupt
+  // the very thing meant to undo them.
+  vilnaMarkCheckpoint: null,
   alignmentStatus: 'placeholder',
   currentProjectId: null,
   wordTimeline: [],
@@ -2666,26 +2672,32 @@ async function tapScannedWord(wordRef, wordIndex) {
 // reuses setSegmentStart so this banks/autosaves exactly like every other
 // correction path already does.
 function markSegmentAtVilnaWord(ref, wordIndex) {
-  // Prefer the phrase actually being corrected (state.editingIndex, the
-  // "next phrase to mark" the dashed outline points at) over any other
-  // segment that merely happens to share this ref and word range -- a
-  // paragraph the rebbe revisits or repeats later in the shiur can produce
-  // several same-ref segments with the same (or overlapping) w0/w1 word
-  // range but wildly different start times (confirmed in real synced data:
-  // one ref in Chullin 100a has 26 such segments spanning a 200+ second
-  // range). A blind first-array-match (state.segments is sorted by start
-  // time) always resolved to whichever occurrence happens to sort earliest,
-  // not the one actually on screen/being worked on -- surfacing to an admin
-  // as the mark landing on an unrelated phrase elsewhere in the shiur.
-  const editing = state.segments[state.editingIndex];
-  const editingMatches = editing && editing.ref === ref
-    && (editing.w0 === null || (wordIndex >= editing.w0 && wordIndex <= editing.w1));
-  const index = editingMatches
-    ? state.editingIndex
-    : state.segments.findIndex((s) => s.ref === ref && s.w0 !== null && wordIndex >= s.w0 && wordIndex <= s.w1);
-  const resolvedIndex = index !== -1 ? index : state.segments.findIndex((s) => s.ref === ref);
-  if (resolvedIndex === -1) return;
   const time = getCurrentTime();
+  // A paragraph the rebbe revisits or repeats later in the shiur can
+  // produce several segments sharing one ref with the same (or overlapping)
+  // w0/w1 word range but wildly different start times -- confirmed in real
+  // synced data: one ref in Chullin 100a has 26 such segments spanning a
+  // 200+ second range. Two earlier approaches both got this wrong: a blind
+  // first-array-match (state.segments is sorted by start time) always
+  // resolved to whichever occurrence happens to sort earliest; preferring
+  // state.editingIndex's own segment instead was worse -- any click on a
+  // word whose ref happened to recur elsewhere could hijack whatever
+  // segment editingIndex currently pointed at (even the daf's very first
+  // phrase), overwriting its start with the current, unrelated playback
+  // time and corrupting the whole chronological ordering from that point
+  // on. Among every segment that actually matches this ref (and, when
+  // known, this word's range), the one whose own start time sits closest to
+  // right now is overwhelmingly likely to be the real occurrence -- an
+  // admin marks phrases while listening along in real time, so playback
+  // position is the one signal that's actually about *this* moment, not
+  // wherever an unrelated index happens to be pointing.
+  const exact = state.segments
+    .map((s, i) => ({ s, i }))
+    .filter(({ s }) => s.ref === ref && s.w0 !== null && wordIndex >= s.w0 && wordIndex <= s.w1);
+  const anyRef = exact.length ? exact : state.segments.map((s, i) => ({ s, i })).filter(({ s }) => s.ref === ref);
+  if (!anyRef.length) return;
+  anyRef.sort((a, b) => Math.abs(a.s.start - time) - Math.abs(b.s.start - time));
+  const resolvedIndex = anyRef[0].i;
   setSegmentStart(resolvedIndex, time);
   state.editingIndex = Math.min(resolvedIndex + 1, state.segments.length - 1);
   updateMarkTargetUi();
@@ -4311,8 +4323,44 @@ function toggleVilnaMarkMode() {
   $('vilnaMarkModeButton')?.classList.toggle('active', state.vilnaMarkMode);
   $('vilnaMarkModeButton')?.setAttribute('aria-pressed', String(state.vilnaMarkMode));
   $('vilnaPageWrap')?.classList.toggle('mark-mode', state.vilnaMarkMode);
-  if (state.vilnaMarkMode) switchDafView('page');
+  const saveButton = $('vilnaMarkSaveButton');
+  const discardButton = $('vilnaMarkDiscardButton');
+  if (saveButton) saveButton.hidden = !state.vilnaMarkMode;
+  if (discardButton) discardButton.hidden = !state.vilnaMarkMode;
+  if (state.vilnaMarkMode) {
+    switchDafView('page');
+    checkpointVilnaMarkChanges();
+  } else {
+    state.vilnaMarkCheckpoint = null;
+  }
   updateVilnaMarkTarget();
+}
+
+// Snapshot state.segments/editingIndex so discardVilnaMarkChanges() below
+// has something to revert to -- taken when mark mode turns on, and again
+// every time the admin explicitly saves, so "Discard changes" only ever
+// undoes marks made since the last save, not the whole mark-mode session.
+function checkpointVilnaMarkChanges() {
+  state.vilnaMarkCheckpoint = JSON.stringify({ segments: state.segments, editingIndex: state.editingIndex });
+}
+
+function saveVilnaMarkChanges() {
+  saveDraft(false);
+  bankVoiceCorrection();
+  bankManualPhraseSync();
+  checkpointVilnaMarkChanges();
+}
+
+function discardVilnaMarkChanges() {
+  if (!state.vilnaMarkCheckpoint) return;
+  if (!confirm('Discard the word-mark corrections made since the last save?')) return;
+  const restored = JSON.parse(state.vilnaMarkCheckpoint);
+  state.segments = restored.segments;
+  state.editingIndex = restored.editingIndex;
+  renderDaf(); // also re-runs updateActiveSegment/renderEditor/renderVilnaPage
+  updateVilnaMarkTarget();
+  updateAlignmentStatus();
+  showToast('Discarded changes since the last save.');
 }
 
 const NUDGE_STEPS = [-1, -0.1, 0.1, 1];
@@ -5348,6 +5396,8 @@ $('evenSpacingButton').addEventListener('click', () => resetEvenSpacing(false));
 // browse/index.html, which otherwise share this same top-level script.
 $('phraseEditModeButton')?.addEventListener('click', togglePhraseEditMode);
 $('vilnaMarkModeButton')?.addEventListener('click', toggleVilnaMarkMode);
+$('vilnaMarkSaveButton')?.addEventListener('click', saveVilnaMarkChanges);
+$('vilnaMarkDiscardButton')?.addEventListener('click', discardVilnaMarkChanges);
 // The editor sits in the same grid column as the daf card (see the HTML
 // comment above #editor) so correcting the sync stays parallel with the
 // video instead of scrolling to a full-width section below it -- the two

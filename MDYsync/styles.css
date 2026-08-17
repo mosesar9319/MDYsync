@@ -424,6 +424,16 @@ h2 { margin-bottom: 0; }
 }
 .vilna-mark-toggle { width: auto; padding: 0 10px; font-size: 12px; white-space: nowrap; }
 .vilna-mark-toggle.active { background: var(--accent-strong); color: #06201c; border-color: transparent; }
+/* Only shown while mark mode is on (see toggleVilnaMarkMode) -- Save banks
+   whatever's been marked so far as a local draft (same mechanism as the
+   editor panel's own Save Draft button); Discard reverts to the last save
+   (or, if nothing's been saved yet this session, to when mark mode was
+   turned on -- see checkpointVilnaMarkChanges/discardVilnaMarkChanges). */
+.vilna-mark-save, .vilna-mark-discard { width: auto; padding: 0 10px; font-size: 12px; white-space: nowrap; }
+.vilna-mark-save { background: rgba(56, 158, 92, .16); border-color: rgba(56, 158, 92, .4); color: #1c5a34; }
+.vilna-mark-save:hover { background: rgba(56, 158, 92, .28); }
+.vilna-mark-discard { background: rgba(179, 67, 47, .12); border-color: rgba(179, 67, 47, .35); color: #8a3220; }
+.vilna-mark-discard:hover { background: rgba(179, 67, 47, .22); }
 /* Signals "clicking marks this word" instead of the normal "clicking seeks
    here" -- the same crosshair browsers already show over an editable
    region, so it doesn't need an explanatory label to read as different. */
