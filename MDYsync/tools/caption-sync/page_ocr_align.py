@@ -282,19 +282,6 @@ def ocr_band_words_google_vision(page_png, api_key=None, credentials_json=None):
     return words, w, h
 
 
-class AbbrevToken:
-    """One alignment token: usually one CanonWord, but for a collapsed
-    printed abbreviation, all of the CanonWords it stands for -- see
-    collapse_canon_abbreviations below. `.norm` is what actually gets
-    compared against an OCR'd word during alignment; `.members` is what
-    build_word_boxes later expands a single matched token back out into."""
-    __slots__ = ('norm', 'members')
-
-    def __init__(self, norm, members):
-        self.norm = norm
-        self.members = members
-
-
 def load_abbreviations():
     """Loads the Talmudic-abbreviation dictionary: the curated starter list
     shipped at shared/abbreviations.json, plus anything the manual trace
@@ -322,19 +309,30 @@ def load_abbreviations():
     return {'entries': entries}
 
 
-def collapse_canon_abbreviations(canon, dictionary):
-    """Folds any run of canonical words matching a known printed
-    abbreviation (תנו רבנן -> ת"ר) into a single alignment token, matched
-    against the abbreviation's own printed form -- NOT the spelled-out
-    words concatenated together, which share almost no characters with the
-    short printed token and would never fuzz-match it (compare "מאיטעמא"
-    against "מט" -- nothing in common at the character level a ratio-based
-    matcher can find). This is the actual reason abbreviated phrases were
-    dropping out of alignment entirely rather than just scoring poorly:
-    without this, there was no candidate to score in the first place.
+def recover_abbreviations(canon, words, pairs, dictionary):
+    """Second pass, run AFTER plain 1:1 alignment: for any run of canonical
+    words a known phrase (תנו רבנן -> ת"ר) could explain that came out of
+    that alignment completely unmatched, checks for a nearby unmatched OCR
+    word reading as the abbreviation's own printed form and, if found,
+    credits all of the phrase's canonical words to it.
 
-    Longest phrase wins when more than one dictionary entry could start at
-    the same position, same as the JS counterpart in daf-tracer.mjs.
+    Deliberately a second pass over what plain alignment already settled,
+    not a preprocessing step that forces every textual occurrence of a
+    phrase to only match its abbreviated form -- confirmed directly on a
+    real page that printers don't abbreviate a phrase every time it
+    appears (of 5 real occurrences of two phrases on one page, only 1 was
+    actually set abbreviated; an earlier version of this that forced all 5
+    to only accept the short form broke the other 4, which were spelled
+    out in full and would otherwise have matched fine on their own -- net
+    coverage went DOWN, not up). Only ever adds matches on top of what
+    plain alignment already found, so unlike that version this can't make
+    coverage worse.
+
+    "Nearby" means bounded by the OCR-index of the nearest already-matched
+    canonical word on each side of the gap -- alignment pairs are
+    monotonic in both sequences, so the OCR word standing in for an
+    unmatched run of canonical words, if it exists at all, has to sit
+    somewhere between those two neighbors.
     """
     entries = sorted(
         (
@@ -344,38 +342,60 @@ def collapse_canon_abbreviations(canon, dictionary):
         key=lambda e: -len(e[0]),
     )
     entries = [(phrase, abbr) for phrase, abbr in entries if abbr and len(phrase) >= 2]
+    if not entries:
+        return []
 
-    tokens = []
+    matched_canon = {canon_i for _, canon_i, _ in pairs}
+    matched_ocr = {ocr_i for ocr_i, _, _ in pairs}
+    by_canon = sorted(pairs, key=lambda p: p[1])
+
+    def ocr_bracket(i0, i1):
+        prev_ocr, next_ocr = -1, len(words)
+        for ocr_i, canon_i, _ in by_canon:
+            if canon_i < i0 and ocr_i > prev_ocr:
+                prev_ocr = ocr_i
+            if canon_i >= i1:
+                next_ocr = ocr_i
+                break
+        return prev_ocr, next_ocr
+
+    extra = []
     i = 0
     while i < len(canon):
-        matched = None
+        found = False
         for phrase_norms, abbr_norm in entries:
             n = len(phrase_norms)
-            if i + n > len(canon):
+            span = range(i, i + n)
+            if i + n > len(canon) or any(j in matched_canon for j in span):
                 continue
-            if [c.norm for c in canon[i:i + n]] == phrase_norms:
-                matched = (n, abbr_norm)
+            if [c.norm for c in canon[i:i + n]] != phrase_norms:
+                continue
+            prev_ocr, next_ocr = ocr_bracket(i, i + n)
+            best = None
+            for ocr_i in range(prev_ocr + 1, next_ocr):
+                if ocr_i in matched_ocr:
+                    continue
+                score = fuzz.ratio(words[ocr_i]['norm'], abbr_norm)
+                if score >= MATCH_THRESHOLD and (best is None or score > best[1]):
+                    best = (ocr_i, score)
+            if best:
+                ocr_i, score = best
+                matched_ocr.add(ocr_i)
+                for j in span:
+                    extra.append((ocr_i, j, score))
+                    matched_canon.add(j)
+                i += n
+                found = True
                 break
-        if matched:
-            n, abbr_norm = matched
-            tokens.append(AbbrevToken(abbr_norm, canon[i:i + n]))
-            i += n
-        else:
-            tokens.append(AbbrevToken(canon[i].norm, [canon[i]]))
+        if not found:
             i += 1
-    return tokens
+    return extra
 
 
-def align_words_to_canon(canon_tokens, words):
+def align_words_to_canon(canon, words):
     """Globally align the OCR'd word sequence against the canonical word
     sequence (Needleman-Wunsch), instead of greedily fuzzy-matching small
     windows with a moving cursor.
-
-    canon_tokens is collapse_canon_abbreviations's output, not the raw
-    per-word canonical list -- this function only ever reads `.norm` off
-    each entry, so it doesn't care whether a token stands for one canonical
-    word or several collapsed into one printed abbreviation; that
-    expansion happens later in build_word_boxes.
 
     The greedy/windowed approach used earlier tracked a "cursor" position
     and searched near it for each small chunk of OCR'd words -- but one
@@ -393,7 +413,7 @@ def align_words_to_canon(canon_tokens, words):
     pairs scoring at or above MATCH_THRESHOLD.
     """
     a = [w['norm'] for w in words]
-    b = [c.norm for c in canon_tokens]
+    b = [c.norm for c in canon]
     n, m = len(a), len(b)
 
     dp = [[0.0] * (m + 1) for _ in range(n + 1)]
@@ -508,18 +528,13 @@ def compute_text_block(words, page_w, page_h, crop_w, crop_h, padding_lines=0.5,
     }
 
 
-def build_word_boxes(canon_tokens, words, pairs, crop_w, crop_h):
+def build_word_boxes(canon, words, pairs, crop_w, crop_h):
     """One box per aligned canonical word, taken directly from its matched
     OCR word's real bounding box (no chunk-distribution approximation
-    needed now that alignment is word-for-word) -- except when the matched
-    token is a collapsed abbreviation (collapse_canon_abbreviations), which
-    stands for MULTIPLE canonical words sharing that one printed token's
-    position: every consumer of this data (app.js's renderVilnaWordBoxes,
-    markSegmentAtVilnaWord, etc.) looks a word up by its own exact
-    ref+wordIndex, so each of those words gets its own box entry here, all
-    pointing at the same printed position -- simplest way to stay
-    compatible with every existing reader rather than teaching all of them
-    a new "one box, several word indices" shape.
+    needed now that alignment is word-for-word). `pairs` can include
+    recover_abbreviations's extra matches alongside align_words_to_canon's
+    own -- both are plain (ocr_index, canon_index, score) triples over the
+    same canon/words lists, so they merge here with no special handling.
 
     Deliberately UNCHANGED otherwise, still fractions of the whole
     (CropBox-equivalent) page, not the text block computed above -- the
@@ -534,14 +549,15 @@ def build_word_boxes(canon_tokens, words, pairs, crop_w, crop_h):
     out = []
     for ocr_i, canon_i, score in pairs:
         w = words[ocr_i]
-        box = {
+        c = canon[canon_i]
+        out.append({
+            'ref': c.ref,
+            'wordIndex': c.word_index,
             'x': w['x'] / crop_w,
             'y': w['y'] / crop_h,
             'w': w['w'] / crop_w,
             'h': w['h'] / crop_h,
-        }
-        for member in canon_tokens[canon_i].members:
-            out.append({'ref': member.ref, 'wordIndex': member.word_index, **box})
+        })
     return out
 
 
@@ -557,11 +573,6 @@ def process_page(tractate, daf, amud, out_dir, cache_dir=None, engine=None,
     print(f'Canonical text: {len(segments)} segments, {len(canon)} words')
 
     abbreviations = load_abbreviations()
-    canon_tokens = collapse_canon_abbreviations(canon, abbreviations)
-    abbrev_tokens = [t for t in canon_tokens if len(t.members) > 1]
-    if abbrev_tokens:
-        print(f'Abbreviations: collapsed {sum(len(t.members) for t in abbrev_tokens)} '
-              f'canonical words into {len(abbrev_tokens)} printed tokens')
 
     # Auto-picks the better engine the moment a credential is available,
     # without needing every caller updated to ask for it explicitly -- the
@@ -597,22 +608,16 @@ def process_page(tractate, daf, amud, out_dir, cache_dir=None, engine=None,
     crop_w = page_w * CROPBOX_WIDTH_FRAC
     crop_h = page_h * CROPBOX_HEIGHT_FRAC
 
-    pairs = align_words_to_canon(canon_tokens, words)
-    boxes = build_word_boxes(canon_tokens, words, pairs, crop_w, crop_h)
+    pairs = align_words_to_canon(canon, words)
+    recovered = recover_abbreviations(canon, words, pairs, abbreviations)
+    if recovered:
+        occurrences = len({ocr_i for ocr_i, _, _ in recovered})
+        print(f'Abbreviations: recovered {len(recovered)} canonical words via '
+              f'{occurrences} printed abbreviation{"s" if occurrences != 1 else ""}')
+        pairs = pairs + recovered
+    boxes = build_word_boxes(canon, words, pairs, crop_w, crop_h)
     covered = len(boxes)
     print(f'Aligned {covered}/{len(canon)} words ({covered / max(1, len(canon)):.0%} coverage)')
-
-    if abbrev_tokens:
-        matched_canon_i = {canon_i: ocr_i for ocr_i, canon_i, score in pairs}
-        for idx, token in enumerate(canon_tokens):
-            if len(token.members) <= 1:
-                continue
-            member_text = ' '.join(m.text for m in token.members)
-            if idx in matched_canon_i:
-                ocr_word = words[matched_canon_i[idx]]
-                print(f'  abbrev "{member_text}" (norm={token.norm!r}) -> MATCHED OCR "{ocr_word["text"]}" (norm={ocr_word["norm"]!r})')
-            else:
-                print(f'  abbrev "{member_text}" (norm={token.norm!r}) -> NOT MATCHED')
 
     if engine == 'google-vision':
         # Vision read the WHOLE page (every column), not a pre-cropped
