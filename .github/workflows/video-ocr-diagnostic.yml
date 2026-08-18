@@ -8,6 +8,8 @@ name: Video caption OCR diagnostic (throwaway)
 # is done -- they don't publish anything.
 
 on:
+  push:
+    branches: [claude/video-ocr-investigation]
   workflow_dispatch:
     inputs:
       video_url:
