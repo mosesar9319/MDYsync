@@ -38,6 +38,7 @@
 // distortion are all still open questions worth testing before relying on
 // this in production.
 
+import { createSign } from 'node:crypto';
 import { createWorker } from 'tesseract.js';
 import { Jimp, intToRGBA } from 'jimp';
 import { solveHomography, applyHomography } from '../../shared/perspective-transform.mjs';
@@ -83,25 +84,60 @@ const CANONICAL_CORNERS = [[0, 0], [1, 0], [1, 1], [0, 1]];
 // bounding worst-case request cost.
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
+function base64url(input) {
+  return Buffer.from(input).toString('base64url');
+}
+
+// Same JWT-bearer exchange as page_ocr_align.py's own
+// get_google_vision_access_token (there via the google-auth Python
+// library; here by hand, since pulling in a whole OAuth client library for
+// one token exchange isn't worth it in a Netlify function). A service
+// account is the form some orgs' Cloud project policy requires instead of
+// a plain API key ("API Keys are Disallowed ... use Application Default
+// Credentials instead") -- this is that same ADC path, not a workaround
+// for it.
+async function getGoogleVisionAccessToken(credentialsJson) {
+  const info = JSON.parse(credentialsJson);
+  const now = Math.floor(Date.now() / 1000);
+  const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const claims = base64url(JSON.stringify({
+    iss: info.client_email,
+    scope: 'https://www.googleapis.com/auth/cloud-platform',
+    aud: info.token_uri,
+    iat: now,
+    exp: now + 3600,
+  }));
+  const signature = createSign('RSA-SHA256').update(`${header}.${claims}`).sign(info.private_key, 'base64url');
+  const assertion = `${header}.${claims}.${signature}`;
+
+  const response = await fetch(info.token_uri, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion,
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok || !data.access_token) {
+    throw new Error(data.error_description || data.error || `Token exchange failed (${response.status})`);
+  }
+  return data.access_token;
+}
+
 // Same request shape as page_ocr_align.py's ocr_band_words_google_vision
 // (Python side, run by the batch pre-generation job) -- DOCUMENT_TEXT_
-// DETECTION with a Hebrew language hint. That function reads a whole page;
-// this reads a tiny single-line header crop, but it's the same API and the
-// same tuning question (accuracy on real, noisy camera photos of this
-// typeface) that motivated switching the page pipeline off Tesseract, so
-// it's worth spiking here as a straight engine swap before committing to
-// it -- see matchHeader's own comments for the specific real misreads
-// (a hallucinated niqqud, a dropped letter producing an exact tie with a
+// DETECTION with a Hebrew language hint, and the same choice between a
+// plain API key and a service-account credential (exactly one of the two
+// is expected). That function reads a whole page; this reads a tiny
+// single-line header crop, but it's the same API and the same tuning
+// question (accuracy on real, noisy camera photos of this typeface) that
+// motivated switching the page pipeline off Tesseract, so it's worth
+// spiking here as a straight engine swap before committing to it -- see
+// matchHeader's own comments for the specific real misreads (a
+// hallucinated niqqud, a dropped letter producing an exact tie with a
 // different real daf) that this is meant to address.
-//
-// Only the API-key form, not the service-account/credentials-JSON form
-// page_ocr_align.py also supports -- that path exists there for orgs whose
-// policy blocks plain API keys, exchanging a service-account key for a
-// short-lived OAuth token (RS256 JWT signing), which has no equivalent
-// here yet. Add it the same way if this key ever needs to move to that
-// form; until then, GOOGLE_VISION_API_KEY is what both the batch job and a
-// personal Cloud project actually use.
-async function ocrHeaderGoogleVision(imageBuffer, apiKey) {
+async function ocrHeaderGoogleVision(imageBuffer, { apiKey, credentialsJson }) {
   const payload = {
     requests: [{
       image: { content: imageBuffer.toString('base64') },
@@ -109,11 +145,13 @@ async function ocrHeaderGoogleVision(imageBuffer, apiKey) {
       imageContext: { languageHints: ['he'] },
     }],
   };
-  const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+  const headers = { 'Content-Type': 'application/json' };
+  const url = credentialsJson
+    ? 'https://vision.googleapis.com/v1/images:annotate'
+    : `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`;
+  if (credentialsJson) headers.Authorization = `Bearer ${await getGoogleVisionAccessToken(credentialsJson)}`;
+
+  const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
   const data = await response.json();
   const result = data?.responses?.[0];
   if (!response.ok || result?.error) {
@@ -207,12 +245,33 @@ export default async (request) => {
   // A/B test harness comparing both against the same real photos; the real
   // capture UI never sends one, so production always follows the env-var
   // default.
+  //
+  // NOT YET SAFE TO DEFAULT TO google-vision: spike-tested against one real
+  // photo (the one this file's own module comment describes being
+  // misidentified as 86a) and found a genuine, reproducible blind spot --
+  // Vision's DOCUMENT_TEXT_DETECTION never detects the header's daf-number
+  // glyphs at this crop's native resolution, confirmed directly against its
+  // raw response (absent from textAnnotations entirely, not a parsing
+  // issue on this end), even though it's the largest, clearest text in the
+  // crop. A 2-3x upscale of the header crop before sending it to Vision
+  // fixes this completely (confirmed: reads the daf number and every other
+  // header token correctly at both scales) -- but that upscale isn't
+  // implemented here yet, so switching the default without it would
+  // regress exactly the photo that motivated this file's original design.
+  // Separately, and just as relevant: on that same photo, the CURRENT
+  // tesseract path already matches correctly (score 83) -- the failure
+  // this module's docstring describes was already fixed by earlier work
+  // (narrowing HEADER_BAND, the punctuated-gematria-token filter), so
+  // whatever's still going wrong for real users is a different photo/
+  // condition than the one on file here, not reproduced by it.
   const visionApiKey = Netlify.env.get('GOOGLE_VISION_API_KEY');
+  const visionCredentialsJson = Netlify.env.get('GOOGLE_VISION_CREDENTIALS_JSON');
+  const hasVisionCredential = Boolean(visionApiKey || visionCredentialsJson);
   const engine = requestedEngine === 'tesseract' || requestedEngine === 'google-vision'
     ? requestedEngine
-    : (visionApiKey ? 'google-vision' : 'tesseract');
-  if (engine === 'google-vision' && !visionApiKey) {
-    return Response.json({ error: 'google-vision engine requested but GOOGLE_VISION_API_KEY is not set.' }, { status: 503 });
+    : (hasVisionCredential ? 'google-vision' : 'tesseract');
+  if (engine === 'google-vision' && !hasVisionCredential) {
+    return Response.json({ error: 'google-vision engine requested but neither GOOGLE_VISION_API_KEY nor GOOGLE_VISION_CREDENTIALS_JSON is set.' }, { status: 503 });
   }
 
   let ocrText;
@@ -250,7 +309,7 @@ export default async (request) => {
     const croppedBuffer = await cropped.getBuffer('image/png');
 
     if (engine === 'google-vision') {
-      ocrText = await ocrHeaderGoogleVision(croppedBuffer, visionApiKey);
+      ocrText = await ocrHeaderGoogleVision(croppedBuffer, { apiKey: visionApiKey, credentialsJson: visionCredentialsJson });
     } else {
       const worker = await createWorker('heb');
       try {
