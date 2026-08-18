@@ -282,10 +282,100 @@ def ocr_band_words_google_vision(page_png, api_key=None, credentials_json=None):
     return words, w, h
 
 
-def align_words_to_canon(canon, words):
+class AbbrevToken:
+    """One alignment token: usually one CanonWord, but for a collapsed
+    printed abbreviation, all of the CanonWords it stands for -- see
+    collapse_canon_abbreviations below. `.norm` is what actually gets
+    compared against an OCR'd word during alignment; `.members` is what
+    build_word_boxes later expands a single matched token back out into."""
+    __slots__ = ('norm', 'members')
+
+    def __init__(self, norm, members):
+        self.norm = norm
+        self.members = members
+
+
+def load_abbreviations():
+    """Loads the Talmudic-abbreviation dictionary: the curated starter list
+    shipped at shared/abbreviations.json, plus anything the manual trace
+    tool (studio/trace.html) has since discovered and saved to
+    abbreviation-additions.json on the results branch -- so a page traced
+    by hand improves every future automated sync too, not just itself.
+    Never lets a missing/unreachable dictionary block a sync: an OCR run
+    with no abbreviation handling is strictly better than no OCR run.
+    """
+    entries = []
+    starter_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'shared', 'abbreviations.json')
+    try:
+        with open(starter_path, encoding='utf-8') as f:
+            entries.extend(json.load(f).get('entries', []))
+    except (OSError, json.JSONDecodeError):
+        pass
+    try:
+        url = 'https://raw.githubusercontent.com/mosesar9319/MDYsync/results/abbreviation-additions.json'
+        with urllib.request.urlopen(url, timeout=15) as r:
+            additions = json.loads(r.read())
+        if isinstance(additions, list):
+            entries.extend(additions)
+    except Exception:
+        pass  # no additions yet (a 404) is the normal, expected case
+    return {'entries': entries}
+
+
+def collapse_canon_abbreviations(canon, dictionary):
+    """Folds any run of canonical words matching a known printed
+    abbreviation (תנו רבנן -> ת"ר) into a single alignment token, matched
+    against the abbreviation's own printed form -- NOT the spelled-out
+    words concatenated together, which share almost no characters with the
+    short printed token and would never fuzz-match it (compare "מאיטעמא"
+    against "מט" -- nothing in common at the character level a ratio-based
+    matcher can find). This is the actual reason abbreviated phrases were
+    dropping out of alignment entirely rather than just scoring poorly:
+    without this, there was no candidate to score in the first place.
+
+    Longest phrase wins when more than one dictionary entry could start at
+    the same position, same as the JS counterpart in daf-tracer.mjs.
+    """
+    entries = sorted(
+        (
+            ([normalize_word(w) for w in e['phrase']], normalize_word(e.get('abbr') or ''))
+            for e in dictionary.get('entries', [])
+        ),
+        key=lambda e: -len(e[0]),
+    )
+    entries = [(phrase, abbr) for phrase, abbr in entries if abbr and len(phrase) >= 2]
+
+    tokens = []
+    i = 0
+    while i < len(canon):
+        matched = None
+        for phrase_norms, abbr_norm in entries:
+            n = len(phrase_norms)
+            if i + n > len(canon):
+                continue
+            if [c.norm for c in canon[i:i + n]] == phrase_norms:
+                matched = (n, abbr_norm)
+                break
+        if matched:
+            n, abbr_norm = matched
+            tokens.append(AbbrevToken(abbr_norm, canon[i:i + n]))
+            i += n
+        else:
+            tokens.append(AbbrevToken(canon[i].norm, [canon[i]]))
+            i += 1
+    return tokens
+
+
+def align_words_to_canon(canon_tokens, words):
     """Globally align the OCR'd word sequence against the canonical word
     sequence (Needleman-Wunsch), instead of greedily fuzzy-matching small
     windows with a moving cursor.
+
+    canon_tokens is collapse_canon_abbreviations's output, not the raw
+    per-word canonical list -- this function only ever reads `.norm` off
+    each entry, so it doesn't care whether a token stands for one canonical
+    word or several collapsed into one printed abbreviation; that
+    expansion happens later in build_word_boxes.
 
     The greedy/windowed approach used earlier tracked a "cursor" position
     and searched near it for each small chunk of OCR'd words -- but one
@@ -303,7 +393,7 @@ def align_words_to_canon(canon, words):
     pairs scoring at or above MATCH_THRESHOLD.
     """
     a = [w['norm'] for w in words]
-    b = [c.norm for c in canon]
+    b = [c.norm for c in canon_tokens]
     n, m = len(a), len(b)
 
     dp = [[0.0] * (m + 1) for _ in range(n + 1)]
@@ -418,33 +508,40 @@ def compute_text_block(words, page_w, page_h, crop_w, crop_h, padding_lines=0.5,
     }
 
 
-def build_word_boxes(canon, words, pairs, crop_w, crop_h):
+def build_word_boxes(canon_tokens, words, pairs, crop_w, crop_h):
     """One box per aligned canonical word, taken directly from its matched
     OCR word's real bounding box (no chunk-distribution approximation
-    needed now that alignment is word-for-word).
+    needed now that alignment is word-for-word) -- except when the matched
+    token is a collapsed abbreviation (collapse_canon_abbreviations), which
+    stands for MULTIPLE canonical words sharing that one printed token's
+    position: every consumer of this data (app.js's renderVilnaWordBoxes,
+    markSegmentAtVilnaWord, etc.) looks a word up by its own exact
+    ref+wordIndex, so each of those words gets its own box entry here, all
+    pointing at the same printed position -- simplest way to stay
+    compatible with every existing reader rather than teaching all of them
+    a new "one box, several word indices" shape.
 
-    Deliberately UNCHANGED, still fractions of the whole (CropBox-
-    equivalent) page, not the text block computed above -- the Vilna-page
-    view (renderVilnaWordBoxes in app.js) positions these as CSS percentages
-    directly against the full canonical page image, so changing what these
-    fractions mean would break that consumer too. Only scan-daf-page.mjs
-    needs text-block-relative positions (to project onto a photographed
-    page whose margins may not match this reference's), and it derives them
-    itself at request time from these page-fractions plus the textBlock
-    field below -- see this function's own caller.
+    Deliberately UNCHANGED otherwise, still fractions of the whole
+    (CropBox-equivalent) page, not the text block computed above -- the
+    Vilna-page view (renderVilnaWordBoxes in app.js) positions these as CSS
+    percentages directly against the full canonical page image, so changing
+    what these fractions mean would break that consumer too. Only
+    scan-daf-page.mjs needs text-block-relative positions (to project onto
+    a photographed page whose margins may not match this reference's), and
+    it derives them itself at request time from these page-fractions plus
+    the textBlock field below -- see this function's own caller.
     """
     out = []
     for ocr_i, canon_i, score in pairs:
         w = words[ocr_i]
-        c = canon[canon_i]
-        out.append({
-            'ref': c.ref,
-            'wordIndex': c.word_index,
+        box = {
             'x': w['x'] / crop_w,
             'y': w['y'] / crop_h,
             'w': w['w'] / crop_w,
             'h': w['h'] / crop_h,
-        })
+        }
+        for member in canon_tokens[canon_i].members:
+            out.append({'ref': member.ref, 'wordIndex': member.word_index, **box})
     return out
 
 
@@ -458,6 +555,13 @@ def process_page(tractate, daf, amud, out_dir, cache_dir=None, engine=None,
     ref = f'{tractate} {daf}{amud}'
     canon, segments = load_canonical([ref], cache_dir=cache_dir or out_dir)
     print(f'Canonical text: {len(segments)} segments, {len(canon)} words')
+
+    abbreviations = load_abbreviations()
+    canon_tokens = collapse_canon_abbreviations(canon, abbreviations)
+    abbrev_tokens = [t for t in canon_tokens if len(t.members) > 1]
+    if abbrev_tokens:
+        print(f'Abbreviations: collapsed {sum(len(t.members) for t in abbrev_tokens)} '
+              f'canonical words into {len(abbrev_tokens)} printed tokens')
 
     # Auto-picks the better engine the moment a credential is available,
     # without needing every caller updated to ask for it explicitly -- the
@@ -493,8 +597,8 @@ def process_page(tractate, daf, amud, out_dir, cache_dir=None, engine=None,
     crop_w = page_w * CROPBOX_WIDTH_FRAC
     crop_h = page_h * CROPBOX_HEIGHT_FRAC
 
-    pairs = align_words_to_canon(canon, words)
-    boxes = build_word_boxes(canon, words, pairs, crop_w, crop_h)
+    pairs = align_words_to_canon(canon_tokens, words)
+    boxes = build_word_boxes(canon_tokens, words, pairs, crop_w, crop_h)
     covered = len(boxes)
     print(f'Aligned {covered}/{len(canon)} words ({covered / max(1, len(canon)):.0%} coverage)')
 
