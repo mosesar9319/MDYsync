@@ -619,6 +619,29 @@ def process_page(tractate, daf, amud, out_dir, cache_dir=None, engine=None,
     covered = len(boxes)
     print(f'Aligned {covered}/{len(canon)} words ({covered / max(1, len(canon)):.0%} coverage)')
 
+    # TEMPORARY diagnostic (remove once the abbreviation-gap investigation
+    # is done): show exactly which canonical words are still unmatched,
+    # with surrounding context, so gaps can be attributed to a real cause
+    # (missing abbreviation entry, genuine OCR miss, etc) instead of
+    # guessed at from the coverage percentage alone.
+    matched_canon_i = {canon_i for _, canon_i, _ in pairs}
+    gap_runs = []
+    run = []
+    for i in range(len(canon)):
+        if i not in matched_canon_i:
+            run.append(i)
+        elif run:
+            gap_runs.append(run)
+            run = []
+    if run:
+        gap_runs.append(run)
+    print(f'Unmatched: {len(canon) - covered} words in {len(gap_runs)} gap run(s)')
+    for run in gap_runs:
+        lo, hi = run[0], run[-1]
+        ctx_lo, ctx_hi = max(0, lo - 3), min(len(canon), hi + 4)
+        ctx = ' '.join(canon[k].text if k in run else f'[{canon[k].text}]' for k in range(ctx_lo, ctx_hi))
+        print(f'  gap @ {lo}-{hi}: ...{ctx}...')
+
     if engine == 'google-vision':
         # Vision read the WHOLE page (every column), not a pre-cropped
         # band, so the text block -- unlike Tesseract's fixed-band one --
