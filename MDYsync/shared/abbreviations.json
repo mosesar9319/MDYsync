@@ -1,7 +1,13 @@
 {
   "schema": "dafsync-abbreviations-v1",
-  "note": "Multi-word Talmudic phrases that the Vilna print conventionally sets as a single abbreviated token (e.g. תנו רבנן printed as ת\"ר), while Sefaria's raw text always spells them out. Only MULTI-word merges belong here -- a single word printed with a trailing geresh (גמרא -> גמ') doesn't change the word count the tracer is matching against, so it's not listed. This is a starting point, not exhaustive or guaranteed universal (abbreviation habits vary a little by print run) -- add to it from the trace tool as real pages turn up ones it's missing.",
+  "note": "Talmudic phrases/words that the Vilna print conventionally sets as a single abbreviated token (e.g. תנו רבנן printed as ת\"ר), while Sefaria's raw text always spells them out. Mostly multi-word merges, since a single word printed with a trailing geresh (גמרא -> גמ') usually keeps enough of its own letters to still clear the aligner's fuzzy-match threshold on its own without needing an entry here -- but not always: a single-word entry belongs here too when the abbreviated form is short enough relative to the full word that it DOESN'T clear that threshold on its own (confirmed directly: רבי -> ר' scores ~50% against the full word, well under the ~60% floor, unlike גמ' against גמרא at ~67%). This is a starting point, not exhaustive or guaranteed universal (abbreviation habits vary a little by print run) -- add to it from the trace tool as real pages turn up ones it's missing.",
   "entries": [
+    {
+      "phrase": [
+        "רבי"
+      ],
+      "abbr": "ר'"
+    },
     {
       "phrase": [
         "תנו",
