@@ -53,13 +53,17 @@ Example:
 """
 
 import argparse
+import base64
 import json
 import os
 import sys
+import urllib.error
 import urllib.request
 
 import cv2
 import pytesseract
+from google.auth.transport.requests import Request as GoogleAuthRequest
+from google.oauth2 import service_account
 from rapidfuzz import fuzz
 
 from caption_ocr_align import normalize_word, load_canonical
@@ -171,6 +175,311 @@ def ocr_band_words(page_png):
     return words, w, h
 
 
+def get_google_vision_access_token(credentials_json):
+    """Exchanges a service-account JSON key for a short-lived OAuth2 access
+    token, for orgs whose policy disallows plain API keys ("API Keys are
+    Disallowed ... use Application Default Credentials (ADC) instead" --
+    ADC's own recommended alternative). A service account is the ADC path
+    every non-interactive script actually uses, so this is not a workaround
+    for that policy, it's the thing the policy is steering callers toward.
+    """
+    info = json.loads(credentials_json)
+    creds = service_account.Credentials.from_service_account_info(
+        info, scopes=['https://www.googleapis.com/auth/cloud-platform']
+    )
+    creds.refresh(GoogleAuthRequest())
+    return creds.token
+
+
+def ocr_band_words_google_vision(page_png, api_key=None, credentials_json=None):
+    """Same job as ocr_band_words above (a list of candidate words with real
+    pixel positions), but reading the whole page through Google Cloud
+    Vision's DOCUMENT_TEXT_DETECTION instead of a Tesseract pass restricted
+    to the fixed BAND_X0_FRAC/BAND_X1_FRAC crop.
+
+    Accepts either a plain API key (simplest, but blocked outright on some
+    orgs' Cloud projects) or a service-account credentials JSON (works
+    under that same policy, since it IS the ADC path); exactly one of the
+    two is expected to be set by the caller.
+
+    Deliberately does NOT restrict itself to that band, or to any other
+    fixed region: real pages don't hold Gemara to one constant column width
+    (see the accuracy report this replaced -- some pages run narrow while
+    flanked by Rashi/Tosefet-Rashi, then widen once that commentary runs
+    out for the rest of the page), so any fixed spatial crop reintroduces
+    exactly the bug that motivated moving off Tesseract in the first place.
+    Every word Vision finds on the page -- Gemara, Rashi, Tosefet Rashi, the
+    marginal reference columns, all of it -- gets passed to
+    align_words_to_canon unfiltered; that function's global alignment
+    against the *known* canonical Gemara word list is what separates real
+    Gemara words from everything else, the same way it already absorbs
+    stray OCR misreads today. Confirmed directly (a hand-transcribed real
+    page, checked word-for-word against Sefaria): Vision-class OCR reads
+    this typeface at ~95%+ accuracy with zero genuine misreads in the
+    sample -- every discrepancy was either a printed abbreviation (see
+    align_words_to_canon's own fuzzy-match tolerance) or content the sample
+    simply didn't cover, not a wrong letter.
+    """
+    if not api_key and not credentials_json:
+        raise RuntimeError('ocr_band_words_google_vision needs either api_key or credentials_json.')
+
+    with open(page_png, 'rb') as f:
+        image_bytes = f.read()
+    payload = {
+        'requests': [{
+            'image': {'content': base64.b64encode(image_bytes).decode('ascii')},
+            'features': [{'type': 'DOCUMENT_TEXT_DETECTION'}],
+            'imageContext': {'languageHints': ['he']},
+        }],
+    }
+    headers = {'Content-Type': 'application/json'}
+    if credentials_json:
+        url = 'https://vision.googleapis.com/v1/images:annotate'
+        headers['Authorization'] = f'Bearer {get_google_vision_access_token(credentials_json)}'
+    else:
+        url = f'https://vision.googleapis.com/v1/images:annotate?key={api_key}'
+    req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            data = json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode('utf-8', errors='replace')
+        raise RuntimeError(f'Google Vision request failed ({e.code}): {detail}') from e
+
+    resp = data['responses'][0]
+    if 'error' in resp:
+        raise RuntimeError(f"Google Vision error: {resp['error'].get('message')}")
+
+    img = cv2.imread(page_png)
+    h, w = img.shape[:2]
+
+    full = resp.get('fullTextAnnotation')
+    if not full:
+        return [], w, h  # a blank/unreadable page is a real (if rare) outcome, not an error
+
+    words = []
+    for page in full['pages']:
+        for block in page['blocks']:
+            for para in block['paragraphs']:
+                for word in para['words']:
+                    text = ''.join(s['text'] for s in word['symbols'])
+                    n = normalize_word(text)
+                    if not n:
+                        continue
+                    verts = word['boundingBox']['vertices']
+                    xs = [v.get('x', 0) for v in verts]
+                    ys = [v.get('y', 0) for v in verts]
+                    x0, x1 = min(xs), max(xs)
+                    y0, y1 = min(ys), max(ys)
+                    words.append({
+                        'text': text,
+                        'norm': n,
+                        'x': x0,
+                        'y': y0,
+                        'w': x1 - x0,
+                        'h': y1 - y0,
+                    })
+    return words, w, h
+
+
+def load_abbreviations():
+    """Loads the Talmudic-abbreviation dictionary: the curated starter list
+    shipped at shared/abbreviations.json, plus anything the manual trace
+    tool (studio/trace.html) has since discovered and saved to
+    abbreviation-additions.json on the results branch -- so a page traced
+    by hand improves every future automated sync too, not just itself.
+    Never lets a missing/unreachable dictionary block a sync: an OCR run
+    with no abbreviation handling is strictly better than no OCR run.
+    """
+    entries = []
+    starter_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'shared', 'abbreviations.json')
+    try:
+        with open(starter_path, encoding='utf-8') as f:
+            entries.extend(json.load(f).get('entries', []))
+    except (OSError, json.JSONDecodeError):
+        pass
+    try:
+        url = 'https://raw.githubusercontent.com/mosesar9319/MDYsync/results/abbreviation-additions.json'
+        with urllib.request.urlopen(url, timeout=15) as r:
+            additions = json.loads(r.read())
+        if isinstance(additions, list):
+            entries.extend(additions)
+    except Exception:
+        pass  # no additions yet (a 404) is the normal, expected case
+    return {'entries': entries}
+
+
+def recover_abbreviations(canon, words, pairs, dictionary):
+    """Second pass, run AFTER plain 1:1 alignment: for any run of canonical
+    words a known phrase (תנו רבנן -> ת"ר) could explain that came out of
+    that alignment completely unmatched, checks for a nearby unmatched OCR
+    word reading as the abbreviation's own printed form and, if found,
+    credits all of the phrase's canonical words to it.
+
+    Deliberately a second pass over what plain alignment already settled,
+    not a preprocessing step that forces every textual occurrence of a
+    phrase to only match its abbreviated form -- confirmed directly on a
+    real page that printers don't abbreviate a phrase every time it
+    appears (of 5 real occurrences of two phrases on one page, only 1 was
+    actually set abbreviated; an earlier version of this that forced all 5
+    to only accept the short form broke the other 4, which were spelled
+    out in full and would otherwise have matched fine on their own -- net
+    coverage went DOWN, not up). Only ever adds matches on top of what
+    plain alignment already found, so unlike that version this can't make
+    coverage worse.
+
+    "Nearby" means bounded by the OCR-index of the nearest already-matched
+    canonical word on each side of the gap -- alignment pairs are
+    monotonic in both sequences, so the OCR word standing in for an
+    unmatched run of canonical words, if it exists at all, has to sit
+    somewhere between those two neighbors.
+
+    Also reclaims a specific real failure mode found by hand-inspecting a
+    remaining gap on a real page: an abbreviated OCR token (e.g. "א"ר")
+    can be similar enough to just the phrase's OWN FIRST WORD (e.g. "אמר")
+    to clear plain alignment's match threshold on its own -- silently
+    consuming that one canonical word and leaving the rest of the phrase
+    (e.g. "רבי") orphaned, since plain alignment has no notion of
+    multi-word phrases at all. If a phrase's first word is matched to some
+    OCR token but the REST of the phrase is still fully unmatched, and
+    that same OCR token actually reads as the whole phrase's abbreviated
+    form better than it read as just the first word alone, the single-word
+    match is replaced by crediting the full phrase to it instead -- always
+    a net gain (1 word covered becomes n), never a loss, and only fires
+    when the abbreviated reading is a strictly closer match than the
+    literal one.
+    """
+    entries = sorted(
+        (
+            ([normalize_word(w) for w in e['phrase']], normalize_word(e.get('abbr') or ''))
+            for e in dictionary.get('entries', [])
+        ),
+        key=lambda e: -len(e[0]),
+    )
+    entries = [(phrase, abbr) for phrase, abbr in entries if abbr and len(phrase) >= 2]
+    if not entries:
+        return [], set()
+
+    canon_to_pair = {canon_i: (ocr_i, score) for ocr_i, canon_i, score in pairs}
+    matched_canon = set(canon_to_pair)
+    matched_ocr = {ocr_i for ocr_i, _, _ in pairs}
+    by_canon = sorted(pairs, key=lambda p: p[1])
+
+    def ocr_bracket(i0, i1):
+        prev_ocr, next_ocr = -1, len(words)
+        for ocr_i, canon_i, _ in by_canon:
+            if canon_i < i0 and ocr_i > prev_ocr:
+                prev_ocr = ocr_i
+            if canon_i >= i1:
+                next_ocr = ocr_i
+                break
+        return prev_ocr, next_ocr
+
+    extra = []
+    reclaimed = set()
+    i = 0
+    while i < len(canon):
+        found = False
+        for phrase_norms, abbr_norm in entries:
+            n = len(phrase_norms)
+            span = range(i, i + n)
+            if i + n > len(canon):
+                continue
+            if [c.norm for c in canon[i:i + n]] != phrase_norms:
+                continue
+            claimed = [j for j in span if j in matched_canon]
+
+            if not claimed:
+                prev_ocr, next_ocr = ocr_bracket(i, i + n)
+                best = None
+                for ocr_i in range(prev_ocr + 1, next_ocr):
+                    if ocr_i in matched_ocr:
+                        continue
+                    score = fuzz.ratio(words[ocr_i]['norm'], abbr_norm)
+                    if score >= MATCH_THRESHOLD and (best is None or score > best[1]):
+                        best = (ocr_i, score)
+                if best:
+                    ocr_i, score = best
+                    matched_ocr.add(ocr_i)
+                    for j in span:
+                        extra.append((ocr_i, j, score))
+                        matched_canon.add(j)
+                    i += n
+                    found = True
+                    break
+            elif claimed == [i] and i not in reclaimed:
+                ocr_i, orig_score = canon_to_pair[i]
+                abbr_score = fuzz.ratio(words[ocr_i]['norm'], abbr_norm)
+                if abbr_score >= MATCH_THRESHOLD and abbr_score > orig_score:
+                    for j in span:
+                        extra.append((ocr_i, j, abbr_score))
+                        matched_canon.add(j)
+                    reclaimed.add(i)
+                    i += n
+                    found = True
+                    break
+        if not found:
+            i += 1
+    return extra, reclaimed
+
+
+def recover_stray_exact_matches(canon, words, pairs, threshold=85):
+    """Third pass, run after the abbreviation passes above: catches a
+    distinct failure mode found by hand-inspecting real remaining gaps on
+    a page -- the right OCR word was sitting right there, completely
+    unclaimed, inside the very bracket the aligner already used for its
+    two neighbors, yet the global Needleman-Wunsch alignment didn't pick
+    it. Google Vision reads the WHOLE page (Gemara plus Rashi, Tosafot,
+    and marginal reference columns all at once, see
+    ocr_band_words_google_vision), so a burst of unrelated words from
+    another column can sit between two genuine matches in the OCR stream;
+    the DP's single globally-optimal path can occasionally route around a
+    real match rather than through it when it's buried in that kind of
+    noise, even though locally it's a perfect match.
+
+    Deliberately bounded and high-confidence, the same shape as
+    recover_abbreviations: only ever claims a canonical word that is
+    STILL completely unmatched after both earlier passes, only considers
+    OCR words already inside its neighbors' own bracket (so this can't
+    reach across the page for a coincidental match), and requires a much
+    higher score than plain alignment's own MATCH_THRESHOLD -- so, like
+    the passes before it, this can only add coverage, never remove or
+    override a match another pass already made.
+    """
+    matched_canon = {canon_i for _, canon_i, _ in pairs}
+    matched_ocr = {ocr_i for ocr_i, _, _ in pairs}
+    by_canon = sorted(pairs, key=lambda p: p[1])
+
+    def ocr_bracket(i0, i1):
+        prev_ocr, next_ocr = -1, len(words)
+        for ocr_i, canon_i, _ in by_canon:
+            if canon_i < i0 and ocr_i > prev_ocr:
+                prev_ocr = ocr_i
+            if canon_i >= i1:
+                next_ocr = ocr_i
+                break
+        return prev_ocr, next_ocr
+
+    extra = []
+    for i in range(len(canon)):
+        if i in matched_canon or not canon[i].norm:
+            continue
+        prev_ocr, next_ocr = ocr_bracket(i, i + 1)
+        best = None
+        for ocr_i in range(prev_ocr + 1, next_ocr):
+            if ocr_i in matched_ocr:
+                continue
+            score = fuzz.ratio(words[ocr_i]['norm'], canon[i].norm)
+            if score >= threshold and (best is None or score > best[1]):
+                best = (ocr_i, score)
+        if best:
+            ocr_i, score = best
+            matched_ocr.add(ocr_i)
+            matched_canon.add(i)
+            extra.append((ocr_i, i, score))
+    return extra
+
+
 def align_words_to_canon(canon, words):
     """Globally align the OCR'd word sequence against the canonical word
     sequence (Needleman-Wunsch), instead of greedily fuzzy-matching small
@@ -245,17 +554,25 @@ def align_words_to_canon(canon, words):
     return pairs
 
 
-def compute_text_block(words, page_w, page_h, crop_w, crop_h, padding_lines=0.5):
+def compute_text_block(words, page_w, page_h, crop_w, crop_h, padding_lines=0.5, left_right_px=None):
     """The Gemara column's own bounding box on THIS page, as fractions of
-    the full (CropBox-equivalent) page -- horizontally the same fixed
+    the full (CropBox-equivalent) page.
+
+    Horizontally: by default (left_right_px=None) the same fixed
     BAND_X0_FRAC/BAND_X1_FRAC crop every page uses (a property of shas.org's
     fixed PDF template, not this specific page -- but expressed as a
     fraction of the MediaBox-rendered PNG's own width, same as ocr_band_words
     uses it, so it's rescaled here to a CropBox-equivalent fraction the same
-    way word positions themselves are below), vertically the real extent of
-    the words actually OCR'd on this page (every page has a different
-    number of lines, so this can't be a fixed constant the way the
-    horizontal band is).
+    way word positions themselves are below). That fixed band is only valid
+    for the Tesseract path above, which was itself restricted to it --
+    real pages don't hold Gemara to one constant width (it often widens
+    once flanking commentary runs out), so the google-vision path instead
+    passes left_right_px explicitly, computed from where its *aligned*
+    words actually landed on this specific page.
+
+    Vertically: always the real extent of the words actually OCR'd on this
+    page (every page has a different number of lines, so this can't be a
+    fixed constant the way a fixed-template horizontal band could be).
 
     padding_lines pads the vertical extent by a fraction of the median
     line's own height, so the box doesn't clip the first/last line's
@@ -286,10 +603,15 @@ def compute_text_block(words, page_w, page_h, crop_w, crop_h, padding_lines=0.5)
     # 0..1 page fraction.
     top_px = max(0.0, tops[0] - pad)
     bottom_px = min(crop_h, bottoms[-1] + pad)
+    if left_right_px is not None:
+        left_px, right_px = left_right_px
+        left_frac, right_frac = left_px / crop_w, right_px / crop_w
+    else:
+        left_frac, right_frac = (BAND_X0_FRAC * page_w) / crop_w, (BAND_X1_FRAC * page_w) / crop_w
     return {
-        'left': (BAND_X0_FRAC * page_w) / crop_w,
+        'left': left_frac,
         'top': top_px / crop_h,
-        'right': (BAND_X1_FRAC * page_w) / crop_w,
+        'right': right_frac,
         'bottom': bottom_px / crop_h,
     }
 
@@ -297,17 +619,20 @@ def compute_text_block(words, page_w, page_h, crop_w, crop_h, padding_lines=0.5)
 def build_word_boxes(canon, words, pairs, crop_w, crop_h):
     """One box per aligned canonical word, taken directly from its matched
     OCR word's real bounding box (no chunk-distribution approximation
-    needed now that alignment is word-for-word).
+    needed now that alignment is word-for-word). `pairs` can include
+    recover_abbreviations's extra matches alongside align_words_to_canon's
+    own -- both are plain (ocr_index, canon_index, score) triples over the
+    same canon/words lists, so they merge here with no special handling.
 
-    Deliberately UNCHANGED, still fractions of the whole (CropBox-
-    equivalent) page, not the text block computed above -- the Vilna-page
-    view (renderVilnaWordBoxes in app.js) positions these as CSS percentages
-    directly against the full canonical page image, so changing what these
-    fractions mean would break that consumer too. Only scan-daf-page.mjs
-    needs text-block-relative positions (to project onto a photographed
-    page whose margins may not match this reference's), and it derives them
-    itself at request time from these page-fractions plus the textBlock
-    field below -- see this function's own caller.
+    Deliberately UNCHANGED otherwise, still fractions of the whole
+    (CropBox-equivalent) page, not the text block computed above -- the
+    Vilna-page view (renderVilnaWordBoxes in app.js) positions these as CSS
+    percentages directly against the full canonical page image, so changing
+    what these fractions mean would break that consumer too. Only
+    scan-daf-page.mjs needs text-block-relative positions (to project onto
+    a photographed page whose margins may not match this reference's), and
+    it derives them itself at request time from these page-fractions plus
+    the textBlock field below -- see this function's own caller.
     """
     out = []
     for ocr_i, canon_i, score in pairs:
@@ -324,7 +649,8 @@ def build_word_boxes(canon, words, pairs, crop_w, crop_h):
     return out
 
 
-def process_page(tractate, daf, amud, out_dir, cache_dir=None):
+def process_page(tractate, daf, amud, out_dir, cache_dir=None, engine=None,
+                  google_vision_api_key=None, google_vision_credentials_json=None):
     os.makedirs(out_dir, exist_ok=True)
     pdf_path = os.path.join(out_dir, 'page.pdf')
     fetch_page_pdf(tractate, daf, amud, pdf_path)
@@ -334,8 +660,33 @@ def process_page(tractate, daf, amud, out_dir, cache_dir=None):
     canon, segments = load_canonical([ref], cache_dir=cache_dir or out_dir)
     print(f'Canonical text: {len(segments)} segments, {len(canon)} words')
 
-    words, page_w, page_h = ocr_band_words(png_path)
-    print(f'OCR: {len(words)} words in the Gemara band')
+    abbreviations = load_abbreviations()
+
+    # Auto-picks the better engine the moment a credential is available,
+    # without needing every caller updated to ask for it explicitly -- the
+    # same "upgrade transparently when the ingredient shows up" shape as
+    # trigger-page-ocr-job.mjs already using whichever of two variant
+    # prefixes applies. Falls back to Tesseract (no credential required) so
+    # this keeps working for anyone who hasn't set up Vision yet. A service
+    # account takes priority when both are somehow set, since that's the
+    # credential type that still works under an org policy disallowing
+    # plain API keys.
+    if engine is None:
+        engine = 'google-vision' if (google_vision_api_key or google_vision_credentials_json) else 'tesseract'
+
+    if engine == 'google-vision':
+        if not google_vision_api_key and not google_vision_credentials_json:
+            raise RuntimeError(
+                'The google-vision engine needs GOOGLE_VISION_API_KEY or '
+                'GOOGLE_VISION_CREDENTIALS_JSON.'
+            )
+        words, page_w, page_h = ocr_band_words_google_vision(
+            png_path, api_key=google_vision_api_key, credentials_json=google_vision_credentials_json
+        )
+        print(f'Google Vision: {len(words)} words detected on the whole page')
+    else:
+        words, page_w, page_h = ocr_band_words(png_path)
+        print(f'Tesseract: {len(words)} words in the fixed Gemara band')
 
     # page_w/page_h are the full MediaBox-rendered PNG's own dimensions --
     # OCR extraction is calibrated against those and works fine, but word
@@ -346,11 +697,78 @@ def process_page(tractate, daf, amud, out_dir, cache_dir=None):
     crop_h = page_h * CROPBOX_HEIGHT_FRAC
 
     pairs = align_words_to_canon(canon, words)
+    recovered, reclaimed = recover_abbreviations(canon, words, pairs, abbreviations)
+    if reclaimed:
+        pairs = [p for p in pairs if p[1] not in reclaimed]
+        print(f'Abbreviations: reclaimed {len(reclaimed)} word(s) that plain alignment '
+              f'had mismatched to just the first word of a longer printed abbreviation')
+    if recovered:
+        occurrences = len({ocr_i for ocr_i, _, _ in recovered})
+        print(f'Abbreviations: recovered {len(recovered)} canonical words via '
+              f'{occurrences} printed abbreviation{"s" if occurrences != 1 else ""}')
+        pairs = pairs + recovered
+    stray = recover_stray_exact_matches(canon, words, pairs)
+    if stray:
+        print(f'Stray matches: recovered {len(stray)} word(s) the global aligner skipped '
+              f'despite an exact/near-exact OCR word sitting right there, unclaimed')
+        pairs = pairs + stray
     boxes = build_word_boxes(canon, words, pairs, crop_w, crop_h)
     covered = len(boxes)
     print(f'Aligned {covered}/{len(canon)} words ({covered / max(1, len(canon)):.0%} coverage)')
 
-    text_block = compute_text_block(words, page_w, page_h, crop_w, crop_h)
+    # TEMPORARY diagnostic (remove once the abbreviation-gap investigation
+    # is done): show exactly which canonical words are still unmatched,
+    # with surrounding context, so gaps can be attributed to a real cause
+    # (missing abbreviation entry, genuine OCR miss, etc) instead of
+    # guessed at from the coverage percentage alone.
+    matched_canon_i = {canon_i for _, canon_i, _ in pairs}
+    gap_runs = []
+    run = []
+    for i in range(len(canon)):
+        if i not in matched_canon_i:
+            run.append(i)
+        elif run:
+            gap_runs.append(run)
+            run = []
+    if run:
+        gap_runs.append(run)
+    print(f'Unmatched: {len(canon) - covered} words in {len(gap_runs)} gap run(s)')
+    by_canon_final = sorted(pairs, key=lambda p: p[1])
+
+    def bracket(i0, i1):
+        prev_ocr, next_ocr = -1, len(words)
+        for ocr_i, canon_i, _ in by_canon_final:
+            if canon_i < i0 and ocr_i > prev_ocr:
+                prev_ocr = ocr_i
+            if canon_i >= i1:
+                next_ocr = ocr_i
+                break
+        return prev_ocr, next_ocr
+
+    matched_ocr_final = {ocr_i for ocr_i, _, _ in pairs}
+    for run in gap_runs:
+        lo, hi = run[0], run[-1]
+        ctx_lo, ctx_hi = max(0, lo - 3), min(len(canon), hi + 4)
+        ctx = ' '.join(canon[k].text if k in run else f'[{canon[k].text}]' for k in range(ctx_lo, ctx_hi))
+        print(f'  gap @ {lo}-{hi}: ...{ctx}...')
+        prev_ocr, next_ocr = bracket(lo, hi + 1)
+        candidates = []
+        for ocr_i in range(prev_ocr + 1, next_ocr):
+            claimed = ' (claimed)' if ocr_i in matched_ocr_final else ''
+            candidates.append(f"{words[ocr_i]['text']}{claimed}")
+        print(f'    OCR words in that bracket: {candidates}')
+
+    if engine == 'google-vision':
+        # Vision read the WHOLE page (every column), not a pre-cropped
+        # band, so the text block -- unlike Tesseract's fixed-band one --
+        # has to be measured from just the words that actually aligned to
+        # real Gemara text, not every word Vision found (which would span
+        # the full page width/height across every commentary column too).
+        matched = [words[ocr_i] for ocr_i, _, _ in pairs] or words
+        left_right_px = (min(w['x'] for w in matched), max(w['x'] + w['w'] for w in matched))
+        text_block = compute_text_block(matched, page_w, page_h, crop_w, crop_h, left_right_px=left_right_px)
+    else:
+        text_block = compute_text_block(words, page_w, page_h, crop_w, crop_h)
 
     result = {
         # v2: adds textBlock (see compute_text_block) -- wordBoxes/pageWidth/
@@ -361,6 +779,7 @@ def process_page(tractate, daf, amud, out_dir, cache_dir=None):
         'tractate': tractate,
         'daf': daf,
         'amud': amud,
+        'engine': engine,
         'pageWidth': crop_w,
         'pageHeight': crop_h,
         'textBlock': text_block,
@@ -379,9 +798,17 @@ def main():
     p.add_argument('--daf', type=int, required=True)
     p.add_argument('--amud', choices=['a', 'b'], required=True)
     p.add_argument('--out-dir', default='page-out')
+    p.add_argument('--engine', choices=['tesseract', 'google-vision'], default=None,
+                    help='Defaults to google-vision when GOOGLE_VISION_API_KEY or '
+                         'GOOGLE_VISION_CREDENTIALS_JSON is set, else tesseract.')
     args = p.parse_args()
     try:
-        process_page(args.tractate, args.daf, args.amud, args.out_dir)
+        process_page(
+            args.tractate, args.daf, args.amud, args.out_dir,
+            engine=args.engine,
+            google_vision_api_key=os.environ.get('GOOGLE_VISION_API_KEY'),
+            google_vision_credentials_json=os.environ.get('GOOGLE_VISION_CREDENTIALS_JSON'),
+        )
     except Exception as e:
         print(f'ERROR: {e}', file=sys.stderr)
         sys.exit(1)

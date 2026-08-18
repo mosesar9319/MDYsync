@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Manually trace a printed Vilna daf page and verify its word positions before publishing." />
+  <title>DafSync Studio - Trace a page</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Frank+Ruhl+Libre:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #07111f; --card: #0f1f34; --card-strong: #10233a; --line: rgba(151,179,205,0.18);
+      --line-strong: rgba(151,179,205,0.32); --text: #f5f8fb; --muted: #91a7bd;
+      --accent: #38d6c1; --accent-strong: #1bbda9; --amber: #ffb648; --danger: #ff7c89;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    html { color-scheme: dark; }
+    body {
+      margin: 0; min-height: 100vh; background: #06101d; color: var(--text);
+      font-family: "Assistant", system-ui, sans-serif;
+    }
+    .gate {
+      position: fixed; inset: 0; z-index: 9000; display: none; align-items: center; justify-content: center;
+      background: rgba(5,12,22,0.95); backdrop-filter: blur(6px); padding: 24px;
+    }
+    body.locked .gate { display: flex; }
+    body.locked .shell { visibility: hidden; }
+    .gate-card {
+      max-width: 360px; width: 100%; padding: 30px 26px; border-radius: 18px;
+      border: 1px solid var(--line-strong); background: var(--card-strong); text-align: center;
+    }
+    .gate-card h2 { margin: 0 0 8px; }
+    .gate-card p { margin: 0 0 20px; color: var(--muted); }
+    .button {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 9px 16px; border-radius: 999px; border: 1px solid var(--line-strong);
+      background: var(--card); color: var(--text); font-weight: 600; font-size: 14px;
+      cursor: pointer; text-decoration: none;
+    }
+    .button.primary { background: var(--accent); color: #06231e; border-color: var(--accent); }
+    .button.primary:hover { background: var(--accent-strong); }
+    .button.small { padding: 6px 12px; font-size: 12.5px; }
+    .button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .button.ghost { background: transparent; }
+
+    .shell { max-width: 1400px; margin: 0 auto; padding: 20px 20px 60px; }
+    header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
+    header.top h1 { font-size: 20px; margin: 0; }
+    header.top a.back { color: var(--muted); font-size: 13.5px; text-decoration: none; }
+    header.top a.back:hover { color: var(--text); }
+
+    .picker {
+      display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+      background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+      padding: 12px 14px; margin-bottom: 16px;
+    }
+    .picker select, .picker input {
+      background: #0a1830; border: 1px solid var(--line-strong); color: var(--text);
+      border-radius: 8px; padding: 7px 10px; font: inherit; font-size: 13.5px;
+    }
+    .picker label { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
+    .status-line { font-size: 13px; color: var(--muted); margin-left: auto; }
+    .status-line.err { color: var(--danger); }
+
+    .workspace { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+    .canvas-card {
+      background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+      padding: 12px; overflow: auto; max-height: 82vh;
+    }
+    .canvas-wrap { position: relative; display: inline-block; }
+    .canvas-wrap canvas { display: block; max-width: none; }
+    .box-layer { position: absolute; inset: 0; }
+    .crop-box {
+      position: absolute; border: 2px dashed var(--accent); background: rgba(56,214,193,0.06);
+      cursor: move;
+    }
+    .crop-box .handle {
+      position: absolute; width: 12px; height: 12px; background: var(--accent); border-radius: 3px;
+      right: -6px; bottom: -6px; cursor: nwse-resize;
+    }
+    .line-box {
+      position: absolute; border: 1px solid rgba(255,182,72,0.55); background: rgba(255,182,72,0.05);
+    }
+    .line-box.ok { border-color: rgba(56,214,193,0.55); background: rgba(56,214,193,0.05); }
+    .line-box.flagged { border-color: var(--amber); background: rgba(255,182,72,0.16); }
+    .line-box .word { position: absolute; top: 0; bottom: 0; border-left: 1px solid rgba(255,255,255,0.18); }
+    .line-tools {
+      position: absolute; left: 100%; top: 0; display: flex; flex-direction: column; gap: 2px;
+      margin-left: 4px; opacity: 0; pointer-events: none; transition: opacity 0.1s ease;
+    }
+    .line-box:hover .line-tools { opacity: 1; pointer-events: auto; }
+    .line-tools button {
+      font-size: 10px; padding: 2px 6px; border-radius: 5px; border: 1px solid var(--line-strong);
+      background: var(--card-strong); color: var(--text); cursor: pointer; white-space: nowrap;
+    }
+    .line-resize {
+      position: absolute; left: 0; right: 0; height: 6px; cursor: ns-resize;
+    }
+    .line-resize.top { top: -3px; }
+    .line-resize.bottom { bottom: -3px; }
+    .side-resize { position: absolute; top: 0; bottom: 0; width: 6px; cursor: ew-resize; }
+    .side-resize.left { left: -3px; }
+    .side-resize.right { right: -3px; }
+
+    .side { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 20px; }
+    .panel {
+      background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px;
+    }
+    .panel h3 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+    .stat-row { display: flex; justify-content: space-between; font-size: 13.5px; padding: 4px 0; }
+    .stat-row b { font-variant-numeric: tabular-nums; }
+    .stat-row.good b { color: var(--accent); }
+    .stat-row.warn b { color: var(--amber); }
+
+    .flag-list { display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto; }
+    .flag-item {
+      border: 1px solid var(--line-strong); border-radius: 10px; padding: 8px 10px; font-size: 13px; cursor: pointer;
+    }
+    .flag-item:hover { border-color: var(--amber); }
+    .flag-item .why { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+
+    .abbr-popover {
+      position: fixed; z-index: 500; background: var(--card-strong); border: 1px solid var(--line-strong);
+      border-radius: 12px; padding: 14px; width: 320px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    }
+    .abbr-popover h4 { margin: 0 0 8px; font-size: 13.5px; }
+    .abbr-popover .canon-words { display: flex; flex-wrap: wrap; gap: 6px; direction: rtl; margin-bottom: 10px;
+      font-family: "Frank Ruhl Libre", serif; font-size: 17px; }
+    .abbr-popover .canon-words span {
+      padding: 3px 8px; border-radius: 6px; border: 1px solid var(--line-strong); cursor: pointer; user-select: none;
+    }
+    .abbr-popover .canon-words span.sel { background: var(--accent); color: #06231e; border-color: var(--accent); }
+    .abbr-popover input {
+      width: 100%; background: #0a1830; border: 1px solid var(--line-strong); color: var(--text);
+      border-radius: 8px; padding: 7px 10px; font: inherit; font-size: 13px; margin-bottom: 10px;
+    }
+    .abbr-popover .row { display: flex; gap: 8px; justify-content: flex-end; }
+
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: var(--card-strong); border: 1px solid var(--line-strong); color: var(--text);
+      padding: 10px 18px; border-radius: 999px; font-size: 13.5px; opacity: 0; pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease; z-index: 600;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .empty-hint { color: var(--muted); font-size: 13.5px; padding: 30px 10px; text-align: center; }
+  </style>
+</head>
+<body class="locked">
+  <div class="gate">
+    <div class="gate-card">
+      <h2>Admin sign-in required</h2>
+      <p>The page tracer is part of the DafSync backend.</p>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <a class="button primary" href="index.html">Sign in from Studio</a>
+        <a class="button ghost" href="../">Back to the library</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="shell">
+    <header class="top">
+      <div>
+        <h1>Trace a daf page</h1>
+        <a class="back" href="index.html">&larr; Back to Studio</a>
+      </div>
+    </header>
+
+    <div class="picker">
+      <label>Tractate
+        <select id="pickTractate"></select>
+      </label>
+      <label>Daf
+        <input id="pickDaf" type="number" min="2" max="200" value="86" style="width:70px" />
+      </label>
+      <label>Amud
+        <select id="pickAmud"><option value="a">a</option><option value="b">b</option></select>
+      </label>
+      <button class="button primary" id="loadButton" type="button">Load page</button>
+      <span class="status-line" id="statusLine"></span>
+    </div>
+
+    <div class="workspace">
+      <div class="canvas-card" id="canvasCard">
+        <div class="empty-hint" id="emptyHint">Load a daf above, then drag a box around the Gemara column to start tracing.</div>
+        <div class="canvas-wrap" id="canvasWrap" hidden>
+          <canvas id="pageCanvas"></canvas>
+          <div class="box-layer" id="boxLayer"></div>
+        </div>
+      </div>
+
+      <div class="side">
+        <div class="panel">
+          <h3>Trace stats</h3>
+          <div class="stat-row"><span>Lines detected</span><b id="statLines">-</b></div>
+          <div class="stat-row"><span>Words placed</span><b id="statWords">-</b></div>
+          <div class="stat-row" id="statMatchRow"><span>Match to Sefaria</span><b id="statMatch">-</b></div>
+          <div style="display:flex; gap:8px; margin-top:10px;">
+            <button class="button small" id="detectButton" type="button" disabled>Detect lines</button>
+            <button class="button small primary" id="publishButton" type="button" disabled>Publish page</button>
+          </div>
+        </div>
+
+        <div class="panel" id="flagsPanel" hidden>
+          <h3>Lines to review</h3>
+          <div class="flag-list" id="flagList"></div>
+        </div>
+
+        <div class="panel">
+          <h3>How this works</h3>
+          <p style="margin:0; font-size:12.5px; color:var(--muted); line-height:1.6;">
+            Drag a box around the Gemara column, then Detect lines. Each line's own left/right
+            edge and word gaps are found by ink density, not text recognition -- drag a line's
+            edges to correct it, or use the tools that appear beside it to split or merge. Lines
+            flagged amber usually mean a printed abbreviation Sefaria's raw text spells out in
+            full; click one to mark it.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="../vendor/supabase-js.min.js"></script>
+  <script src="../auth.js"></script>
+  <script>
+    window.DafSyncAuth.onChange((user, profile) => {
+      document.body.classList.toggle('locked', !(user && profile && profile.is_admin));
+    });
+  </script>
+  <script type="module" src="trace.js"></script>
+</body>
+</html>

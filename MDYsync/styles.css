@@ -408,16 +408,32 @@ h2 { margin-bottom: 0; }
   from { opacity: 0; }
   to { opacity: 1; }
 }
-/* The word about to be marked (vilnaMarkMode) -- an outline, not a fill, so
-   it stays visible layered under/next to .active's solid yellow fill
+/* The phrase about to be marked (vilnaMarkMode) -- a separate overlay of
+   whole-line rectangles built by updateVilnaMarkTarget (app.js), not a class
+   toggled per word box, so a multi-word target renders as one clean outline
+   per printed line instead of many overlapping (deliberately oversized, for
+   easier tapping) individual word boxes. An outline, not a fill, so it stays
+   visible layered under/next to .vilna-word-box.active's solid yellow fill
    instead of the two competing for the same pixels. */
-.vilna-word-box.mark-target {
+.vilna-mark-target-overlay { position: absolute; inset: 0; pointer-events: none; }
+.vilna-mark-target-rect {
+  position: absolute;
   outline: 2px dashed rgba(159, 85, 0, .8);
   outline-offset: 1px;
-  border-radius: 3px;
+  border-radius: 4px;
 }
 .vilna-mark-toggle { width: auto; padding: 0 10px; font-size: 12px; white-space: nowrap; }
 .vilna-mark-toggle.active { background: var(--accent-strong); color: #06201c; border-color: transparent; }
+/* Only shown while mark mode is on (see toggleVilnaMarkMode) -- Save banks
+   whatever's been marked so far as a local draft (same mechanism as the
+   editor panel's own Save Draft button); Discard reverts to the last save
+   (or, if nothing's been saved yet this session, to when mark mode was
+   turned on -- see checkpointVilnaMarkChanges/discardVilnaMarkChanges). */
+.vilna-mark-save, .vilna-mark-discard { width: auto; padding: 0 10px; font-size: 12px; white-space: nowrap; }
+.vilna-mark-save { background: rgba(56, 158, 92, .16); border-color: rgba(56, 158, 92, .4); color: #1c5a34; }
+.vilna-mark-save:hover { background: rgba(56, 158, 92, .28); }
+.vilna-mark-discard { background: rgba(179, 67, 47, .12); border-color: rgba(179, 67, 47, .35); color: #8a3220; }
+.vilna-mark-discard:hover { background: rgba(179, 67, 47, .22); }
 /* Signals "clicking marks this word" instead of the normal "clicking seeks
    here" -- the same crosshair browsers already show over an editable
    region, so it doesn't need an explanatory label to read as different. */

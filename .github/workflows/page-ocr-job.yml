@@ -10,6 +10,29 @@ name: Server-side Vilna page OCR job
 on:
   repository_dispatch:
     types: [run-page-ocr-job]
+  # Manual-run escape hatch: repository_dispatch always runs whatever this
+  # workflow looks like on the default branch, so a change sitting on a
+  # feature branch (like the google-vision engine, before it's merged) has
+  # no way to actually run for real otherwise. workflow_dispatch lets it be
+  # triggered directly against this branch from the Actions tab (or the
+  # API), same job either way.
+  workflow_dispatch:
+    inputs:
+      tractate:
+        required: true
+        type: string
+      daf:
+        required: true
+        type: number
+      amud:
+        required: true
+        type: choice
+        options: [a, b]
+      dry_run:
+        description: 'Skip publishing to the results branch (just show what it found)'
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -31,25 +54,52 @@ jobs:
           sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-heb poppler-utils
 
       - name: Install Python dependencies
-        run: pip install opencv-python-headless pytesseract rapidfuzz
+        run: pip install opencv-python-headless pytesseract rapidfuzz google-auth requests
 
       - name: Run the page OCR engine
         working-directory: MDYsync/tools/caption-sync
         env:
-          TRACTATE: ${{ github.event.client_payload.tractate }}
-          DAF: ${{ github.event.client_payload.daf }}
-          AMUD: ${{ github.event.client_payload.amud }}
+          TRACTATE: ${{ github.event.inputs.tractate || github.event.client_payload.tractate }}
+          DAF: ${{ github.event.inputs.daf || github.event.client_payload.daf }}
+          AMUD: ${{ github.event.inputs.amud || github.event.client_payload.amud }}
+          # page_ocr_align.py picks google-vision automatically the moment
+          # either credential exists (see its own process_page) -- add one
+          # of these two under repo Settings -> Secrets and variables ->
+          # Actions to switch every future page over, no workflow change
+          # needed. Both empty/unset keeps today's Tesseract path working
+          # exactly as before. GOOGLE_VISION_CREDENTIALS_JSON (a service
+          # account key) is what a Cloud org that disallows plain API keys
+          # needs -- see page_ocr_align.py's own get_google_vision_access_token.
+          GOOGLE_VISION_API_KEY: ${{ secrets.GOOGLE_VISION_API_KEY }}
+          GOOGLE_VISION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_VISION_CREDENTIALS_JSON }}
         run: |
           python3 page_ocr_align.py \
             --tractate "$TRACTATE" \
             --daf "$DAF" \
             --amud "$AMUD" \
             --out-dir page-out
+          echo '--- pagemap.json summary ---'
+          python3 -c "
+          import json
+          d = json.load(open('page-out/pagemap.json'))
+          print('engine:', d['engine'])
+          print('word boxes:', len(d['wordBoxes']))
+          print('textBlock:', d['textBlock'])
+          print('first 10 boxes:', [(b['ref'], b['wordIndex']) for b in d['wordBoxes'][:10]])
+          print('last 10 boxes:', [(b['ref'], b['wordIndex']) for b in d['wordBoxes'][-10:]])
+          "
 
       - name: Publish the result to the results branch
+        if: github.event.inputs.dry_run != 'true'
         env:
           PAGE_KEY: ${{ github.event.client_payload.pageKey }}
+          TRACTATE: ${{ github.event.inputs.tractate || github.event.client_payload.tractate }}
+          DAF: ${{ github.event.inputs.daf || github.event.client_payload.daf }}
+          AMUD: ${{ github.event.inputs.amud || github.event.client_payload.amud }}
         run: |
+          if [ -z "$PAGE_KEY" ]; then
+            PAGE_KEY="$(echo "$TRACTATE" | tr ' ' '-')-${DAF}${AMUD}"
+          fi
           set -e
           mkdir -p /tmp/results-checkout
           git config user.name "dafsync-bot"
