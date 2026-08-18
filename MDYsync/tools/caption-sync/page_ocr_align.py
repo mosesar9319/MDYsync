@@ -423,6 +423,63 @@ def recover_abbreviations(canon, words, pairs, dictionary):
     return extra, reclaimed
 
 
+def recover_stray_exact_matches(canon, words, pairs, threshold=85):
+    """Third pass, run after the abbreviation passes above: catches a
+    distinct failure mode found by hand-inspecting real remaining gaps on
+    a page -- the right OCR word was sitting right there, completely
+    unclaimed, inside the very bracket the aligner already used for its
+    two neighbors, yet the global Needleman-Wunsch alignment didn't pick
+    it. Google Vision reads the WHOLE page (Gemara plus Rashi, Tosafot,
+    and marginal reference columns all at once, see
+    ocr_band_words_google_vision), so a burst of unrelated words from
+    another column can sit between two genuine matches in the OCR stream;
+    the DP's single globally-optimal path can occasionally route around a
+    real match rather than through it when it's buried in that kind of
+    noise, even though locally it's a perfect match.
+
+    Deliberately bounded and high-confidence, the same shape as
+    recover_abbreviations: only ever claims a canonical word that is
+    STILL completely unmatched after both earlier passes, only considers
+    OCR words already inside its neighbors' own bracket (so this can't
+    reach across the page for a coincidental match), and requires a much
+    higher score than plain alignment's own MATCH_THRESHOLD -- so, like
+    the passes before it, this can only add coverage, never remove or
+    override a match another pass already made.
+    """
+    matched_canon = {canon_i for _, canon_i, _ in pairs}
+    matched_ocr = {ocr_i for ocr_i, _, _ in pairs}
+    by_canon = sorted(pairs, key=lambda p: p[1])
+
+    def ocr_bracket(i0, i1):
+        prev_ocr, next_ocr = -1, len(words)
+        for ocr_i, canon_i, _ in by_canon:
+            if canon_i < i0 and ocr_i > prev_ocr:
+                prev_ocr = ocr_i
+            if canon_i >= i1:
+                next_ocr = ocr_i
+                break
+        return prev_ocr, next_ocr
+
+    extra = []
+    for i in range(len(canon)):
+        if i in matched_canon or not canon[i].norm:
+            continue
+        prev_ocr, next_ocr = ocr_bracket(i, i + 1)
+        best = None
+        for ocr_i in range(prev_ocr + 1, next_ocr):
+            if ocr_i in matched_ocr:
+                continue
+            score = fuzz.ratio(words[ocr_i]['norm'], canon[i].norm)
+            if score >= threshold and (best is None or score > best[1]):
+                best = (ocr_i, score)
+        if best:
+            ocr_i, score = best
+            matched_ocr.add(ocr_i)
+            matched_canon.add(i)
+            extra.append((ocr_i, i, score))
+    return extra
+
+
 def align_words_to_canon(canon, words):
     """Globally align the OCR'd word sequence against the canonical word
     sequence (Needleman-Wunsch), instead of greedily fuzzy-matching small
@@ -650,6 +707,11 @@ def process_page(tractate, daf, amud, out_dir, cache_dir=None, engine=None,
         print(f'Abbreviations: recovered {len(recovered)} canonical words via '
               f'{occurrences} printed abbreviation{"s" if occurrences != 1 else ""}')
         pairs = pairs + recovered
+    stray = recover_stray_exact_matches(canon, words, pairs)
+    if stray:
+        print(f'Stray matches: recovered {len(stray)} word(s) the global aligner skipped '
+              f'despite an exact/near-exact OCR word sitting right there, unclaimed')
+        pairs = pairs + stray
     boxes = build_word_boxes(canon, words, pairs, crop_w, crop_h)
     covered = len(boxes)
     print(f'Aligned {covered}/{len(canon)} words ({covered / max(1, len(canon)):.0%} coverage)')
