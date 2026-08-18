@@ -399,21 +399,32 @@ h2 { margin-bottom: 0; }
   border-radius: 2px;
 }
 .vilna-word-box:hover { background: rgba(67, 57, 42, .14); }
-.vilna-word-box.active {
-  background: #ffd400;
-  mix-blend-mode: multiply;
-  animation: vilna-highlight-in .12s ease-out;
-}
 @keyframes vilna-highlight-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
-/* The phrase about to be marked (vilnaMarkMode) -- a separate overlay of
-   whole-line rectangles built by updateVilnaMarkTarget (app.js), not a class
-   toggled per word box, so a multi-word target renders as one clean outline
-   per printed line instead of many overlapping (deliberately oversized, for
-   easier tapping) individual word boxes. An outline, not a fill, so it stays
-   visible layered under/next to .vilna-word-box.active's solid yellow fill
+/* The word(s) being spoken right now (updateVilnaOverlay in app.js) -- a
+   separate overlay of whole-line rectangles built by
+   groupBoxesIntoLineRects, not a class toggled per (deliberately
+   oversized, for easier tapping -- see .vilna-word-box's own transform)
+   individual word box. A multi-word phrase used to render as several
+   overlapping oversized rectangles, tall and blocky enough to cover
+   nearly two printed lines at once and visibly disconnected word to word
+   -- one merged bar per line reads as a single continuous highlight
+   instead, the same as .vilna-mark-target-rect below already did for the
+   mark-target outline. */
+.vilna-active-overlay { position: absolute; inset: 0; pointer-events: none; }
+.vilna-active-rect {
+  position: absolute;
+  background: #8ecdf5;
+  mix-blend-mode: multiply;
+  border-radius: 999px;
+  animation: vilna-highlight-in .12s ease-out;
+}
+/* The phrase about to be marked (vilnaMarkMode) -- same whole-line-rect
+   shape as .vilna-active-rect above, but an outline instead of a fill, so
+   it stays visible layered on top of .vilna-active-rect's solid yellow
+   when a word both is playing right now and is the one being corrected,
    instead of the two competing for the same pixels. */
 .vilna-mark-target-overlay { position: absolute; inset: 0; pointer-events: none; }
 .vilna-mark-target-rect {

@@ -1181,6 +1181,7 @@ async function loadVilnaPageMap(parsed, stillWanted = () => true) {
   state.vilnaOverlayKey = '';
   state.vilnaWordEls = null;
   $('vilnaPageOverlay').innerHTML = '';
+  $('vilnaActiveOverlay').innerHTML = '';
   const key = pageMapKey(parsed);
   // Proxied through get-results-file.mjs, not fetched straight from
   // raw.githubusercontent.com -- see that function's own comment. Matters
@@ -1280,6 +1281,13 @@ async function rerenderVilnaPageForZoom() {
   // CSS layout box (unchanged here -- only the canvas's internal pixel
   // resolution is), so they stay aligned without needing to be rebuilt.
   await renderVilnaCanvas(page, canvas, viewport);
+  // The highlight bars are snapped to ink measured off this canvas (see
+  // measureInkBands), so a fresh raster means a fresh measurement. Clear
+  // the repaint guard to force one -- and this also recovers the case
+  // where the first paint happened before there were any pixels to read.
+  state.vilnaOverlayKey = '';
+  updateVilnaOverlay(getCurrentTime());
+  updateVilnaMarkTarget();
 }
 
 function toggleVilnaFullscreen() {
@@ -2494,7 +2502,7 @@ async function switchScanVideo() {
 function updateScanOverlay(time) {
   if (!state.scanWordEls || !state.scanWordEls.size) return;
   const activeSegment = state.segments[state.activeIndex];
-  const dedupKey = activeSegment ? `${state.activeIndex}:${activeSegment.ref}` : '';
+  const dedupKey = activeSegment ? `${activeSegment.ref}:${activeSegment.w0}:${activeSegment.w1}` : '';
   if (dedupKey === state.scanOverlayKey) return;
   state.scanOverlayKey = dedupKey;
 
@@ -2704,16 +2712,261 @@ function markSegmentAtVilnaWord(ref, wordIndex) {
   showToast(`Marked phrase ${resolvedIndex + 1} at ${formatTime(time)}.`);
 }
 
-// Highlights every word belonging to the current segment/phrase, not just
-// the ones a word-level timeline happens to cover -- segment start/end
-// timing is equally solid for both the OCR and voice sync engines, unlike
-// wordTimeline, which voice sync only ever populates sparsely (whole
-// matched phrases, not every word).
+// Groups already ref-filtered, wordIndex-sorted word boxes into one
+// merged rectangle per printed LINE they cover, instead of one rectangle
+// per word -- shared by the mark-target outline and the "currently
+// playing" highlight below, both of which need a single clean bar per
+// line rather than many overlapping (deliberately oversized, for easier
+// tapping -- see .vilna-word-box's own transform) individual word boxes.
+// A jump in y bigger than roughly half a line's own height means a line
+// break, not just normal word-to-word spacing on the same line. How TALL
+// each bar ends up is a separate question the word boxes can't answer --
+// see INK_PITCH_RATIO below.
+function medianOf(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+function splitBoxesIntoRows(boxes) {
+  const rows = [];
+  let current = [];
+  let prevBox = null;
+  for (const box of boxes) {
+    if (prevBox && Math.abs(box.y - prevBox.y) > prevBox.h * 0.6) {
+      rows.push(current);
+      current = [];
+    }
+    current.push(box);
+    prevBox = box;
+  }
+  if (current.length) rows.push(current);
+  return rows;
+}
+
+// Vision's word boxes are NOT a usable measure of how tall the printed
+// letters actually are. Measured directly against the rendered page
+// (counting dark pixels per scanline) across two independent dapim, the
+// real ink band is a rock-steady 14px of a 2068px-tall page on every
+// line, while the boxes reporting it range from 19 to 32px -- 1.6x to
+// 2.3x too tall, and lopsided, carrying noticeably more slack above the
+// letters than below. Sizing a highlight from box.h therefore always
+// overshoots into the blank space between lines (measured at 4-11px
+// above the letters and 0-7px below), which is precisely what a bar
+// drawn that way looks like: a fat block rather than a highlight.
+//
+// The page's own line pitch is the stable typographic quantity to use
+// instead -- measured at exactly 25px on both sampled dapim, since the
+// Vilna template sets the whole daf's body text at a single fixed size.
+// Deriving the bar height from the pitch reproduces the real ink band to
+// within a fraction of a pixel, uniformly on every line.
+const INK_PITCH_RATIO = 0.5601;
+// Vision's boxes sit slightly high over the letters, so a box's centre is
+// not the ink's centre; this is the measured median correction, in
+// page-height fractions.
+const INK_CENTER_BIAS = 0.00078;
+// Fallback for a page with too few rows to measure a pitch from: the
+// measured median ink-to-box height ratio. Less exact than the pitch,
+// since the individual box heights are noisy, but never wildly wrong.
+const INK_BOX_RATIO = 0.53;
+
+// Median distance between the tops of consecutive printed lines across
+// the WHOLE page -- a per-page constant, so it's computed once and cached
+// (in a WeakMap, to avoid mutating the fetched page map) rather than
+// recomputed on every highlight repaint.
+const linePitchCache = new WeakMap();
+function pageLinePitch(pageMap) {
+  if (!pageMap) return 0;
+  const cached = linePitchCache.get(pageMap);
+  if (cached !== undefined) return cached;
+  const rows = splitBoxesIntoRows(
+    [...(pageMap.wordBoxes || [])].sort((a, b) => (a.y - b.y) || (b.x - a.x)),
+  ).filter((row) => row.length >= 3);
+  const tops = rows.map((row) => Math.min(...row.map((b) => b.y))).sort((a, b) => a - b);
+  const gaps = [];
+  for (let i = 0; i + 1 < tops.length; i += 1) {
+    const gap = tops[i + 1] - tops[i];
+    // Discards both a line accidentally split in two (too small a gap)
+    // and a line the OCR missed entirely, which would otherwise read as
+    // one double-height gap. Taking the median of what's left is what
+    // makes this robust to either.
+    if (gap > 0.004 && gap < 0.03) gaps.push(gap);
+  }
+  const pitch = gaps.length >= 3 ? medianOf(gaps) : 0;
+  linePitchCache.set(pageMap, pitch);
+  return pitch;
+}
+
+// Everything above derives the bar from the word boxes, which puts it
+// within a couple of pixels of the letters but no closer -- measured
+// against the real ink, the box-derived centre is off by a median of
+// under 1px but strays up to 5px on individual lines, which is plainly
+// visible as a bar riding high or low on its line.
+//
+// The daf itself is rendered by pdf.js onto a canvas we own, so the
+// letters can simply be measured rather than predicted: scanning the
+// Gemara column for rows of dark pixels gives each printed line's exact
+// top and bottom. Snapping to that is exact by construction, and it needs
+// no per-page constants at all. It is one pass over the column per raster,
+// cached below, not per repaint.
+function measureInkBands(canvas, wordBoxes) {
+  const sortedVals = (vals) => [...vals].sort((a, b) => a - b);
+  const at = (arr, p) => arr[Math.max(0, Math.min(arr.length - 1, Math.floor(arr.length * p)))];
+  // Percentiles rather than min/max: a few marginal reference marks sit
+  // well outside the Gemara column, and including them would widen the
+  // scan across the commentary columns, whose lines are set to a
+  // different rhythm entirely.
+  const x0 = Math.max(0, Math.floor(at(sortedVals(wordBoxes.map((b) => b.x)), 0.05) * canvas.width));
+  const x1 = Math.min(canvas.width, Math.ceil(at(sortedVals(wordBoxes.map((b) => b.x + b.w)), 0.95) * canvas.width));
+  const y0 = Math.max(0, Math.floor(at(sortedVals(wordBoxes.map((b) => b.y)), 0.02) * canvas.height));
+  const y1 = Math.min(canvas.height, Math.ceil(at(sortedVals(wordBoxes.map((b) => b.y + b.h)), 0.98) * canvas.height));
+  const width = x1 - x0;
+  const height = y1 - y0;
+  if (width < 8 || height < 8) return null;
+
+  // Squeeze the column down to a narrow strip first, at full height. Only
+  // the vertical resolution carries meaning here -- each row becomes a
+  // single "how much ink is on this line" number either way -- so the
+  // horizontal axis can be collapsed by the scaling blit rather than by
+  // reading every pixel. getImageData is what costs: pulling the column
+  // at full width measured 400ms on the largest raster this app allows
+  // (MAX_CANVAS_WIDTH_PX), against ~50ms for blit-plus-strip-read. Still
+  // not free, but it happens once per raster, not once per repaint.
+  // Verified to give the same 57 lines on the same daf rasterised at 75,
+  // 150 and 300 dpi, agreeing on every line edge to within a pixel, so
+  // the squeeze costs nothing in precision.
+  const SCAN_COLUMNS = 160;
+  let data;
+  let strip;
+  try {
+    strip = document.createElement('canvas');
+    strip.width = Math.min(SCAN_COLUMNS, width);
+    strip.height = height;
+    const stripContext = strip.getContext('2d', { willReadFrequently: true });
+    stripContext.drawImage(canvas, x0, y0, width, height, 0, 0, strip.width, strip.height);
+    data = stripContext.getImageData(0, 0, strip.width, strip.height).data;
+  } catch (error) {
+    return null; // e.g. a tainted canvas -- the box-derived estimate still stands
+  }
+
+  // Total darkness per row rather than a count of dark pixels: after the
+  // horizontal squeeze each sample is an average of the pixels behind it,
+  // so a row of text reads as many middling-grey samples rather than a
+  // few black ones.
+  const inkPerRow = new Float64Array(height);
+  const stripWidth = strip.width;
+  for (let row = 0; row < height; row += 1) {
+    let ink = 0;
+    for (let i = row * stripWidth * 4, col = 0; col < stripWidth; col += 1, i += 4) {
+      ink += 255 - (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+    }
+    inkPerRow[row] = ink;
+  }
+  let peak = 0;
+  for (const ink of inkPerRow) if (ink > peak) peak = ink;
+  if (!peak) return null; // nothing rendered yet
+
+  const threshold = peak * 0.15;
+  const minBandPx = Math.max(3, Math.round(canvas.height * 0.002));
+  const bands = [];
+  let start = -1;
+  for (let row = 0; row <= height; row += 1) {
+    const inked = row < height && inkPerRow[row] >= threshold;
+    if (inked && start < 0) start = row;
+    else if (!inked && start >= 0) {
+      if (row - start >= minBandPx) {
+        bands.push({ top: (y0 + start) / canvas.height, bottom: (y0 + row) / canvas.height });
+      }
+      start = -1;
+    }
+  }
+  return bands.length ? bands : null;
+}
+
+// Keyed by page and raster size, so a zoom or a page turn re-measures on
+// its own. A null result is never cached: the overlay can be painted
+// before pdf.js has finished the first raster, and that must not lock in
+// the fallback for the rest of the page's life.
+let inkBandCache = { key: '', bands: null };
+function vilnaInkBands(pageMap) {
+  const canvas = $('vilnaPageCanvas');
+  if (!canvas || canvas.hidden || !canvas.width || !pageMap?.wordBoxes?.length) return null;
+  const key = `${pageMap.tractate} ${pageMap.daf}${pageMap.amud}:${canvas.width}x${canvas.height}`;
+  if (inkBandCache.key === key) return inkBandCache.bands;
+  const bands = measureInkBands(canvas, pageMap.wordBoxes);
+  if (bands) inkBandCache = { key, bands };
+  return bands;
+}
+
+function matchInkBand(bands, centre, pitch) {
+  if (!bands?.length) return null;
+  let best = null;
+  let bestDistance = Infinity;
+  for (const band of bands) {
+    const distance = Math.abs((band.top + band.bottom) / 2 - centre);
+    if (distance < bestDistance) { bestDistance = distance; best = band; }
+  }
+  // Only accept a band that lines up with where the words say they are.
+  // A miss of more than half a line means the map and the raster disagree
+  // about this page, and the estimate is the safer of the two answers.
+  return bestDistance <= (pitch || 0.012) * 0.5 ? best : null;
+}
+
+function groupBoxesIntoLineRects(boxes, pageMap, inkBands) {
+  if (!boxes.length) return [];
+  const rows = splitBoxesIntoRows(boxes);
+  const pitch = pageLinePitch(pageMap);
+  // Horizontal padding only, to give the rounded end caps a little room
+  // so they don't clip the first and last letter. There is deliberately
+  // no vertical padding: the whole point is that the bar starts and ends
+  // where the letters do.
+  const PAD_X = 0.004;
+
+  return rows.map((row) => {
+    const left = Math.min(...row.map((b) => b.x)) - PAD_X;
+    const right = Math.max(...row.map((b) => b.x + b.w)) + PAD_X;
+    const centre = medianOf(row.map((b) => b.y + b.h / 2)) + INK_CENTER_BIAS;
+    const band = matchInkBand(inkBands, centre, pitch);
+    if (band) {
+      return { left, top: band.top, width: right - left, height: band.bottom - band.top };
+    }
+    const height = pitch
+      ? pitch * INK_PITCH_RATIO
+      : medianOf(row.map((b) => b.h)) * INK_BOX_RATIO;
+    return { left, top: centre - height / 2, width: right - left, height };
+  });
+}
+
+function appendLineRects(overlay, rects, className) {
+  for (const rect of rects) {
+    const el = document.createElement('div');
+    el.className = className;
+    el.style.left = `${rect.left * 100}%`;
+    el.style.top = `${rect.top * 100}%`;
+    el.style.width = `${rect.width * 100}%`;
+    el.style.height = `${rect.height * 100}%`;
+    overlay.appendChild(el);
+  }
+}
+
+// Highlights exactly the word range the caption box itself is highlighting
+// right now (state.segments[activeIndex].w0/w1) -- not a whole sentence,
+// even when that segment is one of several consecutive slices a longer
+// paragraph got split into (see caption_ocr_align.py's _split_word_ranges)
+// for finer mid-phrase timing. Segment start/end timing is equally solid
+// for both the OCR and voice sync engines, unlike wordTimeline, which
+// voice sync only ever populates sparsely (whole matched phrases, not
+// every word). Draws one merged rectangle per printed line into a
+// dedicated overlay (see groupBoxesIntoLineRects) rather than toggling an
+// 'active' class on each individual (deliberately oversized, for easier
+// tapping) word box, which used to render a multi-word phrase as a jagged
+// block of overlapping rectangles instead of one clean bar.
 function updateVilnaOverlay() {
-  if (!state.vilnaWordEls) return;
+  const overlay = $('vilnaActiveOverlay');
+  if (!overlay) return;
   if (!state.vilnaPageMap || $('vilnaPlaceholder').hidden) {
     if (state.vilnaOverlayKey) {
-      for (const el of state.vilnaWordEls.values()) el.classList.remove('active');
+      overlay.innerHTML = '';
       state.vilnaOverlayKey = '';
     }
     return;
@@ -2721,27 +2974,26 @@ function updateVilnaOverlay() {
   const activeSegment = state.segments[state.activeIndex];
 
   // The YouTube poll re-runs this every 100ms; without this check the
-  // active class was being toggled on every single tick even when the
-  // highlighted phrase hadn't changed, restarting each box's CSS entrance
+  // overlay was being rebuilt on every single tick even when the
+  // highlighted phrase hadn't changed, restarting the CSS entrance
   // animation from opacity:0 before it ever finished fading in -- a
   // constant flicker that also read as much dimmer than the steady color
-  // it's supposed to settle into. Keyed on activeIndex, not just the ref,
-  // since sibling phrase chunks of the same long Sefaria paragraph (see
-  // caption_ocr_align.py's _split_word_ranges) share one ref -- deduping on
-  // ref alone would miss moving from one phrase to the next within it.
-  const dedupKey = activeSegment ? `${state.activeIndex}:${activeSegment.ref}` : '';
+  // it's supposed to settle into. Keyed on the segment's own ref/w0/w1
+  // rather than raw activeIndex, so two different indices that happen to
+  // cover the identical word range don't count as a change worth
+  // re-rendering for.
+  const dedupKey = activeSegment ? `${activeSegment.ref}:${activeSegment.w0}:${activeSegment.w1}` : '';
   if (dedupKey === state.vilnaOverlayKey) return;
   state.vilnaOverlayKey = dedupKey;
 
-  const activeRef = activeSegment?.ref || '';
-  const hasRange = activeSegment && activeSegment.w0 !== null && activeSegment.w1 !== null;
-  for (const box of state.vilnaPageMap.wordBoxes) {
-    const el = state.vilnaWordEls.get(`${box.ref}:${box.wordIndex}`);
-    if (!el) continue;
-    const hit = activeRef !== '' && box.ref === activeRef
-      && (!hasRange || (box.wordIndex >= activeSegment.w0 && box.wordIndex <= activeSegment.w1));
-    el.classList.toggle('active', hit);
-  }
+  overlay.innerHTML = '';
+  if (!activeSegment) return;
+  const hasRange = activeSegment.w0 !== null && activeSegment.w1 !== null;
+  const boxes = state.vilnaPageMap.wordBoxes
+    .filter((box) => box.ref === activeSegment.ref
+      && (!hasRange || (box.wordIndex >= activeSegment.w0 && box.wordIndex <= activeSegment.w1)))
+    .sort((a, b) => a.wordIndex - b.wordIndex);
+  appendLineRects(overlay, groupBoxesIntoLineRects(boxes, state.vilnaPageMap, vilnaInkBands(state.vilnaPageMap)), 'vilna-active-rect');
 }
 
 // While vilnaMarkMode is on, outlines the word(s) belonging to the phrase
@@ -2767,45 +3019,7 @@ function updateVilnaMarkTarget() {
   const boxes = (state.vilnaPageMap?.wordBoxes || [])
     .filter((box) => box.ref === target.ref && box.wordIndex >= target.w0 && box.wordIndex <= target.w1)
     .sort((a, b) => a.wordIndex - b.wordIndex);
-  if (!boxes.length) return;
-  // One outline per printed *line* the marked phrase covers, not one per
-  // word box -- each box is deliberately oversized (scale(1.2, 1.7), for an
-  // easier tap target), so outlining every one individually rendered a
-  // multi-word target as several overlapping oversized dashed rectangles: a
-  // jagged, hard-to-read block instead of a clean selection. Boxes are
-  // already in reading order (sorted by wordIndex above); a jump in y bigger
-  // than roughly half a line's own height means a line break, not just
-  // normal word-to-word spacing on the same line.
-  const rows = [];
-  let current = [];
-  let prevBox = null;
-  for (const box of boxes) {
-    if (prevBox && Math.abs(box.y - prevBox.y) > prevBox.h * 0.6) {
-      rows.push(current);
-      current = [];
-    }
-    current.push(box);
-    prevBox = box;
-  }
-  if (current.length) rows.push(current);
-  for (const row of rows) {
-    const left = Math.min(...row.map((b) => b.x));
-    const right = Math.max(...row.map((b) => b.x + b.w));
-    const top = Math.min(...row.map((b) => b.y));
-    const bottom = Math.max(...row.map((b) => b.y + b.h));
-    // A little breathing room around the tight glyph bounds, same spirit as
-    // .vilna-word-box's own oversize -- proportional to the row's own size
-    // instead of a fixed amount, so it still looks right at any zoom level.
-    const padX = (right - left) * 0.04 + 0.004;
-    const padY = (bottom - top) * 0.18 + 0.002;
-    const rect = document.createElement('div');
-    rect.className = 'vilna-mark-target-rect';
-    rect.style.left = `${(left - padX) * 100}%`;
-    rect.style.top = `${(top - padY) * 100}%`;
-    rect.style.width = `${(right - left + padX * 2) * 100}%`;
-    rect.style.height = `${(bottom - top + padY * 2) * 100}%`;
-    overlay.appendChild(rect);
-  }
+  appendLineRects(overlay, groupBoxesIntoLineRects(boxes, state.vilnaPageMap, vilnaInkBands(state.vilnaPageMap)), 'vilna-mark-target-rect');
 }
 
 // Column-boundary fractions of the rendered (CropBox-consistent) page canvas,
