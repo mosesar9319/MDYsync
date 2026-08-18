@@ -62,6 +62,8 @@ import urllib.request
 
 import cv2
 import pytesseract
+from google.auth.transport.requests import Request as GoogleAuthRequest
+from google.oauth2 import service_account
 from rapidfuzz import fuzz
 
 from caption_ocr_align import normalize_word, load_canonical
@@ -173,11 +175,32 @@ def ocr_band_words(page_png):
     return words, w, h
 
 
-def ocr_band_words_google_vision(page_png, api_key):
+def get_google_vision_access_token(credentials_json):
+    """Exchanges a service-account JSON key for a short-lived OAuth2 access
+    token, for orgs whose policy disallows plain API keys ("API Keys are
+    Disallowed ... use Application Default Credentials (ADC) instead" --
+    ADC's own recommended alternative). A service account is the ADC path
+    every non-interactive script actually uses, so this is not a workaround
+    for that policy, it's the thing the policy is steering callers toward.
+    """
+    info = json.loads(credentials_json)
+    creds = service_account.Credentials.from_service_account_info(
+        info, scopes=['https://www.googleapis.com/auth/cloud-platform']
+    )
+    creds.refresh(GoogleAuthRequest())
+    return creds.token
+
+
+def ocr_band_words_google_vision(page_png, api_key=None, credentials_json=None):
     """Same job as ocr_band_words above (a list of candidate words with real
     pixel positions), but reading the whole page through Google Cloud
     Vision's DOCUMENT_TEXT_DETECTION instead of a Tesseract pass restricted
     to the fixed BAND_X0_FRAC/BAND_X1_FRAC crop.
+
+    Accepts either a plain API key (simplest, but blocked outright on some
+    orgs' Cloud projects) or a service-account credentials JSON (works
+    under that same policy, since it IS the ADC path); exactly one of the
+    two is expected to be set by the caller.
 
     Deliberately does NOT restrict itself to that band, or to any other
     fixed region: real pages don't hold Gemara to one constant column width
@@ -197,6 +220,9 @@ def ocr_band_words_google_vision(page_png, api_key):
     align_words_to_canon's own fuzzy-match tolerance) or content the sample
     simply didn't cover, not a wrong letter.
     """
+    if not api_key and not credentials_json:
+        raise RuntimeError('ocr_band_words_google_vision needs either api_key or credentials_json.')
+
     with open(page_png, 'rb') as f:
         image_bytes = f.read()
     payload = {
@@ -206,11 +232,13 @@ def ocr_band_words_google_vision(page_png, api_key):
             'imageContext': {'languageHints': ['he']},
         }],
     }
-    req = urllib.request.Request(
-        f'https://vision.googleapis.com/v1/images:annotate?key={api_key}',
-        data=json.dumps(payload).encode('utf-8'),
-        headers={'Content-Type': 'application/json'},
-    )
+    headers = {'Content-Type': 'application/json'}
+    if credentials_json:
+        url = 'https://vision.googleapis.com/v1/images:annotate'
+        headers['Authorization'] = f'Bearer {get_google_vision_access_token(credentials_json)}'
+    else:
+        url = f'https://vision.googleapis.com/v1/images:annotate?key={api_key}'
+    req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=60) as r:
             data = json.loads(r.read())
@@ -420,7 +448,8 @@ def build_word_boxes(canon, words, pairs, crop_w, crop_h):
     return out
 
 
-def process_page(tractate, daf, amud, out_dir, cache_dir=None, engine=None, google_vision_api_key=None):
+def process_page(tractate, daf, amud, out_dir, cache_dir=None, engine=None,
+                  google_vision_api_key=None, google_vision_credentials_json=None):
     os.makedirs(out_dir, exist_ok=True)
     pdf_path = os.path.join(out_dir, 'page.pdf')
     fetch_page_pdf(tractate, daf, amud, pdf_path)
@@ -430,19 +459,27 @@ def process_page(tractate, daf, amud, out_dir, cache_dir=None, engine=None, goog
     canon, segments = load_canonical([ref], cache_dir=cache_dir or out_dir)
     print(f'Canonical text: {len(segments)} segments, {len(canon)} words')
 
-    # Auto-picks the better engine the moment a key is available, without
-    # needing every caller updated to ask for it explicitly -- the same
-    # "upgrade transparently when the ingredient shows up" shape as
+    # Auto-picks the better engine the moment a credential is available,
+    # without needing every caller updated to ask for it explicitly -- the
+    # same "upgrade transparently when the ingredient shows up" shape as
     # trigger-page-ocr-job.mjs already using whichever of two variant
-    # prefixes applies. Falls back to Tesseract (no key required) so this
-    # keeps working for anyone who hasn't set up Vision yet.
+    # prefixes applies. Falls back to Tesseract (no credential required) so
+    # this keeps working for anyone who hasn't set up Vision yet. A service
+    # account takes priority when both are somehow set, since that's the
+    # credential type that still works under an org policy disallowing
+    # plain API keys.
     if engine is None:
-        engine = 'google-vision' if google_vision_api_key else 'tesseract'
+        engine = 'google-vision' if (google_vision_api_key or google_vision_credentials_json) else 'tesseract'
 
     if engine == 'google-vision':
-        if not google_vision_api_key:
-            raise RuntimeError('The google-vision engine needs an API key (GOOGLE_VISION_API_KEY).')
-        words, page_w, page_h = ocr_band_words_google_vision(png_path, google_vision_api_key)
+        if not google_vision_api_key and not google_vision_credentials_json:
+            raise RuntimeError(
+                'The google-vision engine needs GOOGLE_VISION_API_KEY or '
+                'GOOGLE_VISION_CREDENTIALS_JSON.'
+            )
+        words, page_w, page_h = ocr_band_words_google_vision(
+            png_path, api_key=google_vision_api_key, credentials_json=google_vision_credentials_json
+        )
         print(f'Google Vision: {len(words)} words detected on the whole page')
     else:
         words, page_w, page_h = ocr_band_words(png_path)
@@ -502,13 +539,15 @@ def main():
     p.add_argument('--amud', choices=['a', 'b'], required=True)
     p.add_argument('--out-dir', default='page-out')
     p.add_argument('--engine', choices=['tesseract', 'google-vision'], default=None,
-                    help='Defaults to google-vision when GOOGLE_VISION_API_KEY is set, else tesseract.')
+                    help='Defaults to google-vision when GOOGLE_VISION_API_KEY or '
+                         'GOOGLE_VISION_CREDENTIALS_JSON is set, else tesseract.')
     args = p.parse_args()
     try:
         process_page(
             args.tractate, args.daf, args.amud, args.out_dir,
             engine=args.engine,
             google_vision_api_key=os.environ.get('GOOGLE_VISION_API_KEY'),
+            google_vision_credentials_json=os.environ.get('GOOGLE_VISION_CREDENTIALS_JSON'),
         )
     except Exception as e:
         print(f'ERROR: {e}', file=sys.stderr)
