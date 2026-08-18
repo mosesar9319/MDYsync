@@ -18,6 +18,12 @@ const state = {
   editingIndex: 0,
   phraseEditMode: false,
   vilnaMarkMode: false,
+  // Snapshot of segments/editingIndex from when mark mode was turned on (or
+  // the last explicit Save) -- what "Discard changes" (see
+  // discardVilnaMarkChanges) reverts to. Serialized JSON, not a live
+  // object, so later mutations to state.segments can never silently corrupt
+  // the very thing meant to undo them.
+  vilnaMarkCheckpoint: null,
   alignmentStatus: 'placeholder',
   currentProjectId: null,
   wordTimeline: [],
@@ -2666,10 +2672,32 @@ async function tapScannedWord(wordRef, wordIndex) {
 // reuses setSegmentStart so this banks/autosaves exactly like every other
 // correction path already does.
 function markSegmentAtVilnaWord(ref, wordIndex) {
-  const index = state.segments.findIndex((s) => s.ref === ref && s.w0 !== null && wordIndex >= s.w0 && wordIndex <= s.w1);
-  const resolvedIndex = index !== -1 ? index : state.segments.findIndex((s) => s.ref === ref);
-  if (resolvedIndex === -1) return;
   const time = getCurrentTime();
+  // A paragraph the rebbe revisits or repeats later in the shiur can
+  // produce several segments sharing one ref with the same (or overlapping)
+  // w0/w1 word range but wildly different start times -- confirmed in real
+  // synced data: one ref in Chullin 100a has 26 such segments spanning a
+  // 200+ second range. Two earlier approaches both got this wrong: a blind
+  // first-array-match (state.segments is sorted by start time) always
+  // resolved to whichever occurrence happens to sort earliest; preferring
+  // state.editingIndex's own segment instead was worse -- any click on a
+  // word whose ref happened to recur elsewhere could hijack whatever
+  // segment editingIndex currently pointed at (even the daf's very first
+  // phrase), overwriting its start with the current, unrelated playback
+  // time and corrupting the whole chronological ordering from that point
+  // on. Among every segment that actually matches this ref (and, when
+  // known, this word's range), the one whose own start time sits closest to
+  // right now is overwhelmingly likely to be the real occurrence -- an
+  // admin marks phrases while listening along in real time, so playback
+  // position is the one signal that's actually about *this* moment, not
+  // wherever an unrelated index happens to be pointing.
+  const exact = state.segments
+    .map((s, i) => ({ s, i }))
+    .filter(({ s }) => s.ref === ref && s.w0 !== null && wordIndex >= s.w0 && wordIndex <= s.w1);
+  const anyRef = exact.length ? exact : state.segments.map((s, i) => ({ s, i })).filter(({ s }) => s.ref === ref);
+  if (!anyRef.length) return;
+  anyRef.sort((a, b) => Math.abs(a.s.start - time) - Math.abs(b.s.start - time));
+  const resolvedIndex = anyRef[0].i;
   setSegmentStart(resolvedIndex, time);
   state.editingIndex = Math.min(resolvedIndex + 1, state.segments.length - 1);
   updateMarkTargetUi();
@@ -2724,27 +2752,59 @@ function updateVilnaOverlay() {
 // or mark mode itself is toggled, not on every playback tick, so it doesn't
 // need updateVilnaOverlay's dedup-key guard.
 function updateVilnaMarkTarget() {
-  if (!state.vilnaWordEls) return;
+  const overlay = $('vilnaMarkTargetOverlay');
+  if (!overlay) return;
+  overlay.innerHTML = '';
+  // No target box at all is a clearer state than a wrong one when the
+  // segment being corrected has no known word-level boundaries yet (w0/w1
+  // null -- the normal starting state before any mark-mode correction has
+  // been made for it, not a rare edge case) -- the phrase itself is still
+  // visible via mark-target-segment/mark-target-row in the text panel and
+  // editor table.
   const target = state.vilnaMarkMode ? state.segments[state.editingIndex] : null;
   const hasRange = target && target.w0 !== null && target.w1 !== null;
-  // Unlike updateVilnaOverlay's "currently playing" highlight (where falling
-  // back to the whole phrase when word-level boundaries aren't known yet is
-  // a reasonable approximation), that same fallback here means every word
-  // box in a segment gets the dashed mark-target outline at once the moment
-  // an admin starts correcting a segment that's never been word-marked
-  // before -- the normal, common starting state, not an edge case. With
-  // each box already deliberately oversized (scale(1.2, 1.7), for an easier
-  // tap target) for hit-testing, dozens of overlapping dashed outlines
-  // across several lines render as one unreadable block instead of
-  // anything a reader could click precisely. No target box is a clearer
-  // starting state than a wrong one -- the phrase itself is still visible
-  // via mark-target-segment/mark-target-row in the text panel/editor table.
-  for (const box of state.vilnaPageMap?.wordBoxes || []) {
-    const el = state.vilnaWordEls.get(`${box.ref}:${box.wordIndex}`);
-    if (!el) continue;
-    const hit = Boolean(target) && hasRange && box.ref === target.ref
-      && box.wordIndex >= target.w0 && box.wordIndex <= target.w1;
-    el.classList.toggle('mark-target', hit);
+  if (!target || !hasRange) return;
+  const boxes = (state.vilnaPageMap?.wordBoxes || [])
+    .filter((box) => box.ref === target.ref && box.wordIndex >= target.w0 && box.wordIndex <= target.w1)
+    .sort((a, b) => a.wordIndex - b.wordIndex);
+  if (!boxes.length) return;
+  // One outline per printed *line* the marked phrase covers, not one per
+  // word box -- each box is deliberately oversized (scale(1.2, 1.7), for an
+  // easier tap target), so outlining every one individually rendered a
+  // multi-word target as several overlapping oversized dashed rectangles: a
+  // jagged, hard-to-read block instead of a clean selection. Boxes are
+  // already in reading order (sorted by wordIndex above); a jump in y bigger
+  // than roughly half a line's own height means a line break, not just
+  // normal word-to-word spacing on the same line.
+  const rows = [];
+  let current = [];
+  let prevBox = null;
+  for (const box of boxes) {
+    if (prevBox && Math.abs(box.y - prevBox.y) > prevBox.h * 0.6) {
+      rows.push(current);
+      current = [];
+    }
+    current.push(box);
+    prevBox = box;
+  }
+  if (current.length) rows.push(current);
+  for (const row of rows) {
+    const left = Math.min(...row.map((b) => b.x));
+    const right = Math.max(...row.map((b) => b.x + b.w));
+    const top = Math.min(...row.map((b) => b.y));
+    const bottom = Math.max(...row.map((b) => b.y + b.h));
+    // A little breathing room around the tight glyph bounds, same spirit as
+    // .vilna-word-box's own oversize -- proportional to the row's own size
+    // instead of a fixed amount, so it still looks right at any zoom level.
+    const padX = (right - left) * 0.04 + 0.004;
+    const padY = (bottom - top) * 0.18 + 0.002;
+    const rect = document.createElement('div');
+    rect.className = 'vilna-mark-target-rect';
+    rect.style.left = `${(left - padX) * 100}%`;
+    rect.style.top = `${(top - padY) * 100}%`;
+    rect.style.width = `${(right - left + padX * 2) * 100}%`;
+    rect.style.height = `${(bottom - top + padY * 2) * 100}%`;
+    overlay.appendChild(rect);
   }
 }
 
@@ -4263,8 +4323,44 @@ function toggleVilnaMarkMode() {
   $('vilnaMarkModeButton')?.classList.toggle('active', state.vilnaMarkMode);
   $('vilnaMarkModeButton')?.setAttribute('aria-pressed', String(state.vilnaMarkMode));
   $('vilnaPageWrap')?.classList.toggle('mark-mode', state.vilnaMarkMode);
-  if (state.vilnaMarkMode) switchDafView('page');
+  const saveButton = $('vilnaMarkSaveButton');
+  const discardButton = $('vilnaMarkDiscardButton');
+  if (saveButton) saveButton.hidden = !state.vilnaMarkMode;
+  if (discardButton) discardButton.hidden = !state.vilnaMarkMode;
+  if (state.vilnaMarkMode) {
+    switchDafView('page');
+    checkpointVilnaMarkChanges();
+  } else {
+    state.vilnaMarkCheckpoint = null;
+  }
   updateVilnaMarkTarget();
+}
+
+// Snapshot state.segments/editingIndex so discardVilnaMarkChanges() below
+// has something to revert to -- taken when mark mode turns on, and again
+// every time the admin explicitly saves, so "Discard changes" only ever
+// undoes marks made since the last save, not the whole mark-mode session.
+function checkpointVilnaMarkChanges() {
+  state.vilnaMarkCheckpoint = JSON.stringify({ segments: state.segments, editingIndex: state.editingIndex });
+}
+
+function saveVilnaMarkChanges() {
+  saveDraft(false);
+  bankVoiceCorrection();
+  bankManualPhraseSync();
+  checkpointVilnaMarkChanges();
+}
+
+function discardVilnaMarkChanges() {
+  if (!state.vilnaMarkCheckpoint) return;
+  if (!confirm('Discard the word-mark corrections made since the last save?')) return;
+  const restored = JSON.parse(state.vilnaMarkCheckpoint);
+  state.segments = restored.segments;
+  state.editingIndex = restored.editingIndex;
+  renderDaf(); // also re-runs updateActiveSegment/renderEditor/renderVilnaPage
+  updateVilnaMarkTarget();
+  updateAlignmentStatus();
+  showToast('Discarded changes since the last save.');
 }
 
 const NUDGE_STEPS = [-1, -0.1, 0.1, 1];
@@ -4763,9 +4859,15 @@ function setSourcePanel(panelId) {
   });
 }
 
-function exportAlignment() {
+// Shared by exportAlignment (downloads a file) and publishAlignment (pushes
+// straight to the results branch) -- both need the same snapshot of the
+// current work, just delivered differently. wordTimeline is included (export
+// alone never carried it before) since it's what word highlighting/tap-to-
+// seek actually key off (see loadAlignmentData) -- publishing without it
+// would silently ship a daf with no word-level sync at all.
+function buildAlignmentPayload() {
   const duration = getDuration() || Number(scrubber.max) || 0;
-  const payload = {
+  return {
     schema: 'dafsync-alignment-v2',
     title: $('lectureTitle').textContent,
     dafRef: state.dafRef,
@@ -4774,10 +4876,71 @@ function exportAlignment() {
     projectId: state.currentProjectId,
     alignmentStatus: state.alignmentStatus,
     generatedAt: new Date().toISOString(),
-    segments: state.segments
+    segments: state.segments,
+    wordTimeline: state.wordTimeline
   };
-  downloadJson(payload, `${slugify(state.dafRef)}-alignment.json`);
+}
+
+function exportAlignment() {
+  downloadJson(buildAlignmentPayload(), `${slugify(state.dafRef)}-alignment.json`);
   showToast('Synchronization JSON exported with its video source.');
+}
+
+// Pushes the current alignment straight to the results branch via
+// publish-alignment.mjs -- previously only reachable through the desktop
+// app's own "Sync" button, requiring an export-then-reimport round trip to
+// get web-made corrections (e.g. from Mark words) actually live for other
+// readers. That endpoint has no notion of the voice-recognition engine's
+// separate key space (see refKey's Voice- prefix, used only by
+// trigger-voice-job.mjs/voice-job.yml) -- it always writes under the
+// caption-OCR keys, so publishing a voice-sourced alignment through it would
+// silently mislabel/overwrite the wrong thing.
+async function publishAlignment() {
+  if (!state.segments.length) {
+    showToast('Nothing to publish yet.', 'error');
+    return;
+  }
+  if (state.activeSyncMethod === 'voice') {
+    showToast('Publishing isn’t available for voice-recognition alignments yet -- export and use the desktop app instead.', 'error');
+    return;
+  }
+  // A single video/sync can cover more than one daf (see refKey()'s own
+  // comment) -- publish under every one its segments actually reference, the
+  // same way the desktop app's publish already does, so any of them resolves
+  // it.
+  const refSet = new Set();
+  for (const segment of state.segments) {
+    const parsed = parseDafRef(segment.ref);
+    if (parsed) refSet.add(`${parsed.tractate} ${parsed.daf}${parsed.amud}`);
+  }
+  if (!refSet.size) {
+    showToast('Could not tell which daf(s) this alignment covers.', 'error');
+    return;
+  }
+  const refs = [...refSet];
+  const parsedDafRef = parseDafRef(state.dafRef);
+  const variant = parsedDafRef?.variant === 'chazarah' ? 'chazarah' : 'regular';
+  const language = parsedDafRef?.language === 'he' ? 'he' : 'en';
+  if (!confirm(`Publish this alignment live for ${refs.join(', ')}? This replaces whatever's currently synced there for every reader.`)) return;
+
+  const button = $('publishAlignmentButton');
+  const original = button?.textContent;
+  if (button) { button.disabled = true; button.textContent = 'Publishing…'; }
+  try {
+    const response = await fetch('/api/publish-alignment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refs, variant, language, alignment: buildAlignmentPayload() }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `Server returned ${response.status}`);
+    showToast(`Published live for ${refs.join(', ')}.`);
+  } catch (error) {
+    console.error(error);
+    showToast(`Could not publish: ${error.message}`, 'error');
+  } finally {
+    if (button) { button.disabled = false; button.textContent = original || 'Publish live'; }
+  }
 }
 
 function downloadJson(data, filename) {
@@ -5294,12 +5457,15 @@ $('dafRef').addEventListener('keydown', (event) => { if (event.key === 'Enter') 
 $('alignmentInput').addEventListener('change', (event) => importAlignment(event.target.files?.[0]));
 $('transcriptInput').addEventListener('change', (event) => importTranscript(event.target.files?.[0]));
 $('exportButton').addEventListener('click', exportAlignment);
+$('publishAlignmentButton')?.addEventListener('click', publishAlignment);
 $('evenSpacingButton').addEventListener('click', () => resetEvenSpacing(false));
 // Optional chaining: this button only exists on pages with the alignment
 // editor's phrase-splitting UI (player/studio) -- not watch/index.html or
 // browse/index.html, which otherwise share this same top-level script.
 $('phraseEditModeButton')?.addEventListener('click', togglePhraseEditMode);
 $('vilnaMarkModeButton')?.addEventListener('click', toggleVilnaMarkMode);
+$('vilnaMarkSaveButton')?.addEventListener('click', saveVilnaMarkChanges);
+$('vilnaMarkDiscardButton')?.addEventListener('click', discardVilnaMarkChanges);
 // The editor sits in the same grid column as the daf card (see the HTML
 // comment above #editor) so correcting the sync stays parallel with the
 // video instead of scrolling to a full-width section below it -- the two
