@@ -1,0 +1,60 @@
+name: Video caption OCR diagnostic (throwaway)
+
+# One-off data-gathering run, not a shipped feature: downloads a real clip
+# of a Daf Yomi shiur video and compares Tesseract vs Google Vision on real
+# caption-box crops, to check whether the page mapper's Vision upgrade
+# would also help the video-caption OCR path (see video_ocr_diagnostic.py).
+# This workflow and script are meant to be deleted once the investigation
+# is done -- they don't publish anything.
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_url:
+        required: false
+        type: string
+        default: 'https://www.youtube.com/watch?v=OFNumwQ8tnU'
+      clip_start:
+        required: false
+        type: string
+        default: '300'
+      clip_duration:
+        required: false
+        type: string
+        default: '90'
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-heb ffmpeg
+
+      - name: Install Python dependencies
+        run: pip install opencv-python-headless pytesseract rapidfuzz numpy google-auth requests yt-dlp
+
+      - name: Run the diagnostic
+        working-directory: MDYsync/tools/caption-sync
+        env:
+          VIDEO_URL: ${{ github.event.inputs.video_url }}
+          CLIP_START: ${{ github.event.inputs.clip_start }}
+          CLIP_DURATION: ${{ github.event.inputs.clip_duration }}
+          GOOGLE_VISION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_VISION_CREDENTIALS_JSON }}
+        run: python3 video_ocr_diagnostic.py
+
+      - name: Upload sample crops
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-ocr-samples
+          path: MDYsync/tools/caption-sync/video-ocr-out/
+          retention-days: 3
