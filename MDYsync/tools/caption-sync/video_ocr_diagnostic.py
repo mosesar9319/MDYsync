@@ -40,6 +40,7 @@ def download_clip():
     out_path = os.path.join(OUT_DIR, 'clip.mp4')
     cmd = [
         'yt-dlp', '-f', 'best[height<=480]',
+        '--extractor-args', 'youtube:player_client=tv',
         '--downloader', 'ffmpeg',
         '--downloader-args', f'ffmpeg_i:-ss {START} -t {DURATION}',
         '-o', out_path, VIDEO_URL,
