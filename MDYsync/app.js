@@ -2494,23 +2494,18 @@ async function switchScanVideo() {
 // (Vilna-page and Scan are independent view-switch tabs on the same daf).
 function updateScanOverlay(time) {
   if (!state.scanWordEls || !state.scanWordEls.size) return;
-  // activePhraseWordRange (see updateVilnaOverlay) instead of the raw
-  // segment's own w0/w1 -- same flicker fix as the Vilna page view: a long
-  // paragraph's several consecutive timing slices otherwise made
-  // already-lit words go dark the instant playback crossed into the next
-  // slice, even though the caption box still showed the same sentence.
-  const range = activePhraseWordRange(state.segments, state.activeIndex);
-  const dedupKey = range ? `${range.ref}:${range.w0}:${range.w1}` : '';
+  const activeSegment = state.segments[state.activeIndex];
+  const dedupKey = activeSegment ? `${activeSegment.ref}:${activeSegment.w0}:${activeSegment.w1}` : '';
   if (dedupKey === state.scanOverlayKey) return;
   state.scanOverlayKey = dedupKey;
 
-  const activeRef = range?.ref || '';
-  const hasRange = range && range.w0 != null && range.w1 != null;
+  const activeRef = activeSegment?.ref || '';
+  const hasRange = activeSegment && activeSegment.w0 !== null && activeSegment.w1 !== null;
   for (const box of state.scanWordBoxes) {
     const el = state.scanWordEls.get(`${box.ref}:${box.wordIndex}`);
     if (!el) continue;
     const hit = activeRef !== '' && box.ref === activeRef
-      && (!hasRange || (box.wordIndex >= range.w0 && box.wordIndex <= range.w1));
+      && (!hasRange || (box.wordIndex >= activeSegment.w0 && box.wordIndex <= activeSegment.w1));
     el.classList.toggle('active', hit);
   }
 }
@@ -2718,6 +2713,12 @@ function markSegmentAtVilnaWord(ref, wordIndex) {
 // tapping -- see .vilna-word-box's own transform) individual word boxes.
 // A jump in y bigger than roughly half a line's own height means a line
 // break, not just normal word-to-word spacing on the same line.
+function medianOf(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
 function groupBoxesIntoLineRects(boxes) {
   if (!boxes.length) return [];
   const rows = [];
@@ -2732,17 +2733,47 @@ function groupBoxesIntoLineRects(boxes) {
     prevBox = box;
   }
   if (current.length) rows.push(current);
-  return rows.map((row) => {
-    const left = Math.min(...row.map((b) => b.x));
-    const right = Math.max(...row.map((b) => b.x + b.w));
-    const top = Math.min(...row.map((b) => b.y));
-    const bottom = Math.max(...row.map((b) => b.y + b.h));
-    // A little breathing room around the tight glyph bounds, proportional
-    // to the row's own size instead of a fixed amount, so it still looks
-    // right at any zoom level.
-    const padX = (right - left) * 0.04 + 0.004;
-    const padY = (bottom - top) * 0.18 + 0.002;
-    return { left: left - padX, top: top - padY, width: right - left + padX * 2, height: bottom - top + padY * 2 };
+
+  const tops = rows.map((row) => Math.min(...row.map((b) => b.y)));
+  // The median box height in the row, not the tallest one -- a single word
+  // with a slightly taller OCR box (a final letter's descender, a stray
+  // measurement, nothing visually significant) shouldn't by itself decide
+  // how far down the WHOLE line's highlight reaches; confirmed directly on
+  // real data where exactly that (one box ~4% taller than its row-mates)
+  // was enough to push the highlight into the very next line.
+  const rowHeights = rows.map((row) => medianOf(row.map((b) => b.h)));
+  // A little breathing room around the tight glyph bounds -- small and
+  // fixed, not proportional to the row's own height. That earlier version
+  // (18% of row height) was measured directly against real Vilna-print
+  // line spacing and found to routinely exceed the actual gap between two
+  // printed lines -- confirmed on real data where consecutive lines sit as
+  // little as ~0.003 (page-fraction) apart, letting adjacent highlighted
+  // lines visibly merge into one block or double up their (multiply-blend)
+  // fill into a darker patch where they overlapped.
+  const PAD_X = 0.004;
+  const PAD_Y = 0.001;
+  // How much of the vertical gap to the NEXT line is always reserved as
+  // visible separation, never covered by this line's own highlight, no
+  // exceptions -- a real, always-present gap between adjacent highlighted
+  // lines matters more than covering every last pixel of an unusually
+  // tall glyph, confirmed against a real pathological case (a Mishna
+  // heading's two tightly-set lines, only ~0.007 of page height apart):
+  // capping here does mean that specific line's highlight bar comes out
+  // noticeably thinner than its own text, but that reads far better than
+  // two lines' highlights touching or double-darkening where they'd
+  // otherwise overlap.
+  const GAP_FRACTION = 0.25;
+
+  return rows.map((row, i) => {
+    const left = Math.min(...row.map((b) => b.x)) - PAD_X;
+    const right = Math.max(...row.map((b) => b.x + b.w)) + PAD_X;
+    const top = tops[i] - PAD_Y;
+    let bottom = tops[i] + rowHeights[i] + PAD_Y;
+    if (i + 1 < rows.length) {
+      const maxBottom = tops[i] + (tops[i + 1] - tops[i]) * (1 - GAP_FRACTION);
+      bottom = Math.min(bottom, maxBottom);
+    }
+    return { left, top, width: right - left, height: bottom - top };
   });
 }
 
@@ -2758,52 +2789,18 @@ function appendLineRects(overlay, rects, className) {
   }
 }
 
-// A long canonical paragraph gets split into several consecutive segments
-// (see caption_ocr_align.py's _split_word_ranges) so mid-phrase timing
-// tracks more precisely -- but each individual segment's own w0/w1 only
-// covers ITS OWN narrow slice of that paragraph, not the paragraph as a
-// whole. Highlighting only that narrow slice made already-lit earlier
-// words in the same sentence go dark the instant playback crossed into
-// the next slice, even though the video's own caption box still showed
-// the very same sentence -- a real, reported flicker (confirmed directly
-// against real synced data: consecutive slices of one sentence sit only
-// ~80ms apart, well under the ~100ms playback poll interval, so which
-// slice reads as "active" at any given poll is inherently unstable).
-// Walks outward from the active segment to the edges of its own
-// contiguous run (same ref, each neighbor's word range touching the next
-// with no gap) and returns the WHOLE run's word bounds, so the entire
-// sentence lights up together for as long as any of its slices is the
-// active one, instead of shrinking and regrowing as playback moves
-// through it.
-function activePhraseWordRange(segments, index) {
-  const seg = segments[index];
-  if (!seg) return null;
-  if (seg.w0 == null || seg.w1 == null) return { ref: seg.ref, w0: null, w1: null };
-  let w0 = seg.w0;
-  let w1 = seg.w1;
-  for (let i = index - 1; i >= 0; i--) {
-    const prev = segments[i];
-    if (prev.ref !== seg.ref || prev.w1 == null || prev.w1 + 1 !== w0) break;
-    w0 = prev.w0;
-  }
-  for (let i = index + 1; i < segments.length; i++) {
-    const next = segments[i];
-    if (next.ref !== seg.ref || next.w0 == null || next.w0 !== w1 + 1) break;
-    w1 = next.w1;
-  }
-  return { ref: seg.ref, w0, w1 };
-}
-
-// Highlights every word belonging to the current sentence (see
-// activePhraseWordRange above), not just the ones a word-level timeline
-// happens to cover -- segment start/end timing is equally solid for both
-// the OCR and voice sync engines, unlike wordTimeline, which voice sync
-// only ever populates sparsely (whole matched phrases, not every word).
-// Draws one merged rectangle per printed line into a dedicated overlay
-// (see groupBoxesIntoLineRects) rather than toggling an 'active' class on
-// each individual (deliberately oversized, for easier tapping) word box,
-// which used to render a multi-word phrase as a jagged block of
-// overlapping rectangles instead of one clean bar.
+// Highlights exactly the word range the caption box itself is highlighting
+// right now (state.segments[activeIndex].w0/w1) -- not a whole sentence,
+// even when that segment is one of several consecutive slices a longer
+// paragraph got split into (see caption_ocr_align.py's _split_word_ranges)
+// for finer mid-phrase timing. Segment start/end timing is equally solid
+// for both the OCR and voice sync engines, unlike wordTimeline, which
+// voice sync only ever populates sparsely (whole matched phrases, not
+// every word). Draws one merged rectangle per printed line into a
+// dedicated overlay (see groupBoxesIntoLineRects) rather than toggling an
+// 'active' class on each individual (deliberately oversized, for easier
+// tapping) word box, which used to render a multi-word phrase as a jagged
+// block of overlapping rectangles instead of one clean bar.
 function updateVilnaOverlay() {
   const overlay = $('vilnaActiveOverlay');
   if (!overlay) return;
@@ -2814,26 +2811,27 @@ function updateVilnaOverlay() {
     }
     return;
   }
-  const range = activePhraseWordRange(state.segments, state.activeIndex);
+  const activeSegment = state.segments[state.activeIndex];
 
   // The YouTube poll re-runs this every 100ms; without this check the
   // overlay was being rebuilt on every single tick even when the
   // highlighted phrase hadn't changed, restarting the CSS entrance
   // animation from opacity:0 before it ever finished fading in -- a
   // constant flicker that also read as much dimmer than the steady color
-  // it's supposed to settle into. Keyed on the actual word range (not raw
-  // activeIndex), since activePhraseWordRange already collapses every
-  // slice of one sentence to the same bounds -- moving between slices of
-  // the same sentence no longer counts as a change worth re-rendering for.
-  const dedupKey = range ? `${range.ref}:${range.w0}:${range.w1}` : '';
+  // it's supposed to settle into. Keyed on the segment's own ref/w0/w1
+  // rather than raw activeIndex, so two different indices that happen to
+  // cover the identical word range don't count as a change worth
+  // re-rendering for.
+  const dedupKey = activeSegment ? `${activeSegment.ref}:${activeSegment.w0}:${activeSegment.w1}` : '';
   if (dedupKey === state.vilnaOverlayKey) return;
   state.vilnaOverlayKey = dedupKey;
 
   overlay.innerHTML = '';
-  if (!range) return;
+  if (!activeSegment) return;
+  const hasRange = activeSegment.w0 !== null && activeSegment.w1 !== null;
   const boxes = state.vilnaPageMap.wordBoxes
-    .filter((box) => box.ref === range.ref
-      && (range.w0 == null || (box.wordIndex >= range.w0 && box.wordIndex <= range.w1)))
+    .filter((box) => box.ref === activeSegment.ref
+      && (!hasRange || (box.wordIndex >= activeSegment.w0 && box.wordIndex <= activeSegment.w1)))
     .sort((a, b) => a.wordIndex - b.wordIndex);
   appendLineRects(overlay, groupBoxesIntoLineRects(boxes), 'vilna-active-rect');
 }
@@ -2844,10 +2842,7 @@ function updateVilnaOverlay() {
 // distinction the phrase-list editor draws between .active and
 // .mark-target-row. Called whenever editingIndex changes (updateMarkTargetUi)
 // or mark mode itself is toggled, not on every playback tick, so it doesn't
-// need updateVilnaOverlay's dedup-key guard. Deliberately scoped to just
-// the segment actually being corrected (not activePhraseWordRange's whole
-// sentence) -- an admin marking one slice of a multi-slice sentence needs
-// to see exactly that slice, not the whole thing.
+// need updateVilnaOverlay's dedup-key guard.
 function updateVilnaMarkTarget() {
   const overlay = $('vilnaMarkTargetOverlay');
   if (!overlay) return;
@@ -2969,17 +2964,11 @@ function updateVideoOverlay(time) {
     return;
   }
 
-  // activePhraseWordRange (see updateVilnaOverlay) so this strip's pan
-  // position tracks the whole sentence, not just whichever narrow timing
-  // slice of it happens to be current -- otherwise the same flicker fix
-  // applies here too: the panned position would jump as playback moved
-  // between slices of one sentence, even though the caption box itself
-  // hadn't changed.
-  const range = activePhraseWordRange(state.segments, state.activeIndex);
-  const hasRange = range && range.w0 != null && range.w1 != null;
-  const activeBoxes = range
-    ? state.vilnaPageMap.wordBoxes.filter((b) => b.ref === range.ref
-        && (!hasRange || (b.wordIndex >= range.w0 && b.wordIndex <= range.w1)))
+  const activeSegment = state.segments[state.activeIndex];
+  const hasRange = activeSegment && activeSegment.w0 !== null && activeSegment.w1 !== null;
+  const activeBoxes = activeSegment
+    ? state.vilnaPageMap.wordBoxes.filter((b) => b.ref === activeSegment.ref
+        && (!hasRange || (b.wordIndex >= activeSegment.w0 && b.wordIndex <= activeSegment.w1)))
     : [];
   const isIdle = activeBoxes.length === 0;
   if (isIdle && state.videoOverlayIdleMode === 'hide') {
@@ -3394,15 +3383,12 @@ function setReadingVideoFollow(enabled, { announce = false, persist = true } = {
 }
 
 function activeVilnaWordElements() {
-  // activePhraseWordRange (see updateVilnaOverlay) so the follow anchor
-  // covers the whole sentence, not just whichever narrow timing slice of
-  // it happens to be current.
-  const range = activePhraseWordRange(state.segments, state.activeIndex);
-  if (!range || !state.vilnaPageMap || !state.vilnaWordEls) return [];
-  const hasRange = range.w0 != null && range.w1 != null;
+  const active = state.segments[state.activeIndex];
+  if (!active || !state.vilnaPageMap || !state.vilnaWordEls) return [];
+  const hasRange = active.w0 !== null && active.w1 !== null;
   return state.vilnaPageMap.wordBoxes
-    .filter((box) => box.ref === range.ref
-      && (!hasRange || (box.wordIndex >= range.w0 && box.wordIndex <= range.w1)))
+    .filter((box) => box.ref === active.ref
+      && (!hasRange || (box.wordIndex >= active.w0 && box.wordIndex <= active.w1)))
     .map((box) => state.vilnaWordEls.get(`${box.ref}:${box.wordIndex}`))
     .filter((el) => el?.isConnected);
 }
