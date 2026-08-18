@@ -28,9 +28,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from caption_ocr_align import auto_detect_box, box_is_visible, text_signature, ocr_caption
 from page_ocr_align import get_google_vision_access_token
 
-VIDEO_URL = os.environ.get('VIDEO_URL', 'https://www.youtube.com/watch?v=OFNumwQ8tnU')
-START = os.environ.get('CLIP_START', '300')
-DURATION = os.environ.get('CLIP_DURATION', '90')
+VIDEO_URL = os.environ.get('VIDEO_URL') or 'https://www.youtube.com/watch?v=OFNumwQ8tnU'
+START = os.environ.get('CLIP_START') or '300'
+DURATION = os.environ.get('CLIP_DURATION') or '90'
 OUT_DIR = 'video-ocr-out'
 MAX_SAMPLES = int(os.environ.get('MAX_SAMPLES', '25'))
 
