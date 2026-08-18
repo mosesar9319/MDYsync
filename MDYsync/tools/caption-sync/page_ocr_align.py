@@ -333,6 +333,21 @@ def recover_abbreviations(canon, words, pairs, dictionary):
     monotonic in both sequences, so the OCR word standing in for an
     unmatched run of canonical words, if it exists at all, has to sit
     somewhere between those two neighbors.
+
+    Also reclaims a specific real failure mode found by hand-inspecting a
+    remaining gap on a real page: an abbreviated OCR token (e.g. "א"ר")
+    can be similar enough to just the phrase's OWN FIRST WORD (e.g. "אמר")
+    to clear plain alignment's match threshold on its own -- silently
+    consuming that one canonical word and leaving the rest of the phrase
+    (e.g. "רבי") orphaned, since plain alignment has no notion of
+    multi-word phrases at all. If a phrase's first word is matched to some
+    OCR token but the REST of the phrase is still fully unmatched, and
+    that same OCR token actually reads as the whole phrase's abbreviated
+    form better than it read as just the first word alone, the single-word
+    match is replaced by crediting the full phrase to it instead -- always
+    a net gain (1 word covered becomes n), never a loss, and only fires
+    when the abbreviated reading is a strictly closer match than the
+    literal one.
     """
     entries = sorted(
         (
@@ -343,9 +358,10 @@ def recover_abbreviations(canon, words, pairs, dictionary):
     )
     entries = [(phrase, abbr) for phrase, abbr in entries if abbr and len(phrase) >= 2]
     if not entries:
-        return []
+        return [], set()
 
-    matched_canon = {canon_i for _, canon_i, _ in pairs}
+    canon_to_pair = {canon_i: (ocr_i, score) for ocr_i, canon_i, score in pairs}
+    matched_canon = set(canon_to_pair)
     matched_ocr = {ocr_i for ocr_i, _, _ in pairs}
     by_canon = sorted(pairs, key=lambda p: p[1])
 
@@ -360,36 +376,51 @@ def recover_abbreviations(canon, words, pairs, dictionary):
         return prev_ocr, next_ocr
 
     extra = []
+    reclaimed = set()
     i = 0
     while i < len(canon):
         found = False
         for phrase_norms, abbr_norm in entries:
             n = len(phrase_norms)
             span = range(i, i + n)
-            if i + n > len(canon) or any(j in matched_canon for j in span):
+            if i + n > len(canon):
                 continue
             if [c.norm for c in canon[i:i + n]] != phrase_norms:
                 continue
-            prev_ocr, next_ocr = ocr_bracket(i, i + n)
-            best = None
-            for ocr_i in range(prev_ocr + 1, next_ocr):
-                if ocr_i in matched_ocr:
-                    continue
-                score = fuzz.ratio(words[ocr_i]['norm'], abbr_norm)
-                if score >= MATCH_THRESHOLD and (best is None or score > best[1]):
-                    best = (ocr_i, score)
-            if best:
-                ocr_i, score = best
-                matched_ocr.add(ocr_i)
-                for j in span:
-                    extra.append((ocr_i, j, score))
-                    matched_canon.add(j)
-                i += n
-                found = True
-                break
+            claimed = [j for j in span if j in matched_canon]
+
+            if not claimed:
+                prev_ocr, next_ocr = ocr_bracket(i, i + n)
+                best = None
+                for ocr_i in range(prev_ocr + 1, next_ocr):
+                    if ocr_i in matched_ocr:
+                        continue
+                    score = fuzz.ratio(words[ocr_i]['norm'], abbr_norm)
+                    if score >= MATCH_THRESHOLD and (best is None or score > best[1]):
+                        best = (ocr_i, score)
+                if best:
+                    ocr_i, score = best
+                    matched_ocr.add(ocr_i)
+                    for j in span:
+                        extra.append((ocr_i, j, score))
+                        matched_canon.add(j)
+                    i += n
+                    found = True
+                    break
+            elif claimed == [i] and i not in reclaimed:
+                ocr_i, orig_score = canon_to_pair[i]
+                abbr_score = fuzz.ratio(words[ocr_i]['norm'], abbr_norm)
+                if abbr_score >= MATCH_THRESHOLD and abbr_score > orig_score:
+                    for j in span:
+                        extra.append((ocr_i, j, abbr_score))
+                        matched_canon.add(j)
+                    reclaimed.add(i)
+                    i += n
+                    found = True
+                    break
         if not found:
             i += 1
-    return extra
+    return extra, reclaimed
 
 
 def align_words_to_canon(canon, words):
@@ -609,7 +640,11 @@ def process_page(tractate, daf, amud, out_dir, cache_dir=None, engine=None,
     crop_h = page_h * CROPBOX_HEIGHT_FRAC
 
     pairs = align_words_to_canon(canon, words)
-    recovered = recover_abbreviations(canon, words, pairs, abbreviations)
+    recovered, reclaimed = recover_abbreviations(canon, words, pairs, abbreviations)
+    if reclaimed:
+        pairs = [p for p in pairs if p[1] not in reclaimed]
+        print(f'Abbreviations: reclaimed {len(reclaimed)} word(s) that plain alignment '
+              f'had mismatched to just the first word of a longer printed abbreviation')
     if recovered:
         occurrences = len({ocr_i for ocr_i, _, _ in recovered})
         print(f'Abbreviations: recovered {len(recovered)} canonical words via '
@@ -636,11 +671,30 @@ def process_page(tractate, daf, amud, out_dir, cache_dir=None, engine=None,
     if run:
         gap_runs.append(run)
     print(f'Unmatched: {len(canon) - covered} words in {len(gap_runs)} gap run(s)')
+    by_canon_final = sorted(pairs, key=lambda p: p[1])
+
+    def bracket(i0, i1):
+        prev_ocr, next_ocr = -1, len(words)
+        for ocr_i, canon_i, _ in by_canon_final:
+            if canon_i < i0 and ocr_i > prev_ocr:
+                prev_ocr = ocr_i
+            if canon_i >= i1:
+                next_ocr = ocr_i
+                break
+        return prev_ocr, next_ocr
+
+    matched_ocr_final = {ocr_i for ocr_i, _, _ in pairs}
     for run in gap_runs:
         lo, hi = run[0], run[-1]
         ctx_lo, ctx_hi = max(0, lo - 3), min(len(canon), hi + 4)
         ctx = ' '.join(canon[k].text if k in run else f'[{canon[k].text}]' for k in range(ctx_lo, ctx_hi))
         print(f'  gap @ {lo}-{hi}: ...{ctx}...')
+        prev_ocr, next_ocr = bracket(lo, hi + 1)
+        candidates = []
+        for ocr_i in range(prev_ocr + 1, next_ocr):
+            claimed = ' (claimed)' if ocr_i in matched_ocr_final else ''
+            candidates.append(f"{words[ocr_i]['text']}{claimed}")
+        print(f'    OCR words in that bracket: {candidates}')
 
     if engine == 'google-vision':
         # Vision read the WHOLE page (every column), not a pre-cropped
