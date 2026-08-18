@@ -334,6 +334,19 @@ def recover_abbreviations(canon, words, pairs, dictionary):
     unmatched run of canonical words, if it exists at all, has to sit
     somewhere between those two neighbors.
 
+    Also handles genuine single-word entries (a phrase of length 1) --
+    dictionary entries used to be filtered to length >= 2 on the theory
+    that a single word printed with a trailing geresh (גמרא -> גמ') keeps
+    enough of the original letters to still clear plain alignment's own
+    fuzzy-match threshold on its own, so it never needed listing here.
+    Found by hand-inspecting a real remaining gap that this theory doesn't
+    hold in general: רבי -> ר' drops from 3 letters to 1, scoring only
+    ~50% against the full word (below MATCH_THRESHOLD), unlike גמ' against
+    גמרא (~67%, comfortably above it) -- so a common, single-letter-result
+    abbreviation like this one needs the same nearby-OCR-token recovery
+    multi-word phrases already get, even though the word count never
+    changes.
+
     Also reclaims a specific real failure mode found by hand-inspecting a
     remaining gap on a real page: an abbreviated OCR token (e.g. "א"ר")
     can be similar enough to just the phrase's OWN FIRST WORD (e.g. "אמר")
@@ -356,7 +369,7 @@ def recover_abbreviations(canon, words, pairs, dictionary):
         ),
         key=lambda e: -len(e[0]),
     )
-    entries = [(phrase, abbr) for phrase, abbr in entries if abbr and len(phrase) >= 2]
+    entries = [(phrase, abbr) for phrase, abbr in entries if abbr and len(phrase) >= 1]
     if not entries:
         return [], set()
 
