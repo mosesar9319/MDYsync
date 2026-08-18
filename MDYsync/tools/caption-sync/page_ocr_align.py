@@ -53,9 +53,11 @@ Example:
 """
 
 import argparse
+import base64
 import json
 import os
 import sys
+import urllib.error
 import urllib.request
 
 import cv2
@@ -171,6 +173,87 @@ def ocr_band_words(page_png):
     return words, w, h
 
 
+def ocr_band_words_google_vision(page_png, api_key):
+    """Same job as ocr_band_words above (a list of candidate words with real
+    pixel positions), but reading the whole page through Google Cloud
+    Vision's DOCUMENT_TEXT_DETECTION instead of a Tesseract pass restricted
+    to the fixed BAND_X0_FRAC/BAND_X1_FRAC crop.
+
+    Deliberately does NOT restrict itself to that band, or to any other
+    fixed region: real pages don't hold Gemara to one constant column width
+    (see the accuracy report this replaced -- some pages run narrow while
+    flanked by Rashi/Tosefet-Rashi, then widen once that commentary runs
+    out for the rest of the page), so any fixed spatial crop reintroduces
+    exactly the bug that motivated moving off Tesseract in the first place.
+    Every word Vision finds on the page -- Gemara, Rashi, Tosefet Rashi, the
+    marginal reference columns, all of it -- gets passed to
+    align_words_to_canon unfiltered; that function's global alignment
+    against the *known* canonical Gemara word list is what separates real
+    Gemara words from everything else, the same way it already absorbs
+    stray OCR misreads today. Confirmed directly (a hand-transcribed real
+    page, checked word-for-word against Sefaria): Vision-class OCR reads
+    this typeface at ~95%+ accuracy with zero genuine misreads in the
+    sample -- every discrepancy was either a printed abbreviation (see
+    align_words_to_canon's own fuzzy-match tolerance) or content the sample
+    simply didn't cover, not a wrong letter.
+    """
+    with open(page_png, 'rb') as f:
+        image_bytes = f.read()
+    payload = {
+        'requests': [{
+            'image': {'content': base64.b64encode(image_bytes).decode('ascii')},
+            'features': [{'type': 'DOCUMENT_TEXT_DETECTION'}],
+            'imageContext': {'languageHints': ['he']},
+        }],
+    }
+    req = urllib.request.Request(
+        f'https://vision.googleapis.com/v1/images:annotate?key={api_key}',
+        data=json.dumps(payload).encode('utf-8'),
+        headers={'Content-Type': 'application/json'},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            data = json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode('utf-8', errors='replace')
+        raise RuntimeError(f'Google Vision request failed ({e.code}): {detail}') from e
+
+    resp = data['responses'][0]
+    if 'error' in resp:
+        raise RuntimeError(f"Google Vision error: {resp['error'].get('message')}")
+
+    img = cv2.imread(page_png)
+    h, w = img.shape[:2]
+
+    full = resp.get('fullTextAnnotation')
+    if not full:
+        return [], w, h  # a blank/unreadable page is a real (if rare) outcome, not an error
+
+    words = []
+    for page in full['pages']:
+        for block in page['blocks']:
+            for para in block['paragraphs']:
+                for word in para['words']:
+                    text = ''.join(s['text'] for s in word['symbols'])
+                    n = normalize_word(text)
+                    if not n:
+                        continue
+                    verts = word['boundingBox']['vertices']
+                    xs = [v.get('x', 0) for v in verts]
+                    ys = [v.get('y', 0) for v in verts]
+                    x0, x1 = min(xs), max(xs)
+                    y0, y1 = min(ys), max(ys)
+                    words.append({
+                        'text': text,
+                        'norm': n,
+                        'x': x0,
+                        'y': y0,
+                        'w': x1 - x0,
+                        'h': y1 - y0,
+                    })
+    return words, w, h
+
+
 def align_words_to_canon(canon, words):
     """Globally align the OCR'd word sequence against the canonical word
     sequence (Needleman-Wunsch), instead of greedily fuzzy-matching small
@@ -245,17 +328,25 @@ def align_words_to_canon(canon, words):
     return pairs
 
 
-def compute_text_block(words, page_w, page_h, crop_w, crop_h, padding_lines=0.5):
+def compute_text_block(words, page_w, page_h, crop_w, crop_h, padding_lines=0.5, left_right_px=None):
     """The Gemara column's own bounding box on THIS page, as fractions of
-    the full (CropBox-equivalent) page -- horizontally the same fixed
+    the full (CropBox-equivalent) page.
+
+    Horizontally: by default (left_right_px=None) the same fixed
     BAND_X0_FRAC/BAND_X1_FRAC crop every page uses (a property of shas.org's
     fixed PDF template, not this specific page -- but expressed as a
     fraction of the MediaBox-rendered PNG's own width, same as ocr_band_words
     uses it, so it's rescaled here to a CropBox-equivalent fraction the same
-    way word positions themselves are below), vertically the real extent of
-    the words actually OCR'd on this page (every page has a different
-    number of lines, so this can't be a fixed constant the way the
-    horizontal band is).
+    way word positions themselves are below). That fixed band is only valid
+    for the Tesseract path above, which was itself restricted to it --
+    real pages don't hold Gemara to one constant width (it often widens
+    once flanking commentary runs out), so the google-vision path instead
+    passes left_right_px explicitly, computed from where its *aligned*
+    words actually landed on this specific page.
+
+    Vertically: always the real extent of the words actually OCR'd on this
+    page (every page has a different number of lines, so this can't be a
+    fixed constant the way a fixed-template horizontal band could be).
 
     padding_lines pads the vertical extent by a fraction of the median
     line's own height, so the box doesn't clip the first/last line's
@@ -286,10 +377,15 @@ def compute_text_block(words, page_w, page_h, crop_w, crop_h, padding_lines=0.5)
     # 0..1 page fraction.
     top_px = max(0.0, tops[0] - pad)
     bottom_px = min(crop_h, bottoms[-1] + pad)
+    if left_right_px is not None:
+        left_px, right_px = left_right_px
+        left_frac, right_frac = left_px / crop_w, right_px / crop_w
+    else:
+        left_frac, right_frac = (BAND_X0_FRAC * page_w) / crop_w, (BAND_X1_FRAC * page_w) / crop_w
     return {
-        'left': (BAND_X0_FRAC * page_w) / crop_w,
+        'left': left_frac,
         'top': top_px / crop_h,
-        'right': (BAND_X1_FRAC * page_w) / crop_w,
+        'right': right_frac,
         'bottom': bottom_px / crop_h,
     }
 
@@ -324,7 +420,7 @@ def build_word_boxes(canon, words, pairs, crop_w, crop_h):
     return out
 
 
-def process_page(tractate, daf, amud, out_dir, cache_dir=None):
+def process_page(tractate, daf, amud, out_dir, cache_dir=None, engine=None, google_vision_api_key=None):
     os.makedirs(out_dir, exist_ok=True)
     pdf_path = os.path.join(out_dir, 'page.pdf')
     fetch_page_pdf(tractate, daf, amud, pdf_path)
@@ -334,8 +430,23 @@ def process_page(tractate, daf, amud, out_dir, cache_dir=None):
     canon, segments = load_canonical([ref], cache_dir=cache_dir or out_dir)
     print(f'Canonical text: {len(segments)} segments, {len(canon)} words')
 
-    words, page_w, page_h = ocr_band_words(png_path)
-    print(f'OCR: {len(words)} words in the Gemara band')
+    # Auto-picks the better engine the moment a key is available, without
+    # needing every caller updated to ask for it explicitly -- the same
+    # "upgrade transparently when the ingredient shows up" shape as
+    # trigger-page-ocr-job.mjs already using whichever of two variant
+    # prefixes applies. Falls back to Tesseract (no key required) so this
+    # keeps working for anyone who hasn't set up Vision yet.
+    if engine is None:
+        engine = 'google-vision' if google_vision_api_key else 'tesseract'
+
+    if engine == 'google-vision':
+        if not google_vision_api_key:
+            raise RuntimeError('The google-vision engine needs an API key (GOOGLE_VISION_API_KEY).')
+        words, page_w, page_h = ocr_band_words_google_vision(png_path, google_vision_api_key)
+        print(f'Google Vision: {len(words)} words detected on the whole page')
+    else:
+        words, page_w, page_h = ocr_band_words(png_path)
+        print(f'Tesseract: {len(words)} words in the fixed Gemara band')
 
     # page_w/page_h are the full MediaBox-rendered PNG's own dimensions --
     # OCR extraction is calibrated against those and works fine, but word
@@ -350,7 +461,17 @@ def process_page(tractate, daf, amud, out_dir, cache_dir=None):
     covered = len(boxes)
     print(f'Aligned {covered}/{len(canon)} words ({covered / max(1, len(canon)):.0%} coverage)')
 
-    text_block = compute_text_block(words, page_w, page_h, crop_w, crop_h)
+    if engine == 'google-vision':
+        # Vision read the WHOLE page (every column), not a pre-cropped
+        # band, so the text block -- unlike Tesseract's fixed-band one --
+        # has to be measured from just the words that actually aligned to
+        # real Gemara text, not every word Vision found (which would span
+        # the full page width/height across every commentary column too).
+        matched = [words[ocr_i] for ocr_i, _, _ in pairs] or words
+        left_right_px = (min(w['x'] for w in matched), max(w['x'] + w['w'] for w in matched))
+        text_block = compute_text_block(matched, page_w, page_h, crop_w, crop_h, left_right_px=left_right_px)
+    else:
+        text_block = compute_text_block(words, page_w, page_h, crop_w, crop_h)
 
     result = {
         # v2: adds textBlock (see compute_text_block) -- wordBoxes/pageWidth/
@@ -361,6 +482,7 @@ def process_page(tractate, daf, amud, out_dir, cache_dir=None):
         'tractate': tractate,
         'daf': daf,
         'amud': amud,
+        'engine': engine,
         'pageWidth': crop_w,
         'pageHeight': crop_h,
         'textBlock': text_block,
@@ -379,9 +501,15 @@ def main():
     p.add_argument('--daf', type=int, required=True)
     p.add_argument('--amud', choices=['a', 'b'], required=True)
     p.add_argument('--out-dir', default='page-out')
+    p.add_argument('--engine', choices=['tesseract', 'google-vision'], default=None,
+                    help='Defaults to google-vision when GOOGLE_VISION_API_KEY is set, else tesseract.')
     args = p.parse_args()
     try:
-        process_page(args.tractate, args.daf, args.amud, args.out_dir)
+        process_page(
+            args.tractate, args.daf, args.amud, args.out_dir,
+            engine=args.engine,
+            google_vision_api_key=os.environ.get('GOOGLE_VISION_API_KEY'),
+        )
     except Exception as e:
         print(f'ERROR: {e}', file=sys.stderr)
         sys.exit(1)

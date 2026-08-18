@@ -39,6 +39,13 @@ jobs:
           TRACTATE: ${{ github.event.client_payload.tractate }}
           DAF: ${{ github.event.client_payload.daf }}
           AMUD: ${{ github.event.client_payload.amud }}
+          # page_ocr_align.py picks google-vision automatically the moment
+          # this secret exists (see its own process_page) -- add
+          # GOOGLE_VISION_API_KEY under repo Settings -> Secrets and
+          # variables -> Actions to switch every future page over, no
+          # workflow change needed. Empty/unset keeps today's Tesseract
+          # path working exactly as before.
+          GOOGLE_VISION_API_KEY: ${{ secrets.GOOGLE_VISION_API_KEY }}
         run: |
           python3 page_ocr_align.py \
             --tractate "$TRACTATE" \
