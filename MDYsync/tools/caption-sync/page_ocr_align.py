@@ -602,6 +602,18 @@ def process_page(tractate, daf, amud, out_dir, cache_dir=None, engine=None,
     covered = len(boxes)
     print(f'Aligned {covered}/{len(canon)} words ({covered / max(1, len(canon)):.0%} coverage)')
 
+    if abbrev_tokens:
+        matched_canon_i = {canon_i: ocr_i for ocr_i, canon_i, score in pairs}
+        for idx, token in enumerate(canon_tokens):
+            if len(token.members) <= 1:
+                continue
+            member_text = ' '.join(m.text for m in token.members)
+            if idx in matched_canon_i:
+                ocr_word = words[matched_canon_i[idx]]
+                print(f'  abbrev "{member_text}" (norm={token.norm!r}) -> MATCHED OCR "{ocr_word["text"]}" (norm={ocr_word["norm"]!r})')
+            else:
+                print(f'  abbrev "{member_text}" (norm={token.norm!r}) -> NOT MATCHED')
+
     if engine == 'google-vision':
         # Vision read the WHOLE page (every column), not a pre-cropped
         # band, so the text block -- unlike Tesseract's fixed-band one --
