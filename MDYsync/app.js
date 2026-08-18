@@ -2743,26 +2743,23 @@ function groupBoxesIntoLineRects(boxes) {
   // was enough to push the highlight into the very next line.
   const rowHeights = rows.map((row) => medianOf(row.map((b) => b.h)));
   // A little breathing room around the tight glyph bounds -- small and
-  // fixed, not proportional to the row's own height. That earlier version
-  // (18% of row height) was measured directly against real Vilna-print
-  // line spacing and found to routinely exceed the actual gap between two
-  // printed lines -- confirmed on real data where consecutive lines sit as
-  // little as ~0.003 (page-fraction) apart, letting adjacent highlighted
-  // lines visibly merge into one block or double up their (multiply-blend)
-  // fill into a darker patch where they overlapped.
+  // fixed, not proportional to the row's own height, so the bar hugs the
+  // actual printed words rather than reaching up/down into the empty
+  // space between lines (an earlier version reserved a fixed fraction of
+  // that whole gap for the highlight itself, which read as visibly too
+  // tall/wide against the reference design).
   const PAD_X = 0.004;
   const PAD_Y = 0.001;
-  // How much of the vertical gap to the NEXT line is always reserved as
-  // visible separation, never covered by this line's own highlight, no
-  // exceptions -- a real, always-present gap between adjacent highlighted
-  // lines matters more than covering every last pixel of an unusually
-  // tall glyph, confirmed against a real pathological case (a Mishna
-  // heading's two tightly-set lines, only ~0.007 of page height apart):
-  // capping here does mean that specific line's highlight bar comes out
-  // noticeably thinner than its own text, but that reads far better than
-  // two lines' highlights touching or double-darkening where they'd
-  // otherwise overlap.
-  const GAP_FRACTION = 0.25;
+  // The default bar height is the row's own tight glyph bounds (+PAD_Y),
+  // nothing more -- but that alone doesn't guarantee real separation from
+  // the next line in every case: confirmed on real data (a Mishna
+  // heading's two tightly-set lines, only ~0.007 of page height apart)
+  // where the tight bound still slightly overlapped the next row's own
+  // top. MIN_GAP is the floor below which the two bars are never allowed
+  // to sit, only ever shrinking this row's bottom when the tight bound
+  // would otherwise violate it -- it never widens a line beyond its own
+  // measured text height.
+  const MIN_GAP = 0.0015;
 
   return rows.map((row, i) => {
     const left = Math.min(...row.map((b) => b.x)) - PAD_X;
@@ -2770,8 +2767,7 @@ function groupBoxesIntoLineRects(boxes) {
     const top = tops[i] - PAD_Y;
     let bottom = tops[i] + rowHeights[i] + PAD_Y;
     if (i + 1 < rows.length) {
-      const maxBottom = tops[i] + (tops[i + 1] - tops[i]) * (1 - GAP_FRACTION);
-      bottom = Math.min(bottom, maxBottom);
+      bottom = Math.min(bottom, tops[i + 1] - PAD_Y - MIN_GAP);
     }
     return { left, top, width: right - left, height: bottom - top };
   });
