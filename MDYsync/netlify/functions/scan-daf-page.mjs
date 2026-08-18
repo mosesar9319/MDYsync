@@ -51,6 +51,8 @@ const REPO = 'MDYsync';
 const ALLOWED_ORIGINS = new Set([
   'https://mdysync.netlify.app',
   'https://main--mdysync.netlify.app',
+  'https://dafsync.netlify.app',
+  'https://main--dafsync.netlify.app',
   'http://localhost:8080',
 ]);
 
