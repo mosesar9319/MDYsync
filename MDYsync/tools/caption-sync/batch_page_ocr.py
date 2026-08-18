@@ -49,11 +49,20 @@ CURRENT_SCHEMA = 'dafsync-pagemap-v2'
 
 
 def needs_regeneration(out_path):
+    """True if this page map is missing, corrupt, on an old schema, or --
+    same idea, just for the OCR engine rather than the JSON shape -- still
+    on Tesseract from before Google Vision became available (see
+    page_ocr_align.py's own engine auto-pick). A page already on
+    google-vision is left alone; anything else is worth regenerating the
+    same way an old schema already was, no separate --force flag needed
+    here either.
+    """
     try:
         with open(out_path, encoding='utf-8') as f:
-            return json.load(f).get('schema') != CURRENT_SCHEMA
+            data = json.load(f)
     except (OSError, ValueError):
         return True  # unreadable/corrupt -- safest to just regenerate it
+    return data.get('schema') != CURRENT_SCHEMA or data.get('engine') != 'google-vision'
 
 
 def main():
@@ -92,7 +101,11 @@ def main():
                 continue
             try:
                 page_out_dir = os.path.join(args.work_dir, key)
-                result = process_page(args.tractate, daf, amud, page_out_dir, cache_dir=cache_dir)
+                result = process_page(
+                    args.tractate, daf, amud, page_out_dir, cache_dir=cache_dir,
+                    google_vision_api_key=os.environ.get('GOOGLE_VISION_API_KEY'),
+                    google_vision_credentials_json=os.environ.get('GOOGLE_VISION_CREDENTIALS_JSON'),
+                )
                 with open(out_path, 'w', encoding='utf-8') as f:
                     json.dump(result, f, ensure_ascii=False)
                 covered = len(result['wordBoxes'])

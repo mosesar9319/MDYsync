@@ -55,7 +55,7 @@ jobs:
           sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-heb poppler-utils
 
       - name: Install Python dependencies
-        run: pip install opencv-python-headless pytesseract rapidfuzz
+        run: pip install opencv-python-headless pytesseract rapidfuzz google-auth requests
 
       - name: Check out the results branch
         run: |
@@ -77,6 +77,13 @@ jobs:
           DAF_START: ${{ github.event.inputs.daf_start }}
           DAF_END: ${{ github.event.inputs.daf_end }}
           AMUD: ${{ github.event.inputs.amud }}
+          # Same auto-pick as page-ocr-job.yml: batch_page_ocr.py forwards
+          # these straight to process_page, so whichever engine a single
+          # page would get, this whole-tractate run gets too -- see its own
+          # needs_regeneration for the matching engine check that decides
+          # what actually needs a fresh OCR pass here.
+          GOOGLE_VISION_API_KEY: ${{ secrets.GOOGLE_VISION_API_KEY }}
+          GOOGLE_VISION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_VISION_CREDENTIALS_JSON }}
         run: |
           python3 batch_page_ocr.py \
             --tractate "$TRACTATE" \
