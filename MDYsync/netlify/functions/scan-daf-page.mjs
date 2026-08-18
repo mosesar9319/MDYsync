@@ -83,6 +83,45 @@ const CANONICAL_CORNERS = [[0, 0], [1, 0], [1, 1], [0, 1]];
 // bounding worst-case request cost.
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
+// Same request shape as page_ocr_align.py's ocr_band_words_google_vision
+// (Python side, run by the batch pre-generation job) -- DOCUMENT_TEXT_
+// DETECTION with a Hebrew language hint. That function reads a whole page;
+// this reads a tiny single-line header crop, but it's the same API and the
+// same tuning question (accuracy on real, noisy camera photos of this
+// typeface) that motivated switching the page pipeline off Tesseract, so
+// it's worth spiking here as a straight engine swap before committing to
+// it -- see matchHeader's own comments for the specific real misreads
+// (a hallucinated niqqud, a dropped letter producing an exact tie with a
+// different real daf) that this is meant to address.
+//
+// Only the API-key form, not the service-account/credentials-JSON form
+// page_ocr_align.py also supports -- that path exists there for orgs whose
+// policy blocks plain API keys, exchanging a service-account key for a
+// short-lived OAuth token (RS256 JWT signing), which has no equivalent
+// here yet. Add it the same way if this key ever needs to move to that
+// form; until then, GOOGLE_VISION_API_KEY is what both the batch job and a
+// personal Cloud project actually use.
+async function ocrHeaderGoogleVision(imageBuffer, apiKey) {
+  const payload = {
+    requests: [{
+      image: { content: imageBuffer.toString('base64') },
+      features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
+      imageContext: { languageHints: ['he'] },
+    }],
+  };
+  const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json();
+  const result = data?.responses?.[0];
+  if (!response.ok || result?.error) {
+    throw new Error(result?.error?.message || `Vision request failed (${response.status})`);
+  }
+  return result.fullTextAnnotation?.text || '';
+}
+
 function boundingBox(points) {
   const xs = points.map((p) => p[0]);
   const ys = points.map((p) => p[1]);
@@ -122,7 +161,7 @@ export default async (request) => {
     return Response.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }
 
-  const { imageBase64, imageWidth, imageHeight, corners } = body || {};
+  const { imageBase64, imageWidth, imageHeight, corners, engine: requestedEngine } = body || {};
   if (typeof imageBase64 !== 'string' || !imageBase64) {
     return Response.json({ error: 'imageBase64 is required.' }, { status: 400 });
   }
@@ -163,6 +202,19 @@ export default async (request) => {
     height: Math.min(imageHeight, Math.round(headerRect.height)),
   };
 
+  // google-vision when a key is configured, same default the batch page-OCR
+  // job uses -- explicit engine in the request body overrides that, for the
+  // A/B test harness comparing both against the same real photos; the real
+  // capture UI never sends one, so production always follows the env-var
+  // default.
+  const visionApiKey = Netlify.env.get('GOOGLE_VISION_API_KEY');
+  const engine = requestedEngine === 'tesseract' || requestedEngine === 'google-vision'
+    ? requestedEngine
+    : (visionApiKey ? 'google-vision' : 'tesseract');
+  if (engine === 'google-vision' && !visionApiKey) {
+    return Response.json({ error: 'google-vision engine requested but GOOGLE_VISION_API_KEY is not set.' }, { status: 503 });
+  }
+
   let ocrText;
   try {
     const imageBuffer = Buffer.from(imageBase64, 'base64');
@@ -172,7 +224,12 @@ export default async (request) => {
     // larger than a tiny test crop (worked on a ~700px-wide test image,
     // returned only a garbled fragment on a realistic ~900px+ full-page
     // photo). Actually cropping first and feeding tesseract just that
-    // buffer works correctly at any source size.
+    // buffer works correctly at any source size. Cropping first (rather
+    // than sending Vision the whole photo) also matters for that engine:
+    // it keeps this call as cheap and fast as the header actually needs,
+    // and re-uses the exact same HEADER_BAND/homography region math either
+    // engine reads, so a same-photo comparison between them isn't also
+    // comparing two different crops.
     const cropped = await Jimp.read(imageBuffer);
     cropped.crop({ x: rectangle.left, y: rectangle.top, w: rectangle.width, h: rectangle.height });
     // greyscale + normalize -- confirmed directly by A/B testing against
@@ -185,17 +242,23 @@ export default async (request) => {
     // clips a photo that didn't need it; normalize()'s own adaptive
     // levels-stretch doesn't have that failure mode, since it scales to
     // each image's actual histogram instead of applying the same fixed
-    // adjustment regardless of source quality).
+    // adjustment regardless of source quality). This preprocessing was
+    // tuned against Tesseract specifically; kept for Vision too so the
+    // spike compares engines, not preprocessing.
     cropped.greyscale();
     cropped.normalize();
     const croppedBuffer = await cropped.getBuffer('image/png');
 
-    const worker = await createWorker('heb');
-    try {
-      const { data } = await worker.recognize(croppedBuffer);
-      ocrText = data.text;
-    } finally {
-      await worker.terminate();
+    if (engine === 'google-vision') {
+      ocrText = await ocrHeaderGoogleVision(croppedBuffer, visionApiKey);
+    } else {
+      const worker = await createWorker('heb');
+      try {
+        const { data } = await worker.recognize(croppedBuffer);
+        ocrText = data.text;
+      } finally {
+        await worker.terminate();
+      }
     }
   } catch (error) {
     return Response.json({ error: 'Could not read the page header.', detail: error.message }, { status: 502 });
