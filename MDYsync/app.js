@@ -2712,15 +2712,16 @@ function markSegmentAtVilnaWord(ref, wordIndex) {
 // line rather than many overlapping (deliberately oversized, for easier
 // tapping -- see .vilna-word-box's own transform) individual word boxes.
 // A jump in y bigger than roughly half a line's own height means a line
-// break, not just normal word-to-word spacing on the same line.
+// break, not just normal word-to-word spacing on the same line. How TALL
+// each bar ends up is a separate question the word boxes can't answer --
+// see INK_PITCH_RATIO below.
 function medianOf(values) {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-function groupBoxesIntoLineRects(boxes) {
-  if (!boxes.length) return [];
+function splitBoxesIntoRows(boxes) {
   const rows = [];
   let current = [];
   let prevBox = null;
@@ -2733,43 +2734,80 @@ function groupBoxesIntoLineRects(boxes) {
     prevBox = box;
   }
   if (current.length) rows.push(current);
+  return rows;
+}
 
-  const tops = rows.map((row) => Math.min(...row.map((b) => b.y)));
-  // The median box height in the row, not the tallest one -- a single word
-  // with a slightly taller OCR box (a final letter's descender, a stray
-  // measurement, nothing visually significant) shouldn't by itself decide
-  // how far down the WHOLE line's highlight reaches; confirmed directly on
-  // real data where exactly that (one box ~4% taller than its row-mates)
-  // was enough to push the highlight into the very next line.
-  const rowHeights = rows.map((row) => medianOf(row.map((b) => b.h)));
-  // A little breathing room around the tight glyph bounds -- small and
-  // fixed, not proportional to the row's own height, so the bar hugs the
-  // actual printed words rather than reaching up/down into the empty
-  // space between lines (an earlier version reserved a fixed fraction of
-  // that whole gap for the highlight itself, which read as visibly too
-  // tall/wide against the reference design).
+// Vision's word boxes are NOT a usable measure of how tall the printed
+// letters actually are. Measured directly against the rendered page
+// (counting dark pixels per scanline) across two independent dapim, the
+// real ink band is a rock-steady 14px of a 2068px-tall page on every
+// line, while the boxes reporting it range from 19 to 32px -- 1.6x to
+// 2.3x too tall, and lopsided, carrying noticeably more slack above the
+// letters than below. Sizing a highlight from box.h therefore always
+// overshoots into the blank space between lines (measured at 4-11px
+// above the letters and 0-7px below), which is precisely what a bar
+// drawn that way looks like: a fat block rather than a highlight.
+//
+// The page's own line pitch is the stable typographic quantity to use
+// instead -- measured at exactly 25px on both sampled dapim, since the
+// Vilna template sets the whole daf's body text at a single fixed size.
+// Deriving the bar height from the pitch reproduces the real ink band to
+// within a fraction of a pixel, uniformly on every line.
+const INK_PITCH_RATIO = 0.5601;
+// Vision's boxes sit slightly high over the letters, so a box's centre is
+// not the ink's centre; this is the measured median correction, in
+// page-height fractions.
+const INK_CENTER_BIAS = 0.00078;
+// Fallback for a page with too few rows to measure a pitch from: the
+// measured median ink-to-box height ratio. Less exact than the pitch,
+// since the individual box heights are noisy, but never wildly wrong.
+const INK_BOX_RATIO = 0.53;
+
+// Median distance between the tops of consecutive printed lines across
+// the WHOLE page -- a per-page constant, so it's computed once and cached
+// (in a WeakMap, to avoid mutating the fetched page map) rather than
+// recomputed on every highlight repaint.
+const linePitchCache = new WeakMap();
+function pageLinePitch(pageMap) {
+  if (!pageMap) return 0;
+  const cached = linePitchCache.get(pageMap);
+  if (cached !== undefined) return cached;
+  const rows = splitBoxesIntoRows(
+    [...(pageMap.wordBoxes || [])].sort((a, b) => (a.y - b.y) || (b.x - a.x)),
+  ).filter((row) => row.length >= 3);
+  const tops = rows.map((row) => Math.min(...row.map((b) => b.y))).sort((a, b) => a - b);
+  const gaps = [];
+  for (let i = 0; i + 1 < tops.length; i += 1) {
+    const gap = tops[i + 1] - tops[i];
+    // Discards both a line accidentally split in two (too small a gap)
+    // and a line the OCR missed entirely, which would otherwise read as
+    // one double-height gap. Taking the median of what's left is what
+    // makes this robust to either.
+    if (gap > 0.004 && gap < 0.03) gaps.push(gap);
+  }
+  const pitch = gaps.length >= 3 ? medianOf(gaps) : 0;
+  linePitchCache.set(pageMap, pitch);
+  return pitch;
+}
+
+function groupBoxesIntoLineRects(boxes, pageMap) {
+  if (!boxes.length) return [];
+  const rows = splitBoxesIntoRows(boxes);
+  const pitch = pageLinePitch(pageMap);
+  // Horizontal padding only, to give the rounded end caps a little room
+  // so they don't clip the first and last letter. There is deliberately
+  // no vertical padding: the whole point is that the bar starts and ends
+  // where the letters do.
   const PAD_X = 0.004;
-  const PAD_Y = 0.001;
-  // The default bar height is the row's own tight glyph bounds (+PAD_Y),
-  // nothing more -- but that alone doesn't guarantee real separation from
-  // the next line in every case: confirmed on real data (a Mishna
-  // heading's two tightly-set lines, only ~0.007 of page height apart)
-  // where the tight bound still slightly overlapped the next row's own
-  // top. MIN_GAP is the floor below which the two bars are never allowed
-  // to sit, only ever shrinking this row's bottom when the tight bound
-  // would otherwise violate it -- it never widens a line beyond its own
-  // measured text height.
-  const MIN_GAP = 0.0015;
 
-  return rows.map((row, i) => {
+  return rows.map((row) => {
     const left = Math.min(...row.map((b) => b.x)) - PAD_X;
     const right = Math.max(...row.map((b) => b.x + b.w)) + PAD_X;
-    const top = tops[i] - PAD_Y;
-    let bottom = tops[i] + rowHeights[i] + PAD_Y;
-    if (i + 1 < rows.length) {
-      bottom = Math.min(bottom, tops[i + 1] - PAD_Y - MIN_GAP);
-    }
-    return { left, top, width: right - left, height: bottom - top };
+    const height = pitch
+      ? pitch * INK_PITCH_RATIO
+      : medianOf(row.map((b) => b.h)) * INK_BOX_RATIO;
+    const centre = medianOf(row.map((b) => b.y + b.h / 2)) + INK_CENTER_BIAS;
+    return { left, top: centre - height / 2, width: right - left, height };
   });
 }
 
@@ -2829,7 +2867,7 @@ function updateVilnaOverlay() {
     .filter((box) => box.ref === activeSegment.ref
       && (!hasRange || (box.wordIndex >= activeSegment.w0 && box.wordIndex <= activeSegment.w1)))
     .sort((a, b) => a.wordIndex - b.wordIndex);
-  appendLineRects(overlay, groupBoxesIntoLineRects(boxes), 'vilna-active-rect');
+  appendLineRects(overlay, groupBoxesIntoLineRects(boxes, state.vilnaPageMap), 'vilna-active-rect');
 }
 
 // While vilnaMarkMode is on, outlines the word(s) belonging to the phrase
@@ -2855,7 +2893,7 @@ function updateVilnaMarkTarget() {
   const boxes = (state.vilnaPageMap?.wordBoxes || [])
     .filter((box) => box.ref === target.ref && box.wordIndex >= target.w0 && box.wordIndex <= target.w1)
     .sort((a, b) => a.wordIndex - b.wordIndex);
-  appendLineRects(overlay, groupBoxesIntoLineRects(boxes), 'vilna-mark-target-rect');
+  appendLineRects(overlay, groupBoxesIntoLineRects(boxes, state.vilnaPageMap), 'vilna-mark-target-rect');
 }
 
 // Column-boundary fractions of the rendered (CropBox-consistent) page canvas,
