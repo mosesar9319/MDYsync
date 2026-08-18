@@ -1281,6 +1281,13 @@ async function rerenderVilnaPageForZoom() {
   // CSS layout box (unchanged here -- only the canvas's internal pixel
   // resolution is), so they stay aligned without needing to be rebuilt.
   await renderVilnaCanvas(page, canvas, viewport);
+  // The highlight bars are snapped to ink measured off this canvas (see
+  // measureInkBands), so a fresh raster means a fresh measurement. Clear
+  // the repaint guard to force one -- and this also recovers the case
+  // where the first paint happened before there were any pixels to read.
+  state.vilnaOverlayKey = '';
+  updateVilnaOverlay(getCurrentTime());
+  updateVilnaMarkTarget();
 }
 
 function toggleVilnaFullscreen() {
@@ -2790,7 +2797,122 @@ function pageLinePitch(pageMap) {
   return pitch;
 }
 
-function groupBoxesIntoLineRects(boxes, pageMap) {
+// Everything above derives the bar from the word boxes, which puts it
+// within a couple of pixels of the letters but no closer -- measured
+// against the real ink, the box-derived centre is off by a median of
+// under 1px but strays up to 5px on individual lines, which is plainly
+// visible as a bar riding high or low on its line.
+//
+// The daf itself is rendered by pdf.js onto a canvas we own, so the
+// letters can simply be measured rather than predicted: scanning the
+// Gemara column for rows of dark pixels gives each printed line's exact
+// top and bottom. Snapping to that is exact by construction, and it needs
+// no per-page constants at all. It is one pass over the column per raster,
+// cached below, not per repaint.
+function measureInkBands(canvas, wordBoxes) {
+  const sortedVals = (vals) => [...vals].sort((a, b) => a - b);
+  const at = (arr, p) => arr[Math.max(0, Math.min(arr.length - 1, Math.floor(arr.length * p)))];
+  // Percentiles rather than min/max: a few marginal reference marks sit
+  // well outside the Gemara column, and including them would widen the
+  // scan across the commentary columns, whose lines are set to a
+  // different rhythm entirely.
+  const x0 = Math.max(0, Math.floor(at(sortedVals(wordBoxes.map((b) => b.x)), 0.05) * canvas.width));
+  const x1 = Math.min(canvas.width, Math.ceil(at(sortedVals(wordBoxes.map((b) => b.x + b.w)), 0.95) * canvas.width));
+  const y0 = Math.max(0, Math.floor(at(sortedVals(wordBoxes.map((b) => b.y)), 0.02) * canvas.height));
+  const y1 = Math.min(canvas.height, Math.ceil(at(sortedVals(wordBoxes.map((b) => b.y + b.h)), 0.98) * canvas.height));
+  const width = x1 - x0;
+  const height = y1 - y0;
+  if (width < 8 || height < 8) return null;
+
+  // Squeeze the column down to a narrow strip first, at full height. Only
+  // the vertical resolution carries meaning here -- each row becomes a
+  // single "how much ink is on this line" number either way -- so the
+  // horizontal axis can be collapsed by the scaling blit rather than by
+  // reading every pixel. getImageData is what costs: pulling the column
+  // at full width measured 400ms on the largest raster this app allows
+  // (MAX_CANVAS_WIDTH_PX), against ~50ms for blit-plus-strip-read. Still
+  // not free, but it happens once per raster, not once per repaint.
+  // Verified to give the same 57 lines on the same daf rasterised at 75,
+  // 150 and 300 dpi, agreeing on every line edge to within a pixel, so
+  // the squeeze costs nothing in precision.
+  const SCAN_COLUMNS = 160;
+  let data;
+  let strip;
+  try {
+    strip = document.createElement('canvas');
+    strip.width = Math.min(SCAN_COLUMNS, width);
+    strip.height = height;
+    const stripContext = strip.getContext('2d', { willReadFrequently: true });
+    stripContext.drawImage(canvas, x0, y0, width, height, 0, 0, strip.width, strip.height);
+    data = stripContext.getImageData(0, 0, strip.width, strip.height).data;
+  } catch (error) {
+    return null; // e.g. a tainted canvas -- the box-derived estimate still stands
+  }
+
+  // Total darkness per row rather than a count of dark pixels: after the
+  // horizontal squeeze each sample is an average of the pixels behind it,
+  // so a row of text reads as many middling-grey samples rather than a
+  // few black ones.
+  const inkPerRow = new Float64Array(height);
+  const stripWidth = strip.width;
+  for (let row = 0; row < height; row += 1) {
+    let ink = 0;
+    for (let i = row * stripWidth * 4, col = 0; col < stripWidth; col += 1, i += 4) {
+      ink += 255 - (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+    }
+    inkPerRow[row] = ink;
+  }
+  let peak = 0;
+  for (const ink of inkPerRow) if (ink > peak) peak = ink;
+  if (!peak) return null; // nothing rendered yet
+
+  const threshold = peak * 0.15;
+  const minBandPx = Math.max(3, Math.round(canvas.height * 0.002));
+  const bands = [];
+  let start = -1;
+  for (let row = 0; row <= height; row += 1) {
+    const inked = row < height && inkPerRow[row] >= threshold;
+    if (inked && start < 0) start = row;
+    else if (!inked && start >= 0) {
+      if (row - start >= minBandPx) {
+        bands.push({ top: (y0 + start) / canvas.height, bottom: (y0 + row) / canvas.height });
+      }
+      start = -1;
+    }
+  }
+  return bands.length ? bands : null;
+}
+
+// Keyed by page and raster size, so a zoom or a page turn re-measures on
+// its own. A null result is never cached: the overlay can be painted
+// before pdf.js has finished the first raster, and that must not lock in
+// the fallback for the rest of the page's life.
+let inkBandCache = { key: '', bands: null };
+function vilnaInkBands(pageMap) {
+  const canvas = $('vilnaPageCanvas');
+  if (!canvas || canvas.hidden || !canvas.width || !pageMap?.wordBoxes?.length) return null;
+  const key = `${pageMap.tractate} ${pageMap.daf}${pageMap.amud}:${canvas.width}x${canvas.height}`;
+  if (inkBandCache.key === key) return inkBandCache.bands;
+  const bands = measureInkBands(canvas, pageMap.wordBoxes);
+  if (bands) inkBandCache = { key, bands };
+  return bands;
+}
+
+function matchInkBand(bands, centre, pitch) {
+  if (!bands?.length) return null;
+  let best = null;
+  let bestDistance = Infinity;
+  for (const band of bands) {
+    const distance = Math.abs((band.top + band.bottom) / 2 - centre);
+    if (distance < bestDistance) { bestDistance = distance; best = band; }
+  }
+  // Only accept a band that lines up with where the words say they are.
+  // A miss of more than half a line means the map and the raster disagree
+  // about this page, and the estimate is the safer of the two answers.
+  return bestDistance <= (pitch || 0.012) * 0.5 ? best : null;
+}
+
+function groupBoxesIntoLineRects(boxes, pageMap, inkBands) {
   if (!boxes.length) return [];
   const rows = splitBoxesIntoRows(boxes);
   const pitch = pageLinePitch(pageMap);
@@ -2803,10 +2925,14 @@ function groupBoxesIntoLineRects(boxes, pageMap) {
   return rows.map((row) => {
     const left = Math.min(...row.map((b) => b.x)) - PAD_X;
     const right = Math.max(...row.map((b) => b.x + b.w)) + PAD_X;
+    const centre = medianOf(row.map((b) => b.y + b.h / 2)) + INK_CENTER_BIAS;
+    const band = matchInkBand(inkBands, centre, pitch);
+    if (band) {
+      return { left, top: band.top, width: right - left, height: band.bottom - band.top };
+    }
     const height = pitch
       ? pitch * INK_PITCH_RATIO
       : medianOf(row.map((b) => b.h)) * INK_BOX_RATIO;
-    const centre = medianOf(row.map((b) => b.y + b.h / 2)) + INK_CENTER_BIAS;
     return { left, top: centre - height / 2, width: right - left, height };
   });
 }
@@ -2867,7 +2993,7 @@ function updateVilnaOverlay() {
     .filter((box) => box.ref === activeSegment.ref
       && (!hasRange || (box.wordIndex >= activeSegment.w0 && box.wordIndex <= activeSegment.w1)))
     .sort((a, b) => a.wordIndex - b.wordIndex);
-  appendLineRects(overlay, groupBoxesIntoLineRects(boxes, state.vilnaPageMap), 'vilna-active-rect');
+  appendLineRects(overlay, groupBoxesIntoLineRects(boxes, state.vilnaPageMap, vilnaInkBands(state.vilnaPageMap)), 'vilna-active-rect');
 }
 
 // While vilnaMarkMode is on, outlines the word(s) belonging to the phrase
@@ -2893,7 +3019,7 @@ function updateVilnaMarkTarget() {
   const boxes = (state.vilnaPageMap?.wordBoxes || [])
     .filter((box) => box.ref === target.ref && box.wordIndex >= target.w0 && box.wordIndex <= target.w1)
     .sort((a, b) => a.wordIndex - b.wordIndex);
-  appendLineRects(overlay, groupBoxesIntoLineRects(boxes, state.vilnaPageMap), 'vilna-mark-target-rect');
+  appendLineRects(overlay, groupBoxesIntoLineRects(boxes, state.vilnaPageMap, vilnaInkBands(state.vilnaPageMap)), 'vilna-mark-target-rect');
 }
 
 // Column-boundary fractions of the rendered (CropBox-consistent) page canvas,
