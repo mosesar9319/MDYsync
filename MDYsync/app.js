@@ -607,6 +607,24 @@ function dafRefsCoveredByCurrentAlignment() {
   return [...refs];
 }
 
+// publish_alignment.py stamps primaryRefs onto a published alignment with
+// the daf(s) that recording is actually ABOUT (most covered refs wins, see
+// that module's own primary_daf()) -- always as plain refs, since the
+// variant/language markers never applied to the OCR/voice engine's own refs
+// at all, only to the display/storage ref the alignment as a whole was
+// fetched under. Reattaches this load's variant/language the same way
+// dafRefsCoveredByCurrentAlignment() does, so the saved video-link key still
+// lands in the right namespace.
+function reattachVariantLanguage(refs, dafRef) {
+  const loaded = parseDafRef(dafRef);
+  const variant = loaded?.variant === 'chazarah' ? ' (Chazarah Daf)' : '';
+  const language = loaded?.language === 'he' ? ' (Hebrew)' : '';
+  return refs.map((ref) => {
+    const parsed = parseDafRef(ref);
+    return parsed ? `${parsed.tractate} ${parsed.daf}${parsed.amud}${variant}${language}` : ref;
+  });
+}
+
 // `refs`, when given, overrides the refs derived from state.segments -- used
 // by loadDaf()'s own early video-link restore, which runs before the daf
 // being navigated to has replaced the *previous* daf's segments, so reading
@@ -5352,7 +5370,24 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
     title: data.title || $('lectureTitle').textContent,
     videoSource: data.videoSource || null
   });
-  if (restoreSource && data.videoSource) await restoreVideoSource(data.videoSource);
+  if (restoreSource && data.videoSource) {
+    // Scope the video-link save to just the daf(s) this recording is
+    // actually about (data.primaryRefs, see publish_alignment.py) instead
+    // of every ref this alignment happens to cover -- without this, the
+    // fallback below (dafRefsCoveredByCurrentAlignment(), driven by
+    // state.segments, which at this point holds the WHOLE published batch
+    // including lead-in context) would save this same link onto the
+    // previous daf's own ref too, silently overwriting its real link with
+    // this recording's. That's exactly how video-links/Chullin-100b.json
+    // and video-links/Chullin-103b.json ended up pointing at the NEXT
+    // daf's video after a sync there -- confirmed directly against
+    // published data. Falls back to the old segment-derived behavior for
+    // alignments published before primaryRefs existed.
+    const primaryRefs = Array.isArray(data.primaryRefs) && data.primaryRefs.length
+      ? reattachVariantLanguage(data.primaryRefs, state.dafRef)
+      : null;
+    await restoreVideoSource(data.videoSource, primaryRefs);
+  }
   if (data.title) $('lectureTitle').textContent = data.title;
   // Switching between two sync methods for the same daf/video (see
   // switchSyncMethod()) should leave playback right where the reader was,
