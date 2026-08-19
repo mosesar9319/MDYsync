@@ -32,6 +32,37 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// The feed below only carries this channel's ~15 most recent uploads, which
+// makes re-syncing an OLDER daf impossible -- and re-syncing an older daf is
+// exactly what repairing a bad alignment requires. (Six dapim needed exactly
+// that after alignments were found keyed to the wrong recording; every one of
+// their videos had long since fallen out of the feed.)
+//
+// A video already recorded in our own video-links/ catalog for one of the
+// refs being synced carries the same signal the feed does, just durably: it
+// only got there from this same channel poll (which checked the feed at the
+// time) or from an admin deliberately linking it. So this doesn't widen who
+// can sync what -- an arbitrary YouTube URL still can't be synced unless it
+// is already this daf's linked video -- it just stops the check from expiring
+// on videos it already accepted once.
+async function isLinkedVideoForAnyRef(videoId, refs, prefix) {
+  for (const ref of refs.slice(0, 8)) {
+    const key = prefix + String(ref).trim().replace(/\s+/g, '-');
+    try {
+      const response = await fetch(
+        `https://raw.githubusercontent.com/${OWNER}/${REPO}/results/video-links/${encodeURIComponent(key)}.json`
+      );
+      if (!response.ok) continue;
+      const link = await response.json();
+      if (link?.videoId === videoId) return true;
+    } catch {
+      // Unreachable/unparseable -- fall through to the next ref rather than
+      // failing the whole request on one bad lookup.
+    }
+  }
+  return false;
+}
+
 // This public feed is genuinely flaky, not just occasionally slow --
 // confirmed directly by hitting it several times in a row (some through
 // this same function, some as a bare fetch): 200, then 404, then 500, then
@@ -87,14 +118,25 @@ export default async (request) => {
       return Response.json({ error: 'Paste a valid YouTube video link.' }, { status: 400 });
     }
     let isChannelUpload;
+    let feedError = null;
     try {
       isChannelUpload = await isRecentUploadOfChannel(youtubeVideoId);
     } catch (error) {
-      return Response.json({ error: `Could not verify the video's channel: ${error.message}` }, { status: 502 });
+      // Don't fail outright yet -- the catalog check below is an independent
+      // signal that doesn't depend on the feed being reachable at all.
+      feedError = error;
+      isChannelUpload = false;
+    }
+    if (!isChannelUpload && Array.isArray(refs) && refs.length) {
+      const linkPrefix = (language === 'he' ? 'Hebrew-' : '') + (variant === 'chazarah' ? 'Chazarah-Daf-' : '');
+      isChannelUpload = await isLinkedVideoForAnyRef(youtubeVideoId, refs, linkPrefix);
     }
     if (!isChannelUpload) {
+      if (feedError) {
+        return Response.json({ error: `Could not verify the video's channel: ${feedError.message}` }, { status: 502 });
+      }
       return Response.json({
-        error: 'YouTube sync only works for recent Mercaz Daf Yomi uploads -- use a Google Drive link for anything else.'
+        error: 'YouTube sync only works for Mercaz Daf Yomi uploads -- use a Google Drive link for anything else.'
       }, { status: 403 });
     }
   } else if (typeof driveUrl !== 'string' || !/^https:\/\/(drive|docs)\.google\.com\//.test(driveUrl)) {
