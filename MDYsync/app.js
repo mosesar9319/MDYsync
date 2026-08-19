@@ -128,6 +128,12 @@ const state = {
   // segment" that page normally reads instead.
   browseMode: document.body.dataset.page === 'browse',
   browsePageRef: null,
+  // Set by loadDaf() when the NEXT daf's own recording reviews the tail of
+  // the one just loaded as its lead-in -- see seekToVilnaWord's own comment
+  // for why a boundary word tap should redirect there instead of seeking
+  // within the current (earlier) video. Null whenever the next daf's video
+  // is the same recording, doesn't exist yet, or doesn't reach back this far.
+  forwardAlignment: null,
   // Daf browser only -- fetched once from list-synced-dapim.mjs (see
   // loadTalmudIndex()), { "<Tractate>": { "<daf><amud>": ["regularEn",...] } }.
   // loadTalmudIndex() awaits that fetch before building either picker, so
@@ -388,19 +394,15 @@ function refKey(ref, { voice = false } = {}) {
   return `${voicePrefix}${languagePrefix}${variantPrefix}${parsed.tractate.replace(/\s+/g, '-')}-${parsed.daf}${parsed.amud}`;
 }
 
-// A single sync job commonly covers several consecutive dafim in one pass
-// (the video doesn't stop at a daf boundary), and its result is published
-// once under EVERY covered ref's own by-ref/<ref>.json -- deliberately (see
-// loadAlignmentData's own comment on this), so any of those refs can be
-// looked up directly without re-running anything. But that means the exact
-// same file, fetched for e.g. "Chullin 104a", still carries every OTHER
-// daf's segments too -- confirmed directly on a real published file
-// (by-ref/Chullin-104a.json: its own dafRef field says "Chullin 103b", and
-// its 171 segments span Chullin 103b clear through 104b). A reader loading
-// one specific daf to read and watch its video needs only that daf's own
-// segments; getting all of them jumbled together, out of reading order, is
-// what a real report of "the alignment is totally messed up" turned out to
-// be. Segment refs are always plain Sefaria form ("Chullin 104a:2"), never
+// Narrows a fetched alignment down to just one daf's own segments. Only
+// needed now for fetchAlignmentForVideo below -- checking whether some
+// OTHER video's own recording happens to reach the daf being read, where
+// only the slice for that one ref is wanted, not that video's own
+// neighbouring dapim. fetchServerAlignment deliberately stopped calling
+// this (see its own comment) once publish_alignment.py made a by-ref
+// file's full, unscoped content -- including its lead-in review of the
+// previous daf -- both trustworthy and worth keeping for the normal read.
+// Segment refs are always plain Sefaria form ("Chullin 104a:2"), never
 // carrying a Chazarah/Hebrew variant marker themselves (that's tracked only
 // by the file's own key/prefix -- see refKey) -- realDafRef(ref) is exactly
 // that same plain form, so a straight string compare against each
@@ -443,7 +445,27 @@ async function fetchAlignmentForVideo(videoId, ref, { voice = false } = {}) {
     // Only useful if this recording actually reaches the daf being read --
     // an empty scope means it doesn't, and the caller should keep whatever
     // it already had.
-    return scoped?.segments?.length ? scoped : null;
+    if (!scoped?.segments?.length) return null;
+    // The earliest moment this recording actually reaches ITS OWN daf
+    // (primaryRefs, stamped by publish_alignment.py) -- attached so
+    // loadDaf's forward-redirect check (state.forwardAlignment) can tell
+    // a genuine lead-in match for `ref` (chronologically BEFORE this
+    // point) apart from a stray fuzzy-text mismatch elsewhere in the same
+    // video. Confirmed directly on real data: daf 103's own recording
+    // (vZVdYYiHHPY) genuinely opens on ~2 minutes of "Chullin 102b:11-13"
+    // before reaching "Chullin 103a:1" -- but it ALSO carries a spurious
+    // "Chullin 102b:1" match 44 minutes in, long after 103a/103b were
+    // already underway, almost certainly a fuzzy-text false positive
+    // rather than a second review. Null (no filtering) if this video's
+    // own primaryRefs never parsed at all, since that only happens for an
+    // alignment published before primaryRefs existed.
+    const ownRefs = new Set(Array.isArray(data.primaryRefs) ? data.primaryRefs.map(realDafRef) : []);
+    const ownStarts = (data.segments || [])
+      .filter((s) => ownRefs.has(realDafRef(s?.ref)))
+      .map((s) => Number(s.start))
+      .filter((t) => Number.isFinite(t));
+    scoped.ownContentStart = ownStarts.length ? Math.min(...ownStarts) : null;
+    return scoped;
   } catch {
     return null;
   }
@@ -457,14 +479,25 @@ async function fetchServerAlignment(ref, { voice = false } = {}) {
     const url = `/api/get-results-file?path=${encodeURIComponent(`by-ref/${refKey(ref, { voice })}.json`)}`;
     const response = await fetch(url);
     if (!response.ok) return null;
-    const data = await response.json();
-    // Narrowed here, at the point every reader-facing daf-load path
-    // fetches through -- the sync-completion dialogs deliberately keep
-    // showing the whole just-synced batch unfiltered instead (they never
-    // call this function; they load their job result directly), since an
-    // admin reviewing a fresh sync needs to see and correct all of it, not
-    // just the first daf it happens to cover.
-    return scopeAlignmentToDaf(data, ref);
+    // Deliberately NOT scoped to just this ref (past versions of this
+    // function called scopeAlignmentToDaf here). by-ref/<ref>.json is
+    // always the FULL alignment for the one recording this daf is
+    // primarily about (see publish_alignment.py) -- including its lead-in
+    // review of the tail of the previous daf, in the video's own real
+    // chronological order. Stripping that down used to be necessary
+    // because a by-ref file could carry a totally unrelated daf's
+    // segments from a mismatched publish; now that publish_alignment.py
+    // guarantees single-video-sourced content, scoping here only threw
+    // away the lead-in itself -- confirmed directly: a reader starting
+    // daf 103's video (which opens by reviewing the tail of 102b) saw
+    // "Chullin 103a" on screen from the first second, because the 102b
+    // segments that would have shown while that lead-in was actually
+    // playing had already been filtered out before ever reaching
+    // state.segments. updateActiveSegment/renderDafWindow/renderVilnaPage
+    // already switch what's shown to match whichever segment is actually
+    // playing (via state.segments[state.activeIndex]), so keeping the
+    // full batch is what makes that follow-along work.
+    return await response.json();
   } catch {
     return null;
   }
@@ -960,6 +993,23 @@ function canonicalDafRef(ref) {
 function realDafRef(ref) {
   const parsed = parseDafRef(ref);
   return parsed ? `${parsed.tractate} ${parsed.daf}${parsed.amud}` : String(ref || '').trim();
+}
+
+// The ref one amud after the given one, in the same tractate/variant/
+// language -- amud 'a' advances to 'b' on the same daf, 'b' advances to
+// the next daf's 'a'. Used by loadDaf() to check whether the NEXT daf's
+// own recording reviews the tail of THIS one as its lead-in (see
+// seekToVilnaWord's forward-redirect) -- doesn't need to know a
+// tractate's real last daf; asking about a ref past the end just gets an
+// empty/404 response back like any other never-synced daf.
+function nextDafRef(ref) {
+  const parsed = parseDafRef(ref);
+  if (!parsed) return null;
+  const daf = parsed.amud === 'a' ? parsed.daf : parsed.daf + 1;
+  const amud = parsed.amud === 'a' ? 'b' : 'a';
+  const variantSuffix = parsed.variant === 'chazarah' ? ' (Chazarah Daf)' : '';
+  const languageSuffix = parsed.language === 'he' ? ' (Hebrew)' : '';
+  return `${parsed.tractate} ${daf}${amud}${variantSuffix}${languageSuffix}`;
 }
 
 // Same Sefaria calendar lookup index.html's own hero card uses to find
@@ -1490,36 +1540,59 @@ async function playWordInline(ref, wordIndex) {
       return;
     }
   }
+  // After seekToVilnaWord below, not before -- a forward redirect (see its
+  // own comment) can swap state.videoSource out for the next daf's
+  // recording, and this daf's own generic label would otherwise linger on
+  // screen for a video that isn't playing that title's daf anymore.
+  await seekToVilnaWord(ref, wordIndex);
   applyRealVideoTitle(ref);
-  seekToVilnaWord(ref, wordIndex);
   if (isPaused()) await togglePlay();
 }
 
-function seekToVilnaWord(ref, wordIndex) {
-  const entry = state.wordTimeline.find(
-    (e) => e.ref === ref && wordIndex >= e.w0 && wordIndex <= e.w1
-  );
-  if (entry) {
-    state.lastManualScrollAt = 0;
-    seek(entry.start + 0.03, true);
-    updateActiveSegment(true);
-    return;
+// Shared by seekToVilnaWord's own lookup and its forward-redirect check
+// against state.forwardAlignment below -- word-level timing (wordTimeline)
+// preferred, falling back to segment-level. Most alignments only ever
+// carry segment-level timing, not word-level -- wordTimeline stays empty
+// for those. Without the fallback, clicking a word on the Vilna page
+// (either the standalone page view or the video overlay) silently did
+// nothing whenever that was the case, while the plain text view kept
+// working fine since .daf-segment's click (see seekToSegment) never
+// depended on word-level data in the first place. A ref can now span
+// several phrase-chunk segments (see caption_ocr_align.py's
+// _split_word_ranges), so prefer the one whose own w0/w1 actually covers
+// this word before falling back to just the first segment with a
+// matching ref. Returns null, not undefined, when nothing matches, so a
+// caller can tell "no match" apart from a genuine 0.
+function findWordTime(wordTimeline, segments, ref, wordIndex) {
+  const entry = wordTimeline.find((e) => e.ref === ref && wordIndex >= e.w0 && wordIndex <= e.w1);
+  if (entry) return entry.start;
+  const segment = segments.find((s) => s.ref === ref && s.w0 !== null && wordIndex >= s.w0 && wordIndex <= s.w1)
+    || segments.find((s) => s.ref === ref);
+  return segment ? segment.start : null;
+}
+
+async function seekToVilnaWord(ref, wordIndex) {
+  // A tap on a word that's ALSO the next daf's own lead-in review should
+  // land in that (later) recording, not this one -- see loadDaf's own
+  // comment on state.forwardAlignment for the real report this fixes.
+  // Checked first, against the forward alignment's own (narrow) coverage:
+  // it only ever holds the exact words that recording actually reviews,
+  // so finding nothing here and falling through to this daf's own video
+  // below is the common, correct case, not a failure.
+  if (state.forwardAlignment?.ref === ref
+      && findWordTime(state.forwardAlignment.wordTimeline, state.forwardAlignment.segments, ref, wordIndex) !== null) {
+    try {
+      await loadDaf(state.forwardAlignment.ref, { silent: true });
+    } catch (error) {
+      console.error(error);
+      // Falls through to this daf's own timing below rather than giving
+      // up entirely -- a failed forward-load still leaves a usable seek.
+    }
   }
-  // Most alignments only ever carry segment-level timing, not word-level --
-  // wordTimeline stays empty for those. Without this fallback, clicking a
-  // word on the Vilna page (either the standalone page view or the video
-  // overlay) silently did nothing whenever that was the case, while the
-  // plain text view kept working fine since .daf-segment's click (see
-  // seekToSegment) never depended on word-level data in the first place.
-  // A ref can now span several phrase-chunk segments (see
-  // caption_ocr_align.py's _split_word_ranges), so prefer the one whose
-  // own w0/w1 actually covers this word before falling back to just the
-  // first segment with a matching ref.
-  const segment = state.segments.find((s) => s.ref === ref && s.w0 !== null && wordIndex >= s.w0 && wordIndex <= s.w1)
-    || state.segments.find((s) => s.ref === ref);
-  if (!segment) return;
+  const time = findWordTime(state.wordTimeline, state.segments, ref, wordIndex);
+  if (time === null) return;
   state.lastManualScrollAt = 0;
-  seek(segment.start + 0.03, true);
+  seek(time + 0.03, true);
   updateActiveSegment(true);
 }
 
@@ -2751,8 +2824,10 @@ async function tapScannedWord(wordRef, wordIndex) {
       return;
     }
   }
+  // After seekToVilnaWord below, not before -- see playWordInline's own
+  // comment on why (a forward redirect can swap the video mid-tap).
+  await seekToVilnaWord(wordRef, wordIndex);
   applyRealVideoTitle(scannedRef);
-  seekToVilnaWord(wordRef, wordIndex);
   if (isPaused()) await togglePlay();
 }
 
@@ -4753,6 +4828,11 @@ async function loadDaf(refOverride = null, options = {}) {
   const ref = canonicalDafRef(String(refOverride || $('dafRef').value).trim());
   $('dafRef').value = ref;
   syncDafPickerFromRef(ref);
+  // Cleared unconditionally so a stale forward-redirect from whatever daf
+  // was loaded before this one can never survive into this one -- only
+  // the server-alignment branch below (the only one where the redirect
+  // makes sense) has a chance to set it back.
+  state.forwardAlignment = null;
   // Deliberately not awaited: whether this daf offers a one-click sync is
   // independent of loading its text, and loadDaf returns early down several
   // paths below (already-synced, saved locally) that would otherwise each
@@ -4788,7 +4868,16 @@ async function loadDaf(refOverride = null, options = {}) {
     // real link already known for this daf, whether saved on this
     // browser or on another device, over letting that placeholder
     // silently overwrite it.
-    const preferredVideoSource = await resolvePreferredVideoSource(ref, loadProjectForRef(ref));
+    // Checked concurrently with the video-source lookup below, not after
+    // it -- this only decides whether the NEXT daf's own recording is a
+    // *candidate* for the forward-redirect (see seekToVilnaWord); whether
+    // it's actually a different recording than this daf's own gets
+    // decided once preferredVideoSource is in hand too.
+    const nextRef = nextDafRef(ref);
+    const [preferredVideoSource, nextLink] = await Promise.all([
+      resolvePreferredVideoSource(ref, loadProjectForRef(ref)),
+      nextRef ? fetchServerVideoLink(nextRef) : Promise.resolve(null),
+    ]);
     // An alignment's timestamps are only meaningful against the one recording
     // they were measured from, so if the video about to play isn't that
     // recording, its timestamps are simply wrong here -- every highlight
@@ -4807,6 +4896,34 @@ async function loadDaf(refOverride = null, options = {}) {
       if (forThisVideo) alignmentToLoad = forThisVideo;
     }
     if (preferredVideoSource) alignmentToLoad.videoSource = preferredVideoSource;
+    // Does the NEXT daf's own recording review the tail of THIS one as its
+    // lead-in? Confirmed directly: daf 103's video opens on a recap of the
+    // end of 102b using timestamps that only make sense against daf 103's
+    // own recording, yet a tap on those same words from 102b's OWN page
+    // used to seek within daf 102's (different, earlier) video instead --
+    // that page never knew daf 103's recording existed at all. Skipped
+    // when the next ref shares this daf's own video already (nothing to
+    // redirect to) or doesn't have one of its own yet -- see
+    // seekToVilnaWord for where this actually gets used.
+    if (nextLink?.videoId && nextLink.videoId !== preferredVideoSource?.videoId) {
+      const forward = await fetchAlignmentForVideo(
+        nextLink.videoId, ref, { voice: state.activeSyncMethod === 'voice' });
+      if (forward) {
+        // Restricted to before forward.ownContentStart (see
+        // fetchAlignmentForVideo's own comment) -- without this, a stray
+        // fuzzy-text match to this ref elsewhere in the next video (well
+        // past its own lead-in, already deep into its own daf) would be
+        // just as eligible to redirect a tap to as the real lead-in is,
+        // sending the reader to an arbitrary, unrelated moment instead of
+        // a genuine continuation.
+        const before = forward.ownContentStart;
+        const wordTimeline = before == null ? forward.wordTimeline : forward.wordTimeline.filter((e) => e.start < before);
+        const segments = before == null ? forward.segments : forward.segments.filter((s) => s.start < before);
+        if (wordTimeline.length || segments.length) {
+          state.forwardAlignment = { ref: nextRef, wordTimeline, segments };
+        }
+      }
+    }
     await loadAlignmentData(alignmentToLoad, { dafRefOverride: ref });
     // Published alignments (especially older ones, or a voice sync that
     // only ever locks onto part of the daf) can be missing whole
