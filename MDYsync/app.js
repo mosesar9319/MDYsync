@@ -388,6 +388,36 @@ function refKey(ref, { voice = false } = {}) {
   return `${voicePrefix}${languagePrefix}${variantPrefix}${parsed.tractate.replace(/\s+/g, '-')}-${parsed.daf}${parsed.amud}`;
 }
 
+// A single sync job commonly covers several consecutive dafim in one pass
+// (the video doesn't stop at a daf boundary), and its result is published
+// once under EVERY covered ref's own by-ref/<ref>.json -- deliberately (see
+// loadAlignmentData's own comment on this), so any of those refs can be
+// looked up directly without re-running anything. But that means the exact
+// same file, fetched for e.g. "Chullin 104a", still carries every OTHER
+// daf's segments too -- confirmed directly on a real published file
+// (by-ref/Chullin-104a.json: its own dafRef field says "Chullin 103b", and
+// its 171 segments span Chullin 103b clear through 104b). A reader loading
+// one specific daf to read and watch its video needs only that daf's own
+// segments; getting all of them jumbled together, out of reading order, is
+// what a real report of "the alignment is totally messed up" turned out to
+// be. Segment refs are always plain Sefaria form ("Chullin 104a:2"), never
+// carrying a Chazarah/Hebrew variant marker themselves (that's tracked only
+// by the file's own key/prefix -- see refKey) -- realDafRef(ref) is exactly
+// that same plain form, so a straight string compare against each
+// segment's own daf prefix is enough, no further parsing needed.
+function scopeAlignmentToDaf(data, ref) {
+  if (!data || !Array.isArray(data.segments)) return data;
+  const target = realDafRef(ref);
+  const belongsToTarget = (r) => typeof r === 'string' && r.split(/[:.]/)[0].trim() === target;
+  return {
+    ...data,
+    segments: data.segments.filter((s) => belongsToTarget(s?.ref)),
+    wordTimeline: Array.isArray(data.wordTimeline)
+      ? data.wordTimeline.filter((entry) => belongsToTarget(entry?.ref))
+      : data.wordTimeline,
+  };
+}
+
 async function fetchServerAlignment(ref, { voice = false } = {}) {
   try {
     // Proxied through get-results-file.mjs, not fetched straight from
@@ -396,7 +426,14 @@ async function fetchServerAlignment(ref, { voice = false } = {}) {
     const url = `/api/get-results-file?path=${encodeURIComponent(`by-ref/${refKey(ref, { voice })}.json`)}`;
     const response = await fetch(url);
     if (!response.ok) return null;
-    return await response.json();
+    const data = await response.json();
+    // Narrowed here, at the point every reader-facing daf-load path
+    // fetches through -- the sync-completion dialogs deliberately keep
+    // showing the whole just-synced batch unfiltered instead (they never
+    // call this function; they load their job result directly), since an
+    // admin reviewing a fresh sync needs to see and correct all of it, not
+    // just the first daf it happens to cover.
+    return scopeAlignmentToDaf(data, ref);
   } catch {
     return null;
   }
