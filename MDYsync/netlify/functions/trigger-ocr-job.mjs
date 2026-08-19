@@ -32,6 +32,29 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// Which of a job's refs the recording is actually ABOUT -- the one whose
+// by-ref/<ref>.json this job will really write. Kept in step with
+// publish_alignment.py's primary_daf() on the workflow side: a shiur covers
+// both amudim of its own daf but only the trailing amud of the one before
+// it, so the daf contributing the most refs wins, ties breaking toward the
+// later daf. Falls back to refs[0] if nothing parses, matching that
+// function's own "treat everything as primary" fallback.
+const DAF_REF_PATTERN = /^(.+?)\s+(\d+)([ab])$/i;
+function pickPrimaryRef(refs) {
+  const counts = new Map();
+  for (const ref of refs) {
+    const match = DAF_REF_PATTERN.exec(String(ref).trim());
+    if (match) counts.set(Number(match[2]), (counts.get(Number(match[2])) || 0) + 1);
+  }
+  if (!counts.size) return refs[0];
+  const most = Math.max(...counts.values());
+  const primaryDaf = Math.max(...[...counts].filter(([, n]) => n === most).map(([daf]) => daf));
+  return refs.find((ref) => {
+    const match = DAF_REF_PATTERN.exec(String(ref).trim());
+    return match && Number(match[2]) === primaryDaf;
+  }) || refs[0];
+}
+
 // The feed below only carries this channel's ~15 most recent uploads, which
 // makes re-syncing an OLDER daf impossible -- and re-syncing an older daf is
 // exactly what repairing a bad alignment requires. (Six dapim needed exactly
@@ -188,17 +211,26 @@ export default async (request) => {
     );
   }
 
-  // The workflow publishes one copy of the result per daf reference it
-  // covers (results/by-ref/<ref>.json), not a job-ID-keyed path, so that
-  // any device can look up an already-synced daf directly. refs[0] is
-  // the primary reading, matching how the alignment JSON itself sets
-  // its own top-level dafRef. A "Chazarah Daf" reading (the shorter,
-  // gemara-only-review recording of the same daf) and/or a Hebrew-language
-  // recording are namespaced under their own prefix(es) so none of the four
-  // variant/language combinations collide -- must match the frontend's own
-  // refKey() exactly.
+  // The workflow publishes the result per daf reference the recording is
+  // actually ABOUT (results/by-ref/<ref>.json), not a job-ID-keyed path, so
+  // any device can look up an already-synced daf directly. A "Chazarah Daf"
+  // reading (the shorter, gemara-only-review recording of the same daf)
+  // and/or a Hebrew-language recording are namespaced under their own
+  // prefix(es) so none of the four variant/language combinations collide --
+  // must match the frontend's own refKey() exactly.
+  //
+  // Deliberately NOT refs[0]: a shiur opens by reviewing the tail of the
+  // PREVIOUS daf, so refs[0] is usually that lead-in ref -- and lead-in
+  // coverage no longer gets its own by-ref entry (see publish_alignment.py,
+  // which keeps it in the by-video file instead so it can't displace that
+  // daf's own shiur). Polling refs[0] would therefore wait on a path this
+  // job never writes, leaving the sync dialog stuck on "Processing on the
+  // server…" through a job that actually succeeded. Mirrors
+  // publish_alignment.py's primary_daf(): the daf contributing the most refs
+  // is the one the recording is about, ties breaking toward the later daf.
   const keyPrefix = (language === 'he' ? 'Hebrew-' : '') + (variant === 'chazarah' ? 'Chazarah-Daf-' : '');
-  const refKey = keyPrefix + refs[0].trim().replace(/\s+/g, '-');
+  const primaryRef = pickPrimaryRef(refs);
+  const refKey = keyPrefix + primaryRef.trim().replace(/\s+/g, '-');
 
   return Response.json({
     jobId,
