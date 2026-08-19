@@ -4226,6 +4226,21 @@ function updateActiveSegment(force = false, timeOverride = null) {
   $('currentRef').textContent = activeDaf
     ? `${activeDaf.tractate} ${activeDaf.daf}${activeDaf.amud} · Segment ${index + 1}`
     : `${state.dafRef} · Segment ${index + 1}`;
+  // The prominent "Following: <daf>" heading above the daf card should
+  // track whichever daf is actually playing right now, not just sit on
+  // the ref the reader navigated to -- otherwise a video that opens on a
+  // lead-in review of the previous daf (see loadDaf's own comment on
+  // state.forwardAlignment) shows the WRONG daf here for the entire
+  // stretch that lead-in plays, which is exactly what a real report
+  // called out: the heading read "Chullin 103a" from the first second,
+  // even while the video was still reviewing 102b. Left alone in browse
+  // mode, where this same heading instead tracks state.browsePageRef (see
+  // onDafPickerChanged/renderVilnaWordBoxes) -- that one has to stay
+  // pinned to whichever page image is on screen, not whatever video
+  // happens to be playing behind it.
+  if (!state.browseMode && activeDaf) {
+    $('dafTitle').textContent = `${activeDaf.tractate} ${activeDaf.daf}${activeDaf.amud}`;
+  }
 
   const recentlyScrolledManually = Date.now() - state.lastManualScrollAt < AUTO_SCROLL_RESUME_MS;
   if ($('autoScroll').checked && timeOverride === null && !recentlyScrolledManually) {
