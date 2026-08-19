@@ -28,11 +28,35 @@ function extractYoutubeVideoId(url) {
   return match ? match[1] : null;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// This public feed is genuinely flaky, not just occasionally slow --
+// confirmed directly by hitting it several times in a row (some through
+// this same function, some as a bare fetch): 200, then 404, then 500, then
+// 404 again, no pattern to which channel_id or how much time had passed.
+// A single fetch with no retry meant that flakiness took down the whole
+// sync request on a plain coin-flip -- reported directly: two real reader
+// attempts to sync Chullin 110 in immediate succession, one succeeding
+// and the very next failing right here. Three tries with a short backoff
+// is cheap insurance against exactly that, since a real, hard channel
+// mismatch (a video that truly isn't a recent upload) will keep returning
+// a normal 200 with the video absent from the feed either way -- only a
+// bad HTTP status is worth retrying.
 async function isRecentUploadOfChannel(videoId) {
-  const response = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${YOUTUBE_CHANNEL_ID}`);
-  if (!response.ok) throw new Error(`YouTube feed returned ${response.status}`);
-  const xml = await response.text();
-  return xml.includes(`<yt:videoId>${videoId}</yt:videoId>`);
+  const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${YOUTUBE_CHANNEL_ID}`;
+  let lastStatus;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (attempt > 0) await sleep(500 * attempt);
+    const response = await fetch(feedUrl);
+    if (response.ok) {
+      const xml = await response.text();
+      return xml.includes(`<yt:videoId>${videoId}</yt:videoId>`);
+    }
+    lastStatus = response.status;
+  }
+  throw new Error(`YouTube feed returned ${lastStatus} (after 3 attempts)`);
 }
 
 export default async (request) => {
