@@ -418,6 +418,37 @@ function scopeAlignmentToDaf(data, ref) {
   };
 }
 
+// The alignment measured against ONE specific recording, whatever dapim it
+// happens to cover. by-ref/<ref>.json only ever holds the alignment from the
+// shiur that daf is actually *about* (see publish_alignment.py) -- which is
+// the right default, but it's the wrong answer while a neighbouring daf's
+// video is the one playing. A shiur opens by reviewing the tail of the
+// previous daf, so the daf-104 recording legitimately covers the end of
+// 103b; asking for that stretch here is what lets the highlight follow along
+// through the lead-in, instead of sitting dead until the video reaches its
+// own daf. Timestamps only mean anything against the recording they were
+// measured from, so this is fetched BY that recording, never by ref alone.
+async function fetchAlignmentForVideo(videoId, ref, { voice = false } = {}) {
+  if (!videoId) return null;
+  try {
+    const parsed = parseDafRef(ref);
+    const prefix = (voice ? VOICE_KEY_PREFIX : '')
+      + (parsed?.language === 'he' ? HEBREW_KEY_PREFIX : '')
+      + (parsed?.variant === 'chazarah' ? CHAZARAH_KEY_PREFIX : '');
+    const url = `/api/get-results-file?path=${encodeURIComponent(`by-video/${prefix}${videoId}.json`)}`;
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const data = await response.json();
+    const scoped = scopeAlignmentToDaf(data, ref);
+    // Only useful if this recording actually reaches the daf being read --
+    // an empty scope means it doesn't, and the caller should keep whatever
+    // it already had.
+    return scoped?.segments?.length ? scoped : null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchServerAlignment(ref, { voice = false } = {}) {
   try {
     // Proxied through get-results-file.mjs, not fetched straight from
@@ -4740,8 +4771,25 @@ async function loadDaf(refOverride = null, options = {}) {
     // browser or on another device, over letting that placeholder
     // silently overwrite it.
     const preferredVideoSource = await resolvePreferredVideoSource(ref, loadProjectForRef(ref));
-    if (preferredVideoSource) serverAlignment.videoSource = preferredVideoSource;
-    await loadAlignmentData(serverAlignment, { dafRefOverride: ref });
+    // An alignment's timestamps are only meaningful against the one recording
+    // they were measured from, so if the video about to play isn't that
+    // recording, its timestamps are simply wrong here -- every highlight
+    // lands somewhere arbitrary rather than merely out of order. That
+    // mismatch is exactly what a reader following a shiur through the tail
+    // of the previous daf hits: the daf-104 recording covers the end of
+    // 103b, but 103b's own by-ref alignment belongs to the daf-103
+    // recording. Prefer the alignment measured against whatever is actually
+    // playing, and fall back to the by-ref one when that recording never
+    // reaches this daf (see fetchAlignmentForVideo).
+    let alignmentToLoad = serverAlignment;
+    if (preferredVideoSource?.videoId && serverAlignment.videoId
+        && preferredVideoSource.videoId !== serverAlignment.videoId) {
+      const forThisVideo = await fetchAlignmentForVideo(
+        preferredVideoSource.videoId, ref, { voice: state.activeSyncMethod === 'voice' });
+      if (forThisVideo) alignmentToLoad = forThisVideo;
+    }
+    if (preferredVideoSource) alignmentToLoad.videoSource = preferredVideoSource;
+    await loadAlignmentData(alignmentToLoad, { dafRefOverride: ref });
     // Published alignments (especially older ones, or a voice sync that
     // only ever locks onto part of the daf) can be missing whole
     // paragraphs of canonical text -- fill those in from Sefaria directly

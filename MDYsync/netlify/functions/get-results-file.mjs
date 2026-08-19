@@ -21,9 +21,12 @@
 
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
-// The only four shapes ever fetched this way -- anything else is rejected
-// rather than proxying an arbitrary path through to GitHub.
-const ALLOWED_PATH = /^(by-ref|video-links|pages)\/[A-Za-z0-9][A-Za-z0-9._-]*\.json$|^settings\.json$|^abbreviation-additions\.json$/;
+// The only shapes ever fetched this way -- anything else is rejected rather
+// than proxying an arbitrary path through to GitHub. by-video/ holds an
+// alignment keyed by the recording it was measured against rather than by
+// daf, which is what lets a reader follow a shiur through the tail of the
+// previous daf it opens on (see fetchAlignmentForVideo in app.js).
+const ALLOWED_PATH = /^(by-ref|by-video|video-links|pages)\/[A-Za-z0-9][A-Za-z0-9._-]*\.json$|^settings\.json$|^abbreviation-additions\.json$/;
 
 export default async (request) => {
   const url = new URL(request.url);
