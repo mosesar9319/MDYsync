@@ -123,6 +123,10 @@ jobs:
           REFS_JSON: ${{ toJSON(github.event.client_payload.refs) }}
           VARIANT: ${{ github.event.client_payload.variant }}
           LANGUAGE: ${{ github.event.client_payload.language }}
+          # Which recording these timestamps were measured against -- stamped
+          # into the published file so the reader can verify it rather than
+          # assuming whatever video-links happens to point at.
+          VIDEO_URL: ${{ github.event.client_payload.youtubeUrl }}
         run: |
           set -e
           mkdir -p /tmp/results-checkout
@@ -137,31 +141,24 @@ jobs:
             (cd /tmp/results-checkout && git checkout --orphan results && git rm -rf . >/dev/null 2>&1 || true)
           fi
 
-          mkdir -p /tmp/results-checkout/by-ref
-          python3 -c "
-          import json, re, os
-          refs = json.loads('''$REFS_JSON''')
-          # 'Voice-' is the outermost prefix, ahead of the existing variant/
-          # language ones -- this engine publishes to its own key entirely
-          # separate from ocr-job.yml's, rather than the same
-          # by-ref/<ref>.json path, so a caption-OCR sync and a voice-
-          # recognition sync started on the same daf never race to
-          # overwrite each other's result. The player fetches both and
-          # lets the reader pick which one to view (see app.js).
-          prefix = 'Voice-' + ('Hebrew-' if os.environ.get('LANGUAGE') == 'he' else '') + \
-                   ('Chazarah-Daf-' if os.environ.get('VARIANT') == 'chazarah' else '')
-          with open('MDYsync/tools/caption-sync/job-out/alignment.json') as f:
-              alignment = json.load(f)
-          alignment['jobId'] = os.environ.get('JOB_ID')
-          for ref in refs:
-              key = prefix + re.sub(r'\s+', '-', ref.strip())
-              with open(f'/tmp/results-checkout/by-ref/{key}.json', 'w') as f:
-                  json.dump(alignment, f, ensure_ascii=False, indent=2)
-              print(f'Published for {ref} -> by-ref/{key}.json')
-          "
+          # --voice keeps this engine's results under their own key namespace,
+          # entirely separate from ocr-job.yml's, so a caption-OCR sync and a
+          # voice sync started on the same daf never race to overwrite each
+          # other's result (the player fetches both and lets the reader pick).
+          # See publish_alignment.py for why a covered ref no longer
+          # automatically gets its own by-ref entry.
+          python3 MDYsync/tools/caption-sync/publish_alignment.py \
+            --alignment MDYsync/tools/caption-sync/job-out/alignment.json \
+            --refs-json "$REFS_JSON" \
+            --out-dir /tmp/results-checkout \
+            --job-id "$JOB_ID" \
+            --variant "$VARIANT" \
+            --language "$LANGUAGE" \
+            --video-url "$VIDEO_URL" \
+            --voice
 
           cd /tmp/results-checkout
-          git add by-ref
+          git add by-ref by-video
           git commit -m "Add voice-recognition result for job ${JOB_ID}"
           for attempt in 1 2 3 4 5; do
             if git push origin HEAD:results; then
