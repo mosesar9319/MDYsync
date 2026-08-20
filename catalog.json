@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-20T13:01:58.630Z",
+  "generatedAt": "2026-08-20T18:01:08.568Z",
   "tractates": {
     "Chullin": [
       {
@@ -2522,6 +2522,14 @@
         "chazarahHe": {
           "videoId": "SjhL9aR27so",
           "label": "חזרה - חולין דף קיב | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        }
+      },
+      {
+        "daf": 113,
+        "regularHe": {
+          "videoId": "rb7nnlp2Dx0",
+          "label": "מרכז דף יומי -  חולין דף קיג. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
           "amud": "a"
         }
       }
