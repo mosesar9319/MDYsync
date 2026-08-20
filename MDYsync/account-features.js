@@ -202,7 +202,31 @@ async function loadAndApplyPreferences() {
 
 // --- Wiring ---------------------------------------------------------------
 
+// #dafTitle is watched (rather than hooking loadDaf directly) so this file
+// stays fully decoupled from app.js's own load path -- but #dafTitle's text
+// is rewritten on every segment transition during ordinary playback, not
+// just on an actual daf change (updateActiveSegment sets it unconditionally
+// off the active segment's own daf, and .textContent= always replaces the
+// underlying text node -- even when the string happens to come out
+// identical -- so it mutates on every single phrase, not only when the
+// printed daf actually changes). Without a guard, that fired
+// tryResumeProgress() on every phrase transition too: a real, reproducible
+// report confirmed the exact resulting symptom -- any signed-in reader with
+// a saved progress row got their video yanked back to that saved timestamp
+// every few seconds for the rest of playback, reading as "stuck repeating a
+// split second of video forever," fixed only by signing out (the one thing
+// that made tryResumeProgress bail out at its own `if (!user) return`).
+// Keyed on the daf's own identity (ref key + variant) rather than the raw
+// text, so it only re-fires on an actual daf change -- a real loadDaf(),
+// forward-redirect into a new daf, or a page reload -- never on the
+// same daf's own segments ticking forward.
+let lastObservedDafIdentity = null;
+
 new MutationObserver(() => {
+  const info = currentDafInfo();
+  const identity = info ? `${info.key}:${info.variant}` : null;
+  if (identity === lastObservedDafIdentity) return;
+  lastObservedDafIdentity = identity;
   refreshFavoriteButton();
   tryResumeProgress();
 }).observe($('dafTitle'), { childList: true, characterData: true, subtree: true });
