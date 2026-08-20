@@ -1,1 +1,8 @@
-{"type":"youtube","url":"https://www.youtube.com/watch?v=OLyAq2sedRI","videoId":"OLyAq2sedRI","label":"CHAZARAH - Chullin Daf 111 | \"Nothing but the Daf\" with R' Eli Stefansky","coveredRefs":["Chullin 110b","Chullin 111a","Chullin 111b"],"source":"channel-auto"}
+{
+  "label": "CHAZARAH - Chullin Daf 111 | \"Nothing but the Daf\" with R' Eli Stefansky",
+  "locked": false,
+  "source": "manual",
+  "type": "youtube",
+  "url": "https://www.youtube.com/watch?v=OLyAq2sedRI",
+  "videoId": "OLyAq2sedRI"
+}
