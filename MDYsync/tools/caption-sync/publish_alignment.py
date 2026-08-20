@@ -131,7 +131,20 @@ def video_key(video_id=None, video_url=None, job_id=None, prefix=''):
     at least keeps the file addressable even though a re-sync of the same
     Drive video won't recognise its own earlier output.
     """
-    raw = video_id or video_url or job_id or 'unknown'
+    if video_id:
+        # A YouTube id is already exactly the clean, filename-safe 11-char
+        # token trigger-ocr-job.mjs's own extractYoutubeVideoId requires
+        # before this is ever called -- never run through the sanitizer
+        # below. Confirmed directly against a real published file: id
+        # "-AUd7v4MgkA" (a completely valid id that just happens to start
+        # with '-') went through the strip('-') meant for sanitizer-added
+        # cruft and came out as "AUd7v4MgkA", missing its real leading
+        # character -- so the by-video file landed at a path that
+        # doesn't match the videoId stamped inside it, which the reader's
+        # own fetchAlignmentForVideo (never sanitizes, builds the path
+        # straight from the real id) can then never find.
+        return prefix + video_id
+    raw = video_url or job_id or 'unknown'
     return prefix + re.sub(r'[^A-Za-z0-9_-]+', '-', str(raw)).strip('-')[:120]
 
 
