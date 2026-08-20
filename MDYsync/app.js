@@ -22,6 +22,8 @@ const state = {
   editingIndex: 0,
   phraseEditMode: false,
   vilnaMarkMode: false,
+  // Admin diagnostic toggle -- see renderVilnaUnmatchedWords.
+  showUnmatchedWords: false,
   // Snapshot of segments/editingIndex from when mark mode was turned on (or
   // the last explicit Save) -- what "Discard changes" (see
   // discardVilnaMarkChanges) reverts to. Serialized JSON, not a live
@@ -1725,21 +1727,28 @@ function hapticTap() {
 // to that literal word -- so passing each phrase's own first word (w0)
 // through those same, already-correct functions is enough on its own; none
 // of their seek/mark logic needed to change for this.
+// state.segments alone (whichever video is actually loaded, if any) is
+// preferred; ensureVilnaPageSegments's video-free fallback only fills in
+// refs state.segments doesn't already cover (e.g. the Daf browser showing a
+// page with nothing loaded yet), so a real loaded video's own segments are
+// never shadowed by the fallback's. Shared by renderVilnaWordBoxes (phrase
+// click regions) and renderVilnaUnmatchedWords (admin coverage-gap
+// diagnostic) -- both need the same "what do we actually know about this
+// page's phrases" view.
+function effectiveVilnaSegments() {
+  const covered = new Set(state.segments.map((s) => s.ref));
+  return state.segments.concat(
+    (state.vilnaFallbackSegments || []).filter((s) => !covered.has(s.ref))
+  );
+}
+
 function renderVilnaWordBoxes() {
   const overlay = $('vilnaPageOverlay');
   if (!overlay) return;
   overlay.innerHTML = '';
   if (!state.vilnaPageMap) return;
 
-  // state.segments alone (whichever video is actually loaded, if any) is
-  // preferred; ensureVilnaPageSegments's video-free fallback only fills in
-  // refs state.segments doesn't already cover (e.g. the Daf browser showing
-  // a page with nothing loaded yet), so a real loaded video's own segments
-  // are never shadowed by the fallback's.
-  const covered = new Set(state.segments.map((s) => s.ref));
-  const segments = state.segments.concat(
-    (state.vilnaFallbackSegments || []).filter((s) => !covered.has(s.ref))
-  );
+  const segments = effectiveVilnaSegments();
 
   // The same physical phrase can appear more than once (a ref's alignment
   // occasionally still carries this -- see markSegmentAtVilnaWord's own
@@ -1796,6 +1805,52 @@ function renderVilnaWordBoxes() {
   }
   updateVilnaMarkTarget();
   scheduleReadingVideoFollow(true, 0);
+  renderVilnaUnmatchedWords();
+}
+
+// Admin diagnostic (state.showUnmatchedWords, toggled by
+// #vilnaUnmatchedToggleButton): flags every printed word this page's
+// alignment data gives no evidence for, so an admin reviewing a sync can
+// spot real coverage gaps -- a paragraph that was never matched at all, or
+// a few words at the edge of an otherwise-synced phrase that slipped
+// through -- without having to read timestamps by hand.
+//
+// A ref is only judged if at least one of its segments actually carries a
+// word-level w0/w1 boundary; most alignments only ever have segment-level
+// timing (w0/w1 null on every segment for that ref), and flagging every
+// word in THAT case would paint most of a normal daf red, burying the
+// real gaps this exists to surface. A ref with no segments at all is a
+// gap in full: every one of its words gets flagged.
+function renderVilnaUnmatchedWords() {
+  const overlay = $('vilnaUnmatchedOverlay');
+  if (!overlay) return;
+  overlay.innerHTML = '';
+  if (!state.showUnmatchedWords || !state.vilnaPageMap) return;
+
+  const segments = effectiveVilnaSegments();
+  const segmentsByRef = new Map();
+  for (const segment of segments) {
+    if (!segmentsByRef.has(segment.ref)) segmentsByRef.set(segment.ref, []);
+    segmentsByRef.get(segment.ref).push(segment);
+  }
+
+  for (const box of state.vilnaPageMap.wordBoxes) {
+    const refSegments = segmentsByRef.get(box.ref) || [];
+    const ranged = refSegments.filter((s) => s.w0 !== null && s.w1 !== null);
+    // A ref with segments but none of them ranged has only phrase-level
+    // timing -- nothing here to compare a specific word against, so it's
+    // left alone rather than flagged (see the function's own comment).
+    if (refSegments.length && !ranged.length) continue;
+    const matched = ranged.some((s) => box.wordIndex >= s.w0 && box.wordIndex <= s.w1);
+    if (matched) continue;
+    const el = document.createElement('div');
+    el.className = 'vilna-unmatched-box';
+    el.style.left = `${box.x * 100}%`;
+    el.style.top = `${box.y * 100}%`;
+    el.style.width = `${box.w * 100}%`;
+    el.style.height = `${box.h * 100}%`;
+    overlay.appendChild(el);
+  }
 }
 
 // loadAlignmentData() (shared with the player/studio) deliberately shows
@@ -6316,6 +6371,13 @@ $('evenSpacingButton').addEventListener('click', () => resetEvenSpacing(false));
 // browse/index.html, which otherwise share this same top-level script.
 $('phraseEditModeButton')?.addEventListener('click', togglePhraseEditMode);
 $('vilnaMarkModeButton')?.addEventListener('click', toggleVilnaMarkMode);
+$('vilnaUnmatchedToggleButton')?.addEventListener('click', () => {
+  state.showUnmatchedWords = !state.showUnmatchedWords;
+  const button = $('vilnaUnmatchedToggleButton');
+  button?.classList.toggle('active', state.showUnmatchedWords);
+  button?.setAttribute('aria-pressed', String(state.showUnmatchedWords));
+  renderVilnaUnmatchedWords();
+});
 $('vilnaMarkSaveButton')?.addEventListener('click', saveVilnaMarkChanges);
 $('vilnaMarkDiscardButton')?.addEventListener('click', discardVilnaMarkChanges);
 // The editor sits in the same grid column as the daf card (see the HTML

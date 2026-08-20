@@ -474,6 +474,26 @@ h2 { margin-bottom: 0; }
 }
 .vilna-mark-toggle { width: auto; padding: 0 10px; font-size: 12px; white-space: nowrap; }
 .vilna-mark-toggle.active { background: var(--accent-strong); color: #06201c; border-color: transparent; }
+/* Admin diagnostic: every printed word whose ref has NO segment covering it
+   at all, or (for a ref that DOES have word-level w0/w1 boundaries from at
+   least one of its segments) whose own wordIndex falls in none of them --
+   see renderVilnaUnmatchedWords. A ref whose only segments are still
+   phrase-level (w0/w1 both null, no word-level boundary known yet at all)
+   is deliberately left unflagged: with most alignments carrying only
+   segment-level timing, flagging every word in that case would paint most
+   of a normal daf red and bury the real coverage gaps this is meant to
+   surface. Drawn from each word's own raw OCR box, not grouped into line
+   rects or oversized the way .vilna-phrase-box is -- precisely which word
+   is missing is the entire point here, and pointer-events stay off so this
+   is a read-only diagnostic layered on top of, not a rival click target
+   to, the phrase regions underneath. */
+.vilna-unmatched-overlay { position: absolute; inset: 0; pointer-events: none; }
+.vilna-unmatched-box {
+  position: absolute;
+  background: rgba(214, 39, 39, .32);
+  border: 1px solid rgba(214, 39, 39, .7);
+  border-radius: 2px;
+}
 /* Only shown while mark mode is on (see toggleVilnaMarkMode) -- Save banks
    whatever's been marked so far as a local draft (same mechanism as the
    editor panel's own Save Draft button); Discard reverts to the last save
