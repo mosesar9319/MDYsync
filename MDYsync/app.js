@@ -1094,12 +1094,20 @@ function parseDafRef(ref) {
   let working = String(ref || '').trim();
   let variant = 'regular';
   let language = 'en';
-  const chazarahSuffix = /\s*\(Chazarah Daf\)\s*$/i;
-  const hebrewSuffix = /\s*\(Hebrew\)\s*$/i;
-  for (let pass = 0; pass < 2; pass++) {
-    if (chazarahSuffix.test(working)) { variant = 'chazarah'; working = working.replace(chazarahSuffix, ''); }
-    if (hebrewSuffix.test(working)) { language = 'he'; working = working.replace(hebrewSuffix, ''); }
-  }
+  // Deliberately NOT anchored to the end of the string. Some published
+  // alignments carry the marker in the MIDDLE of a segment ref -- e.g.
+  // "Chullin 98b (Chazarah Daf):1", where the paragraph number follows it
+  // -- and an end-anchored strip left those refs unparseable, which then
+  // silently disabled everything keyed off a parsed ref: no Vilna page
+  // (currentVilnaPageKey bails on a null parse), no word highlighting and
+  // no tap-to-seek (the ref never normalized to the dot form word boxes
+  // use). 24 of the 150 published alignments are in exactly that shape.
+  // Each marker appears at most once, so a single non-anchored strip each
+  // handles both orders and both positions.
+  const chazarahMarker = /\s*\(Chazarah Daf\)/i;
+  const hebrewMarker = /\s*\(Hebrew\)/i;
+  if (chazarahMarker.test(working)) { variant = 'chazarah'; working = working.replace(chazarahMarker, ''); }
+  if (hebrewMarker.test(working)) { language = 'he'; working = working.replace(hebrewMarker, ''); }
   const match = /^(.+?)\s+(\d+)\s*([abAB])(?:[:.]\d+)?$/i.exec(working.trim());
   if (!match) return null;
   const typedTractate = match[1].trim();
@@ -1446,7 +1454,17 @@ function pageMapKey(parsed) {
 // incoming page-map refs into Sefaria's canonical shape once at the boundary
 // so the existing player, scanner, and Reading Mode all share one key.
 function normalizeDafParagraphRef(ref) {
-  return String(ref || '').trim().replace(/(\d+[ab])[:.](\d+)$/i, '$1.$2');
+  return String(ref || '').trim()
+    // A Vilna page/scan word box's ref is always the plain tractate/daf/
+    // amud form, never carrying a "(Chazarah Daf)"/"(Hebrew)" marker (the
+    // variant is tracked by the alignment's own key -- see refKey), so a
+    // segment ref that does carry one could never string-equal the word
+    // box it belongs to. Stripped here so both sides land in the same
+    // shape, which is what the exact-string comparisons in
+    // updateVilnaOverlay/updateScanOverlay/seekToVilnaWord all rely on.
+    // No-op for the refs that were already plain.
+    .replace(/\s*\((?:Chazarah Daf|Hebrew)\)/gi, '')
+    .replace(/(\d+[ab])[:.](\d+)$/i, '$1.$2');
 }
 
 function normalizePageWordBoxes(wordBoxes) {
