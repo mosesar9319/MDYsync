@@ -1685,7 +1685,7 @@ function toggleVilnaFullscreen() {
   // visible without moving/reloading the YouTube iframe. Everywhere else the
   // daf card remains the correct, smaller fullscreen target.
   const watchSurface = card.closest('.watch-layout');
-  const target = state.readingModeEnabled && !state.browseMode && watchSurface ? watchSurface : card;
+  const target = state.readingModeEnabled && watchSurface ? watchSurface : card;
   const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
   if (fullscreenElement) {
     const exit = document.exitFullscreen || document.webkitExitFullscreen;
@@ -4234,7 +4234,7 @@ function showReadingModeTip() {
 
 function setReadingMode(enabled) {
   const float = $('readingVideoFloat');
-  if (!float || state.browseMode) return;
+  if (!float) return;
   const nextEnabled = Boolean(enabled);
   if (nextEnabled === state.readingModeEnabled) return;
 
