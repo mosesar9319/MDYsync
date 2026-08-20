@@ -64,8 +64,12 @@
       body[data-page="browse"] .workspace { grid-template-columns: 1fr; }
     }
     /* Match the calmer Vilna reader on the player page: one continuous
-       paper surface, with the page using almost the full browser width
-       instead of sitting inside several padded, shadowed boxes. */
+       reading surface, the page using almost the full browser width
+       instead of sitting inside a padded, shadowed box -- no card boundary
+       at all now (a real request to drop the box chrome; restated here
+       since this page's own <style> loads after watch-theme.css's own
+       .player-card/.daf-card rule and at higher specificity, so it would
+       otherwise win and keep the border/shadow). */
     body[data-page="browse"] .daf-card {
       /* Sticky, matching player/index.html's own .daf-card (same 128px
          offset -- both pages share the same topbar/setup-strip shell
@@ -78,9 +82,9 @@
       min-height: 82vh;
       padding: 0;
       overflow: hidden;
-      background: rgba(255,253,248,.84);
-      border-color: rgba(90,66,34,.12);
-      box-shadow: 0 16px 42px rgba(63,45,23,.075);
+      background: transparent;
+      border: 0;
+      box-shadow: none;
     }
     @media (max-width: 1120px) {
       body[data-page="browse"] .daf-card { position: static; }

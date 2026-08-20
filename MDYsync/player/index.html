@@ -390,16 +390,22 @@
        sticky behavior from the original player design. */
     /* A single calm reading surface. The old Vilna view stacked a tan
        scroller, a second toolbar, and a shadowed PDF inside the outer card,
-       which made the daf feel pasted onto the page. Keep the useful card
-       boundary, but let the reader, controls, and footer flow edge-to-edge. */
+       which made the daf feel pasted onto the page. No card boundary at
+       all now (a real request to drop the box chrome, see watch-theme.css's
+       own .player-card/.daf-card rule -- restated here since this page's
+       own <style> loads after and at equal specificity, so it would
+       otherwise win the tie and keep the border/shadow) -- the reader,
+       controls, and footer already flow edge-to-edge; now the whole panel
+       does too, reading as open space on the white page rather than a card
+       sitting on it. */
     .daf-card {
       position: sticky;
       top: 128px;
       padding: 0;
       overflow: hidden;
-      background: rgba(255,253,248,.84);
-      border-color: rgba(90,66,34,.12);
-      box-shadow: 0 16px 42px rgba(63,45,23,.075);
+      background: transparent;
+      border: 0;
+      box-shadow: none;
     }
     /* The editor lives in the same sticky right-hand column as .daf-card
        (see the HTML comment above it) so correcting the sync stays
