@@ -14,6 +14,10 @@ const state = {
   youtubeReady: false,
   youtubeState: -1,
   youtubePollTimer: null,
+  // See setCaptionsEnabled -- always starts false, matching
+  // playerVars.cc_load_policy's own default for a freshly-constructed
+  // player.
+  captionsEnabled: false,
   usingDefaultAlignment: true,
   editingIndex: 0,
   phraseEditMode: false,
@@ -159,6 +163,7 @@ const scrubber = $('scrubber');
 const scrubberEls = [scrubber].filter(Boolean);
 const volumeSliderEls = [$('volumeSlider')].filter(Boolean);
 const muteButtonEls = [$('muteButton')].filter(Boolean);
+const captionsButtonEls = [$('captionsButton')].filter(Boolean);
 const fastForwardButtonEls = [$('fastForwardButton')].filter(Boolean);
 const dafPage = $('dafPage');
 const editor = $('editor');
@@ -915,6 +920,11 @@ function switchPlayerType(type) {
   if (!isYouTube) {
     const control = $('qualityControl');
     if (control) control.hidden = true;
+    // Captions are a YouTube-only concept (see setCaptionsEnabled) -- a
+    // direct video link has no track for this button to control.
+    for (const button of captionsButtonEls) button.hidden = true;
+  } else {
+    for (const button of captionsButtonEls) button.hidden = false;
   }
   updatePlayUi();
 }
@@ -1685,14 +1695,16 @@ function applyRealVideoTitle(ref) {
 
 // The Daf browser's own in-page equivalent of tapScannedWord below --
 // same "load the tapped word's daf if it isn't already on screen" shape,
-// but reveals and plays into browse/index.html's own
-// .player-card (present in the DOM, just hidden until first needed -- see
-// browse/index.html's own comment) instead of leaving the page. Loading a
-// different ref here never disturbs which page image is shown: renderVilnaPage
-// (via currentVilnaPageKey) always prefers state.browsePageRef over anything
+// but plays into browse/index.html's own .player-card, which now sits
+// side by side with the daf (same layout as every other page that embeds
+// this player) rather than leaving the page. Loading a different ref here
+// never disturbs which page image is shown: renderVilnaPage (via
+// currentVilnaPageKey) always prefers state.browsePageRef over anything
 // video/segment-derived, and loadDaf() never touches the view-switch itself.
 async function playWordInline(ref, wordIndex) {
-  playerCard.classList.add('revealed');
+  // Only meaningful once the layout collapses to a single column (see the
+  // 1120px breakpoint in browse/index.html) -- side by side on a wider
+  // screen the video is already in view, and this is a harmless no-op.
   playerCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
   // ref here is a word box's own per-paragraph ref (e.g. "Berakhot 2a:3" --
   // see page_ocr_align.py/caption_ocr_align.py's shared load_canonical()),
@@ -4384,6 +4396,21 @@ function updateActiveSegment(force = false, timeOverride = null) {
     updateFastForwardButtonUi(time);
     return;
   }
+  // A natural playback tick (force=false, no timeOverride -- i.e. called
+  // from updateTimeline's own poll, not from seek()) must never move the
+  // highlight BACKWARD. getCurrentTime() can report a slightly earlier
+  // time than the previous poll on a real, ordinary stall/quality-switch
+  // blip -- a few hundred milliseconds is enough, since Talmudic text
+  // often repeats near-identical phrasing a few lines apart, for that to
+  // read as the highlight visibly jumping back to an earlier, similar-
+  // looking word before snapping forward again on the very next tick.
+  // Every deliberate move (seek(), a fresh daf load, tap-a-word) already
+  // calls this with force=true specifically so it isn't caught here.
+  if (!force && index < state.activeIndex) {
+    updateActiveWords(time);
+    updateFastForwardButtonUi(time);
+    return;
+  }
   state.activeIndex = index;
   updateFastForwardButtonUi(time);
   const active = state.segments[index];
@@ -4744,6 +4771,36 @@ function setMuted(muted) {
     htmlVideo.muted = muted;
   }
   updateMuteIcons();
+}
+
+// Captions are a YouTube-only concept here (a direct video link has no
+// equivalent track to toggle), and default OFF via playerVars.cc_load_policy
+// -- this is the only path that ever turns them on. loadModule + an empty
+// track selector is the documented way to enable YouTube's own default
+// caption track without having to guess which language code this
+// particular video actually has captions in (a hardcoded 'en' would just
+// silently fail to show anything on a Hebrew-language shiur); unloadModule
+// is the corresponding way to fully turn them back off. Best-effort: the
+// IFrame API's captions module is thinly documented and this couldn't be
+// verified against a live video in this environment.
+function setCaptionsEnabled(enabled) {
+  state.captionsEnabled = enabled;
+  if (state.playerType === 'youtube' && state.youtubeReady) {
+    try {
+      if (enabled) {
+        state.youtubePlayer.loadModule('captions');
+        state.youtubePlayer.setOption('captions', 'track', {});
+      } else {
+        state.youtubePlayer.unloadModule('captions');
+      }
+    } catch (error) {
+      console.error('Could not toggle captions.', error);
+    }
+  }
+  for (const button of captionsButtonEls) {
+    button.setAttribute('aria-pressed', String(enabled));
+    button.setAttribute('title', enabled ? 'Turn off YouTube captions' : 'Turn on YouTube captions');
+  }
 }
 
 function setVolume(volume) {
@@ -5317,7 +5374,13 @@ async function ensureYouTubePlayer(videoId) {
         // leaving the Vilna page overlay (a sibling element) behind -- our
         // own fullscreen button (below) fullscreens the whole video-frame
         // container instead, so it covers both.
-        fs: 0
+        fs: 0,
+        // Captions default OFF -- #captionsButton (see applyCaptionsEnabled)
+        // is the only way to turn them on, matching how a reader already
+        // has this daf's own text/translation on screen and doesn't need
+        // YouTube's own (frequently auto-generated, un-vetted) captions
+        // burned on by default.
+        cc_load_policy: 0
       };
       if (location.protocol === 'http:' || location.protocol === 'https:') playerVars.origin = location.origin;
 
@@ -5339,6 +5402,8 @@ async function ensureYouTubePlayer(videoId) {
             state.youtubeState = 5;
             startYouTubePoll();
             syncVolumeUi();
+            setCaptionsEnabled(false);
+            showVideoControls();
             resolve();
           },
           onStateChange: (event) => {
@@ -5365,6 +5430,13 @@ async function ensureYouTubePlayer(videoId) {
   } else {
     state.youtubePlayer.cueVideoById(videoId);
     state.youtubeState = 5;
+    // Every new video defaults back to captions off, same as a fresh
+    // player's cc_load_policy -- otherwise a reader who turned captions on
+    // for one shiur would silently keep seeing them on the next, with no
+    // indication why (this player instance is reused across daf loads,
+    // unlike the fresh-construction branch above).
+    setCaptionsEnabled(false);
+    showVideoControls();
   }
 
   setPlaybackRate(Number($('speedSelect').value));
@@ -5447,6 +5519,7 @@ function loadDirectVideoUrl(url, saveRefs = null, locked = false) {
   setSourceBadge('Direct link');
   setSourcePanel('linkSourcePanel');
   $('largePlay').hidden = false;
+  showVideoControls();
   saveProjectForRef(state.dafRef, { videoSource: state.videoSource });
   saveVideoLinkForCoveredRefs(state.videoSource, saveRefs);
   showToast('Direct video link loaded. Playback depends on the host and browser format support.');
@@ -6178,6 +6251,36 @@ const markManualScroll = () => { state.lastManualScrollAt = Date.now(); };
 $('dafScroll').addEventListener('wheel', markManualScroll, { passive: true });
 $('dafScroll').addEventListener('touchmove', markManualScroll, { passive: true });
 
+// Auto-hides the custom control bar (scrubber + play/volume/settings row)
+// after a few seconds of inactivity, rather than leaving it permanently
+// docked over the bottom of the video. Shown again briefly when the video
+// first cues, and after that only while the reader's pointer is actually
+// over the video frame -- touch has no hover, so a tap does the same job
+// there. Never hides mid-drag on the scrubber (state.seeking) or while the
+// speed/quality gear is open (#videoSettings), since both mean the reader's
+// attention is on the controls themselves, not the video underneath them.
+const CONTROLS_AUTO_HIDE_MS = 2800;
+let controlsHideTimer = null;
+
+function showVideoControls() {
+  const frame = $('videoFrame');
+  if (!frame) return;
+  frame.classList.remove('controls-hidden');
+  if (controlsHideTimer) clearTimeout(controlsHideTimer);
+  controlsHideTimer = setTimeout(() => {
+    if ($('videoSettings')?.open || state.seeking) return;
+    frame.classList.add('controls-hidden');
+  }, CONTROLS_AUTO_HIDE_MS);
+}
+
+(() => {
+  const frame = $('videoFrame');
+  if (!frame) return;
+  frame.addEventListener('mousemove', showVideoControls);
+  frame.addEventListener('mouseenter', showVideoControls);
+  frame.addEventListener('touchstart', showVideoControls, { passive: true });
+})();
+
 function handleScrubInput(event) {
   state.seeking = true;
   const time = Number(event.target.value);
@@ -6206,6 +6309,7 @@ scrubber.addEventListener('pointerenter', handleScrubPointer);
 scrubber.addEventListener('pointerleave', () => { $('scrubPreview').hidden = true; });
 for (const el of volumeSliderEls) el.addEventListener('input', (event) => setVolume(Number(event.target.value)));
 for (const button of muteButtonEls) button.addEventListener('click', () => setMuted(!isMuted()));
+for (const button of captionsButtonEls) button.addEventListener('click', () => setCaptionsEnabled(!state.captionsEnabled));
 for (const button of fastForwardButtonEls) button.addEventListener('click', skipToNextReading);
 
 function switchDafView(mode) {
@@ -7241,11 +7345,6 @@ document.querySelectorAll('#dafLanguageToggle .language-option').forEach((button
 // everywhere else, same pattern as the camera-scan listeners above.
 $('browsePrevButton')?.addEventListener('click', () => stepBrowseDaf(-1));
 $('browseNextButton')?.addEventListener('click', () => stepBrowseDaf(1));
-$('browseHideVideoButton')?.addEventListener('click', () => {
-  playerCard.classList.remove('revealed');
-  if (state.playerType === 'youtube') { if (state.youtubeReady) state.youtubePlayer.pauseVideo(); }
-  else htmlVideo.pause();
-});
 // A catalog link (?ref=Chullin+86a&variant=chazarah&language=hebrew) should
 // land straight on that daf instead of the built-in demo -- but the picker
 // it feeds (syncDafPickerFromRef) needs the tractate index loaded first, so
