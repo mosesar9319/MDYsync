@@ -3939,10 +3939,19 @@ function saveReadingVideoPreferences() {
   }
 }
 
-// Coordinates are relative to the daf card, but bounds are the visible
-// #dafScroll viewport. The mini-player therefore stays on screen while the
-// PDF itself scrolls underneath it and can still be moved anywhere in the
-// actual reading surface (never over the daf header/footer).
+// Drag/resize clamping used to keep the mini-player within #dafScroll's own
+// visible viewport -- a real report asked for it to be movable across the
+// WHOLE reading surface instead, not boxed into just the scrollable text
+// column. Clamped to the containing .watch-layout's own rect now (the full
+// reading-mode surface: in reading mode .daf-card alone drives its height,
+// close to the full viewport height, and its width spans up to 1320px --
+// still not literally the whole browser window, since it's absolutely
+// positioned within .watch-layout rather than viewport-fixed, but a real
+// expansion from the old scroll-column-only box). scrollRect/containerRect
+// are still returned and still computed off #dafScroll/the container
+// exactly as before -- positionReadingVideoBelowActiveWords's own "stay
+// near the highlighted words" placement reads scrollRect directly and
+// still needs the real scrollable text area, not this widened clamp.
 function readingVideoBounds() {
   const float = $('readingVideoFloat');
   const scroll = $('dafScroll');
@@ -3953,12 +3962,12 @@ function readingVideoBounds() {
   if (!scrollRect.width || !scrollRect.height) return null;
   const inset = 10;
   return {
-    left: scrollRect.left - containerRect.left + inset,
-    top: scrollRect.top - containerRect.top + inset,
-    right: scrollRect.right - containerRect.left - inset,
-    bottom: scrollRect.bottom - containerRect.top - inset,
-    width: Math.max(0, scrollRect.width - inset * 2),
-    height: Math.max(0, scrollRect.height - inset * 2),
+    left: inset,
+    top: inset,
+    right: containerRect.width - inset,
+    bottom: containerRect.height - inset,
+    width: Math.max(0, containerRect.width - inset * 2),
+    height: Math.max(0, containerRect.height - inset * 2),
     containerRect,
     scrollRect,
   };
@@ -6862,6 +6871,24 @@ function onDafPickerChanged() {
     const titleEl = $('dafTitle');
     if (titleEl) titleEl.textContent = ref;
     renderVilnaPage();
+    // The Daf browser used to leave it at that -- a real report confirmed
+    // the video panel just stayed empty here, unlike every other page that
+    // embeds this same player DOM, where picking a daf always loads its
+    // video too. state.syncedDapim (already loaded for this picker's own
+    // enable/disable logic -- see refreshDafPickerVariantLanguage) is
+    // reused to check whether the CURRENT variant/language selection
+    // actually has a synced video before loading anything, rather than
+    // guessing from a failed fetch; a daf with no synced recording at all
+    // correctly stays page-only. Skipped when this exact ref is already
+    // loaded (stepping between two amudim one recording covers, or picking
+    // the daf that's already playing) so it never restarts playback the
+    // reader is mid-listening to.
+    const tractate = $('dafTractateSelect')?.value;
+    const daf = $('dafDafSelect')?.value;
+    const amud = activeAmud('dafAmudToggle');
+    const combos = state.syncedDapim?.[tractate]?.[`${daf}${amud}`] || [];
+    const wantsCombo = comboKeyFor(activeShiurVariant('dafShiurToggle'), activeLanguage('dafLanguageToggle'));
+    if (combos.includes(wantsCombo) && state.dafRef !== ref) loadDaf(ref);
     return;
   }
   loadDaf(ref);
