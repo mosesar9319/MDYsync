@@ -417,14 +417,27 @@ h2 { margin-bottom: 0; }
 .daf-card:-webkit-full-screen { width: 100vw; height: 100vh; border-radius: 0; }
 #vilnaPageCanvas { display: block; margin: 0 auto; max-width: 100%; height: auto; box-shadow: 0 12px 35px rgba(50,43,31,.18); }
 .vilna-page-overlay { position: absolute; inset: 0; pointer-events: none; }
-.vilna-word-box {
+/* One region per PHRASE (segment), not per word -- built by app.js's
+   renderVilnaWordBoxes from the exact same groupBoxesIntoLineRects
+   line-rects .vilna-active-rect below already uses for the "currently
+   playing" highlight, not a fixed per-box CSS transform. The old
+   .vilna-word-box was a per-word box deliberately oversized (scale(1.2,
+   1.7)) "for easier tapping"; a real report showed that oversizing routinely
+   overlapped into the line above or below and stole taps meant for a
+   neighboring word. A phrase's own line-shaped hit-region has no such
+   padding to overlap with, and there's no way left to select a single word
+   out of the phrase it belongs to -- hovering or clicking always means the
+   whole phrase. */
+.vilna-phrase-box {
   position: absolute;
-  transform: scale(1.2, 1.7);
   pointer-events: auto;
   cursor: pointer;
-  border-radius: 2px;
+  border-radius: 999px;
 }
-.vilna-word-box:hover { background: rgba(67, 57, 42, .14); }
+/* A lighter tint of .vilna-active-rect's own blue (#8ecdf5) -- distinct
+   from that solid "playing right now" highlight, so hovering a not-yet-
+   played (or already-played) phrase never reads as if it were live. */
+.vilna-phrase-box.phrase-hover { background: rgba(142, 205, 245, .3); }
 @keyframes vilna-highlight-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -474,7 +487,7 @@ h2 { margin-bottom: 0; }
 /* Signals "clicking marks this word" instead of the normal "clicking seeks
    here" -- the same crosshair browsers already show over an editable
    region, so it doesn't need an explanatory label to read as different. */
-.vilna-page-wrap.mark-mode .vilna-word-box { cursor: crosshair; }
+.vilna-page-wrap.mark-mode .vilna-phrase-box { cursor: crosshair; }
 .daf-footer { justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 12px; }
 
 .scan-placeholder { min-height: 100%; padding: 20px; color: #453c2e; text-align: center; }
