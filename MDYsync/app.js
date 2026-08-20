@@ -37,12 +37,18 @@ const state = {
   vilnaPageMap: null,
   vilnaPagePollTimer: null,
   vilnaOverlayKey: '',
-  vilnaWordEls: null,
   vilnaPageLoadingKey: null,
+  // Phrase boundaries for the Daf browser's tap-to-play regions when no
+  // video is loaded at all -- see ensureVilnaPageSegments's own comment.
+  vilnaFallbackSegments: [],
+  vilnaFallbackSegmentsKey: null,
   // Live word-highlight-during-playback for the scanned photo -- the same
-  // idea as vilnaOverlayKey/vilnaWordEls above (dedup key + ref/wordIndex ->
-  // DOM element map), just for #scanWordOverlay's .scan-word-box elements
-  // instead of the Vilna page's .vilna-word-box ones. scanWordBoxes is the
+  // idea as vilnaOverlayKey above (a dedup key so the highlight doesn't
+  // rebuild on every playback tick), just for #scanWordOverlay's
+  // .scan-word-box elements instead of the Vilna page's phrase regions
+  // (see renderVilnaWordBoxes/activeVilnaWordElements, which read the
+  // already-rendered #vilnaActiveOverlay directly rather than keeping a
+  // parallel element map the way this one still does). scanWordBoxes is the
   // source list (updateScanOverlay needs to iterate it the same way
   // updateVilnaOverlay iterates state.vilnaPageMap.wordBoxes); scanWordEls
   // is populated alongside it in showScanResult.
@@ -1495,11 +1501,44 @@ function stopVilnaPagePoll() {
 // already useful without it, so a failure or delay here should never
 // disturb what's already on screen -- it just means no highlight overlay
 // yet.
+// renderVilnaWordBoxes groups this page's word boxes into clickable PHRASE
+// regions using segment (alignment) boundaries -- but on the Daf browser, a
+// page is routinely on screen with NO video loaded at all (onDafPickerChanged
+// only sets state.browsePageRef and re-renders the page image; it never
+// calls loadDaf, so state.segments stays whatever it was before, which is
+// usually nothing for this page's own refs). Phrase boundaries only exist
+// inside an alignment -- updateVilnaOverlay relies on the exact same
+// state.segments for the same reason -- so when this page's own refs aren't
+// already covered by whatever's loaded, fetch this page's by-ref alignment
+// purely to learn where each phrase begins and ends. fetchServerAlignment is
+// the same lightweight, video-free fetch loadDaf itself starts from; a real
+// tap still goes through playWordInline -> loadDaf to actually load and
+// play anything. Cached per page (vilnaFallbackSegmentsKey) so flipping back
+// to an already-seen page doesn't refetch it.
+async function ensureVilnaPageSegments(parsed, wordBoxes, stillWanted) {
+  const refs = new Set(wordBoxes.map((box) => box.ref));
+  const covered = new Set(state.segments.map((s) => s.ref));
+  if (![...refs].some((ref) => !covered.has(ref))) return;
+  const pageKey = pageMapKey(parsed);
+  if (state.vilnaFallbackSegmentsKey === pageKey) return;
+  const activeRef = state.browsePageRef || state.segments[state.activeIndex]?.ref || state.dafRef;
+  // Tried in the same order loadDaf itself prefers (see its own dual-method
+  // fetch) -- OCR-based text alignment first, voice recognition only if this
+  // daf was never synced by the OCR engine at all.
+  const fetched = activeRef
+    ? (await fetchServerAlignment(activeRef)) || (await fetchServerAlignment(activeRef, { voice: true }))
+    : null;
+  if (!stillWanted()) return;
+  state.vilnaFallbackSegmentsKey = pageKey;
+  state.vilnaFallbackSegments = fetched?.segments || [];
+}
+
 async function loadVilnaPageMap(parsed, stillWanted = () => true) {
   stopVilnaPagePoll();
   state.vilnaPageMap = null;
   state.vilnaOverlayKey = '';
-  state.vilnaWordEls = null;
+  state.vilnaFallbackSegments = [];
+  state.vilnaFallbackSegmentsKey = null;
   $('vilnaPageOverlay').innerHTML = '';
   $('vilnaActiveOverlay').innerHTML = '';
   const key = pageMapKey(parsed);
@@ -1519,6 +1558,8 @@ async function loadVilnaPageMap(parsed, stillWanted = () => true) {
       if (!stillWanted()) return true;
       data.wordBoxes = normalizePageWordBoxes(data.wordBoxes);
       state.vilnaPageMap = data;
+      await ensureVilnaPageSegments(parsed, data.wordBoxes, stillWanted);
+      if (!stillWanted()) return true;
       renderVilnaWordBoxes();
       updateVilnaOverlay(getCurrentTime());
       return true;
@@ -1641,35 +1682,94 @@ function hapticTap() {
   navigator.vibrate?.(15);
 }
 
-// Renders one persistent, clickable div per word on the page -- not just
-// the ones currently playing -- so a reader can click any word to jump the
-// video there, not only the word already lit up. updateVilnaOverlay below
-// then just toggles an "active" class on these same elements rather than
-// creating/destroying DOM nodes on every playback tick.
+// Renders one clickable region per PHRASE (segment) rather than per word --
+// grouped into per-printed-line rects the same way updateVilnaOverlay
+// already groups the CURRENTLY PLAYING phrase (see groupBoxesIntoLineRects),
+// so a phrase's hit-region is exactly the shape of its own printed text
+// instead of a stack of individually oversized (see the old .vilna-word-box
+// CSS transform, now removed) word boxes whose padding routinely bled into
+// the line above or below and stole taps meant for a neighboring word -- a
+// real report of exactly that. There is deliberately no way left to select
+// one word out of the phrase it belongs to: hovering or clicking always
+// means the whole phrase, matching how the video was only ever going to
+// seek to that phrase's own start regardless of which word inside it got
+// tapped (segment-level timing, not word-level, is what every alignment
+// actually has reliably -- voice sync in particular only ever populates
+// wordTimeline sparsely).
+//
+// markSegmentAtVilnaWord/seekToVilnaWord/playWordInline all already resolve
+// a (ref, wordIndex) pair back to *the segment that pair falls within*, not
+// to that literal word -- so passing each phrase's own first word (w0)
+// through those same, already-correct functions is enough on its own; none
+// of their seek/mark logic needed to change for this.
 function renderVilnaWordBoxes() {
   const overlay = $('vilnaPageOverlay');
   if (!overlay) return;
   overlay.innerHTML = '';
-  state.vilnaWordEls = new Map();
   if (!state.vilnaPageMap) return;
-  for (const box of state.vilnaPageMap.wordBoxes) {
-    const el = document.createElement('div');
-    el.className = 'vilna-word-box';
-    el.style.left = `${box.x * 100}%`;
-    el.style.top = `${box.y * 100}%`;
-    el.style.width = `${box.w * 100}%`;
-    el.style.height = `${box.h * 100}%`;
-    el.addEventListener('click', () => {
-      hapticTap();
-      // The Daf browser has its own (initially hidden) video player on the
-      // same page -- a tap reveals and plays into that in place instead of
-      // navigating away (same idea as the scan feature's tapScannedWord).
-      if (state.browseMode) playWordInline(box.ref, box.wordIndex);
-      else if (state.vilnaMarkMode) markSegmentAtVilnaWord(box.ref, box.wordIndex);
-      else seekToVilnaWord(box.ref, box.wordIndex);
+
+  // state.segments alone (whichever video is actually loaded, if any) is
+  // preferred; ensureVilnaPageSegments's video-free fallback only fills in
+  // refs state.segments doesn't already cover (e.g. the Daf browser showing
+  // a page with nothing loaded yet), so a real loaded video's own segments
+  // are never shadowed by the fallback's.
+  const covered = new Set(state.segments.map((s) => s.ref));
+  const segments = state.segments.concat(
+    (state.vilnaFallbackSegments || []).filter((s) => !covered.has(s.ref))
+  );
+
+  // The same physical phrase can appear more than once (a ref's alignment
+  // occasionally still carries this -- see markSegmentAtVilnaWord's own
+  // comment on repeated occurrences), and rendering it twice would just
+  // stack two exactly-overlapping, functionally-identical hit-regions. One
+  // entry per distinct span, kept in first-seen (chronological) order.
+  const spans = new Map(); // spanKey -> segment index
+  segments.forEach((segment, index) => {
+    const spanKey = `${segment.ref}:${segment.w0}:${segment.w1}`;
+    if (!spans.has(spanKey)) spans.set(spanKey, index);
+  });
+
+  const bands = vilnaInkBands(state.vilnaPageMap);
+  for (const index of spans.values()) {
+    const segment = segments[index];
+    const hasRange = segment.w0 !== null && segment.w1 !== null;
+    const boxes = state.vilnaPageMap.wordBoxes
+      .filter((box) => box.ref === segment.ref
+        && (!hasRange || (box.wordIndex >= segment.w0 && box.wordIndex <= segment.w1)))
+      .sort((a, b) => a.wordIndex - b.wordIndex);
+    if (!boxes.length) continue;
+
+    const els = groupBoxesIntoLineRects(boxes, state.vilnaPageMap, bands).map((rect) => {
+      const el = document.createElement('div');
+      el.className = 'vilna-phrase-box';
+      el.style.left = `${rect.left * 100}%`;
+      el.style.top = `${rect.top * 100}%`;
+      el.style.width = `${rect.width * 100}%`;
+      el.style.height = `${rect.height * 100}%`;
+      overlay.appendChild(el);
+      return el;
     });
-    overlay.appendChild(el);
-    state.vilnaWordEls.set(`${box.ref}:${box.wordIndex}`, el);
+    // A phrase spanning several printed lines is several separate rect
+    // elements -- hovering any one of them highlights all of them together
+    // (plain CSS :hover can't reach sibling elements on its own), and any
+    // of them is an equally valid click target for the same phrase.
+    const wordIndex = segment.w0 ?? 0;
+    const onEnter = () => { for (const el of els) el.classList.add('phrase-hover'); };
+    const onLeave = () => { for (const el of els) el.classList.remove('phrase-hover'); };
+    const onClick = () => {
+      hapticTap();
+      // The Daf browser has its own video player on the same page -- a
+      // click plays into that in place instead of navigating away (same
+      // idea as the scan feature's tapScannedWord).
+      if (state.browseMode) playWordInline(segment.ref, wordIndex);
+      else if (state.vilnaMarkMode) markSegmentAtVilnaWord(segment.ref, wordIndex);
+      else seekToVilnaWord(segment.ref, wordIndex);
+    };
+    for (const el of els) {
+      el.addEventListener('pointerenter', onEnter);
+      el.addEventListener('pointerleave', onLeave);
+      el.addEventListener('click', onClick);
+    }
   }
   updateVilnaMarkTarget();
   scheduleReadingVideoFollow(true, 0);
@@ -3889,15 +3989,16 @@ function setReadingVideoFollow(enabled, { announce = false, persist = true } = {
   }
 }
 
+// updateVilnaOverlay (called just before this on every playback tick, via
+// updateActiveWords) already renders exactly the currently-active phrase's
+// own line-rects into #vilnaActiveOverlay -- reading them straight from
+// there is simpler and more precise than the word-box lookup this used to
+// do (a per-word element map that no longer exists; renderVilnaWordBoxes
+// builds per-PHRASE regions now, see its own comment), and can never drift
+// out of sync with what updateVilnaOverlay just drew.
 function activeVilnaWordElements() {
-  const active = state.segments[state.activeIndex];
-  if (!active || !state.vilnaPageMap || !state.vilnaWordEls) return [];
-  const hasRange = active.w0 !== null && active.w1 !== null;
-  return state.vilnaPageMap.wordBoxes
-    .filter((box) => box.ref === active.ref
-      && (!hasRange || (box.wordIndex >= active.w0 && box.wordIndex <= active.w1)))
-    .map((box) => state.vilnaWordEls.get(`${box.ref}:${box.wordIndex}`))
-    .filter((el) => el?.isConnected);
+  const overlay = $('vilnaActiveOverlay');
+  return overlay ? Array.from(overlay.children) : [];
 }
 
 function unionRects(rects) {
