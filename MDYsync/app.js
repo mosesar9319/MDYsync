@@ -420,6 +420,140 @@ function scopeAlignmentToDaf(data, ref) {
   };
 }
 
+// A run of consecutive segments (already start-ascending) that all belong
+// to the same daf -- the unit dropStrayContextMatches below reasons about,
+// since "which daf is on screen" only ever changes at a run boundary.
+function buildDafRuns(segments) {
+  const runs = [];
+  for (const segment of segments) {
+    const daf = realDafRef(segment?.ref);
+    const last = runs[runs.length - 1];
+    if (last && last.daf === daf) last.segments.push(segment);
+    else runs.push({ daf, segments: [segment] });
+  }
+  return runs;
+}
+
+// How much wall-clock video a run actually occupies. Deliberately measured
+// to the furthest segment END, not to the last segment's start: a run that
+// is one single long segment covers real playing time but has no
+// start-to-start distance at all, and scoring it as zero would let a
+// genuine stretch of reading lose out to noise around it.
+function dafRunSpanSeconds(run) {
+  const ends = run.segments.map((segment) => Number(segment?.end ?? segment?.start) || 0);
+  return Math.max(0, Math.max(...ends) - Number(run.segments[0].start));
+}
+
+// Sort key for "which daf comes first", so runs can be compared for forward
+// progress: amud b follows amud a on the same daf, and daf N+1 follows both.
+// Null for anything that doesn't parse as a daf ref at all.
+function dafOrderValue(dafRef) {
+  const parsed = parseDafRef(dafRef);
+  return parsed ? parsed.daf * 2 + (parsed.amud === 'b' ? 1 : 0) : null;
+}
+
+// How long a run has to last to be worth turning the page for. Also the
+// tie-breaker that keeps the chosen path from picking up zero-length
+// estimated runs it gains nothing from -- they score negative, so they're
+// only ever included when they genuinely bridge two real runs.
+const DAF_RUN_MIN_MEANINGFUL_SECONDS = 2;
+
+// Picks the subset of runs that tells one forward-moving story, keeping as
+// much real playing time as possible.
+//
+// A shiur only ever moves forward through the dapim -- a lead-in review of
+// the previous daf, then its own daf's amud a, then amud b, perhaps
+// overrunning into the next. It never goes back. So the runs a recording
+// really consists of form a non-decreasing sequence by daf order, and any
+// run that breaks that ordering is the OCR matcher's fuzzy text search
+// re-matching a stray phrase somewhere it doesn't belong.
+//
+// Choosing the highest-scoring such sequence (a longest-increasing-
+// subsequence walk weighted by each run's duration) is what makes this
+// robust where a simpler rule was not. Measured directly against real
+// published data, daf 107's own recording opens on a 33-second STRAY match
+// to 107b before its genuine 106b lead-in even starts -- long enough that
+// no duration threshold would catch it, and positioned so that treating
+// "the span of this recording's own daf" as trustworthy threw the entire
+// real lead-in away instead. Weighing it against the alternative is what
+// gets it right: keeping that opening 107b would force dropping the 106b
+// lead-in and all of 107a to stay forward-moving, which costs vastly more
+// playing time than the stray is worth.
+function keepForwardProgressingRuns(runs) {
+  const values = runs.map((run) => dafOrderValue(run.daf));
+  // Defensive: a ref that doesn't parse can't be ordered, so there's no
+  // sound story to pick. Showing everything is the pre-existing behaviour.
+  if (values.some((value) => value === null)) return runs;
+
+  const scores = runs.map((run) => dafRunSpanSeconds(run) - DAF_RUN_MIN_MEANINGFUL_SECONDS);
+  const best = scores.slice();
+  const cameFrom = runs.map(() => -1);
+  for (let i = 0; i < runs.length; i += 1) {
+    for (let j = 0; j < i; j += 1) {
+      if (values[j] <= values[i] && best[j] + scores[i] > best[i]) {
+        best[i] = best[j] + scores[i];
+        cameFrom[i] = j;
+      }
+    }
+  }
+  let end = 0;
+  for (let i = 1; i < runs.length; i += 1) if (best[i] > best[end]) end = i;
+  const chosen = [];
+  for (let i = end; i !== -1; i = cameFrom[i]) chosen.push(runs[i]);
+  return chosen.reverse();
+}
+
+// Removes cross-daf matches that a recording can't really have made, so the
+// active segment -- and with it the Vilna page image, which follows it --
+// stops snapping back and forth between dapim mid-shiur.
+//
+// Confirmed directly against real published data (by-video/vZVdYYiHHPY.json,
+// daf 103's own recording): 48 of its 228 segments match the PREVIOUS daf
+// while scattered right through the middle of its own 103a/103b content,
+// long after the shiur moved on. Left in, they flip the daf on screen 27
+// times over one shiur, which is exactly the "the daf page sometimes
+// changes randomly back and forth" report this fixes. Across the six
+// shiurim measured, this cuts 64 such flips down to 12 -- two per shiur,
+// which is simply the real lead-in -> amud a -> amud b progression.
+//
+// The keeping rule is forward progress, not proximity to any one daf --
+// see keepForwardProgressingRuns for why the obvious alternative fails on
+// real data. Word-level timing is filtered to match, since it drives the
+// highlight boxes and a stray left there would paint words onto a daf the
+// shiur isn't on.
+function dropStrayContextMatches(data) {
+  if (!Array.isArray(data?.segments) || !data.segments.length) return data;
+  const ordered = [...data.segments].sort((a, b) => Number(a.start) - Number(b.start));
+  const runs = keepForwardProgressingRuns(buildDafRuns(ordered));
+  if (!runs.length) return data;
+
+  const segments = runs.flatMap((run) => run.segments);
+  // A safety net, not an expected outcome: if this ever wanted to throw
+  // away most of a recording, the shape of that recording is nothing like
+  // the model above assumes, and showing it unfiltered (the pre-existing
+  // behaviour) beats showing a fraction of it. Measured worst case on real
+  // data is 22%.
+  if (segments.length < data.segments.length / 2) return data;
+
+  // Each kept run owns the stretch of video from where it starts until the
+  // next one does, so a word entry belongs only if its daf matches the run
+  // covering its moment -- exactly the daf the page will be showing then.
+  const startsAt = runs.map((run) => Number(run.segments[0].start));
+  const dafPlayingAt = (time) => {
+    let index = 0;
+    while (index + 1 < startsAt.length && startsAt[index + 1] <= time) index += 1;
+    return runs[index].daf;
+  };
+
+  return {
+    ...data,
+    segments,
+    wordTimeline: Array.isArray(data.wordTimeline)
+      ? data.wordTimeline.filter((entry) => realDafRef(entry?.ref) === dafPlayingAt(Number(entry?.start)))
+      : data.wordTimeline,
+  };
+}
+
 // The alignment measured against ONE specific recording, whatever dapim it
 // happens to cover. by-ref/<ref>.json only ever holds the alignment from the
 // shiur that daf is actually *about* (see publish_alignment.py) -- which is
@@ -497,7 +631,15 @@ async function fetchServerAlignment(ref, { voice = false } = {}) {
     // already switch what's shown to match whichever segment is actually
     // playing (via state.segments[state.activeIndex]), so keeping the
     // full batch is what makes that follow-along work.
-    return await response.json();
+    //
+    // Keeping the full batch does mean the matcher's stray cross-daf
+    // matches come along with it, though -- filtered out here rather than
+    // by narrowing back to one daf, so the real lead-in survives and the
+    // strays don't (see dropStrayContextMatches). Applied on this reader
+    // path only: the sync-completion dialogs load their job result
+    // directly, and an admin reviewing a fresh sync should see exactly
+    // what the engine produced, strays included.
+    return dropStrayContextMatches(await response.json());
   } catch {
     return null;
   }
@@ -1221,7 +1363,21 @@ async function renderVilnaPage() {
     setVilnaPageStatus('Load a daf reference to see the Vilna page image.');
     return;
   }
-  if (state.vilnaPageKey === key || state.vilnaPageLoadingKey === key) return;
+  if (state.vilnaPageKey === key) {
+    // This page is already rendered -- but a render that started for a
+    // DIFFERENT key may have hidden the canvas on its way in
+    // (setVilnaPageStatus does that) and then bailed at its own
+    // stillWanted() check without ever restoring it. That's what turned a
+    // momentary daf excursion into a page that just went blank and stayed
+    // blank: the excursion hid the canvas, the flip back landed here, and
+    // this early return left it hidden. Restore instead of only returning.
+    if (canvas.hidden) {
+      $('vilnaPageStatus').hidden = true;
+      canvas.hidden = false;
+    }
+    return;
+  }
+  if (state.vilnaPageLoadingKey === key) return;
   state.vilnaPageLoadingKey = key;
   const stillWanted = () => currentVilnaPageKey().key === key;
 
@@ -5491,7 +5647,6 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
   $('dafRef').value = state.dafRef;
   syncDafPickerFromRef(state.dafRef);
   $('dafTitle').textContent = state.dafRef;
-  $('lectureTitle').textContent = data.title || $('lectureTitle').textContent;
   if (Number(data.duration) > 0) applyDuration(Number(data.duration), false);
   renderDaf();
   saveProjectForRef(state.dafRef, {
@@ -5499,7 +5654,10 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
     wordTimeline: state.wordTimeline,
     alignmentStatus: state.alignmentStatus,
     duration: state.alignmentDuration || undefined,
-    title: data.title || $('lectureTitle').textContent,
+    // Deliberately NOT data.title -- see the applyRealVideoTitle call below
+    // for why that internal job title must never reach the reader; saving
+    // it here would just put it back on screen on the next local restore.
+    title: $('lectureTitle').textContent,
     videoSource: data.videoSource || null
   });
   if (restoreSource && data.videoSource) {
@@ -5520,7 +5678,20 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
       : null;
     await restoreVideoSource(data.videoSource, primaryRefs);
   }
-  if (data.title) $('lectureTitle').textContent = data.title;
+  // The video's heading gets the video's own real YouTube title, never
+  // data.title -- that's the alignment job's internal label ("Caption OCR
+  // alignment -- Chullin 102b, Chullin 103a, Chullin 103b"), useful to an
+  // admin reviewing a sync and meaningless to a reader. It used to be
+  // assigned here, AFTER restoreVideoSource had already put the real
+  // channel title up, so it clobbered the right answer with the wrong one
+  // on every load -- which is why the video heading read as OCR jargon
+  // starting with the lead-in daf's number rather than the actual title.
+  //
+  // Passed state.dafRef (the daf the reader navigated to, fixed for this
+  // load) and not the playing segment's ref, so this heading stays put:
+  // only the daf card's own heading tracks where the alignment is holding
+  // (see updateActiveSegment).
+  applyRealVideoTitle(state.dafRef);
   // Switching between two sync methods for the same daf/video (see
   // switchSyncMethod()) should leave playback right where the reader was,
   // not yank them back to the start -- everything else about this function
