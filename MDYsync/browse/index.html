@@ -46,37 +46,44 @@
   <link rel="stylesheet" href="../styles.css" />
   <link rel="stylesheet" href="../watch-theme.css" />
   <style>
-    /* This page is a page-by-page reader, not a video player -- app.js still
-       expects the full player DOM to exist (see the hard-required elements
-       kept below, same contract watch/index.html and player/index.html
-       satisfy), but only the daf-card half is shown by default. Keeping
-       .player-card in the markup unhidden (rather than the old blanket
-       display:none) and gating it on a .revealed class instead lets
-       playWordInline() (app.js) reveal it in place the first time a word is
-       tapped, without duplicating any of app.js's video-loading/rendering
-       logic for a second, browse-specific player. */
-    body[data-page="browse"] .workspace { display: block; }
-    body[data-page="browse"] .player-card:not(.revealed) { display: none; }
-    body[data-page="browse"] .player-card.revealed {
-      min-height: auto;
-      margin: 0 auto 18px;
-      /* .video-frame already has aspect-ratio:16/9 (styles.css) -- capping
-         height alone (the old max-height rule here) fought that, forcing a
-         short box at the full reading-column width and stretching it into
-         a wide letterboxed strip. Capping width instead lets the aspect
-         ratio size the video normally, like a typical video embed. */
-      max-width: 720px;
+    /* Side by side, matching player/index.html's own .watch-layout exactly
+       (grid ratios, gap, and the 1120px collapse-to-single-column
+       breakpoint) -- previously this page stacked .player-card above
+       .daf-card and kept it display:none until playWordInline() (app.js)
+       revealed it in place on the first word tap, unlike every other page
+       that embeds this same player DOM, which always shows it side by
+       side. A tap still loads/seeks the video into this same column; it no
+       longer needs to reveal anything to do it. */
+    body[data-page="browse"] .workspace {
+      display: grid;
+      grid-template-columns: minmax(0,1.25fr) minmax(420px,.9fr);
+      gap: 22px;
+      align-items: start;
+    }
+    @media (max-width: 1120px) {
+      body[data-page="browse"] .workspace { grid-template-columns: 1fr; }
     }
     /* Match the calmer Vilna reader on the player page: one continuous
        paper surface, with the page using almost the full browser width
        instead of sitting inside several padded, shadowed boxes. */
     body[data-page="browse"] .daf-card {
+      /* Sticky, matching player/index.html's own .daf-card (same 128px
+         offset -- both pages share the same topbar/setup-strip shell
+         height) -- now that the daf sits in a real side-by-side column
+         next to the video instead of stacked below it, it should behave
+         like the player page's own right-hand column: stay in view while
+         the (usually taller) video/reading list beside it scrolls. */
+      position: sticky;
+      top: 128px;
       min-height: 82vh;
       padding: 0;
       overflow: hidden;
       background: rgba(255,253,248,.84);
       border-color: rgba(90,66,34,.12);
       box-shadow: 0 16px 42px rgba(63,45,23,.075);
+    }
+    @media (max-width: 1120px) {
+      body[data-page="browse"] .daf-card { position: static; }
     }
     body[data-page="browse"] .daf-heading {
       margin: 0;
@@ -186,8 +193,6 @@
       background: rgba(255,253,248,.78);
     }
     body[data-page="browse"] .setup-strip .video-field { display: none; }
-    #browseHideVideoButton { display: none; }
-    body[data-page="browse"] .player-card.revealed #browseHideVideoButton { display: inline-flex; }
     .browse-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
     .browse-nav-label { color: var(--muted); font-size: 13px; text-align: center; flex: 1; }
     @media (max-width: 640px) {
@@ -313,7 +318,6 @@
               <span>Current location</span>
               <strong id="currentRef">No daf loaded</strong>
               <button class="favorite-button" id="favoriteButton" type="button" aria-label="Favorite this daf" title="Save to favorites" hidden>☆</button>
-              <button class="button ghost small" id="browseHideVideoButton" type="button">Hide video</button>
             </div>
           </div>
 
@@ -383,6 +387,9 @@
                   </label>
                 </div>
               </details>
+              <button class="icon-button" id="captionsButton" type="button" aria-label="Toggle captions" aria-pressed="false" title="Toggle YouTube captions">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><text x="12" y="15.5" text-anchor="middle" font-size="8.5" font-weight="800" fill="currentColor" font-family="Arial, sans-serif">CC</text></svg>
+              </button>
               <button class="video-fullscreen-button" id="fullscreenButton" aria-label="Fullscreen" title="Fullscreen">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
