@@ -943,14 +943,37 @@ function findSegmentAt(time) {
   // technically contains `time` would then always favor whichever segment
   // comes first in reading order, even after seeking past it into the
   // next one. What the reader actually means by "current segment" is
-  // whichever one they most recently entered, so take the last segment
-  // (in start-ascending order) whose start is at or before `time`.
-  let index = 0;
+  // whichever one they most recently entered, so take the segment with the
+  // LARGEST start that's still at or before `time` (ties -- identical start
+  // values -- broken toward the later array index, same as reading order).
+  //
+  // This used to stop scanning at the first segment whose start was AFTER
+  // `time`, on the assumption state.segments is always start-ascending. A
+  // real published alignment can violate that: a bad interpolation anchor
+  // confirmed directly on Chullin 112's video (_SGiQoBDjD4) stamped its
+  // lead-in review of 111b's paragraphs 1-12 with start times running
+  // BACKWARD -- 2408s down to 918s as the paragraph number increased --
+  // before the array picked back up in correct order from 111b:13 on. Against
+  // data like that, breaking early either froze the highlight on a stale
+  // segment (the scan gave up at array index 0 the instant its start
+  // exceeded `time`, before ever reaching the correctly-ordered segments
+  // sitting later in the array) or, once `time` caught up to the
+  // out-of-place cluster, snapped the highlight straight to it -- which is
+  // exactly the reported "highlight jumps back ~12 lines" symptom: whatever
+  // segment happened to occupy that array position could be well earlier on
+  // the printed page than what's actually playing. Scanning the whole array
+  // and keeping the true best match is correct regardless of ordering, and
+  // costs nothing measurable for a list sized like a real daf's segments.
+  let index = -1;
+  let bestStart = -Infinity;
   for (let i = 0; i < state.segments.length; i++) {
-    if (state.segments[i].start <= time) index = i;
-    else break;
+    const start = state.segments[i].start;
+    if (start <= time && start >= bestStart) {
+      bestStart = start;
+      index = i;
+    }
   }
-  return index;
+  return index === -1 ? 0 : index;
 }
 
 // How many segments of context to show before/after the active one. The daf
