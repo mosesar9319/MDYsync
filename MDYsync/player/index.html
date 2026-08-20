@@ -562,6 +562,17 @@
       margin: 0 auto;
       box-shadow: 0 22px 58px rgba(63,45,23,.11);
     }
+    /* The floating video (.reading-video-float, z-index 30) is an absolutely
+       positioned sibling of .daf-card, fixed at top:110px regardless of how
+       tall this header actually renders -- a taller-than-usual header (a
+       long daf ref, a narrower viewport wrapping the toolbar) can then sit
+       underneath it, covering readingModeButton/readingVideoFollowButton
+       with no way left to click "Exit mode" and get the video back out of
+       the way. Lifting the header into its own stacking context above the
+       video, rather than depending on the header always staying shorter
+       than a hardcoded pixel offset, keeps the exit control reachable
+       regardless of that geometry. */
+    body.reading-mode-active .daf-card .daf-header { position: relative; z-index: 31; }
     body.reading-mode-active .daf-card .daf-scroll { min-height: 0; }
     body.reading-mode-active .daf-card .vilna-placeholder { padding-inline: clamp(10px, 4vw, 48px); }
     body.reading-mode-active .daf-card .vilna-page-wrap { width: 100%; max-width: 940px; }

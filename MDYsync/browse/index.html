@@ -266,6 +266,15 @@
       margin: 0 auto;
       box-shadow: 0 22px 58px rgba(63,45,23,.11);
     }
+    /* See player/index.html's own copy of this rule for the full reasoning:
+       the floating video is fixed at top:110px regardless of how tall this
+       header actually renders, so a taller header (this page's own, with
+       both the Text/Vilna view-switch AND the reading-mode buttons sharing
+       one row -- see .daf-heading-tools -- is a real candidate) can end up
+       underneath it, covering the "Exit mode" control with no way back out.
+       Lifting the header into its own stacking context above the video
+       keeps it reachable regardless of that geometry. */
+    body.reading-mode-active .daf-card .card-heading.daf-heading { position: relative; z-index: 31; }
     body.reading-mode-active .daf-card .daf-scroll { min-height: 0; }
     body.reading-mode-active .daf-card .vilna-placeholder { padding-inline: clamp(10px, 4vw, 48px); }
     body.reading-mode-active .daf-card .vilna-page-wrap { width: 100%; max-width: 940px; }

@@ -197,7 +197,7 @@ input:focus, select:focus { border-color: rgba(56,214,193,.8); box-shadow: 0 0 0
    that role. An id selector here beats the bare h1 rule (and the mobile
    h1 override in player/index.html) regardless of source order, so this
    is the only place font-size needs to change. */
-#lectureTitle { font-size: 15px; font-weight: 700; letter-spacing: 0; }
+#lectureTitle { font-size: 17px; font-weight: 700; letter-spacing: 0; }
 .eyebrow { color: var(--accent); font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 5px; }
 h1, h2, h3, p { margin-top: 0; }
 h1 { font-size: clamp(20px, 2vw, 27px); margin-bottom: 0; letter-spacing: -.4px; }
@@ -394,7 +394,13 @@ h2 { margin-bottom: 0; }
 .segment-marker { color: #8a6c2f; font-size: .58em; vertical-align: super; margin-left: 2px; font-family: "Assistant", sans-serif; }
 .daf-window-more { direction: ltr; text-align: center; color: #8a7a5c; font-family: "Assistant", sans-serif; font-size: 12px; font-weight: 700; letter-spacing: .04em; margin: 4px 0 14px; opacity: .75; }
 .vilna-placeholder { min-height: 100%; padding: 20px; color: #453c2e; text-align: center; }
-.vilna-zoom-controls { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 8px; padding: 8px 10px; margin: -20px -20px 14px -20px; background: rgba(244,236,217,.94); backdrop-filter: blur(4px); border-bottom: 1px solid rgba(50,43,31,.14); }
+/* flex-wrap: wrap -- this row holds a growing number of buttons (zoom,
+   reset, admin-only Mark words/Show unmatched, and while mark mode is
+   active, Save/Discard too, on top of Fullscreen), and nowrap's default
+   forced them to overlap rather than move to a second line once they
+   stopped fitting one row -- confirmed by a real report of Fullscreen
+   sitting on top of Discard changes on the player page while marking. */
+.vilna-zoom-controls { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; margin: -20px -20px 14px -20px; background: rgba(244,236,217,.94); backdrop-filter: blur(4px); border-bottom: 1px solid rgba(50,43,31,.14); }
 .vilna-zoom-btn { width: 28px; height: 26px; border-radius: 8px; border: 1px solid rgba(50,43,31,.25); background: rgba(255,255,255,.55); color: #30291e; font-weight: 700; cursor: pointer; }
 .vilna-zoom-btn:hover { background: rgba(255,255,255,.9); }
 #vilnaZoomLabel { font-size: 12px; color: #453c2e; min-width: 38px; text-align: center; }
@@ -415,6 +421,55 @@ h2 { margin-bottom: 0; }
    ancestor's scrollable area, so no extra pan logic is needed here. */
 .daf-card:fullscreen { width: 100vw; height: 100vh; border-radius: 0; }
 .daf-card:-webkit-full-screen { width: 100vw; height: 100vh; border-radius: 0; }
+/* Fullscreen is meant for reading the page itself, full-bleed -- the
+   auto-scroll/alignment-status row (.daf-toolbar) and the segment-count/
+   Sefaria-attribution row (.daf-footer) below the page just eat vertical
+   space a reader specifically asked to reclaim, so both are dropped
+   entirely rather than shrunk. .daf-header/.card-heading.daf-heading (the
+   top "Following: <daf>" bar, whichever class name a given page uses for
+   it) stays, narrowed instead of removed -- it's the one piece of context
+   worth keeping on screen (which daf this is, the Exit-mode/Follow-daf
+   controls in Reading Mode) -- covers both a plain fullscreened .daf-card
+   and Reading Mode's combined .watch-layout fullscreen (.daf-card itself
+   is never the fullscreen element there). */
+.daf-card:fullscreen .daf-toolbar,
+.daf-card:-webkit-full-screen .daf-toolbar,
+.daf-card:fullscreen .daf-footer,
+.daf-card:-webkit-full-screen .daf-footer,
+.watch-layout:fullscreen .daf-toolbar,
+.watch-layout:-webkit-full-screen .daf-toolbar,
+.watch-layout:fullscreen .daf-footer,
+.watch-layout:-webkit-full-screen .daf-footer {
+  display: none;
+}
+.daf-card:fullscreen .daf-header,
+.daf-card:-webkit-full-screen .daf-header,
+.daf-card:fullscreen .card-heading.daf-heading,
+.daf-card:-webkit-full-screen .card-heading.daf-heading,
+.watch-layout:fullscreen .daf-header,
+.watch-layout:-webkit-full-screen .daf-header,
+.watch-layout:fullscreen .card-heading.daf-heading,
+.watch-layout:-webkit-full-screen .card-heading.daf-heading {
+  padding-top: 6px;
+  padding-bottom: 6px;
+  min-height: 0;
+}
+.daf-card:fullscreen .daf-header h2,
+.daf-card:-webkit-full-screen .daf-header h2,
+.daf-card:fullscreen .card-heading.daf-heading h2,
+.daf-card:-webkit-full-screen .card-heading.daf-heading h2,
+.watch-layout:fullscreen .daf-header h2,
+.watch-layout:-webkit-full-screen .daf-header h2,
+.watch-layout:fullscreen .card-heading.daf-heading h2,
+.watch-layout:-webkit-full-screen .card-heading.daf-heading h2 {
+  font-size: 15px;
+}
+.daf-card:fullscreen .eyebrow,
+.daf-card:-webkit-full-screen .eyebrow,
+.watch-layout:fullscreen .eyebrow,
+.watch-layout:-webkit-full-screen .eyebrow {
+  display: none;
+}
 #vilnaPageCanvas { display: block; margin: 0 auto; max-width: 100%; height: auto; box-shadow: 0 12px 35px rgba(50,43,31,.18); }
 .vilna-page-overlay { position: absolute; inset: 0; pointer-events: none; }
 /* One region per PHRASE (segment), not per word -- built by app.js's
@@ -434,10 +489,10 @@ h2 { margin-bottom: 0; }
   cursor: pointer;
   border-radius: 999px;
 }
-/* A lighter tint of .vilna-active-rect's own blue (#8ecdf5) -- distinct
+/* A tint of .vilna-active-rect's own blue (#8ecdf5) -- distinct
    from that solid "playing right now" highlight, so hovering a not-yet-
    played (or already-played) phrase never reads as if it were live. */
-.vilna-phrase-box.phrase-hover { background: rgba(142, 205, 245, .3); }
+.vilna-phrase-box.phrase-hover { background: rgba(142, 205, 245, .58); mix-blend-mode: multiply; }
 @keyframes vilna-highlight-in {
   from { opacity: 0; }
   to { opacity: 1; }
