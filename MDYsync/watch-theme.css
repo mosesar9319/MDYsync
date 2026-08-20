@@ -1,19 +1,27 @@
-/* Re-skins /watch/ with the ivory/gold/navy palette from /player/'s design
-   (and the home page's own look), on top of the same functional structure
-   /studio/ uses -- loaded after styles.css so these overrides win, and only
-   on /watch/, since /studio/ is backend tooling and can stay as-is.
+/* Re-skins the reading pages (player/browse/studio/watch) with a light
+   ivory/gold/navy palette on top of the same dark-themed functional
+   structure styles.css defines for the rest of the site (home page,
+   sidebar, admin chrome) -- loaded after styles.css so these overrides win.
 
    styles.css is heavily driven by CSS custom properties, so redefining
    :root here recolors most of the page for free; the rest of this file is
    the handful of components that hardcode a literal rgba(255,255,255,...)
    or rgba(0,0,0,...) wash tuned for a dark background, which need their own
-   light-mode equivalents rather than just following the variables. */
+   light-mode equivalents rather than just following the variables.
+
+   --bg/--card/--card-strong all collapse to pure white (a real request,
+   after this was originally a warmer cream/ivory tone) rather than several
+   near-white shades that only really showed up as a card's background
+   subtly differing from the page behind it -- which is also why
+   .player-card/.daf-card below drop their border/shadow/radius entirely:
+   with the card and the page now the identical color, that outline was the
+   only thing left drawing a "box" around them at all. */
 
 :root {
-  --bg: #fbf8f2;
-  --bg-soft: #f5efe3;
-  --card: #fffdf8;
-  --card-strong: #fff8ea;
+  --bg: #ffffff;
+  --bg-soft: #ffffff;
+  --card: #ffffff;
+  --card-strong: #ffffff;
   --line: rgba(90, 66, 34, 0.14);
   --line-strong: rgba(90, 66, 34, 0.28);
   --text: #17212b;
@@ -30,14 +38,17 @@
 }
 
 html { color-scheme: light; }
-body {
-  background:
-    radial-gradient(circle at 8% 0%, rgba(186, 132, 34, 0.08), transparent 30%),
-    radial-gradient(circle at 98% 18%, rgba(23, 54, 79, 0.06), transparent 26%),
-    linear-gradient(180deg, #fcfaf5 0%, #f8f3ea 100%);
-}
+body { background: #fff; }
 
 .card { backdrop-filter: none; border: 1px solid var(--line); }
+/* The video player and the daf page specifically -- not every .card on
+   these pages (the setup-strip, dialogs, etc. keep their own outline) --
+   per a real request to drop their box chrome so they read as open panels
+   on the white page rather than two bordered cards sitting on it. Still
+   two separate side-by-side areas (the shared workspace/watch-layout grid
+   and its gap are untouched), just without a visible line or shadow
+   marking each one's edge. */
+.player-card, .daf-card { border: 0; box-shadow: none; border-radius: 0; }
 
 #lectureTitle, .brand-name, .daf-heading h2 {
   font-family: Georgia, "Times New Roman", serif;
