@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-23T03:00:40.213Z",
+  "generatedAt": "2026-08-23T05:00:37.104Z",
   "tractates": {
     "Chullin": [
       {
@@ -2571,6 +2571,11 @@
         "regularHe": {
           "videoId": "Z6JwGHxKCII",
           "label": "מרכז דף יומי -  חולין דף קטו. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
+          "amud": "a"
+        },
+        "regularEn": {
+          "videoId": "73iAB6r1I40",
+          "label": "Daf Yomi Chullin Daf 115 by R’ Eli Stefansky (unedited)",
           "amud": "a"
         }
       }
