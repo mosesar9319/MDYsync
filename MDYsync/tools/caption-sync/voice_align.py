@@ -175,33 +175,181 @@ _KEYTERM_STOPWORDS = {
 }
 
 
-def build_keyterm_prompt(canon, max_words=50):
-    """A prompt string that primes Whisper toward this daf's own Hebrew/
-    Aramaic vocabulary before transcribing it -- Whisper's initial_prompt
-    biases the decoder's word choices, and unlike a paid ASR API's
-    keyterm-list feature, costs nothing extra: the model already being run
-    just gets a better starting context, for free.
+def build_keyterm_list(canon, max_terms=50):
+    """This daf's own distinctive vocabulary, plus COMMON_GEMARA_TERMS, as a
+    list of terms to bias an ASR engine toward.
 
-    This daf's own distinctive vocabulary is sampled evenly across its full
-    covered text (not just the opening), so a job spanning several refs
-    doesn't have its vocabulary dominated by whichever one happens to load
-    first -- filtered to skip common short connectives (see
-    _KEYTERM_STOPWORDS), which don't need biasing help and would otherwise
-    eat into the prompt's limited length budget. max_words is deliberately
-    conservative (COMMON_GEMARA_TERMS alone is already ~20 words, and
-    Hebrew tends to split into more BPE tokens per word than English in a
-    multilingual tokenizer) -- Whisper truncates an overlong prompt from
-    whichever end it doesn't like, silently discarding part of a carefully
-    built list, so staying well under that ceiling beats finding it by
-    accident.
+    Deduplicated first (a daf repeats plenty of its own vocabulary, and a
+    term already banked helps just as much as the same term banked five
+    times -- spending the budget on distinct words covers strictly more of
+    the text), then sampled evenly across the whole deduplicated list so a
+    job spanning several refs doesn't have its vocabulary dominated by
+    whichever ref happens to load first. Common short connectives are
+    filtered out (see _KEYTERM_STOPWORDS): they don't need biasing help and
+    would just eat budget that belongs to names and technical terms.
+
+    Shared by both engines, which have very different budgets for it --
+    see build_keyterm_prompt (Whisper, tight) and transcribe_elevenlabs
+    (Scribe, up to 1000 terms) for each one's own max_terms.
     """
-    distinctive = [w.norm for w in canon if len(w.norm) >= 3 and w.norm not in _KEYTERM_STOPWORDS]
+    seen = set()
+    distinctive = []
+    for w in canon:
+        n = w.norm
+        if len(n) < 3 or n in _KEYTERM_STOPWORDS or n in seen:
+            continue
+        seen.add(n)
+        distinctive.append(n)
     sample = []
     if distinctive:
-        step = max(1, len(distinctive) // max_words)
-        sample = distinctive[::step][:max_words]
-    terms = COMMON_GEMARA_TERMS + sample
+        step = max(1, len(distinctive) // max_terms)
+        sample = distinctive[::step][:max_terms]
+    return COMMON_GEMARA_TERMS + sample
+
+
+def build_keyterm_prompt(canon, max_words=50):
+    """build_keyterm_list as a single prompt string, for Whisper's
+    initial_prompt -- which biases the decoder's word choices, and unlike a
+    paid ASR API's keyterm-list feature costs nothing extra: the model
+    already being run just gets a better starting context, for free.
+
+    max_words is deliberately conservative (COMMON_GEMARA_TERMS alone is
+    already ~20 words, and Hebrew tends to split into more BPE tokens per
+    word than English in a multilingual tokenizer) -- Whisper truncates an
+    overlong prompt from whichever end it doesn't like, silently discarding
+    part of a carefully built list, so staying well under that ceiling
+    beats finding it by accident.
+    """
+    terms = build_keyterm_list(canon, max_terms=max_words)
     return " ".join(terms) if terms else None
+
+
+ELEVENLABS_URL = "https://api.elevenlabs.io/v1/speech-to-text"
+ELEVENLABS_MODEL = "scribe_v2"
+# The API's own documented ceiling is 1000 terms / 50 chars each. Staying
+# well under it: a daf's genuinely distinct vocabulary is nowhere near 1000
+# words anyway (see build_keyterm_list's dedup), and a keyterm list padded
+# out to a hard limit with increasingly marginal words is not obviously
+# better than a focused one.
+ELEVENLABS_MAX_KEYTERMS = 400
+
+
+def _multipart_body(fields, file_field, filename, file_bytes):
+    """Encode multipart/form-data by hand. Returns (content_type, body).
+
+    Hand-rolled rather than pulling in `requests` -- caption_ocr_align.py's
+    own Sefaria fetch already sticks to stdlib urllib, and the voice job's
+    pip install line stays as-is.
+
+    `fields` is a list of (name, value) PAIRS, not a dict, specifically so a
+    repeated name can appear more than once -- which is how a list-valued
+    field (keyterms) is encoded here.
+    """
+    import uuid
+    boundary = uuid.uuid4().hex
+    out = []
+    for name, value in fields:
+        out.append(f"--{boundary}\r\n".encode())
+        out.append(f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode())
+        out.append(f"{value}\r\n".encode("utf-8"))
+    out.append(f"--{boundary}\r\n".encode())
+    out.append(
+        f'Content-Disposition: form-data; name="{file_field}"; filename="{filename}"\r\n'
+        f"Content-Type: application/octet-stream\r\n\r\n".encode()
+    )
+    out.append(file_bytes)
+    out.append(b"\r\n")
+    out.append(f"--{boundary}--\r\n".encode())
+    return f"multipart/form-data; boundary={boundary}", b"".join(out)
+
+
+def transcribe_elevenlabs(audio_path, keyterms=None, api_key=None):
+    """Transcribe via ElevenLabs Scribe, returning the same (words, duration)
+    shape transcribe() does, so everything downstream (hebrew_script_runs and
+    the whole matching state machine) is engine-agnostic.
+
+    Two things this buys over the local Whisper path, both structural rather
+    than just "a better model":
+
+      1. Real automatic multilingual/code-switching. language_code is left
+         unset here on purpose so the API detects per-request. The local
+         Whisper path can't do that -- it force-sets language="he" for the
+         whole file, because standard Whisper detects language ONCE from the
+         opening ~30s and would otherwise lock a shiur that opens in English
+         into English mode for its entire length, garbling exactly the
+         Hebrew/Aramaic reading this pipeline depends on.
+      2. A real keyterm bias list (up to 1000 terms) rather than Whisper's
+         initial_prompt, which soft-primes through a much smaller context
+         window.
+
+    Response words carry a `type` ("word" / "spacing" / "audio_event");
+    only real words are kept. `logprob` is passed through as `prob` for
+    shape-compatibility with the Whisper path -- note it is a LOG
+    probability (<= 0), not the 0..1 value Whisper reports, so the two
+    aren't numerically comparable. Nothing downstream reads `prob` today;
+    if anything ever does, it has to account for which engine produced it.
+    """
+    import urllib.error
+    import urllib.request
+
+    api_key = api_key or os.environ.get("ELEVENLABS_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "ELEVENLABS_API_KEY is not set -- required for --engine elevenlabs.")
+
+    fields = [
+        ("model_id", ELEVENLABS_MODEL),
+        ("timestamps_granularity", "word"),
+    ]
+    # A list-valued multipart field, sent as a repeated field name. NOTE:
+    # ElevenLabs documents `keyterms` as "a list of strings" but publishes no
+    # example of how to encode that in a multipart body, and this could not
+    # be tested here (no API key in this environment). Repeated field names
+    # are the ordinary multipart convention for lists, but if the API rejects
+    # it or silently ignores the bias, the alternative worth trying is a
+    # single `keyterms` field holding a JSON-encoded array string --
+    # i.e. replace this loop with:
+    #     fields.append(("keyterms", json.dumps(keyterms, ensure_ascii=False)))
+    for term in (keyterms or [])[:ELEVENLABS_MAX_KEYTERMS]:
+        if len(term) < 50:
+            fields.append(("keyterms", term))
+
+    with open(audio_path, "rb") as f:
+        file_bytes = f.read()
+    content_type, body = _multipart_body(
+        fields, "file", os.path.basename(audio_path), file_bytes)
+
+    print(f"Uploading {len(file_bytes) / 1e6:.1f}MB to ElevenLabs "
+          f"({ELEVENLABS_MODEL}, {sum(1 for n, _ in fields if n == 'keyterms')} keyterms)...")
+    request = urllib.request.Request(
+        ELEVENLABS_URL, data=body,
+        headers={"xi-api-key": api_key, "Content-Type": content_type})
+    try:
+        with urllib.request.urlopen(request, timeout=1800) as response:
+            data = json.load(response)
+    except urllib.error.HTTPError as error:
+        detail = error.read().decode("utf-8", "replace")[:500]
+        raise RuntimeError(f"ElevenLabs returned {error.code}: {detail}") from error
+
+    print(f"Detected language: {data.get('language_code')} "
+          f"(p={data.get('language_probability')})")
+    words = []
+    for w in data.get("words") or []:
+        if w.get("type") not in (None, "word"):
+            continue
+        if w.get("start") is None or w.get("end") is None:
+            continue
+        words.append({"start": w["start"], "end": w["end"],
+                      "text": w.get("text", ""), "prob": w.get("logprob")})
+    duration = data.get("audio_duration_secs")
+    if not duration:
+        # Same requirement the Whisper path's info.duration comment explains:
+        # the player degrades highlighting accuracy when this doesn't match
+        # the video's real length, so falling back to the last word's end
+        # time (which under-reports whenever there's trailing silence/outro)
+        # is a last resort, not a normal path.
+        duration = words[-1]["end"] if words else 0.0
+    return words, duration
 
 
 def transcribe(audio_path, model_size="small", initial_prompt=None):
@@ -325,16 +473,36 @@ def match_runs(canon, runs, debug=False):
     return events
 
 
-def process_video(video_path, refs, model_size="small", cache_dir=None, debug=False):
+def process_video(video_path, refs, model_size="small", cache_dir=None, debug=False,
+                  engine="whisper", fallback=True):
     canon, segments = load_canonical(refs, cache_dir)
     print(f"Canonical text: {len(segments)} segments, {len(canon)} words")
     for c in canon:
         c.phon = phonetic(c.norm)
 
-    prompt = build_keyterm_prompt(canon)
-    if debug and prompt:
-        print(f"Keyterm prompt ({len(prompt.split())} words): {prompt}")
-    words, duration = transcribe(video_path, model_size, initial_prompt=prompt)
+    words = duration = None
+    if engine == "elevenlabs":
+        keyterms = build_keyterm_list(canon, max_terms=ELEVENLABS_MAX_KEYTERMS)
+        if debug:
+            print(f"Keyterms ({len(keyterms)}): {' '.join(keyterms[:40])}...")
+        try:
+            words, duration = transcribe_elevenlabs(video_path, keyterms=keyterms)
+        except Exception as error:
+            # A missing key, a rate limit, an API outage -- none of these are
+            # reasons to fail a sync job outright when a working local engine
+            # is sitting right here. Falls back rather than dying, loudly
+            # enough that a silently-degraded run is still obvious in the log.
+            if not fallback:
+                raise
+            print(f"ElevenLabs transcription failed ({error}); "
+                  f"falling back to local whisper.")
+            words = duration = None
+
+    if words is None:
+        prompt = build_keyterm_prompt(canon)
+        if debug and prompt:
+            print(f"Keyterm prompt ({len(prompt.split())} words): {prompt}")
+        words, duration = transcribe(video_path, model_size, initial_prompt=prompt)
     print(f"Transcribed {len(words)} words ({duration:.1f}s audio)")
     runs = hebrew_script_runs(words)
     print(f"{len(runs)} Hebrew-script word runs")
@@ -351,6 +519,15 @@ def main():
     p.add_argument("--refs-json", required=True,
                    help='Sefaria refs as a JSON array string, e.g. \'["Chullin 95a", "Chullin 95b"]\'.')
     p.add_argument("--model", default="small", help="faster-whisper model size (default: small)")
+    p.add_argument("--engine", default=os.environ.get("VOICE_ENGINE", "whisper"),
+                   choices=["whisper", "elevenlabs"],
+                   help="Transcription engine (default: whisper, or $VOICE_ENGINE). "
+                        "'elevenlabs' needs $ELEVENLABS_API_KEY and falls back to "
+                        "whisper if the API call fails, unless --no-fallback.")
+    p.add_argument("--no-fallback", action="store_true",
+                   help="Fail outright instead of falling back to local whisper when "
+                        "--engine elevenlabs errors. Use when comparing engines, so a "
+                        "silent fallback can't be mistaken for an ElevenLabs result.")
     p.add_argument("--out-dir", default="out")
     p.add_argument("--debug", action="store_true")
     args = p.parse_args()
@@ -358,7 +535,8 @@ def main():
     refs = json.loads(args.refs_json)
     os.makedirs(args.out_dir, exist_ok=True)
     canon, segments, events, duration = process_video(
-        args.video, refs, model_size=args.model, cache_dir=args.out_dir, debug=args.debug)
+        args.video, refs, model_size=args.model, cache_dir=args.out_dir, debug=args.debug,
+        engine=args.engine, fallback=not args.no_fallback)
     if not events:
         print("No confident matches found -- check the audio and refs.")
         sys.exit(1)
