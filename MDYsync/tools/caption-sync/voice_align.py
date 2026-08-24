@@ -156,10 +156,61 @@ def match_phrase_dual(canon, hl_norm, hl_phon, cursor, global_search=False):
     return s, e, phon_score, char_score
 
 
-def transcribe(audio_path, model_size="small"):
+# A small, fixed set of recurring Gemara discourse markers/formulas -- they
+# show up on nearly every daf but are a register a general-purpose Hebrew
+# ASR model's training data (mostly Modern Israeli Hebrew, not Talmudic
+# study) likely under-represents. Always included in the prompt below,
+# regardless of which daf is being synced.
+COMMON_GEMARA_TERMS = [
+    "תא שמע", "איתמר", "תניא", "מתניתין", "גמרא", "אמר מר", "מאי טעמא",
+    "והתניא", "אמר רבא", "אמר אביי", "בעי מיניה", "איבעיא להו",
+]
+# Short, extremely common connectives -- too generic (and too short) to
+# need any ASR biasing help, so excluding them from build_keyterm_prompt's
+# per-daf sample keeps its limited word budget spent on words that actually
+# benefit from it (names, technical terms, less common vocabulary).
+_KEYTERM_STOPWORDS = {
+    "של", "את", "על", "אל", "כי", "לא", "הוא", "היא", "זה", "מה",
+    "לו", "בו", "כן", "עד", "גם", "רק", "כל", "יש", "אין", "אם",
+}
+
+
+def build_keyterm_prompt(canon, max_words=50):
+    """A prompt string that primes Whisper toward this daf's own Hebrew/
+    Aramaic vocabulary before transcribing it -- Whisper's initial_prompt
+    biases the decoder's word choices, and unlike a paid ASR API's
+    keyterm-list feature, costs nothing extra: the model already being run
+    just gets a better starting context, for free.
+
+    This daf's own distinctive vocabulary is sampled evenly across its full
+    covered text (not just the opening), so a job spanning several refs
+    doesn't have its vocabulary dominated by whichever one happens to load
+    first -- filtered to skip common short connectives (see
+    _KEYTERM_STOPWORDS), which don't need biasing help and would otherwise
+    eat into the prompt's limited length budget. max_words is deliberately
+    conservative (COMMON_GEMARA_TERMS alone is already ~20 words, and
+    Hebrew tends to split into more BPE tokens per word than English in a
+    multilingual tokenizer) -- Whisper truncates an overlong prompt from
+    whichever end it doesn't like, silently discarding part of a carefully
+    built list, so staying well under that ceiling beats finding it by
+    accident.
+    """
+    distinctive = [w.norm for w in canon if len(w.norm) >= 3 and w.norm not in _KEYTERM_STOPWORDS]
+    sample = []
+    if distinctive:
+        step = max(1, len(distinctive) // max_words)
+        sample = distinctive[::step][:max_words]
+    terms = COMMON_GEMARA_TERMS + sample
+    return " ".join(terms) if terms else None
+
+
+def transcribe(audio_path, model_size="small", initial_prompt=None):
     print(f"Loading whisper model: {model_size} (CPU, int8)...")
     model = WhisperModel(model_size, device="cpu", compute_type="int8")
-    segments, info = model.transcribe(audio_path, language="he", word_timestamps=True, vad_filter=True)
+    segments, info = model.transcribe(
+        audio_path, language="he", word_timestamps=True, vad_filter=True,
+        initial_prompt=initial_prompt,
+    )
     print(f"Detected/forced language: {info.language} (p={info.language_probability:.2f})")
     words = []
     for seg in segments:
@@ -280,7 +331,10 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
     for c in canon:
         c.phon = phonetic(c.norm)
 
-    words, duration = transcribe(video_path, model_size)
+    prompt = build_keyterm_prompt(canon)
+    if debug and prompt:
+        print(f"Keyterm prompt ({len(prompt.split())} words): {prompt}")
+    words, duration = transcribe(video_path, model_size, initial_prompt=prompt)
     print(f"Transcribed {len(words)} words ({duration:.1f}s audio)")
     runs = hebrew_script_runs(words)
     print(f"{len(runs)} Hebrew-script word runs")
