@@ -111,6 +111,18 @@ jobs:
         working-directory: MDYsync/tools/caption-sync
         env:
           REFS_JSON: ${{ toJSON(github.event.client_payload.refs) }}
+          # Which transcription engine voice_align.py uses. Defaults to the
+          # local whisper model; set the ELEVENLABS_API_KEY repo secret and
+          # this picks up ElevenLabs Scribe automatically instead (real
+          # multilingual code-switching + a proper keyterm bias list, neither
+          # of which the local path can do -- see transcribe_elevenlabs).
+          # Without the secret set, `secrets.*` is an empty string, so this
+          # stays on whisper and nothing about the existing job changes.
+          # voice_align.py also falls back to whisper on its own if the API
+          # call fails mid-job, so a rate limit or outage degrades the run
+          # rather than failing it.
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          VOICE_ENGINE: ${{ secrets.ELEVENLABS_API_KEY != '' && 'elevenlabs' || 'whisper' }}
         run: |
           python3 voice_align.py job-audio.mp3 \
             --refs-json "$REFS_JSON" \
