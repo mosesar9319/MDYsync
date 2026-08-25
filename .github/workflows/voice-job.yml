@@ -21,6 +21,10 @@ on:
 
 permissions:
   contents: write
+  # Lets this job request a GitHub-signed OIDC token to federate into an
+  # Anthropic access token (see the "Exchange for an Anthropic access
+  # token" step below) -- no ANTHROPIC_API_KEY secret stored in the repo.
+  id-token: write
 
 jobs:
   voice:
@@ -53,9 +57,10 @@ jobs:
         # (and so voice_align.py's import of it) without these installed,
         # even though nothing here calls into the OCR-specific parts of it.
         # anthropic is installed unconditionally too -- resolve_ambiguous_run
-        # only imports/uses it when llm_rescue is actually enabled (see the
-        # ANTHROPIC_API_KEY env var below), so installing it costs nothing on
-        # a run that doesn't use it, same reasoning as the OCR packages above.
+        # only imports/uses it when llm_rescue is actually enabled (see
+        # _anthropic_credentials_available and the federation env vars
+        # below), so installing it costs nothing on a run that doesn't use
+        # it, same reasoning as the OCR packages above.
         run: pip install faster-whisper rapidfuzz yt-dlp opencv-python-headless pytesseract anthropic
 
       # Lets yt-dlp solve YouTube's signature-decipher JS challenge itself --
@@ -111,6 +116,19 @@ jobs:
           fi
           ls -la job-audio.mp3
 
+      - name: Fetch GitHub OIDC token for Anthropic workload identity federation
+        # Written to a file rather than exported as an env var directly --
+        # ANTHROPIC_IDENTITY_TOKEN_FILE below points anthropic.Anthropic()
+        # at this same path, and the SDK re-reads it fresh on every
+        # exchange, so a long job that needs more than one rescue call
+        # doesn't risk authenticating with a stale token.
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const token = await core.getIDToken('https://api.anthropic.com');
+            fs.writeFileSync('${{ runner.temp }}/anthropic-oidc-token', token);
+
       - name: Run the voice alignment engine
         working-directory: MDYsync/tools/caption-sync
         env:
@@ -127,14 +145,31 @@ jobs:
           # rather than failing it.
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           VOICE_ENGINE: ${{ secrets.ELEVENLABS_API_KEY != '' && 'elevenlabs' || 'whisper' }}
-          # Set the ANTHROPIC_API_KEY repo secret to turn on the LLM rescue
-          # step: when deterministic fuzzy/phonetic matching can't place a
-          # Hebrew-script run anywhere in the daf at all, Claude gets a shot
-          # at it using context a string-similarity search can't -- see
-          # resolve_ambiguous_run. Without the secret set this env var is
-          # empty, process_video's own auto-detect (`bool(os.environ.get(...))`)
-          # sees that as unset, and nothing about the existing job changes.
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Turns on the LLM rescue/refine steps: when deterministic fuzzy/
+          # phonetic matching can't place a Hebrew-script run anywhere in
+          # the daf at all, Claude gets a shot at it using context a
+          # string-similarity search can't -- see resolve_ambiguous_run/
+          # resolve_ambiguous_gap. Authenticates via workload identity
+          # federation (this job's GitHub-signed OIDC token, exchanged for
+          # a short-lived Anthropic access token) rather than a stored
+          # ANTHROPIC_API_KEY secret -- see the step above. These four IDs
+          # aren't secret on their own (the real credential is the
+          # short-lived exchanged token); set up under Claude Console ->
+          # Settings -> Workload identity -> Connect workload -> GitHub
+          # Actions, with the federation rule's Subject pattern scoped to
+          # exactly this repo + main branch, by immutable owner/repo ID
+          # (GitHub's repository-rename protection -- see that rule's
+          # "Advanced match options"). voice_align.py's own
+          # _anthropic_credentials_available() checks this whole set
+          # before turning llm_rescue on automatically, so a job running
+          # on a fork or a branch this rule doesn't match just fails the
+          # exchange gracefully and falls back to deterministic-only
+          # matching, the same as a missing/invalid API key used to.
+          ANTHROPIC_FEDERATION_RULE_ID: fdrl_01AtYN9MAYUPtY4cZQyXsbyc
+          ANTHROPIC_ORGANIZATION_ID: 74d376cd-dbe1-4433-9451-95c6e803b4cf
+          ANTHROPIC_SERVICE_ACCOUNT_ID: svac_01K7UViJoUA8BYZqkTSFrEpu
+          ANTHROPIC_WORKSPACE_ID: wrkspc_01Kd4TUMsuNEyVL7WLvpxiHL
+          ANTHROPIC_IDENTITY_TOKEN_FILE: ${{ runner.temp }}/anthropic-oidc-token
         run: |
           python3 voice_align.py job-audio.mp3 \
             --refs-json "$REFS_JSON" \
