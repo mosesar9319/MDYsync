@@ -117,16 +117,29 @@ def phonetic(norm_word: str) -> str:
     return "".join(_PHONETIC_CLASS.get(ch, ch) for ch in norm_word)
 
 
-def match_phrase_dual(canon, hl_norm, hl_phon, cursor, global_search=False):
+def match_phrase_dual(canon, hl_norm, hl_phon, cursor, global_search=False, window=None):
     """Same search strategy as caption_ocr_align.match_phrase(), but scores
     on the phonetic form to find the best window, then requires that same
     window to also clear a character-similarity floor. Returns
-    (start_index, end_index, phonetic_score, char_score) or None."""
+    (start_index, end_index, phonetic_score, char_score) or None.
+
+    window, when given, overrides both the local (cursor-centered) and
+    global (whole-canon) search ranges with an explicit (lo, hi) -- used by
+    refine_matches to retry a run inside the tight span between two already-
+    confirmed anchors. That span is trusted evidence in its own right (not a
+    blind guess the way a full global search is), so it gets the more
+    lenient LOCAL floor even though, like a global search, it isn't
+    centered on any single cursor and so carries no distance penalty.
+    """
     phon_phrase = "".join(hl_phon)
     if not phon_phrase:
         return None
     k = len(hl_phon)
-    if global_search:
+    if window is not None:
+        lo, hi = window
+        if hi <= lo:
+            return None
+    elif global_search:
         if k < 2:
             return None
         lo, hi = 0, len(canon)
@@ -138,13 +151,16 @@ def match_phrase_dual(canon, hl_norm, hl_phon, cursor, global_search=False):
         for s in range(lo, max(lo, hi - size + 1)):
             cand_phon = "".join(c.phon for c in canon[s:s + size])
             score = fuzz.ratio(phon_phrase, cand_phon)
-            if not global_search:
+            if not global_search and window is None:
                 score -= abs(s - cursor) * 0.15
             if best is None or score > best[2]:
                 best = (s, s + size - 1, score)
     if best is None:
         return None
-    floor = MIN_SCORE_GLOBAL if global_search else (MIN_SCORE_SINGLE if k == 1 else MIN_SCORE)
+    if window is not None:
+        floor = MIN_SCORE_SINGLE if k == 1 else MIN_SCORE
+    else:
+        floor = MIN_SCORE_GLOBAL if global_search else (MIN_SCORE_SINGLE if k == 1 else MIN_SCORE)
     if best[2] < floor:
         return None
     s, e, phon_score = best
@@ -626,26 +642,330 @@ def resolve_ambiguous_run(canon, cursor, run, forward_anchor=None, client=None):
     return s, e, score, score
 
 
-# Human-readable labels for match_runs' matchStats.bySource, and for the
-# console/UI rundown built from it -- see _build_match_stats.
+# --- Iterative gap refinement --------------------------------------------
+#
+# match_runs (pass 0) is a single fast forward sweep -- by design it leaves
+# real matches on the table: a run that misses the local search while
+# locked is skipped outright (not even tried against global search or LLM
+# rescue) until RELOCALIZE_AFTER consecutive misses pile up, and a
+# pending-but-never-confirmed candidate is silently dropped rather than
+# revisited. refine_matches (below) is a second stage that treats pass 0's
+# output as a first draft: every run it left unresolved, or resolved at low
+# confidence, gets reconsidered -- this time bounded by REAL confirmed
+# anchors on both sides (not just a forward-looking guess), which is
+# usually a dramatically tighter, more trustworthy search space than
+# anything pass 0 could construct while still mid-sweep.
+#
+# It runs in passes because resolving one gap can create a brand new
+# anchor immediately next to another still-unresolved gap, which is
+# exactly the "revisit A/B/C once D resolves" behavior this whole design
+# exists for. See refine_matches' own docstring for the convergence and
+# cost-bounding mechanics.
+
+# Hard ceiling on refinement passes, independent of the no-progress
+# convergence check refine_matches uses to stop early -- a backstop against
+# any pathological case that keeps finding *something* to change forever
+# without actually converging.
+MAX_REFINE_PASSES = 5
+# Hard ceiling on total LLM calls spent refining ONE job, on top of
+# whatever pass 0's own inline rescue already used. Gap-batching (one call
+# per contiguous unresolved stretch, not one per run) already keeps normal
+# per-pass call count low; this mostly guards a pathological video (bad
+# audio throughout, most of the shiur ambiguous) against runaway cost
+# rather than shaping the normal case.
+MAX_REFINE_LLM_CALLS = 40
+# A CONFIRMED match below this score is still eligible to be reconsidered
+# if the anchors bounding it change. Deliberately a stricter "call this
+# settled" bar than LLM_MIN_CONFIDENCE*100=60 or MIN_SCORE_GLOBAL=72, which
+# are "trust this at all" floors, not "stop looking for something better"
+# ones.
+REVISIT_CONFIDENCE_THRESHOLD = 80
+# A single LLM gap-rescue call's transcript block is capped at this many
+# runs -- a very long unresolved stretch (bad audio throughout a whole
+# section) gets split across several calls instead of one huge prompt.
+GAP_MAX_RUNS_PER_CALL = 15
+
+_LLM_GAP_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "resolutions": {
+            "type": "array",
+            "description": "One entry per transcript fragment you can confidently place. "
+                            "Omit any fragment you can't place rather than forcing a match.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "run_index": {"type": "integer", "description": "Which [run N] fragment this resolves."},
+                    "start_index": {"type": "integer", "description": "First index (from the numbered list) being read."},
+                    "end_index": {"type": "integer", "description": "Last index (from the numbered list) being read, inclusive."},
+                    "confidence": {"type": "number", "description": "0 to 1."},
+                },
+                "required": ["run_index", "start_index", "end_index", "confidence"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["resolutions"],
+    "additionalProperties": False,
+}
+
+
+def resolve_ambiguous_gap(canon, lo, hi, gap_runs, client=None):
+    """Batch-resolve every run in one gap with a SINGLE LLM call, given
+    firm anchors on both sides -- lo and hi are the real, already-confirmed
+    canonical positions immediately bounding this gap (see refine_matches),
+    not a guess, so unlike resolve_ambiguous_run's own window this one
+    needs no padding or fallback distance.
+
+    gap_runs is [(run_idx, run), ...] in audio order, all belonging to the
+    same gap. Returns {run_idx: (s, e, score, score)} -- same 4-tuple shape
+    match_phrase_dual/resolve_ambiguous_run use -- for every run the model
+    placed with acceptable confidence. Silently omits (never guesses at)
+    any run it isn't confident about.
+
+    Batching the whole gap into one call, rather than one call per run,
+    both cuts cost and gives the model strictly more to work with: the
+    full, real transcript continuity across the gap, not one isolated
+    fragment at a time.
+    """
+    import anthropic
+
+    if hi <= lo or not gap_runs:
+        return {}
+    window = canon[lo:hi]
+    candidate_text = "\n".join(f"{i}: {w.text}" for i, w in enumerate(window))
+    transcript_block = "\n".join(
+        f"[run {idx}] " + " ".join(w["text"] for w in run) for idx, run in gap_runs)
+
+    client = client or anthropic.Anthropic()
+    try:
+        response = client.messages.create(
+            model=ANTHROPIC_MODEL,
+            max_tokens=2048,
+            system=(
+                "You resolve which exact phrases of a printed Talmud (Gemara) "
+                "page a rabbi is reading aloud in a Daf Yomi shiur, from "
+                "imperfect speech-recognition transcripts of several moments "
+                "in a row -- all falling strictly between two positions in "
+                "the printed text that are ALREADY confirmed by other means, "
+                "so the true answer for every fragment is somewhere in the "
+                "numbered list below (unless a fragment isn't daf text at "
+                "all, e.g. a name or aside). The shiur is mostly English "
+                "explanation, with the rabbi periodically reading the "
+                "Hebrew/Aramaic text aloud -- often in Ashkenazi/Yeshivish "
+                "pronunciation (e.g. transcribed as 'amar Rav Yuda amar "
+                "Shmuel' for אמר רב יהודה אמר שמואל). Expect transliteration "
+                "and acoustic confusion in the transcript, not a literal "
+                "match. The numbered word list is the actual printed daf -- "
+                "ground truth; never invent, correct, or reorder its "
+                "wording. Each [run N] is a separate fragment, already in "
+                "the order they were spoken -- if you place more than one, "
+                "their printed-text ranges must stay in that same order "
+                "too. Leave a fragment out of your answer entirely rather "
+                "than forcing a match you're not confident in."
+            ),
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"Printed daf text between two confirmed positions, "
+                    f"numbered:\n{candidate_text}\n\n"
+                    f"Transcript fragments, in the order they were spoken:\n"
+                    f"{transcript_block}\n\n"
+                    f"For each fragment you can confidently place, give its "
+                    f"contiguous range in the numbered list above."
+                ),
+            }],
+            output_config={"format": {"type": "json_schema", "schema": _LLM_GAP_SCHEMA}},
+        )
+    except anthropic.AuthenticationError:
+        raise  # bad/missing key -- refine_matches disables rescue for the rest of the job
+    except anthropic.APIError as error:
+        print(f"LLM gap-rescue call failed ({error}); leaving this gap unresolved.")
+        return {}
+
+    text = next((b.text for b in response.content if b.type == "text"), None)
+    if not text:
+        return {}
+    try:
+        result = json.loads(text)
+    except json.JSONDecodeError:
+        return {}
+
+    valid_run_indices = {idx for idx, _ in gap_runs}
+    resolved = {}
+    for item in result.get("resolutions") or []:
+        run_idx = item.get("run_index")
+        if run_idx not in valid_run_indices or run_idx in resolved:
+            continue  # unknown or duplicate run_index -- keep the first, ignore the rest
+        confidence = item.get("confidence")
+        if not isinstance(confidence, (int, float)) or confidence < LLM_MIN_CONFIDENCE:
+            continue
+        start_index, end_index = item.get("start_index"), item.get("end_index")
+        if not isinstance(start_index, int) or not isinstance(end_index, int):
+            continue
+        if start_index > end_index or start_index < 0 or end_index >= len(window):
+            continue  # out-of-range indices -- treat as an unusable response, not a crash
+        s, e = lo + start_index, lo + end_index
+        resolved[run_idx] = (s, e, confidence * 100, confidence * 100)
+
+    # Order-preservation sanity check: resolved runs must land in the same
+    # relative order they were spoken in, or the whole batch is untrustworthy
+    # -- a response that reorders the reading got confused, and partially
+    # trusting an internally-inconsistent answer risks corrupting the
+    # timeline worse than just leaving the gap for manual review.
+    ordered = [resolved[idx] for idx, _ in gap_runs if idx in resolved]
+    if any(ordered[i][0] > ordered[i + 1][0] for i in range(len(ordered) - 1)):
+        print("LLM gap-rescue response was internally out of order; discarding it.")
+        return {}
+    return resolved
+
+
+def refine_matches(canon, runs, run_matches, llm_client=None, debug=False,
+                    max_passes=MAX_REFINE_PASSES, max_llm_calls=MAX_REFINE_LLM_CALLS):
+    """Iteratively revisit whatever pass 0 (match_runs) left unresolved or
+    low-confidence, using newly established anchors as tightening context --
+    "solve the puzzle" rather than "transcribe once and stop" (see the
+    section docstring above). Mutates run_matches IN PLACE; returns
+    (llm_calls_used, passes_run).
+
+    One pass = one left-to-right sweep grouping consecutive not-yet-settled
+    runs (None, or a confirmed match below REVISIT_CONFIDENCE_THRESHOLD)
+    into gaps, each bounded by the nearest settled run on either side (or
+    the sequence's own start/end). For each gap:
+
+      1. Retry match_phrase_dual for every run in it, restricted to the
+         tight span between the two real bounding anchors -- free (no
+         network), and can succeed here even where pass 0's search failed,
+         because the search space collapsed from "the whole canon" (global
+         search's floor is the strict MIN_SCORE_GLOBAL) to a few dozen
+         words between two known points (the more lenient LOCAL floor
+         applies -- see match_phrase_dual's window= handling).
+      2. Whatever's still unresolved (plus anything already resolved but
+         below REVISIT_CONFIDENCE_THRESHOLD) goes to ONE batched LLM call
+         per gap (resolve_ambiguous_gap), chunked at GAP_MAX_RUNS_PER_CALL
+         runs per call for a very long stretch.
+      3. A revised match only overwrites an existing one if it scores
+         higher -- this stage only ever improves the picture, never
+         quietly downgrades it.
+
+    A gap is only re-attempted in a later pass if its bounding anchors
+    actually changed since the last attempt (tracked per run index) --
+    otherwise nothing about the evidence changed and repeating the call
+    would just burn budget on the same answer. Since gaps only ever shrink
+    and their boundaries only ever tighten, this signature check both
+    keeps cost down AND guarantees the loop reaches a fixed point: once a
+    full pass changes nothing, every gap's signature is identical to what
+    was already tried, so the next pass (if it ran at all) would too --
+    stopping there is exact, not just a heuristic. max_passes/max_llm_calls
+    are backstops on top of that, not the primary stopping mechanism.
+    """
+    if llm_client is not None:
+        import anthropic
+    n = len(runs)
+    last_signature = {}  # run_idx -> (prev_anchor_idx, next_anchor_idx) last attempted with
+    llm_calls = 0
+    passes_run = 0
+
+    for _pass_num in range(max_passes):
+        passes_run += 1
+        changed = False
+        i = 0
+        while i < n:
+            match = run_matches[i]
+            if match is not None and match["score"] >= REVISIT_CONFIDENCE_THRESHOLD:
+                i += 1
+                continue
+            j = i
+            while j < n:
+                m = run_matches[j]
+                if m is not None and m["score"] >= REVISIT_CONFIDENCE_THRESHOLD:
+                    break
+                j += 1
+            gap_indices = list(range(i, j))
+            prev_idx = i - 1 if i > 0 else None
+            next_idx = j if j < n else None
+            signature = (prev_idx, next_idx)
+
+            if all(last_signature.get(idx) == signature for idx in gap_indices):
+                i = j
+                continue
+            for idx in gap_indices:
+                last_signature[idx] = signature
+
+            lo = run_matches[prev_idx]["e"] + 1 if prev_idx is not None else 0
+            hi = run_matches[next_idx]["s"] if next_idx is not None else len(canon)
+            hi = min(hi, lo + LLM_WINDOW_MAX)
+            if lo >= hi:
+                i = j
+                continue
+
+            gap_runs = [(idx, runs[idx]) for idx in gap_indices]
+            resolved_this_gap = {}
+
+            # 1) Deterministic retry first, in the now-tight window.
+            for idx, run in gap_runs:
+                hl_norm = [w["norm"] for w in run]
+                hl_phon = [w["phon"] for w in run]
+                m = match_phrase_dual(canon, hl_norm, hl_phon, 0, window=(lo, hi))
+                if m is not None:
+                    s, e, phon_score, _char_score = m
+                    resolved_this_gap[idx] = (s, e, phon_score, "deterministic-relocalized")
+
+            # 2) Whatever's left, batched into as few LLM calls as
+            #    GAP_MAX_RUNS_PER_CALL allows.
+            still_unresolved = [(idx, run) for idx, run in gap_runs if idx not in resolved_this_gap]
+            for chunk_start in range(0, len(still_unresolved), GAP_MAX_RUNS_PER_CALL):
+                if llm_client is None or llm_calls >= max_llm_calls:
+                    break
+                chunk = still_unresolved[chunk_start:chunk_start + GAP_MAX_RUNS_PER_CALL]
+                llm_calls += 1
+                try:
+                    llm_results = resolve_ambiguous_gap(canon, lo, hi, chunk, client=llm_client)
+                except anthropic.AuthenticationError as error:
+                    print(f"LLM gap-rescue disabled for the rest of this job ({error}).")
+                    llm_client = None
+                    llm_results = {}
+                for idx, (s, e, score, _char) in llm_results.items():
+                    resolved_this_gap[idx] = (s, e, score, "llm-rescue")
+
+            # Apply -- never overwrite an existing match with a worse one.
+            for idx, (s, e, score, source) in resolved_this_gap.items():
+                existing = run_matches[idx]
+                if existing is not None and existing["score"] >= score:
+                    continue
+                run_matches[idx] = {"s": s, "e": e, "score": score, "source": source}
+                changed = True
+                if debug:
+                    print(f"  refine pass {passes_run}: run {idx} -> [{s}-{e}] {source} score={score:.1f}")
+
+            i = j
+
+        if not changed:
+            break
+
+    return llm_calls, passes_run
+
+
+# Human-readable labels for match_runs'/refine_matches' matchStats.bySource,
+# and for the console/UI rundown built from it -- see _build_match_stats.
 MATCH_SOURCE_LABELS = {
     "deterministic-local": "Deterministic matching (locked tracking)",
     "deterministic-global": "Deterministic matching (relocalized)",
+    "deterministic-relocalized": "Deterministic matching (re-checked between anchors)",
     "llm-rescue": "LLM rescue (Claude)",
 }
 
 
-def _build_match_stats(runs, run_sources):
+def _build_match_stats(runs, run_matches, passes=1, llm_calls=0):
     """Per-mechanism word/run counts, plus the actual unmatched runs
     (heard text + timestamps), for the "how many words did each tool
     match, and which ones weren't matched at all" rundown surfaced to an
     admin after a job finishes (see build_outputs/main -- this gets
     embedded straight into the published alignment as `matchStats`).
 
-    run_sources is a same-length list of match_runs' own per-run bookkeeping
-    -- MATCH_SOURCE_LABELS key if that run ended up in a confirmed
-    WordEvent, None if it never did (dropped outright, or stuck as an
-    unconfirmed `pending` candidate that no later run ever agreed with)."""
+    run_matches is a same-length list of either None (never resolved by
+    anything, through every pass) or {"s","e","score","source"} -- source
+    is a MATCH_SOURCE_LABELS key."""
     stats = {
         "totalRuns": len(runs),
         "totalWords": sum(len(r) for r in runs),
@@ -653,10 +973,12 @@ def _build_match_stats(runs, run_sources):
         "unmatchedWords": 0,
         "bySource": {},
         "unmatched": [],
+        "passes": passes,
+        "llmCalls": llm_calls,
     }
-    for run, source in zip(runs, run_sources):
+    for run, match in zip(runs, run_matches):
         words = len(run)
-        if source is None:
+        if match is None:
             stats["unmatchedWords"] += words
             stats["unmatched"].append({
                 "start": round(run[0]["start"], 2),
@@ -666,18 +988,63 @@ def _build_match_stats(runs, run_sources):
             continue
         stats["matchedWords"] += words
         bucket = stats["bySource"].setdefault(
-            source, {"label": MATCH_SOURCE_LABELS.get(source, source), "runs": 0, "words": 0})
+            match["source"], {"label": MATCH_SOURCE_LABELS.get(match["source"], match["source"]),
+                               "runs": 0, "words": 0})
         bucket["runs"] += 1
         bucket["words"] += words
     return stats
 
 
+def _make_events(run, s, e, score):
+    """One WordEvent per real sub-chunk of the run's own ASR word timings
+    (see RUN_SUBCHUNK_WORDS/RUN_PAUSE_GAP_SECONDS), proportionally mapped
+    onto the matched canonical span -- rather than one event anchored to
+    just run[0]'s time for the whole thing."""
+    k = len(run)
+    span = e - s + 1
+    ranges = []
+    chunk_start = 0
+    for i in range(1, k):
+        gap = run[i]["start"] - run[i - 1]["end"]
+        if gap > RUN_PAUSE_GAP_SECONDS or (i - chunk_start) >= RUN_SUBCHUNK_WORDS:
+            ranges.append((chunk_start, i - 1))
+            chunk_start = i
+    ranges.append((chunk_start, k - 1))
+
+    out = []
+    for w0, w1 in ranges:
+        cs = s + min(span - 1, round(span * w0 / k))
+        ce = max(cs, s + min(span - 1, round(span * (w1 + 1) / k) - 1))
+        out.append(WordEvent(round(run[w0]["start"], 2), cs, ce, round(score, 1),
+                              " ".join(w["text"] for w in run[w0:w1 + 1])))
+    return out
+
+
+def _build_events(runs, run_matches):
+    """Materialize the final WordEvent list from run_matches, once -- after
+    pass 0 AND every refine_matches pass have finished. Kept separate from
+    match_runs' own loop so a later pass can revise a run's match (upgrade
+    its score, or resolve it for the first time) by just editing
+    run_matches in place, without anything having already committed
+    irreversible events for it."""
+    events = []
+    for run, match in zip(runs, run_matches):
+        if match is None:
+            continue
+        events.extend(_make_events(run, match["s"], match["e"], match["score"]))
+    return events
+
+
 def match_runs(canon, runs, debug=False, llm_rescue=False):
     """The cursor/lock/relocalize/pending-confirmation state machine (see
-    module docstring point 2) -- returns (events, stats): events is a list
-    of WordEvent, ready for build_outputs(); stats is a matchStats dict
-    (see _build_match_stats) breaking down which mechanism matched which
-    words, and which were never matched at all.
+    module docstring point 2) -- pass 0 of the overall pipeline, a single
+    fast forward sweep. Returns (run_matches, llm_calls): run_matches is a
+    list, one entry per run, of either None (never confirmed) or
+    {"s", "e", "score", "source"}; llm_calls is how many rescue calls this
+    pass made. Whatever's left None, or confirmed at low confidence, is
+    handed to refine_matches for further passes -- see process_video and
+    that function's own docstring for the full picture; this function's
+    output isn't final on its own.
 
     llm_rescue additionally tries resolve_ambiguous_run for any run global
     fuzzy/phonetic matching can't place at all, rather than just discarding
@@ -690,36 +1057,12 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
     locked = False
     local_misses = 0
     pending = None
-    events = []
-    run_sources = [None] * len(runs)
+    run_matches = [None] * len(runs)
+    llm_calls = 0
     llm_client = None
     if llm_rescue:
         import anthropic
         llm_client = anthropic.Anthropic()
-
-    def make_events(run, s, e, score):
-        """One WordEvent per real sub-chunk of the run's own ASR word
-        timings (see RUN_SUBCHUNK_WORDS/RUN_PAUSE_GAP_SECONDS), proportionally
-        mapped onto the matched canonical span -- rather than one event
-        anchored to just run[0]'s time for the whole thing."""
-        k = len(run)
-        span = e - s + 1
-        ranges = []
-        chunk_start = 0
-        for i in range(1, k):
-            gap = run[i]["start"] - run[i - 1]["end"]
-            if gap > RUN_PAUSE_GAP_SECONDS or (i - chunk_start) >= RUN_SUBCHUNK_WORDS:
-                ranges.append((chunk_start, i - 1))
-                chunk_start = i
-        ranges.append((chunk_start, k - 1))
-
-        out = []
-        for w0, w1 in ranges:
-            cs = s + min(span - 1, round(span * w0 / k))
-            ce = max(cs, s + min(span - 1, round(span * (w1 + 1) / k) - 1))
-            out.append(WordEvent(round(run[w0]["start"], 2), cs, ce, round(score, 1),
-                                  " ".join(w["text"] for w in run[w0:w1 + 1])))
-        return out
 
     for idx, run in enumerate(runs):
         hl_norm = [w["norm"] for w in run]
@@ -731,8 +1074,7 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
                 s, e, phon_score, char_score = m
                 cursor = s
                 local_misses = 0
-                events.extend(make_events(run, s, e, phon_score))
-                run_sources[idx] = "deterministic-local"
+                run_matches[idx] = {"s": s, "e": e, "score": phon_score, "source": "deterministic-local"}
                 if debug:
                     print(f"  t={run[0]['start']:7.2f}  [{s}-{e}] phon={phon_score:.1f} char={char_score:.1f}  "
                           f"{' '.join(w['text'] for w in run)}")
@@ -750,6 +1092,7 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
             # yet -- gives the rescue call a tighter, evidence-based window
             # than blindly guessing LLM_WINDOW_FWD words forward.
             anchor = find_forward_anchor(canon, runs, idx + 1, cursor)
+            llm_calls += 1
             try:
                 m = resolve_ambiguous_run(canon, cursor, run, forward_anchor=anchor, client=llm_client)
             except anthropic.AuthenticationError as error:
@@ -772,10 +1115,9 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
             # Two consecutive global matches agreeing on forward progression
             # -- confirmed. Both the pending run and this one are now
             # trusted; the pending one was withheld until now.
-            events.extend(make_events(pending["run"], pending["s"], pending["e"], pending["phon_score"]))
-            events.extend(make_events(run, s, e, phon_score))
-            run_sources[pending["idx"]] = pending["source"]
-            run_sources[idx] = source
+            run_matches[pending["idx"]] = {"s": pending["s"], "e": pending["e"],
+                                            "score": pending["phon_score"], "source": pending["source"]}
+            run_matches[idx] = {"s": s, "e": e, "score": phon_score, "source": source}
             cursor = s
             locked = True
             local_misses = 0
@@ -786,11 +1128,11 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
             pending = {"s": s, "e": e, "phon_score": phon_score, "char_score": char_score,
                        "run": run, "idx": idx, "source": source}
 
-    return events, _build_match_stats(runs, run_sources)
+    return run_matches, llm_calls
 
 
 def process_video(video_path, refs, model_size="small", cache_dir=None, debug=False,
-                  engine="whisper", fallback=True, llm_rescue=None):
+                  engine="whisper", fallback=True, llm_rescue=None, refine=True):
     canon, segments = load_canonical(refs, cache_dir)
     print(f"Canonical text: {len(segments)} segments, {len(canon)} words")
     for c in canon:
@@ -825,9 +1167,25 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
 
     if llm_rescue is None:
         llm_rescue = bool(os.environ.get("ANTHROPIC_API_KEY"))
-    events, stats = match_runs(canon, runs, debug=debug, llm_rescue=llm_rescue)
-    print(f"Matched {len(events)} of {len(runs)} runs "
-          f"({stats['matchedWords']} of {stats['totalWords']} words)")
+    run_matches, llm_calls = match_runs(canon, runs, debug=debug, llm_rescue=llm_rescue)
+
+    refine_passes = 0
+    if refine and runs:
+        # Deterministic re-checking between real anchors always runs, LLM-
+        # or-not -- it's free and strictly additive. The LLM half of it
+        # only runs if pass 0's own rescue would have (same env/flag gate).
+        llm_client = None
+        if llm_rescue:
+            import anthropic
+            llm_client = anthropic.Anthropic()
+        refine_calls, refine_passes = refine_matches(canon, runs, run_matches, llm_client=llm_client, debug=debug)
+        llm_calls += refine_calls
+
+    events = _build_events(runs, run_matches)
+    stats = _build_match_stats(runs, run_matches, passes=1 + refine_passes, llm_calls=llm_calls)
+    print(f"Matched {stats['matchedWords']} of {stats['totalWords']} words "
+          f"({stats['passes']} pass{'es' if stats['passes'] != 1 else ''}, "
+          f"{stats['llmCalls']} LLM call{'s' if stats['llmCalls'] != 1 else ''})")
     for bucket in stats["bySource"].values():
         print(f"  {bucket['label']}: {bucket['words']} words ({bucket['runs']} runs)")
     if stats["unmatched"]:
@@ -858,6 +1216,10 @@ def main():
                         "(default: on automatically if $ANTHROPIC_API_KEY is set).")
     p.add_argument("--no-llm-rescue", dest="llm_rescue", action="store_false",
                    help="Disable the LLM rescue step even if $ANTHROPIC_API_KEY is set.")
+    p.add_argument("--no-refine", dest="refine", action="store_false", default=True,
+                   help="Skip the iterative gap-refinement passes after pass 0 (see "
+                        "refine_matches) -- pass 0's own single sweep is the final result. "
+                        "Mainly for comparing the two stages against each other.")
     p.add_argument("--out-dir", default="out")
     p.add_argument("--debug", action="store_true")
     args = p.parse_args()
@@ -866,7 +1228,8 @@ def main():
     os.makedirs(args.out_dir, exist_ok=True)
     canon, segments, events, duration, stats = process_video(
         args.video, refs, model_size=args.model, cache_dir=args.out_dir, debug=args.debug,
-        engine=args.engine, fallback=not args.no_fallback, llm_rescue=args.llm_rescue)
+        engine=args.engine, fallback=not args.no_fallback, llm_rescue=args.llm_rescue,
+        refine=args.refine)
     if not events:
         print("No confident matches found -- check the audio and refs.")
         sys.exit(1)

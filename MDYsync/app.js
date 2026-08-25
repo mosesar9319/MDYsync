@@ -7213,11 +7213,14 @@ function proxiedResultsUrl(rawUrl) {
 // before an admin could actually read a rundown this size.
 function formatVoiceMatchStats(stats, elapsed) {
   const pct = stats.totalWords ? Math.round((stats.matchedWords / stats.totalWords) * 100) : 0;
-  const lines = [
-    `Done after ${elapsed}s.`,
-    '',
-    `Matched ${stats.matchedWords} of ${stats.totalWords} transcribed words (${pct}%):`,
-  ];
+  const lines = [`Done after ${elapsed}s.`];
+  // passes/llmCalls only show up once refine_matches has actually run --
+  // older published alignments (from before that shipped) won't have them.
+  if (stats.passes) {
+    lines.push(`(${stats.passes} matching pass${stats.passes === 1 ? '' : 'es'}, `
+      + `${stats.llmCalls || 0} LLM call${stats.llmCalls === 1 ? '' : 's'})`);
+  }
+  lines.push('', `Matched ${stats.matchedWords} of ${stats.totalWords} transcribed words (${pct}%):`);
   for (const source of Object.values(stats.bySource || {})) {
     lines.push(`  • ${source.label}: ${source.words} words (${source.runs} phrase${source.runs === 1 ? '' : 's'})`);
   }
