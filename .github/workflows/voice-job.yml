@@ -52,7 +52,11 @@ jobs:
         # its own OCR/video-frame code -- that import fails the whole module
         # (and so voice_align.py's import of it) without these installed,
         # even though nothing here calls into the OCR-specific parts of it.
-        run: pip install faster-whisper rapidfuzz yt-dlp opencv-python-headless pytesseract
+        # anthropic is installed unconditionally too -- resolve_ambiguous_run
+        # only imports/uses it when llm_rescue is actually enabled (see the
+        # ANTHROPIC_API_KEY env var below), so installing it costs nothing on
+        # a run that doesn't use it, same reasoning as the OCR packages above.
+        run: pip install faster-whisper rapidfuzz yt-dlp opencv-python-headless pytesseract anthropic
 
       # Lets yt-dlp solve YouTube's signature-decipher JS challenge itself --
       # see ocr-job.yml's own copy of these two steps for the full story on
@@ -123,6 +127,14 @@ jobs:
           # rather than failing it.
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           VOICE_ENGINE: ${{ secrets.ELEVENLABS_API_KEY != '' && 'elevenlabs' || 'whisper' }}
+          # Set the ANTHROPIC_API_KEY repo secret to turn on the LLM rescue
+          # step: when deterministic fuzzy/phonetic matching can't place a
+          # Hebrew-script run anywhere in the daf at all, Claude gets a shot
+          # at it using context a string-similarity search can't -- see
+          # resolve_ambiguous_run. Without the secret set this env var is
+          # empty, process_video's own auto-detect (`bool(os.environ.get(...))`)
+          # sees that as unset, and nothing about the existing job changes.
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           python3 voice_align.py job-audio.mp3 \
             --refs-json "$REFS_JSON" \
