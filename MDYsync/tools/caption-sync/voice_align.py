@@ -612,8 +612,15 @@ def resolve_ambiguous_run(canon, cursor, run, forward_anchor=None, client=None):
             }],
             output_config={"format": {"type": "json_schema", "schema": _LLM_RESCUE_SCHEMA}},
         )
-    except anthropic.AuthenticationError:
-        raise  # bad/missing key -- match_runs disables rescue for the rest of the job
+    except (anthropic.AuthenticationError, anthropic.WorkloadIdentityError):
+        # A bad/missing API key, or (workload identity federation) a
+        # rejected OIDC token exchange -- either way this credential
+        # doesn't work and retrying won't help. Not related by inheritance
+        # (confirmed against the installed SDK: WorkloadIdentityError is a
+        # sibling of AuthenticationError, not a subclass), so both need
+        # naming explicitly here -- match_runs disables rescue for the
+        # rest of the job on either one.
+        raise
     except anthropic.APIError as error:
         print(f"LLM rescue call failed ({error}); leaving this run unmatched.")
         return None
@@ -777,8 +784,11 @@ def resolve_ambiguous_gap(canon, lo, hi, gap_runs, client=None):
             }],
             output_config={"format": {"type": "json_schema", "schema": _LLM_GAP_SCHEMA}},
         )
-    except anthropic.AuthenticationError:
-        raise  # bad/missing key -- refine_matches disables rescue for the rest of the job
+    except (anthropic.AuthenticationError, anthropic.WorkloadIdentityError):
+        # See resolve_ambiguous_run's own copy of this except clause for
+        # why both need naming explicitly -- refine_matches disables
+        # rescue for the rest of the job on either one.
+        raise
     except anthropic.APIError as error:
         print(f"LLM gap-rescue call failed ({error}); leaving this gap unresolved.")
         return {}
@@ -921,7 +931,7 @@ def refine_matches(canon, runs, run_matches, llm_client=None, debug=False,
                 llm_calls += 1
                 try:
                     llm_results = resolve_ambiguous_gap(canon, lo, hi, chunk, client=llm_client)
-                except anthropic.AuthenticationError as error:
+                except (anthropic.AuthenticationError, anthropic.WorkloadIdentityError) as error:
                     print(f"LLM gap-rescue disabled for the rest of this job ({error}).")
                     llm_client = None
                     llm_results = {}
@@ -1095,10 +1105,12 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
             llm_calls += 1
             try:
                 m = resolve_ambiguous_run(canon, cursor, run, forward_anchor=anchor, client=llm_client)
-            except anthropic.AuthenticationError as error:
-                # A bad/missing key will fail identically on every remaining
-                # run -- disable rescue for the rest of the job rather than
-                # repeating (and logging) the same failure for each one.
+            except (anthropic.AuthenticationError, anthropic.WorkloadIdentityError) as error:
+                # A bad/missing key, or (workload identity federation) a
+                # rejected OIDC token exchange -- either will fail
+                # identically on every remaining run, so disable rescue
+                # for the rest of the job rather than repeating (and
+                # logging) the same failure for each one.
                 print(f"LLM rescue disabled for the rest of this job ({error}).")
                 llm_client = None
             if m is not None:
