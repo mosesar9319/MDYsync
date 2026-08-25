@@ -411,11 +411,58 @@ ANTHROPIC_MODEL = "claude-opus-5"
 # would carry.
 LLM_WINDOW_BACK = 30
 LLM_WINDOW_FWD = 150
+# Absolute ceiling on the candidate window's size regardless of how far a
+# real forward anchor (see find_forward_anchor) turns out to be -- a huge
+# window costs tokens/latency for no real benefit, since a phrase that far
+# from the last confirmed position is more likely a bad anchor (a
+# coincidental fuzzy match elsewhere) than a genuine multi-minute tangent.
+LLM_WINDOW_MAX = 400
 # Below this, treat the model's own uncertainty as "no rescue" rather than
 # accepting a low-confidence guess -- consistent with every other floor in
 # this file (MIN_SCORE/MIN_SCORE_GLOBAL/CHAR_FLOOR): only trust what's
 # actually confident, leave the rest for manual correction.
 LLM_MIN_CONFIDENCE = 0.6
+# How many runs past an ambiguous one find_forward_anchor is willing to look
+# before giving up and letting resolve_ambiguous_run fall back to the fixed
+# LLM_WINDOW_FWD guess.
+LLM_LOOKAHEAD_RUNS = 12
+# Small slack past a forward anchor's own start -- the ambiguous phrase
+# should read right up TO that confirmed position, not past it, but the
+# anchor run's first recognized word can itself be a little late (a
+# half-swallowed opening word ASR dropped), so the window's right edge
+# leaves a few words of room rather than cutting exactly at the anchor.
+LLM_ANCHOR_PAD = 5
+
+
+def find_forward_anchor(canon, runs, start_idx, cursor, max_lookahead=LLM_LOOKAHEAD_RUNS):
+    """Look ahead through the next few Hebrew-script runs after start_idx for
+    the next one deterministic matching (match_phrase_dual, global search)
+    can confidently place on its own -- i.e. the next point in the shiur
+    match_runs' own forward pass will eventually lock back onto, whether or
+    not it's actually been processed yet.
+
+    Gives resolve_ambiguous_run a real, evidence-based right edge for its
+    candidate window instead of only ever guessing a fixed distance forward:
+    if the rabbi goes on a long tangent before returning to the text, the
+    true target could be much further than LLM_WINDOW_FWD; if it's much
+    closer, a tighter window is also a more precise one for the model to
+    reason within. Read-only -- doesn't touch match_runs' own cursor/lock
+    state, just looks ahead at what it will find later.
+
+    Only accepts an anchor strictly after `cursor` (the last confirmed
+    position) -- a global match landing at or before it isn't "the next"
+    anything. Returns the anchor's canonical start index, or None if
+    nothing in the lookahead window matches confidently (a real gap, or the
+    shiur is ending) -- resolve_ambiguous_run falls back to its fixed
+    window in that case.
+    """
+    for run in runs[start_idx:start_idx + max_lookahead]:
+        hl_norm = [w["norm"] for w in run]
+        hl_phon = [w["phon"] for w in run]
+        m = match_phrase_dual(canon, hl_norm, hl_phon, 0, global_search=True)
+        if m is not None and m[0] > cursor:
+            return m[0]
+    return None
 
 _LLM_RESCUE_SCHEMA = {
     "type": "object",
@@ -436,15 +483,25 @@ _LLM_RESCUE_SCHEMA = {
 }
 
 
-def resolve_ambiguous_run(canon, cursor, run, client=None):
+def resolve_ambiguous_run(canon, cursor, run, forward_anchor=None, client=None):
     """When deterministic fuzzy/phonetic matching (match_phrase_dual) can't
     confidently place a Hebrew-script run anywhere in the daf, ask a
     reasoning model to do what string-similarity search structurally can't:
     use CONTEXT -- what's plausible for the rabbi to be reading right now,
-    given where the shiur already is and the daf's own actual wording --
-    not just which stretch of text looks acoustically closest to ASR text
-    that's already known to be unreliable (or match_phrase_dual would have
-    accepted it).
+    given where the shiur already is, the daf's own actual wording, and
+    (when known) where the shiur confirmedly picks the text back up shortly
+    after this -- not just which stretch of text looks acoustically closest
+    to ASR text that's already known to be unreliable (or match_phrase_dual
+    would have accepted it).
+
+    forward_anchor, from find_forward_anchor(), is the canonical index of
+    the next run deterministic matching will confidently place on its own --
+    a real, evidence-based right edge for the candidate window, used
+    instead of the fixed LLM_WINDOW_FWD guess when available. Bounding the
+    window between two confirmed points (the last one behind, this anchor
+    ahead) rather than guessing a fixed distance forward both tightens
+    precision when the anchor is close and preserves recall when it's a
+    genuine tangent further out than LLM_WINDOW_FWD would have reached.
 
     Deliberately the LAST resort, not the first, and never the primary
     matching mechanism -- see match_runs, which only calls this after BOTH
@@ -469,12 +526,24 @@ def resolve_ambiguous_run(canon, cursor, run, client=None):
         return None
 
     lo = max(0, cursor - LLM_WINDOW_BACK)
-    hi = min(len(canon), cursor + LLM_WINDOW_FWD)
+    if forward_anchor is not None and forward_anchor > cursor:
+        hi = min(len(canon), forward_anchor + LLM_ANCHOR_PAD)
+    else:
+        hi = min(len(canon), cursor + LLM_WINDOW_FWD)
+    hi = min(hi, lo + LLM_WINDOW_MAX)
     if lo >= hi:
         return None
     window = canon[lo:hi]
     candidate_text = "\n".join(f"{i}: {w.text}" for i, w in enumerate(window))
     transcript_text = " ".join(w["text"] for w in run)
+
+    anchor_note = ""
+    if forward_anchor is not None and lo <= forward_anchor < hi:
+        anchor_note = (
+            f" Index {forward_anchor - lo} is where the rabbi is confirmed "
+            f"to be reading again shortly after this transcript -- the "
+            f"phrase you're placing should end at or before there."
+        )
 
     client = client or anthropic.Anthropic()
     try:
@@ -505,7 +574,7 @@ def resolve_ambiguous_run(canon, cursor, run, client=None):
                     f"Printed daf text, numbered (index {cursor - lo} is the "
                     f"reader's last confirmed position -- the rabbi is most "
                     f"likely at or somewhat past there, but may have jumped "
-                    f"elsewhere):\n{candidate_text}\n\n"
+                    f"elsewhere).{anchor_note}\n{candidate_text}\n\n"
                     f"Speech-recognized transcript of what was just read "
                     f"aloud:\n{transcript_text}\n\n"
                     f"Which contiguous range of the numbered list above is "
@@ -544,17 +613,72 @@ def resolve_ambiguous_run(canon, cursor, run, client=None):
     return s, e, score, score
 
 
+# Human-readable labels for match_runs' matchStats.bySource, and for the
+# console/UI rundown built from it -- see _build_match_stats.
+MATCH_SOURCE_LABELS = {
+    "deterministic-local": "Deterministic matching (locked tracking)",
+    "deterministic-global": "Deterministic matching (relocalized)",
+    "llm-rescue": "LLM rescue (Claude)",
+}
+
+
+def _build_match_stats(runs, run_sources):
+    """Per-mechanism word/run counts, plus the actual unmatched runs
+    (heard text + timestamps), for the "how many words did each tool
+    match, and which ones weren't matched at all" rundown surfaced to an
+    admin after a job finishes (see build_outputs/main -- this gets
+    embedded straight into the published alignment as `matchStats`).
+
+    run_sources is a same-length list of match_runs' own per-run bookkeeping
+    -- MATCH_SOURCE_LABELS key if that run ended up in a confirmed
+    WordEvent, None if it never did (dropped outright, or stuck as an
+    unconfirmed `pending` candidate that no later run ever agreed with)."""
+    stats = {
+        "totalRuns": len(runs),
+        "totalWords": sum(len(r) for r in runs),
+        "matchedWords": 0,
+        "unmatchedWords": 0,
+        "bySource": {},
+        "unmatched": [],
+    }
+    for run, source in zip(runs, run_sources):
+        words = len(run)
+        if source is None:
+            stats["unmatchedWords"] += words
+            stats["unmatched"].append({
+                "start": round(run[0]["start"], 2),
+                "end": round(run[-1]["end"], 2),
+                "text": " ".join(w["text"] for w in run),
+            })
+            continue
+        stats["matchedWords"] += words
+        bucket = stats["bySource"].setdefault(
+            source, {"label": MATCH_SOURCE_LABELS.get(source, source), "runs": 0, "words": 0})
+        bucket["runs"] += 1
+        bucket["words"] += words
+    return stats
+
+
 def match_runs(canon, runs, debug=False, llm_rescue=False):
     """The cursor/lock/relocalize/pending-confirmation state machine (see
-    module docstring point 2) -- returns a list of WordEvent, ready for
-    build_outputs(). llm_rescue additionally tries resolve_ambiguous_run for
-    any run global fuzzy/phonetic matching can't place at all, rather than
-    just discarding it (see that function's own docstring)."""
+    module docstring point 2) -- returns (events, stats): events is a list
+    of WordEvent, ready for build_outputs(); stats is a matchStats dict
+    (see _build_match_stats) breaking down which mechanism matched which
+    words, and which were never matched at all.
+
+    llm_rescue additionally tries resolve_ambiguous_run for any run global
+    fuzzy/phonetic matching can't place at all, rather than just discarding
+    it (see that function's own docstring) -- including a forward-looking
+    peek (find_forward_anchor) at the next run deterministic matching will
+    itself confidently place later, so the rescue call gets a real
+    evidence-based right edge for its candidate window instead of only
+    ever guessing a fixed distance forward."""
     cursor = 0
     locked = False
     local_misses = 0
     pending = None
     events = []
+    run_sources = [None] * len(runs)
     llm_client = None
     if llm_rescue:
         import anthropic
@@ -584,7 +708,7 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
                                   " ".join(w["text"] for w in run[w0:w1 + 1])))
         return out
 
-    for run in runs:
+    for idx, run in enumerate(runs):
         hl_norm = [w["norm"] for w in run]
         hl_phon = [w["phon"] for w in run]
 
@@ -595,6 +719,7 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
                 cursor = s
                 local_misses = 0
                 events.extend(make_events(run, s, e, phon_score))
+                run_sources[idx] = "deterministic-local"
                 if debug:
                     print(f"  t={run[0]['start']:7.2f}  [{s}-{e}] phon={phon_score:.1f} char={char_score:.1f}  "
                           f"{' '.join(w['text'] for w in run)}")
@@ -605,17 +730,27 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
             locked = False  # lost the lock -- fall through to relocalizing below
 
         m = match_phrase_dual(canon, hl_norm, hl_phon, cursor, global_search=True)
+        source = "deterministic-global"
         if m is None and llm_client is not None:
+            # A real anchor -- the next run deterministic matching will
+            # itself confidently place, whether or not it's been reached
+            # yet -- gives the rescue call a tighter, evidence-based window
+            # than blindly guessing LLM_WINDOW_FWD words forward.
+            anchor = find_forward_anchor(canon, runs, idx + 1, cursor)
             try:
-                m = resolve_ambiguous_run(canon, cursor, run, client=llm_client)
+                m = resolve_ambiguous_run(canon, cursor, run, forward_anchor=anchor, client=llm_client)
             except anthropic.AuthenticationError as error:
                 # A bad/missing key will fail identically on every remaining
                 # run -- disable rescue for the rest of the job rather than
                 # repeating (and logging) the same failure for each one.
                 print(f"LLM rescue disabled for the rest of this job ({error}).")
                 llm_client = None
-            if m is not None and debug:
-                print(f"  t={run[0]['start']:7.2f}  LLM rescue -> [{m[0]}-{m[1]}] confidence={m[2]:.1f}")
+            if m is not None:
+                source = "llm-rescue"
+                if debug:
+                    anchor_note = f" (anchored to word {anchor})" if anchor is not None else ""
+                    print(f"  t={run[0]['start']:7.2f}  LLM rescue -> [{m[0]}-{m[1]}] "
+                          f"confidence={m[2]:.1f}{anchor_note}")
         if m is None:
             pending = None  # an unmatched run in between breaks any pending candidate
             continue
@@ -626,6 +761,8 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
             # trusted; the pending one was withheld until now.
             events.extend(make_events(pending["run"], pending["s"], pending["e"], pending["phon_score"]))
             events.extend(make_events(run, s, e, phon_score))
+            run_sources[pending["idx"]] = pending["source"]
+            run_sources[idx] = source
             cursor = s
             locked = True
             local_misses = 0
@@ -633,9 +770,10 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
             if debug:
                 print(f"  t={run[0]['start']:7.2f}  LOCK confirmed at [{s}-{e}]")
         else:
-            pending = {"s": s, "e": e, "phon_score": phon_score, "char_score": char_score, "run": run}
+            pending = {"s": s, "e": e, "phon_score": phon_score, "char_score": char_score,
+                       "run": run, "idx": idx, "source": source}
 
-    return events
+    return events, _build_match_stats(runs, run_sources)
 
 
 def process_video(video_path, refs, model_size="small", cache_dir=None, debug=False,
@@ -674,10 +812,16 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
 
     if llm_rescue is None:
         llm_rescue = bool(os.environ.get("ANTHROPIC_API_KEY"))
-    events = match_runs(canon, runs, debug=debug, llm_rescue=llm_rescue)
-    print(f"Matched {len(events)} of {len(runs)} runs")
+    events, stats = match_runs(canon, runs, debug=debug, llm_rescue=llm_rescue)
+    print(f"Matched {len(events)} of {len(runs)} runs "
+          f"({stats['matchedWords']} of {stats['totalWords']} words)")
+    for bucket in stats["bySource"].values():
+        print(f"  {bucket['label']}: {bucket['words']} words ({bucket['runs']} runs)")
+    if stats["unmatched"]:
+        print(f"  Not matched -- left for manual review: {stats['unmatchedWords']} words "
+              f"({len(stats['unmatched'])} runs)")
 
-    return canon, segments, events, duration
+    return canon, segments, events, duration, stats
 
 
 def main():
@@ -707,7 +851,7 @@ def main():
 
     refs = json.loads(args.refs_json)
     os.makedirs(args.out_dir, exist_ok=True)
-    canon, segments, events, duration = process_video(
+    canon, segments, events, duration, stats = process_video(
         args.video, refs, model_size=args.model, cache_dir=args.out_dir, debug=args.debug,
         engine=args.engine, fallback=not args.no_fallback, llm_rescue=args.llm_rescue)
     if not events:
@@ -717,6 +861,12 @@ def main():
     alignment, word_map = build_outputs(
         canon, segments, events, duration, args.video, refs,
         generator="voice_align.py", title_prefix="Voice recognition alignment")
+    # Embedded straight into the published alignment (publish_alignment.py
+    # dumps this dict as-is) so the reader who ran the sync can see the
+    # rundown -- which tool matched how much, and what was never matched at
+    # all -- without digging through the Actions log. See app.js's
+    # pollServerSyncResult for where this surfaces in the sync dialog.
+    alignment["matchStats"] = stats
 
     a_path = os.path.join(args.out_dir, "alignment.json")
     w_path = os.path.join(args.out_dir, "wordmap.json")
