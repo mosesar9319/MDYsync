@@ -1131,6 +1131,35 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
     return run_matches, llm_calls
 
 
+# The env vars anthropic.Anthropic() itself reads for workload identity
+# federation (see https://platform.claude.com/docs/en/manage-claude/wif-reference)
+# -- all four of RULE_ID/ORGANIZATION_ID/SERVICE_ACCOUNT_ID and one of the
+# two token vars must be set for the SDK to attempt a federated exchange.
+_ANTHROPIC_WIF_ENV_VARS = (
+    "ANTHROPIC_FEDERATION_RULE_ID", "ANTHROPIC_ORGANIZATION_ID", "ANTHROPIC_SERVICE_ACCOUNT_ID",
+)
+_ANTHROPIC_WIF_TOKEN_ENV_VARS = ("ANTHROPIC_IDENTITY_TOKEN_FILE", "ANTHROPIC_IDENTITY_TOKEN")
+
+
+def _anthropic_credentials_available():
+    """Whether anthropic.Anthropic() has any plausible way to authenticate
+    -- a plain API key/auth token, workload identity federation (voice-
+    job.yml's own setup, as of the WIF migration -- see that file), or a
+    named profile. Mirrors the SDK's own credential precedence so llm_rescue
+    auto-detects correctly regardless of which of those a given job
+    actually has configured, the same way a bare ANTHROPIC_API_KEY check
+    alone used to gate this before WIF was wired in."""
+    env = os.environ
+    if env.get("ANTHROPIC_API_KEY") or env.get("ANTHROPIC_AUTH_TOKEN"):
+        return True
+    if env.get("ANTHROPIC_PROFILE"):
+        return True
+    if all(env.get(name) for name in _ANTHROPIC_WIF_ENV_VARS) \
+            and any(env.get(name) for name in _ANTHROPIC_WIF_TOKEN_ENV_VARS):
+        return True
+    return False
+
+
 def process_video(video_path, refs, model_size="small", cache_dir=None, debug=False,
                   engine="whisper", fallback=True, llm_rescue=None, refine=True):
     canon, segments = load_canonical(refs, cache_dir)
@@ -1166,7 +1195,7 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
     print(f"{len(runs)} Hebrew-script word runs")
 
     if llm_rescue is None:
-        llm_rescue = bool(os.environ.get("ANTHROPIC_API_KEY"))
+        llm_rescue = _anthropic_credentials_available()
     run_matches, llm_calls = match_runs(canon, runs, debug=debug, llm_rescue=llm_rescue)
 
     refine_passes = 0
@@ -1213,9 +1242,11 @@ def main():
     p.add_argument("--llm-rescue", dest="llm_rescue", action="store_true", default=None,
                    help="Use Claude to resolve Hebrew-script runs deterministic "
                         "matching can't place at all, instead of discarding them "
-                        "(default: on automatically if $ANTHROPIC_API_KEY is set).")
+                        "(default: on automatically if the anthropic SDK has any "
+                        "usable credentials -- an API key or workload identity "
+                        "federation -- see _anthropic_credentials_available).")
     p.add_argument("--no-llm-rescue", dest="llm_rescue", action="store_false",
-                   help="Disable the LLM rescue step even if $ANTHROPIC_API_KEY is set.")
+                   help="Disable the LLM rescue step even if Anthropic credentials are available.")
     p.add_argument("--no-refine", dest="refine", action="store_false", default=True,
                    help="Skip the iterative gap-refinement passes after pass 0 (see "
                         "refine_matches) -- pass 0's own single sweep is the final result. "
