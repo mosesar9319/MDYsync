@@ -396,15 +396,169 @@ def hebrew_script_runs(words):
     return runs
 
 
-def match_runs(canon, runs, debug=False):
+# Claude Opus 5 -- this step is deliberately low-volume (only the minority
+# of runs deterministic matching can't place at all) and each call resolves
+# a genuinely hard case that stays wrong, unmatched, or manually corrected
+# otherwise, so accuracy matters more than shaving cost/latency the way it
+# would for a called-constantly step. See voice_align.py's own design
+# discussion for the reasoning against Sonnet/Haiku here.
+ANTHROPIC_MODEL = "claude-opus-5"
+# Wider than BACK_WINDOW/FWD_WINDOW's local-search window -- the model is
+# reasoning about plausibility, not just string similarity, so it can be
+# trusted with a bigger candidate window (a real jump: "let's go back to
+# what we said a few lines ago," a quote from elsewhere on the amud) without
+# the same false-positive risk a blind fuzzy search over that much text
+# would carry.
+LLM_WINDOW_BACK = 30
+LLM_WINDOW_FWD = 150
+# Below this, treat the model's own uncertainty as "no rescue" rather than
+# accepting a low-confidence guess -- consistent with every other floor in
+# this file (MIN_SCORE/MIN_SCORE_GLOBAL/CHAR_FLOOR): only trust what's
+# actually confident, leave the rest for manual correction.
+LLM_MIN_CONFIDENCE = 0.6
+
+_LLM_RESCUE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "is_reading_daf_text": {
+            "type": "boolean",
+            "description": "False if the transcript doesn't correspond to any "
+                            "of the printed words shown -- a name mentioned in "
+                            "passing, a quote from elsewhere, noise -- rather "
+                            "than forcing a match.",
+        },
+        "start_index": {"type": "integer", "description": "First index (from the numbered list) being read."},
+        "end_index": {"type": "integer", "description": "Last index (from the numbered list) being read, inclusive."},
+        "confidence": {"type": "number", "description": "0 to 1."},
+    },
+    "required": ["is_reading_daf_text", "start_index", "end_index", "confidence"],
+    "additionalProperties": False,
+}
+
+
+def resolve_ambiguous_run(canon, cursor, run, client=None):
+    """When deterministic fuzzy/phonetic matching (match_phrase_dual) can't
+    confidently place a Hebrew-script run anywhere in the daf, ask a
+    reasoning model to do what string-similarity search structurally can't:
+    use CONTEXT -- what's plausible for the rabbi to be reading right now,
+    given where the shiur already is and the daf's own actual wording --
+    not just which stretch of text looks acoustically closest to ASR text
+    that's already known to be unreliable (or match_phrase_dual would have
+    accepted it).
+
+    Deliberately the LAST resort, not the first, and never the primary
+    matching mechanism -- see match_runs, which only calls this after BOTH
+    match_phrase_dual passes (phonetic and character-similarity) have
+    already failed on a real audio run. Also gated on k>=2 words, for the
+    same reason match_phrase_dual's own global_search refuses k<2 runs: a
+    lone stray Hebrew word/name said in passing is exactly the case NOT
+    worth spending a model call on, not a genuinely ambiguous phrase.
+
+    Returns (start_index, end_index, confidence*100, confidence*100) --
+    matching match_phrase_dual's own (s, e, phon_score, char_score) shape
+    (there's only one real score dimension here, not two independent axes,
+    so both slots carry the same value) precisely so match_runs() doesn't
+    need to know or care which mechanism produced a given match. Returns
+    None if the model doesn't think this is daf text being read, its own
+    confidence doesn't clear LLM_MIN_CONFIDENCE, the call fails, or the
+    response doesn't parse into a usable range.
+    """
+    import anthropic
+
+    if len(run) < 2:
+        return None
+
+    lo = max(0, cursor - LLM_WINDOW_BACK)
+    hi = min(len(canon), cursor + LLM_WINDOW_FWD)
+    if lo >= hi:
+        return None
+    window = canon[lo:hi]
+    candidate_text = "\n".join(f"{i}: {w.text}" for i, w in enumerate(window))
+    transcript_text = " ".join(w["text"] for w in run)
+
+    client = client or anthropic.Anthropic()
+    try:
+        response = client.messages.create(
+            model=ANTHROPIC_MODEL,
+            max_tokens=1024,
+            system=(
+                "You resolve which exact phrase of a printed Talmud (Gemara) "
+                "page a rabbi is reading aloud in a Daf Yomi shiur, from an "
+                "imperfect speech-recognition transcript of that moment. The "
+                "shiur is mostly English explanation, with the rabbi "
+                "periodically reading the Hebrew/Aramaic text aloud -- often "
+                "in Ashkenazi/Yeshivish pronunciation (e.g. transcribed as "
+                "'amar Rav Yuda amar Shmuel' for אמר רב יהודה אמר שמואל). "
+                "Expect transliteration and acoustic confusion in the "
+                "transcript (vowels and similar-sounding letters are the "
+                "least reliable part of it), not a literal match to the "
+                "printed text. The numbered word list below is the actual "
+                "printed daf -- ground truth. Never invent, correct, or "
+                "reorder its wording; only select a contiguous range of "
+                "indices from exactly what's listed. If the transcript "
+                "doesn't correspond to any of these printed words, say so "
+                "rather than forcing a match."
+            ),
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"Printed daf text, numbered (index {cursor - lo} is the "
+                    f"reader's last confirmed position -- the rabbi is most "
+                    f"likely at or somewhat past there, but may have jumped "
+                    f"elsewhere):\n{candidate_text}\n\n"
+                    f"Speech-recognized transcript of what was just read "
+                    f"aloud:\n{transcript_text}\n\n"
+                    f"Which contiguous range of the numbered list above is "
+                    f"being read right now?"
+                ),
+            }],
+            output_config={"format": {"type": "json_schema", "schema": _LLM_RESCUE_SCHEMA}},
+        )
+    except anthropic.AuthenticationError:
+        raise  # bad/missing key -- match_runs disables rescue for the rest of the job
+    except anthropic.APIError as error:
+        print(f"LLM rescue call failed ({error}); leaving this run unmatched.")
+        return None
+
+    text = next((b.text for b in response.content if b.type == "text"), None)
+    if not text:
+        return None
+    try:
+        result = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+
+    if not result.get("is_reading_daf_text"):
+        return None
+    confidence = result.get("confidence")
+    if not isinstance(confidence, (int, float)) or confidence < LLM_MIN_CONFIDENCE:
+        return None
+    start_index, end_index = result.get("start_index"), result.get("end_index")
+    if not isinstance(start_index, int) or not isinstance(end_index, int):
+        return None
+    if start_index > end_index or start_index < 0 or end_index >= len(window):
+        return None  # out-of-range indices -- treat as an unusable response, not a crash
+
+    s, e = lo + start_index, lo + end_index
+    score = confidence * 100
+    return s, e, score, score
+
+
+def match_runs(canon, runs, debug=False, llm_rescue=False):
     """The cursor/lock/relocalize/pending-confirmation state machine (see
     module docstring point 2) -- returns a list of WordEvent, ready for
-    build_outputs()."""
+    build_outputs(). llm_rescue additionally tries resolve_ambiguous_run for
+    any run global fuzzy/phonetic matching can't place at all, rather than
+    just discarding it (see that function's own docstring)."""
     cursor = 0
     locked = False
     local_misses = 0
     pending = None
     events = []
+    llm_client = None
+    if llm_rescue:
+        import anthropic
+        llm_client = anthropic.Anthropic()
 
     def make_events(run, s, e, score):
         """One WordEvent per real sub-chunk of the run's own ASR word
@@ -451,6 +605,17 @@ def match_runs(canon, runs, debug=False):
             locked = False  # lost the lock -- fall through to relocalizing below
 
         m = match_phrase_dual(canon, hl_norm, hl_phon, cursor, global_search=True)
+        if m is None and llm_client is not None:
+            try:
+                m = resolve_ambiguous_run(canon, cursor, run, client=llm_client)
+            except anthropic.AuthenticationError as error:
+                # A bad/missing key will fail identically on every remaining
+                # run -- disable rescue for the rest of the job rather than
+                # repeating (and logging) the same failure for each one.
+                print(f"LLM rescue disabled for the rest of this job ({error}).")
+                llm_client = None
+            if m is not None and debug:
+                print(f"  t={run[0]['start']:7.2f}  LLM rescue -> [{m[0]}-{m[1]}] confidence={m[2]:.1f}")
         if m is None:
             pending = None  # an unmatched run in between breaks any pending candidate
             continue
@@ -474,7 +639,7 @@ def match_runs(canon, runs, debug=False):
 
 
 def process_video(video_path, refs, model_size="small", cache_dir=None, debug=False,
-                  engine="whisper", fallback=True):
+                  engine="whisper", fallback=True, llm_rescue=None):
     canon, segments = load_canonical(refs, cache_dir)
     print(f"Canonical text: {len(segments)} segments, {len(canon)} words")
     for c in canon:
@@ -507,7 +672,9 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
     runs = hebrew_script_runs(words)
     print(f"{len(runs)} Hebrew-script word runs")
 
-    events = match_runs(canon, runs, debug=debug)
+    if llm_rescue is None:
+        llm_rescue = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    events = match_runs(canon, runs, debug=debug, llm_rescue=llm_rescue)
     print(f"Matched {len(events)} of {len(runs)} runs")
 
     return canon, segments, events, duration
@@ -528,6 +695,12 @@ def main():
                    help="Fail outright instead of falling back to local whisper when "
                         "--engine elevenlabs errors. Use when comparing engines, so a "
                         "silent fallback can't be mistaken for an ElevenLabs result.")
+    p.add_argument("--llm-rescue", dest="llm_rescue", action="store_true", default=None,
+                   help="Use Claude to resolve Hebrew-script runs deterministic "
+                        "matching can't place at all, instead of discarding them "
+                        "(default: on automatically if $ANTHROPIC_API_KEY is set).")
+    p.add_argument("--no-llm-rescue", dest="llm_rescue", action="store_false",
+                   help="Disable the LLM rescue step even if $ANTHROPIC_API_KEY is set.")
     p.add_argument("--out-dir", default="out")
     p.add_argument("--debug", action="store_true")
     args = p.parse_args()
@@ -536,7 +709,7 @@ def main():
     os.makedirs(args.out_dir, exist_ok=True)
     canon, segments, events, duration = process_video(
         args.video, refs, model_size=args.model, cache_dir=args.out_dir, debug=args.debug,
-        engine=args.engine, fallback=not args.no_fallback)
+        engine=args.engine, fallback=not args.no_fallback, llm_rescue=args.llm_rescue)
     if not events:
         print("No confident matches found -- check the audio and refs.")
         sys.exit(1)
