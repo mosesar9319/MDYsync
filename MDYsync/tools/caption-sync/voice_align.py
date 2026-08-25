@@ -403,14 +403,27 @@ def hebrew_script_runs(words):
 # would for a called-constantly step. See voice_align.py's own design
 # discussion for the reasoning against Sonnet/Haiku here.
 ANTHROPIC_MODEL = "claude-opus-5"
-# Wider than BACK_WINDOW/FWD_WINDOW's local-search window -- the model is
-# reasoning about plausibility, not just string similarity, so it can be
-# trusted with a bigger candidate window (a real jump: "let's go back to
-# what we said a few lines ago," a quote from elsewhere on the amud) without
-# the same false-positive risk a blind fuzzy search over that much text
-# would carry.
-LLM_WINDOW_BACK = 30
-LLM_WINDOW_FWD = 150
+# No real backward slack: by the time resolve_ambiguous_run is called,
+# match_phrase_dual's own GLOBAL search (which scans the entire canon, not
+# just forward from cursor) has already failed to find this run anywhere --
+# so if the true phrase were behind cursor with any real acoustic
+# resemblance, that search would already have caught it. The only thing
+# LLM_WINDOW_BACK=0 gives up is a hypothetical backward re-read the
+# deterministic pass ALSO couldn't recognize acoustically, which the model
+# reasoning about it isn't any better positioned to catch than fuzzy search
+# already wasn't -- not worth the added risk of it picking a coincidentally-
+# similar earlier phrase in a repetitive sugya (see the module docstring's
+# own account of that exact failure mode).
+LLM_WINDOW_BACK = 0
+# Fallback only -- used when find_forward_anchor finds nothing to bound the
+# window with (see below), which by design is now the less common path
+# since a real anchor already bounds the common case tightly. Kept modest
+# rather than generous for the same reason as LLM_WINDOW_BACK=0: a wide
+# blind window costs precision (more chances for a coincidental match in
+# repetitive text) for very little recall (a shiur is almost always
+# continuous forward reading; a multi-hundred-word unexplained gap is rare
+# enough that leaving it for manual review is the safer default).
+LLM_WINDOW_FWD = 40
 # Absolute ceiling on the candidate window's size regardless of how far a
 # real forward anchor (see find_forward_anchor) turns out to be -- a huge
 # window costs tokens/latency for no real benefit, since a phrase that far
@@ -430,8 +443,8 @@ LLM_LOOKAHEAD_RUNS = 12
 # should read right up TO that confirmed position, not past it, but the
 # anchor run's first recognized word can itself be a little late (a
 # half-swallowed opening word ASR dropped), so the window's right edge
-# leaves a few words of room rather than cutting exactly at the anchor.
-LLM_ANCHOR_PAD = 5
+# leaves a couple words of room rather than cutting exactly at the anchor.
+LLM_ANCHOR_PAD = 3
 
 
 def find_forward_anchor(canon, runs, start_idx, cursor, max_lookahead=LLM_LOOKAHEAD_RUNS):
