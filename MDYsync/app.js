@@ -7204,6 +7204,40 @@ function proxiedResultsUrl(rawUrl) {
     : rawUrl;
 }
 
+// voice_align.py embeds a matchStats breakdown (bySource word/run counts,
+// plus every run nothing could place) straight into the published
+// alignment when the LLM-rescue-capable voice engine ran it -- see that
+// file's _build_match_stats/main(). Rendered into the sync dialog's own
+// #syncLog area (already a scrollable monospace box, used during polling
+// for progress lines) rather than a toast, since a toast auto-dismisses
+// before an admin could actually read a rundown this size.
+function formatVoiceMatchStats(stats, elapsed) {
+  const pct = stats.totalWords ? Math.round((stats.matchedWords / stats.totalWords) * 100) : 0;
+  const lines = [
+    `Done after ${elapsed}s.`,
+    '',
+    `Matched ${stats.matchedWords} of ${stats.totalWords} transcribed words (${pct}%):`,
+  ];
+  for (const source of Object.values(stats.bySource || {})) {
+    lines.push(`  • ${source.label}: ${source.words} words (${source.runs} phrase${source.runs === 1 ? '' : 's'})`);
+  }
+  if (stats.unmatched?.length) {
+    lines.push('');
+    lines.push(`Not matched — left for manual review: ${stats.unmatchedWords} words `
+      + `(${stats.unmatched.length} phrase${stats.unmatched.length === 1 ? '' : 's'}):`);
+    const shown = stats.unmatched.slice(0, 20);
+    for (const u of shown) {
+      lines.push(`  ${formatTime(u.start)}–${formatTime(u.end)}  "${u.text}"`);
+    }
+    if (stats.unmatched.length > shown.length) {
+      lines.push(`  …and ${stats.unmatched.length - shown.length} more.`);
+    }
+  } else {
+    lines.push('', 'Every transcribed phrase was matched.');
+  }
+  return lines;
+}
+
 function pollServerSyncResult(jobId, resultUrl, successMessage, dafRefOverride, method = 'ocr') {
   resultUrl = proxiedResultsUrl(resultUrl);
   const startedAt = Date.now();
@@ -7249,7 +7283,12 @@ function pollServerSyncResult(jobId, resultUrl, successMessage, dafRefOverride, 
         return;
       }
       stopSyncPolling();
-      setSyncProgress(1, [`Done after ${elapsed}s.`]);
+      // A voice-recognition job's rundown (see formatVoiceMatchStats) is
+      // worth actually reading, so it stays in #syncLog and the dialog is
+      // left open (the admin dismisses it themselves via the existing ×
+      // button) instead of auto-closing the instant the job's done.
+      const matchStats = method === 'voice' ? alignment?.matchStats : null;
+      setSyncProgress(1, matchStats ? formatVoiceMatchStats(matchStats, elapsed) : [`Done after ${elapsed}s.`]);
       // loadAlignmentData already surfaces a specific "load this exact file" toast
       // (via restoreVideoSource) for the local-video case; don't clobber it with a
       // generic one — that specific guidance is what actually prevents mis-synced
@@ -7267,7 +7306,9 @@ function pollServerSyncResult(jobId, resultUrl, successMessage, dafRefOverride, 
       if (!hadSpecificSource) {
         showToast(successMessage);
       }
-      $('syncDialog').close();
+      if (!matchStats) {
+        $('syncDialog').close();
+      }
     } catch (error) {
       consecutiveFailures++;
       if (consecutiveFailures < MAX_CONSECUTIVE_FAILURES) {
