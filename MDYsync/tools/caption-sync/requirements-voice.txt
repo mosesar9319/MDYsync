@@ -1,0 +1,14 @@
+# Python dependencies for voice-job.yml (the voice-recognition sync
+# engine). Kept as its own file, separate from what ocr-job.yml installs,
+# so actions/setup-python's pip cache in voice-job.yml has a stable key to
+# hash -- see that workflow's "Install Python dependencies" step. Not
+# version-pinned (matches how these were installed before this file
+# existed); the cache still helps on every run where pip resolves to
+# whatever it last resolved to, which is the common case.
+faster-whisper
+rapidfuzz
+yt-dlp
+opencv-python-headless
+pytesseract
+anthropic
+bgutil-ytdlp-pot-provider
