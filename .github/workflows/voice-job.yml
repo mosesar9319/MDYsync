@@ -42,6 +42,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: MDYsync/tools/caption-sync/requirements-voice.txt
 
       - name: Install ffmpeg
         run: |
@@ -60,8 +62,11 @@ jobs:
         # only imports/uses it when llm_rescue is actually enabled (see
         # _anthropic_credentials_available and the federation env vars
         # below), so installing it costs nothing on a run that doesn't use
-        # it, same reasoning as the OCR packages above.
-        run: pip install faster-whisper rapidfuzz yt-dlp opencv-python-headless pytesseract anthropic
+        # it, same reasoning as the OCR packages above. bgutil-ytdlp-pot-
+        # provider (needed by the PO token provider step below) lives in
+        # the same requirements file so the pip cache above covers it too,
+        # rather than being installed separately, uncached, later.
+        run: pip install -r MDYsync/tools/caption-sync/requirements-voice.txt
 
       # Lets yt-dlp solve YouTube's signature-decipher JS challenge itself --
       # see ocr-job.yml's own copy of these two steps for the full story on
@@ -72,7 +77,6 @@ jobs:
 
       - name: Start the PO token provider
         run: |
-          pip install bgutil-ytdlp-pot-provider
           docker run --name bgutil-provider -d -p 4416:4416 \
             brainicism/bgutil-ytdlp-pot-provider
           for _ in $(seq 1 30); do
