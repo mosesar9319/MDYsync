@@ -23,6 +23,9 @@ jobs:
             const token = await core.getIDToken('https://api.anthropic.com');
             core.setSecret(token);
             core.exportVariable('JWT', token);
+      - name: Decode JWT claims (debug only -- payload, not the signed token)
+        run: |
+          jq -rR 'split(".")[1] | gsub("-";"+") | gsub("_";"/") | @base64d | fromjson' <<< "$JWT"
       - name: Exchange for an Anthropic access token
         run: |
           curl -sS https://api.anthropic.com/v1/oauth/token \
