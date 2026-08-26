@@ -1059,13 +1059,23 @@ def _build_events(runs, run_matches):
 def match_runs(canon, runs, debug=False, llm_rescue=False):
     """The cursor/lock/relocalize/pending-confirmation state machine (see
     module docstring point 2) -- pass 0 of the overall pipeline, a single
-    fast forward sweep. Returns (run_matches, llm_calls): run_matches is a
-    list, one entry per run, of either None (never confirmed) or
-    {"s", "e", "score", "source"}; llm_calls is how many rescue calls this
-    pass made. Whatever's left None, or confirmed at low confidence, is
-    handed to refine_matches for further passes -- see process_video and
-    that function's own docstring for the full picture; this function's
-    output isn't final on its own.
+    fast forward sweep. Returns (run_matches, llm_calls, llm_client):
+    run_matches is a list, one entry per run, of either None (never
+    confirmed) or {"s", "e", "score", "source"}; llm_calls is how many
+    rescue calls this pass made; llm_client is the Anthropic client this
+    pass ended up with (None if llm_rescue was off, or if a real call
+    disabled it -- see the except clause below), which process_video
+    reuses for refine_matches rather than constructing a second client.
+    Reusing it isn't just an optimization: a second anthropic.Anthropic()
+    would force its own independent OIDC token exchange against the SAME
+    token this one already exchanged, and workload identity federation
+    treats each token as single-use (anti-replay) -- confirmed against a
+    real production run where refine_matches's own fresh client got
+    rejected on its very first call despite the token being nowhere near
+    its 5-minute expiry. Whatever's left None, or confirmed at low
+    confidence, is handed to refine_matches for further passes -- see
+    process_video and that function's own docstring for the full
+    picture; this function's output isn't final on its own.
 
     llm_rescue additionally tries resolve_ambiguous_run for any run global
     fuzzy/phonetic matching can't place at all, rather than just discarding
@@ -1151,7 +1161,7 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
             pending = {"s": s, "e": e, "phon_score": phon_score, "char_score": char_score,
                        "run": run, "idx": idx, "source": source}
 
-    return run_matches, llm_calls
+    return run_matches, llm_calls, llm_client
 
 
 # The env vars anthropic.Anthropic() itself reads for workload identity
@@ -1269,17 +1279,16 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
 
     if llm_rescue is None:
         llm_rescue = _anthropic_credentials_available()
-    run_matches, llm_calls = match_runs(canon, runs, debug=debug, llm_rescue=llm_rescue)
+    run_matches, llm_calls, llm_client = match_runs(canon, runs, debug=debug, llm_rescue=llm_rescue)
 
     refine_passes = 0
     if refine and runs:
         # Deterministic re-checking between real anchors always runs, LLM-
         # or-not -- it's free and strictly additive. The LLM half of it
-        # only runs if pass 0's own rescue would have (same env/flag gate).
-        llm_client = None
-        if llm_rescue:
-            import anthropic
-            llm_client = anthropic.Anthropic()
+        # reuses match_runs' own client (None if pass 0 never enabled or
+        # disabled rescue) rather than constructing a second one -- see
+        # match_runs' own docstring for why a second client here would
+        # actually break WIF auth, not just waste a call.
         refine_calls, refine_passes = refine_matches(canon, runs, run_matches, llm_client=llm_client, debug=debug)
         llm_calls += refine_calls
 
