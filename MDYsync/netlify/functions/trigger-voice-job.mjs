@@ -28,11 +28,54 @@ function extractYoutubeVideoId(url) {
   return match ? match[1] : null;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// This public feed is genuinely flaky, not just occasionally slow -- see
+// trigger-ocr-job.mjs's own copy of this function for the full story (confirmed
+// directly: 200, then 404, then 500, then 404 again, no pattern). A single
+// unguarded fetch, which is all this function used to do, meant that
+// flakiness took down the whole sync request on a plain coin-flip -- reported
+// directly against this exact video/channel. Three tries with a short
+// backoff is cheap insurance against exactly that.
 async function isRecentUploadOfChannel(videoId) {
-  const response = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${YOUTUBE_CHANNEL_ID}`);
-  if (!response.ok) throw new Error(`YouTube feed returned ${response.status}`);
-  const xml = await response.text();
-  return xml.includes(`<yt:videoId>${videoId}</yt:videoId>`);
+  const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${YOUTUBE_CHANNEL_ID}`;
+  let lastStatus;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (attempt > 0) await sleep(500 * attempt);
+    const response = await fetch(feedUrl);
+    if (response.ok) {
+      const xml = await response.text();
+      return xml.includes(`<yt:videoId>${videoId}</yt:videoId>`);
+    }
+    lastStatus = response.status;
+  }
+  throw new Error(`YouTube feed returned ${lastStatus} (after 3 attempts)`);
+}
+
+// Same fallback trigger-ocr-job.mjs's own isLinkedVideoForAnyRef uses, and for
+// the same reason: a video already recorded in the shared video-links/
+// catalog for one of the refs being synced carries the same "this is a real
+// upload of the authorized channel" signal the feed does, just durably, so a
+// flaky/unreachable feed doesn't have to fail the whole request when this
+// independent signal is available instead.
+async function isLinkedVideoForAnyRef(videoId, refs, prefix) {
+  for (const ref of refs.slice(0, 8)) {
+    const key = prefix + String(ref).trim().replace(/\s+/g, '-');
+    try {
+      const response = await fetch(
+        `https://raw.githubusercontent.com/${OWNER}/${REPO}/results/video-links/${encodeURIComponent(key)}.json`
+      );
+      if (!response.ok) continue;
+      const link = await response.json();
+      if (link?.videoId === videoId) return true;
+    } catch {
+      // Unreachable/unparseable -- fall through to the next ref rather than
+      // failing the whole request on one bad lookup.
+    }
+  }
+  return false;
 }
 
 export default async (request) => {
@@ -58,12 +101,23 @@ export default async (request) => {
     return Response.json({ error: 'Paste a valid YouTube video link.' }, { status: 400 });
   }
   let isChannelUpload;
+  let feedError = null;
   try {
     isChannelUpload = await isRecentUploadOfChannel(youtubeVideoId);
   } catch (error) {
-    return Response.json({ error: `Could not verify the video's channel: ${error.message}` }, { status: 502 });
+    // Don't fail outright yet -- the catalog check below is an independent
+    // signal that doesn't depend on the feed being reachable at all.
+    feedError = error;
+    isChannelUpload = false;
+  }
+  if (!isChannelUpload && Array.isArray(refs) && refs.length) {
+    const linkPrefix = (language === 'he' ? 'Hebrew-' : '') + (variant === 'chazarah' ? 'Chazarah-Daf-' : '');
+    isChannelUpload = await isLinkedVideoForAnyRef(youtubeVideoId, refs, linkPrefix);
   }
   if (!isChannelUpload) {
+    if (feedError) {
+      return Response.json({ error: `Could not verify the video's channel: ${feedError.message}` }, { status: 502 });
+    }
     return Response.json({
       error: 'Voice recognition sync only works for recent Mercaz Daf Yomi uploads.'
     }, { status: 403 });

@@ -48,6 +48,8 @@ import json
 import os
 import re
 import sys
+import time
+import urllib.request
 
 from faster_whisper import WhisperModel
 from rapidfuzz import fuzz
@@ -574,6 +576,12 @@ def resolve_ambiguous_run(canon, cursor, run, forward_anchor=None, client=None):
             f"phrase you're placing should end at or before there."
         )
 
+    # Refreshes the OIDC token file in place (rate-limited internally), not
+    # just when constructing a fresh client -- the SDK re-reads that file on
+    # every exchange, so a client reused across many calls (see match_runs'
+    # own llm_client) needs the file kept current just as much as a
+    # one-off client would.
+    _refresh_github_oidc_token()
     client = client or anthropic.Anthropic()
     try:
         response = client.messages.create(
@@ -744,6 +752,9 @@ def resolve_ambiguous_gap(canon, lo, hi, gap_runs, client=None):
     transcript_block = "\n".join(
         f"[run {idx}] " + " ".join(w["text"] for w in run) for idx, run in gap_runs)
 
+    # See resolve_ambiguous_run's own copy of this call for why the refresh
+    # runs unconditionally, not just when constructing a fresh client.
+    _refresh_github_oidc_token()
     client = client or anthropic.Anthropic()
     try:
         response = client.messages.create(
@@ -1151,6 +1162,56 @@ _ANTHROPIC_WIF_ENV_VARS = (
     "ANTHROPIC_FEDERATION_RULE_ID", "ANTHROPIC_ORGANIZATION_ID", "ANTHROPIC_SERVICE_ACCOUNT_ID",
 )
 _ANTHROPIC_WIF_TOKEN_ENV_VARS = ("ANTHROPIC_IDENTITY_TOKEN_FILE", "ANTHROPIC_IDENTITY_TOKEN")
+
+# GitHub Actions ID tokens (what voice-job.yml writes to
+# ANTHROPIC_IDENTITY_TOKEN_FILE) are only valid for 5 minutes -- fine for a
+# single exchange, but a real job's LLM-rescue phase (spread across many
+# runs/gaps, each its own resolve_ambiguous_run/resolve_ambiguous_gap call)
+# routinely runs longer than that, so a token fetched once at job start
+# expires partway through and every exchange after that point starts
+# failing with a 401 (confirmed against a real production run: 2 of 91
+# rescue calls succeeded before gap-rescue hit the expired token and
+# disabled itself for the rest of the job). ACTIONS_ID_TOKEN_REQUEST_URL/
+# TOKEN are set automatically by the runner whenever the workflow has
+# `permissions: id-token: write` (already true for voice-job.yml) -- no
+# workflow change needed, any step can mint a fresh token this way, not
+# just actions/github-script.
+_OIDC_REFRESH_INTERVAL_SECONDS = 240
+_last_oidc_refresh = 0.0
+
+
+def _refresh_github_oidc_token():
+    """Best-effort re-fetch of the GitHub Actions OIDC token backing the
+    Anthropic workload identity federation exchange, so a long LLM-rescue
+    phase doesn't start failing once the token issued at job start expires.
+    Called from resolve_ambiguous_run/resolve_ambiguous_gap right before
+    each client is used, rate-limited by _OIDC_REFRESH_INTERVAL_SECONDS so
+    it isn't refetching on literally every call. No-ops outside GitHub
+    Actions (or when ANTHROPIC_IDENTITY_TOKEN_FILE isn't in play at all)
+    and never raises -- a failed refresh just leaves the existing token in
+    place, the same failure mode as before this existed."""
+    global _last_oidc_refresh
+    now = time.monotonic()
+    if now - _last_oidc_refresh < _OIDC_REFRESH_INTERVAL_SECONDS:
+        return
+    request_url = os.environ.get("ACTIONS_ID_TOKEN_REQUEST_URL")
+    request_token = os.environ.get("ACTIONS_ID_TOKEN_REQUEST_TOKEN")
+    token_file = os.environ.get("ANTHROPIC_IDENTITY_TOKEN_FILE")
+    if not (request_url and request_token and token_file):
+        return
+    _last_oidc_refresh = now
+    try:
+        separator = "&" if "?" in request_url else "?"
+        request = urllib.request.Request(
+            f"{request_url}{separator}audience=https://api.anthropic.com",
+            headers={"Authorization": f"Bearer {request_token}"},
+        )
+        with urllib.request.urlopen(request, timeout=10) as response:
+            token = json.load(response)["value"]
+        with open(token_file, "w") as f:
+            f.write(token)
+    except Exception as error:
+        print(f"GitHub OIDC token refresh failed, continuing with the existing token ({error}).")
 
 
 def _anthropic_credentials_available():
