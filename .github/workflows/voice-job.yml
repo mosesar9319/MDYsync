@@ -133,17 +133,6 @@ jobs:
             const token = await core.getIDToken('https://api.anthropic.com');
             fs.writeFileSync('${{ runner.temp }}/anthropic-oidc-token', token);
 
-      # TEMPORARY -- diagnosing why the first real repository_dispatch-
-      # triggered run's token exchange failed (401) even though the same
-      # federation rule was already confirmed working for a push-triggered
-      # test. This only prints the decoded claims (payload), never the
-      # signed token itself, so nothing secret is exposed. Remove once the
-      # root cause is confirmed and the rule (or this workflow) is fixed.
-      - name: TEMP -- decode JWT claims for WIF debugging
-        run: |
-          jq -rR 'split(".")[1] | gsub("-";"+") | gsub("_";"/") | @base64d | fromjson' \
-            "${{ runner.temp }}/anthropic-oidc-token"
-
       - name: Run the voice alignment engine
         working-directory: MDYsync/tools/caption-sync
         env:
