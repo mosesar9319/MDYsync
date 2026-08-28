@@ -5429,7 +5429,17 @@ async function loadDaf(refOverride = null, options = {}) {
     // hold the *previous* daf's data (this one hasn't matched a synced
     // alignment or saved project), so deriving refs from live state would
     // tag the link onto the wrong daf.
-    try { await restoreVideoSource(preferredVideoSource, [ref]); } catch (error) { console.error(error); }
+    try {
+      await restoreVideoSource(preferredVideoSource, [ref]);
+    } catch (error) {
+      // Previously silent (console.error only) -- a reader whose video
+      // failed to auto-load (see loadYouTubeApi's own retry story) saw no
+      // video and no explanation why, just an empty player. Now at least
+      // says something actionable instead of looking like nothing happened.
+      console.error(error);
+      showToast(`Could not load this daf's video (${error.message || 'unknown error'}). `
+        + 'Try reloading the page.', 'error');
+    }
   }
 
   const button = $('loadDafButton');
@@ -5545,29 +5555,66 @@ function validateYouTubeId(id) {
 function loadYouTubeApi() {
   if (window.YT?.Player) return Promise.resolve(window.YT);
   if (state.youtubeApiPromise) return state.youtubeApiPromise;
+  state.youtubeApiPromise = loadYouTubeApiWithRetry();
+  return state.youtubeApiPromise;
+}
 
-  state.youtubeApiPromise = new Promise((resolve, reject) => {
+// Reported directly: this script fails to load roughly half the time, not
+// just an occasional blip -- same "genuinely flaky, worth retrying" story
+// already confirmed and fixed for the YouTube channel-feed fetch in
+// trigger-ocr-job.mjs/trigger-voice-job.mjs. Only retries a definite
+// script.onerror (network/DNS/blocked failure) -- never the 15s "took too
+// long" timeout in attemptLoadYouTubeApi, since that path means a request
+// might still be in flight, and starting a second script tag while the
+// first could still complete risks the YouTube API's own global
+// onYouTubeIframeAPIReady callback firing twice for two overlapping loads.
+const YOUTUBE_API_LOAD_ATTEMPTS = 3;
+async function loadYouTubeApiWithRetry() {
+  let lastError;
+  for (let attempt = 1; attempt <= YOUTUBE_API_LOAD_ATTEMPTS; attempt++) {
+    try {
+      return await attemptLoadYouTubeApi();
+    } catch (error) {
+      lastError = error;
+      if (error.retryable === false || attempt === YOUTUBE_API_LOAD_ATTEMPTS) break;
+      await new Promise((resolve) => setTimeout(resolve, 600 * attempt));
+    }
+  }
+  // Don't leave a permanently-rejected promise cached -- state.youtubeApiPromise
+  // being truthy short-circuits every future loadYouTubeApi() call straight to
+  // it (see above), so without this, one exhausted retry run would silently
+  // doom every later attempt for the rest of the page session (reloading a
+  // different daf, clicking play again, anything) to instantly re-fail
+  // without even trying, with "reload the page" as the only way out.
+  state.youtubeApiPromise = null;
+  throw lastError;
+}
+
+function attemptLoadYouTubeApi() {
+  return new Promise((resolve, reject) => {
     const previousCallback = window.onYouTubeIframeAPIReady;
     window.onYouTubeIframeAPIReady = () => {
       if (typeof previousCallback === 'function') previousCallback();
       resolve(window.YT);
     };
 
-    const existing = document.querySelector('script[src="https://www.youtube.com/iframe_api"]');
-    if (!existing) {
-      const script = document.createElement('script');
-      script.src = 'https://www.youtube.com/iframe_api';
-      script.async = true;
-      script.onerror = () => reject(new Error('Could not load the YouTube player API.'));
-      document.head.appendChild(script);
-    }
+    // A script tag left over from an earlier onerror'd attempt won't retry
+    // on its own -- the browser needs a fresh element to actually try
+    // fetching it again.
+    document.querySelector('script[src="https://www.youtube.com/iframe_api"]')?.remove();
+    const script = document.createElement('script');
+    script.src = 'https://www.youtube.com/iframe_api';
+    script.async = true;
+    script.onerror = () => reject(new Error('Could not load the YouTube player API.'));
+    document.head.appendChild(script);
 
     setTimeout(() => {
-      if (!window.YT?.Player) reject(new Error('The YouTube player took too long to load.'));
+      if (window.YT?.Player) return;
+      const error = new Error('The YouTube player took too long to load.');
+      error.retryable = false;
+      reject(error);
     }, 15000);
   });
-
-  return state.youtubeApiPromise;
 }
 
 function youtubeErrorMessage(code) {

@@ -31,7 +31,16 @@
       }
       window.addEventListener('error', function (event) {
         if (event.target && event.target.tagName !== 'SCRIPT') return;
-        var message = event.message || (event.target && event.target.src) || 'unknown error';
+        var src = event.target && event.target.src;
+        // The YouTube iframe API script retries itself on a definite load
+        // failure (see loadYouTubeApi in app.js -- confirmed directly that
+        // this script fails to load roughly half the time in practice) and
+        // shows its own toast if every attempt fails. Without this, the
+        // generic banner below would fire on every retry attempt too --
+        // more alarming than, and redundant with, the specific handling
+        // that already covers this exact case.
+        if (src === 'https://www.youtube.com/iframe_api') return;
+        var message = event.message || src || 'unknown error';
         showBanner(String(message));
       }, true);
       window.addEventListener('unhandledrejection', function (event) {
