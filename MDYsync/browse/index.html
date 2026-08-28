@@ -725,6 +725,26 @@
 
           <div class="daf-toolbar">
             <span class="alignment-badge needs-work" id="alignmentStatus">Needs alignment</span>
+            <!-- Only shown when both a caption-OCR and a voice-recognition
+                 sync are published for the daf on screen (see
+                 updateSyncMethodSwitchUi() in app.js) -- switching reloads
+                 just the daf text/highlighting from the other one, keeping
+                 playback position and the video itself untouched. -->
+            <div class="sync-method-switch" id="syncMethodSwitch" role="group" aria-label="Sync method" hidden>
+              <button class="active" type="button" data-method="ocr">Caption sync</button>
+              <button type="button" data-method="voice">Voice sync</button>
+            </div>
+            <!-- Persists whichever method the toggle above is currently showing
+                 as THE default readers see for this daf, overriding loadDaf()'s
+                 own caption-OCR-first default (see save-settings.mjs) -- same
+                 visibility gate as the switch itself (both methods published),
+                 plus admin-only on top of that. -->
+            <label class="toggle-label admin-only" id="syncMethodDefaultWrap" hidden
+                   title="Make the currently active sync method the default readers see for this daf.">
+              <input type="checkbox" id="syncMethodDefaultToggle" />
+              <span class="toggle"></span>
+              Set as default
+            </label>
             <label class="toggle-label">
               <input type="checkbox" id="autoScroll" checked />
               <span class="toggle"></span>
