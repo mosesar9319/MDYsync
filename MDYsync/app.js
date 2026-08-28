@@ -107,6 +107,12 @@ const state = {
   // a caption-OCR nor a voice-recognition sync exists yet for this daf.
   availableSyncMethods: { ocr: null, voice: null },
   activeSyncMethod: null,
+  // Admin-set per-ref overrides of which method is the default for readers
+  // (results/settings.json's preferredSyncMethod, keyed by ref) -- see
+  // loadDaf()'s dual-fetch and the "Set as default" admin-only control
+  // wired in updateSyncMethodSwitchUi(). Empty object, not null, when
+  // nothing's been set, so a plain [state.dafRef] lookup never throws.
+  syncMethodSettings: {},
   // Camera-scan feature (see scan-daf-page.mjs) -- scanImageWidth/Height
   // are the actual pixel dimensions of the (possibly downscaled) captured
   // photo; scanCorners are the four page-corner points the reader drags
@@ -5284,16 +5290,31 @@ async function loadDaf(refOverride = null, options = {}) {
   // once -- fetched together here so the switch UI (updateSyncMethodSwitchUi)
   // knows immediately whether there's a choice to offer, not just whichever
   // one happens to load first.
-  const [ocrAlignment, voiceAlignment] = await Promise.all([
+  const [ocrAlignment, voiceAlignment, syncSettings] = await Promise.all([
     fetchServerAlignment(ref),
     fetchServerAlignment(ref, { voice: true }),
+    // Proxied through get-results-file.mjs, same as the autoSyncToggle
+    // fetch further down -- see save-settings.mjs for why this lives
+    // per-ref inside the same site-wide settings.json rather than its own
+    // file.
+    fetch('/api/get-results-file?path=settings.json')
+      .then((response) => (response.ok ? response.json() : null))
+      .catch(() => null),
   ]);
   state.availableSyncMethods = { ocr: ocrAlignment, voice: voiceAlignment };
-  state.activeSyncMethod = ocrAlignment ? 'ocr' : (voiceAlignment ? 'voice' : null);
-  updateSyncMethodSwitchUi();
-  // Caption-OCR preferred as the default view when both exist -- it's the
-  // more established of the two engines; the reader can switch to voice
-  // recognition from the toggle this just made visible.
+  state.syncMethodSettings = syncSettings?.preferredSyncMethod || {};
+  const preferredMethod = state.syncMethodSettings[ref];
+  state.activeSyncMethod =
+    (preferredMethod === 'voice' && voiceAlignment) ? 'voice'
+    : (preferredMethod === 'ocr' && ocrAlignment) ? 'ocr'
+    : (ocrAlignment ? 'ocr' : (voiceAlignment ? 'voice' : null));
+  updateSyncMethodSwitchUi(ref);
+  // Caption-OCR preferred as the default view when both exist and no admin
+  // override says otherwise (see preferredMethod above, and the
+  // "Set as default" admin-only control that writes it) -- absent an
+  // override, caption-OCR is the more established of the two engines; the
+  // reader can always switch to voice recognition from the toggle this
+  // just made visible.
   const serverAlignment = ocrAlignment || voiceAlignment;
   if (serverAlignment) {
     // The server's own videoSource is never actually playable -- it's
@@ -5984,14 +6005,30 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
 // published result for the daf on screen, matching how every other
 // situational control on this page (fast-forward, overlay, etc.) only
 // appears when it'd actually do something.
-function updateSyncMethodSwitchUi() {
+function updateSyncMethodSwitchUi(refOverride = null) {
   const wrap = $('syncMethodSwitch');
-  if (!wrap) return;
+  const defaultWrap = $('syncMethodDefaultWrap');
+  const defaultToggle = $('syncMethodDefaultToggle');
   const bothAvailable = Boolean(state.availableSyncMethods.ocr) && Boolean(state.availableSyncMethods.voice);
-  wrap.hidden = !bothAvailable;
+  if (wrap) wrap.hidden = !bothAvailable;
+  if (defaultWrap) defaultWrap.hidden = !bothAvailable;
   if (!bothAvailable) return;
-  for (const button of wrap.querySelectorAll('button[data-method]')) {
-    button.classList.toggle('active', button.dataset.method === state.activeSyncMethod);
+  if (wrap) {
+    for (const button of wrap.querySelectorAll('button[data-method]')) {
+      button.classList.toggle('active', button.dataset.method === state.activeSyncMethod);
+    }
+  }
+  // Checked exactly when the currently-active method is ALSO the saved
+  // default for this ref -- not just "is voice active", since an admin
+  // previewing voice sync via the switch above without having saved it as
+  // the default shouldn't make this look already set. refOverride lets
+  // loadDaf()'s own initial call pass the ref it's actually loading --
+  // state.dafRef there still holds the *previous* daf's ref at this point
+  // (see its own comment a bit further down), so defaulting to it here
+  // would check the box against the wrong daf's saved preference for one
+  // render until something else happened to call this again.
+  if (defaultToggle) {
+    defaultToggle.checked = state.syncMethodSettings[refOverride || state.dafRef] === state.activeSyncMethod;
   }
 }
 
@@ -6026,7 +6063,10 @@ async function switchSyncMethod(method) {
 async function refreshOtherSyncMethod(ref, knownMethod) {
   const otherMethod = knownMethod === 'ocr' ? 'voice' : 'ocr';
   state.availableSyncMethods[otherMethod] = await fetchServerAlignment(ref, { voice: otherMethod === 'voice' });
-  updateSyncMethodSwitchUi();
+  // Explicit ref, not the state.dafRef default -- same reasoning as
+  // loadDaf()'s own call: this can run before state.dafRef has caught up
+  // to the ref it was just called with, depending on the caller.
+  updateSyncMethodSwitchUi(ref);
 }
 
 async function importAlignment(file) {
@@ -7555,6 +7595,36 @@ $('autoSyncToggle')?.addEventListener('change', async (event) => {
       : 'Automatic server-side sync for new uploads is off.');
   } catch (error) {
     event.target.checked = !enabled;
+    showToast(`Could not save this setting: ${error.message}`, 'error');
+  }
+});
+
+// Persists (or clears) an admin override of which sync method readers see
+// by default for the daf on screen -- see loadDaf()'s dual-fetch and
+// updateSyncMethodSwitchUi() for how this is read back. Always saves the
+// CURRENTLY ACTIVE method (whatever the Caption sync/Voice sync toggle is
+// on right now), so an admin previews with that toggle first, then checks
+// this once satisfied, rather than the two controls needing to agree on
+// which method to save independently.
+$('syncMethodDefaultToggle')?.addEventListener('change', async (event) => {
+  const checked = event.target.checked;
+  const ref = state.dafRef;
+  const method = checked ? state.activeSyncMethod : null;
+  try {
+    const response = await fetch('/api/save-settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ preferredSyncMethodRef: ref, preferredSyncMethod: method }),
+      keepalive: true,
+    });
+    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || 'Could not save the setting.');
+    if (method === null) delete state.syncMethodSettings[ref];
+    else state.syncMethodSettings[ref] = method;
+    showToast(checked
+      ? `Readers will now default to the ${method === 'voice' ? 'voice-recognition' : 'caption-OCR'} sync for this daf.`
+      : 'Reverted to the automatic default (caption-OCR sync, when available).');
+  } catch (error) {
+    event.target.checked = !checked;
     showToast(`Could not save this setting: ${error.message}`, 'error');
   }
 });

@@ -893,6 +893,12 @@ kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; 
 body.is-admin .admin-only { display: revert !important; }
 body.is-admin .admin-only.setup-field { display: block !important; }
 body.is-admin .marking-bar.admin-only { display: flex !important; }
+/* .toggle-label needs its own inline-flex (checkbox + track + label text in
+   a row), not the plain revert every other .admin-only element gets --
+   revert would fall back to <label>'s plain inline UA default and break
+   the toggle's alignment. Same fix as the two rules above, for the same
+   reason. */
+body.is-admin .toggle-label.admin-only { display: inline-flex !important; }
 body:not(.is-admin) .setup-strip { grid-template-columns: 1.1fr 1fr; }
 /* /watch/'s setup-strip only ever held admin tooling (video-source override,
    sync/import/export) and the daf-reference picker -- all of it belongs to

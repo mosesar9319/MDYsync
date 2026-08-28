@@ -1,8 +1,16 @@
-// Persists small site-wide admin toggles to results/settings.json, the same
-// "database on a branch" every other piece of site data already lives in.
-// Currently just one setting: whether youtube-channel-sync.mjs should also
-// dispatch a server-side OCR sync job automatically for a newly linked
-// upload, instead of requiring an admin to notice it and start one by hand.
+// Persists small admin toggles to results/settings.json, the same "database
+// on a branch" every other piece of site data already lives in. Two kinds
+// so far:
+//   - autoSyncNewUploads: site-wide, whether youtube-channel-sync.mjs should
+//     also dispatch a server-side OCR sync job automatically for a newly
+//     linked upload, instead of requiring an admin to notice it and start
+//     one by hand.
+//   - preferredSyncMethod: per-daf (keyed by ref), which of the two sync
+//     engines (see updateSyncMethodSwitchUi() in app.js) a reader sees by
+//     default for that daf when both a caption-OCR and a voice-recognition
+//     alignment are published for it -- overriding loadDaf()'s own
+//     caption-OCR-first default for the specific dapim an admin has
+//     actually compared and judged voice recognition better for.
 
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
@@ -30,8 +38,24 @@ export default async (request) => {
   } catch {
     return Response.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }
-  if (typeof body?.autoSyncNewUploads !== 'boolean') {
-    return Response.json({ error: 'autoSyncNewUploads must be a boolean.' }, { status: 400 });
+  const hasAutoSync = typeof body?.autoSyncNewUploads === 'boolean';
+  const hasPreferredMethod = typeof body?.preferredSyncMethodRef === 'string';
+  if (!hasAutoSync && !hasPreferredMethod) {
+    return Response.json(
+      { error: 'Provide autoSyncNewUploads or preferredSyncMethodRef.' }, { status: 400 }
+    );
+  }
+  if (hasPreferredMethod) {
+    const ref = body.preferredSyncMethodRef.trim();
+    if (!ref || ref.length > 100) {
+      return Response.json({ error: 'preferredSyncMethodRef must be 1-100 characters.' }, { status: 400 });
+    }
+    // null/undefined clears the override for this ref, reverting it to
+    // loadDaf()'s ordinary caption-OCR-first default.
+    if (body.preferredSyncMethod !== null && body.preferredSyncMethod !== undefined
+        && body.preferredSyncMethod !== 'ocr' && body.preferredSyncMethod !== 'voice') {
+      return Response.json({ error: "preferredSyncMethod must be 'ocr', 'voice', or null." }, { status: 400 });
+    }
   }
 
   const token = Netlify.env.get('GITHUB_DISPATCH_TOKEN');
@@ -61,7 +85,23 @@ export default async (request) => {
     // rather than failing the whole request over a file that's about to be
     // (re)written anyway.
   }
-  settings.autoSyncNewUploads = body.autoSyncNewUploads;
+  let message;
+  if (hasAutoSync) {
+    settings.autoSyncNewUploads = body.autoSyncNewUploads;
+    message = `Set autoSyncNewUploads to ${settings.autoSyncNewUploads}`;
+  }
+  if (hasPreferredMethod) {
+    const ref = body.preferredSyncMethodRef.trim();
+    const method = body.preferredSyncMethod ?? null;
+    settings.preferredSyncMethod ||= {};
+    if (method === null) {
+      delete settings.preferredSyncMethod[ref];
+      message = `Clear preferred sync method for ${ref}`;
+    } else {
+      settings.preferredSyncMethod[ref] = method;
+      message = `Set preferred sync method for ${ref} to ${method}`;
+    }
+  }
 
   const putResponse = await fetch(
     `https://api.github.com/repos/${OWNER}/${REPO}/contents/settings.json`,
@@ -69,7 +109,7 @@ export default async (request) => {
       method: 'PUT',
       headers,
       body: JSON.stringify({
-        message: `Set autoSyncNewUploads to ${settings.autoSyncNewUploads}`,
+        message,
         content: Buffer.from(JSON.stringify(settings, null, 2) + '\n', 'utf8').toString('base64'),
         branch: 'results',
         ...(sha ? { sha } : {}),
