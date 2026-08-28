@@ -344,6 +344,13 @@ class WordEvent:
     end_idx: int
     score: float
     ocr_text: str = ""
+    # Which matching mechanism produced this event -- a MATCH_SOURCE_LABELS
+    # key (voice_align.py) or "" for engines that don't distinguish (this
+    # OCR engine only has the one deterministic mechanism, so it never sets
+    # this). Carried through build_outputs into the published wordTimeline
+    # so a reader auditing match quality can see which tool placed a given
+    # word without re-deriving it from matchStats' aggregate counts alone.
+    source: str = ""
 
 
 def process_video(path, refs, crop=None, sample_fps=3.0, out_dir="out",
@@ -607,6 +614,7 @@ def build_outputs(canon, segments, events, duration, video_path, refs,
             # build_voice_confusions.py). Empty for engines that don't
             # populate WordEvent.ocr_text.
             "heardText": ev.ocr_text or "",
+            "source": ev.source,
         })
     # stretch each entry's "end" to meet the next -- word_timeline wants
     # that (a word stays highlighted on screen until the next one appears),
@@ -710,6 +718,7 @@ def build_outputs(canon, segments, events, duration, video_path, refs,
                 "w0": w0,
                 "w1": w1,
                 "heardText": entry["heardText"],
+                "source": entry["source"],
             })
 
     alignment = {

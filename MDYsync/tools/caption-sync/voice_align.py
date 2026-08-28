@@ -1016,11 +1016,13 @@ def _build_match_stats(runs, run_matches, passes=1, llm_calls=0):
     return stats
 
 
-def _make_events(run, s, e, score):
+def _make_events(run, s, e, score, source):
     """One WordEvent per real sub-chunk of the run's own ASR word timings
     (see RUN_SUBCHUNK_WORDS/RUN_PAUSE_GAP_SECONDS), proportionally mapped
     onto the matched canonical span -- rather than one event anchored to
-    just run[0]'s time for the whole thing."""
+    just run[0]'s time for the whole thing. source is carried through
+    unchanged onto every sub-chunk (they're all part of the same run-level
+    match, so there's only one mechanism to attribute the whole thing to)."""
     k = len(run)
     span = e - s + 1
     ranges = []
@@ -1037,7 +1039,7 @@ def _make_events(run, s, e, score):
         cs = s + min(span - 1, round(span * w0 / k))
         ce = max(cs, s + min(span - 1, round(span * (w1 + 1) / k) - 1))
         out.append(WordEvent(round(run[w0]["start"], 2), cs, ce, round(score, 1),
-                              " ".join(w["text"] for w in run[w0:w1 + 1])))
+                              " ".join(w["text"] for w in run[w0:w1 + 1]), source))
     return out
 
 
@@ -1052,7 +1054,7 @@ def _build_events(runs, run_matches):
     for run, match in zip(runs, run_matches):
         if match is None:
             continue
-        events.extend(_make_events(run, match["s"], match["e"], match["score"]))
+        events.extend(_make_events(run, match["s"], match["e"], match["score"], match["source"]))
     return events
 
 
