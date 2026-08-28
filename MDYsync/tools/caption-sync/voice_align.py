@@ -85,6 +85,23 @@ MIN_SCORE_SINGLE = 85
 CHAR_FLOOR = 55
 RELOCALIZE_AFTER = 12
 MAX_RUN_GAP_SECONDS = 2.0
+# Confirmed against two real production syncs: every genuine matched run
+# (an actual verbatim quotation) has come in well under 20 words. The runs
+# that blew past that were never quotations at all -- one sync's unmatched
+# bucket was dominated by 12 runs of 50-280 words each (985 of 1161
+# unmatched words, 84.8%) that read as the rabbi's own free-flowing
+# explanation, not the daf's text. hebrew_script_runs() has no way to tell
+# "reading the gemara" from "explaining in Hebrew" other than length, since
+# both look identical to it (continuous Hebrew-script speech, no real gap
+# or English word in between). A run this long was never a real candidate
+# either: match_phrase_dual already searches the ENTIRE canon, so a genuine
+# quotation this long would have been found by deterministic matching same
+# as any shorter one -- the LLM rescue calls spent on these were pure
+# waste, and counting them as "unmatched -- left for manual review" buried
+# genuine misses under a wall of text nobody could actually correct by
+# hand anyway. See MAX_PLAUSIBLE_QUOTE_WORDS' use in match_runs,
+# refine_matches, and _build_match_stats.
+MAX_PLAUSIBLE_QUOTE_WORDS = 25
 
 _CONFUSIONS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_confusions.json")
 
@@ -847,7 +864,11 @@ def refine_matches(canon, runs, run_matches, llm_client=None, debug=False,
     low-confidence, using newly established anchors as tightening context --
     "solve the puzzle" rather than "transcribe once and stop" (see the
     section docstring above). Mutates run_matches IN PLACE; returns
-    (llm_calls_used, passes_run).
+    (llm_calls_used, passes_run, offered_indices) -- offered_indices is the
+    set of run indices that got a real (non-error) response from a
+    resolve_ambiguous_gap call, whether or not that call actually resolved
+    them (see match_runs' own offered_indices for the full reasoning; the
+    two sets get merged by process_video before reaching _build_match_stats).
 
     One pass = one left-to-right sweep grouping consecutive not-yet-settled
     runs (None, or a confirmed match below REVISIT_CONFIDENCE_THRESHOLD)
@@ -886,6 +907,7 @@ def refine_matches(canon, runs, run_matches, llm_client=None, debug=False,
     last_signature = {}  # run_idx -> (prev_anchor_idx, next_anchor_idx) last attempted with
     llm_calls = 0
     passes_run = 0
+    offered_indices = set()
 
     for _pass_num in range(max_passes):
         passes_run += 1
@@ -933,8 +955,12 @@ def refine_matches(canon, runs, run_matches, llm_client=None, debug=False,
                     resolved_this_gap[idx] = (s, e, phon_score, "deterministic-relocalized")
 
             # 2) Whatever's left, batched into as few LLM calls as
-            #    GAP_MAX_RUNS_PER_CALL allows.
-            still_unresolved = [(idx, run) for idx, run in gap_runs if idx not in resolved_this_gap]
+            #    GAP_MAX_RUNS_PER_CALL allows. Runs over MAX_PLAUSIBLE_QUOTE_WORDS
+            #    are excluded here (though they still got the free deterministic
+            #    retry above) -- see that constant's own comment for why an LLM
+            #    call on one is pure waste, never a real rescue.
+            still_unresolved = [(idx, run) for idx, run in gap_runs
+                                 if idx not in resolved_this_gap and len(run) <= MAX_PLAUSIBLE_QUOTE_WORDS]
             for chunk_start in range(0, len(still_unresolved), GAP_MAX_RUNS_PER_CALL):
                 if llm_client is None or llm_calls >= max_llm_calls:
                     break
@@ -942,6 +968,13 @@ def refine_matches(canon, runs, run_matches, llm_client=None, debug=False,
                 llm_calls += 1
                 try:
                     llm_results = resolve_ambiguous_gap(canon, lo, hi, chunk, client=llm_client)
+                    # Every run in the chunk was genuinely considered, not
+                    # just the ones that made it into llm_results --
+                    # resolve_ambiguous_gap's own docstring: it "silently
+                    # omits ... any run it isn't confident about," not
+                    # "only looks at some of them." Same offered/considered
+                    # distinction as match_runs' own offered_indices.
+                    offered_indices.update(idx for idx, _run in chunk)
                 except (anthropic.AuthenticationError, anthropic.WorkloadIdentityError) as error:
                     print(f"LLM gap-rescue disabled for the rest of this job ({error}).")
                     llm_client = None
@@ -964,7 +997,7 @@ def refine_matches(canon, runs, run_matches, llm_client=None, debug=False,
         if not changed:
             break
 
-    return llm_calls, passes_run
+    return llm_calls, passes_run, offered_indices
 
 
 # Human-readable labels for match_runs'/refine_matches' matchStats.bySource,
@@ -977,7 +1010,7 @@ MATCH_SOURCE_LABELS = {
 }
 
 
-def _build_match_stats(runs, run_matches, passes=1, llm_calls=0):
+def _build_match_stats(runs, run_matches, passes=1, llm_calls=0, offered_indices=None):
     """Per-mechanism word/run counts, plus the actual unmatched runs
     (heard text + timestamps), for the "how many words did each tool
     match, and which ones weren't matched at all" rundown surfaced to an
@@ -986,26 +1019,51 @@ def _build_match_stats(runs, run_matches, passes=1, llm_calls=0):
 
     run_matches is a same-length list of either None (never resolved by
     anything, through every pass) or {"s","e","score","source"} -- source
-    is a MATCH_SOURCE_LABELS key."""
+    is a MATCH_SOURCE_LABELS key.
+
+    An unmatched run over MAX_PLAUSIBLE_QUOTE_WORDS goes into `excluded`,
+    not `unmatched` -- see that constant's own comment. It's still a real,
+    correctly-transcribed run (kept here, with its own word/run counts, for
+    transparency), just not a plausible daf-reading candidate in the first
+    place, so it doesn't belong in the "needs manual correction" bucket
+    alongside genuine misses an admin could actually fix by hand.
+
+    offered_indices (match_runs' and refine_matches' merged sets, or None
+    if llm_rescue was off entirely) tags each unmatched entry with
+    whether the LLM actually looked at it and declined, vs it never
+    getting a real shot at all (budget exhausted, or a WIF/auth failure
+    partway through the job) -- see those two functions' own docstrings.
+    Answers "is gap-rescue's recovery on short runs the model correctly
+    saying no, or are these runs just never reaching it" directly from a
+    real job's published output instead of needing --debug on a live run."""
     stats = {
         "totalRuns": len(runs),
         "totalWords": sum(len(r) for r in runs),
         "matchedWords": 0,
         "unmatchedWords": 0,
+        "excludedWords": 0,
         "bySource": {},
         "unmatched": [],
+        "excluded": [],
         "passes": passes,
         "llmCalls": llm_calls,
     }
-    for run, match in zip(runs, run_matches):
+    for idx, (run, match) in enumerate(zip(runs, run_matches)):
         words = len(run)
         if match is None:
-            stats["unmatchedWords"] += words
-            stats["unmatched"].append({
+            entry = {
                 "start": round(run[0]["start"], 2),
                 "end": round(run[-1]["end"], 2),
                 "text": " ".join(w["text"] for w in run),
-            })
+            }
+            if words > MAX_PLAUSIBLE_QUOTE_WORDS:
+                stats["excludedWords"] += words
+                stats["excluded"].append(entry)
+            else:
+                if offered_indices is not None:
+                    entry["offeredToLlm"] = idx in offered_indices
+                stats["unmatchedWords"] += words
+                stats["unmatched"].append(entry)
             continue
         stats["matchedWords"] += words
         bucket = stats["bySource"].setdefault(
@@ -1061,13 +1119,22 @@ def _build_events(runs, run_matches):
 def match_runs(canon, runs, debug=False, llm_rescue=False):
     """The cursor/lock/relocalize/pending-confirmation state machine (see
     module docstring point 2) -- pass 0 of the overall pipeline, a single
-    fast forward sweep. Returns (run_matches, llm_calls, llm_client):
-    run_matches is a list, one entry per run, of either None (never
-    confirmed) or {"s", "e", "score", "source"}; llm_calls is how many
-    rescue calls this pass made; llm_client is the Anthropic client this
-    pass ended up with (None if llm_rescue was off, or if a real call
-    disabled it -- see the except clause below), which process_video
-    reuses for refine_matches rather than constructing a second client.
+    fast forward sweep. Returns (run_matches, llm_calls, llm_client,
+    offered_indices): run_matches is a list, one entry per run, of either
+    None (never confirmed) or {"s", "e", "score", "source"}; llm_calls is
+    how many rescue calls this pass made; llm_client is the Anthropic
+    client this pass ended up with (None if llm_rescue was off, or if a
+    real call disabled it -- see the except clause below), which
+    process_video reuses for refine_matches rather than constructing a
+    second client. offered_indices is the set of run indices that
+    actually got a real (non-error) response from the model, whether or
+    not it resolved them -- lets _build_match_stats tell "the LLM looked
+    at this short run and declined" apart from "this run never got a fair
+    shot" (excluded outright for length, or the job ran out of budget/
+    auth before reaching it) in the published unmatched list, which is
+    exactly the distinction needed to tell whether gap-rescue's modest
+    recovery rate on short runs is the model correctly saying no or the
+    run just never reaching it.
     Reusing it isn't just an optimization: a second anthropic.Anthropic()
     would force its own independent OIDC token exchange against the SAME
     token this one already exchanged, and workload identity federation
@@ -1093,6 +1160,7 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
     run_matches = [None] * len(runs)
     llm_calls = 0
     llm_client = None
+    offered_indices = set()
     if llm_rescue:
         import anthropic
         llm_client = anthropic.Anthropic()
@@ -1119,7 +1187,14 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
 
         m = match_phrase_dual(canon, hl_norm, hl_phon, cursor, global_search=True)
         source = "deterministic-global"
-        if m is None and llm_client is not None:
+        # len(run) >= 2 mirrors resolve_ambiguous_run's own internal gate
+        # (see that function's docstring -- a lone word isn't worth a model
+        # call) -- checked here too, not just left to that function's own
+        # early return, so offered_indices below only ever marks a run
+        # that actually reached a real API call, not one this would have
+        # silently skipped anyway.
+        if (m is None and llm_client is not None
+                and 2 <= len(run) <= MAX_PLAUSIBLE_QUOTE_WORDS):
             # A real anchor -- the next run deterministic matching will
             # itself confidently place, whether or not it's been reached
             # yet -- gives the rescue call a tighter, evidence-based window
@@ -1128,6 +1203,12 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
             llm_calls += 1
             try:
                 m = resolve_ambiguous_run(canon, cursor, run, forward_anchor=anchor, client=llm_client)
+                # Only counts as "offered" if a real response came back --
+                # an auth failure means the model never actually saw this
+                # run, not that it considered and declined it. See
+                # offered_indices' own comment at this function's top for
+                # why that distinction matters.
+                offered_indices.add(idx)
             except (anthropic.AuthenticationError, anthropic.WorkloadIdentityError) as error:
                 # A bad/missing key, or (workload identity federation) a
                 # rejected OIDC token exchange -- either will fail
@@ -1163,7 +1244,7 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
             pending = {"s": s, "e": e, "phon_score": phon_score, "char_score": char_score,
                        "run": run, "idx": idx, "source": source}
 
-    return run_matches, llm_calls, llm_client
+    return run_matches, llm_calls, llm_client, offered_indices
 
 
 # The env vars anthropic.Anthropic() itself reads for workload identity
@@ -1281,7 +1362,7 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
 
     if llm_rescue is None:
         llm_rescue = _anthropic_credentials_available()
-    run_matches, llm_calls, llm_client = match_runs(canon, runs, debug=debug, llm_rescue=llm_rescue)
+    run_matches, llm_calls, llm_client, offered_indices = match_runs(canon, runs, debug=debug, llm_rescue=llm_rescue)
 
     refine_passes = 0
     if refine and runs:
@@ -1291,11 +1372,14 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
         # disabled rescue) rather than constructing a second one -- see
         # match_runs' own docstring for why a second client here would
         # actually break WIF auth, not just waste a call.
-        refine_calls, refine_passes = refine_matches(canon, runs, run_matches, llm_client=llm_client, debug=debug)
+        refine_calls, refine_passes, refine_offered = refine_matches(
+            canon, runs, run_matches, llm_client=llm_client, debug=debug)
         llm_calls += refine_calls
+        offered_indices |= refine_offered
 
     events = _build_events(runs, run_matches)
-    stats = _build_match_stats(runs, run_matches, passes=1 + refine_passes, llm_calls=llm_calls)
+    stats = _build_match_stats(runs, run_matches, passes=1 + refine_passes, llm_calls=llm_calls,
+                                offered_indices=offered_indices)
     print(f"Matched {stats['matchedWords']} of {stats['totalWords']} words "
           f"({stats['passes']} pass{'es' if stats['passes'] != 1 else ''}, "
           f"{stats['llmCalls']} LLM call{'s' if stats['llmCalls'] != 1 else ''})")
@@ -1304,6 +1388,9 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
     if stats["unmatched"]:
         print(f"  Not matched -- left for manual review: {stats['unmatchedWords']} words "
               f"({len(stats['unmatched'])} runs)")
+    if stats["excluded"]:
+        print(f"  Excluded (too long to be a daf-text quotation, likely free explanation): "
+              f"{stats['excludedWords']} words ({len(stats['excluded'])} runs)")
 
     return canon, segments, events, duration, stats
 

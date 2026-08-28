@@ -7270,13 +7270,29 @@ function formatVoiceMatchStats(stats, elapsed) {
       + `(${stats.unmatched.length} phrase${stats.unmatched.length === 1 ? '' : 's'}):`);
     const shown = stats.unmatched.slice(0, 20);
     for (const u of shown) {
-      lines.push(`  ${formatTime(u.start)}–${formatTime(u.end)}  "${u.text}"`);
+      // offeredToLlm (absent on older published alignments) distinguishes
+      // "the model actually looked at this and declined" from "never got
+      // a real shot" -- see voice_align.py's own offered_indices for why
+      // that split exists and what it's meant to answer.
+      const seenNote = u.offeredToLlm === true ? ' [seen by AI, declined]'
+        : u.offeredToLlm === false ? ' [never offered to AI]' : '';
+      lines.push(`  ${formatTime(u.start)}–${formatTime(u.end)}  "${u.text}"${seenNote}`);
     }
     if (stats.unmatched.length > shown.length) {
       lines.push(`  …and ${stats.unmatched.length - shown.length} more.`);
     }
   } else {
     lines.push('', 'Every transcribed phrase was matched.');
+  }
+  // Long runs voice_align.py judged too long to plausibly be a verbatim
+  // daf-text quotation (see MAX_PLAUSIBLE_QUOTE_WORDS there) -- shown
+  // separately, not mixed into the "needs correction" list above, since
+  // these are the rabbi's own free explanation, not a real sync gap.
+  // Absent entirely on older published alignments (from before this
+  // existed), same as passes/llmCalls above.
+  if (stats.excluded?.length) {
+    lines.push('', `Excluded as likely free explanation, not daf text: ${stats.excludedWords} words `
+      + `(${stats.excluded.length} phrase${stats.excluded.length === 1 ? '' : 's'}).`);
   }
   return lines;
 }
