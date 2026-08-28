@@ -4307,6 +4307,18 @@ function setReadingMode(enabled) {
   // pointers resize, and a quick tap retains play/pause behavior. It is
   // always enabled instead of relying on an unreliable coarse-pointer media
   // query, which some touch-capable browsers report incorrectly.
+  //
+  // This surface is a SIBLING of #videoFrame, not a descendant of it (see
+  // the markup) -- so #videoFrame's own mousemove/mouseenter/touchstart
+  // listeners that show the custom controls (showVideoControls, defined
+  // further down) never fire for pointer activity here, even though this
+  // surface covers nearly the entire mini-player. Left alone, the controls
+  // auto-hide after CONTROLS_AUTO_HIDE_MS and then have no way to reappear
+  // outside the thin strip at the very bottom this surface deliberately
+  // excludes. showVideoControls() is called explicitly from this surface's
+  // own pointerdown/pointermove below (and from the resize handle's own
+  // pointerdown) to keep the same show/hide behavior the main player
+  // already has, rather than the mini-player silently losing it.
   function pinchPair() {
     return [...readingVideoPinchPointers.values()].slice(0, 2);
   }
@@ -4365,6 +4377,7 @@ function setReadingMode(enabled) {
   }
   pinchSurface.addEventListener('pointerdown', (event) => {
     if (!state.readingModeEnabled || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    showVideoControls();
     clearTimeout(readingVideoGestureSaveTimer);
     readingVideoNativeGesture = null;
     const point = { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY };
@@ -4380,6 +4393,12 @@ function setReadingMode(enabled) {
     event.preventDefault();
   });
   pinchSurface.addEventListener('pointermove', (event) => {
+    // Fires on plain hover too (no button pressed), not just an active
+    // drag -- matching the main player's mousemove-driven show/hide (see
+    // this surface's own comment above for why it can't just rely on
+    // #videoFrame's own listener). Deliberately before the early return
+    // below so idle hovering still keeps the controls up.
+    showVideoControls();
     const point = readingVideoPinchPointers.get(event.pointerId);
     if (!point) return;
     point.x = event.clientX;
@@ -4499,6 +4518,10 @@ function setReadingMode(enabled) {
 
   resizeHandle.addEventListener('pointerdown', (event) => {
     if (!state.readingModeEnabled) return;
+    // Same reasoning as the pinch surface's own pointerdown/pointermove --
+    // this handle is also a sibling of #videoFrame, so grabbing it would
+    // otherwise never keep the controls visible on its own.
+    showVideoControls();
     readingVideoResize = { pointerId: event.pointerId, startX: event.clientX, width: float.offsetWidth };
     resizeHandle.setPointerCapture(event.pointerId);
     float.classList.add('is-resizing');
@@ -6491,9 +6514,11 @@ $('dafScroll').addEventListener('touchmove', markManualScroll, { passive: true }
 // docked over the bottom of the video. Shown again briefly when the video
 // first cues, and after that only while the reader's pointer is actually
 // over the video frame -- touch has no hover, so a tap does the same job
-// there. Never hides mid-drag on the scrubber (state.seeking) or while the
-// speed/quality gear is open (#videoSettings), since both mean the reader's
-// attention is on the controls themselves, not the video underneath them.
+// there. Never hides mid-drag on the scrubber (state.seeking), while the
+// speed/quality gear is open (#videoSettings), or while Reading Mode's own
+// floating mini-player is being dragged/resized (#readingVideoFloat's
+// is-dragging/is-resizing) -- all four mean the reader's attention is on
+// the controls (or the player itself), not idly away from the video.
 const CONTROLS_AUTO_HIDE_MS = 2800;
 let controlsHideTimer = null;
 
@@ -6503,7 +6528,10 @@ function showVideoControls() {
   frame.classList.remove('controls-hidden');
   if (controlsHideTimer) clearTimeout(controlsHideTimer);
   controlsHideTimer = setTimeout(() => {
-    if ($('videoSettings')?.open || state.seeking) return;
+    const readingFloat = $('readingVideoFloat');
+    if ($('videoSettings')?.open || state.seeking
+        || readingFloat?.classList.contains('is-dragging')
+        || readingFloat?.classList.contains('is-resizing')) return;
     frame.classList.add('controls-hidden');
   }, CONTROLS_AUTO_HIDE_MS);
 }
@@ -7270,13 +7298,29 @@ function formatVoiceMatchStats(stats, elapsed) {
       + `(${stats.unmatched.length} phrase${stats.unmatched.length === 1 ? '' : 's'}):`);
     const shown = stats.unmatched.slice(0, 20);
     for (const u of shown) {
-      lines.push(`  ${formatTime(u.start)}–${formatTime(u.end)}  "${u.text}"`);
+      // offeredToLlm (absent on older published alignments) distinguishes
+      // "the model actually looked at this and declined" from "never got
+      // a real shot" -- see voice_align.py's own offered_indices for why
+      // that split exists and what it's meant to answer.
+      const seenNote = u.offeredToLlm === true ? ' [seen by AI, declined]'
+        : u.offeredToLlm === false ? ' [never offered to AI]' : '';
+      lines.push(`  ${formatTime(u.start)}–${formatTime(u.end)}  "${u.text}"${seenNote}`);
     }
     if (stats.unmatched.length > shown.length) {
       lines.push(`  …and ${stats.unmatched.length - shown.length} more.`);
     }
   } else {
     lines.push('', 'Every transcribed phrase was matched.');
+  }
+  // Long runs voice_align.py judged too long to plausibly be a verbatim
+  // daf-text quotation (see MAX_PLAUSIBLE_QUOTE_WORDS there) -- shown
+  // separately, not mixed into the "needs correction" list above, since
+  // these are the rabbi's own free explanation, not a real sync gap.
+  // Absent entirely on older published alignments (from before this
+  // existed), same as passes/llmCalls above.
+  if (stats.excluded?.length) {
+    lines.push('', `Excluded as likely free explanation, not daf text: ${stats.excludedWords} words `
+      + `(${stats.excluded.length} phrase${stats.excluded.length === 1 ? '' : 's'}).`);
   }
   return lines;
 }
