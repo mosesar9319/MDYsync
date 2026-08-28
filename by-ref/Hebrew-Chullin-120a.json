@@ -1508,7 +1508,8 @@
       "ref": "Chullin 120a:1",
       "w0": 4,
       "w1": 4,
-      "heardText": "ו ו"
+      "heardText": "ו ו",
+      "source": ""
     },
     {
       "start": 190.86,
@@ -1516,7 +1517,8 @@
       "ref": "Chullin 119b:28",
       "w0": 14,
       "w1": 14,
-      "heardText": "0ח.6//: זז"
+      "heardText": "0ח.6//: זז",
+      "source": ""
     },
     {
       "start": 388.72,
@@ -1524,7 +1526,8 @@
       "ref": "Chullin 120a:27",
       "w0": 7,
       "w1": 7,
-      "heardText": "הצ י"
+      "heardText": "הצ י",
+      "source": ""
     },
     {
       "start": 390.06,
@@ -1532,7 +1535,8 @@
       "ref": "Chullin 120a:27",
       "w0": 9,
       "w1": 9,
-      "heardText": "לי א"
+      "heardText": "לי א",
+      "source": ""
     },
     {
       "start": 390.72,
@@ -1540,7 +1544,8 @@
       "ref": "Chullin 120a:27",
       "w0": 7,
       "w1": 7,
-      "heardText": "השב י הי"
+      "heardText": "השב י הי",
+      "source": ""
     },
     {
       "start": 2422.42,
@@ -1548,7 +1553,8 @@
       "ref": "Chullin 119b:18",
       "w0": 7,
       "w1": 7,
-      "heardText": "\"ע. \"לו"
+      "heardText": "\"ע. \"לו",
+      "source": ""
     },
     {
       "start": 2424.09,
@@ -1556,10 +1562,11 @@
       "ref": "Chullin 119b:18",
       "w0": 5,
       "w1": 5,
-      "heardText": "\"ע ר"
+      "heardText": "\"ע ר",
+      "source": ""
     }
   ],
-  "jobId": "2c83b10b3a9d480dbc2e6b565ec6c495",
+  "jobId": "0061339baa9945ae8a8cf369b02e3ea3",
   "videoId": "WtHbeasv-SM",
   "videoUrl": "https://www.youtube.com/watch?v=WtHbeasv-SM",
   "coveredRefs": [
