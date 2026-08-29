@@ -705,7 +705,17 @@ MAX_REFINE_PASSES = 5
 # per-pass call count low; this mostly guards a pathological video (bad
 # audio throughout, most of the shiur ambiguous) against runaway cost
 # rather than shaping the normal case.
-MAX_REFINE_LLM_CALLS = 40
+#
+# Confirmed directly against a real production run (Chullin 120, 291
+# runs) that the old 40-call ceiling was a real bottleneck, not just a
+# theoretical backstop: matchStats.unmatched's own offeredToLlm tagging
+# (see _build_match_stats) showed roughly a quarter of that job's
+# unmatched runs never got a real shot at all, on top of the ~75% the
+# model genuinely considered and declined. Raised well past what one
+# real job has needed so far -- even fully spent, this many sequential
+# Claude Opus 5 calls adds a few minutes at most against a 180-minute
+# job timeout (voice-job.yml) that real runs finish inside of 10.
+MAX_REFINE_LLM_CALLS = 100
 # A CONFIRMED match below this score is still eligible to be reconsidered
 # if the anchors bounding it change. Deliberately a stricter "call this
 # settled" bar than LLM_MIN_CONFIDENCE*100=60 or MIN_SCORE_GLOBAL=72, which
@@ -870,10 +880,14 @@ def refine_matches(canon, runs, run_matches, llm_client=None, debug=False,
     them (see match_runs' own offered_indices for the full reasoning; the
     two sets get merged by process_video before reaching _build_match_stats).
 
-    One pass = one left-to-right sweep grouping consecutive not-yet-settled
-    runs (None, or a confirmed match below REVISIT_CONFIDENCE_THRESHOLD)
-    into gaps, each bounded by the nearest settled run on either side (or
-    the sequence's own start/end). For each gap:
+    One pass = one left-to-right sweep to IDENTIFY consecutive not-yet-
+    settled runs (None, or a confirmed match below
+    REVISIT_CONFIDENCE_THRESHOLD) as gaps, each bounded by the nearest
+    settled run on either side (or the sequence's own start/end) -- but
+    gaps are then PROCESSED largest-total-words-first, not in that
+    left-to-right order, so the shared max_llm_calls budget goes to the
+    highest-value gaps before a job that runs out mid-pass starves
+    whatever gap happened to come later in the video. For each gap:
 
       1. Retry match_phrase_dual for every run in it, restricted to the
          tight span between the two real bounding anchors -- free (no
@@ -912,6 +926,20 @@ def refine_matches(canon, runs, run_matches, llm_client=None, debug=False,
     for _pass_num in range(max_passes):
         passes_run += 1
         changed = False
+
+        # Identify every gap in this pass up front (same walk as before,
+        # just collecting instead of processing inline), THEN spend the
+        # shared LLM budget on the biggest ones (most total words at
+        # stake) first, not in left-to-right video order. Confirmed
+        # directly against a real production run that the old streaming
+        # order starves whatever comes later in the video once budget
+        # runs low mid-pass -- an early short gap got its call no
+        # differently than a later gap holding far more recoverable
+        # content, so a job that ran out of budget lost the highest-value
+        # gaps just as readily as the lowest. Gaps whose signature hasn't
+        # changed since the last attempt are still skipped here exactly
+        # as before, before ever competing for budget.
+        gaps = []
         i = 0
         while i < n:
             match = run_matches[i]
@@ -928,10 +956,13 @@ def refine_matches(canon, runs, run_matches, llm_client=None, debug=False,
             prev_idx = i - 1 if i > 0 else None
             next_idx = j if j < n else None
             signature = (prev_idx, next_idx)
+            if not all(last_signature.get(idx) == signature for idx in gap_indices):
+                gaps.append((gap_indices, prev_idx, next_idx, signature))
+            i = j
 
-            if all(last_signature.get(idx) == signature for idx in gap_indices):
-                i = j
-                continue
+        gaps.sort(key=lambda g: -sum(len(runs[idx]) for idx in g[0]))
+
+        for gap_indices, prev_idx, next_idx, signature in gaps:
             for idx in gap_indices:
                 last_signature[idx] = signature
 
@@ -939,7 +970,6 @@ def refine_matches(canon, runs, run_matches, llm_client=None, debug=False,
             hi = run_matches[next_idx]["s"] if next_idx is not None else len(canon)
             hi = min(hi, lo + LLM_WINDOW_MAX)
             if lo >= hi:
-                i = j
                 continue
 
             gap_runs = [(idx, runs[idx]) for idx in gap_indices]
@@ -991,8 +1021,6 @@ def refine_matches(canon, runs, run_matches, llm_client=None, debug=False,
                 changed = True
                 if debug:
                     print(f"  refine pass {passes_run}: run {idx} -> [{s}-{e}] {source} score={score:.1f}")
-
-            i = j
 
         if not changed:
             break
