@@ -375,6 +375,183 @@
 
     .volume-button svg { width: 18px; height: 18px; }
 
+    /* Player-only visual skin. This deliberately targets the existing
+       controls without changing their markup, ids, visibility, or wiring. */
+    .player-card .video-frame {
+      --accent: #d6b36a;
+      color: #f7f2e8;
+      background: #050708;
+      border: 1px solid rgba(214,179,106,.28);
+      border-radius: 20px;
+      box-shadow:
+        0 18px 46px rgba(3,7,10,.24),
+        inset 0 0 0 1px rgba(247,242,232,.035);
+    }
+    .player-card .video-frame video,
+    .player-card .reading-video-slot { background: #050708; }
+
+    .player-card .scrubber-wrap {
+      background: linear-gradient(to top, rgba(5,7,8,.82), rgba(5,7,8,.05));
+    }
+    .player-card .scrubber {
+      color: #d6b36a;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,.42));
+    }
+    .player-card .scrubber::-webkit-slider-runnable-track {
+      height: 4px;
+      border-radius: 999px;
+      box-shadow: inset 0 0 0 1px rgba(247,242,232,.035);
+    }
+    .player-card .scrubber::-webkit-slider-thumb {
+      width: 16px;
+      height: 16px;
+      margin-top: -6px;
+      border: 2px solid #efcf8a;
+      background: #d6b36a;
+      box-shadow: 0 0 0 3px rgba(214,179,106,.14), 0 2px 7px rgba(0,0,0,.38);
+    }
+    .player-card .scrubber::-moz-range-track {
+      height: 4px;
+      border-radius: 999px;
+      box-shadow: inset 0 0 0 1px rgba(247,242,232,.035);
+    }
+    .player-card .scrubber::-moz-range-thumb {
+      width: 12px;
+      height: 12px;
+      border: 2px solid #efcf8a;
+      background: #d6b36a;
+      box-shadow: 0 0 0 3px rgba(214,179,106,.14), 0 2px 7px rgba(0,0,0,.38);
+    }
+    .player-card .time-row {
+      color: rgba(247,242,232,.82);
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 1px 3px rgba(0,0,0,.72);
+    }
+
+    .player-card .player-controls {
+      color: #f7f2e8;
+      background:
+        linear-gradient(180deg, rgba(13,15,15,.72), rgba(6,8,9,.97)),
+        radial-gradient(circle at 38% 0, rgba(214,179,106,.08), transparent 42%);
+      border-top: 1px solid rgba(247,242,232,.12);
+      box-shadow: 0 -12px 30px rgba(0,0,0,.26);
+      backdrop-filter: blur(16px) saturate(.86);
+      -webkit-backdrop-filter: blur(16px) saturate(.86);
+    }
+    .player-card .icon-button,
+    .player-card .play-button,
+    .player-card .video-settings summary,
+    .player-card .video-fullscreen-button {
+      color: #f7f2e8;
+      border-color: transparent;
+      background: transparent;
+      box-shadow: none;
+      transition: color .16s ease, background .16s ease, border-color .16s ease, transform .16s ease;
+    }
+    .player-card .icon-button:hover,
+    .player-card .video-settings summary:hover,
+    .player-card .video-fullscreen-button:hover {
+      color: #f1c96f;
+      background: rgba(214,179,106,.11);
+    }
+    .player-card .icon-button:active,
+    .player-card .video-settings summary:active,
+    .player-card .video-fullscreen-button:active { transform: scale(.94); }
+    .player-card .icon-button:disabled { color: rgba(168,176,186,.48); background: transparent; }
+    .player-card #backButton,
+    .player-card #forwardButton {
+      border: 1px solid rgba(247,242,232,.38);
+      border-radius: 999px;
+      color: #eee5d7;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .player-card #backButton:hover,
+    .player-card #forwardButton:hover { border-color: rgba(214,179,106,.8); }
+    .player-card .play-button {
+      width: 34px;
+      height: 34px;
+      color: #fff7e8;
+      border: 1.5px solid #d6b36a;
+      background: rgba(214,179,106,.07);
+      box-shadow: 0 0 0 3px rgba(214,179,106,.07), 0 4px 14px rgba(0,0,0,.28);
+    }
+    .player-card .play-button:hover {
+      color: #fffaf0;
+      background: rgba(214,179,106,.17);
+      transform: scale(1.04);
+    }
+    .player-card .play-button:active { transform: scale(.96); }
+    .player-card .control-divider { background: rgba(247,242,232,.17); }
+    .player-card .volume-slider { accent-color: #d6b36a; opacity: .92; }
+    .player-card .video-settings[open] summary { color: #f1c96f; background: rgba(214,179,106,.12); }
+    .player-card .video-settings-body {
+      color: #eee5d7;
+      background: rgba(7,9,10,.97);
+      border: 1px solid rgba(214,179,106,.24);
+      border-radius: 12px;
+      box-shadow: 0 18px 44px rgba(0,0,0,.48);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+    .player-card .video-settings-body select {
+      color: #f7f2e8;
+      background: #111414;
+      border-color: rgba(247,242,232,.18);
+      border-radius: 8px;
+    }
+    .player-card .video-settings-body select:focus { border-color: #d6b36a; outline: none; }
+    .player-card .scrub-preview {
+      color: #f7f2e8;
+      background: rgba(7,9,10,.97);
+      border-color: rgba(214,179,106,.28);
+      box-shadow: 0 14px 36px rgba(0,0,0,.46);
+    }
+    .player-card .scrub-preview::after {
+      background: #080a0a;
+      border-color: rgba(214,179,106,.28);
+    }
+    .player-card .scrub-preview strong { color: #e2bb66; }
+    .player-card .large-play {
+      color: #fff7e8;
+      border: 1.5px solid #d6b36a;
+      background: rgba(7,9,10,.78);
+      box-shadow: 0 10px 32px rgba(0,0,0,.4), 0 0 0 5px rgba(214,179,106,.07);
+    }
+    .player-card .large-play:hover { color: #fffaf0; background: rgba(214,179,106,.22); }
+    .player-card .video-source-badge {
+      color: #eee5d7;
+      background: rgba(7,9,10,.72);
+      border-color: rgba(214,179,106,.26);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    .player-card .overlay-controls-bar {
+      color: #eee5d7;
+      background: rgba(7,9,10,.82);
+      border: 1px solid rgba(214,179,106,.2);
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.3);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .player-card .overlay-drag-grip { color: rgba(247,242,232,.72); background: transparent; }
+    .player-card .overlay-controls .toggle-label { color: #eee5d7; }
+    .player-card .overlay-controls .overlay-settings summary { color: #eee5d7; }
+    .player-card .overlay-controls .overlay-settings summary:hover { color: #f1c96f; background: rgba(214,179,106,.11); }
+    .player-card .overlay-controls .overlay-settings-body {
+      color: #eee5d7;
+      background: rgba(7,9,10,.97);
+      border-color: rgba(214,179,106,.24);
+      box-shadow: 0 18px 44px rgba(0,0,0,.48);
+    }
+
+    .player-card .video-frame :focus-visible {
+      outline: 2px solid #d6b36a;
+      outline-offset: 2px;
+    }
+
     /* "Skip to reading" (see app.js's refreshChazaraGuide/skipToNextReading):
        hidden until a synced Chazarah Daf counterpart for the daf on screen
        is known, then disabled rather than hidden once there's nothing left
