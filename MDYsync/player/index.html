@@ -380,13 +380,6 @@
 
     .volume-button svg { width: 18px; height: 18px; }
 
-    /* "Skip to reading" (see app.js's refreshChazaraGuide/skipToNextReading):
-       hidden until a synced Chazarah Daf counterpart for the daf on screen
-       is known, then disabled rather than hidden once there's nothing left
-       ahead to skip to (or playback's already at a part the review shiur
-       also covers), so its state stays legible instead of just vanishing. */
-    #fastForwardButton:disabled { opacity: .35; cursor: not-allowed; }
-
     .watch-layout { display: grid; grid-template-columns: minmax(0,1.25fr) minmax(420px,.9fr); gap: 22px; align-items: start; }
     .about-card { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); padding: 24px; margin-top: 24px; }
     .about-card h2 { color: var(--navy); font: 700 25px Georgia,"Times New Roman",serif; }
@@ -658,6 +651,7 @@
     body.reading-mode-active .reading-video-float .volume-slider,
     body.reading-mode-active .reading-video-float .control-divider:not(.control-divider-end) { display: none; }
     body.reading-mode-active .reading-video-float .icon-button { width: 25px; height: 25px; border-radius: 7px; }
+    body.reading-mode-active .reading-video-float .vaater-button { height: 25px; padding: 0 10px; font-size: 11px; border-radius: 7px; }
     body.reading-mode-active .reading-video-float .play-button { width: 27px; height: 27px; }
     body.reading-mode-active .reading-video-float .video-fullscreen-button { width: 26px; height: 26px; }
     body.reading-mode-active .reading-video-pinch-surface {
@@ -710,7 +704,7 @@
     .reading-mode-tip.show { opacity: 1; }
     @container (max-width: 225px) {
       body.reading-mode-active .reading-video-float #muteButton,
-      body.reading-mode-active .reading-video-float #fastForwardButton { display: none; }
+      body.reading-mode-active .reading-video-float #vaaterButton { display: none; }
     }
 
     :focus-visible { outline: 3px solid rgba(186,132,34,.42); outline-offset: 3px; }
@@ -1045,9 +1039,7 @@
                 <svg class="pause-icon" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M7 5h4v14H7zm6 0h4v14h-4z" fill="currentColor"/></svg>
               </button>
               <button class="icon-button" id="forwardButton" aria-label="Forward 10 seconds">+10</button>
-              <button class="icon-button" id="fastForwardButton" type="button" aria-label="Skip to next reading" title="Skip ahead to the next part the review shiur covers" hidden>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 6v12l8-6-8-6Z" fill="currentColor"/><path d="M11 6v12l8-6-8-6Z" fill="currentColor"/><rect x="19.5" y="6" width="2.2" height="12" rx="1" fill="currentColor"/></svg>
-              </button>
+              <button class="vaater-button" id="vaaterButton" type="button" aria-label="Vaater -- skip ahead to the daf's next aligned word" title="Vaater -- skip ahead to the daf's next aligned word" hidden>Vaater</button>
               <div class="control-divider"></div>
               <button class="icon-button volume-button" id="muteButton" aria-label="Mute">
                 <svg class="volume-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6L8 10H4Z" fill="currentColor"/><path d="M16 9c1.3 1.7 1.3 4.3 0 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
