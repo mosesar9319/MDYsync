@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-30T18:00:51.817Z",
+  "generatedAt": "2026-08-30T22:00:52.717Z",
   "tractates": {
     "Chullin": [
       {
@@ -2747,6 +2747,11 @@
         "chazarahEn": {
           "videoId": "1sameiouhQI",
           "label": "CHAZARAH - Chullin Daf 122 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "qNU-IwS3pIA",
+          "label": "חזרה - חולין דף קכב | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
         }
       },
