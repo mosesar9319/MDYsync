@@ -5429,17 +5429,9 @@ async function loadDaf(refOverride = null, options = {}) {
     // hold the *previous* daf's data (this one hasn't matched a synced
     // alignment or saved project), so deriving refs from live state would
     // tag the link onto the wrong daf.
-    try {
-      await restoreVideoSource(preferredVideoSource, [ref]);
-    } catch (error) {
-      // Previously silent (console.error only) -- a reader whose video
-      // failed to auto-load (see loadYouTubeApi's own retry story) saw no
-      // video and no explanation why, just an empty player. Now at least
-      // says something actionable instead of looking like nothing happened.
-      console.error(error);
-      showToast(`Could not load this daf's video (${error.message || 'unknown error'}). `
-        + 'Try reloading the page.', 'error');
-    }
+    // restoreVideoSource handles and reports its own failures now (see its
+    // own comment) -- every caller gets that for free, this one included.
+    await restoreVideoSource(preferredVideoSource, [ref]);
   }
 
   const button = $('loadDafButton');
@@ -5571,11 +5563,13 @@ function loadYouTubeApi() {
 const YOUTUBE_API_LOAD_ATTEMPTS = 3;
 async function loadYouTubeApiWithRetry() {
   let lastError;
+  let realAttempts = 0;
   for (let attempt = 1; attempt <= YOUTUBE_API_LOAD_ATTEMPTS; attempt++) {
     try {
       return await attemptLoadYouTubeApi();
     } catch (error) {
       lastError = error;
+      realAttempts = attempt;
       if (error.retryable === false || attempt === YOUTUBE_API_LOAD_ATTEMPTS) break;
       await new Promise((resolve) => setTimeout(resolve, 600 * attempt));
     }
@@ -5585,8 +5579,22 @@ async function loadYouTubeApiWithRetry() {
   // it (see above), so without this, one exhausted retry run would silently
   // doom every later attempt for the rest of the page session (reloading a
   // different daf, clicking play again, anything) to instantly re-fail
-  // without even trying, with "reload the page" as the only way out.
+  // without even trying.
   state.youtubeApiPromise = null;
+  // Reported directly: a reader who reaches this point (every real attempt
+  // failed with script.onerror, not just one slow 15s timeout) still sees
+  // the exact same failure after a full page reload too -- so "reload the
+  // page" is actively wrong advice here, not just unhelpful. The same
+  // request failing identically every time, immune to a fresh page load,
+  // means something durable is blocking youtube.com specifically (an ad-
+  // blocker/privacy extension, or network-level content filtering), not a
+  // transient blip retrying could ever paper over -- so say that instead.
+  if (lastError.retryable !== false && realAttempts >= YOUTUBE_API_LOAD_ATTEMPTS) {
+    lastError = new Error(
+      `${lastError.message} Your browser or network may be blocking youtube.com -- `
+      + 'try disabling an ad-blocker/privacy extension for this site, or a different network.'
+    );
+  }
   throw lastError;
 }
 
@@ -5934,20 +5942,37 @@ function slugify(text) {
 
 async function restoreVideoSource(source, saveRefs = null) {
   if (!source || !source.type) return;
-  if (source.type === 'youtube' && source.videoId) {
-    // A server-published video-link's label is the real YouTube title
-    // (captured off the channel feed) -- worth showing verbatim instead of
-    // the generic placeholder below. A locally-saved source's label is
-    // just that same generic 'YouTube' sentinel (see loadYouTubeVideo), so
-    // it's excluded rather than shown as if it meant something.
-    const realLabel = source.label && source.label !== 'YouTube' ? source.label : null;
-    await loadYouTubeVideo(source.url || source.videoId, source.videoId, saveRefs, realLabel, source.locked === true);
-  } else if (source.type === 'direct' && source.url) {
-    $('videoUrl').value = source.url;
-    loadDirectVideoUrl(source.url, saveRefs, source.locked === true);
-  } else if (source.type === 'local') {
-    setSourcePanel('fileSourcePanel');
-    showToast(`Choose the exact video file that was analyzed: ${source.fileName || source.url || 'lecture video'}.`);
+  try {
+    if (source.type === 'youtube' && source.videoId) {
+      // A server-published video-link's label is the real YouTube title
+      // (captured off the channel feed) -- worth showing verbatim instead of
+      // the generic placeholder below. A locally-saved source's label is
+      // just that same generic 'YouTube' sentinel (see loadYouTubeVideo), so
+      // it's excluded rather than shown as if it meant something.
+      const realLabel = source.label && source.label !== 'YouTube' ? source.label : null;
+      await loadYouTubeVideo(source.url || source.videoId, source.videoId, saveRefs, realLabel, source.locked === true);
+    } else if (source.type === 'direct' && source.url) {
+      $('videoUrl').value = source.url;
+      loadDirectVideoUrl(source.url, saveRefs, source.locked === true);
+    } else if (source.type === 'local') {
+      setSourcePanel('fileSourcePanel');
+      showToast(`Choose the exact video file that was analyzed: ${source.fileName || source.url || 'lecture video'}.`);
+    }
+  } catch (error) {
+    // Confirmed directly: most callers here (loadDaf's server-alignment
+    // restore, switchSyncMethod, every "apply a finished sync job" path)
+    // had NO try/catch of their own around this call -- a genuine YouTube
+    // API load failure (see loadYouTubeApiWithRetry) used to propagate all
+    // the way up as an unhandled rejection, aborting the REST of
+    // loadAlignmentData/loadDaf along with it (the daf text and segments
+    // never rendered either, even though nothing about them actually
+    // failed) and surfacing only the generic global error banner instead of
+    // a specific, actionable message. Caught here, once, so every caller
+    // gets "the video didn't load, but the rest of the daf still will" for
+    // free instead of needing its own duplicate handling.
+    console.error(error);
+    showToast(`Could not load this daf's video (${error.message || 'unknown error'}). `
+      + 'The daf text is still available below.', 'error');
   }
 }
 
