@@ -3749,17 +3749,31 @@ function updateVideoOverlay(time) {
 
   if (fadeBackgroundOnly) applyBackgroundOnlyFade(ctx, canvas, effectiveOpacity);
 
+  // Same merged-per-line-bar, blue (#8ecdf5) highlight the main daf page's
+  // .vilna-active-rect uses (see updateVilnaOverlay/groupBoxesIntoLineRects),
+  // not this canvas's own older per-word-box style: reported directly, this
+  // in-video overlay was still drawing one oversized, padded (padX=15%/
+  // padY=35% of the box) rect per WORD, in the old solid yellow -- exactly
+  // the "jagged block of overlapping rectangles instead of one clean bar"
+  // the main page's own overlay was already rebuilt to fix (see that
+  // function's comment). vilnaInkBands reads $('vilnaPageCanvas')'s own
+  // raster for precise per-line height and returns null if that canvas
+  // isn't currently visible (e.g. a mobile reader using only the video
+  // overlay, with the side-by-side Vilna page scrolled out of view) --
+  // groupBoxesIntoLineRects already degrades gracefully to an estimated
+  // height in that case, same as it does for the main page.
   ctx.save();
-  ctx.fillStyle = 'rgba(255, 212, 0, 0.55)';
+  ctx.fillStyle = '#8ecdf5';
   ctx.globalCompositeOperation = 'multiply';
-  for (const box of activeBoxes) {
-    const bx = (box.x * pageW - sx) * scale;
-    const by = (box.y * pageH - sourceY) * scale;
-    const bw = box.w * pageW * scale;
-    const bh = box.h * pageH * scale;
-    const padX = bw * 0.15;
-    const padY = bh * 0.35;
-    ctx.fillRect(bx - padX, by - padY, bw + padX * 2, bh + padY * 2);
+  const lineRects = groupBoxesIntoLineRects(activeBoxes, state.vilnaPageMap, vilnaInkBands(state.vilnaPageMap));
+  for (const rect of lineRects) {
+    const rx = (rect.left * pageW - sx) * scale;
+    const ry = (rect.top * pageH - sourceY) * scale;
+    const rw = rect.width * pageW * scale;
+    const rh = rect.height * pageH * scale;
+    ctx.beginPath();
+    ctx.roundRect(rx, ry, rw, rh, Math.min(rw, rh) / 2);
+    ctx.fill();
   }
   ctx.restore();
 }
@@ -4769,8 +4783,20 @@ function updateScrubberFill() {
 
 function updatePlayUi() {
   const paused = isPaused();
-  document.querySelectorAll('.play-icon').forEach((el) => { el.hidden = !paused; });
-  document.querySelectorAll('.pause-icon').forEach((el) => { el.hidden = paused; });
+  // toggleAttribute, not `.hidden = `: reported directly (and confirmed
+  // live in a real browser) that the play/pause icon never actually
+  // switched, no matter what isPaused() returned. Root cause -- SVGElement
+  // doesn't reliably reflect the `hidden` IDL property back to the actual
+  // `hidden` content attribute the way HTMLElement does, so setting
+  // `.play-icon`/`.pause-icon`'s own `.hidden` property here silently did
+  // nothing to the real DOM attribute the [hidden]{display:none!important}
+  // CSS rule keys off -- whichever icon started hidden in the static
+  // markup (pause-icon) just stayed hidden forever, regardless of playback
+  // state. toggleAttribute operates on the actual attribute directly (it's
+  // defined on Element, not HTMLElement-specific reflection), so it works
+  // correctly on an <svg> the same as any other element.
+  document.querySelectorAll('.play-icon').forEach((el) => { el.toggleAttribute('hidden', !paused); });
+  document.querySelectorAll('.pause-icon').forEach((el) => { el.toggleAttribute('hidden', paused); });
   $('largePlay').hidden = !state.videoSource || !paused || getCurrentTime() > 0.15;
   $('playButton').setAttribute('aria-label', paused ? 'Play' : 'Pause');
 }
@@ -5001,8 +5027,10 @@ function updateMuteIcons() {
   for (const button of muteButtonEls) {
     const volumeIcon = button.querySelector('.volume-icon');
     const mutedIcon = button.querySelector('.muted-icon');
-    if (volumeIcon) volumeIcon.hidden = muted;
-    if (mutedIcon) mutedIcon.hidden = !muted;
+    // toggleAttribute, not `.hidden = ` -- same SVGElement reflection gap
+    // fixed in updatePlayUi above; these icons are <svg> too.
+    if (volumeIcon) volumeIcon.toggleAttribute('hidden', muted);
+    if (mutedIcon) mutedIcon.toggleAttribute('hidden', !muted);
     button.setAttribute('aria-label', muted ? 'Unmute' : 'Mute');
   }
 }
