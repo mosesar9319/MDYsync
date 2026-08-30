@@ -710,21 +710,39 @@ async function fetchServerVideoLink(ref) {
 // genuinely mid-reading should still nudge forward to the next word, not
 // sit there doing nothing.
 //
-// It does NOT simply jump to whichever entry comes next, though -- reported
-// directly: a shiur that opens with 11 minutes of unrelated riffing (reading
-// emails, announcements) before actually starting the daf needed THREE
-// presses to get there, because the fuzzy matcher had thrown a couple of
-// short, isolated false-positive hits into that stretch (a phrase in
-// unrelated speech that happened to phonetically resemble a snippet of daf
-// text) -- each too short to trip MAX_PLAUSIBLE_QUOTE_WORDS' exclusion (see
-// voice_align.py), but each still just noise, not a second and third
-// separate thing worth landing on one press at a time. A stray hit like
-// that stands alone -- nothing else picks up near it, on either side --
-// while genuine reading is a run of entries close together in time (see
-// isIsolatedHit). A candidate isolated this way is skipped over in the same
-// press, and the entry after it is checked the same way, all the way up to
+// It does NOT simply jump to whichever entry comes next, though -- two
+// separate real-world failure modes, confirmed against two different real
+// synced dapim, each needing its own check:
+//
+// 1. A shiur that opens with 11 minutes of unrelated riffing (reading
+//    emails, announcements) before actually starting the daf needed THREE
+//    presses to get there, because the fuzzy matcher had thrown a couple of
+//    short, isolated false-positive hits into that stretch (a phrase in
+//    unrelated speech that happened to phonetically resemble a snippet of
+//    daf text) -- each too short to trip MAX_PLAUSIBLE_QUOTE_WORDS'
+//    exclusion (see voice_align.py), but each still just noise, not a
+//    second and third separate thing worth landing on one press at a time.
+//    A stray hit like that stands alone -- nothing else picks up near it,
+//    on either side -- while genuine reading is a run of entries close
+//    together in TIME (see isIsolatedHit).
+// 2. Chullin 122a's OCR-synced data needed three presses for the same
+//    underlying reason but a different shape entirely: its first two
+//    wordTimeline entries run 374s and 261s respectively, each for a
+//    single tracked word, with NO gap at all between them or the entry
+//    after -- an OCR caption box left sitting on the same line for minutes
+//    while the rabbi keeps talking produces one real entry with a hugely
+//    disproportionate duration for how few words it spans, not a gap
+//    between entries the way an unmatched voice-sync stretch does. Gap-
+//    based isolation can't see this at all (adjacent entries, zero gap);
+//    only the entry's own PACE -- duration per word it covers -- gives it
+//    away (see isExplanationPaced).
+//
+// A candidate flagged by either check is skipped over in the same press,
+// and the entry after it is checked the same way, all the way up to
 // wherever real reading actually begins.
 const SUSTAINED_GAP_THRESHOLD = 30; // seconds
+const EXPLANATION_PACE_THRESHOLD = 6; // seconds/word -- real reading stays well under this
+const EXPLANATION_MIN_DURATION = 12; // seconds -- ignore brief holds, not worth a skip
 
 // The last wordTimeline entry whose start is at or before `time` -- same
 // "most recently begun" rule as findSegmentAt, since entries are built in
@@ -760,6 +778,24 @@ function isIsolatedHit(timeline, index) {
   return !closeToPrev && !closeToNext;
 }
 
+// An entry counts as explanation-paced -- the OCR caption (or voice match)
+// held on this word range far longer than actually reading it would take --
+// regardless of the gap to its neighbors, unlike isIsolatedHit above. A
+// short hold is just a natural pause, not worth a skip; MIN_DURATION
+// filters those out before the pace ratio even applies.
+function isExplanationPaced(entry) {
+  const duration = entry.end - entry.start;
+  if (duration < EXPLANATION_MIN_DURATION) return false;
+  const words = Math.max(1, entry.w1 - entry.w0 + 1);
+  return duration / words >= EXPLANATION_PACE_THRESHOLD;
+}
+
+// Either check disqualifies a candidate on its own -- see the two failure
+// modes documented above nextReadingTime.
+function isSkippableEntry(timeline, index) {
+  return isIsolatedHit(timeline, index) || isExplanationPaced(timeline[index]);
+}
+
 // Where the Vaater button would jump to from `time`, or null when there's
 // nothing word-level to go on, or nothing further ahead to skip to.
 function nextReadingTime(time) {
@@ -770,7 +806,7 @@ function nextReadingTime(time) {
   // 0, the first entry, exactly like starting from any other position.
   const index = time < timeline[0].start ? -1 : findWordTimelineIndexAt(time);
   for (let candidateIndex = index + 1; candidateIndex < timeline.length; candidateIndex++) {
-    if (!isIsolatedHit(timeline, candidateIndex)) return timeline[candidateIndex].start;
+    if (!isSkippableEntry(timeline, candidateIndex)) return timeline[candidateIndex].start;
   }
   return null;
 }
