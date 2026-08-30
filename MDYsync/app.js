@@ -178,7 +178,7 @@ const scrubberEls = [scrubber].filter(Boolean);
 const volumeSliderEls = [$('volumeSlider')].filter(Boolean);
 const muteButtonEls = [$('muteButton')].filter(Boolean);
 const captionsButtonEls = [$('captionsButton')].filter(Boolean);
-const fastForwardButtonEls = [$('fastForwardButton')].filter(Boolean);
+const vaaterButtonEls = [$('vaaterButton')].filter(Boolean);
 const dafPage = $('dafPage');
 const editor = $('editor');
 const editorBody = $('editorBody');
@@ -690,41 +690,29 @@ async function fetchServerVideoLink(ref) {
   }
 }
 
-// "Skip to reading": originally built by cross-referencing the channel's
-// shorter Chazarah Daf (review) recording, but that compared two entirely
-// different recordings' pacing for the same text against each other, which
-// turned out to be unreliable in both directions (flagging real reading as
-// skippable when the review happened to move faster through a passage than
-// the full shiur, and missing real explanation when it moved slower) --
-// confirmed against Chullin 95a's real synced data.
+// "Vaater" ("further"/"next"): originally built by cross-referencing the
+// channel's shorter Chazarah Daf (review) recording, but that compared two
+// entirely different recordings' pacing for the same text against each
+// other, which turned out to be unreliable in both directions (flagging
+// real reading as skippable when the review happened to move faster
+// through a passage than the full shiur, and missing real explanation when
+// it moved slower) -- confirmed against Chullin 95a's real synced data.
 //
 // This instead reads the full shiur's OWN word-level OCR data (wordTimeline
-// -- already loaded with any real synced alignment) directly: each entry is
-// a span of video time the OCR tracked the on-screen caption sitting on a
-// given word range. Actual reading moves through new words continuously, so
-// its entries are short relative to how many words they cover; when the
-// rabbi lingers on a phrase to explain it, the caption (and so the tracked
-// word range) stays put while time keeps passing, producing one entry with
-// a hugely disproportionate duration for how few words it spans -- e.g. one
-// real entry from Chullin 95a's data spans 116 seconds for just 5 words,
-// against a typical entry nearby covering 8-9 words in under 20 seconds. A
-// long-and-slow entry like that is what this flags as "explanation" to skip
-// past, landing at wherever the next entry (real reading, or the next
-// explanation-tracking entry -- either way, the next actual change in
-// what's on screen) begins. Also covers the video's own opening stretch
-// before any daf text has been read aloud at all yet (routinely several
-// minutes of introductory remarks) -- wordTimeline has no entries there
-// either, which used to leave the button unavailable for exactly that
-// stretch; it now targets the first entry's own start instead.
-const EXPLANATION_PACE_THRESHOLD = 6; // seconds/word -- real reading stays well under this
-const EXPLANATION_MIN_DURATION = 12; // seconds -- ignore brief holds, not worth a skip
-
-function isExplanationEntry(entry) {
-  const duration = entry.end - entry.start;
-  if (duration < EXPLANATION_MIN_DURATION) return false;
-  const words = Math.max(1, entry.w1 - entry.w0 + 1);
-  return duration / words >= EXPLANATION_PACE_THRESHOLD;
-}
+// -- already loaded with any real synced alignment) directly and always
+// steps to wherever the NEXT tracked entry begins, uniformly, regardless of
+// whether the current moment is mid-reading, mid-explanation, or in a gap
+// between entries -- deliberately simpler than an earlier version that
+// tried to detect "is this entry actually the rabbi explaining, not
+// reading" by its pace (duration/word-count) and only step forward in that
+// case, leaving a genuine no-op otherwise. That distinction added real
+// complexity for a behavior confirmed not to be what a reader actually
+// wants: pressing Vaater while genuinely mid-reading should still nudge
+// forward to the next word, not sit there doing nothing. Also covers the
+// video's own opening stretch before any daf text has been read aloud at
+// all yet (routinely several minutes of introductory remarks) --
+// wordTimeline has no entries there either, so this targets the first
+// entry's own start instead.
 
 // The last wordTimeline entry whose start is at or before `time` -- same
 // "most recently begun" rule as findSegmentAt, since entries are built in
@@ -738,37 +726,29 @@ function findWordTimelineIndexAt(time) {
   return index;
 }
 
-// Where the fast-forward button would jump to from `time`, or null when
-// there's nothing to skip (either genuinely mid-reading, or nothing
-// word-level to go on at all).
+// Where the Vaater button would jump to from `time`, or null when there's
+// nothing word-level to go on, or nothing further ahead to skip to.
 function nextReadingTime(time) {
   const timeline = state.wordTimeline;
   if (!timeline.length) return null;
   if (time < timeline[0].start) return timeline[0].start; // before any daf text has been read yet
   const index = findWordTimelineIndexAt(time);
-  const entry = timeline[index];
-  const pastEntry = time >= entry.end; // a gap between two entries -- nothing actively being read right now either
-  if (!pastEntry && !isExplanationEntry(entry)) return null; // genuinely mid-reading -- no-op
   const next = timeline[index + 1];
   return next ? next.start : null;
 }
 
-function updateFastForwardButtonUi(time = getCurrentTime()) {
+function updateVaaterButtonUi(time = getCurrentTime()) {
   const target = nextReadingTime(time);
-  for (const button of fastForwardButtonEls) {
+  for (const button of vaaterButtonEls) {
     button.hidden = !state.wordTimeline.length;
     button.disabled = target === null;
     button.title = target === null
-      ? 'Already reading, or nothing further ahead'
-      : 'Skip ahead to the next part actually reading the daf';
+      ? 'Nothing further ahead to skip to'
+      : "Vaater -- skip ahead to the daf's next aligned word";
   }
 }
 
 function skipToNextReading() {
-  // The no-op rule (genuinely mid-reading right now) has to be enforced
-  // here, not just by disabling the button -- this is the actual behavior
-  // contract, and the button's disabled state is only a UI reflection of
-  // it, not the other way around.
   const target = nextReadingTime(getCurrentTime());
   if (target === null) return;
   seek(target + 0.03, true);
@@ -4618,7 +4598,7 @@ function updateActiveSegment(force = false, timeOverride = null) {
     // driven by wordTimeline entries, which are finer-grained than segments
     // -- see nextReadingTime), not just when the active segment itself
     // changes, so this needs to keep running on every tick, not only here.
-    updateFastForwardButtonUi(time);
+    updateVaaterButtonUi(time);
     return;
   }
   // A natural playback tick (force=false, no timeOverride -- i.e. called
@@ -4633,11 +4613,11 @@ function updateActiveSegment(force = false, timeOverride = null) {
   // calls this with force=true specifically so it isn't caught here.
   if (!force && index < state.activeIndex) {
     updateActiveWords(time);
-    updateFastForwardButtonUi(time);
+    updateVaaterButtonUi(time);
     return;
   }
   state.activeIndex = index;
-  updateFastForwardButtonUi(time);
+  updateVaaterButtonUi(time);
   const active = state.segments[index];
   if (!active) return;
 
@@ -6653,7 +6633,7 @@ scrubber.addEventListener('pointerleave', () => { $('scrubPreview').hidden = tru
 for (const el of volumeSliderEls) el.addEventListener('input', (event) => setVolume(Number(event.target.value)));
 for (const button of muteButtonEls) button.addEventListener('click', () => setMuted(!isMuted()));
 for (const button of captionsButtonEls) button.addEventListener('click', () => setCaptionsEnabled(!state.captionsEnabled));
-for (const button of fastForwardButtonEls) button.addEventListener('click', skipToNextReading);
+for (const button of vaaterButtonEls) button.addEventListener('click', skipToNextReading);
 
 function switchDafView(mode) {
   // Not every page that loads app.js has all three views -- watch/index.html
