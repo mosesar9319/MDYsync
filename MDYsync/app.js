@@ -224,7 +224,15 @@ function showToast(message, type = 'normal') {
   toast.textContent = message;
   toast.classList.toggle('error', type === 'error');
   toast.classList.add('show');
-  state.toastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
+  // Reported directly: a fixed 3.2s was fine for a short confirmation
+  // ("Restored the saved sync for Chullin 120a.") but nowhere near enough
+  // to actually read a longer error message (the video-load failure toast
+  // now runs 200+ characters with the ad-blocker/network guidance in it)
+  // before it vanished. Scaled to roughly reading speed instead of a flat
+  // duration, floored at the old 3200ms so short toasts aren't slowed
+  // down, capped at 12s so a very long message doesn't linger indefinitely.
+  const duration = Math.min(12000, Math.max(3200, 1200 + message.length * 60));
+  state.toastTimer = setTimeout(() => toast.classList.remove('show'), duration);
 }
 
 
