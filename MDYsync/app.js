@@ -700,19 +700,31 @@ async function fetchServerVideoLink(ref) {
 //
 // This instead reads the full shiur's OWN word-level OCR data (wordTimeline
 // -- already loaded with any real synced alignment) directly and always
-// steps to wherever the NEXT tracked entry begins, uniformly, regardless of
-// whether the current moment is mid-reading, mid-explanation, or in a gap
-// between entries -- deliberately simpler than an earlier version that
-// tried to detect "is this entry actually the rabbi explaining, not
-// reading" by its pace (duration/word-count) and only step forward in that
-// case, leaving a genuine no-op otherwise. That distinction added real
-// complexity for a behavior confirmed not to be what a reader actually
-// wants: pressing Vaater while genuinely mid-reading should still nudge
-// forward to the next word, not sit there doing nothing. Also covers the
-// video's own opening stretch before any daf text has been read aloud at
-// all yet (routinely several minutes of introductory remarks) --
-// wordTimeline has no entries there either, so this targets the first
-// entry's own start instead.
+// steps forward, uniformly, regardless of whether the current moment is
+// mid-reading, mid-explanation, or in a gap between entries -- deliberately
+// simpler than an earlier version that tried to detect "is this entry
+// actually the rabbi explaining, not reading" by its pace (duration/word-
+// count) and only step forward in that case, leaving a genuine no-op
+// otherwise. That distinction added real complexity for a behavior
+// confirmed not to be what a reader actually wants: pressing Vaater while
+// genuinely mid-reading should still nudge forward to the next word, not
+// sit there doing nothing.
+//
+// It does NOT simply jump to whichever entry comes next, though -- reported
+// directly: a shiur that opens with 11 minutes of unrelated riffing (reading
+// emails, announcements) before actually starting the daf needed THREE
+// presses to get there, because the fuzzy matcher had thrown a couple of
+// short, isolated false-positive hits into that stretch (a phrase in
+// unrelated speech that happened to phonetically resemble a snippet of daf
+// text) -- each too short to trip MAX_PLAUSIBLE_QUOTE_WORDS' exclusion (see
+// voice_align.py), but each still just noise, not a second and third
+// separate thing worth landing on one press at a time. A stray hit like
+// that stands alone -- nothing else picks up near it, on either side --
+// while genuine reading is a run of entries close together in time (see
+// isIsolatedHit). A candidate isolated this way is skipped over in the same
+// press, and the entry after it is checked the same way, all the way up to
+// wherever real reading actually begins.
+const SUSTAINED_GAP_THRESHOLD = 30; // seconds
 
 // The last wordTimeline entry whose start is at or before `time` -- same
 // "most recently begun" rule as findSegmentAt, since entries are built in
@@ -726,15 +738,41 @@ function findWordTimelineIndexAt(time) {
   return index;
 }
 
+// An entry counts as an isolated stray hit -- skippable noise, not a real
+// landing spot -- only when it's far (beyond SUSTAINED_GAP_THRESHOLD) from
+// BOTH neighbors, not just the one ahead of it. One-sided (checking only
+// the gap to the next entry) looked right for finding where a real run of
+// reading STARTS, but wrongly flagged the LAST word of a real, if short,
+// run as isolated too -- that word is close to the entry before it (part
+// of the same run), just followed by a legitimate gap into whatever comes
+// after the run ends (a tangent, or simply the video moving on). A
+// timeline's own last entry has no "next" to compare against at all and is
+// always kept -- there's nothing further to skip to regardless, so
+// treating it as skippable noise would just disable Vaater outright with
+// one real word still sitting right there.
+function isIsolatedHit(timeline, index) {
+  const entry = timeline[index];
+  const next = timeline[index + 1];
+  if (!next) return false;
+  const prev = timeline[index - 1];
+  const closeToPrev = prev && (entry.start - prev.end) <= SUSTAINED_GAP_THRESHOLD;
+  const closeToNext = (next.start - entry.end) <= SUSTAINED_GAP_THRESHOLD;
+  return !closeToPrev && !closeToNext;
+}
+
 // Where the Vaater button would jump to from `time`, or null when there's
 // nothing word-level to go on, or nothing further ahead to skip to.
 function nextReadingTime(time) {
   const timeline = state.wordTimeline;
   if (!timeline.length) return null;
-  if (time < timeline[0].start) return timeline[0].start; // before any daf text has been read yet
-  const index = findWordTimelineIndexAt(time);
-  const next = timeline[index + 1];
-  return next ? next.start : null;
+  // -1 when time is before the first entry (findWordTimelineIndexAt's own
+  // "no entry started yet" value) -- candidateIndex below then starts at
+  // 0, the first entry, exactly like starting from any other position.
+  const index = time < timeline[0].start ? -1 : findWordTimelineIndexAt(time);
+  for (let candidateIndex = index + 1; candidateIndex < timeline.length; candidateIndex++) {
+    if (!isIsolatedHit(timeline, candidateIndex)) return timeline[candidateIndex].start;
+  }
+  return null;
 }
 
 function updateVaaterButtonUi(time = getCurrentTime()) {
@@ -3711,17 +3749,31 @@ function updateVideoOverlay(time) {
 
   if (fadeBackgroundOnly) applyBackgroundOnlyFade(ctx, canvas, effectiveOpacity);
 
+  // Same merged-per-line-bar, blue (#8ecdf5) highlight the main daf page's
+  // .vilna-active-rect uses (see updateVilnaOverlay/groupBoxesIntoLineRects),
+  // not this canvas's own older per-word-box style: reported directly, this
+  // in-video overlay was still drawing one oversized, padded (padX=15%/
+  // padY=35% of the box) rect per WORD, in the old solid yellow -- exactly
+  // the "jagged block of overlapping rectangles instead of one clean bar"
+  // the main page's own overlay was already rebuilt to fix (see that
+  // function's comment). vilnaInkBands reads $('vilnaPageCanvas')'s own
+  // raster for precise per-line height and returns null if that canvas
+  // isn't currently visible (e.g. a mobile reader using only the video
+  // overlay, with the side-by-side Vilna page scrolled out of view) --
+  // groupBoxesIntoLineRects already degrades gracefully to an estimated
+  // height in that case, same as it does for the main page.
   ctx.save();
-  ctx.fillStyle = 'rgba(255, 212, 0, 0.55)';
+  ctx.fillStyle = '#8ecdf5';
   ctx.globalCompositeOperation = 'multiply';
-  for (const box of activeBoxes) {
-    const bx = (box.x * pageW - sx) * scale;
-    const by = (box.y * pageH - sourceY) * scale;
-    const bw = box.w * pageW * scale;
-    const bh = box.h * pageH * scale;
-    const padX = bw * 0.15;
-    const padY = bh * 0.35;
-    ctx.fillRect(bx - padX, by - padY, bw + padX * 2, bh + padY * 2);
+  const lineRects = groupBoxesIntoLineRects(activeBoxes, state.vilnaPageMap, vilnaInkBands(state.vilnaPageMap));
+  for (const rect of lineRects) {
+    const rx = (rect.left * pageW - sx) * scale;
+    const ry = (rect.top * pageH - sourceY) * scale;
+    const rw = rect.width * pageW * scale;
+    const rh = rect.height * pageH * scale;
+    ctx.beginPath();
+    ctx.roundRect(rx, ry, rw, rh, Math.min(rw, rh) / 2);
+    ctx.fill();
   }
   ctx.restore();
 }
@@ -4731,8 +4783,20 @@ function updateScrubberFill() {
 
 function updatePlayUi() {
   const paused = isPaused();
-  document.querySelectorAll('.play-icon').forEach((el) => { el.hidden = !paused; });
-  document.querySelectorAll('.pause-icon').forEach((el) => { el.hidden = paused; });
+  // toggleAttribute, not `.hidden = `: reported directly (and confirmed
+  // live in a real browser) that the play/pause icon never actually
+  // switched, no matter what isPaused() returned. Root cause -- SVGElement
+  // doesn't reliably reflect the `hidden` IDL property back to the actual
+  // `hidden` content attribute the way HTMLElement does, so setting
+  // `.play-icon`/`.pause-icon`'s own `.hidden` property here silently did
+  // nothing to the real DOM attribute the [hidden]{display:none!important}
+  // CSS rule keys off -- whichever icon started hidden in the static
+  // markup (pause-icon) just stayed hidden forever, regardless of playback
+  // state. toggleAttribute operates on the actual attribute directly (it's
+  // defined on Element, not HTMLElement-specific reflection), so it works
+  // correctly on an <svg> the same as any other element.
+  document.querySelectorAll('.play-icon').forEach((el) => { el.toggleAttribute('hidden', !paused); });
+  document.querySelectorAll('.pause-icon').forEach((el) => { el.toggleAttribute('hidden', paused); });
   $('largePlay').hidden = !state.videoSource || !paused || getCurrentTime() > 0.15;
   $('playButton').setAttribute('aria-label', paused ? 'Play' : 'Pause');
 }
@@ -4963,8 +5027,10 @@ function updateMuteIcons() {
   for (const button of muteButtonEls) {
     const volumeIcon = button.querySelector('.volume-icon');
     const mutedIcon = button.querySelector('.muted-icon');
-    if (volumeIcon) volumeIcon.hidden = muted;
-    if (mutedIcon) mutedIcon.hidden = !muted;
+    // toggleAttribute, not `.hidden = ` -- same SVGElement reflection gap
+    // fixed in updatePlayUi above; these icons are <svg> too.
+    if (volumeIcon) volumeIcon.toggleAttribute('hidden', muted);
+    if (mutedIcon) mutedIcon.toggleAttribute('hidden', !muted);
     button.setAttribute('aria-label', muted ? 'Unmute' : 'Mute');
   }
 }
