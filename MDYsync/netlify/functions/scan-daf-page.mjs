@@ -367,14 +367,22 @@ export default async (request) => {
       ocrAndMatchOneEngine('tesseract'),
       ocrAndMatchOneEngine('google-vision'),
     ]);
+    // ocrText included on every branch (even a match) -- single-engine mode
+    // already surfaces it on a failed match (see the 422 branch below);
+    // 'both' mode used to drop it entirely, which meant a real report of
+    // "both engines say no match" carried no way to tell "corners were off,
+    // OCR read garbage" apart from "OCR read the header fine, matching
+    // itself is still wrong" without asking the reporter to dig through
+    // browser devtools for the raw request/response.
     const summarize = (result) => {
-      if (result.ocrError) return { error: `Could not read the page header: ${result.ocrError}` };
-      if (!result.match) return { error: 'Could not identify the daf from this photo.' };
+      if (result.ocrError) return { error: `Could not read the page header: ${result.ocrError}`, ocrText: null };
+      if (!result.match) return { error: 'Could not identify the daf from this photo.', ocrText: result.ocrText };
       return {
         ref: `${result.match.entry.tractate} ${result.match.entry.daf}a`,
         tractate: result.match.entry.tractate,
         daf: result.match.entry.daf,
         matchScore: Math.round(result.match.score),
+        ocrText: result.ocrText,
       };
     };
     const agree = Boolean(
