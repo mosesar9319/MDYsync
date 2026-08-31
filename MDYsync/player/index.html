@@ -1341,6 +1341,16 @@
                   </div>
                 </div>
                 <p class="scan-hint" id="scanResultHint"></p>
+                <!-- A photographed page can't say which amud it is (see
+                     scan-daf-page.mjs's own KNOWN v1 LIMITATION) -- shown
+                     only once the server actually found amud-ב page data for
+                     the matched daf (see updateScanAmudToggle in app.js),
+                     defaulting to a. Same generic amud-toggle markup as
+                     #dafAmudToggle/#syncAmudToggle, wired in app.js. -->
+                <div class="amud-toggle" id="scanAmudToggle" role="group" aria-label="Amud" hidden>
+                  <button type="button" class="amud-option active" data-side="a">a</button>
+                  <button type="button" class="amud-option" data-side="b">b</button>
+                </div>
                 <!-- Only shown once a daf is matched AND more than one
                      shiur video is actually synced for it (see
                      refreshScanVideoPicker in app.js) -- lets the reader

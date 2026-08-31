@@ -415,16 +415,34 @@ export default async (request) => {
     return Response.json({ comparison }, { headers: { 'Access-Control-Allow-Origin': origin } });
   }
 
-  const pageKey = `${match.entry.tractate.replace(/\s+/g, '-')}-${match.entry.daf}a`;
-  const pageResponse = await fetch(`https://raw.githubusercontent.com/${OWNER}/${REPO}/results/pages/${pageKey}.json`);
-  if (!pageResponse.ok) {
+  // The photographed physical page can't tell the reader which amud they're
+  // actually on (see the module docstring's KNOWN v1 LIMITATION) -- a's own
+  // page data is fetched unconditionally (its absence is a genuine "no data
+  // for this daf at all" error, unchanged from before), b's is fetched
+  // best-effort alongside it so the reader can flip to it client-side with
+  // no extra round trip: a 404 on b just means that side hasn't been
+  // published yet (or this is a tractate's last daf with no b at all), not
+  // an error worth failing the whole scan over.
+  const pageKeyBase = `${match.entry.tractate.replace(/\s+/g, '-')}-${match.entry.daf}`;
+  const [pageResponseA, pageResponseB] = await Promise.all([
+    fetch(`https://raw.githubusercontent.com/${OWNER}/${REPO}/results/pages/${pageKeyBase}a.json`),
+    fetch(`https://raw.githubusercontent.com/${OWNER}/${REPO}/results/pages/${pageKeyBase}b.json`),
+  ]);
+  if (!pageResponseA.ok) {
     return Response.json(
       { error: `No word-position data for ${match.entry.tractate} ${match.entry.daf}.` },
       { status: 404 }
     );
   }
-  const pageData = await pageResponse.json();
+  const pageDataA = await pageResponseA.json();
+  const pageDataB = pageResponseB.ok ? await pageResponseB.json() : null;
 
+  // Text-block detection runs against the READER'S OWN PHOTO and the
+  // corners they marked -- neither depends on which amud's canonical data
+  // ends up being projected, so it only needs to run once and gets reused
+  // for both a and b below, instead of redoing the same (non-trivial: a
+  // fresh image decode plus the detection scan itself) work twice.
+  //
   // Word positions were originally projected straight through the marked
   // PAGE corners' own homography -- correct only if the reader's physical
   // book has the exact same margin proportions as shas.org's reference PDF
@@ -442,9 +460,8 @@ export default async (request) => {
   // projection (unchanged behavior) for an older (v1) page map, or if
   // detection itself isn't confident enough on this specific photo --
   // never worse than what shipped before, only better when it can be.
-  let wordProjectionHomography = homography;
-  let textBlockOrigin = { left: 0, top: 0, width: 1, height: 1 }; // identity: box.x/y already in this space
-  if (pageData.textBlock) {
+  let detectedHomography = null;
+  if (pageDataA.textBlock || pageDataB?.textBlock) {
     try {
       // imageBuffer above is scoped to the header-OCR try block -- decoded
       // again here rather than threading it out, a cheap base64 decode
@@ -456,11 +473,7 @@ export default async (request) => {
         imageWidth,
         imageHeight
       );
-      if (detected) {
-        wordProjectionHomography = solveHomography(CANONICAL_CORNERS, detected.corners);
-        const tb = pageData.textBlock;
-        textBlockOrigin = { left: tb.left, top: tb.top, width: tb.right - tb.left, height: tb.bottom - tb.top };
-      }
+      if (detected) detectedHomography = solveHomography(CANONICAL_CORNERS, detected.corners);
     } catch (error) {
       console.error('Text-block detection failed, falling back to page-relative word positions:', error);
     }
@@ -470,25 +483,41 @@ export default async (request) => {
   // into photo-relative fractions (0-1) -- so the frontend can position
   // overlay elements with simple percentages, exactly the way it already
   // does for the Vilna-page view (renderVilnaWordBoxes in app.js).
-  const wordBoxes = (pageData.wordBoxes || []).map((box) => {
-    const relX = (box.x - textBlockOrigin.left) / textBlockOrigin.width;
-    const relY = (box.y - textBlockOrigin.top) / textBlockOrigin.height;
-    const relW = box.w / textBlockOrigin.width;
-    const relH = box.h / textBlockOrigin.height;
-    const corners2 = [
-      [relX, relY], [relX + relW, relY],
-      [relX + relW, relY + relH], [relX, relY + relH],
-    ].map(([x, y]) => applyHomography(wordProjectionHomography, x, y));
-    const projected = boundingBox(corners2);
-    return {
-      ref: box.ref,
-      wordIndex: box.wordIndex,
-      x: projected.left / imageWidth,
-      y: projected.top / imageHeight,
-      w: projected.width / imageWidth,
-      h: projected.height / imageHeight,
-    };
-  });
+  function projectWordBoxes(pageData) {
+    let wordProjectionHomography = homography;
+    let textBlockOrigin = { left: 0, top: 0, width: 1, height: 1 }; // identity: box.x/y already in this space
+    if (pageData.textBlock && detectedHomography) {
+      wordProjectionHomography = detectedHomography;
+      const tb = pageData.textBlock;
+      textBlockOrigin = { left: tb.left, top: tb.top, width: tb.right - tb.left, height: tb.bottom - tb.top };
+    }
+    return (pageData.wordBoxes || []).map((box) => {
+      const relX = (box.x - textBlockOrigin.left) / textBlockOrigin.width;
+      const relY = (box.y - textBlockOrigin.top) / textBlockOrigin.height;
+      const relW = box.w / textBlockOrigin.width;
+      const relH = box.h / textBlockOrigin.height;
+      const corners2 = [
+        [relX, relY], [relX + relW, relY],
+        [relX + relW, relY + relH], [relX, relY + relH],
+      ].map(([x, y]) => applyHomography(wordProjectionHomography, x, y));
+      const projected = boundingBox(corners2);
+      return {
+        ref: box.ref,
+        wordIndex: box.wordIndex,
+        x: projected.left / imageWidth,
+        y: projected.top / imageHeight,
+        w: projected.width / imageWidth,
+        h: projected.height / imageHeight,
+      };
+    });
+  }
+
+  const wordBoxes = projectWordBoxes(pageDataA);
+  // Only present when this daf's amud-ב page has actually been published --
+  // the client uses its mere presence to decide whether to show an amud
+  // toggle at all (see updateScanAmudToggle in app.js), not a separate
+  // availability flag.
+  const wordBoxesB = pageDataB ? projectWordBoxes(pageDataB) : null;
 
   return Response.json({
     ref: `${match.entry.tractate} ${match.entry.daf}a`,
@@ -496,6 +525,7 @@ export default async (request) => {
     daf: match.entry.daf,
     matchScore: Math.round(match.score),
     wordBoxes,
+    ...(wordBoxesB ? { wordBoxesB } : {}),
     // Only present for engine === 'both', and only reaches here when the
     // two engines agreed -- a disagreement/failure returns earlier, above,
     // with a comparison and no wordBoxes at all.
