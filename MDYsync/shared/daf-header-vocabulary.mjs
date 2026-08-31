@@ -92,22 +92,50 @@ function stripNiqqud(s) {
   return s.replace(/[\u0591-\u05C7]/g, '');
 }
 
-// The printed daf number is always followed by a period (e.g. "קא.") --
-// confirmed directly, across every real and synthetic OCR sample collected
-// while building this, tesseract consistently preserves that as a trailing
-// "." or "," (comma misreads of a period are common) on the token it reads
-// as the daf number specifically, while unrelated noise tokens (stray
-// margin-annotation fragments, misread punctuation elsewhere in the crop)
-// essentially never carry one. Restricting the gematria comparison to
-// punctuated tokens when any exist is a cheap, targeted way to stop random
-// short noise fragments from ever outscoring the real (if imperfectly
-// OCR'd) daf-number token -- confirmed directly: this alone fixed a real
-// photo where a stray fragment ("רה", no punctuation) was fuzzy-matching a
-// different daf's gematria closely enough to trip the minMargin check
-// against the correct match.
+// The printed daf number is always followed by punctuation -- a period for
+// amud א, a colon for amud ב (e.g. "קא." vs "קא:", the standard Vilna Shas
+// convention) -- confirmed directly, across every real and synthetic OCR
+// sample collected while building this, tesseract/Vision consistently
+// preserve that as trailing ".", "," (a comma misread of a period is
+// common), or ":" on the token read as the daf number specifically, while
+// unrelated noise tokens (stray margin-annotation fragments, misread
+// punctuation elsewhere in the crop) essentially never carry one.
+// Restricting the gematria comparison to punctuated tokens when any exist
+// is a cheap, targeted way to stop random short noise fragments from ever
+// outscoring the real (if imperfectly OCR'd) daf-number token -- confirmed
+// directly: this alone fixed a real photo where a stray fragment ("רה", no
+// punctuation) was fuzzy-matching a different daf's gematria closely enough
+// to trip the minMargin check against the correct match.
+//
+// The colon case was missing until a real amud-ב photo (Chullin 120b)
+// reproduced it live: the daf-number token OCR'd as "קכ:" -- a correct,
+// confident read -- but the old period/comma-only regex didn't recognize a
+// colon as punctuation at all, so gematriaCandidates fell back to
+// "no punctuated tokens found" and filtered the REAL daf-number token OUT
+// of consideration entirely, leaving only an unrelated punctuated word
+// elsewhere in the header (the credit line's "הוספות.") as the sole
+// candidate -- guaranteed to never match any real daf. This wasn't a rare
+// edge case: it's the standard punctuation for every amud-ב page, so it was
+// failing roughly half of all real photos outright, independent of OCR
+// engine or quality.
+// Trailing punctuation also has to come OFF before scoring, not just be
+// used to pick out the candidate tokens above -- entry.gematria (from
+// toGematria) never carries it, so comparing "קכ:" against it directly
+// scores the punctuation itself as one more character needing an edit.
+// That's not just a lower score, it's actively MISLEADING: dropping the
+// colon (1 edit, -> "קכ", the correct daf 120) costs Levenshtein exactly
+// the same as SUBSTITUTING it for a real extra letter (1 edit, -> "קכא"
+// daf 121, or "קכב" daf 122, both real available dapim) -- so a fully,
+// correctly OCR'd short gematria that happens to be a literal prefix of
+// longer ones ties all of them at an identical score, and minMargin
+// (rightly) refuses to guess among an exact tie. Reproduced live on the
+// same Chullin 120b photo the colon fix above addresses: 120/121/122 all
+// scored 83.33 before this, a dead tie the punctuation-recognition fix
+// alone couldn't break. Stripping it first fixes the comparison at its
+// source instead of trying to out-tune minMargin around it.
 function gematriaCandidates(tokens) {
-  const punctuated = tokens.filter((t) => /[.,]$/.test(t));
-  return punctuated.length ? punctuated : tokens;
+  const punctuated = tokens.filter((t) => /[.,:]$/.test(t));
+  return (punctuated.length ? punctuated : tokens).map((t) => t.replace(/[.,:]$/, ''));
 }
 
 function scoreEntry(tokens, gematriaTokens, entry) {
