@@ -641,19 +641,24 @@
     body.reading-mode-active .reading-video-slot { background: #020812; }
     body.reading-mode-active .reading-video-slot .video-frame { width: 100%; border: 0; border-radius: 0; }
     /* The inverse overlay cannot be enabled while the player itself is on
-       the daf; keep its fullscreen widget out of this deliberately simple
-       mini-player surface as well. */
+       the daf, so its control-bar toggle goes too (along with the old
+       floating widget). The top bar goes as well: its whole job is saying
+       which daf is loaded, which the page this player is floating over is
+       already showing at full size. */
     body.reading-mode-active .reading-video-float .overlay-controls,
+    body.reading-mode-active .reading-video-float .player-topbar,
+    body.reading-mode-active .reading-video-float #dafOnVideoButton,
     body.reading-mode-active .reading-video-float .video-source-badge { display: none !important; }
-    body.reading-mode-active .reading-video-float .scrubber-wrap { bottom: 34px; height: 21px; padding: 8px 8px 0; }
-    body.reading-mode-active .reading-video-float .player-controls { height: 34px; padding: 0 36px 0 7px; gap: 4px; }
-    body.reading-mode-active .reading-video-float .time-row,
-    body.reading-mode-active .reading-video-float .volume-slider,
-    body.reading-mode-active .reading-video-float .control-divider:not(.control-divider-end) { display: none; }
-    body.reading-mode-active .reading-video-float .icon-button { width: 25px; height: 25px; border-radius: 7px; }
+    /* Tighter still than the .is-compact sizing this always-narrow player
+       already gets (see styles.css): it floats directly over the daf being
+       learned, so its chrome gives up every pixel it can. Overriding the two
+       height variables carries the timeline and the Vilna-overlay clearance
+       with it. The right-hand padding is reserved for the pinch surface. */
+    body.reading-mode-active .reading-video-float .video-frame { --pc-bar-h: 34px; --pc-timeline-h: 22px; }
+    body.reading-mode-active .reading-video-float .scrubber-wrap { padding: 0 8px 4px; }
+    body.reading-mode-active .reading-video-float .player-controls { padding: 0 36px 0 7px; gap: 4px; }
     body.reading-mode-active .reading-video-float .vaater-button { height: 25px; padding: 0 9px 0 7px; font-size: 11px; border-radius: 7px; gap: 3px; }
     body.reading-mode-active .reading-video-float .vaater-button svg { width: 13px; height: 13px; }
-    body.reading-mode-active .reading-video-float .play-button { width: 27px; height: 27px; }
     body.reading-mode-active .reading-video-float .video-fullscreen-button { width: 26px; height: 26px; }
     body.reading-mode-active .reading-video-pinch-surface {
       position: absolute;
@@ -1673,6 +1678,7 @@
   <script src="../app.js" defer></script>
   <script src="../account-features.js" defer></script>
   <script src="../notes.js" defer></script>
+  <script src="../player-chrome.js" defer></script>
   <script src="../nav.js" defer></script>
   <script src="../collapse.js" defer></script>
 </body>
