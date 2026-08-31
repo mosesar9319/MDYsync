@@ -1148,6 +1148,13 @@ function renderDaf() {
   updateActiveSegment(true);
   renderEditor();
   renderVilnaPage();
+  // The player chrome's timeline markers are built from state.segments (see
+  // player-chrome.js) -- refreshed here, through the one funnel every other
+  // segment-driven view already re-renders through, so all seven places that
+  // assign state.segments don't each have to know the chrome exists. Optional
+  // on purpose: pages without the chrome script, and the first renderDaf()
+  // that runs before it has loaded, simply skip it.
+  window.DafSyncPlayerChrome?.refreshChapterMarkers();
 }
 
 // --- Vilna page-image view -------------------------------------------------
