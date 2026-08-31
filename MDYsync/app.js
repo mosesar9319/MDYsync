@@ -2442,6 +2442,7 @@ function resetScanUi() {
   $('scanAlign').hidden = true;
   $('scanResult').hidden = true;
   $('scanStatus').hidden = true;
+  $('scanComparisonResult').hidden = true;
   $('scanCameraInput').value = '';
   $('scanLibraryInput').value = '';
   state.scanPhotoDataUrl = null;
@@ -2929,8 +2930,14 @@ function handleScanCornerPointerUp() {
   state.scanDraggingCorner = null;
 }
 
-async function confirmScan() {
+// engineOverride: set when the reader is resolving a comparison
+// disagreement by picking one engine's match explicitly (see
+// showScanComparison's buttons) -- bypasses #scanEngineToggle for just this
+// one request, re-running the plain single-engine path rather than "both"
+// again.
+async function confirmScan(engineOverride = null) {
   if (!state.scanPhotoDataUrl || !state.scanCorners) return;
+  $('scanComparisonResult').hidden = true;
   showScanStatus('Reading the page header…', 'busy');
   $('scanConfirmButton').disabled = true;
   try {
@@ -2944,10 +2951,26 @@ async function confirmScan() {
         imageWidth: state.scanImageWidth,
         imageHeight: state.scanImageHeight,
         corners,
+        // Reuses the same generic active-option lookup the Regular/Chazarah
+        // and English/Hebrew toggles already use (see activeShiurVariant) --
+        // #scanEngineToggle is just another .shiur-variant-option group,
+        // keyed by data-variant="tesseract"/"google-vision"/"both" instead
+        // of a shiur variant. See scan-daf-page.mjs's own engine-selection
+        // comment for what each option actually does server-side.
+        engine: engineOverride || activeShiurVariant('scanEngineToggle'),
       }),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Could not scan this page.');
+    // engine: 'both' with no agreement (or one/both engines failing to
+    // match at all) comes back with a comparison but no wordBoxes -- there's
+    // no single daf to actually show a result for yet, so this shows the
+    // comparison and lets the reader pick one instead of calling
+    // showScanResult on data that doesn't exist.
+    if (result.comparison && !result.wordBoxes) {
+      showScanComparison(result.comparison);
+      return;
+    }
     await showScanResult(result);
   } catch (error) {
     console.error(error);
@@ -2966,12 +2989,35 @@ async function confirmScan() {
   }
 }
 
+// engine: 'both' with the two engines disagreeing (or one/both unable to
+// identify any daf) -- shows what each one found and lets the reader pick
+// which to trust, re-scanning with that one engine forced (the normal
+// single-engine confirmScan path, which always returns real wordBoxes on a
+// match).
+function showScanComparison(comparison) {
+  const describe = (label, info) => (info.error ? `${label}: ${info.error}` : `${label} matched ${info.ref} (score ${info.matchScore}).`);
+  $('scanComparisonText').textContent = `${describe('Tesseract', comparison.tesseract)} ${describe('Google Vision', comparison.googleVision)}`;
+  const tesseractButton = $('scanUseTesseractButton');
+  const visionButton = $('scanUseVisionButton');
+  tesseractButton.hidden = Boolean(comparison.tesseract.error);
+  visionButton.hidden = Boolean(comparison.googleVision.error);
+  if (!comparison.tesseract.error) tesseractButton.textContent = `Use Tesseract's match (${comparison.tesseract.ref})`;
+  if (!comparison.googleVision.error) visionButton.textContent = `Use Google Vision's match (${comparison.googleVision.ref})`;
+  $('scanStatus').hidden = true;
+  $('scanAlign').hidden = false;
+  $('scanComparisonResult').hidden = false;
+}
+
 async function showScanResult(result) {
   $('scanResultPhoto').src = state.scanPhotoDataUrl;
   $('scanAlign').hidden = true;
   $('scanResult').hidden = false;
   $('scanStatus').hidden = true;
-  $('scanResultHint').textContent = `Recognized ${result.ref} — tap any word to jump the video there. Pinch or scroll to zoom in.`;
+  $('scanResultHint').textContent = `Recognized ${result.ref} — tap any word to jump the video there. Pinch or scroll to zoom in.`
+    // engine: 'both' only ever reaches here when the two engines agreed
+    // (see confirmScan) -- worth saying so, since that's a stronger
+    // confirmation than either engine alone gives.
+    + (result.comparison ? ` Both engines agreed (Tesseract ${result.comparison.tesseract.matchScore}, Google Vision ${result.comparison.googleVision.matchScore}).` : '');
   resetScanResultZoom();
 
   // A page was just identified -- this is the first point the video player
@@ -6812,6 +6858,18 @@ document.querySelectorAll('#scanLanguageToggle .language-option').forEach((butto
     switchScanVideo();
   });
 });
+// Standard (tesseract) vs Google Vision -- just sets which option is
+// .active; confirmScan reads it (via activeShiurVariant) at scan time, no
+// immediate side effect the way the two toggles above have (switchScanVideo
+// re-renders an already-scanned result; this only matters for the NEXT
+// scan).
+document.querySelectorAll('#scanEngineToggle .shiur-variant-option').forEach((button) => {
+  button.addEventListener('click', () => {
+    setActiveShiurVariant('scanEngineToggle', button.dataset.variant);
+  });
+});
+$('scanUseTesseractButton')?.addEventListener('click', () => confirmScan('tesseract'));
+$('scanUseVisionButton')?.addEventListener('click', () => confirmScan('google-vision'));
 
 $('helpButton').addEventListener('click', () => $('helpDialog').showModal());
 $('closeHelp').addEventListener('click', () => $('helpDialog').close());

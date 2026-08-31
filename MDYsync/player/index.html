@@ -1297,9 +1297,39 @@
                   <div class="scan-corner-handle" data-corner="2" tabindex="0" role="button" aria-label="Bottom-right corner"></div>
                   <div class="scan-corner-handle" data-corner="3" tabindex="0" role="button" aria-label="Bottom-left corner"></div>
                 </div>
+                <!-- Which OCR engine reads the page header (confirmScan sends
+                     this as the request's engine field) -- persists across
+                     retakes/rescans on purpose, a scanning preference rather
+                     than something tied to one particular photo. Reuses the
+                     same .shiur-variant-option toggle convention as
+                     scanShiurToggle/scanLanguageToggle below, just keyed by
+                     data-variant="tesseract"/"google-vision" instead of a
+                     shiur variant -- see activeShiurVariant in app.js. -->
+                <div class="scan-engine-picker">
+                  <span class="scan-video-picker-label">Scan engine:</span>
+                  <div class="shiur-variant-toggle" id="scanEngineToggle" role="group" aria-label="OCR engine">
+                    <button type="button" class="shiur-variant-option active" data-variant="tesseract">Standard</button>
+                    <button type="button" class="shiur-variant-option" data-variant="google-vision">Google Vision</button>
+                    <button type="button" class="shiur-variant-option" data-variant="both">Both</button>
+                  </div>
+                </div>
                 <div class="scan-align-actions">
                   <button class="button secondary small" id="scanRetakeButton" type="button">Retake</button>
                   <button class="button primary small" id="scanConfirmButton" type="button">Scan this page</button>
+                </div>
+                <!-- Only shown when engine="both" was scanned and the two
+                     engines DIDN'T agree (or one/both couldn't identify a
+                     daf at all) -- see confirmScan/showScanComparison. When
+                     they DO agree, the reader never sees this at all: the
+                     normal scanResult screen appears directly, just with an
+                     extra note that both engines confirmed it (see
+                     showScanResult). -->
+                <div class="scan-comparison-result" id="scanComparisonResult" hidden>
+                  <p class="scan-hint" id="scanComparisonText"></p>
+                  <div class="scan-align-actions">
+                    <button class="button secondary small" id="scanUseTesseractButton" type="button">Use Tesseract's match</button>
+                    <button class="button secondary small" id="scanUseVisionButton" type="button">Use Google Vision's match</button>
+                  </div>
                 </div>
               </div>
 
