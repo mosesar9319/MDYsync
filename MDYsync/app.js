@@ -57,6 +57,20 @@ const state = {
   scanOverlayKey: '',
   scanWordBoxes: null,
   scanWordEls: null,
+  // A scanned page can't tell which amud it shows (see scan-daf-page.mjs's
+  // own KNOWN v1 LIMITATION) -- the server now projects word positions for
+  // BOTH amudim of the matched daf when b's page data exists at all
+  // (scanWordBoxesB stays null otherwise, which is also what hides
+  // #scanAmudToggle -- see updateScanAmudToggle), so switchScanAmud can
+  // flip between them with no extra round trip. scanTractate/scanDaf are
+  // the plain daf identity (no amud suffix) the toggle rebuilds a ref from;
+  // scanAmud is which one is currently shown, defaulting to 'a' same as
+  // before this existed.
+  scanWordBoxesA: null,
+  scanWordBoxesB: null,
+  scanTractate: null,
+  scanDaf: null,
+  scanAmud: 'a',
   // The exact ref (with whatever "(Chazarah Daf)"/"(Hebrew)" suffix is
   // currently chosen) the scan-result video picker last loaded -- the
   // single source of truth tapScannedWord compares state.dafRef against to
@@ -2452,8 +2466,15 @@ function resetScanUi() {
   state.scanWordEls = null;
   state.scanOverlayKey = '';
   state.scanSelectedRef = null;
+  state.scanWordBoxesA = null;
+  state.scanWordBoxesB = null;
+  state.scanTractate = null;
+  state.scanDaf = null;
+  state.scanAmud = 'a';
   const picker = $('scanVideoPicker');
   if (picker) picker.hidden = true;
+  const amudToggle = $('scanAmudToggle');
+  if (amudToggle) amudToggle.hidden = true;
   resetScanResultZoom();
 }
 
@@ -3009,30 +3030,56 @@ function showScanComparison(comparison) {
 }
 
 async function showScanResult(result) {
+  // The photographed page can't tell which amud it is (see scan-daf-page.mjs's
+  // own KNOWN v1 LIMITATION) -- the server projects word positions for BOTH
+  // amudim whenever amud-ב's page data exists at all (wordBoxesB stays
+  // absent otherwise), stashed here so switchScanAmud can flip between them
+  // with no extra round trip. Every scan starts on amud א.
+  state.scanTractate = result.tractate;
+  state.scanDaf = result.daf;
+  state.scanAmud = 'a';
+  state.scanWordBoxesA = result.wordBoxes;
+  state.scanWordBoxesB = result.wordBoxesB || null;
+
   $('scanResultPhoto').src = state.scanPhotoDataUrl;
   $('scanAlign').hidden = true;
   $('scanResult').hidden = false;
   $('scanStatus').hidden = true;
-  $('scanResultHint').textContent = `Recognized ${result.ref} — tap any word to jump the video there. Pinch or scroll to zoom in.`
-    // engine: 'both' only ever reaches here when the two engines agreed
-    // (see confirmScan) -- worth saying so, since that's a stronger
-    // confirmation than either engine alone gives.
-    + (result.comparison ? ` Both engines agreed (Tesseract ${result.comparison.tesseract.matchScore}, Google Vision ${result.comparison.googleVision.matchScore}).` : '');
   resetScanResultZoom();
+  updateScanAmudToggle();
+
+  // engine: 'both' only ever reaches here when the two engines agreed (see
+  // confirmScan) -- worth saying so, since that's a stronger confirmation
+  // than either engine alone gives. Only meaningful for the initial match --
+  // switchScanAmud doesn't re-run OCR, so it passes no suffix.
+  const hintSuffix = result.comparison
+    ? ` Both engines agreed (Tesseract ${result.comparison.tesseract.matchScore}, Google Vision ${result.comparison.googleVision.matchScore}).`
+    : '';
+  await renderScanMatch(result.ref, result.wordBoxes, hintSuffix);
+
+  await refreshScanVideoPicker(result.tractate, result.daf);
+}
+
+// Shared by showScanResult (the initial match) and switchScanAmud (flipping
+// between an already-matched daf's amud א/ב) -- loads the given ref's video
+// if it isn't already loaded, and rebuilds the tap-to-seek word overlay from
+// the given wordBoxes.
+async function renderScanMatch(ref, wordBoxes, hintSuffix = '') {
+  $('scanResultHint').textContent = `Recognized ${ref} — tap any word to jump the video there. Pinch or scroll to zoom in.${hintSuffix}`;
 
   // A page was just identified -- this is the first point the video player
   // has anything useful to show, so reveal it now (see the ?view=scan
   // handler's scan-pending class) and load the matched daf's video right
   // away, instead of waiting for the reader's first word tap.
   document.body.classList.remove('scan-pending');
-  state.scanSelectedRef = result.ref;
-  if (state.dafRef !== result.ref) {
+  state.scanSelectedRef = ref;
+  if (state.dafRef !== ref) {
     try {
-      await loadDaf(result.ref);
-      applyRealVideoTitle(result.ref);
+      await loadDaf(ref);
+      applyRealVideoTitle(ref);
     } catch (error) {
       console.error(error);
-      showToast(`Could not load ${result.ref}: ${error.message}`, 'error');
+      showToast(`Could not load ${ref}: ${error.message}`, 'error');
     }
   }
 
@@ -3041,7 +3088,7 @@ async function showScanResult(result) {
   // scanWordBoxes/scanWordEls drive updateScanOverlay's live "highlight the
   // word being spoken right now" pass, the same way vilnaPageMap.wordBoxes/
   // vilnaWordEls drive updateVilnaOverlay for the Vilna page view.
-  const normalizedWordBoxes = normalizePageWordBoxes(result.wordBoxes);
+  const normalizedWordBoxes = normalizePageWordBoxes(wordBoxes);
   state.scanWordBoxes = normalizedWordBoxes;
   state.scanWordEls = new Map();
   state.scanOverlayKey = '';
@@ -3062,16 +3109,42 @@ async function showScanResult(result) {
     state.scanWordEls.set(`${box.ref}:${box.wordIndex}`, el);
   }
   updateScanOverlay(getCurrentTime());
-
-  await refreshScanVideoPicker(result.tractate, result.daf);
 }
 
-// Vilna pagination doesn't record which amud a scanned header belongs to
-// (see scan-daf-page.mjs's own "KNOWN v1 LIMITATION" comment) -- the scan
-// flow only ever resolves amud 'a', so that's the only dafAmud key worth
-// looking up here.
+// Flips between amud א/ב of the currently-matched daf on the scan-result
+// screen -- see scan-daf-page.mjs's own KNOWN v1 LIMITATION comment for why
+// a photographed header alone can't tell which amud is open, and why the
+// server sends word positions for both when it can (stashed as
+// state.scanWordBoxesA/scanWordBoxesB in showScanResult).
+async function switchScanAmud(side) {
+  if (side === state.scanAmud) return;
+  const wordBoxes = side === 'b' ? state.scanWordBoxesB : state.scanWordBoxesA;
+  if (!wordBoxes) return;
+  state.scanAmud = side;
+  document.querySelectorAll('#scanAmudToggle .amud-option').forEach((button) => {
+    button.classList.toggle('active', button.dataset.side === side);
+  });
+  await renderScanMatch(`${state.scanTractate} ${state.scanDaf}${side}`, wordBoxes);
+  await refreshScanVideoPicker(state.scanTractate, state.scanDaf);
+}
+
+// Shows/hides #scanAmudToggle based on whether the server actually found
+// amud-ב page data for this daf (state.scanWordBoxesB) -- not every daf has
+// a published amud-ב yet (a tractate's last daf has none at all), and
+// there's nothing useful to toggle to without it.
+function updateScanAmudToggle() {
+  const toggle = $('scanAmudToggle');
+  if (!toggle) return;
+  toggle.hidden = !state.scanWordBoxesB;
+  toggle.querySelectorAll('.amud-option').forEach((button) => {
+    button.classList.toggle('active', button.dataset.side === state.scanAmud);
+  });
+}
+
+// Which amud is currently selected on the scan-result screen -- switchScanAmud
+// keeps state.scanAmud in sync as the reader flips the toggle.
 function scanDafAmudKey(daf) {
-  return `${daf}a`;
+  return `${daf}${state.scanAmud}`;
 }
 
 // Shows/hides and populates the "which video" picker on the scan-result
@@ -6870,6 +6943,12 @@ document.querySelectorAll('#scanEngineToggle .shiur-variant-option').forEach((bu
 });
 $('scanUseTesseractButton')?.addEventListener('click', () => confirmScan('tesseract'));
 $('scanUseVisionButton')?.addEventListener('click', () => confirmScan('google-vision'));
+document.querySelectorAll('#scanAmudToggle .amud-option').forEach((button) => {
+  button.addEventListener('click', () => {
+    if (button.disabled) return;
+    switchScanAmud(button.dataset.side);
+  });
+});
 
 $('helpButton').addEventListener('click', () => $('helpDialog').showModal());
 $('closeHelp').addEventListener('click', () => $('helpDialog').close());
