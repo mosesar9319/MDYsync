@@ -1310,11 +1310,26 @@
                   <div class="shiur-variant-toggle" id="scanEngineToggle" role="group" aria-label="OCR engine">
                     <button type="button" class="shiur-variant-option active" data-variant="tesseract">Standard</button>
                     <button type="button" class="shiur-variant-option" data-variant="google-vision">Google Vision</button>
+                    <button type="button" class="shiur-variant-option" data-variant="both">Both</button>
                   </div>
                 </div>
                 <div class="scan-align-actions">
                   <button class="button secondary small" id="scanRetakeButton" type="button">Retake</button>
                   <button class="button primary small" id="scanConfirmButton" type="button">Scan this page</button>
+                </div>
+                <!-- Only shown when engine="both" was scanned and the two
+                     engines DIDN'T agree (or one/both couldn't identify a
+                     daf at all) -- see confirmScan/showScanComparison. When
+                     they DO agree, the reader never sees this at all: the
+                     normal scanResult screen appears directly, just with an
+                     extra note that both engines confirmed it (see
+                     showScanResult). -->
+                <div class="scan-comparison-result" id="scanComparisonResult" hidden>
+                  <p class="scan-hint" id="scanComparisonText"></p>
+                  <div class="scan-align-actions">
+                    <button class="button secondary small" id="scanUseTesseractButton" type="button">Use Tesseract's match</button>
+                    <button class="button secondary small" id="scanUseVisionButton" type="button">Use Google Vision's match</button>
+                  </div>
                 </div>
               </div>
 

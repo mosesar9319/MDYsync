@@ -275,71 +275,127 @@ export default async (request) => {
   const visionApiKey = Netlify.env.get('GOOGLE_VISION_API_KEY');
   const visionCredentialsJson = Netlify.env.get('GOOGLE_VISION_CREDENTIALS_JSON');
   const hasVisionCredential = Boolean(visionApiKey || visionCredentialsJson);
-  const engine = requestedEngine === 'tesseract' || requestedEngine === 'google-vision'
+  const engine = requestedEngine === 'tesseract' || requestedEngine === 'google-vision' || requestedEngine === 'both'
     ? requestedEngine
     : (hasVisionCredential ? 'google-vision' : 'tesseract');
-  if (engine === 'google-vision' && !hasVisionCredential) {
-    return Response.json({ error: 'google-vision engine requested but neither GOOGLE_VISION_API_KEY nor GOOGLE_VISION_CREDENTIALS_JSON is set.' }, { status: 503 });
+  if ((engine === 'google-vision' || engine === 'both') && !hasVisionCredential) {
+    return Response.json({ error: `${engine} engine requested but neither GOOGLE_VISION_API_KEY nor GOOGLE_VISION_CREDENTIALS_JSON is set.` }, { status: 503 });
   }
 
-  let ocrText;
-  try {
-    const imageBuffer = Buffer.from(imageBase64, 'base64');
-    // Crop the header region ourselves rather than passing tesseract.js's
-    // own `rectangle` recognize() option -- confirmed by direct testing
-    // that it silently reads the wrong region once the source image is
-    // larger than a tiny test crop (worked on a ~700px-wide test image,
-    // returned only a garbled fragment on a realistic ~900px+ full-page
-    // photo). Actually cropping first and feeding tesseract just that
-    // buffer works correctly at any source size. Cropping first (rather
-    // than sending Vision the whole photo) also matters for that engine:
-    // it keeps this call as cheap and fast as the header actually needs,
-    // and re-uses the exact same HEADER_BAND/homography region math either
-    // engine reads, so a same-photo comparison between them isn't also
-    // comparing two different crops.
-    const cropped = await Jimp.read(imageBuffer);
-    cropped.crop({ x: rectangle.left, y: rectangle.top, w: rectangle.width, h: rectangle.height });
-    // Vision-only (see VISION_UPSCALE_FACTOR's own comment) -- tesseract
-    // already reads this crop correctly at its native resolution, so
-    // upscaling it too would just add work for no accuracy gain.
-    if (engine === 'google-vision') cropped.scale(VISION_UPSCALE_FACTOR);
-    // greyscale + normalize -- confirmed directly by A/B testing against
-    // BOTH a real photo (clean, well-lit) and a realistic synthetically
-    // degraded one (blur, uneven lighting, JPEG recompression): this
-    // combination correctly read the daf number on both. An earlier version
-    // of this also added a fixed contrast(0.5) boost, tuned only against
-    // the degraded photo -- confirmed directly that it actively destroyed
-    // the daf number on the real, already-well-exposed photo (a fixed boost
-    // clips a photo that didn't need it; normalize()'s own adaptive
-    // levels-stretch doesn't have that failure mode, since it scales to
-    // each image's actual histogram instead of applying the same fixed
-    // adjustment regardless of source quality). This preprocessing was
-    // tuned against Tesseract specifically; kept for Vision too so the
-    // spike compares engines, not preprocessing.
-    cropped.greyscale();
-    cropped.normalize();
-    const croppedBuffer = await cropped.getBuffer('image/png');
-
-    if (engine === 'google-vision') {
-      ocrText = await ocrHeaderGoogleVision(croppedBuffer, { apiKey: visionApiKey, credentialsJson: visionCredentialsJson });
-    } else {
-      const worker = await createWorker('heb');
-      try {
-        const { data } = await worker.recognize(croppedBuffer);
-        ocrText = data.text;
-      } finally {
-        await worker.terminate();
-      }
-    }
-  } catch (error) {
-    return Response.json({ error: 'Could not read the page header.', detail: error.message }, { status: 502 });
-  }
-
+  const imageBuffer = Buffer.from(imageBase64, 'base64');
+  const visionCredentials = { apiKey: visionApiKey, credentialsJson: visionCredentialsJson };
   const availableDapim = await listAvailablePages(token);
   const vocabulary = buildHeaderVocabulary(availableDapim);
-  const match = matchHeader(ocrText, vocabulary);
+
+  // Runs ONE engine's full read-the-header-and-identify-the-daf pipeline;
+  // 'both' mode below calls this twice (once per real engine) rather than
+  // this function ever knowing about comparison mode itself. Never throws --
+  // a failure at either stage (can't read the header at all, or read it but
+  // couldn't match it to any known daf) comes back as a field on the result
+  // instead, so 'both' mode can report what EACH engine did even when one of
+  // them fails outright, rather than the whole request failing because one
+  // engine had a bad day.
+  async function ocrAndMatchOneEngine(oneEngine) {
+    let ocrText;
+    try {
+      // Crop the header region ourselves rather than passing tesseract.js's
+      // own `rectangle` recognize() option -- confirmed by direct testing
+      // that it silently reads the wrong region once the source image is
+      // larger than a tiny test crop (worked on a ~700px-wide test image,
+      // returned only a garbled fragment on a realistic ~900px+ full-page
+      // photo). Actually cropping first and feeding tesseract just that
+      // buffer works correctly at any source size. Cropping first (rather
+      // than sending Vision the whole photo) also matters for that engine:
+      // it keeps this call as cheap and fast as the header actually needs,
+      // and re-uses the exact same HEADER_BAND/homography region math either
+      // engine reads, so a same-photo comparison between them isn't also
+      // comparing two different crops.
+      const cropped = await Jimp.read(imageBuffer);
+      cropped.crop({ x: rectangle.left, y: rectangle.top, w: rectangle.width, h: rectangle.height });
+      // Vision-only (see VISION_UPSCALE_FACTOR's own comment) -- tesseract
+      // already reads this crop correctly at its native resolution, so
+      // upscaling it too would just add work for no accuracy gain.
+      if (oneEngine === 'google-vision') cropped.scale(VISION_UPSCALE_FACTOR);
+      // greyscale + normalize -- confirmed directly by A/B testing against
+      // BOTH a real photo (clean, well-lit) and a realistic synthetically
+      // degraded one (blur, uneven lighting, JPEG recompression): this
+      // combination correctly read the daf number on both. An earlier version
+      // of this also added a fixed contrast(0.5) boost, tuned only against
+      // the degraded photo -- confirmed directly that it actively destroyed
+      // the daf number on the real, already-well-exposed photo (a fixed boost
+      // clips a photo that didn't need it; normalize()'s own adaptive
+      // levels-stretch doesn't have that failure mode, since it scales to
+      // each image's actual histogram instead of applying the same fixed
+      // adjustment regardless of source quality). This preprocessing was
+      // tuned against Tesseract specifically; kept for Vision too so a
+      // side-by-side comparison isn't also comparing two different
+      // preprocessing pipelines.
+      cropped.greyscale();
+      cropped.normalize();
+      const croppedBuffer = await cropped.getBuffer('image/png');
+
+      if (oneEngine === 'google-vision') {
+        ocrText = await ocrHeaderGoogleVision(croppedBuffer, visionCredentials);
+      } else {
+        const worker = await createWorker('heb');
+        try {
+          const { data } = await worker.recognize(croppedBuffer);
+          ocrText = data.text;
+        } finally {
+          await worker.terminate();
+        }
+      }
+    } catch (error) {
+      return { engine: oneEngine, ocrError: error.message || 'Could not read the page header.' };
+    }
+    return { engine: oneEngine, ocrText, match: matchHeader(ocrText, vocabulary) };
+  }
+
+  let match; // the one match actually used to build wordBoxes below
+  let comparison = null; // present only for engine === 'both'
+  if (engine === 'both') {
+    const [tesseractResult, visionResult] = await Promise.all([
+      ocrAndMatchOneEngine('tesseract'),
+      ocrAndMatchOneEngine('google-vision'),
+    ]);
+    const summarize = (result) => {
+      if (result.ocrError) return { error: `Could not read the page header: ${result.ocrError}` };
+      if (!result.match) return { error: 'Could not identify the daf from this photo.' };
+      return {
+        ref: `${result.match.entry.tractate} ${result.match.entry.daf}a`,
+        tractate: result.match.entry.tractate,
+        daf: result.match.entry.daf,
+        matchScore: Math.round(result.match.score),
+      };
+    };
+    const agree = Boolean(
+      tesseractResult.match && visionResult.match
+      && tesseractResult.match.entry.tractate === visionResult.match.entry.tractate
+      && tesseractResult.match.entry.daf === visionResult.match.entry.daf
+    );
+    comparison = { agree, tesseract: summarize(tesseractResult), googleVision: summarize(visionResult) };
+    // Either engine's match is equally valid to build the real result from
+    // once they agree (same tractate+daf) -- picks tesseract's arbitrarily.
+    if (agree) match = tesseractResult.match;
+  } else {
+    const result = await ocrAndMatchOneEngine(engine);
+    if (result.ocrError) {
+      return Response.json({ error: 'Could not read the page header.', detail: result.ocrError }, { status: 502 });
+    }
+    if (!result.match) {
+      return Response.json({ error: 'Could not identify the daf from this photo.', ocrText: result.ocrText }, { status: 422 });
+    }
+    match = result.match;
+  }
+
   if (!match) {
-    return Response.json({ error: 'Could not identify the daf from this photo.', ocrText }, { status: 422 });
+    // Only reachable from 'both' mode with no agreement (or one/both
+    // engines failing outright) -- comparison is always set in that case.
+    // A real, if inconclusive, result: the reader sees exactly what each
+    // engine found and can pick one to proceed with (re-submitting with
+    // that specific engine forced, the normal single-engine path above) --
+    // not a dead-end error.
+    return Response.json({ comparison }, { headers: { 'Access-Control-Allow-Origin': origin } });
   }
 
   const pageKey = `${match.entry.tractate.replace(/\s+/g, '-')}-${match.entry.daf}a`;
@@ -423,6 +479,10 @@ export default async (request) => {
     daf: match.entry.daf,
     matchScore: Math.round(match.score),
     wordBoxes,
+    // Only present for engine === 'both', and only reaches here when the
+    // two engines agreed -- a disagreement/failure returns earlier, above,
+    // with a comparison and no wordBoxes at all.
+    ...(comparison ? { comparison } : {}),
   }, {
     headers: { 'Access-Control-Allow-Origin': origin },
   });
