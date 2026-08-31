@@ -2944,6 +2944,13 @@ async function confirmScan() {
         imageWidth: state.scanImageWidth,
         imageHeight: state.scanImageHeight,
         corners,
+        // Reuses the same generic active-option lookup the Regular/Chazarah
+        // and English/Hebrew toggles already use (see activeShiurVariant) --
+        // #scanEngineToggle is just another .shiur-variant-option group,
+        // keyed by data-variant="tesseract"/"google-vision" instead of a
+        // shiur variant. See scan-daf-page.mjs's own engine-selection
+        // comment for what each option actually does server-side.
+        engine: activeShiurVariant('scanEngineToggle'),
       }),
     });
     const result = await response.json();
@@ -6810,6 +6817,16 @@ document.querySelectorAll('#scanLanguageToggle .language-option').forEach((butto
     if (button.disabled) return;
     setActiveLanguage('scanLanguageToggle', button.dataset.language);
     switchScanVideo();
+  });
+});
+// Standard (tesseract) vs Google Vision -- just sets which option is
+// .active; confirmScan reads it (via activeShiurVariant) at scan time, no
+// immediate side effect the way the two toggles above have (switchScanVideo
+// re-renders an already-scanned result; this only matters for the NEXT
+// scan).
+document.querySelectorAll('#scanEngineToggle .shiur-variant-option').forEach((button) => {
+  button.addEventListener('click', () => {
+    setActiveShiurVariant('scanEngineToggle', button.dataset.variant);
   });
 });
 

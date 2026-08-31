@@ -86,6 +86,17 @@ const CANONICAL_CORNERS = [[0, 0], [1, 0], [1, 1], [0, 1]];
 // bounding worst-case request cost.
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
+// google-vision only (see the engine-selection comment below for why
+// tesseract doesn't need this): confirmed directly that Vision's
+// DOCUMENT_TEXT_DETECTION misses the header's daf-number glyphs entirely at
+// this crop's native resolution, and that a 2-3x upscale of the SAME crop
+// before sending it fixes that completely. Picked the middle of that
+// confirmed-working range rather than the low end, since a header crop is
+// tiny to begin with (a few hundred pixels wide) and the marginal request-
+// size/latency cost of 2.5x vs 2x is negligible next to actually getting a
+// readable daf number.
+const VISION_UPSCALE_FACTOR = 2.5;
+
 function base64url(input) {
   return Buffer.from(input).toString('base64url');
 }
@@ -243,29 +254,24 @@ export default async (request) => {
   };
 
   // google-vision when a key is configured, same default the batch page-OCR
-  // job uses -- explicit engine in the request body overrides that, for the
-  // A/B test harness comparing both against the same real photos; the real
-  // capture UI never sends one, so production always follows the env-var
-  // default.
+  // job uses -- explicit engine in the request body overrides that. The
+  // capture UI now sends one (a reader-facing engine toggle on the
+  // scan-align screen, see app.js's confirmScan), so production traffic no
+  // longer universally follows the env-var default the way it used to.
   //
-  // NOT YET SAFE TO DEFAULT TO google-vision: spike-tested against one real
-  // photo (the one this file's own module comment describes being
-  // misidentified as 86a) and found a genuine, reproducible blind spot --
-  // Vision's DOCUMENT_TEXT_DETECTION never detects the header's daf-number
-  // glyphs at this crop's native resolution, confirmed directly against its
-  // raw response (absent from textAnnotations entirely, not a parsing
-  // issue on this end), even though it's the largest, clearest text in the
-  // crop. A 2-3x upscale of the header crop before sending it to Vision
-  // fixes this completely (confirmed: reads the daf number and every other
-  // header token correctly at both scales) -- but that upscale isn't
-  // implemented here yet, so switching the default without it would
-  // regress exactly the photo that motivated this file's original design.
-  // Separately, and just as relevant: on that same photo, the CURRENT
-  // tesseract path already matches correctly (score 83) -- the failure
-  // this module's docstring describes was already fixed by earlier work
-  // (narrowing HEADER_BAND, the punctuated-gematria-token filter), so
-  // whatever's still going wrong for real users is a different photo/
-  // condition than the one on file here, not reproduced by it.
+  // The default itself is DELIBERATELY STILL tesseract, not flipped to
+  // google-vision even where a credential is configured: the header-crop
+  // upscale below (VISION_UPSCALE_FACTOR) fixes the specific, confirmed
+  // blind spot that used to make Vision miss the daf-number glyphs
+  // entirely (spike-tested against a real photo that was misidentified as
+  // 86a -- absent from Vision's raw textAnnotations response at native
+  // crop resolution, not a parsing issue on this end; reads correctly at
+  // both 2x and 3x). That makes google-vision a genuinely safe EXPLICIT
+  // choice now. It doesn't by itself establish that Vision is more
+  // accurate than tesseract across real photos generally, which is a
+  // separate, unproven claim the reader-facing toggle is what actually
+  // lets get tested against real-world use -- tesseract stays the
+  // conservative default until that evidence exists.
   const visionApiKey = Netlify.env.get('GOOGLE_VISION_API_KEY');
   const visionCredentialsJson = Netlify.env.get('GOOGLE_VISION_CREDENTIALS_JSON');
   const hasVisionCredential = Boolean(visionApiKey || visionCredentialsJson);
@@ -293,6 +299,10 @@ export default async (request) => {
     // comparing two different crops.
     const cropped = await Jimp.read(imageBuffer);
     cropped.crop({ x: rectangle.left, y: rectangle.top, w: rectangle.width, h: rectangle.height });
+    // Vision-only (see VISION_UPSCALE_FACTOR's own comment) -- tesseract
+    // already reads this crop correctly at its native resolution, so
+    // upscaling it too would just add work for no accuracy gain.
+    if (engine === 'google-vision') cropped.scale(VISION_UPSCALE_FACTOR);
     // greyscale + normalize -- confirmed directly by A/B testing against
     // BOTH a real photo (clean, well-lit) and a realistic synthetically
     // degraded one (blur, uneven lighting, JPEG recompression): this
