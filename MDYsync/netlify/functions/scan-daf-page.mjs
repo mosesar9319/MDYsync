@@ -168,7 +168,16 @@ async function ocrHeaderGoogleVision(imageBuffer, { apiKey, credentialsJson }) {
   const data = await response.json();
   const result = data?.responses?.[0];
   if (!response.ok || result?.error) {
-    throw new Error(result?.error?.message || `Vision request failed (${response.status})`);
+    // Two different error shapes Vision can return, and the old version
+    // here only ever checked one of them: a per-image failure comes back
+    // as responses[0].error (request itself was fine, this one image
+    // couldn't be processed), but a malformed-request/auth/quota failure
+    // comes back as a TOP-LEVEL data.error instead, with responses
+    // entirely absent -- confirmed live: a real 400 against the deployed
+    // endpoint had result === undefined (so result?.error was also
+    // undefined) and fell through to the generic "Vision request failed
+    // (400)" fallback, hiding whatever Google's own message actually said.
+    throw new Error(result?.error?.message || data?.error?.message || `Vision request failed (${response.status})`);
   }
   return result.fullTextAnnotation?.text || '';
 }
