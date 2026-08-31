@@ -481,21 +481,62 @@
   // rather than a viewport media query -- one page shows this player at
   // several sizes at once (the split layout's column, then reading mode's
   // floating mini-player over the daf), so the viewport can't tell them
-  // apart. Each threshold is the width at which the tier above it actually
-  // starts overflowing the bar, measured rather than guessed. No tier ever
-  // DROPS a control: they give up captions, then wording, then millimetres,
-  // so every control stays reachable at every size.
+  // apart. No tier ever DROPS a control: they give up captions, then
+  // wording, then millimetres, so every control stays reachable at every
+  // size.
+  //
+  // Width alone can't decide this, though, because what has to fit depends
+  // on the bar's CONTENTS as much as its width: #vaaterButton appears on
+  // any daf that has a word timeline and is ~90px wide on its own, which was
+  // enough to push PiP and Fullscreen clean off the end of the bar (and
+  // under .video-frame's overflow:hidden, so they simply vanished) at
+  // several perfectly ordinary widths. So width only picks the STARTING
+  // tier; from there this steps down for as long as the bar still overflows,
+  // and re-runs whenever the bar's contents change. Measuring what actually
+  // overflows beats a threshold guessed against one snapshot of the bar.
+  const TIERS = ['is-snug', 'is-compact', 'is-tiny'];
   const SNUG_WIDTH = 780;
   const COMPACT_WIDTH = 660;
   const TINY_WIDTH = 400;
-  const applyWidthClasses = () => {
+  const applyTier = (depth) => TIERS.forEach((cls, i) => frame.classList.toggle(cls, i < depth));
+  function fitChrome() {
     const width = frame.clientWidth;
-    frame.classList.toggle('is-snug', width < SNUG_WIDTH);
-    frame.classList.toggle('is-compact', width < COMPACT_WIDTH);
-    frame.classList.toggle('is-tiny', width < TINY_WIDTH);
-  };
-  new ResizeObserver(applyWidthClasses).observe(frame);
-  applyWidthClasses();
+    let depth = width < TINY_WIDTH ? 3 : width < COMPACT_WIDTH ? 2 : width < SNUG_WIDTH ? 1 : 0;
+    applyTier(depth);
+    while (depth < TIERS.length && controls.scrollWidth > controls.clientWidth) applyTier(++depth);
+  }
+  // Class changes land on the frame, never on .player-controls itself, so
+  // neither observer can retrigger the other.
+  new ResizeObserver(fitChrome).observe(frame);
+  new MutationObserver(fitChrome).observe(controls, {
+    subtree: true, childList: true, attributes: true, attributeFilter: ['hidden', 'style', 'class'],
+  });
+  fitChrome();
+
+  // --- Bringing the chrome back once it has faded out ----------------------
+  // The controls auto-hide (see showVideoControls in app.js) and come back on
+  // mousemove over the frame. That works for a direct <video>, but a YouTube
+  // shiur plays in an IFRAME that fills the frame edge to edge -- and mouse
+  // events over an iframe belong to its own document, never reaching a
+  // listener on this one. Once the controls faded (and went pointer-events:
+  // none with it) there was nothing left on this page for the pointer to be
+  // over, so on a YouTube shiur they could not be brought back at all
+  // without reloading. Reading mode's mini-player was unaffected only
+  // because its pinch surface already covers the video for its own reasons.
+  //
+  // This is that missing surface, and nothing more: it is inert whenever the
+  // controls are showing, so normal interaction with the player is untouched,
+  // and it only becomes live once they have hidden -- where the first move or
+  // tap on it brings them back, the way every video player behaves. It sits
+  // below the Vilna overlay's own z-index so dragging that still works, and
+  // below the big centre play button so that stays clickable.
+  const wakeLayer = document.createElement('div');
+  wakeLayer.className = 'player-wake-layer';
+  wakeLayer.setAttribute('aria-hidden', 'true');
+  frame.appendChild(wakeLayer);
+  for (const type of ['mousemove', 'pointerdown', 'touchstart']) {
+    wakeLayer.addEventListener(type, () => showVideoControls(), { passive: true });
+  }
 
   if (video) {
     video.addEventListener('durationchange', refreshChapterMarkers);
