@@ -395,6 +395,15 @@ h2 { margin-bottom: 0; }
    player). Everything here lives inside .video-frame, so it survives native
    fullscreen and fades with the rest of the chrome on .controls-hidden. */
 
+/* The surface that lets faded-out controls be brought back over a YouTube
+   shiur, whose iframe fills the frame and keeps every mouse event to itself
+   (see player-chrome.js for the full story). Inert while the controls are
+   showing, so it changes nothing about normal use; live only once they have
+   hidden. z-index 2 puts it above the iframe but below the Vilna overlay (3)
+   and the centre play button (4), both of which stay directly clickable. */
+.player-wake-layer { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.video-frame.controls-hidden .player-wake-layer { pointer-events: auto; }
+
 .player-topbar {
   position: absolute; top: 0; left: 0; right: 0; z-index: 7;
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
