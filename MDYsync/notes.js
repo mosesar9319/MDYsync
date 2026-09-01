@@ -16,6 +16,9 @@ const notesByRef = new Map();
 let notesLoadedForDafKey = null;
 let activeNoteRef = null;
 let activeNotePrivacy = 'private';
+// Optional single category key (see CATEGORY_TYPES) for the note currently
+// being composed, or null for "no category" -- a valid, expected state.
+let activeNoteCategory = null;
 // { ref, start, end, selectedText } while composing a note FROM a Notes
 // Mode word-range selection (see openNoteComposerForSelection); null for
 // the original whole-segment 🗒-button flow (openNoteDialog), which still
@@ -53,6 +56,39 @@ function reactionKey(targetType, targetId, reactionType) {
 // rebuilt on every refreshNoteList the same way reactionsByTarget is.
 const followedNoteIds = new Set();
 
+// Optional single category tag on a NOTE (not a reply -- replies aren't
+// categorized). `primary: true` entries show directly in the composer;
+// the rest sit behind "More categories" so the picker doesn't open onto an
+// 18-item wall the first time. he/meaning render alongside the English
+// label -- the Hebrew/Yeshivish term is the prominent one (see
+// renderCategoryLabel), matching how this project already talks about a
+// segment ("A word-range note quoting a specific phrase," Frank Ruhl Libre
+// for the Hebrew) rather than translating everything into English-first.
+const CATEGORY_TYPES = [
+  { key: 'question', en: 'Question', he: 'שאלה / קשיא', meaning: 'A question about the passage', icon: '❓', primary: true },
+  { key: 'insight', en: 'Insight', he: 'חידוש', meaning: 'An original or insightful thought', icon: '💡', primary: true },
+  { key: 'difficulty', en: 'Difficulty', he: 'קושיא', meaning: 'A contradiction or problem in the text', icon: '⚠️', primary: true },
+  { key: 'explanation', en: 'Explanation', he: 'ביאור', meaning: 'An explanation of the Gemara', icon: '📝', primary: true },
+  { key: 'answer', en: 'Answer', he: 'תירוץ / תשובה', meaning: 'A proposed answer to a question', icon: '✅', primary: true },
+  { key: 'further_study', en: 'Needs Further Study', he: 'צריך עיון', meaning: 'A point requiring deeper examination', icon: '📚', primary: true },
+  { key: 'textual_precision', en: 'Textual Precision', he: 'דיוק בלשון', meaning: 'An observation about the exact wording', icon: '🔬', primary: true },
+  { key: 'source', en: 'Source', he: 'מראה מקום', meaning: 'A related source or reference', icon: '📖', primary: true },
+  { key: 'practical_implication', en: 'Practical Implication', he: 'נפקא מינה', meaning: 'A practical or conceptual difference', icon: '🔀', primary: true },
+  { key: 'summary', en: 'Summary', he: 'סיכום / מהלך הסוגיא', meaning: 'A summary or outline of the sugya', icon: '📋', primary: true },
+  { key: 'needs_clarification', en: 'Needs Clarification', he: 'צריך בירור', meaning: 'Something that still needs clarification', icon: '❔', primary: false },
+  { key: 'alternative_approach', en: 'Alternative Approach', he: 'מהלך אחר / פשט אחר', meaning: 'A different way to understand the passage', icon: '🧭', primary: false },
+  { key: 'supporting_proof', en: 'Supporting Proof', he: 'ראיה', meaning: 'Evidence supporting an explanation', icon: '⚖️', primary: false },
+  { key: 'parallel_passage', en: 'Parallel Passage', he: 'סוגיא מקבילה', meaning: 'A connection to another sugya', icon: '🔗', primary: false },
+  { key: 'practical_halacha', en: 'Practical Halacha', he: 'הלכה למעשה', meaning: 'A practical halachic conclusion', icon: '📜', primary: false },
+  { key: 'background', en: 'Background', he: 'הקדמה / רקע', meaning: 'Helpful introductory context', icon: '🏛️', primary: false },
+  { key: 'review_point', en: 'Review Point', he: 'נקודה לחזרה', meaning: 'Something worth remembering for chazarah', icon: '📌', primary: false },
+  { key: 'lesson', en: 'Lesson', he: 'מוסר השכל', meaning: 'A personal or practical lesson', icon: '🎓', primary: false },
+];
+
+function categoryByKey(key) {
+  return CATEGORY_TYPES.find((c) => c.key === key) || null;
+}
+
 function noteDialogEls() {
   return {
     dialog: $('noteDialog'),
@@ -62,6 +98,9 @@ function noteDialogEls() {
     compose: $('noteCompose'),
     privacyToggle: $('notePrivacyToggle'),
     privacyHint: $('notePrivacyHint'),
+    categoryOptions: $('noteCategoryOptions'),
+    categorySecondaryOptions: $('noteCategorySecondaryOptions'),
+    categoryMoreToggle: $('noteCategoryMoreToggle'),
     bodyInput: $('noteBodyInput'),
     saveButton: $('saveNoteButton'),
     signInPrompt: $('noteSignInPrompt'),
@@ -323,6 +362,24 @@ function renderReplySection(row) {
     </div>`;
 }
 
+let noteSortMode = 'newest';
+
+// "Category" groups notes by category in the same fixed order the picker
+// itself uses (primary categories first, matching what a reader already
+// recognizes from composing), each group still newest-first internally.
+// Uncategorized notes sort last as their own group, not scattered by date.
+const CATEGORY_SORT_INDEX = new Map(CATEGORY_TYPES.map((c, i) => [c.key, i]));
+
+function sortNotesForDisplay(rows) {
+  if (noteSortMode !== 'category') return rows;
+  return [...rows].sort((a, b) => {
+    const aIdx = a.category ? CATEGORY_SORT_INDEX.get(a.category) : Infinity;
+    const bIdx = b.category ? CATEGORY_SORT_INDEX.get(b.category) : Infinity;
+    if (aIdx !== bIdx) return aIdx - bIdx;
+    return new Date(a.created_at) - new Date(b.created_at);
+  });
+}
+
 function renderNoteList(rows) {
   const { list } = noteDialogEls();
   const user = window.DafSyncAuth?.getUser();
@@ -330,12 +387,16 @@ function renderNoteList(rows) {
     list.innerHTML = '<p class="field-note">No notes on this line yet.</p>';
     return;
   }
-  list.innerHTML = rows.map((row) => {
+  list.innerHTML = sortNotesForDisplay(rows).map((row) => {
     const mine = user && row.author_id === user.id;
     const who = mine ? 'You' : escapeHtml(row.author_display_name || 'Anonymous');
     const privacyPill = row.is_private
       ? '<span class="note-pill note-pill-private">🔒 Private</span>'
       : '<span class="note-pill note-pill-live">🌐 Live</span>';
+    const categoryInfo = row.category ? categoryByKey(row.category) : null;
+    const categoryPill = categoryInfo
+      ? `<span class="note-pill note-category-pill" title="${escapeHtml(categoryInfo.en)} — ${escapeHtml(categoryInfo.meaning)}">${categoryInfo.icon} <span dir="rtl" lang="he">${escapeHtml(categoryInfo.he)}</span></span>`
+      : '';
     const hiddenPill = row.hidden ? '<span class="note-pill note-pill-hidden">Hidden by moderators</span>' : '';
     const driftPill = noteAnchorMayHaveShifted(row)
       ? '<span class="note-pill note-pill-drift" title="This daf\'s word positions were rebuilt since this note was written -- the highlighted passage may not exactly match anymore.">⚠ May have shifted</span>'
@@ -358,6 +419,7 @@ function renderNoteList(rows) {
         <div class="note-item-head">
           <span class="note-item-author">${who}</span>
           ${privacyPill}
+          ${categoryPill}
           ${hiddenPill}
           ${driftPill}
           <span class="note-item-time">${formatNoteTime(row.created_at)}</span>
@@ -602,6 +664,43 @@ async function deleteComment(id) {
   if (activeNoteRef) refreshNoteList(activeNoteRef);
 }
 
+function categoryChipHtml(category) {
+  return `
+    <button type="button" class="note-category-chip" data-category="${category.key}" title="${escapeHtml(category.en)} — ${escapeHtml(category.meaning)}">
+      <span class="note-category-chip-icon">${category.icon}</span>
+      <span class="note-category-chip-text">
+        <span class="note-category-chip-he" dir="rtl" lang="he">${escapeHtml(category.he)}</span>
+        <span class="note-category-chip-en">${escapeHtml(category.en)}</span>
+      </span>
+    </button>`;
+}
+
+// Built once (the chip set is static) rather than on every dialog open --
+// unlike the note list, this doesn't depend on which note/segment is active.
+function renderCategoryPicker() {
+  const { categoryOptions, categorySecondaryOptions } = noteDialogEls();
+  if (!categoryOptions) return;
+  categoryOptions.innerHTML = CATEGORY_TYPES.filter((c) => c.primary).map(categoryChipHtml).join('');
+  categorySecondaryOptions.innerHTML = CATEGORY_TYPES.filter((c) => !c.primary).map(categoryChipHtml).join('');
+  [categoryOptions, categorySecondaryOptions].forEach((container) => {
+    container.querySelectorAll('.note-category-chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        setNoteCategory(activeNoteCategory === chip.dataset.category ? null : chip.dataset.category);
+      });
+    });
+  });
+}
+
+function setNoteCategory(key) {
+  activeNoteCategory = key;
+  const { categoryOptions, categorySecondaryOptions } = noteDialogEls();
+  [categoryOptions, categorySecondaryOptions].forEach((container) => {
+    container?.querySelectorAll('.note-category-chip').forEach((chip) => {
+      chip.classList.toggle('active', chip.dataset.category === key);
+    });
+  });
+}
+
 function setNotePrivacy(privacy) {
   activeNotePrivacy = privacy;
   const { privacyToggle, privacyHint } = noteDialogEls();
@@ -631,6 +730,7 @@ async function saveNote() {
     segment_ref: activeNoteRef,
     body,
     is_private: activeNotePrivacy === 'private',
+    category: activeNoteCategory,
     // Whole-segment notes (the original 🗒 flow, no selection active) leave
     // all three columns unset -- the same "the whole segment" meaning
     // every pre-existing row already has, per the migration's own check
@@ -664,6 +764,7 @@ function openNoteDialog(ref, text) {
   textLabel.textContent = text || '';
   bodyInput.value = '';
   setNotePrivacy('private');
+  setNoteCategory(null);
   compose.hidden = !user;
   signInPrompt.hidden = Boolean(user);
   dialog.showModal();
@@ -718,6 +819,7 @@ async function openNoteComposerForSelection(ref, start, end) {
   textLabel.textContent = selectedText;
   bodyInput.value = '';
   setNotePrivacy('private');
+  setNoteCategory(null);
   compose.hidden = !user;
   signInPrompt.hidden = Boolean(user);
   dialog.showModal();
@@ -734,6 +836,17 @@ function initNoteDialog() {
   $('saveNoteButton').addEventListener('click', saveNote);
   $('notePrivacyToggle').querySelectorAll('.note-privacy-option').forEach((button) => {
     button.addEventListener('click', () => setNotePrivacy(button.dataset.privacy));
+  });
+  $('noteSortSelect')?.addEventListener('change', (event) => {
+    noteSortMode = event.target.value;
+    renderNoteList(notesByRef.get(activeNoteRef) || []);
+  });
+
+  renderCategoryPicker();
+  $('noteCategoryMoreToggle')?.addEventListener('click', () => {
+    const secondary = $('noteCategorySecondaryOptions');
+    secondary.hidden = !secondary.hidden;
+    $('noteCategoryMoreToggle').textContent = secondary.hidden ? 'More categories ▾' : 'Fewer categories ▴';
   });
   $('noteSignInButton').addEventListener('click', () => {
     dialog.close();

@@ -1044,6 +1044,13 @@
     <div class="eyebrow" id="noteDialogRef">Note</div>
     <h2>Line notes</h2>
     <p class="dialog-note" id="noteDialogText"></p>
+    <div class="note-sort-control">
+      <label for="noteSortSelect">Sort by</label>
+      <select id="noteSortSelect">
+        <option value="newest">Newest</option>
+        <option value="category">Category</option>
+      </select>
+    </div>
     <div class="note-list" id="noteList">
       <p class="field-note">Loading notes…</p>
     </div>
@@ -1051,6 +1058,12 @@
       <div class="note-privacy-toggle" id="notePrivacyToggle" role="group" aria-label="Note visibility">
         <button type="button" class="note-privacy-option active" data-privacy="private">🔒 Private</button>
         <button type="button" class="note-privacy-option" data-privacy="live">🌐 Live</button>
+      </div>
+      <div class="note-category-picker">
+        <div class="note-category-label">Category <span class="field-note">(optional)</span></div>
+        <div class="note-category-options" id="noteCategoryOptions"></div>
+        <button type="button" class="note-category-more-toggle" id="noteCategoryMoreToggle">More categories ▾</button>
+        <div class="note-category-options note-category-options-secondary" id="noteCategorySecondaryOptions" hidden></div>
       </div>
       <textarea id="noteBodyInput" maxlength="2000" rows="3" placeholder="Write a note on this line…"></textarea>
       <div class="note-compose-actions">

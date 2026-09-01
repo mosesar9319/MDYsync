@@ -1356,6 +1356,11 @@ body.studio-locked .app-shell, body.studio-locked .sidebar, body.studio-locked .
 }
 .segment-note-button:hover { opacity: 1; background: rgba(255,255,255,.08); }
 .segment-note-button.has-notes { opacity: 1; color: var(--accent); }
+.note-sort-control { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.note-sort-control select {
+  border: 1px solid var(--line); background: rgba(255,255,255,.04); color: var(--text);
+  border-radius: 8px; padding: 4px 8px; font-family: inherit; font-size: 12px;
+}
 .note-list { max-height: 46vh; overflow-y: auto; margin: 14px 0; display: flex; flex-direction: column; gap: 10px; }
 .note-item { border: 1px solid var(--line); background: rgba(255,255,255,.03); border-radius: 12px; padding: 10px 12px; }
 .note-item-head { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
@@ -1377,6 +1382,7 @@ body.studio-locked .app-shell, body.studio-locked .sidebar, body.studio-locked .
 .note-pill-live { background: var(--accent-soft); color: var(--accent); }
 .note-pill-hidden { background: rgba(220,90,90,.16); color: #e2897f; }
 .note-pill-drift { background: rgba(220,150,60,.16); color: #e2ac6a; }
+.note-category-pill { background: rgba(255,255,255,.08); color: var(--text); font-family: "Frank Ruhl Libre", serif; font-weight: 400; }
 /* --- Flat reply threads under a public note ------------------------------ */
 .note-replies { margin-top: 9px; padding-top: 9px; border-top: 1px dashed var(--line); }
 .reply-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
@@ -1441,6 +1447,26 @@ body.studio-locked .app-shell, body.studio-locked .sidebar, body.studio-locked .
 .note-privacy-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; margin-bottom: 10px; }
 .note-privacy-option { border: 0; background: rgba(255,255,255,.04); color: var(--muted); padding: 7px 12px; cursor: pointer; font-weight: 700; font-size: 13px; }
 .note-privacy-option.active { background: var(--accent); color: #231703; }
+/* Category picker: a restrained, single visual treatment for every chip --
+   18 distinct colors would fight the site's deliberately minimal navy/
+   gold/ivory palette, so the icon + Hebrew/English pairing carries the
+   distinction instead of color-coding. */
+.note-category-picker { margin: 4px 0 12px; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.note-category-label { font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .03em; }
+.note-category-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.note-category-options-secondary { margin-top: 8px; }
+.note-category-chip {
+  display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: rgba(255,255,255,.03);
+  border-radius: 10px; padding: 5px 9px; cursor: pointer; text-align: start;
+}
+.note-category-chip:hover { border-color: var(--line-strong); }
+.note-category-chip.active { border-color: var(--accent); background: var(--accent-soft); }
+.note-category-chip-icon { font-size: 14px; line-height: 1; }
+.note-category-chip-text { display: flex; flex-direction: column; line-height: 1.25; }
+.note-category-chip-he { font-family: "Frank Ruhl Libre", serif; font-size: 13px; color: var(--text); }
+.note-category-chip-en { font-size: 10px; color: var(--muted); }
+.note-category-more-toggle { display: block; border: 0; background: transparent; color: var(--accent); font-size: 12px; font-weight: 700; cursor: pointer; padding: 8px 0 0; }
+.note-category-more-toggle:hover { text-decoration: underline; }
 #noteBodyInput {
   width: 100%; resize: vertical; border: 1px solid var(--line-strong); color: var(--text); background: rgba(4,14,27,.7);
   border-radius: 11px; padding: 10px 12px; font-family: inherit; font-size: 14px; outline: none;
