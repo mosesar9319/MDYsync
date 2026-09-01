@@ -37,7 +37,9 @@ const commentsByNoteId = new Map();
 const REACTION_TYPES = [
   { key: 'helpful', label: 'Helpful' },
   { key: 'insightful', label: 'Insightful' },
-  { key: 'yasher_koach', label: 'Yasher Koach' },
+  { key: 'chazak', label: 'Chazak' },
+  { key: 'shtark', label: 'Shtark' },
+  { key: 'great_kasha', label: 'Great Kasha' },
 ];
 
 // "note:<id>:<reaction_type>" / "comment:<id>:<reaction_type>" -> { count, mine }
