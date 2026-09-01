@@ -1105,6 +1105,35 @@ dialog::backdrop { background: rgba(0,7,15,.7); backdrop-filter: blur(5px); }
 dialog h2 { margin-bottom: 14px; }
 dialog ol { color: #d8e2eb; padding-left: 21px; line-height: 1.6; }
 .dialog-note { color: var(--muted); background: rgba(255,255,255,.04); border: 1px solid var(--line); padding: 12px; border-radius: 11px; margin-bottom: 0; }
+
+/* Notes panel: a right-side sidebar, not a centered popup -- opened via
+   dialog.show() (non-modal, see openNoteDialog/openNoteComposerForSelection
+   in notes.js), not showModal(), so the daf/video behind it stays visible
+   AND interactive (a modal dialog's top-layer promotion makes everything
+   else on the page inert) while a note is being read or written. Only this
+   one dialog gets this treatment -- search/auth/sync/favorites/help all stay
+   centered modals, unaffected by an id-scoped override. */
+#noteDialog {
+  position: fixed;
+  inset: 0 0 0 auto;
+  width: min(420px, 100vw);
+  max-width: 100vw;
+  height: 100vh;
+  max-height: 100vh;
+  margin: 0;
+  border-radius: 0;
+  border-width: 0 0 0 1px;
+  box-shadow: -18px 0 60px rgba(0,0,0,.4);
+  z-index: 500;
+}
+/* A non-modal dialog keeps its UA default of display:none while closed --
+   this only applies once [open] is present, so it never fights that. */
+#noteDialog[open] { display: flex; flex-direction: column; overflow: hidden; }
+#noteDialog .note-list { flex: 1 1 auto; max-height: none; min-height: 0; overflow-y: auto; }
+#noteDialog .note-compose { flex: 0 0 auto; }
+@media (max-width: 480px) {
+  #noteDialog { width: 100vw; }
+}
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none; background: #17304b; border: 1px solid var(--line-strong); color: white; padding: 11px 15px; border-radius: 12px; box-shadow: 0 12px 35px rgba(0,0,0,.35); transition: .25s; z-index: 20; }
 .toast.show { transform: translate(-50%, 0); opacity: 1; }
 .toast.error { border-color: rgba(255,124,137,.5); color: #ffd5da; }
@@ -1471,7 +1500,6 @@ button.note-timestamp-seek:hover { background: rgba(255,255,255,.16); }
 }
 .note-category-chip:hover { border-color: var(--line-strong); }
 .note-category-chip.active { border-color: var(--accent); background: var(--accent-soft); }
-.note-category-chip-icon { font-size: 14px; line-height: 1; }
 .note-category-chip-text { display: flex; flex-direction: column; line-height: 1.25; }
 .note-category-chip-he { font-family: "Frank Ruhl Libre", serif; font-size: 13px; color: var(--text); }
 .note-category-chip-en { font-size: 10px; color: var(--muted); }

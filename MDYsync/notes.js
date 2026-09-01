@@ -492,7 +492,7 @@ function renderNoteList(rows) {
       : '<span class="note-pill note-pill-live">🌐 Live</span>';
     const categoryInfo = row.category ? categoryByKey(row.category) : null;
     const categoryPill = categoryInfo
-      ? `<span class="note-pill note-category-pill" title="${escapeHtml(categoryInfo.en)} — ${escapeHtml(categoryInfo.meaning)}">${categoryInfo.icon} <span dir="rtl" lang="he">${escapeHtml(categoryInfo.he)}</span></span>`
+      ? `<span class="note-pill note-category-pill" title="${escapeHtml(categoryInfo.en)} — ${escapeHtml(categoryInfo.meaning)}"><span dir="rtl" lang="he">${escapeHtml(categoryInfo.he)}</span></span>`
       : '';
     const hiddenPill = row.hidden ? '<span class="note-pill note-pill-hidden">Hidden by moderators</span>' : '';
     const driftPill = noteAnchorMayHaveShifted(row)
@@ -773,7 +773,6 @@ async function deleteComment(id) {
 function categoryChipHtml(category) {
   return `
     <button type="button" class="note-category-chip" data-category="${category.key}" title="${escapeHtml(category.en)} — ${escapeHtml(category.meaning)}">
-      <span class="note-category-chip-icon">${category.icon}</span>
       <span class="note-category-chip-text">
         <span class="note-category-chip-he" dir="rtl" lang="he">${escapeHtml(category.he)}</span>
         <span class="note-category-chip-en">${escapeHtml(category.en)}</span>
@@ -892,7 +891,11 @@ function openNoteDialog(ref, text) {
   updateTimestampToggle();
   compose.hidden = !user;
   signInPrompt.hidden = Boolean(user);
-  dialog.showModal();
+  // Non-modal (not showModal()) -- this now renders as a right-side panel
+  // (see #noteDialog's own CSS) rather than a centered popup, so the daf/
+  // video behind it stays visible AND interactive (a modal dialog makes
+  // everything outside it inert) while a note is being written.
+  dialog.show();
   refreshNoteList(ref);
 }
 
@@ -948,7 +951,7 @@ async function openNoteComposerForSelection(ref, start, end) {
   updateTimestampToggle();
   compose.hidden = !user;
   signInPrompt.hidden = Boolean(user);
-  dialog.showModal();
+  dialog.show(); // see openNoteDialog's own comment on non-modal show()
   refreshNoteList(ref);
 }
 
@@ -1512,7 +1515,7 @@ function renderSearchCategoryFilter() {
   if (!categoryFilter) return;
   categoryFilter.innerHTML = [
     '<option value="">All categories</option>',
-    ...CATEGORY_TYPES.map((c) => `<option value="${c.key}">${c.icon} ${escapeHtml(c.en)} (${escapeHtml(c.he)})</option>`),
+    ...CATEGORY_TYPES.map((c) => `<option value="${c.key}">${escapeHtml(c.en)} (${escapeHtml(c.he)})</option>`),
   ].join('');
 }
 
@@ -1539,7 +1542,7 @@ function renderSearchResults(notes, comments) {
       : '';
     const categoryInfo = row.category ? categoryByKey(row.category) : null;
     const categoryPill = categoryInfo
-      ? `<span class="note-pill note-category-pill">${categoryInfo.icon} <span dir="rtl" lang="he">${escapeHtml(categoryInfo.he)}</span></span>`
+      ? `<span class="note-pill note-category-pill"><span dir="rtl" lang="he">${escapeHtml(categoryInfo.he)}</span></span>`
       : '';
     const timestampPill = renderTimestampPill(row, false);
     const demoPill = demoPillHtml(row);
