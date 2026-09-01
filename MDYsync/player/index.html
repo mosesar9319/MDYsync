@@ -856,8 +856,23 @@
         <input id="player-search" name="q" placeholder="Search shiurim or maggidei shiur" type="search">
       </form>
       <div class="auth-widget" id="authWidget">
+        <button class="button secondary small" id="searchNotesButton" type="button" title="Search public notes and replies">🔍 Notes</button>
         <button class="button secondary small" id="signInButton" type="button">Sign in</button>
         <div class="account-menu" id="accountMenu" hidden>
+          <div class="notif-widget" id="notifWidget">
+            <button type="button" class="notif-bell-button" id="notifBellButton" aria-label="Notifications" title="Notifications">
+              🔔<span class="notif-badge" id="notifBadge" hidden>0</span>
+            </button>
+            <div class="notif-dropdown" id="notifDropdown" hidden>
+              <div class="notif-dropdown-head">
+                <span>Notifications</span>
+                <button type="button" class="button ghost small" id="notifMarkAllReadButton">Mark all read</button>
+              </div>
+              <div class="notif-list" id="notifList">
+                <p class="field-note">No notifications yet.</p>
+              </div>
+            </div>
+          </div>
           <button class="button secondary small account-trigger" id="accountMenuButton" type="button">
             <span id="accountEmailLabel">Account</span>
             <span class="admin-badge admin-only" id="adminBadge">Admin</span>
@@ -1688,6 +1703,18 @@
     <p class="dialog-note" id="noteSignInPrompt" hidden>
       <button class="button secondary small" id="noteSignInButton" type="button">Sign in to add a note</button>
     </p>
+  </dialog>
+
+  <dialog id="searchNotesDialog">
+    <button class="dialog-close" id="closeSearchNotesDialog" aria-label="Close">×</button>
+    <div class="eyebrow">Search</div>
+    <h2>Search notes &amp; replies</h2>
+    <div class="search-notes-field">
+      <input type="search" id="searchNotesInput" placeholder="Search public notes and replies…" maxlength="200">
+    </div>
+    <div class="note-list" id="searchNotesResults">
+      <p class="field-note">Type to search public notes and replies.</p>
+    </div>
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>

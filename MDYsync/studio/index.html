@@ -91,6 +91,20 @@
         <div class="auth-widget" id="authWidget">
           <button class="button secondary small" id="signInButton" type="button">Sign in</button>
           <div class="account-menu" id="accountMenu" hidden>
+            <div class="notif-widget" id="notifWidget">
+              <button type="button" class="notif-bell-button" id="notifBellButton" aria-label="Notifications" title="Notifications">
+                🔔<span class="notif-badge" id="notifBadge" hidden>0</span>
+              </button>
+              <div class="notif-dropdown" id="notifDropdown" hidden>
+                <div class="notif-dropdown-head">
+                  <span>Notifications</span>
+                  <button type="button" class="button ghost small" id="notifMarkAllReadButton">Mark all read</button>
+                </div>
+                <div class="notif-list" id="notifList">
+                  <p class="field-note">No notifications yet.</p>
+                </div>
+              </div>
+            </div>
             <button class="button secondary small account-trigger" id="accountMenuButton" type="button">
               <span id="accountEmailLabel">Account</span>
               <span class="admin-badge admin-only" id="adminBadge">Admin</span>

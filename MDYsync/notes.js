@@ -29,6 +29,18 @@ let activeNoteSelection = null;
 // check in the migration), and hiding a note is meant to suppress its whole
 // reply thread, so a hidden note's replies are never loaded here either.
 const commentsByNoteId = new Map();
+// "note:<id>" / "comment:<id>" -> { count, mine } -- a restrained single
+// reaction ("Helpful"), not a full likes/emoji system, so presence of a row
+// in the DB is the whole signal; this is just the client-side rollup of it.
+const reactionsByTarget = new Map();
+
+function reactionKey(targetType, targetId) {
+  return `${targetType}:${targetId}`;
+}
+
+// note ids the current viewer follows, among the notes currently loaded --
+// rebuilt on every refreshNoteList the same way reactionsByTarget is.
+const followedNoteIds = new Set();
 
 function noteDialogEls() {
   return {
@@ -118,7 +130,86 @@ function noteAnchorMayHaveShifted(row) {
   return count !== (row.end_word - row.start_word + 1);
 }
 
-function renderCommentItem(row) {
+// Visual nesting cap only -- replies keep their real parent_comment_id
+// (and so stay logically threaded, moderation and notifications still see
+// the true chain) no matter how deep a conversation actually goes, but the
+// indentation itself stops growing past this depth so a long back-and-forth
+// can't push the reply panel into a sliver.
+const MAX_REPLY_DEPTH = 4;
+
+// note_id -> Map(parent_comment_id-or-null -> [comment rows]), rebuilt fresh
+// each render off the flat rows loadCommentsForNotes fetched -- the DB
+// stores an adjacency list (parent_comment_id), not a tree, so this is the
+// one place that shape gets turned into something renderCommentItem can
+// walk.
+function buildCommentTree(comments) {
+  const byParent = new Map();
+  for (const row of comments) {
+    const key = row.parent_comment_id || null;
+    if (!byParent.has(key)) byParent.set(key, []);
+    byParent.get(key).push(row);
+  }
+  return byParent;
+}
+
+// A signed-out reader still sees the count (if any) but gets a plain label
+// instead of a button -- reacting requires auth.uid() = user_id at the DB
+// level, so there's nothing a click could do for them.
+function renderReactionButton(targetType, targetId) {
+  const user = window.DafSyncAuth?.getUser();
+  const entry = reactionsByTarget.get(reactionKey(targetType, targetId)) || { count: 0, mine: false };
+  if (!user && entry.count === 0) return '';
+  const countLabel = entry.count > 0 ? ` (${entry.count})` : '';
+  if (!user) return `<span class="reaction-count-label">Helpful${countLabel}</span>`;
+  return `<button type="button" class="reaction-button${entry.mine ? ' active' : ''}" data-target-type="${targetType}" data-target-id="${targetId}">Helpful${countLabel}</button>`;
+}
+
+// Only ever on the NOTE itself (not individual replies) -- following means
+// "notify me about new activity in this thread," which is a thread-level
+// concept. You're auto-followed on your own notes/replies (see the
+// migration's own thread_follows insert in notify_on_*_insert), so this
+// button mostly serves to let you opt back OUT, or opt in without posting.
+function renderFollowButton(noteId) {
+  const user = window.DafSyncAuth?.getUser();
+  if (!user) return '';
+  const following = followedNoteIds.has(noteId);
+  return `<button type="button" class="follow-toggle-button${following ? ' active' : ''}" data-note-id="${noteId}">${following ? 'Following' : 'Follow'}</button>`;
+}
+
+// Who a reply on this note can @-mention: the note's own author plus
+// everyone who has already replied on it, minus yourself. There is no
+// public directory to search against (profiles is owner-read-only -- see
+// profiles_select_own), so mentions are deliberately limited to people
+// already named out loud in this exact thread, not an open user search.
+function getMentionableForNote(noteId) {
+  const user = window.DafSyncAuth?.getUser();
+  const people = new Map();
+  const note = (notesByRef.get(activeNoteRef) || []).find((n) => n.id === noteId);
+  if (note && (!user || note.author_id !== user.id)) {
+    people.set(note.author_id, note.author_display_name || 'Anonymous');
+  }
+  for (const comment of commentsByNoteId.get(noteId) || []) {
+    if (user && comment.author_id === user.id) continue;
+    if (!people.has(comment.author_id)) people.set(comment.author_id, comment.author_display_name || 'Anonymous');
+  }
+  return [...people.entries()].map(([id, name]) => ({ id, name }));
+}
+
+// Chips, not free-text @-parsing -- toggled active/inactive the same way
+// the privacy toggle already does it (.note-privacy-option.active), and
+// read back the same way at submit time (postComment queries
+// .mention-chip.active within the composer). No separate JS-side selection
+// state to keep in sync with a rebuilt DOM.
+function renderMentionChips(noteId) {
+  const people = getMentionableForNote(noteId);
+  if (!people.length) return '';
+  const chips = people
+    .map((p) => `<button type="button" class="mention-chip" data-user-id="${p.id}">@${escapeHtml(p.name)}</button>`)
+    .join('');
+  return `<div class="mention-picker">${chips}</div>`;
+}
+
+function renderCommentItem(row, byParent, depth, noteId) {
   const user = window.DafSyncAuth?.getUser();
   const mine = user && row.author_id === user.id;
   const who = mine ? 'You' : escapeHtml(row.author_display_name || 'Anonymous');
@@ -128,8 +219,31 @@ function renderCommentItem(row) {
   const reportButton = (!mine && user)
     ? `<button type="button" class="note-report-button" data-target-type="comment" data-target-id="${row.id}" aria-label="Report reply" title="Report this reply">🚩</button>`
     : '';
+  // Every reply (not just the note itself) can be replied to -- these use
+  // the SAME .reply-toggle-button/.reply-compose/.reply-post-button classes
+  // as the note-level ones below, keyed by (noteId, parentId) so the click
+  // handlers in renderNoteList don't need two separate code paths.
+  const replyButton = user
+    ? `<button type="button" class="reply-toggle-button" data-note-id="${noteId}" data-parent-id="${row.id}">Reply</button>`
+    : '';
+  const composeHtml = user
+    ? `<div class="reply-compose" data-note-id="${noteId}" data-parent-id="${row.id}" hidden>
+        <textarea class="reply-body-input" maxlength="2000" rows="2" placeholder="Write a reply…"></textarea>
+        ${renderMentionChips(noteId)}
+        <div class="reply-compose-actions">
+          <button type="button" class="button primary small reply-post-button" data-note-id="${noteId}" data-parent-id="${row.id}">Post reply</button>
+        </div>
+      </div>`
+    : '';
+  const children = byParent.get(row.id) || [];
+  const childDepth = Math.min(depth + 1, MAX_REPLY_DEPTH);
+  const childrenHtml = children.length
+    ? `<div class="reply-children">${children.map((child) => renderCommentItem(child, byParent, childDepth, noteId)).join('')}</div>`
+    : '';
+  const reactionButton = renderReactionButton('comment', row.id);
+  const footer = (reactionButton || replyButton) ? `<div class="item-footer">${reactionButton}${replyButton}</div>` : '';
   return `
-    <div class="comment-item" data-id="${row.id}">
+    <div class="comment-item" data-id="${row.id}" style="--reply-depth: ${depth}">
       <div class="comment-item-head">
         <span class="note-item-author">${who}</span>
         ${hiddenPill}
@@ -138,33 +252,44 @@ function renderCommentItem(row) {
         ${mine ? '<button type="button" class="comment-delete-button" data-id="' + row.id + '" aria-label="Delete reply">×</button>' : ''}
       </div>
       <p class="comment-item-body">${escapeHtml(row.body)}</p>
+      ${footer}
+      ${composeHtml}
+      ${childrenHtml}
     </div>`;
 }
 
-// Flat reply thread for one public note -- private and hidden notes never
+// Nested reply thread for one public note -- private and hidden notes never
 // get a reply section at all (see commentsByNoteId's own comment), matching
 // the DB design where comments can't exist under either.
 function renderReplySection(row) {
   if (row.is_private || row.hidden) return '';
   const user = window.DafSyncAuth?.getUser();
   const comments = commentsByNoteId.get(row.id) || [];
-  const repliesHtml = comments.map(renderCommentItem).join('');
+  const byParent = buildCommentTree(comments);
+  const topLevel = byParent.get(null) || [];
+  const repliesHtml = topLevel.map((child) => renderCommentItem(child, byParent, 0, row.id)).join('');
+  // The note's own top-level "Reply" (parent-id left empty) vs. a reply's
+  // own reply button above both render through the same markup shape.
   const replyButton = user
-    ? `<button type="button" class="reply-toggle-button" data-note-id="${row.id}">Reply</button>`
+    ? `<button type="button" class="reply-toggle-button" data-note-id="${row.id}" data-parent-id="">Reply</button>`
     : '';
   const composeHtml = user
-    ? `<div class="reply-compose" data-note-id="${row.id}" hidden>
+    ? `<div class="reply-compose" data-note-id="${row.id}" data-parent-id="" hidden>
         <textarea class="reply-body-input" maxlength="2000" rows="2" placeholder="Write a reply…"></textarea>
+        ${renderMentionChips(row.id)}
         <div class="reply-compose-actions">
-          <button type="button" class="button primary small reply-post-button" data-note-id="${row.id}">Post reply</button>
+          <button type="button" class="button primary small reply-post-button" data-note-id="${row.id}" data-parent-id="">Post reply</button>
         </div>
       </div>`
     : '';
-  if (!repliesHtml && !replyButton) return '';
+  const reactionButton = renderReactionButton('note', row.id);
+  const followButton = renderFollowButton(row.id);
+  const footer = (reactionButton || followButton || replyButton) ? `<div class="item-footer">${reactionButton}${followButton}${replyButton}</div>` : '';
+  if (!repliesHtml && !footer) return '';
   return `
     <div class="note-replies">
       ${repliesHtml ? `<div class="reply-list">${repliesHtml}</div>` : ''}
-      ${replyButton}
+      ${footer}
       ${composeHtml}
     </div>`;
 }
@@ -220,12 +345,12 @@ function renderNoteList(rows) {
   });
   list.querySelectorAll('.reply-toggle-button').forEach((button) => {
     button.addEventListener('click', () => {
-      const composer = list.querySelector(`.reply-compose[data-note-id="${button.dataset.noteId}"]`);
+      const composer = list.querySelector(`.reply-compose[data-note-id="${button.dataset.noteId}"][data-parent-id="${button.dataset.parentId}"]`);
       if (composer) composer.hidden = !composer.hidden;
     });
   });
   list.querySelectorAll('.reply-post-button').forEach((button) => {
-    button.addEventListener('click', () => postComment(button.dataset.noteId));
+    button.addEventListener('click', () => postComment(button.dataset.noteId, button.dataset.parentId || null));
   });
   list.querySelectorAll('.comment-delete-button').forEach((button) => {
     button.addEventListener('click', () => deleteComment(button.dataset.id));
@@ -233,6 +358,60 @@ function renderNoteList(rows) {
   list.querySelectorAll('.note-report-button').forEach((button) => {
     button.addEventListener('click', () => reportItem(button.dataset.targetType, button.dataset.targetId));
   });
+  list.querySelectorAll('.reaction-button').forEach((button) => {
+    button.addEventListener('click', () => toggleReaction(button.dataset.targetType, button.dataset.targetId));
+  });
+  list.querySelectorAll('.mention-chip').forEach((chip) => {
+    chip.addEventListener('click', () => chip.classList.toggle('active'));
+  });
+  list.querySelectorAll('.follow-toggle-button').forEach((button) => {
+    button.addEventListener('click', () => toggleFollow(button.dataset.noteId));
+  });
+}
+
+async function toggleFollow(noteId) {
+  const auth = window.DafSyncAuth;
+  const user = auth?.getUser();
+  if (!user) return;
+  if (followedNoteIds.has(noteId)) {
+    const { error } = await auth.client.from('thread_follows').delete()
+      .eq('user_id', user.id).eq('note_id', noteId);
+    if (error) {
+      showToast(error.message || 'Could not update this.', 'error');
+      return;
+    }
+  } else {
+    const { error } = await auth.client.from('thread_follows').insert({ user_id: user.id, note_id: noteId });
+    if (error) {
+      showToast(error.message || 'Could not update this.', 'error');
+      return;
+    }
+  }
+  if (activeNoteRef) refreshNoteList(activeNoteRef);
+}
+
+async function toggleReaction(targetType, targetId) {
+  const auth = window.DafSyncAuth;
+  const user = auth?.getUser();
+  if (!user) return;
+  const entry = reactionsByTarget.get(reactionKey(targetType, targetId));
+  if (entry?.mine) {
+    const { error } = await auth.client.from('reactions').delete()
+      .eq('user_id', user.id).eq('target_type', targetType).eq('target_id', targetId);
+    if (error) {
+      showToast(error.message || 'Could not update this.', 'error');
+      return;
+    }
+  } else {
+    const { error } = await auth.client.from('reactions').insert({
+      user_id: user.id, target_type: targetType, target_id: targetId,
+    });
+    if (error) {
+      showToast(error.message || 'Could not update this.', 'error');
+      return;
+    }
+  }
+  if (activeNoteRef) refreshNoteList(activeNoteRef);
 }
 
 async function reportItem(targetType, targetId) {
@@ -270,6 +449,42 @@ async function loadCommentsForNotes(rows) {
   }
 }
 
+// Two passes (note targets, then comment targets) rather than one query --
+// Supabase's client doesn't have a clean way to express "(target_type,
+// target_id) in (...)" as a single filter over a list of tuples.
+async function loadReactionsForTargets(noteIds, commentIds) {
+  const auth = window.DafSyncAuth;
+  const user = auth?.getUser();
+  reactionsByTarget.clear();
+  if (!noteIds.length && !commentIds.length) return;
+  const noteReactions = noteIds.length
+    ? await auth.client.from('reactions').select('*').eq('target_type', 'note').in('target_id', noteIds)
+    : { data: [] };
+  const commentReactions = commentIds.length
+    ? await auth.client.from('reactions').select('*').eq('target_type', 'comment').in('target_id', commentIds)
+    : { data: [] };
+  for (const row of [...(noteReactions.data || []), ...(commentReactions.data || [])]) {
+    const key = reactionKey(row.target_type, row.target_id);
+    if (!reactionsByTarget.has(key)) reactionsByTarget.set(key, { count: 0, mine: false });
+    const entry = reactionsByTarget.get(key);
+    entry.count += 1;
+    if (user && row.user_id === user.id) entry.mine = true;
+  }
+}
+
+async function loadFollowsForNotes(noteIds) {
+  const auth = window.DafSyncAuth;
+  const user = auth?.getUser();
+  followedNoteIds.clear();
+  if (!user || !noteIds.length) return;
+  const { data, error } = await auth.client
+    .from('thread_follows').select('note_id')
+    .eq('user_id', user.id)
+    .in('note_id', noteIds);
+  if (error || !data) return;
+  for (const row of data) followedNoteIds.add(row.note_id);
+}
+
 async function refreshNoteList(ref) {
   const auth = window.DafSyncAuth;
   const { list } = noteDialogEls();
@@ -288,6 +503,12 @@ async function refreshNoteList(ref) {
   applyNoteBadges();
   await loadCommentsForNotes(rows);
   if (activeNoteRef !== ref) return; // dialog moved on while replies loaded
+  const commentIds = [...commentsByNoteId.values()].flat().map((c) => c.id);
+  const publicNoteIds = rows.filter((r) => !r.is_private).map((r) => r.id);
+  await loadReactionsForTargets(publicNoteIds, commentIds);
+  if (activeNoteRef !== ref) return; // dialog moved on while reactions loaded
+  await loadFollowsForNotes(publicNoteIds);
+  if (activeNoteRef !== ref) return; // dialog moved on while follow state loaded
   renderNoteList(rows);
 }
 
@@ -302,23 +523,26 @@ async function deleteNote(id) {
   if (activeNoteRef) refreshNoteList(activeNoteRef);
 }
 
-async function postComment(noteId) {
+async function postComment(noteId, parentCommentId) {
   const auth = window.DafSyncAuth;
   const user = auth?.getUser();
   const profile = auth?.getProfile();
   if (!user) return;
   const { list } = noteDialogEls();
-  const composer = list.querySelector(`.reply-compose[data-note-id="${noteId}"]`);
+  const composer = list.querySelector(`.reply-compose[data-note-id="${noteId}"][data-parent-id="${parentCommentId || ''}"]`);
   const textarea = composer?.querySelector('.reply-body-input');
   const button = composer?.querySelector('.reply-post-button');
   const body = textarea?.value.trim();
   if (!body) return;
+  const mentionedUserIds = [...(composer?.querySelectorAll('.mention-chip.active') || [])].map((chip) => chip.dataset.userId);
   if (button) button.disabled = true;
   const { error } = await auth.client.from('comments').insert({
     note_id: noteId,
+    parent_comment_id: parentCommentId || null,
     author_id: user.id,
     author_display_name: profile?.display_name || user.email,
     body,
+    mentioned_user_ids: mentionedUserIds,
   });
   if (button) button.disabled = false;
   if (error) {
@@ -851,4 +1075,232 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initReportsQueue);
 } else {
   initReportsQueue();
+}
+
+// --- Notifications: reply + mention alerts -------------------------------
+// No realtime -- fetched when you sign in and refreshed when you open the
+// bell, the same "refresh after posting is enough, this isn't a chat app"
+// call made for the rest of this feature. Rows themselves are only ever
+// created server-side (see notify_on_comment_insert/notify_on_note_insert
+// in the migration) since a poster can't insert into someone else's inbox
+// under RLS.
+
+let notificationRows = [];
+
+function notifDialogEls() {
+  return {
+    bellButton: $('notifBellButton'),
+    badge: $('notifBadge'),
+    dropdown: $('notifDropdown'),
+    list: $('notifList'),
+    markAllButton: $('notifMarkAllReadButton'),
+  };
+}
+
+function formatNotifText(row) {
+  const verb = row.type === 'mention' ? 'mentioned you in'
+    : row.type === 'thread' ? 'posted a new reply on'
+    : 'replied to you on';
+  return `${escapeHtml(row.actor_display_name)} ${verb} ${escapeHtml(row.segment_ref)}`;
+}
+
+function renderNotifList() {
+  const { list, badge } = notifDialogEls();
+  if (!list) return; // page doesn't ship the notification bell
+  const unreadCount = notificationRows.filter((row) => !row.read).length;
+  badge.textContent = String(unreadCount);
+  badge.hidden = unreadCount === 0;
+  if (!notificationRows.length) {
+    list.innerHTML = '<p class="field-note">No notifications yet.</p>';
+    return;
+  }
+  list.innerHTML = notificationRows.map((row) => `
+    <button type="button" class="notif-item${row.read ? '' : ' unread'}" data-id="${row.id}" data-daf-ref-key="${escapeHtml(row.daf_ref_key)}">
+      <span class="notif-item-text">${formatNotifText(row)}</span>
+      <span class="notif-item-preview">${escapeHtml(row.preview)}</span>
+      <span class="notif-item-time">${formatNoteTime(row.created_at)}</span>
+    </button>`).join('');
+  list.querySelectorAll('.notif-item').forEach((el) => {
+    el.addEventListener('click', () => openNotification(el.dataset.id, el.dataset.dafRefKey));
+  });
+}
+
+async function loadNotifications() {
+  const auth = window.DafSyncAuth;
+  const user = auth?.getUser();
+  if (!user) {
+    notificationRows = [];
+    renderNotifList();
+    return;
+  }
+  const { data, error } = await auth.client
+    .from('notifications').select('*')
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (error) return;
+  notificationRows = data || [];
+  renderNotifList();
+}
+
+async function openNotification(id, dafRefKey) {
+  const auth = window.DafSyncAuth;
+  const row = notificationRows.find((r) => r.id === id);
+  if (row && !row.read) {
+    row.read = true;
+    renderNotifList();
+    await auth.client.from('notifications').update({ read: true }).eq('id', id);
+  }
+  // Same ref-link shape the studio moderation queues already use.
+  window.location.href = `../browse/index.html?ref=${encodeURIComponent(dafRefKey.replace(/-/g, ' '))}`;
+}
+
+async function markAllNotificationsRead() {
+  const auth = window.DafSyncAuth;
+  const user = auth?.getUser();
+  if (!user || !notificationRows.some((row) => !row.read)) return;
+  for (const row of notificationRows) row.read = true;
+  renderNotifList();
+  await auth.client.from('notifications').update({ read: true }).eq('user_id', user.id).eq('read', false);
+}
+
+function initNotifications() {
+  const { bellButton, dropdown, markAllButton } = notifDialogEls();
+  if (!bellButton) return; // page doesn't ship the notification bell
+
+  bellButton.addEventListener('click', () => {
+    dropdown.hidden = !dropdown.hidden;
+    if (!dropdown.hidden) loadNotifications();
+  });
+  markAllButton.addEventListener('click', markAllNotificationsRead);
+  // Click-outside-to-close, same pattern as the account dropdown.
+  document.addEventListener('click', (event) => {
+    if (!dropdown.hidden && !dropdown.contains(event.target) && !bellButton.contains(event.target)) {
+      dropdown.hidden = true;
+    }
+  });
+
+  window.DafSyncAuth?.onChange((user) => {
+    if (user) loadNotifications();
+    else { notificationRows = []; renderNotifList(); }
+  });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initNotifications);
+} else {
+  initNotifications();
+}
+
+// --- Search: public notes + replies ----------------------------------------
+// A plain postgres full-text search (body_tsv, config 'simple' -- see the
+// migration's own comment on why not 'english': no good built-in Hebrew
+// config, and note bodies are typically English commentary anyway) rather
+// than a naive ILIKE scan. Available to signed-out readers too -- it's
+// still governed by the exact same public-read RLS as everything else here,
+// just reached through textSearch instead of a plain .select().
+
+let searchDebounceTimer = null;
+
+function searchDialogEls() {
+  return {
+    dialog: $('searchNotesDialog'),
+    input: $('searchNotesInput'),
+    results: $('searchNotesResults'),
+  };
+}
+
+function renderSearchResults(notes, comments) {
+  const { results } = searchDialogEls();
+  const rows = [
+    ...notes.map((row) => ({ kind: 'note', ...row })),
+    ...comments.map((row) => ({ kind: 'comment', ...row })),
+  ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  if (!rows.length) {
+    results.innerHTML = '<p class="field-note">No results.</p>';
+    return;
+  }
+  results.innerHTML = rows.map((row) => {
+    const kindPill = row.kind === 'note'
+      ? '<span class="note-pill note-pill-live">Note</span>'
+      : '<span class="note-pill note-pill-private">Reply</span>';
+    const refDisplay = row.daf_ref_key ? row.daf_ref_key.replace(/-/g, ' ') : '';
+    return `
+      <a class="note-item search-result-item" href="../browse/index.html?ref=${encodeURIComponent(refDisplay)}">
+        <div class="note-item-head">
+          <span class="note-item-author">${escapeHtml(row.author_display_name || 'Anonymous')}</span>
+          ${kindPill}
+          ${refDisplay ? `<span class="note-pill">${escapeHtml(refDisplay)}</span>` : ''}
+          <span class="note-item-time">${formatNoteTime(row.created_at)}</span>
+        </div>
+        <p class="note-item-body">${escapeHtml(row.body)}</p>
+      </a>`;
+  }).join('');
+}
+
+async function runNotesSearch(query) {
+  const auth = window.DafSyncAuth;
+  const { results } = searchDialogEls();
+  const trimmed = query.trim();
+  if (!trimmed) {
+    results.innerHTML = '<p class="field-note">Type to search public notes and replies.</p>';
+    return;
+  }
+  results.innerHTML = '<p class="field-note">Searching…</p>';
+  const [notesResult, commentsResult] = await Promise.all([
+    auth.client.from('line_notes').select('*')
+      .eq('is_private', false).eq('hidden', false)
+      .textSearch('body_tsv', trimmed, { type: 'websearch', config: 'simple' })
+      .order('created_at', { ascending: false }).limit(30),
+    auth.client.from('comments').select('*')
+      .eq('hidden', false)
+      .textSearch('body_tsv', trimmed, { type: 'websearch', config: 'simple' })
+      .order('created_at', { ascending: false }).limit(30),
+  ]);
+  if (results.dataset.query !== undefined && results.dataset.query !== trimmed) return; // a newer search superseded this one
+  if (notesResult.error && commentsResult.error) {
+    results.innerHTML = '<p class="field-note">Could not search right now.</p>';
+    return;
+  }
+  const commentRows = commentsResult.data || [];
+  const noteIds = [...new Set(commentRows.map((row) => row.note_id))];
+  const noteById = new Map();
+  if (noteIds.length) {
+    const { data: parentNotes } = await auth.client
+      .from('line_notes').select('id, daf_ref_key, is_private, hidden')
+      .in('id', noteIds);
+    for (const note of parentNotes || []) noteById.set(note.id, note);
+  }
+  // Belt and braces, not the actual security boundary (comments_public_read
+  // already gates this at the DB level) -- just keeps a comment whose
+  // parent note is private/hidden from surfacing here even transiently.
+  const visibleComments = commentRows
+    .filter((row) => {
+      const note = noteById.get(row.note_id);
+      return note && !note.is_private && !note.hidden;
+    })
+    .map((row) => ({ ...row, daf_ref_key: noteById.get(row.note_id).daf_ref_key }));
+  renderSearchResults(notesResult.data || [], visibleComments);
+}
+
+function initNotesSearch() {
+  const { dialog, input, results } = searchDialogEls();
+  if (!dialog) return; // page doesn't ship notes search
+
+  $('searchNotesButton')?.addEventListener('click', () => {
+    dialog.showModal();
+    input.focus();
+  });
+  $('closeSearchNotesDialog')?.addEventListener('click', () => dialog.close());
+  input.addEventListener('input', () => {
+    clearTimeout(searchDebounceTimer);
+    const query = input.value;
+    results.dataset.query = query.trim();
+    searchDebounceTimer = setTimeout(() => runNotesSearch(query), 300);
+  });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initNotesSearch);
+} else {
+  initNotesSearch();
 }
