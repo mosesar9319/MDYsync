@@ -45,6 +45,7 @@ function chaburahCardHtml(row) {
     ? `<span class="note-pill note-category-pill" title="${escapeHtml(categoryInfo.en)} — ${escapeHtml(categoryInfo.meaning)}">${categoryInfo.icon} <span dir="rtl" lang="he">${escapeHtml(categoryInfo.he)}</span></span>`
     : '';
   const timestampPill = renderTimestampPill(row, false);
+  const demoPill = demoPillHtml(row);
   const refDisplay = row.daf_ref_key ? row.daf_ref_key.replace(/-/g, ' ') : '';
   const who = escapeHtml(row.author_display_name || 'Anonymous');
   return `
@@ -53,6 +54,7 @@ function chaburahCardHtml(row) {
         <span class="note-item-author">${who}</span>
         ${categoryPill}
         ${timestampPill}
+        ${demoPill}
         ${refDisplay ? `<span class="note-pill">${escapeHtml(refDisplay)}</span>` : ''}
         <span class="note-item-time">${formatNoteTime(row.created_at)}</span>
       </div>
