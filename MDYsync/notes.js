@@ -1253,20 +1253,41 @@ function renderReportList() {
     return;
   }
   list.innerHTML = rows.map((row) => {
-    const target = reportTargetsById.get(reportTargetKey(row));
-    const kindPill = row.target_type === 'note'
-      ? '<span class="note-pill note-pill-live">Note</span>'
-      : '<span class="note-pill note-pill-private">Reply</span>';
+    // An anchor report flags the printed text/alignment itself, so it has no
+    // target row to preview or hide -- it carries its own ref, word range and
+    // quoted passage instead (see the anchor_reports migration).
+    const isAnchor = row.target_type === 'anchor';
+    const target = isAnchor ? null : reportTargetsById.get(reportTargetKey(row));
+    const kindPill = isAnchor
+      ? '<span class="note-pill note-pill-drift">Text / alignment</span>'
+      : (row.target_type === 'note'
+        ? '<span class="note-pill note-pill-live">Note</span>'
+        : '<span class="note-pill note-pill-private">Reply</span>');
     const statusPill = row.status !== 'pending'
       ? `<span class="note-pill note-pill-hidden">${row.status === 'resolved' ? 'Resolved' : 'Dismissed'}</span>`
       : '';
-    const targetPreview = target
-      ? `<p class="note-item-quote" dir="ltr">${renderFormattedBody(target.body)}${target.hidden ? ' (already hidden)' : ''}</p>`
-      : '<p class="field-note">The reported content no longer exists.</p>';
+    let targetPreview;
+    if (isAnchor) {
+      const refDisplay = (row.daf_ref_key || '').replace(/-/g, ' ');
+      const words = row.start_word != null
+        ? ` · word${row.end_word > row.start_word ? `s ${row.start_word}–${row.end_word}` : ` ${row.start_word}`}`
+        : '';
+      const location = refDisplay
+        ? `<a class="note-pill" href="../browse/index.html?ref=${encodeURIComponent(refDisplay)}" target="_blank" rel="noopener">${escapeHtml(refDisplay)}${escapeHtml(words)}</a>`
+        : `<span class="note-pill">${escapeHtml(row.segment_ref || '')}</span>`;
+      const quote = row.quoted_text
+        ? `<p class="note-item-quote" dir="rtl" lang="he">${escapeHtml(row.quoted_text)}</p>`
+        : '';
+      targetPreview = `<p class="note-item-body">${location}</p>${quote}`;
+    } else {
+      targetPreview = target
+        ? `<p class="note-item-quote" dir="ltr">${renderFormattedBody(target.body)}${target.hidden ? ' (already hidden)' : ''}</p>`
+        : '<p class="field-note">The reported content no longer exists.</p>';
+    }
     const actions = row.status === 'pending' ? `
       <div class="note-mod-actions">
-        ${target && !target.hidden ? `<button type="button" class="button secondary small report-hide-button" data-id="${row.id}">Hide &amp; resolve</button>` : ''}
-        ${target && target.hidden ? `<button type="button" class="button secondary small report-resolve-button" data-id="${row.id}">Mark resolved</button>` : ''}
+        ${!isAnchor && target && !target.hidden ? `<button type="button" class="button secondary small report-hide-button" data-id="${row.id}">Hide &amp; resolve</button>` : ''}
+        ${isAnchor || (target && target.hidden) ? `<button type="button" class="button secondary small report-resolve-button" data-id="${row.id}">Mark resolved</button>` : ''}
         <button type="button" class="button ghost small report-dismiss-button" data-id="${row.id}">Dismiss</button>
       </div>` : '';
     return `
@@ -1638,6 +1659,18 @@ function initNotesSearch() {
     input.focus();
   });
   $('closeSearchNotesDialog')?.addEventListener('click', () => dialog.close());
+
+  // Entry point for the daf's own right-click menu ("Search this in Cloud
+  // Chaburah") -- opens this same dialog already filled in and searched,
+  // rather than handing the reader an empty box to retype the word into.
+  window.DafNotesSearch = {
+    openWith(query) {
+      input.value = String(query || '').slice(0, 200);
+      categoryFilter.value = '';
+      if (!dialog.open) dialog.showModal();
+      runNotesSearch();
+    },
+  };
   input.addEventListener('input', () => {
     clearTimeout(searchDebounceTimer);
     searchDebounceTimer = setTimeout(() => runNotesSearch(), 300);

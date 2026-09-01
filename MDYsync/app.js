@@ -1096,6 +1096,9 @@ function buildSegmentSpan(segment, index) {
   span.setAttribute('aria-label', `Jump to ${formatTime(segment.start)}: ${segment.he}`);
   span.innerHTML = `<sup class="segment-marker">${index + 1}</sup>${escapeHtml(segment.he)} `;
   span.addEventListener('click', () => {
+    // The click that ends a text-selection drag lands here too -- a reader
+    // selecting words to copy (or to right-click) is not asking to seek.
+    if (window.getSelection?.()?.toString().trim()) return;
     hapticTap();
     seekToSegment(index);
   });
@@ -1123,6 +1126,10 @@ function buildSegmentSpan(segment, index) {
     });
     span.appendChild(noteButton);
   }
+  // Wraps whichever of this segment's words the reader has highlighted --
+  // optional in the same way the note button above is, since highlights.js
+  // only ships on the pages that have the notes UI at all.
+  window.DafHighlights?.applyToSegmentSpan(span, segment);
   return span;
 }
 
@@ -1691,6 +1698,7 @@ async function loadVilnaPageMap(parsed, stillWanted = () => true) {
       updateVilnaOverlay(getCurrentTime());
       renderVilnaNotesWordTargets();
       renderVilnaNoteMarkers();
+      window.DafHighlights?.renderVilnaOverlay();
       return true;
     } catch {
       return false;

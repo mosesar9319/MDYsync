@@ -925,6 +925,23 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
   line-height: 12px;
   text-align: center;
 }
+/* The reader's own marker pen (see highlights.js) -- the bottom-most
+   overlay on the page, so the "playing right now" bar, a Notes Mode
+   selection and the note markers all still read clearly on top of it.
+   Deliberately a soft wash rather than the selection's stronger gold: a
+   highlight is a standing mark on the page, not the thing being acted on. */
+.vilna-highlights-overlay { position: absolute; inset: 0; pointer-events: none; }
+.vilna-highlight-rect {
+  position: absolute;
+  background: rgba(240, 200, 90, .32);
+  border-radius: 3px;
+}
+
+/* Long-press opens this project's own menu (see daf-context-menu.js), so
+   the platform's own callout -- "Save image" over the printed page, the
+   selection magnifier over the text -- would just race it. */
+.vilna-page-wrap, #dafPage { -webkit-touch-callout: none; }
+
 .daf-footer { justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 12px; }
 
 .scan-placeholder { min-height: 100%; padding: 20px; color: #453c2e; text-align: center; }
@@ -1527,6 +1544,52 @@ button.note-timestamp-seek:hover { background: rgba(255,255,255,.16); }
 }
 .search-result-item { display: block; text-decoration: none; color: inherit; cursor: pointer; }
 .search-result-item:hover { border-color: var(--line-strong); }
+
+/* --- Right-click / long-press menu on the daf ------------------------------ */
+/* Fixed to the viewport and appended to <body> (see daf-context-menu.js), so
+   it is never clipped by the daf card's own overflow the way an in-flow menu
+   would be -- the same overflow-clipping trap the reaction menu already hit
+   once and had to be rebuilt to avoid. */
+.daf-context-menu {
+  position: fixed;
+  z-index: 600;
+  min-width: 232px;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: #10233a;
+  box-shadow: 0 22px 54px rgba(0,0,0,.5);
+}
+.daf-context-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.daf-context-item:hover:not(:disabled) { background: rgba(255,255,255,.08); }
+.daf-context-item:disabled { color: var(--muted); cursor: default; }
+.daf-context-hint { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.daf-context-sep { height: 1px; margin: 5px 6px; background: var(--line); }
+
+/* Text-view counterpart to .vilna-highlight-rect above -- same wash, applied
+   to the real words rather than painted over a page image. */
+mark.daf-highlight { background: rgba(240, 200, 90, .34); color: inherit; border-radius: 3px; padding: 0 1px; }
+
+.word-lookup-body { max-height: 52vh; overflow-y: auto; margin: 12px 0; display: flex; flex-direction: column; gap: 14px; }
+.word-lookup-entry { border: 1px solid var(--line); border-radius: 11px; padding: 12px; }
+.word-lookup-senses { margin: 8px 0 0; padding-inline-start: 20px; line-height: 1.55; font-size: 13px; }
+.word-lookup-notes { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 
 /* --- Cloud Chaburah feed (chaburah/index.html) ----------------------------- */
 .chaburah-main { display: flex; flex-direction: column; gap: 18px; }
