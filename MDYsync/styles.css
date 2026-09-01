@@ -1377,6 +1377,7 @@ body.studio-locked .app-shell, body.studio-locked .sidebar, body.studio-locked .
 .note-pill-live { background: var(--accent-soft); color: var(--accent); }
 .note-pill-hidden { background: rgba(220,90,90,.16); color: #e2897f; }
 .note-pill-drift { background: rgba(220,150,60,.16); color: #e2ac6a; }
+.note-pill-demo { background: rgba(150,110,220,.18); color: #b79cf0; }
 .note-category-pill { background: rgba(255,255,255,.08); color: var(--text); font-family: "Frank Ruhl Libre", serif; font-weight: 400; }
 .note-timestamp-pill { background: rgba(255,255,255,.08); color: var(--muted); }
 button.note-timestamp-seek { border: none; cursor: pointer; color: var(--accent); background: var(--accent-soft); }

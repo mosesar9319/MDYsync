@@ -133,6 +133,14 @@ function renderTimestampPill(row, clickable) {
   return `<button type="button" class="note-pill note-timestamp-pill note-timestamp-seek" data-seconds="${row.video_timestamp_seconds}" title="Jump to this moment in the video">${label}</button>`;
 }
 
+// Seed content shown to early readers so a still-empty site doesn't look
+// dead -- clearly labeled everywhere it can appear (per-line dialog, search,
+// the Chaburah feed, the moderation queue) rather than relying on the
+// author name alone, which a skimming reader could easily miss.
+function demoPillHtml(row) {
+  return row.is_demo ? '<span class="note-pill note-pill-demo" title="Example content, not from a real reader">🧪 Demo</span>' : '';
+}
+
 function formatNoteTime(iso) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
@@ -378,6 +386,7 @@ function renderCommentItem(row, byParent, depth, noteId) {
   const mine = user && row.author_id === user.id;
   const who = mine ? 'You' : escapeHtml(row.author_display_name || 'Anonymous');
   const hiddenPill = row.hidden ? '<span class="note-pill note-pill-hidden">Hidden by moderators</span>' : '';
+  const demoPill = demoPillHtml(row);
   // Reporting your own reply makes no sense, and reporting requires being
   // signed in (reports_insert's own auth.uid() = reporter_id check).
   const reportButton = (!mine && user)
@@ -412,6 +421,7 @@ function renderCommentItem(row, byParent, depth, noteId) {
       <div class="comment-item-head">
         <span class="note-item-author">${who}</span>
         ${hiddenPill}
+        ${demoPill}
         <span class="note-item-time">${formatNoteTime(row.created_at)}</span>
         ${reportButton}
         ${mine ? '<button type="button" class="comment-delete-button" data-id="' + row.id + '" aria-label="Delete reply">×</button>' : ''}
@@ -489,6 +499,7 @@ function renderNoteList(rows) {
       ? '<span class="note-pill note-pill-drift" title="This daf\'s word positions were rebuilt since this note was written -- the highlighted passage may not exactly match anymore.">⚠ May have shifted</span>'
       : '';
     const timestampPill = renderTimestampPill(row, true);
+    const demoPill = demoPillHtml(row);
     // A word-range note (Notes Mode) quotes its own specific passage above
     // the note body -- several notes on the same segment_ref can each be
     // about different sub-ranges, so this can't just reuse the dialog's own
@@ -509,6 +520,7 @@ function renderNoteList(rows) {
           ${privacyPill}
           ${categoryPill}
           ${timestampPill}
+          ${demoPill}
           ${hiddenPill}
           ${driftPill}
           <span class="note-item-time">${formatNoteTime(row.created_at)}</span>
@@ -1032,6 +1044,7 @@ function renderModerationList() {
         <a class="note-pill note-pill-live" href="../browse/index.html?ref=${encodeURIComponent(moderationRefDisplay(row))}" target="_blank" rel="noopener">${escapeHtml(moderationRefDisplay(row))}</a>
         ${row.hidden ? '<span class="note-pill note-pill-hidden">Hidden</span>' : ''}
         ${renderTimestampPill(row, false)}
+        ${demoPillHtml(row)}
         <span class="note-item-time">${formatNoteTime(row.created_at)}</span>
       </div>
       <p class="note-item-body">${renderFormattedBody(row.body)}</p>
@@ -1529,6 +1542,7 @@ function renderSearchResults(notes, comments) {
       ? `<span class="note-pill note-category-pill">${categoryInfo.icon} <span dir="rtl" lang="he">${escapeHtml(categoryInfo.he)}</span></span>`
       : '';
     const timestampPill = renderTimestampPill(row, false);
+    const demoPill = demoPillHtml(row);
     const refDisplay = row.daf_ref_key ? row.daf_ref_key.replace(/-/g, ' ') : '';
     return `
       <a class="note-item search-result-item" href="../browse/index.html?ref=${encodeURIComponent(refDisplay)}">
@@ -1538,6 +1552,7 @@ function renderSearchResults(notes, comments) {
           ${privacyPill}
           ${categoryPill}
           ${timestampPill}
+          ${demoPill}
           ${refDisplay ? `<span class="note-pill">${escapeHtml(refDisplay)}</span>` : ''}
           <span class="note-item-time">${formatNoteTime(row.created_at)}</span>
         </div>
