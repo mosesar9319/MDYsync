@@ -101,10 +101,36 @@ function noteDialogEls() {
     categoryOptions: $('noteCategoryOptions'),
     categorySecondaryOptions: $('noteCategorySecondaryOptions'),
     categoryMoreToggle: $('noteCategoryMoreToggle'),
+    timestampToggle: $('noteTimestampToggle'),
+    timestampCheckbox: $('noteTimestampCheckbox'),
     bodyInput: $('noteBodyInput'),
     saveButton: $('saveNoteButton'),
     signInPrompt: $('noteSignInPrompt'),
   };
+}
+
+// mm:ss, or h:mm:ss once a shiur runs past an hour.
+function formatTimestamp(totalSeconds) {
+  const seconds = Math.max(0, Math.round(totalSeconds));
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  const mm = h ? String(m).padStart(2, '0') : String(m);
+  const ss = String(s).padStart(2, '0');
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+// Clickable only where the currently-loaded video is guaranteed to be the
+// SAME one the note is about (the per-line dialog on the daf itself) --
+// search results and the moderation queue can list notes from any daf, and
+// seeking whatever video happens to be playing to a timestamp from a
+// completely different shiur would be actively wrong, so those render a
+// plain, non-interactive label instead.
+function renderTimestampPill(row, clickable) {
+  if (row.video_timestamp_seconds == null) return '';
+  const label = `▶ ${formatTimestamp(row.video_timestamp_seconds)}`;
+  if (!clickable) return `<span class="note-pill note-timestamp-pill">${label}</span>`;
+  return `<button type="button" class="note-pill note-timestamp-pill note-timestamp-seek" data-seconds="${row.video_timestamp_seconds}" title="Jump to this moment in the video">${label}</button>`;
 }
 
 function formatNoteTime(iso) {
@@ -462,6 +488,7 @@ function renderNoteList(rows) {
     const driftPill = noteAnchorMayHaveShifted(row)
       ? '<span class="note-pill note-pill-drift" title="This daf\'s word positions were rebuilt since this note was written -- the highlighted passage may not exactly match anymore.">⚠ May have shifted</span>'
       : '';
+    const timestampPill = renderTimestampPill(row, true);
     // A word-range note (Notes Mode) quotes its own specific passage above
     // the note body -- several notes on the same segment_ref can each be
     // about different sub-ranges, so this can't just reuse the dialog's own
@@ -481,6 +508,7 @@ function renderNoteList(rows) {
           <span class="note-item-author">${who}</span>
           ${privacyPill}
           ${categoryPill}
+          ${timestampPill}
           ${hiddenPill}
           ${driftPill}
           <span class="note-item-time">${formatNoteTime(row.created_at)}</span>
@@ -528,6 +556,11 @@ function renderNoteList(rows) {
   });
   list.querySelectorAll('.follow-toggle-button').forEach((button) => {
     button.addEventListener('click', () => toggleFollow(button.dataset.noteId));
+  });
+  list.querySelectorAll('.note-timestamp-seek').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (typeof seek === 'function') seek(Number(button.dataset.seconds));
+    });
   });
 }
 
@@ -779,11 +812,18 @@ async function saveNote() {
   const profile = auth?.getProfile();
   const info = currentDafInfo();
   if (!user || !info || !activeNoteRef) return;
-  const { bodyInput, saveButton } = noteDialogEls();
+  const { bodyInput, saveButton, timestampToggle, timestampCheckbox } = noteDialogEls();
   const body = bodyInput.value.trim();
   if (!body) return;
   saveButton.disabled = true;
   const selection = activeNoteSelection;
+  // Captured fresh right now, not snapshotted when the composer opened --
+  // "the moment you actually finish writing and hit Save" is the moment
+  // worth tagging, and it avoids a stale time if the shiur kept playing
+  // while the note was being written.
+  const videoTimestamp = (!timestampToggle.hidden && timestampCheckbox.checked && typeof getCurrentTime === 'function')
+    ? getCurrentTime()
+    : null;
   const { error } = await auth.client.from('line_notes').insert({
     author_id: user.id,
     author_display_name: profile?.display_name || user.email,
@@ -792,6 +832,7 @@ async function saveNote() {
     body,
     is_private: activeNotePrivacy === 'private',
     category: activeNoteCategory,
+    video_timestamp_seconds: videoTimestamp,
     // Whole-segment notes (the original 🗒 flow, no selection active) leave
     // all three columns unset -- the same "the whole segment" meaning
     // every pre-existing row already has, per the migration's own check
@@ -804,6 +845,7 @@ async function saveNote() {
     return;
   }
   bodyInput.value = '';
+  timestampCheckbox.checked = false;
   refreshNoteList(activeNoteRef);
   // A word-range save came from Notes Mode's own selection (see
   // openNoteComposerForSelection) -- clear it now that it's been saved, so
@@ -813,6 +855,15 @@ async function saveNote() {
     activeNoteSelection = null;
     clearNotesSelection();
   }
+}
+
+// Only worth offering on a page that actually has a video loaded --
+// otherwise "the current moment" means nothing.
+function updateTimestampToggle() {
+  const { timestampToggle, timestampCheckbox } = noteDialogEls();
+  if (!timestampToggle) return;
+  timestampToggle.hidden = !state.playerType;
+  timestampCheckbox.checked = false;
 }
 
 function openNoteDialog(ref, text) {
@@ -826,6 +877,7 @@ function openNoteDialog(ref, text) {
   bodyInput.value = '';
   setNotePrivacy('private');
   setNoteCategory(null);
+  updateTimestampToggle();
   compose.hidden = !user;
   signInPrompt.hidden = Boolean(user);
   dialog.showModal();
@@ -881,6 +933,7 @@ async function openNoteComposerForSelection(ref, start, end) {
   bodyInput.value = '';
   setNotePrivacy('private');
   setNoteCategory(null);
+  updateTimestampToggle();
   compose.hidden = !user;
   signInPrompt.hidden = Boolean(user);
   dialog.showModal();
@@ -978,6 +1031,7 @@ function renderModerationList() {
         <span class="note-item-author">${escapeHtml(row.author_display_name || 'Anonymous')}</span>
         <a class="note-pill note-pill-live" href="../browse/index.html?ref=${encodeURIComponent(moderationRefDisplay(row))}" target="_blank" rel="noopener">${escapeHtml(moderationRefDisplay(row))}</a>
         ${row.hidden ? '<span class="note-pill note-pill-hidden">Hidden</span>' : ''}
+        ${renderTimestampPill(row, false)}
         <span class="note-item-time">${formatNoteTime(row.created_at)}</span>
       </div>
       <p class="note-item-body">${renderFormattedBody(row.body)}</p>
@@ -1474,6 +1528,7 @@ function renderSearchResults(notes, comments) {
     const categoryPill = categoryInfo
       ? `<span class="note-pill note-category-pill">${categoryInfo.icon} <span dir="rtl" lang="he">${escapeHtml(categoryInfo.he)}</span></span>`
       : '';
+    const timestampPill = renderTimestampPill(row, false);
     const refDisplay = row.daf_ref_key ? row.daf_ref_key.replace(/-/g, ' ') : '';
     return `
       <a class="note-item search-result-item" href="../browse/index.html?ref=${encodeURIComponent(refDisplay)}">
@@ -1482,6 +1537,7 @@ function renderSearchResults(notes, comments) {
           ${kindPill}
           ${privacyPill}
           ${categoryPill}
+          ${timestampPill}
           ${refDisplay ? `<span class="note-pill">${escapeHtml(refDisplay)}</span>` : ''}
           <span class="note-item-time">${formatNoteTime(row.created_at)}</span>
         </div>

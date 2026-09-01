@@ -1708,6 +1708,10 @@
         <button type="button" class="note-format-button" data-format="list" title="Bullet list" aria-label="Bullet list">≡</button>
       </div>
       <textarea id="noteBodyInput" maxlength="2000" rows="3" placeholder="Write a note on this line…"></textarea>
+      <label class="note-timestamp-toggle" id="noteTimestampToggle" hidden>
+        <input type="checkbox" id="noteTimestampCheckbox">
+        <span>Tag this note with the current moment in the video</span>
+      </label>
       <div class="note-compose-actions">
         <span class="field-note" id="notePrivacyHint">Only you will see this note.</span>
         <button class="button primary small" id="saveNoteButton" type="button">Save note</button>

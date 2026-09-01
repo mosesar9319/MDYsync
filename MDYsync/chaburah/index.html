@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Flip through the Gemara page by page, tap any word, and jump straight to that moment in the synced shiur." />
-  <title>DafSync — Interactive Daf</title>
+  <meta name="description" content="Browse public notes and discussions from across the DafSync community." />
+  <title>DafSync — Cloud Chaburah</title>
   <script>
     // Surfaces any otherwise-silent failure (a script that fails to load,
     // an uncaught exception, a rejected promise nobody caught) as a plain,
@@ -503,7 +503,7 @@
       </div>
     </header>
 
-    <main>
+    <main hidden>
       <section class="setup-strip card">
         <div class="setup-field video-field admin-only">
           <label>Lecture source</label>
@@ -869,6 +869,35 @@
       </section>
 
     </main>
+
+    <main class="chaburah-main">
+      <section class="card chaburah-hero">
+        <div class="eyebrow">Community</div>
+        <h1>Cloud Chaburah</h1>
+        <p>Public notes and discussion from readers across the daf, gathered in one feed.</p>
+      </section>
+
+      <section class="card chaburah-feed-card">
+        <div class="chaburah-view-switch" role="group" aria-label="Feed view" id="chaburahViewSwitch">
+          <button class="active" data-view="latest" type="button">Latest</button>
+          <button data-view="this-daf" type="button">This daf</button>
+          <button data-view="this-masechta" type="button">This masechta</button>
+          <button data-view="following" type="button">Following</button>
+          <button data-view="most-helpful" type="button">Most helpful</button>
+          <button data-view="unanswered" type="button">Unanswered</button>
+        </div>
+        <div class="search-notes-category-filter">
+          <label for="chaburahCategoryFilter">Category</label>
+          <select id="chaburahCategoryFilter"></select>
+        </div>
+        <div class="note-list chaburah-feed-list" id="chaburahFeedList">
+          <p class="field-note">Loading…</p>
+        </div>
+        <div class="chaburah-feed-actions">
+          <button class="button secondary small" id="chaburahLoadMoreButton" type="button" hidden>Load more</button>
+        </div>
+      </section>
+    </main>
   </div>
 
   <dialog id="helpDialog">
@@ -1103,6 +1132,7 @@
   <script src="../account-features.js" defer></script>
   <script src="../notes.js" defer></script>
   <script src="../player-chrome.js" defer></script>
+  <script src="../chaburah.js" defer></script>
   <script src="../nav.js" defer></script>
   <script src="../collapse.js" defer></script>
 </body>
