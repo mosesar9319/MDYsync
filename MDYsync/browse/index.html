@@ -338,25 +338,56 @@
     body.reading-mode-active .reading-video-slot { background: #020812; }
     body.reading-mode-active .reading-video-slot .video-frame { width: 100%; border: 0; border-radius: 0; }
     /* The inverse overlay cannot be enabled while the player itself is on
-       the daf, so its control-bar toggle goes too (along with the old
-       floating widget). The top bar goes as well: its whole job is saying
-       which daf is loaded, which the page this player is floating over is
-       already showing at full size. */
+       the daf, so its control-bar toggle goes too, along with the old
+       floating widget (its SETTINGS -- .video-settings-overlay-group --
+       are handled separately, in styles.css: player-chrome.js reparents
+       that panel to <body> to escape .video-frame's own clipping/stacking,
+       so a rule scoped to .reading-video-float can no longer reach it once
+       it's moved). #videoOnDafButton -- this SAME player's own "return to
+       split view" pill -- goes as well: it would just duplicate the
+       daf-card header's own always-visible "Exit mode" button (see
+       readingModeButton/updateReadingModeUi in app.js) while eating width
+       this bar has the least of. The top bar goes for a different reason:
+       its whole job is saying which daf is loaded, which the page this
+       player is floating over already shows at full size. */
     body.reading-mode-active .reading-video-float .overlay-controls,
     body.reading-mode-active .reading-video-float .player-topbar,
     body.reading-mode-active .reading-video-float #dafOnVideoButton,
+    body.reading-mode-active .reading-video-float #videoOnDafButton,
     body.reading-mode-active .reading-video-float .video-source-badge { display: none !important; }
     /* Tighter still than the .is-compact sizing this always-narrow player
        already gets (see styles.css): it floats directly over the daf being
        learned, so its chrome gives up every pixel it can. Overriding the two
        height variables carries the timeline and the Vilna-overlay clearance
-       with it. The right-hand padding is reserved for the pinch surface. */
+       with it. The right-hand padding is reserved for the pinch surface.
+       Reset back to normal sizing in NATIVE fullscreen -- entering it makes
+       the video itself full-size, and a still-mini-player-sized control bar
+       stranded across the bottom of a full screen is illegible, not just
+       small. :fullscreen adds enough specificity to win over the plain rule
+       above without needing !important. */
     body.reading-mode-active .reading-video-float .video-frame { --pc-bar-h: 34px; --pc-timeline-h: 22px; }
+    body.reading-mode-active .reading-video-float .video-frame:fullscreen,
+    body.reading-mode-active .reading-video-float .video-frame:-webkit-full-screen { --pc-bar-h: 68px; --pc-timeline-h: 74px; }
     body.reading-mode-active .reading-video-float .scrubber-wrap { padding: 0 8px 4px; }
     body.reading-mode-active .reading-video-float .player-controls { padding: 0 36px 0 7px; gap: 4px; }
     body.reading-mode-active .reading-video-float .vaater-button { height: 25px; padding: 0 9px 0 7px; font-size: 11px; border-radius: 7px; gap: 3px; }
     body.reading-mode-active .reading-video-float .vaater-button svg { width: 13px; height: 13px; }
     body.reading-mode-active .reading-video-float .video-fullscreen-button { width: 26px; height: 26px; }
+    /* The three icon-size overrides just above are for the cramped MINI
+       player specifically -- restored to their normal sizes alongside
+       --pc-bar-h/--pc-timeline-h above once it's actually fullscreen, so the
+       whole bar scales back up together instead of leaving these three
+       stranded at mini-player size inside an otherwise full-size bar. */
+    body.reading-mode-active .reading-video-float .video-frame:fullscreen .player-controls,
+    body.reading-mode-active .reading-video-float .video-frame:-webkit-full-screen .player-controls { padding: 0 16px; gap: 14px; }
+    body.reading-mode-active .reading-video-float .video-frame:fullscreen .scrubber-wrap,
+    body.reading-mode-active .reading-video-float .video-frame:-webkit-full-screen .scrubber-wrap { padding: 0 18px 8px; }
+    body.reading-mode-active .reading-video-float .video-frame:fullscreen .vaater-button,
+    body.reading-mode-active .reading-video-float .video-frame:-webkit-full-screen .vaater-button { height: 30px; padding: 0 13px 0 10px; font-size: 13px; border-radius: 8px; gap: 5px; }
+    body.reading-mode-active .reading-video-float .video-frame:fullscreen .vaater-button svg,
+    body.reading-mode-active .reading-video-float .video-frame:-webkit-full-screen .vaater-button svg { width: 16px; height: 16px; }
+    body.reading-mode-active .reading-video-float .video-frame:fullscreen .video-fullscreen-button,
+    body.reading-mode-active .reading-video-float .video-frame:-webkit-full-screen .video-fullscreen-button { width: 30px; height: 30px; }
     body.reading-mode-active .reading-video-pinch-surface {
       position: absolute;
       z-index: 11;
@@ -407,7 +438,17 @@
     .reading-mode-tip.show { opacity: 1; }
     @container (max-width: 225px) {
       body.reading-mode-active .reading-video-float #muteButton,
-      body.reading-mode-active .reading-video-float #vaaterButton { display: none; }
+      body.reading-mode-active .reading-video-float #vaaterButton,
+      /* Captions is the next control to give up at this floor -- it's a
+         real accessibility feature, not a convenience like PiP, but it's
+         also already conditionally hidden outright for any non-YouTube
+         source (see captionsButtonEls in app.js), so this only ever bites
+         a YouTube shiur resized to (near) the mini player's own CSS
+         min-width. Measured directly: without this, Settings and
+         Fullscreen -- the two controls actually reported as unreachable --
+         were still pushed 17px past the frame's own clipped edge even with
+         mute/Vaater already gone above. */
+      body.reading-mode-active .reading-video-float #captionsStack { display: none; }
     }
     @media (max-width: 760px) {
       body.reading-mode-active main { padding-inline: 6px; }

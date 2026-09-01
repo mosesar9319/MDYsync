@@ -167,9 +167,14 @@
   // A control plus the small caption underneath it, the way every item in the
   // mockup's right-hand cluster is labelled. The caption is hidden (not
   // removed) in compact mode -- see .video-frame.is-compact in styles.css.
-  const stack = (el, label) => {
+  // wrapId, when given, names the wrapper so a page-specific rule (e.g. the
+  // reading-mode mini player's own @container query, see player/index.html)
+  // can hide the WHOLE control -- icon, caption and all -- rather than just
+  // the caption, for a control that isn't essential in that context.
+  const stack = (el, label, wrapId) => {
     const wrap = document.createElement('div');
     wrap.className = 'pc-stack';
+    if (wrapId) wrap.id = wrapId;
     wrap.appendChild(el);
     const caption = document.createElement('span');
     caption.className = 'pc-label';
@@ -186,6 +191,19 @@
   $('forwardButton').innerHTML = ICONS.forward10;
   for (const id of ['backButton', 'playButton', 'forwardButton', 'vaaterButton']) {
     if ($(id)) transport.appendChild($(id));
+  }
+
+  // Vaater's own label is a bare text node ("Vaater"), not a <span> -- wrapped
+  // here so is-snug (see styles.css) has something to hide by selector rather
+  // than needing a font-size:0 trick, which would also hide it from screen
+  // readers reading the button's accessible name.
+  const vaaterButton = $('vaaterButton');
+  const vaaterText = vaaterButton && [...vaaterButton.childNodes].find((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim());
+  if (vaaterText) {
+    const vaaterLabel = document.createElement('span');
+    vaaterLabel.className = 'vaater-button-label';
+    vaaterLabel.textContent = vaaterText.textContent;
+    vaaterText.replaceWith(vaaterLabel);
   }
 
   // "12:47 / 45:36". #currentTime and #duration keep updating themselves --
@@ -218,7 +236,7 @@
     tools.appendChild(stack(speedWrap, 'Speed'));
     $('videoSettings')?.querySelector('.speed-control')?.remove();
   }
-  if ($('captionsButton')) tools.appendChild(stack($('captionsButton'), 'Captions'));
+  if ($('captionsButton')) tools.appendChild(stack($('captionsButton'), 'Captions', 'captionsStack'));
 
   // The two "where does the daf go" toggles, side by side: the Vilna page
   // drawn over the video, and the video floated over the printed daf. Both
@@ -249,7 +267,12 @@
   pipButton.setAttribute('aria-label', 'Picture in picture');
   pipButton.title = 'Picture in picture';
   pipButton.innerHTML = ICONS.pip;
-  tools.appendChild(stack(pipButton, 'PiP'));
+  const pipStack = stack(pipButton, 'PiP');
+  // Named so reading mode's own CSS (player/index.html, browse/index.html)
+  // can hide it there specifically -- see updatePipAvailability below for why
+  // it's ALSO the wrong control to offer while floating over the daf.
+  pipStack.id = 'pipStack';
+  tools.appendChild(pipStack);
 
   if ($('fullscreenButton')) tools.appendChild(stack($('fullscreenButton'), 'Fullscreen'));
 
@@ -323,10 +346,20 @@
     const hint = document.querySelector('.overlay-controls-page .overlay-hint, #overlayControls .overlay-hint');
     if (hint) moving.push(hint);
     if (moving.length) {
+      // Grouped under one element, not appended loose, so reading mode (where
+      // the Vilna overlay this configures is itself hidden -- the two are
+      // mutually exclusive, see setReadingMode in app.js) can hide the whole
+      // block in one CSS rule rather than needing to enumerate every child.
+      // That also keeps the gear's dropdown short enough to fit inside the
+      // reading-mode mini player's own short, aspect-ratio-constrained frame
+      // instead of being clipped by .video-frame's overflow:hidden.
       const heading = document.createElement('p');
       heading.className = 'video-settings-heading';
       heading.textContent = 'Daf on video';
-      settingsBody.append(heading, ...moving);
+      const overlayGroup = document.createElement('div');
+      overlayGroup.className = 'video-settings-overlay-group';
+      overlayGroup.append(heading, ...moving);
+      settingsBody.append(overlayGroup);
     }
   }
   // What's left of each page's old overlay row is just the toggle app.js
@@ -337,17 +370,84 @@
     if (el) el.hidden = true;
   }
 
+  // --- Settings dropdown: escapes the bar's own clipping and stacking ------
+  // Reported directly: with the panel left as a plain descendant of
+  // .video-settings (itself inside .player-controls), its controls were
+  // unreachable wherever the panel's own bounds happened to overlap
+  // .scrubber-wrap above it -- confirmed on the ORDINARY split-view player,
+  // not just the reading-mode mini player, by hit-testing the panel's own
+  // "Reset position" button and finding .scrubber-wrap under the pointer
+  // instead. Root cause: .player-controls is `position:absolute` with its
+  // own z-index (6), which makes it a stacking context of its own -- so no
+  // z-index given to a DESCENDANT of it (the panel was raised to 20 above)
+  // can ever out-rank .scrubber-wrap's z-index (7), a SIBLING of
+  // .player-controls, no matter how high it's set; z-index only ever
+  // competes within one shared stacking context, and the panel's context is
+  // sealed inside .player-controls's own. In the reading-mode mini player
+  // specifically, the SAME containment also let .video-frame's own
+  // overflow:hidden clip the panel outright, for the same underlying reason
+  // (a fully contained descendant, regardless of z-index).
+  //
+  // Reparenting the panel to <body> once (not on every open) and switching
+  // it to position:fixed, positioned in JS from the gear's own screen
+  // coordinates each time it opens, escapes every ancestor's stacking
+  // context AND clipping in one move -- nothing above the true page root can
+  // contain a position:fixed element unless it sets its own transform/
+  // filter/etc, which nothing between here and <body> does. Native <details>
+  // only auto-hides DIRECT children of a closed <details>, so moving the
+  // panel out of it means its open/closed visibility has to be driven here
+  // instead, from the <details>' own 'toggle' event -- the one native signal
+  // that still fires correctly regardless of where its content physically
+  // lives in the DOM.
+  const settingsDetails = $('videoSettings');
+  if (settingsBody && settingsDetails) {
+    settingsBody.classList.add('video-settings-body-portal');
+    // --accent/--accent-soft are scoped to .video-frame (see styles.css) for
+    // a brighter tuning against its always-dark chrome, on watch/browse/
+    // studio's otherwise light theme included -- copied onto the portaled
+    // panel explicitly so it keeps that same tuning once it's no longer a
+    // descendant of .video-frame to inherit it from.
+    const frameAccent = getComputedStyle(frame);
+    settingsBody.style.setProperty('--accent', frameAccent.getPropertyValue('--accent'));
+    settingsBody.style.setProperty('--accent-soft', frameAccent.getPropertyValue('--accent-soft'));
+    document.body.appendChild(settingsBody);
+    settingsBody.hidden = true;
+
+    function positionSettingsPanel() {
+      const r = settingsDetails.getBoundingClientRect();
+      settingsBody.style.position = 'fixed';
+      settingsBody.style.left = 'auto';
+      settingsBody.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
+      settingsBody.style.bottom = `${Math.max(8, window.innerHeight - r.top + 8)}px`;
+    }
+    settingsDetails.addEventListener('toggle', () => {
+      settingsBody.hidden = !settingsDetails.open;
+      if (settingsDetails.open) positionSettingsPanel();
+    });
+    // Keeps the panel anchored to the gear through a window resize (the
+    // reading-mode mini player itself doesn't fire one when just dragged/
+    // resized by hand, but its own resize listener in app.js re-lays-out the
+    // float on every window resize regardless, which can move the gear) --
+    // only while actually open, since a closed (hidden) panel has nothing
+    // worth repositioning.
+    window.addEventListener('resize', () => { if (settingsDetails.open) positionSettingsPanel(); });
+  }
+
   // --- Picture in picture --------------------------------------------------
   // Real PiP, which the browser only offers for the <video> element -- a
   // YouTube shiur plays in an iframe this page can't reach into, so the
   // button hides itself whenever that's the active source (#youtubePlayerHost
-  // un-hidden, which app.js toggles when it swaps sources).
+  // un-hidden, which app.js toggles when it swaps sources). Also hidden while
+  // reading mode is active -- PiP's whole point is detaching the video into
+  // its own always-on-top window, which the floating mini player already IS;
+  // offering both is redundant, and reading mode's mini player is the one
+  // place this bar has the least room to spare.
   const video = $('video');
   const youtubeHost = $('youtubePlayerHost');
   function updatePipAvailability() {
     const supported = Boolean(video) && document.pictureInPictureEnabled && !video.disablePictureInPicture;
     const youtubeActive = Boolean(youtubeHost) && !youtubeHost.hidden;
-    pipButton.closest('.pc-stack').hidden = !supported || youtubeActive;
+    pipStack.hidden = !supported || youtubeActive || document.body.classList.contains('reading-mode-active');
   }
   pipButton.addEventListener('click', async () => {
     try {
@@ -363,6 +463,7 @@
   if (youtubeHost) {
     new MutationObserver(updatePipAvailability).observe(youtubeHost, { attributes: true, attributeFilter: ['hidden'] });
   }
+  new MutationObserver(updatePipAvailability).observe(document.body, { attributes: true, attributeFilter: ['class'] });
   updatePipAvailability();
 
   // --- Timeline: times at either end, chapter markers above ----------------
@@ -495,9 +596,18 @@
   // and re-runs whenever the bar's contents change. Measuring what actually
   // overflows beats a threshold guessed against one snapshot of the bar.
   const TIERS = ['is-snug', 'is-compact', 'is-tiny'];
+  // Measured directly against the real split layout (player/watch/browse all
+  // float the video beside a daf column, not full-width): at the most common
+  // desktop viewports (1280-1536px) the frame itself renders only 540-680px
+  // wide, and even a 1920px viewport only reaches ~800px. The original
+  // thresholds here were picked by eye against a maximized single-column
+  // preview, not against that real layout, and landed ordinary desktop
+  // readers in is-compact -- stripping the pill BUTTON LABELS ("Daf on
+  // video"/"Video on daf") that are the whole point of this control-bar
+  // redesign, for what is actually the common case, not an edge one.
   const SNUG_WIDTH = 780;
-  const COMPACT_WIDTH = 660;
-  const TINY_WIDTH = 400;
+  const COMPACT_WIDTH = 480;
+  const TINY_WIDTH = 360;
   const applyTier = (depth) => TIERS.forEach((cls, i) => frame.classList.toggle(cls, i < depth));
   function fitChrome() {
     const width = frame.clientWidth;

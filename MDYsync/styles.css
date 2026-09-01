@@ -371,7 +371,12 @@ h2 { margin-bottom: 0; }
   position: absolute;
   right: 0;
   bottom: calc(100% + 8px);
-  z-index: 8;
+  /* Above reading mode's own drag/resize overlays (.reading-video-pinch-
+     surface at 11, .reading-video-resize at 12 -- see player/index.html and
+     browse/index.html) -- both are also descendants of .video-frame and sat
+     ABOVE this panel at its old z-index 8, so opening it there swallowed
+     every click meant for the panel itself, silently. */
+  z-index: 20;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -386,6 +391,22 @@ h2 { margin-bottom: 0; }
 }
 .video-settings-body select { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.25); color: #fff; border-radius: 6px; padding: 4px 6px; }
 .quality-control { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: inherit; font-size: 12px; }
+.video-settings-overlay-group { display: flex; flex-direction: column; gap: 8px; }
+/* Reparented to <body> by player-chrome.js (see there for why) -- position
+   and right/bottom are then set inline per open, anchored to the gear's own
+   screen coordinates; this covers everything that isn't per-instance
+   geometry. z-index above .toast's own 20 (a plain tie would still resolve
+   correctly by DOM order, since this is appended after it, but an explicit
+   margin here doesn't depend on staying last in the DOM). */
+.video-settings-body-portal { z-index: 30; }
+/* The Vilna overlay this section configures is unusable while reading mode
+   is active (the two are mutually exclusive -- see setReadingMode in
+   app.js), so its settings have nothing to do there either. Keyed off
+   body.reading-mode-active alone, not .reading-video-float -- the panel
+   itself is reparented to <body> (see player-chrome.js), so it's no longer
+   a descendant of the mini player to scope a selector through, and this
+   condition holds regardless of which page/frame the panel came from. */
+body.reading-mode-active .video-settings-overlay-group { display: none !important; }
 .video-settings-heading { margin: 4px 0 0; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.14); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
 
 /* --- Player chrome --------------------------------------------------------
@@ -519,12 +540,34 @@ h2 { margin-bottom: 0; }
 .video-frame.is-snug { --pc-bar-h: 54px; --pc-timeline-h: 66px; }
 .video-frame.is-snug .pc-label,
 .video-frame.is-snug .volume-slider { display: none; }
-.video-frame.is-snug .player-controls { gap: 8px; padding: 0 12px; }
-.video-frame.is-snug .pc-tools { gap: 6px; }
-.video-frame.is-snug .pc-transport { gap: 7px; }
+/* The bar's own "12:47 / 45:36" readout duplicates what the timeline rail
+   directly above it already shows at its two ends (pc-rail-time mirrors
+   #currentTime/#duration live -- see mirrorTimes in player-chrome.js), so
+   it's the first thing to give up here, not the pill labels next to it:
+   dropping one truly redundant control buys back more room than shrinking
+   two controls the redesign is actually about. */
+.video-frame.is-snug .pc-time { display: none; }
+.video-frame.is-snug .player-controls { gap: 6px; padding: 0 12px; }
+.video-frame.is-snug .pc-tools { gap: 4px; }
+.video-frame.is-snug .pc-transport { gap: 4px; }
 .video-frame.is-snug .pc-transport .play-button { width: 38px; height: 38px; }
-.video-frame.is-snug .pc-pill { height: 32px; padding: 0 11px; font-size: 12px; }
+.video-frame.is-snug .pc-pill { height: 32px; padding: 0 9px; font-size: 12px; gap: 5px; }
+.video-frame.is-snug .pc-speed select { padding: 2px 0 2px 2px; }
+/* PiP is a pure convenience (it duplicates what leaving the tab open already
+   does) -- the first WHOLE control to give up at this width, ahead of the
+   two labelled pills that are the actual point of this redesign. Reading
+   mode hides it for a different, always-true reason (see
+   updatePipAvailability in player-chrome.js); this is purely about fitting
+   the bar at a width real desktop split-view players commonly render at. */
+.video-frame.is-snug #pipStack { display: none; }
 .video-frame.is-snug .chapter-marker-he { display: none; }
+/* Vaater is worth an icon at every width but its text label is the first
+   thing this tier can give up -- freeing enough room that the labels which
+   actually matter here, the two "where does the daf go" pill buttons, stay
+   readable through the whole common range of real desktop widths (measured
+   540-800px in the real split layout) instead of also disappearing. */
+.video-frame.is-snug .vaater-button-label { display: none; }
+.video-frame.is-snug .vaater-button { padding: 0 9px; }
 
 /* Compact: reading mode's floating mini-player, and phones. */
 .video-frame.is-compact .player-topbar { height: 38px; padding: 0 9px; }
@@ -559,9 +602,9 @@ h2 { margin-bottom: 0; }
    and glyph sizes rather than by dropping any of them, since there's nowhere
    else left to reach a control that isn't in this bar. */
 .video-frame.is-tiny { --pc-bar-h: 34px; --pc-timeline-h: 24px; }
-.video-frame.is-tiny .player-controls { gap: 4px; padding: 0 6px; }
-.video-frame.is-tiny .pc-transport { gap: 2px; }
-.video-frame.is-tiny .pc-tools { gap: 2px; }
+.video-frame.is-tiny .player-controls { gap: 3px; padding: 0 5px; }
+.video-frame.is-tiny .pc-transport { gap: 1px; }
+.video-frame.is-tiny .pc-tools { gap: 1px; }
 .video-frame.is-tiny .pc-transport .icon-button,
 .video-frame.is-tiny .icon-button,
 .video-frame.is-tiny .video-fullscreen-button,
