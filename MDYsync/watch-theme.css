@@ -79,6 +79,19 @@ body { background: #fff; }
 
 dialog { background: var(--card); box-shadow: 0 30px 90px rgba(63, 45, 23, 0.28); }
 .dialog-note { background: rgba(23, 33, 43, 0.03); }
+/* Every text-entry field on these pages (note/reply composer, search,
+   auth, the various sync-dialog URL fields) still carries styles.css's
+   own literal rgba(4,14,27,.7) -- a wash tuned for that file's dark base
+   theme -- since none of them are driven by the --card/--text variables
+   this file already recolors everything else through. Matched by the
+   same id/class selectors styles.css uses so this genuinely overrides
+   them (a bare `input, textarea` rule would lose to those id selectors on
+   specificity regardless of load order). */
+#noteBodyInput, .reply-body-input, #searchNotesInput,
+#videoUrl, #syncDriveUrlInput, #syncYoutubeUrlInput, #syncVoiceUrlInput,
+#authEmail, #authPassword {
+  background: rgba(23, 33, 43, 0.03);
+}
 .toast { background: var(--navy, #0c263d); }
 
 .source-tabs, .sync-tabs { background: rgba(23, 33, 43, 0.05); }

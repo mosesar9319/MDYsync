@@ -1356,11 +1356,6 @@ body.studio-locked .app-shell, body.studio-locked .sidebar, body.studio-locked .
 }
 .segment-note-button:hover { opacity: 1; background: rgba(255,255,255,.08); }
 .segment-note-button.has-notes { opacity: 1; color: var(--accent); }
-.note-sort-control { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; color: var(--muted); }
-.note-sort-control select {
-  border: 1px solid var(--line); background: rgba(255,255,255,.04); color: var(--text);
-  border-radius: 8px; padding: 4px 8px; font-family: inherit; font-size: 12px;
-}
 .note-list { max-height: 46vh; overflow-y: auto; margin: 14px 0; display: flex; flex-direction: column; gap: 10px; }
 .note-item { border: 1px solid var(--line); background: rgba(255,255,255,.03); border-radius: 12px; padding: 10px 12px; }
 .note-item-head { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
@@ -1436,6 +1431,17 @@ body.studio-locked .app-shell, body.studio-locked .sidebar, body.studio-locked .
 .notif-item-text { display: block; font-size: 12.5px; color: var(--text); font-weight: 600; }
 .notif-item-preview { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .notif-item-time { display: block; font-size: 11px; color: var(--muted); margin-top: 4px; }
+/* Formatting toolbar: a small hardcoded markup (see renderFormattedBody in
+   notes.js), not a contenteditable rich-text editor -- the note/reply body
+   stays a plain string in the DB either way. */
+.note-format-toolbar { display: flex; gap: 4px; margin-bottom: 6px; }
+.note-format-button {
+  border: 1px solid var(--line); background: rgba(255,255,255,.04); color: var(--text);
+  border-radius: 7px; padding: 4px 9px; font-size: 13px; line-height: 1; cursor: pointer; min-width: 26px;
+}
+.note-format-button:hover { border-color: var(--line-strong); background: rgba(255,255,255,.08); }
+.note-item-body mark, .comment-item-body mark, .note-item-quote mark { background: var(--accent-soft); color: var(--text); padding: 0 2px; border-radius: 3px; }
+.note-body-large { font-size: 1.2em; font-weight: 600; }
 .reply-compose { margin-top: 6px; }
 .reply-body-input {
   width: 100%; resize: vertical; border: 1px solid var(--line-strong); color: var(--text); background: rgba(4,14,27,.7);
@@ -1480,6 +1486,11 @@ body.studio-locked .app-shell, body.studio-locked .sidebar, body.studio-locked .
   border-radius: 11px; padding: 10px 12px; font-family: inherit; font-size: 14px; outline: none;
 }
 #searchNotesInput:focus { border-color: rgba(220,172,82,.8); box-shadow: 0 0 0 3px rgba(220,172,82,.1); }
+.search-notes-category-filter { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 12px; color: var(--muted); }
+.search-notes-category-filter select {
+  flex: 1; border: 1px solid var(--line-strong); background: rgba(255,255,255,.04); color: var(--text);
+  border-radius: 8px; padding: 6px 8px; font-family: inherit; font-size: 12px;
+}
 .search-result-item { display: block; text-decoration: none; color: inherit; cursor: pointer; }
 .search-result-item:hover { border-color: var(--line-strong); }
 
