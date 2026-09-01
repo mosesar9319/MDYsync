@@ -179,7 +179,7 @@ input:focus, select:focus { border-color: rgba(220,172,82,.8); box-shadow: 0 0 0
 .button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0; border-radius: 11px; padding: 10px 15px; color: inherit; font-weight: 700; text-decoration: none; cursor: pointer; transition: .18s ease; white-space: nowrap; }
 .button:hover { transform: translateY(-1px); }
 .button.primary { color: #231703; background: var(--accent); box-shadow: 0 10px 28px rgba(220,172,82,.15); }
-.button.primary:hover { background: #5be1cf; }
+.button.primary:hover { background: #eac887; }
 .button.secondary { background: rgba(255,255,255,.055); border: 1px solid var(--line); }
 .button.secondary:hover, .button.ghost:hover { background: rgba(255,255,255,.09); }
 .button.ghost { background: transparent; border: 1px solid var(--line); color: var(--muted); }
@@ -815,6 +815,116 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
    here" -- the same crosshair browsers already show over an editable
    region, so it doesn't need an explanatory label to read as different. */
 .vilna-page-wrap.mark-mode .vilna-phrase-box { cursor: crosshair; }
+
+/* --- Notes Mode: selecting a word range on the Vilna page to attach a note
+   to (see toggleVilnaNotesMode/renderVilnaNotesWordTargets in app.js).
+   Reader-facing, unlike .vilna-mark-toggle above -- same small pill look,
+   no .admin-only gate. --- */
+.vilna-notes-toggle { width: auto; padding: 0 10px; font-size: 12px; white-space: nowrap; }
+.vilna-notes-toggle.active { background: var(--accent-strong); color: #231703; border-color: transparent; }
+
+/* Invisible per-word hit targets -- only interactive while notes mode is on
+   (.vilna-page-wrap.notes-mode below); otherwise pointer-events:none so the
+   phrase-click overlay underneath keeps seeking/marking exactly as before. */
+.vilna-notes-word-overlay { position: absolute; inset: 0; pointer-events: none; }
+.vilna-notes-word-target { position: absolute; pointer-events: none; cursor: pointer; touch-action: none; }
+.vilna-page-wrap.notes-mode .vilna-notes-word-target { pointer-events: auto; }
+.vilna-page-wrap.notes-mode { cursor: text; }
+
+/* The current selection -- same whole-line-rect treatment as
+   .vilna-active-rect/.vilna-mark-target-rect above, gold to read as "this
+   is what a note would attach to," distinct from the blue "playing right
+   now" highlight and the dashed mark-target outline. */
+.vilna-notes-selection-overlay { position: absolute; inset: 0; pointer-events: none; }
+.vilna-notes-selection-rect {
+  position: absolute;
+  background: rgba(186, 132, 34, .3);
+  border: 1px solid rgba(186, 132, 34, .6);
+  border-radius: 4px;
+}
+
+/* Small floating "Add note"/clear action -- pinned to the bottom of the
+   PAGE IMAGE ITSELF (position:absolute against .vilna-page-wrap, its own
+   nearest positioned ancestor -- the same containing block every other
+   overlay here already uses) rather than tracking the selection's own
+   exact position, so it never has to fight the frame's edges for room on a
+   selection near the top or bottom of the page. Deliberately NOT
+   position:sticky: confirmed directly that stuck to the WHOLE document's
+   own scroll instead (a printed page can be much taller than the
+   viewport), so bringing it into view -- a real reader scrolling down to
+   reach it, or a screen reader/keyboard focus jump, same as the browser's
+   own scrollIntoView -- could jump the scroll position drastically,
+   carrying the reader's place on the page along with it. Absolute against
+   the wrap keeps it exactly where it visually belongs regardless of where
+   the document itself happens to be scrolled. */
+.vilna-notes-action-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  padding: 8px 10px;
+  width: fit-content;
+  max-width: calc(100% - 20px);
+  border-radius: 999px;
+  background: rgba(255,253,248,.97);
+  border: 1px solid rgba(90,66,34,.16);
+  box-shadow: 0 10px 26px rgba(63,45,23,.16);
+}
+
+/* Margin markers for word-range notes -- restrained (small, semi-
+   transparent, further dimmed outside notes mode) so a page with several
+   notes never reads as cluttered -- see this feature's own product-plan
+   note that the page should never look like a social feed. Gold for a
+   live/public note (matching .note-pill-live's own color above), navy for
+   the reader's own private one -- private wins the color when a marker
+   covers a mix of both, since "I already wrote something here" is the more
+   actionable thing to notice at a glance. Positioned at the top-right
+   corner of the note's own first line (Hebrew reads right-to-left, so
+   that's where a passage visually starts) via the same fractional
+   left/top math every other Vilna-page overlay already uses. --navy has no
+   shared CSS variable outside player/index.html's own inline style (unlike
+   --accent, defined site-wide in styles.css's own :root) -- watch-theme.css
+   already carries this identical var(--navy, #0c263d) fallback pattern for
+   the same reason. */
+.vilna-note-markers-overlay { position: absolute; inset: 0; pointer-events: none; }
+.vilna-note-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,253,248,.9);
+  cursor: pointer;
+  pointer-events: auto;
+  padding: 0;
+  opacity: .55;
+  transition: opacity .15s ease, transform .15s ease;
+}
+.vilna-note-marker:hover, .vilna-note-marker:focus-visible { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+.vilna-note-marker-live { background: var(--accent); }
+.vilna-note-marker-private { background: var(--navy, #0c263d); }
+.vilna-page-wrap:not(.notes-mode) .vilna-note-marker { opacity: .32; width: 10px; height: 10px; }
+.vilna-page-wrap:not(.notes-mode) .vilna-note-marker:hover { opacity: .85; }
+.vilna-note-marker-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 12px;
+  height: 12px;
+  padding: 0 2px;
+  border-radius: 999px;
+  background: #fffdf8;
+  color: #453c2e;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 12px;
+  text-align: center;
+}
 .daf-footer { justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 12px; }
 
 .scan-placeholder { min-height: 100%; padding: 20px; color: #453c2e; text-align: center; }
@@ -1246,6 +1356,11 @@ body.studio-locked .app-shell, body.studio-locked .sidebar, body.studio-locked .
 }
 .segment-note-button:hover { opacity: 1; background: rgba(255,255,255,.08); }
 .segment-note-button.has-notes { opacity: 1; color: var(--accent); }
+.note-sort-control { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.note-sort-control select {
+  border: 1px solid var(--line); background: rgba(255,255,255,.04); color: var(--text);
+  border-radius: 8px; padding: 4px 8px; font-family: inherit; font-size: 12px;
+}
 .note-list { max-height: 46vh; overflow-y: auto; margin: 14px 0; display: flex; flex-direction: column; gap: 10px; }
 .note-item { border: 1px solid var(--line); background: rgba(255,255,255,.03); border-radius: 12px; padding: 10px 12px; }
 .note-item-head { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
@@ -1253,15 +1368,105 @@ body.studio-locked .app-shell, body.studio-locked .sidebar, body.studio-locked .
 .note-item-time { color: var(--muted); font-size: 12px; margin-inline-start: auto; }
 .note-delete-button { border: 0; background: transparent; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; }
 .note-delete-button:hover { color: var(--text); }
+.note-report-button { border: 0; background: transparent; color: var(--muted); font-size: 13px; line-height: 1; cursor: pointer; padding: 0 2px; opacity: .55; }
+.note-report-button:hover { opacity: 1; }
 .note-item-body { color: #d8e2eb; font-size: 14px; line-height: 1.55; direction: ltr; text-align: left; white-space: pre-wrap; }
+/* The specific words a Notes Mode word-range note is actually about --
+   Frank Ruhl Libre and right-aligned like every other quoted Gemara text
+   on the site (see .scrub-preview span, buildSegmentSpan's own .daf-segment
+   rendering), distinct from the note body's own plain Assistant/LTR
+   styling right below it. */
+.note-item-quote { margin: 0 0 7px; padding: 6px 10px; border-right: 2px solid var(--accent); background: rgba(255,255,255,.03); border-radius: 0 8px 8px 0; font-family: "Frank Ruhl Libre", serif; font-size: 15px; line-height: 1.5; color: var(--text); }
 .note-pill { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
 .note-pill-private { background: rgba(255,255,255,.08); color: var(--muted); }
 .note-pill-live { background: var(--accent-soft); color: var(--accent); }
 .note-pill-hidden { background: rgba(220,90,90,.16); color: #e2897f; }
+.note-pill-drift { background: rgba(220,150,60,.16); color: #e2ac6a; }
+.note-category-pill { background: rgba(255,255,255,.08); color: var(--text); font-family: "Frank Ruhl Libre", serif; font-weight: 400; }
+/* --- Flat reply threads under a public note ------------------------------ */
+.note-replies { margin-top: 9px; padding-top: 9px; border-top: 1px dashed var(--line); }
+.reply-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
+.comment-item { border-inline-start: 2px solid var(--line); padding-inline-start: 10px; margin-inline-start: calc(var(--reply-depth, 0) * 14px); }
+.reply-children { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.comment-item-head { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.comment-item-body { color: #d8e2eb; font-size: 13px; line-height: 1.5; direction: ltr; text-align: left; white-space: pre-wrap; }
+.comment-delete-button { border: 0; background: transparent; color: var(--muted); font-size: 16px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.comment-delete-button:hover { color: var(--text); }
+.reply-toggle-button { border: 0; background: transparent; color: var(--accent); font-size: 12px; font-weight: 700; cursor: pointer; padding: 2px 0; }
+.reply-toggle-button:hover { text-decoration: underline; }
+.item-footer { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+.reaction-count-label { color: var(--muted); font-size: 12px; }
+/* An inline reveal, not a floating overlay -- .note-list (the dialog's
+   scrollable note feed) has overflow-y:auto, which clips any absolutely-
+   positioned child that extends past its bounds. A position:absolute
+   dropdown here rendered completely invisible for exactly that reason
+   (confirmed via a real headless-browser screenshot, not just reasoning
+   about it) -- same class of bug as the settings-panel stacking-context
+   issue found earlier in this project, just triggered by overflow instead
+   of z-index. Reusing the reply-compose/mention-picker's own proven inline-
+   reveal pattern sidesteps the whole bug class rather than working around
+   it with position:fixed + JS-computed coordinates. */
+.reaction-widget { display: inline-flex; flex-direction: column; align-items: flex-start; }
+.reaction-trigger-button { border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer; padding: 2px 9px; border-radius: 999px; }
+.reaction-trigger-button:hover { color: var(--text); border-color: var(--line-strong); }
+.reaction-trigger-button.active { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.reaction-menu { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.reaction-menu-item { border: 1px solid var(--line); background: transparent; color: var(--text); font-size: 12px; text-align: start; padding: 4px 9px; border-radius: 999px; cursor: pointer; }
+.reaction-menu-item:hover { border-color: var(--line-strong); }
+.reaction-menu-item.active { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+.follow-toggle-button { border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer; padding: 2px 9px; border-radius: 999px; }
+.follow-toggle-button:hover { color: var(--text); border-color: var(--line-strong); }
+.follow-toggle-button.active { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.mention-picker { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.mention-chip { border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; padding: 2px 9px; border-radius: 999px; }
+.mention-chip:hover { color: var(--text); border-color: var(--line-strong); }
+.mention-chip.active { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+
+/* --- Notifications: bell + dropdown in the account menu ------------------- */
+.notif-widget { position: relative; }
+.notif-bell-button { position: relative; border: 1px solid var(--line); background: transparent; color: var(--text); font-size: 16px; cursor: pointer; padding: 6px 10px; border-radius: 9px; line-height: 1; }
+.notif-bell-button:hover { border-color: var(--line-strong); }
+.notif-badge { position: absolute; top: -4px; inset-inline-end: -6px; background: var(--accent); color: #231703; font-size: 10px; font-weight: 800; line-height: 1; padding: 3px 5px; border-radius: 999px; min-width: 14px; text-align: center; }
+.notif-dropdown { position: absolute; top: calc(100% + 8px); inset-inline-end: 0; width: 320px; max-width: 88vw; background: var(--card-strong); border: 1px solid var(--line-strong); border-radius: 14px; box-shadow: var(--shadow); z-index: 40; padding: 12px; }
+.notif-dropdown-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-weight: 700; font-size: 13px; }
+.notif-list { max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.notif-item { display: block; width: 100%; text-align: start; border: 1px solid var(--line); background: transparent; border-radius: 10px; padding: 8px 10px; cursor: pointer; }
+.notif-item:hover { border-color: var(--line-strong); }
+.notif-item.unread { border-color: var(--accent); background: var(--accent-soft); }
+.notif-item-text { display: block; font-size: 12.5px; color: var(--text); font-weight: 600; }
+.notif-item-preview { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.notif-item-time { display: block; font-size: 11px; color: var(--muted); margin-top: 4px; }
+.reply-compose { margin-top: 6px; }
+.reply-body-input {
+  width: 100%; resize: vertical; border: 1px solid var(--line-strong); color: var(--text); background: rgba(4,14,27,.7);
+  border-radius: 9px; padding: 8px 10px; font-family: inherit; font-size: 13px; outline: none;
+}
+.reply-body-input:focus { border-color: rgba(220,172,82,.8); box-shadow: 0 0 0 3px rgba(220,172,82,.1); }
+.reply-compose-actions { display: flex; justify-content: flex-end; margin-top: 6px; }
 .note-compose { border-top: 1px solid var(--line); padding-top: 14px; }
 .note-privacy-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; margin-bottom: 10px; }
 .note-privacy-option { border: 0; background: rgba(255,255,255,.04); color: var(--muted); padding: 7px 12px; cursor: pointer; font-weight: 700; font-size: 13px; }
 .note-privacy-option.active { background: var(--accent); color: #231703; }
+/* Category picker: a restrained, single visual treatment for every chip --
+   18 distinct colors would fight the site's deliberately minimal navy/
+   gold/ivory palette, so the icon + Hebrew/English pairing carries the
+   distinction instead of color-coding. */
+.note-category-picker { margin: 4px 0 12px; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.note-category-label { font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .03em; }
+.note-category-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.note-category-options-secondary { margin-top: 8px; }
+.note-category-chip {
+  display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: rgba(255,255,255,.03);
+  border-radius: 10px; padding: 5px 9px; cursor: pointer; text-align: start;
+}
+.note-category-chip:hover { border-color: var(--line-strong); }
+.note-category-chip.active { border-color: var(--accent); background: var(--accent-soft); }
+.note-category-chip-icon { font-size: 14px; line-height: 1; }
+.note-category-chip-text { display: flex; flex-direction: column; line-height: 1.25; }
+.note-category-chip-he { font-family: "Frank Ruhl Libre", serif; font-size: 13px; color: var(--text); }
+.note-category-chip-en { font-size: 10px; color: var(--muted); }
+.note-category-more-toggle { display: block; border: 0; background: transparent; color: var(--accent); font-size: 12px; font-weight: 700; cursor: pointer; padding: 8px 0 0; }
+.note-category-more-toggle:hover { text-decoration: underline; }
 #noteBodyInput {
   width: 100%; resize: vertical; border: 1px solid var(--line-strong); color: var(--text); background: rgba(4,14,27,.7);
   border-radius: 11px; padding: 10px 12px; font-family: inherit; font-size: 14px; outline: none;
@@ -1269,6 +1474,14 @@ body.studio-locked .app-shell, body.studio-locked .sidebar, body.studio-locked .
 #noteBodyInput:focus { border-color: rgba(220,172,82,.8); box-shadow: 0 0 0 3px rgba(220,172,82,.1); }
 .note-compose-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
 .note-mod-actions { margin-top: 8px; display: flex; justify-content: flex-end; }
+.search-notes-field { margin: 14px 0; }
+#searchNotesInput {
+  width: 100%; border: 1px solid var(--line-strong); color: var(--text); background: rgba(4,14,27,.7);
+  border-radius: 11px; padding: 10px 12px; font-family: inherit; font-size: 14px; outline: none;
+}
+#searchNotesInput:focus { border-color: rgba(220,172,82,.8); box-shadow: 0 0 0 3px rgba(220,172,82,.1); }
+.search-result-item { display: block; text-decoration: none; color: inherit; cursor: pointer; }
+.search-result-item:hover { border-color: var(--line-strong); }
 
 /* --- Catalog browser ------------------------------------------------------ */
 .catalog-card { padding: 20px 22px; margin-bottom: 18px; }

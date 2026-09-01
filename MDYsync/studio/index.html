@@ -91,6 +91,20 @@
         <div class="auth-widget" id="authWidget">
           <button class="button secondary small" id="signInButton" type="button">Sign in</button>
           <div class="account-menu" id="accountMenu" hidden>
+            <div class="notif-widget" id="notifWidget">
+              <button type="button" class="notif-bell-button" id="notifBellButton" aria-label="Notifications" title="Notifications">
+                🔔<span class="notif-badge" id="notifBadge" hidden>0</span>
+              </button>
+              <div class="notif-dropdown" id="notifDropdown" hidden>
+                <div class="notif-dropdown-head">
+                  <span>Notifications</span>
+                  <button type="button" class="button ghost small" id="notifMarkAllReadButton">Mark all read</button>
+                </div>
+                <div class="notif-list" id="notifList">
+                  <p class="field-note">No notifications yet.</p>
+                </div>
+              </div>
+            </div>
             <button class="button secondary small account-trigger" id="accountMenuButton" type="button">
               <span id="accountEmailLabel">Account</span>
               <span class="admin-badge admin-only" id="adminBadge">Admin</span>
@@ -470,6 +484,49 @@
           <button data-filter="all" type="button">All</button>
         </div>
         <div class="note-list" id="moderationList">
+          <p class="field-note">Loading…</p>
+        </div>
+      </section>
+
+      <section class="card admin-only" id="reportsSection">
+        <div class="editor-heading">
+          <div>
+            <div class="eyebrow">Moderation</div>
+            <h2>Reports</h2>
+            <p>Notes and replies readers have flagged. Hiding removes the content from everyone's view except its own author.</p>
+          </div>
+          <div class="editor-actions">
+            <button class="button ghost small" id="refreshReportsButton" type="button">Refresh</button>
+          </div>
+        </div>
+        <div class="view-switch" role="group" aria-label="Filter" id="reportFilter">
+          <button class="active" data-filter="pending" type="button">Pending</button>
+          <button data-filter="resolved" type="button">Resolved</button>
+          <button data-filter="dismissed" type="button">Dismissed</button>
+          <button data-filter="all" type="button">All</button>
+        </div>
+        <div class="note-list" id="reportList">
+          <p class="field-note">Loading…</p>
+        </div>
+      </section>
+
+      <section class="card admin-only" id="commentModerationSection">
+        <div class="editor-heading">
+          <div>
+            <div class="eyebrow">Moderation</div>
+            <h2>Live replies</h2>
+            <p>Replies readers posted publicly on live notes. Hiding a reply removes it from everyone's view except its own author.</p>
+          </div>
+          <div class="editor-actions">
+            <button class="button ghost small" id="refreshCommentModerationButton" type="button">Refresh</button>
+          </div>
+        </div>
+        <div class="view-switch" role="group" aria-label="Filter" id="commentModerationFilter">
+          <button class="active" data-filter="visible" type="button">Visible</button>
+          <button data-filter="hidden" type="button">Hidden</button>
+          <button data-filter="all" type="button">All</button>
+        </div>
+        <div class="note-list" id="commentModerationList">
           <p class="field-note">Loading…</p>
         </div>
       </section>

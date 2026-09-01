@@ -473,8 +473,23 @@
         <button class="button ghost" id="helpButton">How it works</button>
         <a class="button secondary small" href="/">Back to library</a>
         <div class="auth-widget" id="authWidget">
+          <button class="button secondary small" id="searchNotesButton" type="button" title="Search public notes and replies">🔍 Notes</button>
           <button class="button secondary small" id="signInButton" type="button">Sign in</button>
           <div class="account-menu" id="accountMenu" hidden>
+            <div class="notif-widget" id="notifWidget">
+              <button type="button" class="notif-bell-button" id="notifBellButton" aria-label="Notifications" title="Notifications">
+                🔔<span class="notif-badge" id="notifBadge" hidden>0</span>
+              </button>
+              <div class="notif-dropdown" id="notifDropdown" hidden>
+                <div class="notif-dropdown-head">
+                  <span>Notifications</span>
+                  <button type="button" class="button ghost small" id="notifMarkAllReadButton">Mark all read</button>
+                </div>
+                <div class="notif-list" id="notifList">
+                  <p class="field-note">No notifications yet.</p>
+                </div>
+              </div>
+            </div>
             <button class="button secondary small account-trigger" id="accountMenuButton" type="button">
               <span id="accountEmailLabel">Account</span>
               <span class="admin-badge admin-only" id="adminBadge">Admin</span>
@@ -760,6 +775,7 @@
                 <span id="vilnaZoomLabel">100%</span>
                 <button class="vilna-zoom-btn" id="vilnaZoomInButton" type="button" aria-label="Zoom in">+</button>
                 <button class="vilna-zoom-reset" id="vilnaZoomResetButton" type="button">Reset zoom</button>
+                <button class="vilna-zoom-btn vilna-notes-toggle" id="vilnaNotesModeButton" type="button" aria-pressed="false" title="Select words on the page to attach a note">🗒 Notes</button>
                 <button class="vilna-zoom-btn vilna-mark-toggle admin-only" id="vilnaMarkModeButton" type="button" aria-pressed="false" title="Click a word on the page to mark its phrase's start time">Mark words</button>
                 <button class="vilna-zoom-btn vilna-mark-toggle admin-only" id="vilnaUnmatchedToggleButton" type="button" aria-pressed="false" title="Highlight words on the page with no matching part of the video">Show unmatched</button>
                 <button class="vilna-zoom-btn vilna-mark-save admin-only" id="vilnaMarkSaveButton" type="button" title="Save these word-mark corrections" hidden>Save</button>
@@ -782,6 +798,13 @@
                 <div class="vilna-active-overlay" id="vilnaActiveOverlay"></div>
                 <div class="vilna-mark-target-overlay" id="vilnaMarkTargetOverlay"></div>
                 <div class="vilna-unmatched-overlay" id="vilnaUnmatchedOverlay"></div>
+                <div class="vilna-note-markers-overlay" id="vilnaNoteMarkersOverlay"></div>
+                <div class="vilna-notes-selection-overlay" id="vilnaNotesSelectionOverlay"></div>
+                <div class="vilna-notes-word-overlay" id="vilnaNotesWordOverlay"></div>
+                <div class="vilna-notes-action-bar" id="vilnaNotesActionBar" hidden>
+                  <button type="button" class="button ghost small" id="vilnaNotesClearButton" aria-label="Clear selection">×</button>
+                  <button type="button" class="button primary small" id="vilnaNotesAddButton">Add note</button>
+                </div>
               </div>
             </div>
           </div>
@@ -1021,6 +1044,13 @@
     <div class="eyebrow" id="noteDialogRef">Note</div>
     <h2>Line notes</h2>
     <p class="dialog-note" id="noteDialogText"></p>
+    <div class="note-sort-control">
+      <label for="noteSortSelect">Sort by</label>
+      <select id="noteSortSelect">
+        <option value="newest">Newest</option>
+        <option value="category">Category</option>
+      </select>
+    </div>
     <div class="note-list" id="noteList">
       <p class="field-note">Loading notes…</p>
     </div>
@@ -1028,6 +1058,12 @@
       <div class="note-privacy-toggle" id="notePrivacyToggle" role="group" aria-label="Note visibility">
         <button type="button" class="note-privacy-option active" data-privacy="private">🔒 Private</button>
         <button type="button" class="note-privacy-option" data-privacy="live">🌐 Live</button>
+      </div>
+      <div class="note-category-picker">
+        <div class="note-category-label">Category <span class="field-note">(optional)</span></div>
+        <div class="note-category-options" id="noteCategoryOptions"></div>
+        <button type="button" class="note-category-more-toggle" id="noteCategoryMoreToggle">More categories ▾</button>
+        <div class="note-category-options note-category-options-secondary" id="noteCategorySecondaryOptions" hidden></div>
       </div>
       <textarea id="noteBodyInput" maxlength="2000" rows="3" placeholder="Write a note on this line…"></textarea>
       <div class="note-compose-actions">
@@ -1038,6 +1074,18 @@
     <p class="dialog-note" id="noteSignInPrompt" hidden>
       <button class="button secondary small" id="noteSignInButton" type="button">Sign in to add a note</button>
     </p>
+  </dialog>
+
+  <dialog id="searchNotesDialog">
+    <button class="dialog-close" id="closeSearchNotesDialog" aria-label="Close">×</button>
+    <div class="eyebrow">Search</div>
+    <h2>Search notes &amp; replies</h2>
+    <div class="search-notes-field">
+      <input type="search" id="searchNotesInput" placeholder="Search public notes and replies…" maxlength="200">
+    </div>
+    <div class="note-list" id="searchNotesResults">
+      <p class="field-note">Type to search public notes and replies.</p>
+    </div>
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
