@@ -1363,6 +1363,8 @@ body.studio-locked .app-shell, body.studio-locked .sidebar, body.studio-locked .
 .note-item-time { color: var(--muted); font-size: 12px; margin-inline-start: auto; }
 .note-delete-button { border: 0; background: transparent; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; }
 .note-delete-button:hover { color: var(--text); }
+.note-report-button { border: 0; background: transparent; color: var(--muted); font-size: 13px; line-height: 1; cursor: pointer; padding: 0 2px; opacity: .55; }
+.note-report-button:hover { opacity: 1; }
 .note-item-body { color: #d8e2eb; font-size: 14px; line-height: 1.55; direction: ltr; text-align: left; white-space: pre-wrap; }
 /* The specific words a Notes Mode word-range note is actually about --
    Frank Ruhl Libre and right-aligned like every other quoted Gemara text
@@ -1375,6 +1377,23 @@ body.studio-locked .app-shell, body.studio-locked .sidebar, body.studio-locked .
 .note-pill-live { background: var(--accent-soft); color: var(--accent); }
 .note-pill-hidden { background: rgba(220,90,90,.16); color: #e2897f; }
 .note-pill-drift { background: rgba(220,150,60,.16); color: #e2ac6a; }
+/* --- Flat reply threads under a public note ------------------------------ */
+.note-replies { margin-top: 9px; padding-top: 9px; border-top: 1px dashed var(--line); }
+.reply-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
+.comment-item { border-inline-start: 2px solid var(--line); padding-inline-start: 10px; }
+.comment-item-head { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.comment-item-body { color: #d8e2eb; font-size: 13px; line-height: 1.5; direction: ltr; text-align: left; white-space: pre-wrap; }
+.comment-delete-button { border: 0; background: transparent; color: var(--muted); font-size: 16px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.comment-delete-button:hover { color: var(--text); }
+.reply-toggle-button { border: 0; background: transparent; color: var(--accent); font-size: 12px; font-weight: 700; cursor: pointer; padding: 2px 0; }
+.reply-toggle-button:hover { text-decoration: underline; }
+.reply-compose { margin-top: 6px; }
+.reply-body-input {
+  width: 100%; resize: vertical; border: 1px solid var(--line-strong); color: var(--text); background: rgba(4,14,27,.7);
+  border-radius: 9px; padding: 8px 10px; font-family: inherit; font-size: 13px; outline: none;
+}
+.reply-body-input:focus { border-color: rgba(220,172,82,.8); box-shadow: 0 0 0 3px rgba(220,172,82,.1); }
+.reply-compose-actions { display: flex; justify-content: flex-end; margin-top: 6px; }
 .note-compose { border-top: 1px solid var(--line); padding-top: 14px; }
 .note-privacy-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; margin-bottom: 10px; }
 .note-privacy-option { border: 0; background: rgba(255,255,255,.04); color: var(--muted); padding: 7px 12px; cursor: pointer; font-weight: 700; font-size: 13px; }
