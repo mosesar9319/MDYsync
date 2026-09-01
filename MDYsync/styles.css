@@ -1389,10 +1389,25 @@ body.studio-locked .app-shell, body.studio-locked .sidebar, body.studio-locked .
 .reply-toggle-button { border: 0; background: transparent; color: var(--accent); font-size: 12px; font-weight: 700; cursor: pointer; padding: 2px 0; }
 .reply-toggle-button:hover { text-decoration: underline; }
 .item-footer { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
-.reaction-button { border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer; padding: 2px 9px; border-radius: 999px; }
-.reaction-button:hover { color: var(--text); border-color: var(--line-strong); }
-.reaction-button.active { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 .reaction-count-label { color: var(--muted); font-size: 12px; }
+/* An inline reveal, not a floating overlay -- .note-list (the dialog's
+   scrollable note feed) has overflow-y:auto, which clips any absolutely-
+   positioned child that extends past its bounds. A position:absolute
+   dropdown here rendered completely invisible for exactly that reason
+   (confirmed via a real headless-browser screenshot, not just reasoning
+   about it) -- same class of bug as the settings-panel stacking-context
+   issue found earlier in this project, just triggered by overflow instead
+   of z-index. Reusing the reply-compose/mention-picker's own proven inline-
+   reveal pattern sidesteps the whole bug class rather than working around
+   it with position:fixed + JS-computed coordinates. */
+.reaction-widget { display: inline-flex; flex-direction: column; align-items: flex-start; }
+.reaction-trigger-button { border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer; padding: 2px 9px; border-radius: 999px; }
+.reaction-trigger-button:hover { color: var(--text); border-color: var(--line-strong); }
+.reaction-trigger-button.active { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.reaction-menu { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.reaction-menu-item { border: 1px solid var(--line); background: transparent; color: var(--text); font-size: 12px; text-align: start; padding: 4px 9px; border-radius: 999px; cursor: pointer; }
+.reaction-menu-item:hover { border-color: var(--line-strong); }
+.reaction-menu-item.active { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); font-weight: 700; }
 .follow-toggle-button { border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer; padding: 2px 9px; border-radius: 999px; }
 .follow-toggle-button:hover { color: var(--text); border-color: var(--line-strong); }
 .follow-toggle-button.active { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }

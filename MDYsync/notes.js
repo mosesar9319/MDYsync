@@ -29,13 +29,22 @@ let activeNoteSelection = null;
 // check in the migration), and hiding a note is meant to suppress its whole
 // reply thread, so a hidden note's replies are never loaded here either.
 const commentsByNoteId = new Map();
-// "note:<id>" / "comment:<id>" -> { count, mine } -- a restrained single
-// reaction ("Helpful"), not a full likes/emoji system, so presence of a row
-// in the DB is the whole signal; this is just the client-side rollup of it.
+// A small, deliberately restrained set of respectful reaction types -- not
+// a full likes/emoji picker. A user can mark more than one of these on the
+// same target (see the migration's own unique constraint, which now
+// includes reaction_type), so they're independent toggles, not a
+// single-choice picker.
+const REACTION_TYPES = [
+  { key: 'helpful', label: 'Helpful' },
+  { key: 'insightful', label: 'Insightful' },
+  { key: 'yasher_koach', label: 'Yasher Koach' },
+];
+
+// "note:<id>:<reaction_type>" / "comment:<id>:<reaction_type>" -> { count, mine }
 const reactionsByTarget = new Map();
 
-function reactionKey(targetType, targetId) {
-  return `${targetType}:${targetId}`;
+function reactionKey(targetType, targetId, reactionType) {
+  return `${targetType}:${targetId}:${reactionType}`;
 }
 
 // note ids the current viewer follows, among the notes currently loaded --
@@ -152,16 +161,34 @@ function buildCommentTree(comments) {
   return byParent;
 }
 
-// A signed-out reader still sees the count (if any) but gets a plain label
-// instead of a button -- reacting requires auth.uid() = user_id at the DB
-// level, so there's nothing a click could do for them.
+function reactionEntry(targetType, targetId, reactionType) {
+  return reactionsByTarget.get(reactionKey(targetType, targetId, reactionType)) || { count: 0, mine: false };
+}
+
+// A signed-out reader still sees which reactions exist (if any) but gets a
+// plain summary label instead of a menu -- reacting requires
+// auth.uid() = user_id at the DB level, so there's nothing a click could do
+// for them.
 function renderReactionButton(targetType, targetId) {
   const user = window.DafSyncAuth?.getUser();
-  const entry = reactionsByTarget.get(reactionKey(targetType, targetId)) || { count: 0, mine: false };
-  if (!user && entry.count === 0) return '';
-  const countLabel = entry.count > 0 ? ` (${entry.count})` : '';
-  if (!user) return `<span class="reaction-count-label">Helpful${countLabel}</span>`;
-  return `<button type="button" class="reaction-button${entry.mine ? ' active' : ''}" data-target-type="${targetType}" data-target-id="${targetId}">Helpful${countLabel}</button>`;
+  const entries = REACTION_TYPES.map((type) => ({ ...type, ...reactionEntry(targetType, targetId, type.key) }));
+  const totalCount = entries.reduce((sum, e) => sum + e.count, 0);
+  const mineCount = entries.filter((e) => e.mine).length;
+  if (!user) {
+    if (!totalCount) return '';
+    const summary = entries.filter((e) => e.count > 0).map((e) => `${e.label} (${e.count})`).join(' · ');
+    return `<span class="reaction-count-label">${escapeHtml(summary)}</span>`;
+  }
+  const menuItems = entries.map((e) => {
+    const countLabel = e.count > 0 ? ` (${e.count})` : '';
+    return `<button type="button" class="reaction-menu-item${e.mine ? ' active' : ''}" data-target-type="${targetType}" data-target-id="${targetId}" data-reaction-type="${e.key}">${escapeHtml(e.label)}${countLabel}</button>`;
+  }).join('');
+  const triggerLabel = totalCount > 0 ? `React (${totalCount})` : 'React';
+  return `
+    <div class="reaction-widget">
+      <button type="button" class="reaction-trigger-button${mineCount > 0 ? ' active' : ''}">${triggerLabel} ▾</button>
+      <div class="reaction-menu" hidden>${menuItems}</div>
+    </div>`;
 }
 
 // Only ever on the NOTE itself (not individual replies) -- following means
@@ -358,8 +385,18 @@ function renderNoteList(rows) {
   list.querySelectorAll('.note-report-button').forEach((button) => {
     button.addEventListener('click', () => reportItem(button.dataset.targetType, button.dataset.targetId));
   });
-  list.querySelectorAll('.reaction-button').forEach((button) => {
-    button.addEventListener('click', () => toggleReaction(button.dataset.targetType, button.dataset.targetId));
+  list.querySelectorAll('.reaction-trigger-button').forEach((button) => {
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const menu = button.nextElementSibling;
+      // Only one reaction menu open at a time -- closing any sibling that
+      // was already open before toggling this one.
+      list.querySelectorAll('.reaction-menu').forEach((m) => { if (m !== menu) m.hidden = true; });
+      menu.hidden = !menu.hidden;
+    });
+  });
+  list.querySelectorAll('.reaction-menu-item').forEach((button) => {
+    button.addEventListener('click', () => toggleReaction(button.dataset.targetType, button.dataset.targetId, button.dataset.reactionType));
   });
   list.querySelectorAll('.mention-chip').forEach((chip) => {
     chip.addEventListener('click', () => chip.classList.toggle('active'));
@@ -390,21 +427,21 @@ async function toggleFollow(noteId) {
   if (activeNoteRef) refreshNoteList(activeNoteRef);
 }
 
-async function toggleReaction(targetType, targetId) {
+async function toggleReaction(targetType, targetId, reactionType) {
   const auth = window.DafSyncAuth;
   const user = auth?.getUser();
   if (!user) return;
-  const entry = reactionsByTarget.get(reactionKey(targetType, targetId));
+  const entry = reactionsByTarget.get(reactionKey(targetType, targetId, reactionType));
   if (entry?.mine) {
     const { error } = await auth.client.from('reactions').delete()
-      .eq('user_id', user.id).eq('target_type', targetType).eq('target_id', targetId);
+      .eq('user_id', user.id).eq('target_type', targetType).eq('target_id', targetId).eq('reaction_type', reactionType);
     if (error) {
       showToast(error.message || 'Could not update this.', 'error');
       return;
     }
   } else {
     const { error } = await auth.client.from('reactions').insert({
-      user_id: user.id, target_type: targetType, target_id: targetId,
+      user_id: user.id, target_type: targetType, target_id: targetId, reaction_type: reactionType,
     });
     if (error) {
       showToast(error.message || 'Could not update this.', 'error');
@@ -464,7 +501,7 @@ async function loadReactionsForTargets(noteIds, commentIds) {
     ? await auth.client.from('reactions').select('*').eq('target_type', 'comment').in('target_id', commentIds)
     : { data: [] };
   for (const row of [...(noteReactions.data || []), ...(commentReactions.data || [])]) {
-    const key = reactionKey(row.target_type, row.target_id);
+    const key = reactionKey(row.target_type, row.target_id, row.reaction_type);
     if (!reactionsByTarget.has(key)) reactionsByTarget.set(key, { count: 0, mine: false });
     const entry = reactionsByTarget.get(key);
     entry.count += 1;
@@ -699,6 +736,13 @@ function initNoteDialog() {
   $('noteSignInButton').addEventListener('click', () => {
     dialog.close();
     $('signInButton')?.click();
+  });
+
+  // Click-outside-to-close for reaction menus -- attached once here rather
+  // than per render, since renderNoteList rebuilds the list's contents
+  // (and any menus in it) on every refresh.
+  document.addEventListener('click', () => {
+    dialog.querySelectorAll('.reaction-menu:not([hidden])').forEach((menu) => { menu.hidden = true; });
   });
 
   // renderDafWindow() (app.js) rebuilds the segment spans on every active-
