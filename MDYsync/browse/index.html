@@ -760,6 +760,7 @@
                 <span id="vilnaZoomLabel">100%</span>
                 <button class="vilna-zoom-btn" id="vilnaZoomInButton" type="button" aria-label="Zoom in">+</button>
                 <button class="vilna-zoom-reset" id="vilnaZoomResetButton" type="button">Reset zoom</button>
+                <button class="vilna-zoom-btn vilna-notes-toggle" id="vilnaNotesModeButton" type="button" aria-pressed="false" title="Select words on the page to attach a note">🗒 Notes</button>
                 <button class="vilna-zoom-btn vilna-mark-toggle admin-only" id="vilnaMarkModeButton" type="button" aria-pressed="false" title="Click a word on the page to mark its phrase's start time">Mark words</button>
                 <button class="vilna-zoom-btn vilna-mark-toggle admin-only" id="vilnaUnmatchedToggleButton" type="button" aria-pressed="false" title="Highlight words on the page with no matching part of the video">Show unmatched</button>
                 <button class="vilna-zoom-btn vilna-mark-save admin-only" id="vilnaMarkSaveButton" type="button" title="Save these word-mark corrections" hidden>Save</button>
@@ -782,6 +783,13 @@
                 <div class="vilna-active-overlay" id="vilnaActiveOverlay"></div>
                 <div class="vilna-mark-target-overlay" id="vilnaMarkTargetOverlay"></div>
                 <div class="vilna-unmatched-overlay" id="vilnaUnmatchedOverlay"></div>
+                <div class="vilna-note-markers-overlay" id="vilnaNoteMarkersOverlay"></div>
+                <div class="vilna-notes-selection-overlay" id="vilnaNotesSelectionOverlay"></div>
+                <div class="vilna-notes-word-overlay" id="vilnaNotesWordOverlay"></div>
+                <div class="vilna-notes-action-bar" id="vilnaNotesActionBar" hidden>
+                  <button type="button" class="button ghost small" id="vilnaNotesClearButton" aria-label="Clear selection">×</button>
+                  <button type="button" class="button primary small" id="vilnaNotesAddButton">Add note</button>
+                </div>
               </div>
             </div>
           </div>

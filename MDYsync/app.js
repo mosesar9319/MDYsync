@@ -24,6 +24,19 @@ const state = {
   vilnaMarkMode: false,
   // Admin diagnostic toggle -- see renderVilnaUnmatchedWords.
   showUnmatchedWords: false,
+  // Reader-facing (not admin-only, unlike vilnaMarkMode above): lets a
+  // signed-in reader select a word range on the printed page to attach a
+  // note to, instead of clicking a word seeking the video -- see
+  // toggleVilnaNotesMode. { ref, start, end } while a range is selected
+  // (start/end are wordIndex, inclusive, always start<=end); null when
+  // nothing is selected. A selection never spans two different refs -- see
+  // extendNotesSelection.
+  vilnaNotesMode: false,
+  notesSelection: null,
+  // Rebuilt on each Vilna page load, but only while notes mode is (or
+  // becomes) active -- see renderVilnaNotesWordTargets -- so a reader who
+  // never opens notes mode never pays for the extra one-div-per-word DOM.
+  notesWordTargetsKey: null,
   // Snapshot of segments/editingIndex from when mark mode was turned on (or
   // the last explicit Save) -- what "Discard changes" (see
   // discardVilnaMarkChanges) reverts to. Serialized JSON, not a live
@@ -1676,6 +1689,8 @@ async function loadVilnaPageMap(parsed, stillWanted = () => true) {
       if (!stillWanted()) return true;
       renderVilnaWordBoxes();
       updateVilnaOverlay(getCurrentTime());
+      renderVilnaNotesWordTargets();
+      renderVilnaNoteMarkers();
       return true;
     } catch {
       return false;
@@ -1895,6 +1910,210 @@ function renderVilnaWordBoxes() {
   updateVilnaMarkTarget();
   scheduleReadingVideoFollow(true, 0);
   renderVilnaUnmatchedWords();
+}
+
+// --- Notes Mode: select a word range on the printed page to attach a note
+// to (see the notes.js companion file for the compose/save flow) -----------
+//
+// Reader-facing, unlike vilnaMarkMode above -- gated by whether a daf is
+// loaded at all, not by admin status. A dedicated overlay layered ON TOP OF
+// renderVilnaWordBoxes's own phrase-click overlay (later in the DOM, so it
+// wins any click while it's the one with pointer-events:auto -- see
+// .vilna-page-wrap.notes-mode in styles.css), rather than touching that
+// overlay's own click handling at all: turning notes mode on doesn't change
+// what a word click means anywhere else, it just shadows it while active.
+//
+// One hit-div per individual word (not grouped into phrase/line rects like
+// every other overlay here) -- selection needs to know exactly which word
+// the pointer is over, which a merged multi-word rect can't answer. Built
+// lazily, only once notes mode is actually turned on for this page (see
+// toggleVilnaNotesMode), since most readers will never open it.
+function renderVilnaNotesWordTargets() {
+  const overlay = $('vilnaNotesWordOverlay');
+  if (!overlay || !state.vilnaNotesMode || !state.vilnaPageMap) return;
+  const key = `${state.vilnaPageMap.tractate} ${state.vilnaPageMap.daf}${state.vilnaPageMap.amud}`;
+  if (state.notesWordTargetsKey === key) return; // already built for this page
+  state.notesWordTargetsKey = key;
+  overlay.innerHTML = '';
+  for (const box of state.vilnaPageMap.wordBoxes) {
+    const el = document.createElement('div');
+    el.className = 'vilna-notes-word-target';
+    el.style.left = `${box.x * 100}%`;
+    el.style.top = `${box.y * 100}%`;
+    el.style.width = `${box.w * 100}%`;
+    el.style.height = `${box.h * 100}%`;
+    el.addEventListener('pointerdown', (event) => {
+      event.preventDefault(); // no native text-selection/drag-image while dragging across words
+      startNotesSelectionDrag(box.ref, box.wordIndex);
+    });
+    el.addEventListener('pointerenter', () => {
+      if (notesSelectionDragging) extendNotesSelection(box.ref, box.wordIndex);
+    });
+    overlay.appendChild(el);
+  }
+}
+
+// Whether a pointer is currently down and dragging a selection -- module-
+// level rather than state.* since it's a transient input gesture, the same
+// distinction state.seeking/the reading-video drag flags etc. already draw
+// elsewhere in this file.
+let notesSelectionDragging = false;
+
+function startNotesSelectionDrag(ref, wordIndex) {
+  notesSelectionDragging = true;
+  extendNotesSelection(ref, wordIndex);
+  const finish = () => { notesSelectionDragging = false; document.removeEventListener('pointerup', finish); };
+  document.addEventListener('pointerup', finish);
+}
+
+// The single rule covering both interaction styles the feature needs to
+// support (desktop click-drag, and a tap-then-tap alternative that works
+// everywhere including mobile, without needing draggable selection-handle
+// UI): extending an EXISTING selection on the same ref grows it to cover
+// the new word too (a plain tap on one word, then a second plain tap on
+// another, is just two separate one-word "drags" that both land here);
+// touching a different ref starts a fresh one-word selection there instead,
+// since a note can only anchor to one segment ref (see the migration's own
+// line_notes_word_range_check) -- silently starting over rather than
+// erroring keeps that limit invisible in the common case, a drag that
+// never actually leaves the paragraph it started in.
+function extendNotesSelection(ref, wordIndex) {
+  const current = state.notesSelection;
+  if (current && current.ref === ref) {
+    state.notesSelection = { ref, start: Math.min(current.start, wordIndex), end: Math.max(current.end, wordIndex) };
+  } else {
+    state.notesSelection = { ref, start: wordIndex, end: wordIndex };
+  }
+  updateNotesSelectionOverlay();
+}
+
+function clearNotesSelection() {
+  state.notesSelection = null;
+  updateNotesSelectionOverlay();
+}
+
+// Renders the gold highlight over the current selection (reusing
+// groupBoxesIntoLineRects the exact same way updateVilnaOverlay's own
+// "playing right now" highlight does above, so a multi-line selection reads
+// as clean per-line bars instead of the old oversized-per-word boxes this
+// project already moved away from once -- see .vilna-phrase-box's own
+// comment) and shows/hides the floating "Add note" action bar. Also used to
+// briefly highlight an EXISTING note's range when its margin marker is
+// clicked (see renderVilnaNoteMarkers/highlightNotesRange below) -- same
+// overlay either way, since visually it's the same thing: these words, and
+// here's what to do about them.
+function updateNotesSelectionOverlay() {
+  const overlay = $('vilnaNotesSelectionOverlay');
+  const actionBar = $('vilnaNotesActionBar');
+  if (!overlay) return;
+  overlay.innerHTML = '';
+  const selection = state.notesSelection;
+  if (!selection || !state.vilnaPageMap) {
+    if (actionBar) actionBar.hidden = true;
+    return;
+  }
+  const boxes = state.vilnaPageMap.wordBoxes
+    .filter((box) => box.ref === selection.ref && box.wordIndex >= selection.start && box.wordIndex <= selection.end)
+    .sort((a, b) => a.wordIndex - b.wordIndex);
+  appendLineRects(overlay, groupBoxesIntoLineRects(boxes, state.vilnaPageMap, vilnaInkBands(state.vilnaPageMap)), 'vilna-notes-selection-rect');
+  if (actionBar) actionBar.hidden = boxes.length === 0;
+}
+
+// Reader-facing toggle (see vilnaMarkModeButton's own admin-only equivalent
+// above) -- same "hasn't been synced yet" guard, since a printed page with
+// no wordBoxes at all has nothing to select.
+function toggleVilnaNotesMode() {
+  if (!state.vilnaNotesMode && !state.vilnaPageMap) {
+    showToast("This daf's Vilna page hasn't been synced yet -- open the Vilna page tab first.", 'error');
+    return;
+  }
+  state.vilnaNotesMode = !state.vilnaNotesMode;
+  $('vilnaNotesModeButton')?.classList.toggle('active', state.vilnaNotesMode);
+  $('vilnaNotesModeButton')?.setAttribute('aria-pressed', String(state.vilnaNotesMode));
+  $('vilnaPageWrap')?.classList.toggle('notes-mode', state.vilnaNotesMode);
+  if (state.vilnaNotesMode) {
+    switchDafView('page');
+    renderVilnaNotesWordTargets();
+  } else {
+    clearNotesSelection();
+  }
+}
+
+// Small margin markers for word-range notes on the current daf -- navy for
+// the reader's own private notes, gold for live/public ones, restrained
+// (small, low-opacity) outside notes mode so the page stays calm for
+// reading and only becomes a discussion surface when actually opened -- see
+// .vilna-note-marker's own comment in styles.css. Sourced from notes.js's
+// own notesByRef (populated by loadNotesForCurrentDaf/refreshNoteList) --
+// this function only knows how to turn "notes for ref X" into page
+// positions, not how to fetch them, so notes.js calls it (from
+// applyNoteBadges) whenever notesByRef changes.
+function renderVilnaNoteMarkers() {
+  const overlay = $('vilnaNoteMarkersOverlay');
+  if (!overlay) return;
+  overlay.innerHTML = '';
+  if (!state.vilnaPageMap || typeof notesByRef === 'undefined') return;
+  const bands = vilnaInkBands(state.vilnaPageMap);
+  for (const [ref, notes] of notesByRef) {
+    // Only notes with a real word-range anchor get a marker -- a whole-
+    // segment note (the original 🗒 compose flow, start/end both null) has
+    // no single word position to pin a dot to, and already has its own
+    // segment-level 🗒 badge in the text view.
+    const anchored = notes.filter((note) => note.start_word !== null && note.end_word !== null);
+    if (!anchored.length) continue;
+    // Grouped by the exact (start,end) range rather than one marker per
+    // note -- several notes on the identical words collapse into one
+    // marker with a count, the same idea as .vilna-phrase-box's own
+    // one-region-per-distinct-span de-duplication above.
+    const byRange = new Map();
+    for (const note of anchored) {
+      const key = `${note.start_word}:${note.end_word}`;
+      if (!byRange.has(key)) byRange.set(key, []);
+      byRange.get(key).push(note);
+    }
+    for (const rangeNotes of byRange.values()) {
+      const [start, end] = [rangeNotes[0].start_word, rangeNotes[0].end_word];
+      const boxes = state.vilnaPageMap.wordBoxes
+        .filter((box) => box.ref === ref && box.wordIndex >= start && box.wordIndex <= end)
+        .sort((a, b) => a.wordIndex - b.wordIndex);
+      if (!boxes.length) continue;
+      const first = groupBoxesIntoLineRects(boxes, state.vilnaPageMap, bands)[0];
+      if (!first) continue;
+      const hasPrivate = rangeNotes.some((note) => note.is_private);
+      const hasLive = rangeNotes.some((note) => !note.is_private);
+      const marker = document.createElement('button');
+      marker.type = 'button';
+      // Private takes the color when a marker covers a mix of both -- the
+      // reader's own note is the more actionable of the two to notice at a
+      // glance ("I already wrote something here"); the note list opened
+      // underneath shows both kinds regardless of which one won the dot.
+      marker.className = `vilna-note-marker ${hasPrivate ? 'vilna-note-marker-private' : 'vilna-note-marker-live'}`;
+      marker.style.left = `${(first.left + first.width) * 100}%`;
+      marker.style.top = `${first.top * 100}%`;
+      if (rangeNotes.length > 1) {
+        const count = document.createElement('span');
+        count.className = 'vilna-note-marker-count';
+        count.textContent = String(rangeNotes.length);
+        marker.appendChild(count);
+      }
+      const kind = hasPrivate && hasLive ? 'private and live' : hasPrivate ? 'private' : 'live';
+      marker.setAttribute('aria-label', `${rangeNotes.length} ${kind} note${rangeNotes.length === 1 ? '' : 's'} on this passage`);
+      marker.addEventListener('click', () => {
+        hapticTap();
+        highlightNotesRange(ref, start, end);
+        window.DafNotes?.open(ref, rangeNotes[0].selected_text || '');
+      });
+      overlay.appendChild(marker);
+    }
+  }
+}
+
+// Briefly highlights a specific word range -- reuses Notes Mode's own
+// selection overlay/state rather than a second rendering path, since
+// visually it's the same thing regardless of how the range was chosen.
+function highlightNotesRange(ref, start, end) {
+  state.notesSelection = { ref, start, end };
+  updateNotesSelectionOverlay();
 }
 
 // Admin diagnostic (state.showUnmatchedWords, toggled by
@@ -6740,6 +6959,12 @@ $('vilnaUnmatchedToggleButton')?.addEventListener('click', () => {
 });
 $('vilnaMarkSaveButton')?.addEventListener('click', saveVilnaMarkChanges);
 $('vilnaMarkDiscardButton')?.addEventListener('click', discardVilnaMarkChanges);
+$('vilnaNotesModeButton')?.addEventListener('click', toggleVilnaNotesMode);
+$('vilnaNotesClearButton')?.addEventListener('click', clearNotesSelection);
+$('vilnaNotesAddButton')?.addEventListener('click', () => {
+  const selection = state.notesSelection;
+  if (selection) window.DafNotesComposer?.openForSelection(selection.ref, selection.start, selection.end);
+});
 // The editor sits in the same grid column as the daf card (see the HTML
 // comment above #editor) so correcting the sync stays parallel with the
 // video instead of scrolling to a full-width section below it -- the two

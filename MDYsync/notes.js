@@ -9,12 +9,20 @@
 // (nothing to attach to) if loaded anywhere else.
 'use strict';
 
-// ref -> array of line_notes rows visible to the current viewer, used only
-// to badge segments with how many notes they have without a query per line.
+// ref -> array of line_notes rows visible to the current viewer, used both
+// to badge segments with how many notes they have (applyNoteBadges) and to
+// position app.js's own margin markers (renderVilnaNoteMarkers).
 const notesByRef = new Map();
 let notesLoadedForDafKey = null;
 let activeNoteRef = null;
 let activeNotePrivacy = 'private';
+// { ref, start, end, selectedText } while composing a note FROM a Notes
+// Mode word-range selection (see openNoteComposerForSelection); null for
+// the original whole-segment 🗒-button flow (openNoteDialog), which still
+// works exactly as it always has and still saves start_word/end_word/
+// selected_text as null -- "the whole segment," the same as every row
+// this table already had before the word-range anchor migration.
+let activeNoteSelection = null;
 
 function noteDialogEls() {
   return {
@@ -52,6 +60,12 @@ function applyNoteBadges() {
     button.classList.toggle('has-notes', count > 0);
     button.title = count > 0 ? `${count} note${count === 1 ? '' : 's'} on this line` : 'Notes for this line';
   });
+  // Word-range notes' own margin markers on the Vilna page -- app.js's own
+  // function (it owns wordBoxes/page-position math), called from here since
+  // this is the one place notesByRef changing already funnels through,
+  // whether that's a fresh daf's notes loading or this ref's own list
+  // being refreshed after an add/delete.
+  renderVilnaNoteMarkers();
 }
 
 async function loadNotesForCurrentDaf() {
@@ -76,6 +90,28 @@ async function loadNotesForCurrentDaf() {
 
 // --- Dialog: reading and writing notes for one segment ---
 
+// A note's saved word range can, in principle, drift out from under it if
+// this daf's page-image word positions ever get regenerated with different
+// segmentation (see the migration's own comment on selected_text, and
+// build-page-cache.yml, which can do exactly that). Full verification would
+// mean re-fetching the ref's canonical text from Sefaria and diffing it
+// against selected_text on every render, which is real network cost paid
+// on every note just to guard against a rare event. This is the cheap
+// version instead: does the saved range still resolve to as many real word
+// boxes on the CURRENT page as it did at save time (end - start + 1)? A
+// mismatch is a reliable sign something shifted (a word dropped out of, or
+// added into, that span) even though a same-count shift with different
+// content would slip past it -- a real gap in coverage, traded here for
+// not costing every note render a round trip.
+function noteAnchorMayHaveShifted(row) {
+  if (row.start_word === null || row.end_word === null) return false;
+  if (!state.vilnaPageMap) return false;
+  const count = state.vilnaPageMap.wordBoxes
+    .filter((box) => box.ref === row.segment_ref && box.wordIndex >= row.start_word && box.wordIndex <= row.end_word)
+    .length;
+  return count !== (row.end_word - row.start_word + 1);
+}
+
 function renderNoteList(rows) {
   const { list } = noteDialogEls();
   const user = window.DafSyncAuth?.getUser();
@@ -90,15 +126,28 @@ function renderNoteList(rows) {
       ? '<span class="note-pill note-pill-private">🔒 Private</span>'
       : '<span class="note-pill note-pill-live">🌐 Live</span>';
     const hiddenPill = row.hidden ? '<span class="note-pill note-pill-hidden">Hidden by moderators</span>' : '';
+    const driftPill = noteAnchorMayHaveShifted(row)
+      ? '<span class="note-pill note-pill-drift" title="This daf\'s word positions were rebuilt since this note was written -- the highlighted passage may not exactly match anymore.">⚠ May have shifted</span>'
+      : '';
+    // A word-range note (Notes Mode) quotes its own specific passage above
+    // the note body -- several notes on the same segment_ref can each be
+    // about different sub-ranges, so this can't just reuse the dialog's own
+    // single top-of-dialog quote (which only ever shows the CURRENT
+    // compose selection, if any -- see openNoteComposerForSelection).
+    const quote = row.selected_text
+      ? `<p class="note-item-quote" dir="rtl" lang="he">${escapeHtml(row.selected_text)}</p>`
+      : '';
     return `
       <div class="note-item" data-id="${row.id}">
         <div class="note-item-head">
           <span class="note-item-author">${who}</span>
           ${privacyPill}
           ${hiddenPill}
+          ${driftPill}
           <span class="note-item-time">${formatNoteTime(row.created_at)}</span>
           ${mine ? '<button type="button" class="note-delete-button" data-id="' + row.id + '" aria-label="Delete note">×</button>' : ''}
         </div>
+        ${quote}
         <p class="note-item-body">${escapeHtml(row.body)}</p>
       </div>`;
   }).join('');
@@ -157,6 +206,7 @@ async function saveNote() {
   const body = bodyInput.value.trim();
   if (!body) return;
   saveButton.disabled = true;
+  const selection = activeNoteSelection;
   const { error } = await auth.client.from('line_notes').insert({
     author_id: user.id,
     author_display_name: profile?.display_name || user.email,
@@ -164,6 +214,11 @@ async function saveNote() {
     segment_ref: activeNoteRef,
     body,
     is_private: activeNotePrivacy === 'private',
+    // Whole-segment notes (the original 🗒 flow, no selection active) leave
+    // all three columns unset -- the same "the whole segment" meaning
+    // every pre-existing row already has, per the migration's own check
+    // constraint.
+    ...(selection ? { start_word: selection.start, end_word: selection.end, selected_text: selection.selectedText } : {}),
   });
   saveButton.disabled = false;
   if (error) {
@@ -172,10 +227,19 @@ async function saveNote() {
   }
   bodyInput.value = '';
   refreshNoteList(activeNoteRef);
+  // A word-range save came from Notes Mode's own selection (see
+  // openNoteComposerForSelection) -- clear it now that it's been saved, so
+  // the gold highlight/floating action bar don't linger over words that
+  // already have a note attached.
+  if (selection) {
+    activeNoteSelection = null;
+    clearNotesSelection();
+  }
 }
 
 function openNoteDialog(ref, text) {
   activeNoteRef = ref;
+  activeNoteSelection = null; // the whole-segment 🗒 flow, not a word-range one
   const auth = window.DafSyncAuth;
   const user = auth?.getUser();
   const { dialog, refLabel, textLabel, compose, bodyInput, signInPrompt } = noteDialogEls();
@@ -190,6 +254,60 @@ function openNoteDialog(ref, text) {
 }
 
 window.DafNotes = { open: openNoteDialog };
+
+// Resolves the literal Hebrew text for [start,end] (inclusive word indices,
+// the SAME canonical indexing wordBoxes/wordIndex already carry -- see
+// page_ocr_align.py's own "canon" comment: this project's word_index is
+// deliberately the same indexing the video caption engine's wordTimeline
+// uses too) by fetching the ref's real paragraph text fresh from Sefaria
+// and splitting it the same way. Word boxes carry POSITION only, never the
+// literal word (see build_word_boxes in page_ocr_align.py), so this is the
+// only source of truth for what a saved note should actually quote --
+// reusing app.js's own fetchSefariaParagraphs rather than a second fetch
+// path, the same "one Sefaria paragraph -> segment_ref" shape
+// fillMissingDafText already trusts elsewhere.
+async function resolveWordRangeText(ref, start, end) {
+  const parsed = parseDafRef(ref);
+  if (!parsed) throw new Error('Could not resolve this passage.');
+  const { paragraphs } = await fetchSefariaParagraphs(`${parsed.tractate} ${parsed.daf}${parsed.amud}`);
+  const paragraph = paragraphs.find((p) => p.ref === ref);
+  if (!paragraph) throw new Error('Could not find this passage.');
+  const words = paragraph.he.split(/\s+/).filter(Boolean);
+  const text = words.slice(start, end + 1).join(' ');
+  if (!text) throw new Error('Could not resolve this passage.');
+  return text;
+}
+
+// Entry point for Notes Mode's own "Add note" action (see
+// #vilnaNotesAddButton's click handler in app.js) -- the word-range
+// counterpart to openNoteDialog above, opening the SAME dialog but quoting
+// the specific selected words instead of a whole segment.
+async function openNoteComposerForSelection(ref, start, end) {
+  const info = currentDafInfo();
+  if (!info) return;
+  const { dialog, refLabel, textLabel, compose, bodyInput, signInPrompt } = noteDialogEls();
+  let selectedText;
+  try {
+    selectedText = await resolveWordRangeText(ref, start, end);
+  } catch (error) {
+    showToast(error.message || 'Could not load this passage.', 'error');
+    return;
+  }
+  activeNoteRef = ref;
+  activeNoteSelection = { ref, start, end, selectedText };
+  const auth = window.DafSyncAuth;
+  const user = auth?.getUser();
+  refLabel.textContent = ref;
+  textLabel.textContent = selectedText;
+  bodyInput.value = '';
+  setNotePrivacy('private');
+  compose.hidden = !user;
+  signInPrompt.hidden = Boolean(user);
+  dialog.showModal();
+  refreshNoteList(ref);
+}
+
+window.DafNotesComposer = { openForSelection: openNoteComposerForSelection };
 
 function initNoteDialog() {
   const dialog = $('noteDialog');

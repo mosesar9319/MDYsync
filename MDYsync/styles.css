@@ -179,7 +179,7 @@ input:focus, select:focus { border-color: rgba(220,172,82,.8); box-shadow: 0 0 0
 .button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0; border-radius: 11px; padding: 10px 15px; color: inherit; font-weight: 700; text-decoration: none; cursor: pointer; transition: .18s ease; white-space: nowrap; }
 .button:hover { transform: translateY(-1px); }
 .button.primary { color: #231703; background: var(--accent); box-shadow: 0 10px 28px rgba(220,172,82,.15); }
-.button.primary:hover { background: #5be1cf; }
+.button.primary:hover { background: #eac887; }
 .button.secondary { background: rgba(255,255,255,.055); border: 1px solid var(--line); }
 .button.secondary:hover, .button.ghost:hover { background: rgba(255,255,255,.09); }
 .button.ghost { background: transparent; border: 1px solid var(--line); color: var(--muted); }
@@ -815,6 +815,116 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
    here" -- the same crosshair browsers already show over an editable
    region, so it doesn't need an explanatory label to read as different. */
 .vilna-page-wrap.mark-mode .vilna-phrase-box { cursor: crosshair; }
+
+/* --- Notes Mode: selecting a word range on the Vilna page to attach a note
+   to (see toggleVilnaNotesMode/renderVilnaNotesWordTargets in app.js).
+   Reader-facing, unlike .vilna-mark-toggle above -- same small pill look,
+   no .admin-only gate. --- */
+.vilna-notes-toggle { width: auto; padding: 0 10px; font-size: 12px; white-space: nowrap; }
+.vilna-notes-toggle.active { background: var(--accent-strong); color: #231703; border-color: transparent; }
+
+/* Invisible per-word hit targets -- only interactive while notes mode is on
+   (.vilna-page-wrap.notes-mode below); otherwise pointer-events:none so the
+   phrase-click overlay underneath keeps seeking/marking exactly as before. */
+.vilna-notes-word-overlay { position: absolute; inset: 0; pointer-events: none; }
+.vilna-notes-word-target { position: absolute; pointer-events: none; cursor: pointer; touch-action: none; }
+.vilna-page-wrap.notes-mode .vilna-notes-word-target { pointer-events: auto; }
+.vilna-page-wrap.notes-mode { cursor: text; }
+
+/* The current selection -- same whole-line-rect treatment as
+   .vilna-active-rect/.vilna-mark-target-rect above, gold to read as "this
+   is what a note would attach to," distinct from the blue "playing right
+   now" highlight and the dashed mark-target outline. */
+.vilna-notes-selection-overlay { position: absolute; inset: 0; pointer-events: none; }
+.vilna-notes-selection-rect {
+  position: absolute;
+  background: rgba(186, 132, 34, .3);
+  border: 1px solid rgba(186, 132, 34, .6);
+  border-radius: 4px;
+}
+
+/* Small floating "Add note"/clear action -- pinned to the bottom of the
+   PAGE IMAGE ITSELF (position:absolute against .vilna-page-wrap, its own
+   nearest positioned ancestor -- the same containing block every other
+   overlay here already uses) rather than tracking the selection's own
+   exact position, so it never has to fight the frame's edges for room on a
+   selection near the top or bottom of the page. Deliberately NOT
+   position:sticky: confirmed directly that stuck to the WHOLE document's
+   own scroll instead (a printed page can be much taller than the
+   viewport), so bringing it into view -- a real reader scrolling down to
+   reach it, or a screen reader/keyboard focus jump, same as the browser's
+   own scrollIntoView -- could jump the scroll position drastically,
+   carrying the reader's place on the page along with it. Absolute against
+   the wrap keeps it exactly where it visually belongs regardless of where
+   the document itself happens to be scrolled. */
+.vilna-notes-action-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  padding: 8px 10px;
+  width: fit-content;
+  max-width: calc(100% - 20px);
+  border-radius: 999px;
+  background: rgba(255,253,248,.97);
+  border: 1px solid rgba(90,66,34,.16);
+  box-shadow: 0 10px 26px rgba(63,45,23,.16);
+}
+
+/* Margin markers for word-range notes -- restrained (small, semi-
+   transparent, further dimmed outside notes mode) so a page with several
+   notes never reads as cluttered -- see this feature's own product-plan
+   note that the page should never look like a social feed. Gold for a
+   live/public note (matching .note-pill-live's own color above), navy for
+   the reader's own private one -- private wins the color when a marker
+   covers a mix of both, since "I already wrote something here" is the more
+   actionable thing to notice at a glance. Positioned at the top-right
+   corner of the note's own first line (Hebrew reads right-to-left, so
+   that's where a passage visually starts) via the same fractional
+   left/top math every other Vilna-page overlay already uses. --navy has no
+   shared CSS variable outside player/index.html's own inline style (unlike
+   --accent, defined site-wide in styles.css's own :root) -- watch-theme.css
+   already carries this identical var(--navy, #0c263d) fallback pattern for
+   the same reason. */
+.vilna-note-markers-overlay { position: absolute; inset: 0; pointer-events: none; }
+.vilna-note-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,253,248,.9);
+  cursor: pointer;
+  pointer-events: auto;
+  padding: 0;
+  opacity: .55;
+  transition: opacity .15s ease, transform .15s ease;
+}
+.vilna-note-marker:hover, .vilna-note-marker:focus-visible { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+.vilna-note-marker-live { background: var(--accent); }
+.vilna-note-marker-private { background: var(--navy, #0c263d); }
+.vilna-page-wrap:not(.notes-mode) .vilna-note-marker { opacity: .32; width: 10px; height: 10px; }
+.vilna-page-wrap:not(.notes-mode) .vilna-note-marker:hover { opacity: .85; }
+.vilna-note-marker-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 12px;
+  height: 12px;
+  padding: 0 2px;
+  border-radius: 999px;
+  background: #fffdf8;
+  color: #453c2e;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 12px;
+  text-align: center;
+}
 .daf-footer { justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 12px; }
 
 .scan-placeholder { min-height: 100%; padding: 20px; color: #453c2e; text-align: center; }
@@ -1254,10 +1364,17 @@ body.studio-locked .app-shell, body.studio-locked .sidebar, body.studio-locked .
 .note-delete-button { border: 0; background: transparent; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; }
 .note-delete-button:hover { color: var(--text); }
 .note-item-body { color: #d8e2eb; font-size: 14px; line-height: 1.55; direction: ltr; text-align: left; white-space: pre-wrap; }
+/* The specific words a Notes Mode word-range note is actually about --
+   Frank Ruhl Libre and right-aligned like every other quoted Gemara text
+   on the site (see .scrub-preview span, buildSegmentSpan's own .daf-segment
+   rendering), distinct from the note body's own plain Assistant/LTR
+   styling right below it. */
+.note-item-quote { margin: 0 0 7px; padding: 6px 10px; border-right: 2px solid var(--accent); background: rgba(255,255,255,.03); border-radius: 0 8px 8px 0; font-family: "Frank Ruhl Libre", serif; font-size: 15px; line-height: 1.5; color: var(--text); }
 .note-pill { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
 .note-pill-private { background: rgba(255,255,255,.08); color: var(--muted); }
 .note-pill-live { background: var(--accent-soft); color: var(--accent); }
 .note-pill-hidden { background: rgba(220,90,90,.16); color: #e2897f; }
+.note-pill-drift { background: rgba(220,150,60,.16); color: #e2ac6a; }
 .note-compose { border-top: 1px solid var(--line); padding-top: 14px; }
 .note-privacy-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; margin-bottom: 10px; }
 .note-privacy-option { border: 0; background: rgba(255,255,255,.04); color: var(--muted); padding: 7px 12px; cursor: pointer; font-weight: 700; font-size: 13px; }
