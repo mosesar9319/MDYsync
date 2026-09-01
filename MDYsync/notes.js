@@ -119,6 +119,76 @@ function formatNoteTime(iso) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+// --- Formatting: a small hardcoded markup, not a rich-text/contenteditable
+// editor -- keeps every note/reply body a plain string in the DB (safe to
+// full-text-search, diff, and moderate exactly like today) while still
+// letting the toolbar below offer bold/italic/highlight/large text/a
+// bullet list. Safety depends entirely on the order here: escape the RAW
+// text first, THEN wrap ranges of that already-escaped text in OUR OWN
+// hardcoded tags -- at no point does anything the user typed get treated
+// as HTML, so there's no stored-XSS surface even though public notes are
+// rendered for every reader, signed in or not.
+const NOTE_FORMAT_MARKERS = { bold: '**', italic: '*', highlight: '==', large: '++' };
+
+function renderFormattedBody(raw) {
+  const escaped = escapeHtml(raw)
+    .replace(/\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*\n]+?)\*/g, '<em>$1</em>')
+    .replace(/==([^=\n]+?)==/g, '<mark>$1</mark>')
+    .replace(/\+\+([^+\n]+?)\+\+/g, '<span class="note-body-large">$1</span>')
+    .replace(/^- +/gm, '• ');
+  return escaped;
+}
+
+// Wraps the textarea's current selection in the format's markers (or
+// inserts an empty pair with the cursor placed between them), the same
+// "insert markdown" pattern most comment boxes with a formatting toolbar
+// use. The bullet list format is line-prefixed instead of wrapped, so it
+// gets its own branch.
+function applyNoteFormatting(textarea, format) {
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const value = textarea.value;
+
+  if (format === 'list') {
+    const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+    let lineEnd = value.indexOf('\n', end);
+    if (lineEnd === -1) lineEnd = value.length;
+    const block = value.slice(lineStart, lineEnd);
+    const newBlock = block.split('\n').map((line) => (line.startsWith('- ') ? line : `- ${line}`)).join('\n');
+    textarea.value = value.slice(0, lineStart) + newBlock + value.slice(lineEnd);
+    textarea.focus();
+    textarea.setSelectionRange(lineStart, lineStart + newBlock.length);
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    return;
+  }
+
+  const marker = NOTE_FORMAT_MARKERS[format];
+  if (!marker) return;
+  const selected = value.slice(start, end);
+  const placeholder = selected || 'text';
+  const inserted = `${marker}${placeholder}${marker}`;
+  textarea.value = value.slice(0, start) + inserted + value.slice(end);
+  textarea.focus();
+  if (selected) {
+    textarea.setSelectionRange(start, start + inserted.length);
+  } else {
+    textarea.setSelectionRange(start + marker.length, start + marker.length + placeholder.length);
+  }
+  textarea.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function formatToolbarHtml() {
+  return `
+    <div class="note-format-toolbar" role="group" aria-label="Formatting">
+      <button type="button" class="note-format-button" data-format="bold" title="Bold" aria-label="Bold"><strong>B</strong></button>
+      <button type="button" class="note-format-button" data-format="italic" title="Italic" aria-label="Italic"><em>I</em></button>
+      <button type="button" class="note-format-button" data-format="highlight" title="Highlight" aria-label="Highlight">🖍</button>
+      <button type="button" class="note-format-button" data-format="large" title="Large text" aria-label="Large text">A+</button>
+      <button type="button" class="note-format-button" data-format="list" title="Bullet list" aria-label="Bullet list">≡</button>
+    </div>`;
+}
+
 // --- Badges: annotate whichever segment spans are currently in the DOM ---
 
 function applyNoteBadges() {
@@ -296,6 +366,7 @@ function renderCommentItem(row, byParent, depth, noteId) {
     : '';
   const composeHtml = user
     ? `<div class="reply-compose" data-note-id="${noteId}" data-parent-id="${row.id}" hidden>
+        ${formatToolbarHtml()}
         <textarea class="reply-body-input" maxlength="2000" rows="2" placeholder="Write a reply…"></textarea>
         ${renderMentionChips(noteId)}
         <div class="reply-compose-actions">
@@ -319,7 +390,7 @@ function renderCommentItem(row, byParent, depth, noteId) {
         ${reportButton}
         ${mine ? '<button type="button" class="comment-delete-button" data-id="' + row.id + '" aria-label="Delete reply">×</button>' : ''}
       </div>
-      <p class="comment-item-body">${escapeHtml(row.body)}</p>
+      <p class="comment-item-body">${renderFormattedBody(row.body)}</p>
       ${footer}
       ${composeHtml}
       ${childrenHtml}
@@ -343,6 +414,7 @@ function renderReplySection(row) {
     : '';
   const composeHtml = user
     ? `<div class="reply-compose" data-note-id="${row.id}" data-parent-id="" hidden>
+        ${formatToolbarHtml()}
         <textarea class="reply-body-input" maxlength="2000" rows="2" placeholder="Write a reply…"></textarea>
         ${renderMentionChips(row.id)}
         <div class="reply-compose-actions">
@@ -362,23 +434,12 @@ function renderReplySection(row) {
     </div>`;
 }
 
-let noteSortMode = 'newest';
-
-// "Category" groups notes by category in the same fixed order the picker
-// itself uses (primary categories first, matching what a reader already
-// recognizes from composing), each group still newest-first internally.
-// Uncategorized notes sort last as their own group, not scattered by date.
+// Category display order (primary categories first, matching what a reader
+// already recognizes from composing) -- used by the search dialog's own
+// category filter/ordering, not by this per-line list (see the "Sort by"
+// control's removal: sorting matters for browsing/searching across many
+// notes, not a single line's handful).
 const CATEGORY_SORT_INDEX = new Map(CATEGORY_TYPES.map((c, i) => [c.key, i]));
-
-function sortNotesForDisplay(rows) {
-  if (noteSortMode !== 'category') return rows;
-  return [...rows].sort((a, b) => {
-    const aIdx = a.category ? CATEGORY_SORT_INDEX.get(a.category) : Infinity;
-    const bIdx = b.category ? CATEGORY_SORT_INDEX.get(b.category) : Infinity;
-    if (aIdx !== bIdx) return aIdx - bIdx;
-    return new Date(a.created_at) - new Date(b.created_at);
-  });
-}
 
 function renderNoteList(rows) {
   const { list } = noteDialogEls();
@@ -387,7 +448,7 @@ function renderNoteList(rows) {
     list.innerHTML = '<p class="field-note">No notes on this line yet.</p>';
     return;
   }
-  list.innerHTML = sortNotesForDisplay(rows).map((row) => {
+  list.innerHTML = rows.map((row) => {
     const mine = user && row.author_id === user.id;
     const who = mine ? 'You' : escapeHtml(row.author_display_name || 'Anonymous');
     const privacyPill = row.is_private
@@ -427,7 +488,7 @@ function renderNoteList(rows) {
           ${mine ? '<button type="button" class="note-delete-button" data-id="' + row.id + '" aria-label="Delete note">×</button>' : ''}
         </div>
         ${quote}
-        <p class="note-item-body">${escapeHtml(row.body)}</p>
+        <p class="note-item-body">${renderFormattedBody(row.body)}</p>
         ${renderReplySection(row)}
       </div>`;
   }).join('');
@@ -837,11 +898,6 @@ function initNoteDialog() {
   $('notePrivacyToggle').querySelectorAll('.note-privacy-option').forEach((button) => {
     button.addEventListener('click', () => setNotePrivacy(button.dataset.privacy));
   });
-  $('noteSortSelect')?.addEventListener('change', (event) => {
-    noteSortMode = event.target.value;
-    renderNoteList(notesByRef.get(activeNoteRef) || []);
-  });
-
   renderCategoryPicker();
   $('noteCategoryMoreToggle')?.addEventListener('click', () => {
     const secondary = $('noteCategorySecondaryOptions');
@@ -858,6 +914,17 @@ function initNoteDialog() {
   // (and any menus in it) on every refresh.
   document.addEventListener('click', () => {
     dialog.querySelectorAll('.reaction-menu:not([hidden])').forEach((menu) => { menu.hidden = true; });
+  });
+
+  // Formatting toolbar buttons -- delegated on the dialog itself (same
+  // reasoning as the reaction-menu listener above) since reply composers
+  // are rebuilt on every renderNoteList call, but the top-level note
+  // composer's own toolbar is static markup present from page load.
+  dialog.addEventListener('click', (event) => {
+    const button = event.target.closest('.note-format-button');
+    if (!button) return;
+    const textarea = button.closest('.note-compose, .reply-compose')?.querySelector('textarea');
+    if (textarea) applyNoteFormatting(textarea, button.dataset.format);
   });
 
   // renderDafWindow() (app.js) rebuilds the segment spans on every active-
@@ -913,7 +980,7 @@ function renderModerationList() {
         ${row.hidden ? '<span class="note-pill note-pill-hidden">Hidden</span>' : ''}
         <span class="note-item-time">${formatNoteTime(row.created_at)}</span>
       </div>
-      <p class="note-item-body">${escapeHtml(row.body)}</p>
+      <p class="note-item-body">${renderFormattedBody(row.body)}</p>
       <div class="note-mod-actions">
         <button type="button" class="button ${row.hidden ? 'primary' : 'secondary'} small mod-toggle-button" data-id="${row.id}" data-hidden="${row.hidden}">
           ${row.hidden ? 'Unhide' : 'Hide'}
@@ -1017,7 +1084,7 @@ function renderCommentModerationList() {
           ${row.hidden ? '<span class="note-pill note-pill-hidden">Hidden</span>' : ''}
           <span class="note-item-time">${formatNoteTime(row.created_at)}</span>
         </div>
-        <p class="note-item-body">${escapeHtml(row.body)}</p>
+        <p class="note-item-body">${renderFormattedBody(row.body)}</p>
         <div class="note-mod-actions">
           <button type="button" class="button ${row.hidden ? 'primary' : 'secondary'} small comment-mod-toggle-button" data-id="${row.id}" data-hidden="${row.hidden}">
             ${row.hidden ? 'Unhide' : 'Hide'}
@@ -1124,7 +1191,7 @@ function renderReportList() {
       ? `<span class="note-pill note-pill-hidden">${row.status === 'resolved' ? 'Resolved' : 'Dismissed'}</span>`
       : '';
     const targetPreview = target
-      ? `<p class="note-item-quote" dir="ltr">${escapeHtml(target.body)}${target.hidden ? ' (already hidden)' : ''}</p>`
+      ? `<p class="note-item-quote" dir="ltr">${renderFormattedBody(target.body)}${target.hidden ? ' (already hidden)' : ''}</p>`
       : '<p class="field-note">The reported content no longer exists.</p>';
     const actions = row.status === 'pending' ? `
       <div class="note-mod-actions">
@@ -1350,13 +1417,17 @@ if (document.readyState === 'loading') {
   initNotifications();
 }
 
-// --- Search: public notes + replies ----------------------------------------
+// --- Search: public notes/replies, plus your own private notes -------------
 // A plain postgres full-text search (body_tsv, config 'simple' -- see the
 // migration's own comment on why not 'english': no good built-in Hebrew
 // config, and note bodies are typically English commentary anyway) rather
-// than a naive ILIKE scan. Available to signed-out readers too -- it's
-// still governed by the exact same public-read RLS as everything else here,
-// just reached through textSearch instead of a plain .select().
+// than a naive ILIKE scan. Public results are available to signed-out
+// readers too -- still governed by the exact same public-read RLS as
+// everything else here, just reached through textSearch instead of a plain
+// .select(). Also doubles as a category browser: picking a category with no
+// text typed still runs (a category filter alone is a valid query), which
+// is the actual point of putting sort/filter-by-category here rather than
+// on a single line's own short note list.
 
 let searchDebounceTimer = null;
 
@@ -1364,12 +1435,23 @@ function searchDialogEls() {
   return {
     dialog: $('searchNotesDialog'),
     input: $('searchNotesInput'),
+    categoryFilter: $('searchCategoryFilter'),
     results: $('searchNotesResults'),
   };
 }
 
+function renderSearchCategoryFilter() {
+  const { categoryFilter } = searchDialogEls();
+  if (!categoryFilter) return;
+  categoryFilter.innerHTML = [
+    '<option value="">All categories</option>',
+    ...CATEGORY_TYPES.map((c) => `<option value="${c.key}">${c.icon} ${escapeHtml(c.en)} (${escapeHtml(c.he)})</option>`),
+  ].join('');
+}
+
 function renderSearchResults(notes, comments) {
   const { results } = searchDialogEls();
+  const user = window.DafSyncAuth?.getUser();
   const rows = [
     ...notes.map((row) => ({ kind: 'note', ...row })),
     ...comments.map((row) => ({ kind: 'comment', ...row })),
@@ -1379,44 +1461,73 @@ function renderSearchResults(notes, comments) {
     return;
   }
   results.innerHTML = rows.map((row) => {
-    const kindPill = row.kind === 'note'
-      ? '<span class="note-pill note-pill-live">Note</span>'
-      : '<span class="note-pill note-pill-private">Reply</span>';
+    const mine = user && row.author_id === user.id;
+    const who = mine ? 'You' : escapeHtml(row.author_display_name || 'Anonymous');
+    const kindPill = `<span class="note-pill">${row.kind === 'note' ? 'Note' : 'Reply'}</span>`;
+    // Only a note carries its own privacy -- a reply only ever exists under
+    // a public note in the first place (see comments_insert's own check),
+    // so there's nothing to distinguish there.
+    const privacyPill = row.kind === 'note'
+      ? (row.is_private ? '<span class="note-pill note-pill-private">🔒 Private</span>' : '<span class="note-pill note-pill-live">🌐 Live</span>')
+      : '';
+    const categoryInfo = row.category ? categoryByKey(row.category) : null;
+    const categoryPill = categoryInfo
+      ? `<span class="note-pill note-category-pill">${categoryInfo.icon} <span dir="rtl" lang="he">${escapeHtml(categoryInfo.he)}</span></span>`
+      : '';
     const refDisplay = row.daf_ref_key ? row.daf_ref_key.replace(/-/g, ' ') : '';
     return `
       <a class="note-item search-result-item" href="../browse/index.html?ref=${encodeURIComponent(refDisplay)}">
         <div class="note-item-head">
-          <span class="note-item-author">${escapeHtml(row.author_display_name || 'Anonymous')}</span>
+          <span class="note-item-author">${who}</span>
           ${kindPill}
+          ${privacyPill}
+          ${categoryPill}
           ${refDisplay ? `<span class="note-pill">${escapeHtml(refDisplay)}</span>` : ''}
           <span class="note-item-time">${formatNoteTime(row.created_at)}</span>
         </div>
-        <p class="note-item-body">${escapeHtml(row.body)}</p>
+        <p class="note-item-body">${renderFormattedBody(row.body)}</p>
       </a>`;
   }).join('');
 }
 
-async function runNotesSearch(query) {
+async function runNotesSearch() {
   const auth = window.DafSyncAuth;
-  const { results } = searchDialogEls();
-  const trimmed = query.trim();
-  if (!trimmed) {
-    results.innerHTML = '<p class="field-note">Type to search public notes and replies.</p>';
+  const { input, categoryFilter, results } = searchDialogEls();
+  const trimmed = input.value.trim();
+  const category = categoryFilter.value || null;
+  results.dataset.query = trimmed;
+  results.dataset.category = category || '';
+  if (!trimmed && !category) {
+    results.innerHTML = '<p class="field-note">Type to search, or pick a category to browse.</p>';
     return;
   }
   results.innerHTML = '<p class="field-note">Searching…</p>';
-  const [notesResult, commentsResult] = await Promise.all([
-    auth.client.from('line_notes').select('*')
-      .eq('is_private', false).eq('hidden', false)
-      .textSearch('body_tsv', trimmed, { type: 'websearch', config: 'simple' })
-      .order('created_at', { ascending: false }).limit(30),
-    auth.client.from('comments').select('*')
-      .eq('hidden', false)
-      .textSearch('body_tsv', trimmed, { type: 'websearch', config: 'simple' })
-      .order('created_at', { ascending: false }).limit(30),
-  ]);
-  if (results.dataset.query !== undefined && results.dataset.query !== trimmed) return; // a newer search superseded this one
-  if (notesResult.error && commentsResult.error) {
+
+  const user = auth?.getUser();
+  const withTextSearch = (q) => (trimmed ? q.textSearch('body_tsv', trimmed, { type: 'websearch', config: 'simple' }) : q);
+
+  let publicNotesQuery = auth.client.from('line_notes').select('*').eq('is_private', false).eq('hidden', false);
+  if (category) publicNotesQuery = publicNotesQuery.eq('category', category);
+  publicNotesQuery = withTextSearch(publicNotesQuery).order('created_at', { ascending: false }).limit(30);
+
+  // Comments have no category of their own -- a category filter has nothing
+  // to match there, so skip searching replies entirely rather than
+  // silently ignoring the filter and returning replies that don't fit it.
+  const commentsPromise = category
+    ? Promise.resolve({ data: [] })
+    : withTextSearch(auth.client.from('comments').select('*').eq('hidden', false))
+        .order('created_at', { ascending: false }).limit(30);
+
+  let privateNotesPromise = Promise.resolve({ data: [] });
+  if (user) {
+    let privateNotesQuery = auth.client.from('line_notes').select('*').eq('is_private', true).eq('author_id', user.id);
+    if (category) privateNotesQuery = privateNotesQuery.eq('category', category);
+    privateNotesPromise = withTextSearch(privateNotesQuery).order('created_at', { ascending: false }).limit(30);
+  }
+
+  const [publicNotesResult, commentsResult, privateNotesResult] = await Promise.all([publicNotesQuery, commentsPromise, privateNotesPromise]);
+  if (results.dataset.query !== trimmed || results.dataset.category !== (category || '')) return; // a newer search superseded this one
+  if (publicNotesResult.error && commentsResult.error && privateNotesResult.error) {
     results.innerHTML = '<p class="field-note">Could not search right now.</p>';
     return;
   }
@@ -1438,12 +1549,15 @@ async function runNotesSearch(query) {
       return note && !note.is_private && !note.hidden;
     })
     .map((row) => ({ ...row, daf_ref_key: noteById.get(row.note_id).daf_ref_key }));
-  renderSearchResults(notesResult.data || [], visibleComments);
+  const allNotes = [...(publicNotesResult.data || []), ...(privateNotesResult.data || [])];
+  renderSearchResults(allNotes, visibleComments);
 }
 
 function initNotesSearch() {
-  const { dialog, input, results } = searchDialogEls();
+  const { dialog, input, categoryFilter } = searchDialogEls();
   if (!dialog) return; // page doesn't ship notes search
+
+  renderSearchCategoryFilter();
 
   $('searchNotesButton')?.addEventListener('click', () => {
     dialog.showModal();
@@ -1452,10 +1566,9 @@ function initNotesSearch() {
   $('closeSearchNotesDialog')?.addEventListener('click', () => dialog.close());
   input.addEventListener('input', () => {
     clearTimeout(searchDebounceTimer);
-    const query = input.value;
-    results.dataset.query = query.trim();
-    searchDebounceTimer = setTimeout(() => runNotesSearch(query), 300);
+    searchDebounceTimer = setTimeout(() => runNotesSearch(), 300);
   });
+  categoryFilter.addEventListener('change', () => runNotesSearch());
 }
 
 if (document.readyState === 'loading') {
