@@ -925,6 +925,23 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
   line-height: 12px;
   text-align: center;
 }
+/* The reader's own marker pen (see highlights.js) -- the bottom-most
+   overlay on the page, so the "playing right now" bar, a Notes Mode
+   selection and the note markers all still read clearly on top of it.
+   Deliberately a soft wash rather than the selection's stronger gold: a
+   highlight is a standing mark on the page, not the thing being acted on. */
+.vilna-highlights-overlay { position: absolute; inset: 0; pointer-events: none; }
+.vilna-highlight-rect {
+  position: absolute;
+  background: rgba(240, 200, 90, .32);
+  border-radius: 3px;
+}
+
+/* Long-press opens this project's own menu (see daf-context-menu.js), so
+   the platform's own callout -- "Save image" over the printed page, the
+   selection magnifier over the text -- would just race it. */
+.vilna-page-wrap, #dafPage { -webkit-touch-callout: none; }
+
 .daf-footer { justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 12px; }
 
 .scan-placeholder { min-height: 100%; padding: 20px; color: #453c2e; text-align: center; }
@@ -1105,6 +1122,35 @@ dialog::backdrop { background: rgba(0,7,15,.7); backdrop-filter: blur(5px); }
 dialog h2 { margin-bottom: 14px; }
 dialog ol { color: #d8e2eb; padding-left: 21px; line-height: 1.6; }
 .dialog-note { color: var(--muted); background: rgba(255,255,255,.04); border: 1px solid var(--line); padding: 12px; border-radius: 11px; margin-bottom: 0; }
+
+/* Notes panel: a right-side sidebar, not a centered popup -- opened via
+   dialog.show() (non-modal, see openNoteDialog/openNoteComposerForSelection
+   in notes.js), not showModal(), so the daf/video behind it stays visible
+   AND interactive (a modal dialog's top-layer promotion makes everything
+   else on the page inert) while a note is being read or written. Only this
+   one dialog gets this treatment -- search/auth/sync/favorites/help all stay
+   centered modals, unaffected by an id-scoped override. */
+#noteDialog {
+  position: fixed;
+  inset: 0 0 0 auto;
+  width: min(420px, 100vw);
+  max-width: 100vw;
+  height: 100vh;
+  max-height: 100vh;
+  margin: 0;
+  border-radius: 0;
+  border-width: 0 0 0 1px;
+  box-shadow: -18px 0 60px rgba(0,0,0,.4);
+  z-index: 500;
+}
+/* A non-modal dialog keeps its UA default of display:none while closed --
+   this only applies once [open] is present, so it never fights that. */
+#noteDialog[open] { display: flex; flex-direction: column; overflow: hidden; }
+#noteDialog .note-list { flex: 1 1 auto; max-height: none; min-height: 0; overflow-y: auto; }
+#noteDialog .note-compose { flex: 0 0 auto; }
+@media (max-width: 480px) {
+  #noteDialog { width: 100vw; }
+}
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none; background: #17304b; border: 1px solid var(--line-strong); color: white; padding: 11px 15px; border-radius: 12px; box-shadow: 0 12px 35px rgba(0,0,0,.35); transition: .25s; z-index: 20; }
 .toast.show { transform: translate(-50%, 0); opacity: 1; }
 .toast.error { border-color: rgba(255,124,137,.5); color: #ffd5da; }
@@ -1471,7 +1517,6 @@ button.note-timestamp-seek:hover { background: rgba(255,255,255,.16); }
 }
 .note-category-chip:hover { border-color: var(--line-strong); }
 .note-category-chip.active { border-color: var(--accent); background: var(--accent-soft); }
-.note-category-chip-icon { font-size: 14px; line-height: 1; }
 .note-category-chip-text { display: flex; flex-direction: column; line-height: 1.25; }
 .note-category-chip-he { font-family: "Frank Ruhl Libre", serif; font-size: 13px; color: var(--text); }
 .note-category-chip-en { font-size: 10px; color: var(--muted); }
@@ -1499,6 +1544,52 @@ button.note-timestamp-seek:hover { background: rgba(255,255,255,.16); }
 }
 .search-result-item { display: block; text-decoration: none; color: inherit; cursor: pointer; }
 .search-result-item:hover { border-color: var(--line-strong); }
+
+/* --- Right-click / long-press menu on the daf ------------------------------ */
+/* Fixed to the viewport and appended to <body> (see daf-context-menu.js), so
+   it is never clipped by the daf card's own overflow the way an in-flow menu
+   would be -- the same overflow-clipping trap the reaction menu already hit
+   once and had to be rebuilt to avoid. */
+.daf-context-menu {
+  position: fixed;
+  z-index: 600;
+  min-width: 232px;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: #10233a;
+  box-shadow: 0 22px 54px rgba(0,0,0,.5);
+}
+.daf-context-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.daf-context-item:hover:not(:disabled) { background: rgba(255,255,255,.08); }
+.daf-context-item:disabled { color: var(--muted); cursor: default; }
+.daf-context-hint { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.daf-context-sep { height: 1px; margin: 5px 6px; background: var(--line); }
+
+/* Text-view counterpart to .vilna-highlight-rect above -- same wash, applied
+   to the real words rather than painted over a page image. */
+mark.daf-highlight { background: rgba(240, 200, 90, .34); color: inherit; border-radius: 3px; padding: 0 1px; }
+
+.word-lookup-body { max-height: 52vh; overflow-y: auto; margin: 12px 0; display: flex; flex-direction: column; gap: 14px; }
+.word-lookup-entry { border: 1px solid var(--line); border-radius: 11px; padding: 12px; }
+.word-lookup-senses { margin: 8px 0 0; padding-inline-start: 20px; line-height: 1.55; font-size: 13px; }
+.word-lookup-notes { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 
 /* --- Cloud Chaburah feed (chaburah/index.html) ----------------------------- */
 .chaburah-main { display: flex; flex-direction: column; gap: 18px; }

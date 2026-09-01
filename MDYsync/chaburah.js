@@ -36,13 +36,13 @@ function populateChaburahCategoryFilter() {
   const { categoryFilter } = chaburahEls();
   if (!categoryFilter || categoryFilter.options.length) return;
   categoryFilter.innerHTML = '<option value="">All categories</option>' +
-    CATEGORY_TYPES.map((c) => `<option value="${c.key}">${c.icon} ${c.he} (${c.en})</option>`).join('');
+    CATEGORY_TYPES.map((c) => `<option value="${c.key}">${c.he} (${c.en})</option>`).join('');
 }
 
 function chaburahCardHtml(row) {
   const categoryInfo = row.category ? categoryByKey(row.category) : null;
   const categoryPill = categoryInfo
-    ? `<span class="note-pill note-category-pill" title="${escapeHtml(categoryInfo.en)} — ${escapeHtml(categoryInfo.meaning)}">${categoryInfo.icon} <span dir="rtl" lang="he">${escapeHtml(categoryInfo.he)}</span></span>`
+    ? `<span class="note-pill note-category-pill" title="${escapeHtml(categoryInfo.en)} — ${escapeHtml(categoryInfo.meaning)}"><span dir="rtl" lang="he">${escapeHtml(categoryInfo.he)}</span></span>`
     : '';
   const timestampPill = renderTimestampPill(row, false);
   const demoPill = demoPillHtml(row);

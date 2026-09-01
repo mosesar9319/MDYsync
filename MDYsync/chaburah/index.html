@@ -496,6 +496,7 @@
             </button>
             <div class="account-dropdown" id="accountDropdown" hidden>
               <button class="account-dropdown-item" id="myFavoritesButton" type="button">My favorites</button>
+              <button class="account-dropdown-item" id="myHighlightsButton" type="button">My highlights</button>
               <button class="account-dropdown-item" id="signOutButton" type="button">Sign out</button>
             </div>
           </div>
@@ -794,6 +795,7 @@
               </div>
               <div class="vilna-page-wrap" id="vilnaPageWrap">
                 <canvas id="vilnaPageCanvas" hidden></canvas>
+                <div class="vilna-highlights-overlay" id="vilnaHighlightsOverlay"></div>
                 <div class="vilna-page-overlay" id="vilnaPageOverlay"></div>
                 <div class="vilna-active-overlay" id="vilnaActiveOverlay"></div>
                 <div class="vilna-mark-target-overlay" id="vilnaMarkTargetOverlay"></div>
@@ -1125,12 +1127,33 @@
     </div>
   </dialog>
 
+    <dialog id="highlightsDialog">
+    <button class="dialog-close" id="closeHighlightsDialog" aria-label="Close">×</button>
+    <div class="eyebrow">Saved</div>
+    <h2>My highlights</h2>
+    <div class="note-list" id="highlightsList">
+      <p class="field-note">Loading…</p>
+    </div>
+  </dialog>
+
+  <dialog id="wordLookupDialog">
+    <button class="dialog-close" id="closeWordLookupDialog" aria-label="Close">×</button>
+    <div class="eyebrow">Dictionary</div>
+    <h2 dir="rtl" lang="he" id="wordLookupTitle"></h2>
+    <div class="word-lookup-body" id="wordLookupBody">
+      <p class="field-note">Looking up…</p>
+    </div>
+    <p class="dialog-note">Lexicon entries from Sefaria (Jastrow, Klein, and others).</p>
+  </dialog>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="../vendor/supabase-js.min.js"></script>
   <script src="../auth.js"></script>
   <script src="../app.js" defer></script>
   <script src="../account-features.js" defer></script>
   <script src="../notes.js" defer></script>
+  <script src="../highlights.js" defer></script>
+  <script src="../daf-context-menu.js" defer></script>
   <script src="../player-chrome.js" defer></script>
   <script src="../chaburah.js" defer></script>
   <script src="../nav.js" defer></script>

@@ -79,6 +79,13 @@ body { background: #fff; }
 
 dialog { background: var(--card); box-shadow: 0 30px 90px rgba(63, 45, 23, 0.28); }
 .dialog-note { background: rgba(23, 33, 43, 0.03); }
+/* The daf's own right-click/long-press menu, for exactly the reason the
+   dialog rule above exists: styles.css paints it navy for the dark home
+   page, but its labels are var(--text) -- which is dark ink here -- so
+   without this it renders as unreadable dark-on-dark on every page that
+   actually has a daf to right-click. */
+.daf-context-menu { background: var(--card); box-shadow: 0 22px 54px rgba(63, 45, 23, 0.28); }
+.daf-context-item:hover:not(:disabled) { background: rgba(23, 33, 43, 0.06); }
 /* Every text-entry field on these pages (note/reply composer, search,
    auth, the various sync-dialog URL fields) still carries styles.css's
    own literal rgba(4,14,27,.7) -- a wash tuned for that file's dark base
