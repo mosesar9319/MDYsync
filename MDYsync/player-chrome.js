@@ -228,31 +228,25 @@
   // control, the way the mockup shows it. It's still the same <select> app.js
   // listens to, so nothing about setting the rate changes -- a native select
   // also keeps the whole thing keyboard- and screen-reader-navigable for free.
+  // Never an overflow candidate below (see OVERFLOW_PRIORITY) -- it's already
+  // the narrowest control .pc-tools has, so there's nothing to gain by
+  // hiding it that isn't better spent moving something wider first.
+  let speedStack = null;
   const speedSelect = $('speedSelect');
   if (speedSelect) {
     const speedWrap = document.createElement('div');
     speedWrap.className = 'pc-speed';
     speedWrap.appendChild(speedSelect);
-    tools.appendChild(stack(speedWrap, 'Speed'));
+    speedStack = stack(speedWrap, 'Speed');
+    tools.appendChild(speedStack);
     $('videoSettings')?.querySelector('.speed-control')?.remove();
   }
-  if ($('captionsButton')) tools.appendChild(stack($('captionsButton'), 'Captions', 'captionsStack'));
-
-  // Settings and Fullscreen come right after Captions -- ahead of the
-  // reading-mode pills and PiP below -- so THEY are the last two controls
-  // .pc-tools ever runs out of room for, not the first. .pc-tools has no
-  // shrink/scroll of its own (see its own comment), so once the bar is too
-  // narrow for everything, .video-frame's overflow:hidden silently clips
-  // whichever controls sit at the tail end of this DOM order; with the old
-  // order that was Settings and Fullscreen themselves -- reported (with a
-  // screenshot) as fullscreen simply not being there on a smaller player.
-  // The two pills and PiP are each already the first things a narrower tier
-  // gives up anyway (PiP hides outright at is-snug; the pills lose their
-  // text label at is-compact) and reading mode has its own separate, always-
-  // visible entry point in the daf card's own header, so trading them away
-  // first when space runs out is the right sacrifice, not an arbitrary one.
-  if ($('videoSettings')) tools.appendChild(stack($('videoSettings'), 'Settings'));
-  if ($('fullscreenButton')) tools.appendChild(stack($('fullscreenButton'), 'Fullscreen'));
+  const captionsStack = $('captionsButton') ? stack($('captionsButton'), 'Captions', 'captionsStack') : null;
+  if (captionsStack) tools.appendChild(captionsStack);
+  const settingsStack = $('videoSettings') ? stack($('videoSettings'), 'Settings') : null;
+  if (settingsStack) tools.appendChild(settingsStack);
+  const fullscreenStack = $('fullscreenButton') ? stack($('fullscreenButton'), 'Fullscreen') : null;
+  if (fullscreenStack) tools.appendChild(fullscreenStack);
 
   // The two "where does the daf go" toggles, side by side: the Vilna page
   // drawn over the video, and the video floated over the printed daf. Both
@@ -287,6 +281,101 @@
   // it's ALSO the wrong control to offer while floating over the daf.
   pipStack.id = 'pipStack';
   tools.appendChild(pipStack);
+
+  // --- Overflow menu: whatever doesn't fit goes here, not off the edge -----
+  // Reported twice, in a row: first Fullscreen, then "Video on daf" -- both
+  // times because the control that ran out of room was simply gone, with
+  // nothing on screen hinting there was more bar than what showed. Scrolling
+  // .pc-tools to reach a clipped control (the fix for the first report) has
+  // the same problem in practice as the plain clipping it replaced: nothing
+  // signals a swipeable overflow exists either, so a reader just sees a
+  // shorter bar and assumes the control is gone. A visible "More" button
+  // that opens a menu of exactly what didn't fit is the one version of this
+  // that's actually discoverable -- and because it's a fixed-position portal
+  // off <body> (the same trick the settings panel above already uses to
+  // escape .player-controls' own clipping/stacking context), it works
+  // identically for the reading-mode mini player, not just the full-size
+  // bar, with no page-specific wiring needed either place.
+  const toolsMoreButton = document.createElement('button');
+  toolsMoreButton.type = 'button';
+  toolsMoreButton.className = 'icon-button';
+  toolsMoreButton.id = 'toolsMoreButton';
+  toolsMoreButton.setAttribute('aria-label', 'More controls');
+  toolsMoreButton.setAttribute('aria-expanded', 'false');
+  toolsMoreButton.title = 'More controls';
+  toolsMoreButton.innerHTML = ICONS.more;
+  const toolsMoreStack = stack(toolsMoreButton, 'More');
+  toolsMoreStack.id = 'toolsMoreStack';
+  toolsMoreStack.hidden = true;
+  tools.appendChild(toolsMoreStack);
+
+  const toolsMoreMenu = document.createElement('div');
+  toolsMoreMenu.className = 'pc-tools-menu';
+  toolsMoreMenu.id = 'toolsMoreMenu';
+  toolsMoreMenu.hidden = true;
+  document.body.appendChild(toolsMoreMenu);
+
+  function closeToolsMenu() {
+    toolsMoreMenu.hidden = true;
+    toolsMoreButton.setAttribute('aria-expanded', 'false');
+  }
+  // Anchored from the button's own live screen position, exactly like
+  // positionSettingsPanel below -- opens UPWARD (bottom-anchored), since
+  // this bar sits at the very bottom of the frame with nothing under it.
+  function positionToolsMenu() {
+    const r = toolsMoreButton.getBoundingClientRect();
+    toolsMoreMenu.style.position = 'fixed';
+    toolsMoreMenu.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
+    toolsMoreMenu.style.bottom = `${Math.max(8, window.innerHeight - r.top + 8)}px`;
+  }
+  toolsMoreButton.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const opening = toolsMoreMenu.hidden;
+    toolsMoreMenu.hidden = !opening;
+    toolsMoreButton.setAttribute('aria-expanded', String(opening));
+    if (opening) positionToolsMenu();
+  });
+  // Clicking an item closes the tray, the way any other overflow menu does
+  // -- except Settings, whose click just opens ITS OWN panel (the
+  // reparented .video-settings-body below) without dismissing the tray it's
+  // currently sitting in; that panel already has its own outside-click
+  // handling, so leaving the tray open behind it is harmless.
+  toolsMoreMenu.addEventListener('click', (event) => {
+    if (event.target.closest('.video-settings')) return;
+    closeToolsMenu();
+  });
+  document.addEventListener('click', (event) => {
+    if (toolsMoreMenu.hidden || toolsMoreMenu.contains(event.target) || toolsMoreButton.contains(event.target)) return;
+    closeToolsMenu();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeToolsMenu();
+  });
+  window.addEventListener('resize', () => { if (!toolsMoreMenu.hidden) positionToolsMenu(); });
+
+  // videoOnDafButton is always a real element (built unconditionally by
+  // pill() above) even on pages with no #readingModeButton to proxy to --
+  // only the ORIGINAL "tools.appendChild(videoOnDafButton)" a few lines up
+  // was guarded by that check. Both lists below have to repeat the same
+  // guard, or fitChrome()'s own "tools.append(...TOOLS_ORDER)" reset would
+  // undo it on the very first resize, pulling the pill onto watch/studio's
+  // bar (dafOnVideoButton.hidden covers the equivalent, rarer case of no
+  // #overlayToggle the same way).
+  const hasReadingMode = Boolean($('readingModeButton'));
+  // Bar order when everything fits, left to right -- also the order
+  // fitChrome() (below) restores every candidate to before it re-measures,
+  // so a resize that frees up room brings a control back to exactly where
+  // it started rather than leaving it stranded in the menu from a previous,
+  // narrower pass.
+  const TOOLS_ORDER = [speedStack, captionsStack, settingsStack, dafOnVideoButton, hasReadingMode && videoOnDafButton, pipStack, toolsMoreStack, fullscreenStack].filter(Boolean);
+  // Overflow priority, most disposable first -- the mirror image of
+  // TOOLS_ORDER's own tail: PiP is a pure convenience, the two pills exist
+  // because reading mode has its own separate, always-visible entry point
+  // (the daf card's own header), so those three go before Settings and
+  // Captions, the least disposable of the bunch. Speed and Fullscreen are
+  // never in this list at all -- see their own comments above and on
+  // fitChrome below.
+  const OVERFLOW_PRIORITY = [pipStack, hasReadingMode && videoOnDafButton, dafOnVideoButton, settingsStack, captionsStack].filter(Boolean);
 
   // The old bar's hand-placed spacers/dividers did the job .pc-group's own
   // space-between layout now does.
@@ -594,19 +683,20 @@
   // rather than a viewport media query -- one page shows this player at
   // several sizes at once (the split layout's column, then reading mode's
   // floating mini-player over the daf), so the viewport can't tell them
-  // apart. No tier ever DROPS a control: they give up captions, then
-  // wording, then millimetres, so every control stays reachable at every
-  // size.
+  // apart. Tiers alone buy back gaps, wording and glyph sizes -- what's left
+  // at a width even is-tiny can't fit into moves into the overflow menu
+  // above rather than off the edge of the bar (see OVERFLOW_PRIORITY), so no
+  // control is ever simply unreachable, whatever the width.
   //
-  // Width alone can't decide this, though, because what has to fit depends
-  // on the bar's CONTENTS as much as its width: #vaaterButton appears on
-  // any daf that has a word timeline and is ~90px wide on its own, which was
-  // enough to push PiP and Fullscreen clean off the end of the bar (and
-  // under .video-frame's overflow:hidden, so they simply vanished) at
-  // several perfectly ordinary widths. So width only picks the STARTING
-  // tier; from there this steps down for as long as the bar still overflows,
-  // and re-runs whenever the bar's contents change. Measuring what actually
-  // overflows beats a threshold guessed against one snapshot of the bar.
+  // Width alone can't decide the STARTING tier, though, because what has to
+  // fit depends on the bar's CONTENTS as much as its width: #vaaterButton
+  // appears on any daf that has a word timeline and is ~90px wide on its
+  // own, which was enough to push controls clean off the end of the bar at
+  // several perfectly ordinary widths a plain threshold wouldn't catch. So
+  // width only picks where to start; from there this steps down for as long
+  // as the bar still overflows, and re-runs whenever the bar's contents
+  // change. Measuring what actually overflows beats a threshold guessed
+  // against one snapshot of the bar.
   const TIERS = ['is-snug', 'is-compact', 'is-tiny'];
   // Measured directly against the real split layout (player/watch/browse all
   // float the video beside a daf column, not full-width): at the most common
@@ -621,18 +711,59 @@
   const COMPACT_WIDTH = 480;
   const TINY_WIDTH = 360;
   const applyTier = (depth) => TIERS.forEach((cls, i) => frame.classList.toggle(cls, i < depth));
+  // Disconnected for the duration of each run below: fitChrome moves
+  // controls in and out of the overflow menu, which are themselves mutations
+  // this same observer watches for -- harmless in the end (a retriggered
+  // pass just confirms the same layout and makes no further changes, so it
+  // settles after one extra call), but disconnecting for the run is simpler
+  // than relying on that self-correction.
+  const controlsObserver = new MutationObserver(fitChrome);
   function fitChrome() {
+    controlsObserver.disconnect();
+
+    // Put every candidate back in its normal spot before re-measuring, so a
+    // resize that FREES UP room brings a control back rather than leaving it
+    // stranded in the menu from a previous, narrower pass.
+    toolsMoreStack.hidden = false;
+    tools.append(...TOOLS_ORDER);
+    toolsMoreMenu.replaceChildren();
+
     const width = frame.clientWidth;
     let depth = width < TINY_WIDTH ? 3 : width < COMPACT_WIDTH ? 2 : width < SNUG_WIDTH ? 1 : 0;
     applyTier(depth);
     while (depth < TIERS.length && controls.scrollWidth > controls.clientWidth) applyTier(++depth);
+
+    // Whatever is-tiny still can't fit moves into the menu, most disposable
+    // first, until the rest of the bar actually fits. offsetWidth (rather
+    // than a plain "is it a candidate" check) is what skips a control this
+    // page never uses (no reading mode -> no #readingModeButton -> the
+    // "video on daf" pill was never appended) or that's hidden for its own,
+    // unrelated reason (PiP unsupported; either pill hidden by the
+    // reading-mode mini player's own CSS, since it would just duplicate the
+    // daf-card header's "Exit" button there) -- none of those are actually
+    // taking up room, so moving them into the menu would only add a dead
+    // entry to it, not free any space.
+    while (controls.scrollWidth > controls.clientWidth) {
+      const next = OVERFLOW_PRIORITY.find((el) => el.parentElement === tools && el.offsetWidth > 0);
+      if (!next) break;
+      toolsMoreMenu.appendChild(next);
+    }
+    toolsMoreStack.hidden = !toolsMoreMenu.children.length;
+    // Fullscreen is never itself an overflow candidate (see
+    // OVERFLOW_PRIORITY above) and is re-pinned here as the very last child
+    // of .pc-tools on every single pass, so it's always the rightmost
+    // control in the bar -- whether or not the "More" button beside it is
+    // currently showing anything.
+    if (fullscreenStack) tools.appendChild(fullscreenStack);
+
+    controlsObserver.observe(controls, {
+      subtree: true, childList: true, attributes: true, attributeFilter: ['hidden', 'style', 'class'],
+    });
   }
-  // Class changes land on the frame, never on .player-controls itself, so
-  // neither observer can retrigger the other.
+  // Class changes from applyTier land on the frame, never on .player-controls
+  // itself, so the ResizeObserver below can't retrigger fitChrome a second
+  // time the way the controlsObserver could (see its own comment).
   new ResizeObserver(fitChrome).observe(frame);
-  new MutationObserver(fitChrome).observe(controls, {
-    subtree: true, childList: true, attributes: true, attributeFilter: ['hidden', 'style', 'class'],
-  });
   fitChrome();
 
   // --- Bringing the chrome back once it has faded out ----------------------
