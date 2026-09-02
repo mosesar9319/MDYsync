@@ -325,7 +325,13 @@ h2 { margin-bottom: 0; }
 .video-frame.controls-hidden .player-controls { opacity: 0; pointer-events: none; }
 .scrubber-wrap, .player-controls { transition: opacity .25s ease; }
 .icon-button, .play-button, .vaater-button { border: 1px solid rgba(255,255,255,.25); cursor: pointer; background: rgba(255,255,255,.1); color: #fff; }
-.icon-button { width: 30px; height: 30px; border-radius: 8px; font-size: 10px; font-weight: 700; }
+/* display:grid + place-items:center (the same fix .video-fullscreen-button
+   already had) -- without it, a native <button>'s own UA-default content
+   alignment is what centers the SVG inside, which isn't reliable: reported
+   (with a screenshot) as the mute button's speaker icon sitting visibly
+   left-of-center in its own box. padding:0 so that centering isn't then
+   skewed by the button's own default padding on one side. */
+.icon-button { width: 30px; height: 30px; padding: 0; border-radius: 8px; font-size: 10px; font-weight: 700; display: grid; place-items: center; }
 .icon-button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #231703; }
 /* Wider than .icon-button on purpose -- named for the word it needs to fit
    ("Vaater"), not sized to it after the fact. The skip-forward glyph (two
@@ -507,9 +513,18 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .pc-volume .volume-slider { width: 92px; }
 /* Native select chrome replaced with the bar's own value + chevron, so speed
    reads as one control alongside the icon buttons rather than a form field.
-   Still the same <select> app.js listens to (and still keyboard-navigable). */
-.pc-speed { position: relative; display: inline-flex; align-items: center; gap: 4px; color: rgba(255,255,255,.92); }
-.pc-speed select { appearance: none; -webkit-appearance: none; width: auto; min-width: 0; padding: 2px 2px 2px 4px; border: 0; background: none; color: inherit; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+   Still the same <select> app.js listens to (and still keyboard-navigable).
+   Boxed the same way .icon-button/.pc-pill are (border, background, rounded
+   corners) -- previously unboxed, with no height of its own, so it sized to
+   its own short line of text rather than the row's other 30px controls.
+   .pc-tools aligns every child to the row's TOP (see its own comment), so a
+   shorter box there reads as sitting noticeably higher than its neighbors,
+   reported (with a screenshot) as "1x" looking uncentered against the mute/
+   captions buttons beside it -- giving it the same fixed height they already
+   have is what actually fixes that, the box itself is just what makes that
+   height read as intentional rather than arbitrary. */
+.pc-speed { position: relative; display: inline-flex; align-items: center; height: 30px; padding: 0 6px; gap: 4px; border: 1px solid rgba(255,255,255,.25); border-radius: 8px; background: rgba(255,255,255,.1); color: rgba(255,255,255,.92); }
+.pc-speed select { appearance: none; -webkit-appearance: none; width: auto; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
 .pc-speed select:focus { outline: none; box-shadow: none; }
 .pc-speed select option { background: #0d1b2c; color: #fff; }
 .pc-speed::after { content: '▾'; align-self: center; margin-left: -2px; font-size: 11px; line-height: 1; opacity: .75; pointer-events: none; }
@@ -564,7 +579,6 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .video-frame.is-snug .pc-transport { gap: 4px; }
 .video-frame.is-snug .pc-transport .play-button { width: 38px; height: 38px; }
 .video-frame.is-snug .pc-pill { height: 32px; padding: 0 9px; font-size: 12px; gap: 5px; }
-.video-frame.is-snug .pc-speed select { padding: 2px 0 2px 2px; }
 /* PiP is a pure convenience (it duplicates what leaving the tab open already
    does) -- the first WHOLE control to give up at this width, ahead of the
    two labelled pills that are the actual point of this redesign. Reading
@@ -626,7 +640,8 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .video-frame.is-tiny .pc-transport .play-button svg { width: 12px; height: 12px; }
 .video-frame.is-tiny .pc-pill { height: 22px; padding: 0 5px; }
 .video-frame.is-tiny .pc-pill svg { width: 14px; height: 14px; }
-.video-frame.is-tiny .pc-speed select { font-size: 12px; padding: 0 1px; }
+.video-frame.is-tiny .pc-speed { height: 22px; padding: 0 4px; }
+.video-frame.is-tiny .pc-speed select { font-size: 12px; }
 .video-frame.is-tiny .player-topbar { height: 30px; padding: 0 7px; }
 
 .now-learning { margin-top: 17px; padding: 15px 17px; border-radius: 14px; border: 1px solid rgba(220,172,82,.24); background: linear-gradient(135deg, rgba(220,172,82,.11), rgba(82,167,255,.06)); min-height: 113px; }
