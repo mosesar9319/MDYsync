@@ -436,19 +436,17 @@
       transition: opacity .2s ease;
     }
     .reading-mode-tip.show { opacity: 1; }
+    /* Mute and Vaater are the two controls .pc-tools' own "More" overflow
+       menu (see fitChrome in player-chrome.js) can't reach -- they live in
+       .pc-transport/.pc-volume, not .pc-tools -- so at the mini player's
+       own tightest floor they're dropped outright here instead. Captions
+       (previously dropped the same way at this breakpoint) no longer needs
+       a page-specific rule: it's a .pc-tools control now, so a mini player
+       this narrow just moves it into the same overflow menu everything
+       else that doesn't fit goes into, reachable rather than gone. */
     @container (max-width: 225px) {
       body.reading-mode-active .reading-video-float #muteButton,
-      body.reading-mode-active .reading-video-float #vaaterButton,
-      /* Captions is the next control to give up at this floor -- it's a
-         real accessibility feature, not a convenience like PiP, but it's
-         also already conditionally hidden outright for any non-YouTube
-         source (see captionsButtonEls in app.js), so this only ever bites
-         a YouTube shiur resized to (near) the mini player's own CSS
-         min-width. Measured directly: without this, Settings and
-         Fullscreen -- the two controls actually reported as unreachable --
-         were still pushed 17px past the frame's own clipped edge even with
-         mute/Vaater already gone above. */
-      body.reading-mode-active .reading-video-float #captionsStack { display: none; }
+      body.reading-mode-active .reading-video-float #vaaterButton { display: none; }
     }
     @media (max-width: 760px) {
       body.reading-mode-active main { padding-inline: 6px; }

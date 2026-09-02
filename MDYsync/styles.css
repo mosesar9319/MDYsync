@@ -325,7 +325,13 @@ h2 { margin-bottom: 0; }
 .video-frame.controls-hidden .player-controls { opacity: 0; pointer-events: none; }
 .scrubber-wrap, .player-controls { transition: opacity .25s ease; }
 .icon-button, .play-button, .vaater-button { border: 1px solid rgba(255,255,255,.25); cursor: pointer; background: rgba(255,255,255,.1); color: #fff; }
-.icon-button { width: 30px; height: 30px; border-radius: 8px; font-size: 10px; font-weight: 700; }
+/* display:grid + place-items:center (the same fix .video-fullscreen-button
+   already had) -- without it, a native <button>'s own UA-default content
+   alignment is what centers the SVG inside, which isn't reliable: reported
+   (with a screenshot) as the mute button's speaker icon sitting visibly
+   left-of-center in its own box. padding:0 so that centering isn't then
+   skewed by the button's own default padding on one side. */
+.icon-button { width: 30px; height: 30px; padding: 0; border-radius: 8px; font-size: 10px; font-weight: 700; display: grid; place-items: center; }
 .icon-button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #231703; }
 /* Wider than .icon-button on purpose -- named for the word it needs to fit
    ("Vaater"), not sized to it after the fact. The skip-forward glyph (two
@@ -485,12 +491,22 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .pc-volume { gap: 8px; flex-shrink: 0; }
 /* flex-start, so the pills (which carry their label inline and so are
    shorter) line their glyphs up with the icon row of the captioned stacks
-   beside them, rather than centring against the stacks' taller boxes. */
-.pc-tools { gap: 8px; flex-shrink: 0; align-items: flex-start; }
+   beside them, rather than centring against the stacks' taller boxes.
+
+   flex-shrink: 0 like its two siblings (see .pc-volume's own comment for
+   why matching them matters) -- whatever this group can't fit is moved into
+   the "More" overflow menu by fitChrome() in player-chrome.js (see there),
+   not scrolled to or clipped, so there's no need for this group itself to
+   shrink or scroll: by the time it's rendered, it only ever holds what
+   already fits. */
+.pc-tools { gap: 8px; align-items: flex-start; flex-shrink: 0; }
 /* A control with its caption underneath, as every item in the right-hand
    cluster is drawn. The caption is hidden (never removed) in compact mode,
    so the control itself keeps its place and its accessible name either way. */
-.pc-stack { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+/* flex-shrink: 0 so a stack keeps its natural size and .pc-tools' own
+   overflow-x:auto is what absorbs the shrinkage, not each individual
+   control getting squeezed thinner. */
+.pc-stack { display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0; }
 .pc-label { font-size: 10px; font-weight: 600; letter-spacing: .02em; color: rgba(255,255,255,.6); white-space: nowrap; }
 
 .pc-transport .icon-button { width: 36px; height: 36px; border-radius: 50%; border-color: transparent; background: none; color: rgba(255,255,255,.92); }
@@ -507,19 +523,85 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .pc-volume .volume-slider { width: 92px; }
 /* Native select chrome replaced with the bar's own value + chevron, so speed
    reads as one control alongside the icon buttons rather than a form field.
-   Still the same <select> app.js listens to (and still keyboard-navigable). */
-.pc-speed { position: relative; display: inline-flex; align-items: center; gap: 4px; color: rgba(255,255,255,.92); }
-.pc-speed select { appearance: none; -webkit-appearance: none; width: auto; min-width: 0; padding: 2px 2px 2px 4px; border: 0; background: none; color: inherit; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+   Still the same <select> app.js listens to (and still keyboard-navigable).
+   Boxed the same way .icon-button/.pc-pill are (border, background, rounded
+   corners) -- previously unboxed, with no height of its own, so it sized to
+   its own short line of text rather than the row's other 30px controls.
+   .pc-tools aligns every child to the row's TOP (see its own comment), so a
+   shorter box there reads as sitting noticeably higher than its neighbors,
+   reported (with a screenshot) as "1x" looking uncentered against the mute/
+   captions buttons beside it -- giving it the same fixed height they already
+   have is what actually fixes that, the box itself is just what makes that
+   height read as intentional rather than arbitrary. */
+/* padding/gap trimmed down from the box's first pass -- reported as reading
+   noticeably longer than it needs to for two characters and a chevron ("1x
+   ▾"), next to icon buttons that are all pure glyph with no padding to
+   spare by comparison. */
+.pc-speed { position: relative; display: inline-flex; align-items: center; height: 30px; padding: 0 4px; gap: 1px; border: 1px solid rgba(255,255,255,.25); border-radius: 8px; background: rgba(255,255,255,.1); color: rgba(255,255,255,.92); }
+.pc-speed select { appearance: none; -webkit-appearance: none; width: auto; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
 .pc-speed select:focus { outline: none; box-shadow: none; }
 .pc-speed select option { background: #0d1b2c; color: #fff; }
-.pc-speed::after { content: '▾'; align-self: center; margin-left: -2px; font-size: 11px; line-height: 1; opacity: .75; pointer-events: none; }
+.pc-speed::after { content: '▾'; align-self: center; margin-left: -3px; font-size: 10px; line-height: 1; opacity: .75; pointer-events: none; }
 
 /* The two "where does the daf go" toggles. Their pressed look is the gold
    outline, so which one is on reads at a glance from across the room. */
-.pc-pill { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.06); color: rgba(255,255,255,.9); font: inherit; font-size: 13px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.pc-pill { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.06); color: rgba(255,255,255,.9); font: inherit; font-size: 13px; font-weight: 700; white-space: nowrap; cursor: pointer; flex-shrink: 0; }
 .pc-pill svg { width: 17px; height: 17px; flex-shrink: 0; }
 .pc-pill:hover { background: rgba(255,255,255,.13); color: #fff; }
 .pc-pill[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+
+/* The "More" overflow tray: whatever fitChrome() (player-chrome.js) moves
+   out of .pc-tools when the bar runs out of room lands here instead of off
+   the edge of it. Reparented to <body> and positioned in JS from the "More"
+   button's own screen coordinates each time it opens -- the exact same
+   escape-the-clipping-and-stacking-context trick .video-settings-body-portal
+   above already uses, and for the same reason: a descendant of
+   .player-controls can't out-rank .scrubber-wrap's z-index no matter how
+   high it's set, and .video-frame's own overflow:hidden would clip it
+   outright in the reading-mode mini player specifically. Visually matched to
+   .video-settings-body (dark panel, same radius/shadow) rather than
+   .player-chrome-menu -- that one is styled for the light-mode watch-theme
+   .player-chrome-menu-item rows expect, but this tray is scoped entirely to
+   the always-dark video chrome, same as the settings panel it sits beside. */
+.pc-tools-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 168px;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(10,20,32,.96);
+  border: 1px solid rgba(255,255,255,.15);
+  box-shadow: 0 14px 38px rgba(0,0,0,.45);
+  z-index: 30;
+}
+/* Every row reuses the SAME control moved wholesale out of .pc-tools (not a
+   copy -- see fitChrome), so it keeps its real listeners, pressed state and
+   id; only its layout changes, from the bar's icon-over-caption stack to a
+   plain icon + label row. Escaping .video-frame by being portaled to <body>
+   is what lets this override win over the tiered is-snug/is-compact/is-tiny
+   rules elsewhere in this file without fighting their specificity: those are
+   all scoped through .video-frame, which this tray is no longer a
+   descendant of once moved here. */
+.pc-tools-menu .pc-stack,
+.pc-tools-menu .pc-pill {
+  flex-direction: row;
+  width: 100%;
+  height: auto;
+  padding: 8px 9px;
+  gap: 10px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+}
+.pc-tools-menu .pc-stack:hover,
+.pc-tools-menu .pc-pill:hover { background: rgba(255,255,255,.1); }
+.pc-tools-menu .pc-pill { justify-content: flex-start; color: rgba(255,255,255,.9); }
+.pc-tools-menu .pc-pill[aria-pressed="true"] { color: var(--accent); }
+.pc-tools-menu .pc-label { display: block; order: 2; font-size: 13px; font-weight: 600; color: rgba(255,255,255,.9); }
+.pc-tools-menu .icon-button,
+.pc-tools-menu .video-settings summary { width: 26px; height: 26px; flex-shrink: 0; }
+.pc-tools-menu .video-settings { position: static; }
 
 /* Timeline: the scrubber with its two times at either end, and the chapter
    markers standing above it. */
@@ -564,14 +646,6 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .video-frame.is-snug .pc-transport { gap: 4px; }
 .video-frame.is-snug .pc-transport .play-button { width: 38px; height: 38px; }
 .video-frame.is-snug .pc-pill { height: 32px; padding: 0 9px; font-size: 12px; gap: 5px; }
-.video-frame.is-snug .pc-speed select { padding: 2px 0 2px 2px; }
-/* PiP is a pure convenience (it duplicates what leaving the tab open already
-   does) -- the first WHOLE control to give up at this width, ahead of the
-   two labelled pills that are the actual point of this redesign. Reading
-   mode hides it for a different, always-true reason (see
-   updatePipAvailability in player-chrome.js); this is purely about fitting
-   the bar at a width real desktop split-view players commonly render at. */
-.video-frame.is-snug #pipStack { display: none; }
 .video-frame.is-snug .chapter-marker-he { display: none; }
 /* Vaater is worth an icon at every width but its text label is the first
    thing this tier can give up -- freeing enough room that the labels which
@@ -626,7 +700,8 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .video-frame.is-tiny .pc-transport .play-button svg { width: 12px; height: 12px; }
 .video-frame.is-tiny .pc-pill { height: 22px; padding: 0 5px; }
 .video-frame.is-tiny .pc-pill svg { width: 14px; height: 14px; }
-.video-frame.is-tiny .pc-speed select { font-size: 12px; padding: 0 1px; }
+.video-frame.is-tiny .pc-speed { height: 22px; padding: 0 3px; }
+.video-frame.is-tiny .pc-speed select { font-size: 12px; }
 .video-frame.is-tiny .player-topbar { height: 30px; padding: 0 7px; }
 
 .now-learning { margin-top: 17px; padding: 15px 17px; border-radius: 14px; border: 1px solid rgba(220,172,82,.24); background: linear-gradient(135deg, rgba(220,172,82,.11), rgba(82,167,255,.06)); min-height: 113px; }
