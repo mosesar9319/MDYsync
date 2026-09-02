@@ -1665,6 +1665,7 @@ mark.daf-highlight { background: rgba(240, 200, 90, .34); color: inherit; border
     bottom: 0;
     box-shadow: 0 -5px 20px rgba(61, 43, 23, 0.06);
     display: flex;
+    gap: 10px;
     overflow-x: auto;
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
@@ -1693,6 +1694,17 @@ mark.daf-highlight { background: rgba(240, 200, 90, .34); color: inherit; border
     padding: 4px 1px;
     scroll-snap-align: start;
     text-decoration: none;
+  }
+
+  /* A two-word label (Cloud Chaburah, Maggidei Shiurim) wraps onto a second
+     line inside its own tab rather than overflowing sideways into the next
+     one -- the gap above keeps neighboring tabs apart even so, this just
+     keeps the wrapped pair reading as one centered label instead of a
+     loose, left-leaning stack. */
+  .mobile-nav button span,
+  .mobile-nav a span {
+    text-align: center;
+    line-height: 1.2;
   }
 
   .mobile-nav button.active,
