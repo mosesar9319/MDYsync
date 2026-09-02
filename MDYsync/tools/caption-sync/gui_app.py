@@ -122,7 +122,7 @@ def ref_language(ref):
     return "he" if HEBREW_SUFFIX in ref else "en"
 
 
-PUBLISH_ENDPOINT = "https://mdysync.netlify.app/api/publish-alignment"
+PUBLISH_ENDPOINT = "https://dafsync.netlify.app/api/publish-alignment"
 
 
 def upload_alignment(alignment, refs, variant, language):
@@ -200,7 +200,7 @@ class App:
             from local_server import PORT
             self.web_status_label.configure(
                 text=f"● Website sync ready — listening on 127.0.0.1:{PORT} "
-                     f"for requests from mdysync.netlify.app only",
+                     f"for requests from dafsync.netlify.app only",
                 text_color=("#2f7d3c", "#5fd576"))
         else:
             self.web_status_label.configure(

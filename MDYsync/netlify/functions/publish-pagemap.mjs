@@ -10,8 +10,6 @@ const REPO = 'MDYsync';
 const MAX_PAGEMAP_BYTES = 2 * 1024 * 1024; // generous headroom over any real page's word boxes
 
 const ALLOWED_ORIGINS = new Set([
-  'https://mdysync.netlify.app',
-  'https://main--mdysync.netlify.app',
   'https://dafsync.netlify.app',
   'https://main--dafsync.netlify.app',
   'http://localhost:8080',
