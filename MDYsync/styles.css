@@ -903,27 +903,37 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
    region, so it doesn't need an explanatory label to read as different. */
 .vilna-page-wrap.mark-mode .vilna-phrase-box { cursor: crosshair; }
 
-/* --- Notes Mode: selecting a word range on the Vilna page to attach a note
-   to (see toggleVilnaNotesMode/renderVilnaNotesWordTargets in app.js).
-   Reader-facing, unlike .vilna-mark-toggle above -- same small pill look,
-   no .admin-only gate. --- */
-.vilna-notes-toggle { width: auto; padding: 0 10px; font-size: 12px; white-space: nowrap; }
-.vilna-notes-toggle.active { background: var(--accent-strong); color: #231703; border-color: transparent; }
+/* --- Select text: selecting a continuous word range on the Vilna page --
+   freely across phrase-alignment/segment boundaries, including unaligned
+   words -- to act on via the right-click/long-press context menu (add a
+   note, highlight, copy, look up, flag, search: see
+   toggleVilnaSelectTextMode/renderVilnaSelectTextWordTargets in app.js and
+   vilnaTargetAt in daf-context-menu.js, which is what makes the whole
+   selection the menu's target rather than just the one word under the
+   pointer). Reader-facing, unlike .vilna-mark-toggle above -- same small
+   pill look, no .admin-only gate. --- */
+.vilna-select-text-toggle { width: auto; padding: 0 10px; font-size: 12px; white-space: nowrap; }
+.vilna-select-text-toggle.active { background: var(--accent-strong); color: #231703; border-color: transparent; }
 
-/* Invisible per-word hit targets -- only interactive while notes mode is on
-   (.vilna-page-wrap.notes-mode below); otherwise pointer-events:none so the
-   phrase-click overlay underneath keeps seeking/marking exactly as before. */
-.vilna-notes-word-overlay { position: absolute; inset: 0; pointer-events: none; }
-.vilna-notes-word-target { position: absolute; pointer-events: none; cursor: pointer; touch-action: none; }
-.vilna-page-wrap.notes-mode .vilna-notes-word-target { pointer-events: auto; }
-.vilna-page-wrap.notes-mode { cursor: text; }
+/* Invisible per-word hit targets -- only interactive while select-text mode
+   is on (.vilna-page-wrap.select-text-mode below); otherwise
+   pointer-events:none so the phrase-click overlay underneath keeps
+   seeking/marking exactly as before. */
+.vilna-select-text-word-overlay { position: absolute; inset: 0; pointer-events: none; }
+.vilna-select-text-word-target { position: absolute; pointer-events: none; cursor: pointer; touch-action: none; }
+.vilna-page-wrap.select-text-mode .vilna-select-text-word-target { pointer-events: auto; }
+.vilna-page-wrap.select-text-mode { cursor: text; }
 
 /* The current selection -- same whole-line-rect treatment as
    .vilna-active-rect/.vilna-mark-target-rect above, gold to read as "this
-   is what a note would attach to," distinct from the blue "playing right
-   now" highlight and the dashed mark-target outline. */
-.vilna-notes-selection-overlay { position: absolute; inset: 0; pointer-events: none; }
-.vilna-notes-selection-rect {
+   is what a menu action would act on," distinct from the blue "playing
+   right now" highlight and the dashed mark-target outline. One rect PER RUN
+   (see groupBoxesIntoRuns in app.js) when the selection crosses a
+   phrase-alignment/ref boundary -- still one continuous-looking selection
+   visually, just drawn as however many per-line bars its words actually
+   span. */
+.vilna-select-text-selection-overlay { position: absolute; inset: 0; pointer-events: none; }
+.vilna-select-text-selection-rect {
   position: absolute;
   background: rgba(186, 132, 34, .3);
   border: 1px solid rgba(186, 132, 34, .6);
@@ -944,7 +954,7 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
    carrying the reader's place on the page along with it. Absolute against
    the wrap keeps it exactly where it visually belongs regardless of where
    the document itself happens to be scrolled. */
-.vilna-notes-action-bar {
+.vilna-select-text-action-bar {
   position: absolute;
   left: 50%;
   bottom: 10px;
@@ -995,8 +1005,8 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .vilna-note-marker:hover, .vilna-note-marker:focus-visible { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
 .vilna-note-marker-live { background: var(--accent); }
 .vilna-note-marker-private { background: var(--navy, #0c263d); }
-.vilna-page-wrap:not(.notes-mode) .vilna-note-marker { opacity: .32; width: 10px; height: 10px; }
-.vilna-page-wrap:not(.notes-mode) .vilna-note-marker:hover { opacity: .85; }
+.vilna-page-wrap:not(.select-text-mode) .vilna-note-marker { opacity: .32; width: 10px; height: 10px; }
+.vilna-page-wrap:not(.select-text-mode) .vilna-note-marker:hover { opacity: .85; }
 .vilna-note-marker-count {
   position: absolute;
   top: -4px;

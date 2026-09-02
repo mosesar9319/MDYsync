@@ -21,10 +21,27 @@ function highlightsFor(ref) {
   return highlightsByRef.get(ref) || [];
 }
 
+// A highlight row's own runs -- word_ranges (see toggleHighlight) is the
+// authoritative shape once a highlight can span more than one ref;
+// start_word/end_word/segment_ref still mirror its FIRST run for whichever
+// older row (or query) only ever knew that trio.
+function highlightRuns(row) {
+  return row.word_ranges?.length
+    ? row.word_ranges
+    : [{ ref: row.segment_ref, start: row.start_word, end: row.end_word }];
+}
+
 // The highlight (if any) covering one specific word -- what the context
 // menu needs to decide between offering "Highlight" and "Remove highlight".
+// Checks every run of a candidate row, not just its first -- highlightsFor
+// already only returns rows that touch THIS ref at all (see
+// loadHighlightsForCurrentDaf, which now buckets a row under every ref its
+// runs touch, not just its primary one), but a row can still have OTHER
+// runs on other refs, so which run actually covers wordIndex still needs
+// checking.
 function highlightCovering(ref, wordIndex) {
-  return highlightsFor(ref).find((row) => wordIndex >= row.start_word && wordIndex <= row.end_word) || null;
+  return highlightsFor(ref).find((row) => highlightRuns(row)
+    .some((run) => run.ref === ref && wordIndex >= run.start && wordIndex <= run.end)) || null;
 }
 
 async function loadHighlightsForCurrentDaf() {
@@ -44,9 +61,18 @@ async function loadHighlightsForCurrentDaf() {
     .order('start_word', { ascending: true });
   if (error) return;
   highlightsByRef = new Map();
+  // Bucketed under EVERY ref its runs touch, not just its primary
+  // segment_ref -- a multi-ref highlight (see toggleHighlight) needs to be
+  // findable by highlightCovering/highlightsFor regardless of which of its
+  // runs a reader is actually looking at.
   for (const row of data || []) {
-    if (!highlightsByRef.has(row.segment_ref)) highlightsByRef.set(row.segment_ref, []);
-    highlightsByRef.get(row.segment_ref).push(row);
+    const seenRefs = new Set();
+    for (const run of highlightRuns(row)) {
+      if (seenRefs.has(run.ref)) continue;
+      seenRefs.add(run.ref);
+      if (!highlightsByRef.has(run.ref)) highlightsByRef.set(run.ref, []);
+      highlightsByRef.get(run.ref).push(row);
+    }
   }
   highlightsDafKey = info.key;
   renderHighlights();
@@ -55,12 +81,16 @@ async function loadHighlightsForCurrentDaf() {
 // Insert or remove -- a right-click on an already-highlighted word offers
 // removal of the whole highlight it falls inside, not a partial un-highlight
 // (splitting one highlight into two on a middle word would be surprising).
-async function toggleHighlight(ref, start, end, selectedText) {
+// runs is the same [{ ref, start, end }, ...] shape a Select-text
+// selection's own state.textSelection.runs carries (see app.js) -- almost
+// always one run, but never assumed to be.
+async function toggleHighlight(runs, selectedText) {
   const auth = window.DafSyncAuth;
   const user = auth?.getUser();
   const info = typeof currentDafInfo === 'function' ? currentDafInfo() : null;
-  if (!user || !info) return;
-  const existing = highlightCovering(ref, start);
+  if (!user || !info || !runs?.length) return;
+  const firstRun = runs[0];
+  const existing = highlightCovering(firstRun.ref, firstRun.start);
   if (existing) {
     const { error } = await auth.client.from('highlights').delete().eq('id', existing.id);
     if (error) {
@@ -72,10 +102,11 @@ async function toggleHighlight(ref, start, end, selectedText) {
     const { error } = await auth.client.from('highlights').insert({
       user_id: user.id,
       daf_ref_key: info.key,
-      segment_ref: ref,
-      start_word: start,
-      end_word: end,
+      segment_ref: firstRun.ref,
+      start_word: firstRun.start,
+      end_word: firstRun.end,
       selected_text: selectedText || null,
+      word_ranges: runs,
     });
     if (error) {
       showToast(error.message || 'Could not save the highlight.', 'error');
@@ -103,13 +134,21 @@ function renderVilnaHighlightOverlay() {
   overlay.innerHTML = '';
   if (!state.vilnaPageMap || !highlightsByRef.size) return;
   const bands = vilnaInkBands(state.vilnaPageMap);
-  for (const [ref, rows] of highlightsByRef) {
+  // A multi-ref highlight now sits in more than one of highlightsByRef's
+  // own buckets (see loadHighlightsForCurrentDaf) -- rendered once here
+  // regardless, tracked by id, so it doesn't draw its shared runs twice.
+  const seen = new Set();
+  for (const rows of highlightsByRef.values()) {
     for (const row of rows) {
-      const boxes = state.vilnaPageMap.wordBoxes
-        .filter((box) => box.ref === ref && box.wordIndex >= row.start_word && box.wordIndex <= row.end_word)
-        .sort((a, b) => a.wordIndex - b.wordIndex);
-      if (!boxes.length) continue;
-      appendLineRects(overlay, groupBoxesIntoLineRects(boxes, state.vilnaPageMap, bands), 'vilna-highlight-rect');
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
+      for (const run of highlightRuns(row)) {
+        const boxes = state.vilnaPageMap.wordBoxes
+          .filter((box) => box.ref === run.ref && box.wordIndex >= run.start && box.wordIndex <= run.end)
+          .sort((a, b) => a.wordIndex - b.wordIndex);
+        if (!boxes.length) continue;
+        appendLineRects(overlay, groupBoxesIntoLineRects(boxes, state.vilnaPageMap, bands), 'vilna-highlight-rect');
+      }
     }
   }
 }
@@ -139,6 +178,11 @@ function applyHighlightsToSegmentSpan(span, segment) {
   const textNode = [...span.childNodes].find((node) => node.nodeType === Node.TEXT_NODE && node.nodeValue.trim());
   if (!textNode) return;
 
+  // Only the runs that actually touch THIS segment's own ref -- a
+  // multi-ref highlight's other runs belong to a different segment's span
+  // entirely, rendered there instead when buildSegmentSpan gets to it.
+  const runs = rows.flatMap((row) => highlightRuns(row).filter((run) => run.ref === segment.ref));
+
   const raw = textNode.nodeValue;
   const parts = raw.split(/(\s+)/); // keeps the whitespace runs as their own parts
   const fragment = document.createDocumentFragment();
@@ -151,7 +195,7 @@ function applyHighlightsToSegmentSpan(span, segment) {
     }
     const absolute = base + wordOffset;
     wordOffset += 1;
-    if (rows.some((row) => absolute >= row.start_word && absolute <= row.end_word)) {
+    if (runs.some((run) => absolute >= run.start && absolute <= run.end)) {
       const mark = document.createElement('mark');
       mark.className = 'daf-highlight';
       mark.textContent = part;
