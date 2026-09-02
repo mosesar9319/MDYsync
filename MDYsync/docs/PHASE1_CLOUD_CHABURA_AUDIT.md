@@ -2,8 +2,12 @@
 
 **Date:** 2026-09-02
 **Branch:** `claude/chullin-89-sync-hold-pm1aqf` (cut from `origin/main` @ `91be7d6`)
-**Scope:** Prompt 1 of `DAFSYNC_CLOUD_CHABURA_CLAUDE_HANDOFF_20260902.md` — inspection,
-measurement and regression baseline only. **No UI redesign. No production schema change.**
+**Scope:** Prompt 1 of `DAFSYNC_CLOUD_CHABURA_CLAUDE_HANDOFF_20260902.md` —
+inspection, measurement and regression baseline. **No Cloud Chabura UI redesign.**
+Updated in a follow-on commit to also close four independent, low-risk items this
+audit itself identified as needing no redesign (§7 recommendation 3) — those four
+DO include a small, reviewed production schema change (grants + one index; see
+§2.4/§2.5), applied via a committed migration, not a UI prototype shortcut.
 
 Everything below was verified by direct inspection of the live database and the
 current working tree on the date above. Where this audit contradicts an earlier
@@ -20,6 +24,8 @@ because the live schema remains the only source of truth (see F-1).
 | `tests/` — 41 specs × 2 projects (desktop + mobile) = **82 passing tests** | Persistent regression coverage for the feed, the note/reply thread, and the Select Text engine. |
 | `tests/static-server.mjs` | Zero-dependency static server so `npm test` needs no network and no extra package. |
 | `docs/baseline/*.png` | Desktop, narrow-desktop and mobile screenshots of today's `/chaburah/`. |
+| `supabase/migrations/20260902180000_tighten_grants_and_feed_index.sql` | First committed migration (audit F-1). Tightens function grants, adds the feed's missing index — see §2.4/§2.5. |
+| `netlify/functions/sefaria-calendars.mjs` | Closes F-4: proxies the Today's Daf calendar lookup instead of calling `sefaria.org` directly from the browser. |
 | This document | The written audit. |
 
 Nothing in `app.js`, `notes.js`, `chaburah.js`, `styles.css` or any page was modified.
@@ -119,30 +125,40 @@ Supporting facts:
   both, so `search_path=public` cannot be subverted by an attacker creating a
   shadowing object in `public`.
 
-**Conclusion: the "Public Can Execute SECURITY DEFINER Function" advisory is real
-but not currently exploitable.** It should stay on the list as defence-in-depth
-(revoking `PUBLIC`/`anon` EXECUTE on the trigger functions costs nothing), but it
-is not a live vulnerability and should not be described as one.
+**Conclusion: the "Public Can Execute SECURITY DEFINER Function" advisory was real
+but not exploitable.** Not a live vulnerability — but defence-in-depth was free, so
+**this is now fixed**: `supabase/migrations/20260902180000_tighten_grants_and_feed_index.sql`
+revokes `PUBLIC` execute on the five trigger-only functions and narrows the three
+admin RPCs to `authenticated` only (dropping `anon`). `is_admin()`/`can_post_publicly()`
+are deliberately left alone — see the migration's own header for why revoking those
+would break RLS. Re-run `get_advisors` confirms the five trigger-function warnings
+are gone; the remaining ones are exactly the ones left in place on purpose, plus the
+item below.
 
-Still open from the prior audit and **not** fixed here: **leaked-password
-protection is disabled** in Supabase Auth. One dashboard toggle.
+Still open, and **not** fixable from here: **leaked-password protection is
+disabled** in Supabase Auth. No Supabase MCP tool exposes Auth provider settings —
+this needs a one-click dashboard toggle (Authentication → Policies → Leaked
+Password Protection).
 
 Triggers: `line_notes_before_update` → `line_notes_guard_hidden` (silently reverts a
 non-admin's attempt to change `hidden`, and stamps `updated_at`);
 `{line_notes,comments}_validate_mentions` → `validate_mentions` (max 5 mentions,
 each must exist in `auth.users`); `{line_notes,comments}_notify_after_insert`.
 
-### 2.5 Indexes — one real gap
+### 2.5 Indexes
 
 Existing: `line_notes` on `author_id`, `body_tsv` (GIN), `category`, `daf_ref_key`,
 `segment_ref`; `comments` on `author_id`, `body_tsv` (GIN), `note_id`,
 `parent_comment_id`; `reactions` on target + the UNIQUE key; `notifications` on
 `(user_id, created_at)`; `reports` on `status` and target.
 
-**Missing: any index supporting the feed's own ordering.** Every Cloud Chaburah view
-orders by `created_at desc` and there is no `created_at` index on `line_notes`. At
-3 rows this is free; it is the first thing that will hurt, and Phase 2's
-`last_activity_at` index should replace rather than duplicate it.
+**Gap, now fixed:** every Cloud Chaburah view orders by `created_at desc` and there
+was no `created_at` index on `line_notes`. Free at 3 rows, but the first thing that
+would have hurt.
+`supabase/migrations/20260902180000_tighten_grants_and_feed_index.sql` adds
+`line_notes_public_feed_idx`, a partial index on `(created_at desc) where not hidden
+and not is_private` — matching `chaburahBaseQuery`'s exact predicate. Phase 2's
+`last_activity_at` column should replace rather than duplicate this; drop it there.
 
 ---
 
@@ -249,11 +265,20 @@ pull the newest 200 public notes (`CHABURAH_RANK_SCAN_LIMIT`), then count reacti
 silently never paginate (`hasMore` is not computed for them). Honest and documented
 in the source, but it is a correctness ceiling, not just a performance one.
 
-**F-4 — `fetchTodaysDafRef()` calls sefaria.org directly** (app.js:1334), bypassing
-the `/api/sefaria` Netlify proxy used everywhere else. It runs on `/chaburah/` for a
-picker the page never shows. This matters for Phase 3 because the plan's Today's Daf
-panel is specified to use "the same current-day source already used by DafSync" —
-which is this unproxied call. Proxy it before building on it.
+**F-4 — FIXED — `fetchTodaysDafRef()` called sefaria.org directly** (app.js:1334),
+bypassing any Netlify proxy — and so did an independent second copy in
+`index.html`'s inline `loadTodaysDaf()` (the home page's "Today's Daf" hero), not
+caught until this fix was underway. It ran on `/chaburah/` for a picker the page
+never shows. This mattered for Phase 3 because the plan's Today's Daf panel is
+specified to use "the same current-day source already used by DafSync" — which was
+this unproxied call.
+*Fixed in this phase*: added `netlify/functions/sefaria-calendars.mjs`
+(`/api/sefaria-calendars`), mirroring `sefaria.mjs`'s pattern but for the calendar
+endpoint, which `sefaria.mjs` itself can't serve (it's hard-tied to the
+`/api/v3/texts/<ref>` shape). Both call sites now try the proxy first and fall back
+to a direct Sefaria call on failure — the same pattern `fetchSefariaParagraphs`
+already used. Verified via Playwright: both `index.html` and `browse/` now issue
+only the proxied request, zero direct `sefaria.org` calls, zero console errors.
 
 **F-5 — No request-generation guard.** `renderChaburahFeed()` has no
 `AbortController` or request-sequence check, and is additionally wired to
@@ -395,10 +420,15 @@ database, exercising `anon`, ordinary `authenticated`, author and admin. A green
 2. **Phase 2 adjustments:** adopt §6.2 (`profiles` + public view instead of
    `community_profiles`), §6.3 (identity column), and close **F-14** (server-side
    mention eligibility) while touching that area anyway.
-3. **Cheap wins that need no redesign** and could ship independently of the plan:
-   revoke `PUBLIC`/`anon` EXECUTE on the seven trigger functions (§2.4), enable
-   leaked-password protection, add the `line_notes` ordering index (§2.5), and proxy
-   `fetchTodaysDafRef` (**F-4**).
+3. ~~**Cheap wins that need no redesign**~~ — **done**, in
+   `supabase/migrations/20260902180000_tighten_grants_and_feed_index.sql` +
+   `netlify/functions/sefaria-calendars.mjs`: revoked `PUBLIC` execute on the five
+   trigger-only functions, narrowed the three admin RPCs to `authenticated` only,
+   added the `line_notes` partial ordering index (§2.5), and closed **F-4** (proxied
+   both the app.js and index.html Today's Daf lookups). **Still open, manual-only**:
+   enabling leaked-password protection in Supabase Auth — no MCP tool exposes Auth
+   provider settings; this needs a one-click dashboard toggle
+   (Authentication → Policies → Leaked Password Protection).
 4. **Phase 3 prerequisite:** do the `notes-format.js` extraction (§6.4) *before*
    building the new hub, with the committed tests as the safety net.
 5. Re-run `npm test` at the start of Phase 2 to confirm this baseline still holds.
