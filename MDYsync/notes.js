@@ -19,12 +19,15 @@ let activeNotePrivacy = 'private';
 // Optional single category key (see CATEGORY_TYPES) for the note currently
 // being composed, or null for "no category" -- a valid, expected state.
 let activeNoteCategory = null;
-// { ref, start, end, selectedText } while composing a note FROM a Notes
-// Mode word-range selection (see openNoteComposerForSelection); null for
-// the original whole-segment 🗒-button flow (openNoteDialog), which still
-// works exactly as it always has and still saves start_word/end_word/
-// selected_text as null -- "the whole segment," the same as every row
-// this table already had before the word-range anchor migration.
+// { runs, selectedText } while composing a note FROM a Select-text
+// word-range selection (see openNoteComposerForSelection) -- runs is the
+// [{ ref, start, end }, ...] shape app.js's own state.textSelection.runs
+// already carries, one entry per ref the selection touches (almost always
+// just one). null for the original whole-segment 🗒-button flow
+// (openNoteDialog), which still works exactly as it always has and still
+// saves start_word/end_word/selected_text as null -- "the whole segment,"
+// the same as every row this table already had before the word-range
+// anchor migration.
 let activeNoteSelection = null;
 // note id -> array of comments rows visible to the current viewer. Only
 // fetched/rendered for notes that are public and not hidden -- comments
@@ -276,12 +279,21 @@ async function loadNotesForCurrentDaf() {
 // content would slip past it -- a real gap in coverage, traded here for
 // not costing every note render a round trip.
 function noteAnchorMayHaveShifted(row) {
-  if (row.start_word === null || row.end_word === null) return false;
-  if (!state.vilnaPageMap) return false;
-  const count = state.vilnaPageMap.wordBoxes
-    .filter((box) => box.ref === row.segment_ref && box.wordIndex >= row.start_word && box.wordIndex <= row.end_word)
-    .length;
-  return count !== (row.end_word - row.start_word + 1);
+  // word_ranges (see saveNote) is the authoritative shape for a selection
+  // that crossed a ref boundary -- start_word/end_word/segment_ref still
+  // mirror its FIRST run for every older query/render that only knows that
+  // trio, but checking drift against the first run alone would miss a shift
+  // in any LATER run.
+  const runs = row.word_ranges?.length
+    ? row.word_ranges
+    : (row.start_word !== null ? [{ ref: row.segment_ref, start: row.start_word, end: row.end_word }] : []);
+  if (!runs.length || !state.vilnaPageMap) return false;
+  return runs.some((run) => {
+    const count = state.vilnaPageMap.wordBoxes
+      .filter((box) => box.ref === run.ref && box.wordIndex >= run.start && box.wordIndex <= run.end)
+      .length;
+    return count !== (run.end - run.start + 1);
+  });
 }
 
 // Visual nesting cap only -- replies keep their real parent_comment_id
@@ -500,7 +512,7 @@ function renderNoteList(rows) {
       : '';
     const timestampPill = renderTimestampPill(row, true);
     const demoPill = demoPillHtml(row);
-    // A word-range note (Notes Mode) quotes its own specific passage above
+    // A word-range note (Select text) quotes its own specific passage above
     // the note body -- several notes on the same segment_ref can each be
     // about different sub-ranges, so this can't just reuse the dialog's own
     // single top-of-dialog quote (which only ever shows the CURRENT
@@ -828,27 +840,45 @@ async function saveNote() {
   if (!body) return;
   saveButton.disabled = true;
   const selection = activeNoteSelection;
-  // Captured fresh right now, not snapshotted when the composer opened --
-  // "the moment you actually finish writing and hit Save" is the moment
-  // worth tagging, and it avoids a stale time if the shiur kept playing
-  // while the note was being written.
-  const videoTimestamp = (!timestampToggle.hidden && timestampCheckbox.checked && typeof getCurrentTime === 'function')
-    ? getCurrentTime()
+  // A word-range selection tags itself with the EARLIEST alignment
+  // timestamp among the words actually selected (see
+  // earliestAlignmentTimestampForRuns) -- "when do these specific words
+  // happen in the shiur," not "whatever moment the reader happened to be
+  // at when they hit Save," which could be anywhere if playback kept
+  // running while the note was being written. A whole-segment note (no
+  // selection -- the original 🗒 flow) has no specific words to derive
+  // that from, so it keeps the old behavior: the actual current moment,
+  // captured fresh right now rather than snapshotted when the composer
+  // opened.
+  const videoTimestamp = (!timestampToggle.hidden && timestampCheckbox.checked)
+    ? (selection ? earliestAlignmentTimestampForRuns(selection.runs)
+      : (typeof getCurrentTime === 'function' ? getCurrentTime() : null))
     : null;
+  const firstRun = selection?.runs?.[0];
   const { error } = await auth.client.from('line_notes').insert({
     author_id: user.id,
     author_display_name: profile?.display_name || user.email,
     daf_ref_key: info.key,
-    segment_ref: activeNoteRef,
+    segment_ref: firstRun ? firstRun.ref : activeNoteRef,
     body,
     is_private: activeNotePrivacy === 'private',
     category: activeNoteCategory,
     video_timestamp_seconds: videoTimestamp,
     // Whole-segment notes (the original 🗒 flow, no selection active) leave
-    // all three columns unset -- the same "the whole segment" meaning
-    // every pre-existing row already has, per the migration's own check
-    // constraint.
-    ...(selection ? { start_word: selection.start, end_word: selection.end, selected_text: selection.selectedText } : {}),
+    // all four columns unset -- the same "the whole segment" meaning every
+    // pre-existing row already had, per the migration's own check
+    // constraint. A word-range selection always sets word_ranges (even a
+    // single-run one) so every reader of this column ever since has exactly
+    // one shape to handle, never a "maybe it's just the legacy trio"
+    // special case -- start_word/end_word/selected_text still mirror its
+    // FIRST run too, for the moderation queue, search, and every other
+    // consumer that only ever knew that trio and doesn't need to change.
+    ...(selection ? {
+      start_word: firstRun.start,
+      end_word: firstRun.end,
+      selected_text: selection.selectedText,
+      word_ranges: selection.runs,
+    } : {}),
   });
   saveButton.disabled = false;
   if (error) {
@@ -858,13 +888,13 @@ async function saveNote() {
   bodyInput.value = '';
   timestampCheckbox.checked = false;
   refreshNoteList(activeNoteRef);
-  // A word-range save came from Notes Mode's own selection (see
+  // A word-range save came from Select text's own selection (see
   // openNoteComposerForSelection) -- clear it now that it's been saved, so
   // the gold highlight/floating action bar don't linger over words that
   // already have a note attached.
   if (selection) {
     activeNoteSelection = null;
-    clearNotesSelection();
+    clearTextSelection();
   }
 }
 
@@ -924,26 +954,68 @@ async function resolveWordRangeText(ref, start, end) {
   return text;
 }
 
-// Entry point for Notes Mode's own "Add note" action (see
-// #vilnaNotesAddButton's click handler in app.js) -- the word-range
+// Multi-run counterpart above -- a Select-text selection that crossed a ref
+// boundary is one run per ref (see groupBoxesIntoRuns in app.js), so this
+// just resolves each run through resolveWordRangeText above (a run never
+// itself crosses a ref, so the per-ref resolver already does the real work)
+// and joins them in reading order -- the same order the selection itself
+// reads in on the printed page.
+async function resolveWordRangeRunsText(runs) {
+  const parts = await Promise.all(runs.map((run) => resolveWordRangeText(run.ref, run.start, run.end)));
+  const text = parts.join(' ').trim();
+  if (!text) throw new Error('Could not resolve this passage.');
+  return text;
+}
+
+// The "tag with the current moment" checkbox's value for a word-range
+// selection (see saveNote): the EARLIEST alignment timestamp among every
+// word the selection actually covers, across however many runs/refs it
+// spans -- findWordTime (app.js) already knows how to look up one word's
+// own timestamp (word-level wordTimeline first, falling back to its
+// covering segment, then any segment for that ref). Returns null when
+// nothing in the selection has any alignment at all -- there is nothing
+// honest to tag it with in that case, so the checkbox saves no timestamp
+// rather than substituting an unrelated moment.
+function earliestAlignmentTimestampForRuns(runs) {
+  let earliest = null;
+  for (const run of runs) {
+    for (let wordIndex = run.start; wordIndex <= run.end; wordIndex += 1) {
+      const time = findWordTime(state.wordTimeline || [], state.segments || [], run.ref, wordIndex);
+      if (typeof time === 'number' && Number.isFinite(time) && (earliest === null || time < earliest)) earliest = time;
+    }
+  }
+  return earliest;
+}
+
+// Entry point for Select text's own "Add note" action (see
+// #vilnaSelectTextAddNoteButton's click handler in app.js, and the context
+// menu's "Add note here"/"Add note on this passage" item) -- the word-range
 // counterpart to openNoteDialog above, opening the SAME dialog but quoting
-// the specific selected words instead of a whole segment.
-async function openNoteComposerForSelection(ref, start, end) {
+// the specific selected words instead of a whole segment. Takes the same
+// runs shape state.textSelection.runs already carries -- almost always one
+// run (one ref), but never assumed to be, since the whole point of Select
+// text is that a drag can cross into another paragraph.
+async function openNoteComposerForSelection(runs) {
   const info = currentDafInfo();
-  if (!info) return;
+  if (!info || !runs?.length) return;
   const { dialog, refLabel, textLabel, compose, bodyInput, signInPrompt } = noteDialogEls();
   let selectedText;
   try {
-    selectedText = await resolveWordRangeText(ref, start, end);
+    selectedText = await resolveWordRangeRunsText(runs);
   } catch (error) {
     showToast(error.message || 'Could not load this passage.', 'error');
     return;
   }
-  activeNoteRef = ref;
-  activeNoteSelection = { ref, start, end, selectedText };
+  const primaryRef = runs[0].ref;
+  activeNoteRef = primaryRef;
+  activeNoteSelection = { runs, selectedText };
   const auth = window.DafSyncAuth;
   const user = auth?.getUser();
-  refLabel.textContent = ref;
+  // A selection that stayed within one ref just names it, same as ever --
+  // one that crossed into another paragraph names the first and counts the
+  // rest, since there's no single ref that honestly describes the whole
+  // passage.
+  refLabel.textContent = runs.length > 1 ? `${primaryRef} (+${runs.length - 1} more)` : primaryRef;
   textLabel.textContent = selectedText;
   bodyInput.value = '';
   setNotePrivacy('private');
@@ -952,7 +1024,7 @@ async function openNoteComposerForSelection(ref, start, end) {
   compose.hidden = !user;
   signInPrompt.hidden = Boolean(user);
   dialog.show(); // see openNoteDialog's own comment on non-modal show()
-  refreshNoteList(ref);
+  refreshNoteList(primaryRef);
 }
 
 window.DafNotesComposer = { openForSelection: openNoteComposerForSelection };

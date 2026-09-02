@@ -25,18 +25,27 @@ const state = {
   // Admin diagnostic toggle -- see renderVilnaUnmatchedWords.
   showUnmatchedWords: false,
   // Reader-facing (not admin-only, unlike vilnaMarkMode above): lets a
-  // signed-in reader select a word range on the printed page to attach a
-  // note to, instead of clicking a word seeking the video -- see
-  // toggleVilnaNotesMode. { ref, start, end } while a range is selected
-  // (start/end are wordIndex, inclusive, always start<=end); null when
-  // nothing is selected. A selection never spans two different refs -- see
-  // extendNotesSelection.
-  vilnaNotesMode: false,
-  notesSelection: null,
-  // Rebuilt on each Vilna page load, but only while notes mode is (or
-  // becomes) active -- see renderVilnaNotesWordTargets -- so a reader who
-  // never opens notes mode never pays for the extra one-div-per-word DOM.
-  notesWordTargetsKey: null,
+  // signed-in reader select a continuous range of words on the printed page
+  // -- freely across phrase-alignment/segment boundaries, aligned or
+  // unaligned, even on a daf with no alignment at all -- to act on via the
+  // right-click/long-press context menu (add a note, highlight, copy, look
+  // up, flag, search), instead of clicking a word seeking the video. See
+  // toggleVilnaSelectTextMode. { anchorIndex, runs } while a range is
+  // selected; null when nothing is selected. anchorIndex is the reading-
+  // order position (see vilnaReadingOrder) of the word the drag/first tap
+  // started on -- fixed for the life of one selection, so dragging back
+  // past it correctly shrinks/reverses the range instead of only ever
+  // growing. runs is the same anchorIndex..current-index span, collapsed
+  // into contiguous per-ref { ref, start, end } triples in reading order
+  // (see groupBoxesIntoRuns) -- one run when the selection never leaves its
+  // starting ref (the only shape this ever produced before this generalized
+  // beyond one ref), more when it crosses into another paragraph.
+  vilnaSelectTextMode: false,
+  textSelection: null,
+  // Rebuilt on each Vilna page load, but only while select-text mode is (or
+  // becomes) active -- see renderVilnaSelectTextWordTargets -- so a reader
+  // who never opens it never pays for the extra one-div-per-word DOM.
+  selectTextWordTargetsKey: null,
   // Snapshot of segments/editingIndex from when mark mode was turned on (or
   // the last explicit Save) -- what "Discard changes" (see
   // discardVilnaMarkChanges) reverts to. Serialized JSON, not a live
@@ -1696,7 +1705,7 @@ async function loadVilnaPageMap(parsed, stillWanted = () => true) {
       if (!stillWanted()) return true;
       renderVilnaWordBoxes();
       updateVilnaOverlay(getCurrentTime());
-      renderVilnaNotesWordTargets();
+      renderVilnaSelectTextWordTargets();
       renderVilnaNoteMarkers();
       window.DafHighlights?.renderVilnaOverlay();
       return true;
@@ -1920,42 +1929,55 @@ function renderVilnaWordBoxes() {
   renderVilnaUnmatchedWords();
 }
 
-// --- Notes Mode: select a word range on the printed page to attach a note
-// to (see the notes.js companion file for the compose/save flow) -----------
+// --- Select text: select a continuous word range on the printed page to
+// act on via the right-click context menu -- add a note, highlight, copy,
+// look up, flag, search (see the notes.js/highlights.js/daf-context-menu.js
+// companion files for what each action then does with it) -----------------
 //
 // Reader-facing, unlike vilnaMarkMode above -- gated by whether a daf is
 // loaded at all, not by admin status. A dedicated overlay layered ON TOP OF
 // renderVilnaWordBoxes's own phrase-click overlay (later in the DOM, so it
 // wins any click while it's the one with pointer-events:auto -- see
-// .vilna-page-wrap.notes-mode in styles.css), rather than touching that
-// overlay's own click handling at all: turning notes mode on doesn't change
-// what a word click means anywhere else, it just shadows it while active.
+// .vilna-page-wrap.select-text-mode in styles.css), rather than touching
+// that overlay's own click handling at all: turning select-text mode on
+// doesn't change what a word click means anywhere else, it just shadows it
+// while active.
 //
 // One hit-div per individual word (not grouped into phrase/line rects like
 // every other overlay here) -- selection needs to know exactly which word
 // the pointer is over, which a merged multi-word rect can't answer. Built
-// lazily, only once notes mode is actually turned on for this page (see
-// toggleVilnaNotesMode), since most readers will never open it.
-function renderVilnaNotesWordTargets() {
-  const overlay = $('vilnaNotesWordOverlay');
-  if (!overlay || !state.vilnaNotesMode || !state.vilnaPageMap) return;
+// lazily, only once select-text mode is actually turned on for this page
+// (see toggleVilnaSelectTextMode), since most readers will never open it.
+function renderVilnaSelectTextWordTargets() {
+  const overlay = $('vilnaSelectTextWordOverlay');
+  if (!overlay || !state.vilnaSelectTextMode || !state.vilnaPageMap) return;
   const key = `${state.vilnaPageMap.tractate} ${state.vilnaPageMap.daf}${state.vilnaPageMap.amud}`;
-  if (state.notesWordTargetsKey === key) return; // already built for this page
-  state.notesWordTargetsKey = key;
+  if (state.selectTextWordTargetsKey === key) return; // already built for this page
+  state.selectTextWordTargetsKey = key;
   overlay.innerHTML = '';
   for (const box of state.vilnaPageMap.wordBoxes) {
     const el = document.createElement('div');
-    el.className = 'vilna-notes-word-target';
+    el.className = 'vilna-select-text-word-target';
     el.style.left = `${box.x * 100}%`;
     el.style.top = `${box.y * 100}%`;
     el.style.width = `${box.w * 100}%`;
     el.style.height = `${box.h * 100}%`;
     el.addEventListener('pointerdown', (event) => {
+      // button 0 is the primary button (left click, touch, pen) -- a
+      // right-click (button 2) inside an ALREADY-selected word must reach
+      // the context menu as a right-click on that whole selection (see
+      // vilnaTargetAt in daf-context-menu.js), not restart/reshape the
+      // selection out from under it. Harmless for a single-ref selection
+      // (extending it to a word it already covers is a no-op there), but a
+      // real bug once a selection can span more than one ref: reshaping it
+      // from the anchor to whichever word got right-clicked can DROP a run
+      // the drag had already covered, right before the menu reads it.
+      if (event.button !== 0) return;
       event.preventDefault(); // no native text-selection/drag-image while dragging across words
-      startNotesSelectionDrag(box.ref, box.wordIndex);
+      startTextSelectionDrag(box.ref, box.wordIndex);
     });
     el.addEventListener('pointerenter', () => {
-      if (notesSelectionDragging) extendNotesSelection(box.ref, box.wordIndex);
+      if (textSelectionDragging) extendTextSelection(box.ref, box.wordIndex);
     });
     overlay.appendChild(el);
   }
@@ -1965,85 +1987,138 @@ function renderVilnaNotesWordTargets() {
 // level rather than state.* since it's a transient input gesture, the same
 // distinction state.seeking/the reading-video drag flags etc. already draw
 // elsewhere in this file.
-let notesSelectionDragging = false;
+let textSelectionDragging = false;
 
-function startNotesSelectionDrag(ref, wordIndex) {
-  notesSelectionDragging = true;
-  extendNotesSelection(ref, wordIndex);
-  const finish = () => { notesSelectionDragging = false; document.removeEventListener('pointerup', finish); };
+function startTextSelectionDrag(ref, wordIndex) {
+  textSelectionDragging = true;
+  extendTextSelection(ref, wordIndex);
+  const finish = () => { textSelectionDragging = false; document.removeEventListener('pointerup', finish); };
   document.addEventListener('pointerup', finish);
+}
+
+// Word boxes for the CURRENT Vilna page, ordered the way a reader actually
+// reads the printed page -- top line to bottom line, right to left within
+// each line (Hebrew) -- rather than however build-page-cache happened to
+// list them. Reuses pageLinePitch's own row-splitting exactly (see its own
+// sort key, (a.y - b.y) || (b.x - a.x)) so this agrees with every other
+// place on the page that already reasons about line layout, instead of
+// inventing a second notion of "reading order." A drag/selection needs this
+// to turn "from word A to word B" into a well-defined span regardless of
+// which refs A and B belong to -- refs and their own word indices say
+// nothing about how one paragraph's words interleave with the next one's on
+// the actual printed page.
+//
+// Cached per pageMap object (a fresh object every page load/re-sync, same
+// lifetime linePitchCache already keys off) rather than recomputed on every
+// pointerenter during a fast drag across a few hundred words.
+const vilnaReadingOrderCache = new WeakMap();
+function vilnaReadingOrder(pageMap) {
+  if (!pageMap?.wordBoxes?.length) return { boxes: [], indexOf: new Map() };
+  const cached = vilnaReadingOrderCache.get(pageMap);
+  if (cached) return cached;
+  const sorted = [...pageMap.wordBoxes].sort((a, b) => (a.y - b.y) || (b.x - a.x));
+  const boxes = splitBoxesIntoRows(sorted).flat();
+  const indexOf = new Map(boxes.map((box, i) => [`${box.ref}:${box.wordIndex}`, i]));
+  const result = { boxes, indexOf };
+  vilnaReadingOrderCache.set(pageMap, result);
+  return result;
+}
+
+// Collapses a reading-order slice of word boxes into contiguous per-ref
+// runs -- a drag that never leaves one ref/segment produces exactly one run
+// (the same shape a selection always had before this generalized beyond
+// one ref), a drag that crosses into another paragraph produces one run per
+// ref it touches, in the order it touched them.
+function groupBoxesIntoRuns(orderedBoxes) {
+  const runs = [];
+  for (const box of orderedBoxes) {
+    const last = runs[runs.length - 1];
+    if (last && last.ref === box.ref) {
+      last.start = Math.min(last.start, box.wordIndex);
+      last.end = Math.max(last.end, box.wordIndex);
+    } else {
+      runs.push({ ref: box.ref, start: box.wordIndex, end: box.wordIndex });
+    }
+  }
+  return runs;
 }
 
 // The single rule covering both interaction styles the feature needs to
 // support (desktop click-drag, and a tap-then-tap alternative that works
 // everywhere including mobile, without needing draggable selection-handle
-// UI): extending an EXISTING selection on the same ref grows it to cover
-// the new word too (a plain tap on one word, then a second plain tap on
-// another, is just two separate one-word "drags" that both land here);
-// touching a different ref starts a fresh one-word selection there instead,
-// since a note can only anchor to one segment ref (see the migration's own
-// line_notes_word_range_check) -- silently starting over rather than
-// erroring keeps that limit invisible in the common case, a drag that
-// never actually leaves the paragraph it started in.
-function extendNotesSelection(ref, wordIndex) {
-  const current = state.notesSelection;
-  if (current && current.ref === ref) {
-    state.notesSelection = { ref, start: Math.min(current.start, wordIndex), end: Math.max(current.end, wordIndex) };
-  } else {
-    state.notesSelection = { ref, start: wordIndex, end: wordIndex };
-  }
-  updateNotesSelectionOverlay();
+// UI): extending an EXISTING selection grows it from its ORIGINAL anchor
+// word to wherever the pointer is now, in READING order -- a plain tap on
+// one word, then a second plain tap on another, is just two separate
+// one-word "drags" that both land here and both extend the same anchor.
+// Nothing here resets the anchor or is limited to one ref; only
+// clearTextSelection (the × button, or a selection getting saved) does
+// that, or a fresh drag that starts once no selection is active.
+function extendTextSelection(ref, wordIndex) {
+  const { boxes, indexOf } = vilnaReadingOrder(state.vilnaPageMap);
+  const index = indexOf.get(`${ref}:${wordIndex}`);
+  if (index == null) return; // the box this came from wasn't built from this same page map
+  const anchorIndex = state.textSelection ? state.textSelection.anchorIndex : index;
+  const lo = Math.min(anchorIndex, index);
+  const hi = Math.max(anchorIndex, index);
+  state.textSelection = { anchorIndex, runs: groupBoxesIntoRuns(boxes.slice(lo, hi + 1)) };
+  updateTextSelectionOverlay();
 }
 
-function clearNotesSelection() {
-  state.notesSelection = null;
-  updateNotesSelectionOverlay();
+function clearTextSelection() {
+  state.textSelection = null;
+  updateTextSelectionOverlay();
 }
 
-// Renders the gold highlight over the current selection (reusing
-// groupBoxesIntoLineRects the exact same way updateVilnaOverlay's own
-// "playing right now" highlight does above, so a multi-line selection reads
-// as clean per-line bars instead of the old oversized-per-word boxes this
-// project already moved away from once -- see .vilna-phrase-box's own
-// comment) and shows/hides the floating "Add note" action bar. Also used to
-// briefly highlight an EXISTING note's range when its margin marker is
-// clicked (see renderVilnaNoteMarkers/highlightNotesRange below) -- same
-// overlay either way, since visually it's the same thing: these words, and
-// here's what to do about them.
-function updateNotesSelectionOverlay() {
-  const overlay = $('vilnaNotesSelectionOverlay');
-  const actionBar = $('vilnaNotesActionBar');
+// Renders the gold highlight over the current selection -- one rect PER RUN
+// (see groupBoxesIntoRuns), reusing groupBoxesIntoLineRects the exact same
+// way updateVilnaOverlay's own "playing right now" highlight does above, so
+// a multi-line (or multi-ref) selection reads as clean per-line bars
+// instead of the old oversized-per-word boxes this project already moved
+// away from once -- see .vilna-phrase-box's own comment. Also shows/hides
+// the floating "Add note" action bar. Also used to briefly highlight an
+// EXISTING note's range when its margin marker is clicked (see
+// renderVilnaNoteMarkers/highlightTextRange below) -- same overlay either
+// way, since visually it's the same thing: these words, and here's what to
+// do about them.
+function updateTextSelectionOverlay() {
+  const overlay = $('vilnaSelectTextSelectionOverlay');
+  const actionBar = $('vilnaSelectTextActionBar');
   if (!overlay) return;
   overlay.innerHTML = '';
-  const selection = state.notesSelection;
-  if (!selection || !state.vilnaPageMap) {
+  const selection = state.textSelection;
+  if (!selection?.runs?.length || !state.vilnaPageMap) {
     if (actionBar) actionBar.hidden = true;
     return;
   }
-  const boxes = state.vilnaPageMap.wordBoxes
-    .filter((box) => box.ref === selection.ref && box.wordIndex >= selection.start && box.wordIndex <= selection.end)
-    .sort((a, b) => a.wordIndex - b.wordIndex);
-  appendLineRects(overlay, groupBoxesIntoLineRects(boxes, state.vilnaPageMap, vilnaInkBands(state.vilnaPageMap)), 'vilna-notes-selection-rect');
-  if (actionBar) actionBar.hidden = boxes.length === 0;
+  let boxCount = 0;
+  const bands = vilnaInkBands(state.vilnaPageMap);
+  for (const run of selection.runs) {
+    const boxes = state.vilnaPageMap.wordBoxes
+      .filter((box) => box.ref === run.ref && box.wordIndex >= run.start && box.wordIndex <= run.end)
+      .sort((a, b) => a.wordIndex - b.wordIndex);
+    boxCount += boxes.length;
+    appendLineRects(overlay, groupBoxesIntoLineRects(boxes, state.vilnaPageMap, bands), 'vilna-select-text-selection-rect');
+  }
+  if (actionBar) actionBar.hidden = boxCount === 0;
 }
 
 // Reader-facing toggle (see vilnaMarkModeButton's own admin-only equivalent
 // above) -- same "hasn't been synced yet" guard, since a printed page with
 // no wordBoxes at all has nothing to select.
-function toggleVilnaNotesMode() {
-  if (!state.vilnaNotesMode && !state.vilnaPageMap) {
+function toggleVilnaSelectTextMode() {
+  if (!state.vilnaSelectTextMode && !state.vilnaPageMap) {
     showToast("This daf's Vilna page hasn't been synced yet -- open the Vilna page tab first.", 'error');
     return;
   }
-  state.vilnaNotesMode = !state.vilnaNotesMode;
-  $('vilnaNotesModeButton')?.classList.toggle('active', state.vilnaNotesMode);
-  $('vilnaNotesModeButton')?.setAttribute('aria-pressed', String(state.vilnaNotesMode));
-  $('vilnaPageWrap')?.classList.toggle('notes-mode', state.vilnaNotesMode);
-  if (state.vilnaNotesMode) {
+  state.vilnaSelectTextMode = !state.vilnaSelectTextMode;
+  $('vilnaSelectTextModeButton')?.classList.toggle('active', state.vilnaSelectTextMode);
+  $('vilnaSelectTextModeButton')?.setAttribute('aria-pressed', String(state.vilnaSelectTextMode));
+  $('vilnaPageWrap')?.classList.toggle('select-text-mode', state.vilnaSelectTextMode);
+  if (state.vilnaSelectTextMode) {
     switchDafView('page');
-    renderVilnaNotesWordTargets();
+    renderVilnaSelectTextWordTargets();
   } else {
-    clearNotesSelection();
+    clearTextSelection();
   }
 }
 
@@ -2108,7 +2183,14 @@ function renderVilnaNoteMarkers() {
       marker.setAttribute('aria-label', `${rangeNotes.length} ${kind} note${rangeNotes.length === 1 ? '' : 's'} on this passage`);
       marker.addEventListener('click', () => {
         hapticTap();
-        highlightNotesRange(ref, start, end);
+        // A multi-run note's marker sits at (and is grouped/keyed by) its
+        // FIRST run's position only -- see byRange above -- but the flash
+        // itself should still show every word the note actually covers, so
+        // this reaches for the note's own word_ranges when it has one
+        // rather than just the [ref, start, end] this marker was grouped
+        // under.
+        const runs = rangeNotes[0].word_ranges?.length ? rangeNotes[0].word_ranges : [{ ref, start, end }];
+        highlightTextRange(runs);
         window.DafNotes?.open(ref, rangeNotes[0].selected_text || '');
       });
       overlay.appendChild(marker);
@@ -2116,12 +2198,15 @@ function renderVilnaNoteMarkers() {
   }
 }
 
-// Briefly highlights a specific word range -- reuses Notes Mode's own
+// Briefly highlights a specific set of runs -- reuses Select text's own
 // selection overlay/state rather than a second rendering path, since
 // visually it's the same thing regardless of how the range was chosen.
-function highlightNotesRange(ref, start, end) {
-  state.notesSelection = { ref, start, end };
-  updateNotesSelectionOverlay();
+// anchorIndex is meaningless here (this flash is never itself extended by
+// drag/tap -- opening select-text mode afterward starts a fresh selection).
+function highlightTextRange(runs) {
+  if (!runs?.length) return;
+  state.textSelection = { anchorIndex: -1, runs };
+  updateTextSelectionOverlay();
 }
 
 // Admin diagnostic (state.showUnmatchedWords, toggled by
@@ -6967,11 +7052,11 @@ $('vilnaUnmatchedToggleButton')?.addEventListener('click', () => {
 });
 $('vilnaMarkSaveButton')?.addEventListener('click', saveVilnaMarkChanges);
 $('vilnaMarkDiscardButton')?.addEventListener('click', discardVilnaMarkChanges);
-$('vilnaNotesModeButton')?.addEventListener('click', toggleVilnaNotesMode);
-$('vilnaNotesClearButton')?.addEventListener('click', clearNotesSelection);
-$('vilnaNotesAddButton')?.addEventListener('click', () => {
-  const selection = state.notesSelection;
-  if (selection) window.DafNotesComposer?.openForSelection(selection.ref, selection.start, selection.end);
+$('vilnaSelectTextModeButton')?.addEventListener('click', toggleVilnaSelectTextMode);
+$('vilnaSelectTextClearButton')?.addEventListener('click', clearTextSelection);
+$('vilnaSelectTextAddNoteButton')?.addEventListener('click', () => {
+  const selection = state.textSelection;
+  if (selection?.runs?.length) window.DafNotesComposer?.openForSelection(selection.runs);
 });
 // The editor sits in the same grid column as the daf card (see the HTML
 // comment above #editor) so correcting the sync stays parallel with the

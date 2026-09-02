@@ -6,16 +6,24 @@
 //     the page is a rasterized image, so the word under the pointer is found
 //     by hit-testing the same normalized wordBoxes every other overlay on
 //     that page already uses (no DOM word targets needed, so this works
-//     whether or not Notes Mode happens to be on);
+//     whether or not Select-text mode happens to be on, and a right-click
+//     inside an active selection there acts on that whole selection --
+//     however many refs it spans -- rather than just the word under the
+//     pointer, see vilnaTargetAt);
 //   * the plain text view, where the words ARE real DOM text, so the word is
 //     found from the caret position under the pointer instead, and an
-//     existing native selection wins over it when there is one.
+//     existing native selection wins over it when there is one (still
+//     limited to one segment span in this view -- see textTargetAt).
 //
-// Both resolve to the same shape -- a segment ref plus inclusive word
-// indices in that ref's own paragraph -- which is exactly what word-range
-// notes and highlights already anchor to, so every action below is a thin
-// wrapper over machinery that already exists (openForSelection, the notes
-// search dialog, resolveWordRangeText, the reports table).
+// Both resolve to the same shape -- ref/start/end (a segment ref plus
+// inclusive word indices in that ref's own paragraph, for whichever
+// consumer only needs the FIRST word/run) alongside `runs`, the full
+// [{ ref, start, end }, ...] list in reading order (almost always one
+// entry, more when a Vilna-page selection crossed into another paragraph).
+// This is exactly what word-range notes and highlights already anchor to,
+// so every action below is a thin wrapper over machinery that already
+// exists (openForSelection, the notes search dialog,
+// resolveWordRangeRunsText, the reports table).
 //
 // Classic deferred script sharing app.js/notes.js top-level bindings, same
 // as notes.js/highlights.js/account-features.js.
@@ -147,21 +155,23 @@ function vilnaWordAt(clientX, clientY) {
 function vilnaTargetAt(clientX, clientY) {
   const box = vilnaWordAt(clientX, clientY);
   if (!box) return null;
-  // A right-click inside an active Notes Mode selection acts on that whole
-  // selection rather than the one word under the pointer -- the reader
-  // already said what they meant by dragging it.
-  const selection = state.notesSelection;
-  const inSelection = selection && selection.ref === box.ref
-    && box.wordIndex >= selection.start && box.wordIndex <= selection.end;
-  const start = inSelection ? selection.start : box.wordIndex;
-  const end = inSelection ? selection.end : box.wordIndex;
+  // A right-click inside an active Select-text selection acts on that
+  // whole selection -- however many refs it spans -- rather than the one
+  // word under the pointer, since the reader already said what they meant
+  // by dragging it.
+  const selection = state.textSelection;
+  const inSelection = selection?.runs.some((run) => run.ref === box.ref
+    && box.wordIndex >= run.start && box.wordIndex <= run.end);
+  const runs = inSelection ? selection.runs : [{ ref: box.ref, start: box.wordIndex, end: box.wordIndex }];
+  const first = runs[0];
   return {
     source: 'vilna',
-    ref: box.ref,
-    start,
-    end,
+    ref: first.ref,
+    start: first.start,
+    end: first.end,
     text: null,
-    segment: segmentForWord(box.ref, start),
+    segment: segmentForWord(first.ref, first.start),
+    runs,
   };
 }
 
@@ -219,6 +229,7 @@ function textTargetAt(clientX, clientY) {
         end: base + Math.max(start, end),
         text: selection.toString().trim(),
         segment,
+        runs: [{ ref: segment.ref, start: base + start, end: base + Math.max(start, end) }],
       };
     }
   }
@@ -227,7 +238,7 @@ function textTargetAt(clientX, clientY) {
   if (!textNode || !caret || caret.node !== textNode) {
     // Somewhere in the span but not on its text (the marker, the note
     // button, trailing space) -- still worth a menu, just for the whole line.
-    return { source: 'text', ref: segment.ref, start: null, end: null, text: segment.he || null, segment };
+    return { source: 'text', ref: segment.ref, start: null, end: null, text: segment.he || null, segment, runs: [] };
   }
   const wordOffset = wordIndexFromOffset(textNode.nodeValue, caret.offset);
   return {
@@ -237,13 +248,15 @@ function textTargetAt(clientX, clientY) {
     end: base + wordOffset,
     text: words[wordOffset] || null,
     segment,
+    runs: [{ ref: segment.ref, start: base + wordOffset, end: base + wordOffset }],
   };
 }
 
 // --- Text resolution -------------------------------------------------------
 
 function cacheKey(target) {
-  return `${target.ref}:${target.start}-${target.end}`;
+  const runs = target.runs?.length ? target.runs : [{ ref: target.ref, start: target.start, end: target.end }];
+  return runs.map((run) => `${run.ref}:${run.start}-${run.end}`).join('|');
 }
 
 async function resolveTargetText(target) {
@@ -251,8 +264,9 @@ async function resolveTargetText(target) {
   if (target.start == null) return '';
   const key = cacheKey(target);
   if (wordTextCache.has(key)) return wordTextCache.get(key);
-  if (typeof resolveWordRangeText !== 'function') return '';
-  const text = await resolveWordRangeText(target.ref, target.start, target.end);
+  if (typeof resolveWordRangeRunsText !== 'function') return '';
+  const runs = target.runs?.length ? target.runs : [{ ref: target.ref, start: target.start, end: target.end }];
+  const text = await resolveWordRangeRunsText(runs);
   wordTextCache.set(key, text);
   return text;
 }
@@ -308,8 +322,8 @@ function refDisplayOf(target) {
 }
 
 function addNoteFor(target) {
-  if (target.start != null && window.DafNotesComposer) {
-    window.DafNotesComposer.openForSelection(target.ref, target.start, target.end);
+  if (target.runs?.length && window.DafNotesComposer) {
+    window.DafNotesComposer.openForSelection(target.runs);
     return;
   }
   window.DafNotes?.open(target.ref, target.text || '');
@@ -458,7 +472,12 @@ async function lookUpWord(target) {
 
 function buildMenuItems(target) {
   const user = window.DafSyncAuth?.getUser();
-  const multiWord = target.start != null && target.end > target.start;
+  // True for any multi-word target, whether that's still one run (the
+  // ordinary start<end case every action here has always had to handle) or
+  // several -- a Select-text drag that crosses into another paragraph can
+  // easily have start===end on its OWN first run while still covering many
+  // words overall once every run is counted.
+  const multiWord = (target.runs?.length > 1) || (target.start != null && target.end > target.start);
   const quoted = target.text ? `“${target.text.split(/\s+/)[0]}”` : 'this word';
   const existingHighlight = target.start != null
     ? window.DafHighlights?.covering(target.ref, target.start)
@@ -475,7 +494,7 @@ function buildMenuItems(target) {
       disabled: !user || target.start == null,
       hint: !user ? 'sign in' : '',
       onClick: () => withResolvedText(target, (text) => {
-        window.DafHighlights?.toggle(target.ref, target.start, target.end, text);
+        window.DafHighlights?.toggle(target.runs?.length ? target.runs : [{ ref: target.ref, start: target.start, end: target.end }], text);
       }),
     },
     {
