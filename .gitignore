@@ -8,3 +8,9 @@ node_modules/
 # fresh filesystem each invocation), but not something to commit if a local
 # test run drops one here.
 *.traineddata
+
+# Playwright (added with the committed test runner, Cloud Chabura Phase 1)
+test-results/
+playwright-report/
+blob-report/
+.playwright/
