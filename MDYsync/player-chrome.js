@@ -238,6 +238,22 @@
   }
   if ($('captionsButton')) tools.appendChild(stack($('captionsButton'), 'Captions', 'captionsStack'));
 
+  // Settings and Fullscreen come right after Captions -- ahead of the
+  // reading-mode pills and PiP below -- so THEY are the last two controls
+  // .pc-tools ever runs out of room for, not the first. .pc-tools has no
+  // shrink/scroll of its own (see its own comment), so once the bar is too
+  // narrow for everything, .video-frame's overflow:hidden silently clips
+  // whichever controls sit at the tail end of this DOM order; with the old
+  // order that was Settings and Fullscreen themselves -- reported (with a
+  // screenshot) as fullscreen simply not being there on a smaller player.
+  // The two pills and PiP are each already the first things a narrower tier
+  // gives up anyway (PiP hides outright at is-snug; the pills lose their
+  // text label at is-compact) and reading mode has its own separate, always-
+  // visible entry point in the daf card's own header, so trading them away
+  // first when space runs out is the right sacrifice, not an arbitrary one.
+  if ($('videoSettings')) tools.appendChild(stack($('videoSettings'), 'Settings'));
+  if ($('fullscreenButton')) tools.appendChild(stack($('fullscreenButton'), 'Fullscreen'));
+
   // The two "where does the daf go" toggles, side by side: the Vilna page
   // drawn over the video, and the video floated over the printed daf. Both
   // are pure proxies -- see the comments on each wiring block below.
@@ -258,8 +274,6 @@
   // #readingModeButton to proxy to, so there's nothing to offer there.
   if ($('readingModeButton')) tools.appendChild(videoOnDafButton);
 
-  if ($('videoSettings')) tools.appendChild(stack($('videoSettings'), 'Settings'));
-
   const pipButton = document.createElement('button');
   pipButton.type = 'button';
   pipButton.className = 'icon-button';
@@ -273,8 +287,6 @@
   // it's ALSO the wrong control to offer while floating over the daf.
   pipStack.id = 'pipStack';
   tools.appendChild(pipStack);
-
-  if ($('fullscreenButton')) tools.appendChild(stack($('fullscreenButton'), 'Fullscreen'));
 
   // The old bar's hand-placed spacers/dividers did the job .pc-group's own
   // space-between layout now does.

@@ -491,12 +491,26 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .pc-volume { gap: 8px; flex-shrink: 0; }
 /* flex-start, so the pills (which carry their label inline and so are
    shorter) line their glyphs up with the icon row of the captioned stacks
-   beside them, rather than centring against the stacks' taller boxes. */
-.pc-tools { gap: 8px; flex-shrink: 0; align-items: flex-start; }
+   beside them, rather than centring against the stacks' taller boxes.
+
+   Unlike its two siblings, this one is allowed to shrink (no flex-shrink:0)
+   AND scrolls its own overflow instead of just clipping it -- reordered in
+   player-chrome.js so Settings/Fullscreen are the first two controls here,
+   ahead of the reading-mode pills and PiP, but at a width even that
+   reordering can't fit everything into (a narrow phone with a Vaater
+   button and every pill present), this is the fallback that keeps the
+   stated promise -- "no tier ever drops a control" -- literally true rather
+   than best-effort: a control that has run out of room to just sit next to
+   its neighbors is still one swipe away, not gone. */
+.pc-tools { gap: 8px; align-items: flex-start; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.pc-tools::-webkit-scrollbar { display: none; }
 /* A control with its caption underneath, as every item in the right-hand
    cluster is drawn. The caption is hidden (never removed) in compact mode,
    so the control itself keeps its place and its accessible name either way. */
-.pc-stack { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+/* flex-shrink: 0 so a stack keeps its natural size and .pc-tools' own
+   overflow-x:auto is what absorbs the shrinkage, not each individual
+   control getting squeezed thinner. */
+.pc-stack { display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0; }
 .pc-label { font-size: 10px; font-weight: 600; letter-spacing: .02em; color: rgba(255,255,255,.6); white-space: nowrap; }
 
 .pc-transport .icon-button { width: 36px; height: 36px; border-radius: 50%; border-color: transparent; background: none; color: rgba(255,255,255,.92); }
@@ -531,7 +545,7 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 
 /* The two "where does the daf go" toggles. Their pressed look is the gold
    outline, so which one is on reads at a glance from across the room. */
-.pc-pill { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.06); color: rgba(255,255,255,.9); font: inherit; font-size: 13px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.pc-pill { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.06); color: rgba(255,255,255,.9); font: inherit; font-size: 13px; font-weight: 700; white-space: nowrap; cursor: pointer; flex-shrink: 0; }
 .pc-pill svg { width: 17px; height: 17px; flex-shrink: 0; }
 .pc-pill:hover { background: rgba(255,255,255,.13); color: #fff; }
 .pc-pill[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
