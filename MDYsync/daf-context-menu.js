@@ -438,7 +438,16 @@ async function lookUpWord(target) {
       const response = await fetch(`https://www.sefaria.org/api/words/${encodeURIComponent(word)}`);
       if (!response.ok) throw new Error(`Sefaria returned ${response.status}`);
       const entries = await response.json();
-      renderLexiconEntries(word, Array.isArray(entries) ? entries : []);
+      // Sefaria's word lookup can return entries from several lexicons, and
+      // their /api/words response carries no license field to tell them
+      // apart -- Jastrow (1903) is safely public domain, but Klein
+      // Dictionary (Carta, Jerusalem; 1987) is a modern work still well
+      // within its copyright term. Filtering to Jastrow here, rather than
+      // rendering whichever lexicon happened to answer, is what keeps this
+      // feature from ever surfacing text DafSync has no license to show.
+      const jastrowEntries = (Array.isArray(entries) ? entries : [])
+        .filter((entry) => /jastrow/i.test(entry.parent_lexicon || ''));
+      renderLexiconEntries(word, jastrowEntries);
     } catch {
       if (body) body.innerHTML = '<p class="field-note">Could not reach the dictionary just now.</p>';
     }
