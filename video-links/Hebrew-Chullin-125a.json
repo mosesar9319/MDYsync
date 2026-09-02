@@ -1,1 +1,8 @@
-{"type":"youtube","url":"https://www.youtube.com/watch?v=cFUv8LgAAao","videoId":"cFUv8LgAAao","label":"מרכז דף יומי - חולין דף קכה. - ר' אלי סטפנסקי שליט\"א","coveredRefs":["Chullin 124b","Chullin 125a","Chullin 125b"],"source":"channel-auto"}
+{
+  "label": "מרכז דף יומי - חולין דף קכה. - ר' אלי סטפנסקי שליט\"א",
+  "locked": false,
+  "source": "manual",
+  "type": "youtube",
+  "url": "https://www.youtube.com/watch?v=cFUv8LgAAao",
+  "videoId": "cFUv8LgAAao"
+}
