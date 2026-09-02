@@ -1,13 +1,15 @@
 # Cloud Chabura Phase 2 — migration, rollout and backfill plan
 
-**Status: awaiting approval. Nothing in this plan has been applied to production.**
-
-Two migrations are ready. They are independent, and the first one should not
-wait for the second.
+**Status:**
+- `20260902183000` (reply hotfix) — **APPLIED to production 2026-09-02**, with
+  the owner's approval. The outage described below is over. Section 1 is kept
+  as the incident record.
+- `20260902190000` (Phase 2 foundation) — **still awaiting approval.** Not
+  applied.
 
 ---
 
-## 1. `20260902183000` — hotfix: replies are broken in production
+## 1. `20260902183000` — hotfix: replies were broken in production (RESOLVED)
 
 ### What is wrong
 
@@ -65,11 +67,21 @@ outcomes.
 | Reply with a spoofed `author_id` | rejected | rejected |
 | Reply from an account < 24h old | rejected | rejected |
 
-### Rollout
+### Rollout — done
 
-1. Apply `20260902183000` to production.
-2. Post one reply through the live UI to confirm.
-3. No client change needed; no data migration; no downtime.
+1. ✅ Applied to production 2026-09-02.
+2. ✅ Verified against production immediately afterwards, each check inside a
+   rolled-back transaction so nothing was written:
+   - top-level reply → **accepted** (was 42P17)
+   - nested reply → **accepted** (was 42P17)
+   - reply with a spoofed `author_id` → still **rejected**, 42501
+   - `comments` still holds exactly its original 2 rows; no verification rows
+     leaked into the table.
+3. No client change was needed; no data migration; no downtime.
+
+**Still worth doing:** post one real reply through the live UI. The checks
+above prove the database accepts the write; they do not exercise the browser
+path end to end.
 
 ### Rollback
 

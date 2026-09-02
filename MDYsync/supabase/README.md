@@ -67,7 +67,7 @@ Any failed check raises and aborts the run.
 | Migration | Applied to production? |
 |---|---|
 | `20260902180000_tighten_grants_and_feed_index` | **Yes** — applied 2026-09-02. |
-| `20260902183000_fix_comments_insert_policy_recursion` | **Not yet.** Fixes a live outage; see `PHASE2_MIGRATION_PLAN.md`. |
+| `20260902183000_fix_comments_insert_policy_recursion` | **Yes** — applied 2026-09-02, ending the reply outage. Verified against production afterwards: top-level and nested replies both accepted, spoofed `author_id` still rejected with 42501. All verification inserts ran inside rolled-back transactions; `comments` still holds exactly its original 2 rows. |
 | `20260902190000_cloud_chabura_thread_foundation` | **Not yet.** Draft for review. |
 
 The 24 migrations before `20260902180000` were applied via the Supabase
