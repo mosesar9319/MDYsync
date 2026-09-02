@@ -470,7 +470,19 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 /* Control bar: three clusters, space-between. */
 .pc-group { display: flex; align-items: center; min-width: 0; }
 .pc-transport { gap: 10px; flex-shrink: 0; }
-.pc-volume { gap: 8px; }
+/* flex-shrink: 0 like its two siblings -- .pc-group's own min-width:0 makes
+   every cluster shrinkable by default, and this was the one cluster that
+   never opted back out. At a width the is-tiny tier still can't fit (see
+   fitChrome in player-chrome.js, which has nothing narrower to step down
+   to), .player-controls' justify-content: space-between had nothing left to
+   collapse but this group's own box -- shrinking it past its own mute
+   button's width let that button spill out and visually overlap .pc-tools'
+   speed control right after it, reported (with a screenshot) as the volume
+   and speed controls sitting on top of each other. Matching its siblings
+   means the bar can still overflow the frame at an extreme width, but
+   .video-frame's own overflow:hidden clips that overflow at its trailing
+   (least essential) edge instead of two controls overlapping mid-bar. */
+.pc-volume { gap: 8px; flex-shrink: 0; }
 /* flex-start, so the pills (which carry their label inline and so are
    shorter) line their glyphs up with the icon row of the captioned stacks
    beside them, rather than centring against the stacks' taller boxes. */
