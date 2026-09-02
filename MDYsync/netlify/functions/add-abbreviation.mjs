@@ -11,8 +11,6 @@ const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
 const PATH = 'abbreviation-additions.json';
 const ALLOWED_ORIGINS = new Set([
-  'https://mdysync.netlify.app',
-  'https://main--mdysync.netlify.app',
   'https://dafsync.netlify.app',
   'https://main--dafsync.netlify.app',
   'http://localhost:8080',

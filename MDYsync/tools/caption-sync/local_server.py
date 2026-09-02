@@ -34,8 +34,8 @@ PORT = 8765
 # The real DafSync website (confirmed via the connected Netlify project)
 # plus localhost, for running the site locally during development.
 ALLOWED_ORIGINS = {
-    "https://mdysync.netlify.app",
-    "https://main--mdysync.netlify.app",
+    "https://dafsync.netlify.app",
+    "https://main--dafsync.netlify.app",
     "http://localhost:8080",
     "http://127.0.0.1:8080",
 }
@@ -48,7 +48,7 @@ APP_VERSION = "0.3.0"
 # own copy of these constants.
 CHAZARAH_SUFFIX = " (Chazarah Daf)"
 HEBREW_SUFFIX = " (Hebrew)"
-PUBLISH_ENDPOINT = "https://mdysync.netlify.app/api/publish-alignment"
+PUBLISH_ENDPOINT = "https://dafsync.netlify.app/api/publish-alignment"
 
 
 def upload_alignment(alignment, refs, variant, language):
