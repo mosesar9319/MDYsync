@@ -1,11 +1,12 @@
 // Fixture data for the Cloud Chaburah / notes regression suite.
 //
-// Shapes mirror the LIVE Supabase schema as inspected on 2026-09-02 (see
-// docs/PHASE1_CLOUD_CHABURA_AUDIT.md §2). Where the redesign plan calls for a
-// fixture the current schema cannot express yet -- a highlighted answer, an
-// author soft-delete distinct from moderator `hidden`, per-thread read state --
-// that fixture is deliberately absent and noted in the audit rather than faked,
-// so these tests keep describing the system that actually exists today.
+// Shapes mirror the LIVE Supabase schema (see docs/PHASE1_CLOUD_CHABURA_AUDIT.md
+// §2 for the pre-Phase-2 baseline). The Phase 2 migration
+// 20260902190000_cloud_chabura_thread_foundation.sql has since been applied to
+// production, so the columns the Phase 1 audit recorded as missing -- a
+// highlighted answer, an author soft-delete distinct from moderator `hidden`,
+// per-thread read state, saved threads -- now exist here too, populated the way
+// the real triggers populate them.
 
 export const USERS = {
   ordinary: { id: '11111111-1111-4111-8111-111111111111', email: 'reader@example.com', display_name: 'Reader One' },
@@ -56,6 +57,17 @@ function note(overrides) {
     category: overrides.category ?? null,
     video_timestamp_seconds: overrides.video_timestamp_seconds ?? null,
     is_demo: false,
+    // Phase 2 columns. `title` is null on every fixture note on purpose: every
+    // row that existed before the migration has one, and the feed has to keep
+    // deriving a display title from the body for them.
+    title: overrides.title ?? null,
+    status: overrides.status || 'open',
+    highlighted_comment_id: overrides.highlighted_comment_id ?? null,
+    edited_at: null,
+    deleted_at: overrides.deleted_at ?? null,
+    // bump_note_last_activity() keeps this at or after created_at; the backfill
+    // set it to created_at for every pre-existing row.
+    last_activity_at: overrides.last_activity_at || overrides.created_at,
   };
 }
 
@@ -72,6 +84,14 @@ function comment(overrides) {
     parent_comment_id: overrides.parent_comment_id ?? null,
     mentioned_user_ids: overrides.mentioned_user_ids || [],
     is_demo: false,
+    // Phase 2 columns. root_comment_id/depth/activity_sequence are derived by
+    // the comments_derive_hierarchy trigger; buildDatabase() fills them in the
+    // same order below rather than hand-writing them per row.
+    root_comment_id: null,
+    depth: 0,
+    activity_sequence: 0,
+    edited_at: null,
+    deleted_at: overrides.deleted_at ?? null,
   };
 }
 
@@ -114,7 +134,15 @@ export function buildDatabase() {
       created_at: isoMinutesAgo(30),
     }),
     note({ id: NOTE_IDS.noReplies, body: 'A thread with no replies at all.', category: 'source', created_at: isoMinutesAgo(40) }),
-    note({ id: NOTE_IDS.deepThread, body: 'Root of a four-level reply chain.', category: 'question', created_at: isoMinutesAgo(50) }),
+    note({
+      id: NOTE_IDS.deepThread,
+      body: 'Root of a four-level reply chain.',
+      category: 'question',
+      created_at: isoMinutesAgo(50),
+      // A marked answer: the only fixture note in the Highlighted view.
+      highlighted_comment_id: 'b0000000-0000-4000-8000-000000000001',
+      last_activity_at: isoMinutesAgo(46),
+    }),
     note({ id: NOTE_IDS.hiddenParentThread, body: 'Root whose middle reply is moderator-hidden.', category: 'answer', created_at: isoMinutesAgo(60) }),
     note({ id: NOTE_IDS.largeThread, body: 'Root of a very large thread.', category: 'explanation', created_at: isoMinutesAgo(70) }),
     // Never allowed to appear in any public feed, search result or count.
@@ -160,6 +188,24 @@ export function buildDatabase() {
     }));
   }
 
+  // Mirrors comments_derive_hierarchy: activity_sequence is a per-note counter
+  // in insert order, and a reply's root is its own id when it is top-level.
+  const sequenceByNote = new Map();
+  const commentsById = new Map(comments.map((row) => [row.id, row]));
+  comments.forEach((row) => {
+    const next = (sequenceByNote.get(row.note_id) || 0) + 1;
+    sequenceByNote.set(row.note_id, next);
+    row.activity_sequence = next;
+    if (!row.parent_comment_id) {
+      row.root_comment_id = row.id;
+      row.depth = 0;
+    } else {
+      const parent = commentsById.get(row.parent_comment_id);
+      row.root_comment_id = parent ? parent.root_comment_id : row.id;
+      row.depth = parent ? parent.depth + 1 : 0;
+    }
+  });
+
   return {
     profiles: Object.values(USERS).map((user) => ({
       id: user.id,
@@ -180,6 +226,17 @@ export function buildDatabase() {
     ],
     thread_follows: [
       { user_id: USERS.ordinary.id, note_id: NOTE_IDS.deepThread, created_at: isoMinutesAgo(6) },
+    ],
+    // Saved threads (Phase 2 `bookmarks`). Deliberately a DIFFERENT thread from
+    // the followed one so a spec cannot pass by confusing the two views.
+    bookmarks: [
+      { id: 'f1000000-0000-4000-8000-000000000001', user_id: USERS.ordinary.id, target_type: 'note', target_id: NOTE_IDS.noReplies, created_at: isoMinutesAgo(4) },
+    ],
+    // Reader One has read the deep thread up to its second reply, so levels 3
+    // and 4 are unread. Every other thread has no read-state row at all, which
+    // means "never opened" -- not "everything is unread".
+    thread_read_state: [
+      { user_id: USERS.ordinary.id, note_id: NOTE_IDS.deepThread, last_read_sequence: 2, updated_at: isoMinutesAgo(3) },
     ],
     notifications: [],
     reports: [],

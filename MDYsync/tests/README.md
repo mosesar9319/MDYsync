@@ -46,8 +46,8 @@ belongs in SQL, not here.
 | `tests/support/harness.mjs` | `preparePage()` — stub injection, fixture seeding, `/api/*` and font route stubbing |
 | `tests/fixtures/supabase-stub.js` | In-memory supabase-js replacement (served in place of the vendored file) |
 | `tests/fixtures/dataset.mjs` | Personas and the fixture database |
-| `tests/chaburah/feed.spec.mjs` | Cloud Chaburah feed: views, filters, pagination, private-note exclusion, failure state |
-| `tests/chaburah/thread.spec.mjs` | Note dialog: replies, nesting, reactions, follows, mentions, reports, signed-out |
+| `tests/chaburah/feed.spec.mjs` | Cloud Chabura home (`/chaburah/`): views, filters, URL state, pagination, cards, actions, Today's Daf |
+| `tests/chaburah/thread.spec.mjs` | Note dialog on `/browse/`: replies, nesting, reactions, follows, mentions, reports, signed-out |
 | `tests/notes/select-text.spec.mjs` | Reading order, multi-ref selection runs, saved `word_ranges` payload |
 
 ## Writing a test
@@ -60,7 +60,7 @@ import { USERS } from '../fixtures/dataset.mjs';
 test('example', async ({ page }) => {
   await preparePage(page, { user: USERS.ordinary });  // or { user: null } for signed out
   await page.goto('/chaburah/');
-  await expect(page.locator('.chaburah-card').first()).toBeVisible();
+  await expect(page.locator('.cc-card').first()).toBeVisible();
 });
 ```
 
@@ -89,3 +89,23 @@ update, delete and rpc the page issued.
 - **Third-party requests are stubbed, not merely blocked.** If a new `/api/...`
   call appears, add it to `API_RESPONSES` in the harness; unstubbed routes return
   404 on purpose so they show up rather than hanging.
+- **The note dialog lives on `/browse/`, not `/chaburah/`.** Since Prompt 3 the
+  Cloud Chabura home no longer loads `app.js` or `notes.js` at all, so a spec that
+  drives `window.DafNotes` has to open a reading page.
+- **`.order()` chains are tie-breakers, not passes.** The stub applies every
+  `.order()` in one comparator, matching PostgREST. Sorting once per call (which
+  it used to do) lets the last call win outright and silently breaks
+  `(last_activity_at desc, id desc)` keyset ordering.
+- **`.or()` takes a comma-separated LIST**, not one condition. The stub splits at
+  the top level, parses `and(...)`/`or(...)` groups, and *throws* on a leaf that
+  still contains a comma or a paren — because swallowing the remainder into the
+  comparison value makes a broken filter look like a passing test. That is exactly
+  how a mis-parsed keyset cursor first let its own boundary row through twice.
+
+### Query operators the stub supports
+
+`eq`, `in`, `is`, `not(col, op, value)`, `ilike`, `textSearch` (over `body` +
+`selected_text`, not a real tsvector), `or(expression)`, `order` (chained),
+`limit`, `single`, `maybeSingle`, and the `insert` / `upsert` / `update` / `delete`
+mutations. Anything else is unimplemented — add it rather than working around it,
+and make it throw on input it cannot represent.

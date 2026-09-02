@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Browse public notes and discussions from across the DafSync community." />
-  <title>DafSync — Cloud Chaburah</title>
+  <meta name="description" content="Cloud Chabura: questions, insights and sources attached to the daf." />
+  <title>DafSync — Cloud Chabura</title>
   <script>
     // Surfaces any otherwise-silent failure (a script that fails to load,
     // an uncaught exception, a rejected promise nobody caught) as a plain,
     // dependency-free banner at the top of the page -- deliberately inline
     // and placed before every other <script>, with its own inline styles,
-    // so it still works even if styles.css or another script is the very
+    // so it still works even if a stylesheet or another script is the very
     // thing that failed to load. Same as watch/index.html and player/index.html.
     (function () {
       var shown = false;
@@ -33,14 +33,6 @@
       window.addEventListener('error', function (event) {
         if (event.target && event.target.tagName !== 'SCRIPT') return;
         var src = event.target && event.target.src;
-        // The YouTube iframe API script retries itself on a definite load
-        // failure (see loadYouTubeApi in app.js -- confirmed directly that
-        // this script fails to load roughly half the time in practice) and
-        // shows its own toast if every attempt fails. Without this, the
-        // generic banner below would fire on every retry attempt too --
-        // more alarming than, and redundant with, the specific handling
-        // that already covers this exact case.
-        if (src === 'https://www.youtube.com/iframe_api') return;
         var message = event.message || src || 'unknown error';
         showBanner(String(message));
       }, true);
@@ -52,449 +44,37 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Frank+Ruhl+Libre:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- styles.css + watch-theme.css are loaded only for the shared site chrome
+       (sidebar, bottom nav, the auth dialog). chaburah.css comes last and
+       scopes the Editorial Blue palette to .cloud-chabura, so nothing here
+       reskins the player or the Interactive Daf. -->
   <link rel="stylesheet" href="../styles.css" />
   <link rel="stylesheet" href="../watch-theme.css" />
-  <style>
-    /* Side by side, matching player/index.html's own .watch-layout exactly
-       (grid ratios, gap, and the 1120px collapse-to-single-column
-       breakpoint) -- previously this page stacked .player-card above
-       .daf-card and kept it display:none until playWordInline() (app.js)
-       revealed it in place on the first word tap, unlike every other page
-       that embeds this same player DOM, which always shows it side by
-       side. A tap still loads/seeks the video into this same column; it no
-       longer needs to reveal anything to do it. */
-    body[data-page="browse"] .workspace {
-      display: grid;
-      grid-template-columns: minmax(0,1.25fr) minmax(420px,.9fr);
-      gap: 22px;
-      align-items: start;
-    }
-    @media (max-width: 1120px) {
-      body[data-page="browse"] .workspace { grid-template-columns: 1fr; }
-    }
-    /* Match the calmer Vilna reader on the player page: one continuous
-       reading surface, the page using almost the full browser width
-       instead of sitting inside a padded, shadowed box -- no card boundary
-       at all now (a real request to drop the box chrome; restated here
-       since this page's own <style> loads after watch-theme.css's own
-       .player-card/.daf-card rule and at higher specificity, so it would
-       otherwise win and keep the border/shadow). */
-    body[data-page="browse"] .daf-card {
-      /* Sticky, matching player/index.html's own .daf-card (same 128px
-         offset -- both pages share the same topbar/setup-strip shell
-         height) -- now that the daf sits in a real side-by-side column
-         next to the video instead of stacked below it, it should behave
-         like the player page's own right-hand column: stay in view while
-         the (usually taller) video/reading list beside it scrolls. */
-      position: sticky;
-      top: 128px;
-      min-height: 82vh;
-      padding: 0;
-      overflow: hidden;
-      background: transparent;
-      border: 0;
-      box-shadow: none;
-    }
-    @media (max-width: 1120px) {
-      body[data-page="browse"] .daf-card { position: static; }
-    }
-    body[data-page="browse"] .daf-heading {
-      margin: 0;
-      padding: 18px 20px 15px;
-      border-bottom: 1px solid rgba(90,66,34,.1);
-      background: rgba(255,253,248,.72);
-    }
-    body[data-page="browse"] .daf-heading h2 { margin-top: 3px; }
-    body[data-page="browse"] .daf-card .view-switch {
-      padding: 3px;
-      border: 1px solid rgba(90,66,34,.1);
-      background: #f7f1e7;
-    }
-    body[data-page="browse"] .daf-card .view-switch button { padding: 7px 11px; }
-    body[data-page="browse"] .daf-scroll {
-      min-height: 68vh;
-      border-radius: 0;
-      background: transparent;
-      box-shadow: none;
-      scrollbar-color: rgba(90,66,34,.25) transparent;
-    }
-    body[data-page="browse"] .daf-card[data-daf-view="page"] .daf-scroll {
-      touch-action: pan-x pan-y;
-    }
-    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-placeholder {
-      min-height: 100%;
-      padding: 0 8px 18px;
-      color: #453c2e;
-      background: #fff;
-    }
-    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-zoom-controls {
-      top: 10px;
-      width: max-content;
-      max-width: 100%;
-      margin: 12px auto 16px;
-      padding: 5px 6px;
-      gap: 5px;
-      border: 1px solid rgba(90,66,34,.13);
-      border-radius: 999px;
-      background: rgba(255,253,248,.93);
-      box-shadow: 0 8px 22px rgba(63,45,23,.08);
-      backdrop-filter: blur(12px);
-    }
-    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-zoom-btn,
-    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-fullscreen-button {
-      width: 30px;
-      height: 30px;
-      border: 0;
-      border-radius: 999px;
-      background: transparent;
-      color: var(--navy);
-    }
-    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-zoom-btn:hover,
-    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-fullscreen-button:hover {
-      color: var(--gold);
-      background: var(--gold-wash);
-    }
-    body[data-page="browse"] .daf-card[data-daf-view="page"] #vilnaZoomLabel {
-      color: #6c6358;
-      font-variant-numeric: tabular-nums;
-    }
-    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-zoom-reset {
-      padding: 6px 10px;
-      border: 0;
-      border-right: 1px solid rgba(90,66,34,.12);
-      border-left: 1px solid rgba(90,66,34,.12);
-      border-radius: 0;
-      color: #6c6358;
-      background: transparent;
-    }
-    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-zoom-reset:hover {
-      color: var(--gold);
-      background: transparent;
-    }
-    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-mark-toggle { width: auto; padding: 0 10px; }
-    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-mark-toggle.active { color: #fff; background: var(--gold); }
-    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-fullscreen-button { margin-left: 2px; }
-    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-page-status { padding: 34px 12px 42px; }
-    body[data-page="browse"] .daf-card[data-daf-view="page"] .page-silhouette {
-      border-color: rgba(90,66,34,.18);
-      border-radius: 2px;
-      box-shadow: 0 14px 34px rgba(63,45,23,.11);
-    }
-    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-page-wrap {
-      width: 100%;
-      max-width: 100%;
-      margin: 0 auto;
-    }
-    body[data-page="browse"] .daf-card[data-daf-view="page"] #vilnaPageCanvas {
-      border: 1px solid rgba(90,66,34,.11);
-      border-radius: 2px;
-      background: #fff;
-      box-shadow: 0 12px 32px rgba(63,45,23,.11);
-    }
-    body[data-page="browse"] .daf-toolbar {
-      margin: 0;
-      padding: 11px 18px;
-      border-color: rgba(90,66,34,.1);
-      background: rgba(255,253,248,.78);
-    }
-    body[data-page="browse"] .daf-footer {
-      margin: 0;
-      padding: 12px 18px 14px;
-      border-top-color: rgba(90,66,34,.1);
-      background: rgba(255,253,248,.78);
-    }
-    body[data-page="browse"] .setup-strip .video-field { display: none; }
-    .browse-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-    .browse-nav-label { color: var(--muted); font-size: 13px; text-align: center; flex: 1; }
-    @media (max-width: 640px) {
-      body[data-page="browse"] .daf-heading { padding: 15px 14px 13px; }
-      body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-placeholder { padding: 0 5px 12px; }
-      body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-zoom-controls { top: 8px; margin-top: 9px; }
-    }
-
-    /* Reading Mode ("Video on daf") -- ported verbatim from player/index.html,
-       the only other page that has it so far. #videoFrame permanently stays
-       in the same reading-video-float/-slot DOM branch this page already
-       wraps it in; switching modes only repositions that wrapper via CSS, so
-       it can never reload the YouTube iframe or interrupt its timestamp,
-       buffer, quality, or playing state. Bare selectors (not
-       body[data-page="browse"]-scoped) match player/index.html's own
-       original rules exactly -- this page's <style> block only ever loads on
-       this page anyway, so scoping them would be no safer, just harder to
-       diff against the original. A few of this page's own existing
-       page-scoped rules above (e.g. .daf-card's own position:sticky, the
-       Vilna-page-view cosmetic tuning) are MORE specific than the equivalent
-       bare overrides below and will keep winning over them while Reading
-       Mode is active -- accepted as a minor, non-functional cosmetic gap
-       against player.html's exact reading-mode sizing, not a behavior bug. */
-    .daf-tools { display: flex; align-items: center; gap: 7px; flex-wrap: nowrap; }
-    .daf-heading-tools { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; flex-shrink: 0; }
-    .reading-mode-entry {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      min-height: 34px;
-      padding: 7px 11px;
-      border: 1px solid rgba(90,66,34,.16);
-      border-radius: 999px;
-      color: var(--navy);
-      background: #fffdf8;
-      font: 700 12px/1 "Assistant", sans-serif;
-      white-space: nowrap;
-      cursor: pointer;
-      transition: color .16s ease, background .16s ease, border-color .16s ease, transform .16s ease;
-    }
-    .reading-mode-entry:hover { color: var(--gold); border-color: #d9bd85; transform: translateY(-1px); }
-    .reading-mode-entry.active { color: #fff; background: var(--navy); border-color: var(--navy); }
-    .reading-mode-entry svg { width: 16px; height: 16px; flex: 0 0 auto; }
-    .daf-card:not([data-daf-view="page"]) .reading-mode-entry { display: none; }
-    .reading-follow-entry { display: none; }
-    body.reading-mode-active .reading-follow-entry { display: inline-flex; }
-
-    body.reading-mode-active .watch-layout { position: relative; display: block; }
-    body.reading-mode-active .watch-layout > .player-card {
-      position: absolute;
-      z-index: 30;
-      inset: 0;
-      display: block;
-      min-height: 0;
-      padding: 0;
-      overflow: visible;
-      border: 0;
-      border-radius: 0;
-      background: transparent;
-      box-shadow: none;
-      backdrop-filter: none;
-      pointer-events: none;
-    }
-    body.reading-mode-active .player-card > :not(.reading-video-float) { display: none !important; }
-    body.reading-mode-active .daf-card {
-      position: relative;
-      top: auto;
-      width: min(100%, 1320px);
-      height: max(700px, calc(100svh - 142px));
-      min-height: 700px;
-      margin: 0 auto;
-      box-shadow: 0 22px 58px rgba(63,45,23,.11);
-    }
-    /* See player/index.html's own copy of this rule for the full reasoning:
-       the floating video is fixed at top:110px regardless of how tall this
-       header actually renders, so a taller header (this page's own, with
-       both the Text/Vilna view-switch AND the reading-mode buttons sharing
-       one row -- see .daf-heading-tools -- is a real candidate) can end up
-       underneath it, covering the "Exit mode" control with no way back out.
-       Lifting the header into its own stacking context above the video
-       keeps it reachable regardless of that geometry. */
-    body.reading-mode-active .daf-card .card-heading.daf-heading { position: relative; z-index: 31; }
-    body.reading-mode-active .daf-card .daf-scroll { min-height: 0; }
-    body.reading-mode-active .daf-card .vilna-placeholder { padding-inline: clamp(10px, 4vw, 48px); }
-    body.reading-mode-active .daf-card .vilna-page-wrap { width: 100%; max-width: 940px; }
-    body.reading-mode-active .watch-layout:fullscreen,
-    body.reading-mode-active .watch-layout:-webkit-full-screen {
-      width: 100vw;
-      height: 100vh;
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      background: #f5f0e7;
-    }
-    body.reading-mode-active .watch-layout:fullscreen .daf-card,
-    body.reading-mode-active .watch-layout:-webkit-full-screen .daf-card {
-      width: 100%;
-      max-width: none;
-      height: 100%;
-      min-height: 0;
-      margin: 0;
-      border-radius: 0;
-      box-shadow: none;
-    }
-
-    .reading-video-float { width: 100%; min-width: 0; }
-    body:not(.reading-mode-active) .reading-video-float { width: 100% !important; }
-    .reading-video-resize,
-    .reading-video-pinch-surface { display: none; }
-    .reading-video-slot { position: relative; width: 100%; }
-    body.reading-mode-active .reading-video-float {
-      position: absolute;
-      z-index: 30;
-      left: 18px;
-      top: 110px;
-      width: 340px;
-      min-width: 190px;
-      max-width: calc(100% - 20px);
-      overflow: hidden;
-      border: 1px solid rgba(255,255,255,.2);
-      border-radius: 15px;
-      color: #fff;
-      background: #071525;
-      box-shadow: 0 18px 48px rgba(4,14,27,.36), 0 0 0 1px rgba(4,14,27,.12);
-      transition: left .28s ease, top .28s ease, width .18s ease, box-shadow .18s ease;
-      isolation: isolate;
-      container-type: inline-size;
-      pointer-events: auto;
-    }
-    body.reading-mode-active .reading-video-float.is-dragging,
-    body.reading-mode-active .reading-video-float.is-resizing { transition: none; box-shadow: 0 24px 62px rgba(4,14,27,.46), 0 0 0 2px rgba(186,132,34,.42); }
-    body.reading-mode-active .reading-video-slot { background: #020812; }
-    body.reading-mode-active .reading-video-slot .video-frame { width: 100%; border: 0; border-radius: 0; }
-    /* The inverse overlay cannot be enabled while the player itself is on
-       the daf, so its control-bar toggle goes too, along with the old
-       floating widget (its SETTINGS -- .video-settings-overlay-group --
-       are handled separately, in styles.css: player-chrome.js reparents
-       that panel to <body> to escape .video-frame's own clipping/stacking,
-       so a rule scoped to .reading-video-float can no longer reach it once
-       it's moved). #videoOnDafButton -- this SAME player's own "return to
-       split view" pill -- goes as well: it would just duplicate the
-       daf-card header's own always-visible "Exit mode" button (see
-       readingModeButton/updateReadingModeUi in app.js) while eating width
-       this bar has the least of. The top bar goes for a different reason:
-       its whole job is saying which daf is loaded, which the page this
-       player is floating over already shows at full size. */
-    body.reading-mode-active .reading-video-float .overlay-controls,
-    body.reading-mode-active .reading-video-float .player-topbar,
-    body.reading-mode-active .reading-video-float #dafOnVideoButton,
-    body.reading-mode-active .reading-video-float #videoOnDafButton,
-    body.reading-mode-active .reading-video-float .video-source-badge { display: none !important; }
-    /* Tighter still than the .is-compact sizing this always-narrow player
-       already gets (see styles.css): it floats directly over the daf being
-       learned, so its chrome gives up every pixel it can. Overriding the two
-       height variables carries the timeline and the Vilna-overlay clearance
-       with it. The right-hand padding is reserved for the pinch surface.
-       Reset back to normal sizing in NATIVE fullscreen -- entering it makes
-       the video itself full-size, and a still-mini-player-sized control bar
-       stranded across the bottom of a full screen is illegible, not just
-       small. :fullscreen adds enough specificity to win over the plain rule
-       above without needing !important. */
-    body.reading-mode-active .reading-video-float .video-frame { --pc-bar-h: 34px; --pc-timeline-h: 22px; }
-    body.reading-mode-active .reading-video-float .video-frame:fullscreen,
-    body.reading-mode-active .reading-video-float .video-frame:-webkit-full-screen { --pc-bar-h: 68px; --pc-timeline-h: 74px; }
-    body.reading-mode-active .reading-video-float .scrubber-wrap { padding: 0 8px 4px; }
-    body.reading-mode-active .reading-video-float .player-controls { padding: 0 36px 0 7px; gap: 4px; }
-    body.reading-mode-active .reading-video-float .vaater-button { height: 25px; padding: 0 9px 0 7px; font-size: 11px; border-radius: 7px; gap: 3px; }
-    body.reading-mode-active .reading-video-float .vaater-button svg { width: 13px; height: 13px; }
-    body.reading-mode-active .reading-video-float .video-fullscreen-button { width: 26px; height: 26px; }
-    /* The three icon-size overrides just above are for the cramped MINI
-       player specifically -- restored to their normal sizes alongside
-       --pc-bar-h/--pc-timeline-h above once it's actually fullscreen, so the
-       whole bar scales back up together instead of leaving these three
-       stranded at mini-player size inside an otherwise full-size bar. */
-    body.reading-mode-active .reading-video-float .video-frame:fullscreen .player-controls,
-    body.reading-mode-active .reading-video-float .video-frame:-webkit-full-screen .player-controls { padding: 0 16px; gap: 14px; }
-    body.reading-mode-active .reading-video-float .video-frame:fullscreen .scrubber-wrap,
-    body.reading-mode-active .reading-video-float .video-frame:-webkit-full-screen .scrubber-wrap { padding: 0 18px 8px; }
-    body.reading-mode-active .reading-video-float .video-frame:fullscreen .vaater-button,
-    body.reading-mode-active .reading-video-float .video-frame:-webkit-full-screen .vaater-button { height: 30px; padding: 0 13px 0 10px; font-size: 13px; border-radius: 8px; gap: 5px; }
-    body.reading-mode-active .reading-video-float .video-frame:fullscreen .vaater-button svg,
-    body.reading-mode-active .reading-video-float .video-frame:-webkit-full-screen .vaater-button svg { width: 16px; height: 16px; }
-    body.reading-mode-active .reading-video-float .video-frame:fullscreen .video-fullscreen-button,
-    body.reading-mode-active .reading-video-float .video-frame:-webkit-full-screen .video-fullscreen-button { width: 30px; height: 30px; }
-    body.reading-mode-active .reading-video-pinch-surface {
-      position: absolute;
-      z-index: 11;
-      inset: 0 0 55px;
-      display: block;
-      cursor: grab;
-      pointer-events: auto;
-      touch-action: none;
-    }
-    body.reading-mode-active .reading-video-float.is-dragging .reading-video-pinch-surface { cursor: grabbing; }
-    body.reading-mode-active .reading-video-resize {
-      position: absolute;
-      right: 0;
-      bottom: 0;
-      z-index: 12;
-      width: 28px;
-      height: 28px;
-      border: 0;
-      border-radius: 12px 0 0 0;
-      color: rgba(255,255,255,.82);
-      background: linear-gradient(135deg, transparent 44%, rgba(4,14,27,.76) 45%);
-      cursor: nwse-resize;
-      touch-action: none;
-    }
-    .reading-video-resize::before,
-    .reading-video-resize::after { content: ""; position: absolute; right: 5px; bottom: 5px; width: 9px; height: 1px; background: currentColor; transform: rotate(-45deg); transform-origin: right center; }
-    .reading-video-resize::after { right: 4px; bottom: 10px; width: 5px; opacity: .72; }
-    .reading-mode-tip {
-      position: absolute;
-      z-index: 29;
-      left: 50%;
-      bottom: 64px;
-      transform: translateX(-50%);
-      max-width: calc(100% - 24px);
-      padding: 7px 11px;
-      border: 1px solid rgba(90,66,34,.14);
-      border-radius: 999px;
-      color: #625b51;
-      background: rgba(255,253,248,.94);
-      box-shadow: 0 8px 22px rgba(63,45,23,.1);
-      backdrop-filter: blur(10px);
-      font-size: 11px;
-      white-space: nowrap;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity .2s ease;
-    }
-    .reading-mode-tip.show { opacity: 1; }
-    /* Mute and Vaater are the two controls .pc-tools' own "More" overflow
-       menu (see fitChrome in player-chrome.js) can't reach -- they live in
-       .pc-transport/.pc-volume, not .pc-tools -- so at the mini player's
-       own tightest floor they're dropped outright here instead. Captions
-       (previously dropped the same way at this breakpoint) no longer needs
-       a page-specific rule: it's a .pc-tools control now, so a mini player
-       this narrow just moves it into the same overflow menu everything
-       else that doesn't fit goes into, reachable rather than gone. */
-    @container (max-width: 225px) {
-      body.reading-mode-active .reading-video-float #muteButton,
-      body.reading-mode-active .reading-video-float #vaaterButton { display: none; }
-    }
-    @media (max-width: 760px) {
-      body.reading-mode-active main { padding-inline: 6px; }
-      body.reading-mode-active .daf-card { height: max(620px, calc(100svh - 18px)); min-height: 620px; border-radius: 15px; }
-      body.reading-mode-active .daf-card .vilna-placeholder { padding-inline: 5px; }
-      body.reading-mode-active .reading-mode-entry { min-height: 31px; padding: 6px 8px; gap: 5px; }
-      body.reading-mode-active .reading-video-float { border-radius: 13px; }
-      .reading-mode-tip { bottom: 54px; }
-    }
-  </style>
+  <link rel="stylesheet" href="../chaburah.css" />
 </head>
-<body data-page="browse">
+<body data-page="chaburah" class="cloud-chabura">
   <aside class="sidebar">
     <a class="brand" href="/" aria-label="DafSync home"><span class="brand-mark"><img src="/assets/dafsync-mark.svg" alt="" /></span><span class="brand-name">DafSync</span></a>
     <nav class="desktop-navigation" aria-label="Primary navigation"></nav>
   </aside>
 
   <div class="app-shell">
+    <!-- Trimmed to exactly what auth.js wires up. The old page carried Notes
+         search, the notification bell, favorites and highlights buttons here,
+         all of which are wired by notes.js / account-features.js / highlights.js
+         -- scripts this page deliberately no longer loads. Leaving the buttons
+         would have left dead controls in the header. -->
     <header class="topbar">
       <div class="mobile-brand"><a class="brand" href="/"><span class="brand-mark"><img src="/assets/dafsync-mark.svg" alt="" /></span><span class="brand-name">DafSync</span></a></div>
       <div class="top-actions">
-        <button class="button ghost" id="helpButton">How it works</button>
-        <a class="button secondary small" href="/">Back to library</a>
         <div class="auth-widget" id="authWidget">
-          <button class="button secondary small" id="searchNotesButton" type="button" title="Search public notes and replies">🔍 Notes</button>
           <button class="button secondary small" id="signInButton" type="button">Sign in</button>
           <div class="account-menu" id="accountMenu" hidden>
-            <div class="notif-widget" id="notifWidget">
-              <button type="button" class="notif-bell-button" id="notifBellButton" aria-label="Notifications" title="Notifications">
-                🔔<span class="notif-badge" id="notifBadge" hidden>0</span>
-              </button>
-              <div class="notif-dropdown" id="notifDropdown" hidden>
-                <div class="notif-dropdown-head">
-                  <span>Notifications</span>
-                  <button type="button" class="button ghost small" id="notifMarkAllReadButton">Mark all read</button>
-                </div>
-                <div class="notif-list" id="notifList">
-                  <p class="field-note">No notifications yet.</p>
-                </div>
-              </div>
-            </div>
             <button class="button secondary small account-trigger" id="accountMenuButton" type="button">
               <span id="accountEmailLabel">Account</span>
               <span class="admin-badge admin-only" id="adminBadge">Admin</span>
             </button>
             <div class="account-dropdown" id="accountDropdown" hidden>
-              <button class="account-dropdown-item" id="myFavoritesButton" type="button">My favorites</button>
-              <button class="account-dropdown-item" id="myHighlightsButton" type="button">My highlights</button>
               <button class="account-dropdown-item" id="signOutButton" type="button">Sign out</button>
             </div>
           </div>
@@ -502,528 +82,86 @@
       </div>
     </header>
 
-    <main hidden>
-      <section class="setup-strip card">
-        <div class="setup-field video-field admin-only">
-          <label>Lecture source</label>
-          <div class="source-tabs" role="tablist" aria-label="Lecture source">
-            <button class="source-tab active" type="button" data-source-panel="fileSourcePanel" role="tab" aria-selected="true">Local file</button>
-            <button class="source-tab" type="button" data-source-panel="linkSourcePanel" role="tab" aria-selected="false">Video link</button>
-          </div>
-          <div class="source-panel" id="fileSourcePanel" role="tabpanel">
-            <label class="button secondary file-button small">
-              <input id="videoInput" type="file" accept="video/*,audio/*" hidden />
-              Choose video
-            </label>
-            <span id="videoFileName" class="field-note">Nothing is uploaded</span>
-          </div>
-          <div class="source-panel link-source-panel" id="linkSourcePanel" role="tabpanel" hidden>
-            <div class="video-url-row">
-              <input id="videoUrl" type="url" inputmode="url" placeholder="Paste a YouTube or direct video URL" spellcheck="false" />
-              <button class="button primary small" id="loadVideoUrlButton" type="button">Load link</button>
-            </div>
-            <span id="videoUrlHint" class="field-note">YouTube, youtu.be, Shorts, or a direct MP4/WebM link</span>
-            <label class="toggle-label lock-video-row">
-              <input type="checkbox" id="lockVideoCheckbox" />
-              <span class="toggle"></span>
-              Lock this video (skip future auto-replacement by newer channel uploads)
-            </label>
-          </div>
-        </div>
-
-        <div class="setup-field ref-field">
-          <label>Daf reference</label>
-          <div class="daf-picker-row">
-            <select id="dafTractateSelect" aria-label="Tractate"></select>
-            <select id="dafDafSelect" class="daf-picker-narrow" aria-label="Daf"></select>
-            <div class="amud-toggle" id="dafAmudToggle" role="group" aria-label="Amud">
-              <button type="button" class="amud-option active" data-side="a">a</button>
-              <button type="button" class="amud-option" data-side="b">b</button>
-            </div>
-          </div>
-          <div class="picker-toggle-row">
-            <div class="shiur-variant-toggle" id="dafShiurToggle" role="group" aria-label="Shiur type">
-              <button type="button" class="shiur-variant-option active" data-variant="regular">Regular</button>
-              <button type="button" class="shiur-variant-option" data-variant="chazarah">Chazarah Daf</button>
-            </div>
-            <div class="shiur-variant-toggle" id="dafLanguageToggle" role="group" aria-label="Shiur language">
-              <button type="button" class="language-option active" data-language="en">English</button>
-              <button type="button" class="language-option" data-language="he">Hebrew</button>
-            </div>
-          </div>
-          <input id="dafRef" type="hidden" value="" />
-          <button id="loadDafButton" hidden>Load daf</button>
-        </div>
-
-        <div class="setup-field action-field admin-only">
-          <label>Alignment data</label>
-          <div class="compact-actions">
-            <label class="button secondary file-button small">
-              <input id="alignmentInput" type="file" accept="application/json,.json" hidden />
-              Import sync
-            </label>
-            <label class="button secondary file-button small">
-              <input id="transcriptInput" type="file" accept="application/json,.json" hidden />
-              Import transcript
-            </label>
-            <button class="button secondary small" id="exportButton">Export</button>
-            <button class="button primary small" id="quickSyncButton" type="button" hidden>Sync this daf</button>
-            <button class="button primary small" id="openSyncDialogButton" type="button">Sync from video</button>
-          </div>
-        </div>
-      </section>
-
-      <div class="browse-nav">
-        <button class="button secondary" id="browsePrevButton" type="button">‹ Previous page</button>
-        <span class="browse-nav-label">Tap any word on the page to watch that part of the shiur.</span>
-        <button class="button secondary" id="browseNextButton" type="button">Next page ›</button>
+    <div class="cc-header">
+      <div class="cc-header-titles">
+        <h1>Cloud Chabura</h1>
+        <p class="cc-tagline">Questions, insights, and sources attached to the daf.</p>
       </div>
+      <div class="cc-header-actions">
+        <div class="cc-search">
+          <span aria-hidden="true">🔍</span>
+          <label class="cc-visually-hidden" for="ccSearch">Search discussions</label>
+          <input id="ccSearch" type="search" placeholder="Search discussions…" autocomplete="off" />
+        </div>
+        <a class="cc-btn cc-btn-primary" href="/browse/">Start from a daf</a>
+      </div>
+    </div>
 
-      <section class="workspace watch-layout">
-        <article class="player-card card">
-          <div class="card-heading">
-            <div>
-              <div class="eyebrow">Shiur player</div>
-              <h1 id="lectureTitle">DafSync Studio</h1>
-            </div>
-            <div class="live-location">
-              <span>Current location</span>
-              <strong id="currentRef">No daf loaded</strong>
-              <button class="favorite-button" id="favoriteButton" type="button" aria-label="Favorite this daf" title="Save to favorites" hidden>☆</button>
-            </div>
-          </div>
-
-          <div class="reading-video-float" id="readingVideoFloat" role="group" aria-label="Movable shiur video">
-            <div class="reading-video-slot" id="readingVideoSlot">
-          <div class="video-frame" id="videoFrame">
-            <video id="video" preload="metadata" playsinline></video>
-            <div class="youtube-player-host" id="youtubePlayerHost" hidden>
-              <div id="youtubePlayer"></div>
-            </div>
-            <span class="video-source-badge" id="videoSourceBadge" hidden></span>
-            <div class="video-empty" id="videoEmpty">
-              <div class="empty-icon">▶</div>
-              <p>Choose a lecture video or paste a YouTube link.</p>
-            </div>
-            <button class="large-play" id="largePlay" aria-label="Play video" hidden>
-              <svg viewBox="0 0 44 44" aria-hidden="true"><path d="M17 12.5 33 22 17 31.5v-19Z" fill="currentColor"/></svg>
-            </button>
-            <div class="video-vilna-overlay" id="videoVilnaOverlay" hidden>
-              <canvas id="videoVilnaCanvas"></canvas>
-            </div>
-
-            <!-- Playback controls, docked directly onto the bottom of the
-                 video frame instead of sitting below it (see styles.css) --
-                 same ids app.js already wires, just relocated. Being real
-                 descendants of .video-frame now also means they're reachable
-                 in native fullscreen, where only .video-frame's own
-                 descendants ever render at all. -->
-            <div class="scrubber-wrap">
-              <div class="scrub-preview" id="scrubPreview" hidden>
-                <strong id="previewTime">0:00</strong>
-                <span id="previewText"></span>
-              </div>
-              <input id="scrubber" class="scrubber" type="range" min="0" max="100" step="0.01" value="0" aria-label="Video timeline" />
-              <div class="time-row">
-                <span id="currentTime">0:00</span>
-                <span id="duration">0:00</span>
-              </div>
-            </div>
-
-            <div class="player-controls">
-              <button class="icon-button" id="backButton" aria-label="Back 10 seconds">−10</button>
-              <button class="play-button" id="playButton" aria-label="Play">
-                <svg class="play-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z" fill="currentColor"/></svg>
-                <svg class="pause-icon" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M7 5h4v14H7zm6 0h4v14h-4z" fill="currentColor"/></svg>
-              </button>
-              <button class="icon-button" id="forwardButton" aria-label="Forward 10 seconds">+10</button>
-              <button class="vaater-button" id="vaaterButton" type="button" aria-label="Vaater -- skip ahead to the daf's next aligned word" title="Vaater -- skip ahead to the daf's next aligned word" hidden>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 6v12l8-6-8-6Z" fill="currentColor"/><path d="M11 6v12l8-6-8-6Z" fill="currentColor"/><rect x="19.5" y="6" width="2.2" height="12" rx="1" fill="currentColor"/></svg>Vaater
-              </button>
-              <div class="control-divider"></div>
-              <button class="icon-button volume-button" id="muteButton" aria-label="Mute">
-                <svg class="volume-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6L8 10H4Z" fill="currentColor"/><path d="M16 9c1.3 1.7 1.3 4.3 0 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                <svg class="muted-icon" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M4 10v4h4l5 4V6L8 10H4Z" fill="currentColor"/><path d="m15.5 9.5 5 5m0-5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-              </button>
-              <input id="volumeSlider" class="volume-slider" type="range" min="0" max="100" step="1" value="100" aria-label="Volume" />
-              <div class="control-divider control-divider-end"></div>
-              <details class="video-settings" id="videoSettings">
-                <summary aria-label="Video settings"></summary>
-                <div class="video-settings-body">
-                  <label class="speed-control">Speed
-                    <select id="speedSelect">
-                      <option value="0.75">0.75×</option>
-                      <option value="1" selected>1×</option>
-                      <option value="1.25">1.25×</option>
-                      <option value="1.5">1.5×</option>
-                      <option value="2">2×</option>
-                    </select>
-                  </label>
-                  <label class="quality-control" id="qualityControl" hidden>Quality
-                    <select id="qualitySelect"></select>
-                  </label>
-                </div>
-              </details>
-              <button class="icon-button" id="captionsButton" type="button" aria-label="Toggle captions" aria-pressed="false" title="Toggle YouTube captions">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><text x="12" y="15.5" text-anchor="middle" font-size="8.5" font-weight="800" fill="currentColor" font-family="Arial, sans-serif">CC</text></svg>
-              </button>
-              <button class="video-fullscreen-button" id="fullscreenButton" aria-label="Fullscreen" title="Fullscreen">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-            </div>
-          </div>
-              <div class="reading-video-pinch-surface" id="readingVideoPinchSurface" role="button" tabindex="0" aria-label="Drag to move the video, pinch to resize, or press Space to play or pause"></div>
-            </div>
-            <span class="reading-video-resize" id="readingVideoResizeHandle" role="button" tabindex="0" aria-label="Drag to resize the video" title="Drag to resize"></span>
-          </div>
-
-          <div class="overlay-controls" id="overlayControls">
-            <label class="toggle-label">
-              <input type="checkbox" id="overlayToggle" />
-              <span class="toggle"></span>
-              Overlay Vilna page on video <em>(experimental)</em>
-            </label>
-            <label class="overlay-mode-label">
-              Style
-              <select id="overlayModeSelect">
-                <option value="full">Full page</option>
-                <option value="strip">Current lines</option>
-              </select>
-            </label>
-            <label class="overlay-opacity-label">
-              Opacity
-              <input type="range" id="overlayOpacitySlider" min="10" max="90" value="50" />
-            </label>
-            <label class="overlay-mode-label">
-              Fade to opacity
-              <select id="overlayOpacityTargetSelect">
-                <option value="both">Page + text</option>
-                <option value="background">Page only</option>
-              </select>
-            </label>
-            <label class="overlay-mode-label">
-              When not reading Gemara
-              <select id="overlayIdleSelect">
-                <option value="dim">Dim overlay</option>
-                <option value="hide">Hide overlay</option>
-              </select>
-            </label>
-            <label class="overlay-opacity-label">
-              Zoom
-              <input type="range" id="overlayZoomSlider" min="60" max="350" value="100" />
-            </label>
-            <button class="button ghost small" id="overlayResetPositionButton" type="button">Reset position</button>
-            <em class="overlay-hint">Scroll/pinch the overlay to zoom, drag to reposition</em>
-          </div>
-
-          <div class="edit-mode-row">
-            <button class="button secondary small push-right admin-only" id="editModeButton">Edit synchronization</button>
-          </div>
-
-          <div class="marking-bar admin-only" aria-label="Fast alignment controls">
-            <button class="button secondary small" id="markerBackButton" type="button">Previous phrase</button>
-            <div class="mark-target">
-              <span>Marking phrase</span>
-              <strong id="markTargetLabel">0 of 0</strong>
-            </div>
-            <button class="button primary" id="markHereButton" type="button">Mark here &amp; advance <kbd>M</kbd></button>
-            <button class="button secondary small" id="markerForwardButton" type="button">Next phrase</button>
-            <button class="button ghost small" id="saveDraftButton" type="button">Save draft</button>
-            <button class="button primary small" id="publishAlignmentButton" type="button">Publish live</button>
-          </div>
-
-          <div class="now-learning">
-            <span class="now-label">The rabbi is discussing</span>
-            <div id="currentPhrase" dir="rtl"></div>
-            <p id="currentTranslation">Enter a daf reference above and press "Load daf."</p>
-          </div>
-        </article>
-
-        <article class="daf-card card" id="dafCard" data-daf-view="page">
-          <div class="card-heading daf-heading">
-            <div>
-              <div class="eyebrow">Digital daf</div>
-              <h2 id="dafTitle">No daf loaded</h2>
-            </div>
-            <div class="daf-heading-tools">
-              <div class="view-switch" role="group" aria-label="Daf display mode">
-                <button data-view="text">Text</button>
-                <button class="active" data-view="page" title="Real Vilna-edition page image (private-use source)">Vilna</button>
-              </div>
-              <div class="daf-tools">
-                <button class="reading-mode-entry reading-follow-entry" id="readingVideoFollowButton" type="button" aria-pressed="true" title="Keep the video near the highlighted words">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                  <span id="readingVideoFollowLabel">Following</span>
-                </button>
-                <button class="reading-mode-entry" id="readingModeButton" type="button" aria-pressed="false" title="Place the shiur video over the printed daf">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="5.5" y="12" width="8.5" height="5.5" rx="1" fill="currentColor" opacity=".22"/><path d="m9 13.4 3.2 1.85L9 17.1v-3.7Z" fill="currentColor"/><path d="M7 8h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-                  <span id="readingModeButtonLabel">Video on daf</span>
-                </button>
-              </div>
-            </div>
-          </div>
-          <div class="reading-mode-tip" id="readingModeTip" aria-hidden="true">Drag the video to move · pinch to resize · Follow daf tracks the highlighted words</div>
-
-          <div class="daf-scroll" id="dafScroll">
-            <div class="daf-page" id="dafPage" dir="rtl" lang="he" hidden>
-              <p class="daf-empty-note">No daf loaded yet. Pick a tractate, daf, and amud above.</p>
-            </div>
-            <div class="vilna-placeholder" id="vilnaPlaceholder">
-              <div class="vilna-zoom-controls" id="vilnaZoomControls">
-                <button class="vilna-zoom-btn" id="vilnaZoomOutButton" type="button" aria-label="Zoom out">−</button>
-                <span id="vilnaZoomLabel">100%</span>
-                <button class="vilna-zoom-btn" id="vilnaZoomInButton" type="button" aria-label="Zoom in">+</button>
-                <button class="vilna-zoom-reset" id="vilnaZoomResetButton" type="button">Reset zoom</button>
-                <button class="vilna-zoom-btn vilna-select-text-toggle" id="vilnaSelectTextModeButton" type="button" aria-pressed="false" title="Click and drag to select a range of words, then right-click to act on it">Select text</button>
-                <button class="vilna-zoom-btn vilna-mark-toggle admin-only" id="vilnaMarkModeButton" type="button" aria-pressed="false" title="Click a word on the page to mark its phrase's start time">Mark words</button>
-                <button class="vilna-zoom-btn vilna-mark-toggle admin-only" id="vilnaUnmatchedToggleButton" type="button" aria-pressed="false" title="Highlight words on the page with no matching part of the video">Show unmatched</button>
-                <button class="vilna-zoom-btn vilna-mark-save admin-only" id="vilnaMarkSaveButton" type="button" title="Save these word-mark corrections" hidden>Save</button>
-                <button class="vilna-zoom-btn vilna-mark-discard admin-only" id="vilnaMarkDiscardButton" type="button" title="Discard word-mark corrections made since the last save" hidden>Discard changes</button>
-                <button class="vilna-fullscreen-button" id="vilnaFullscreenButton" type="button" aria-label="Fullscreen" title="Fullscreen">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </button>
-              </div>
-              <div class="vilna-page-status" id="vilnaPageStatus">
-                <div class="page-silhouette">
-                  <div class="page-column narrow"></div>
-                  <div class="page-column wide"></div>
-                  <div class="page-column narrow"></div>
-                </div>
-                <p id="vilnaPageStatusText">Pick a tractate, daf, and amud above to start reading.</p>
-              </div>
-              <div class="vilna-page-wrap" id="vilnaPageWrap">
-                <canvas id="vilnaPageCanvas" hidden></canvas>
-                <div class="vilna-highlights-overlay" id="vilnaHighlightsOverlay"></div>
-                <div class="vilna-page-overlay" id="vilnaPageOverlay"></div>
-                <div class="vilna-active-overlay" id="vilnaActiveOverlay"></div>
-                <div class="vilna-mark-target-overlay" id="vilnaMarkTargetOverlay"></div>
-                <div class="vilna-unmatched-overlay" id="vilnaUnmatchedOverlay"></div>
-                <div class="vilna-note-markers-overlay" id="vilnaNoteMarkersOverlay"></div>
-                <div class="vilna-select-text-selection-overlay" id="vilnaSelectTextSelectionOverlay"></div>
-                <div class="vilna-select-text-word-overlay" id="vilnaSelectTextWordOverlay"></div>
-                <div class="vilna-select-text-action-bar" id="vilnaSelectTextActionBar" hidden>
-                  <button type="button" class="button ghost small" id="vilnaSelectTextClearButton" aria-label="Clear selection">×</button>
-                  <button type="button" class="button primary small" id="vilnaSelectTextAddNoteButton">Add note</button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="daf-toolbar">
-            <span class="alignment-badge needs-work" id="alignmentStatus">Needs alignment</span>
-            <!-- Only shown when both a caption-OCR and a voice-recognition
-                 sync are published for the daf on screen (see
-                 updateSyncMethodSwitchUi() in app.js) -- switching reloads
-                 just the daf text/highlighting from the other one, keeping
-                 playback position and the video itself untouched. -->
-            <div class="sync-method-switch" id="syncMethodSwitch" role="group" aria-label="Sync method" hidden>
-              <button class="active" type="button" data-method="ocr">Caption sync</button>
-              <button type="button" data-method="voice">Voice sync</button>
-            </div>
-            <!-- Persists whichever method the toggle above is currently showing
-                 as THE default readers see for this daf, overriding loadDaf()'s
-                 own caption-OCR-first default (see save-settings.mjs) -- same
-                 visibility gate as the switch itself (both methods published),
-                 plus admin-only on top of that. -->
-            <label class="toggle-label admin-only" id="syncMethodDefaultWrap" hidden
-                   title="Make the currently active sync method the default readers see for this daf.">
-              <input type="checkbox" id="syncMethodDefaultToggle" />
-              <span class="toggle"></span>
-              Set as default
-            </label>
-            <label class="toggle-label">
-              <input type="checkbox" id="autoScroll" checked />
-              <span class="toggle"></span>
-              Auto-scroll
-            </label>
-            <span class="toolbar-hint">Tap any word to jump to that point in the shiur.</span>
-          </div>
-
-          <div class="daf-footer">
-            <span id="segmentCount">0 synchronized segments</span>
-            <span>Text retrieval: Sefaria API</span>
-          </div>
-        </article>
-      </section>
-
-      <section class="editor card" id="editor" hidden>
-        <div class="editor-heading">
-          <div>
-            <div class="eyebrow">Alignment editor</div>
-            <h2>Correct the synchronization</h2>
-            <p>Select a phrase, play or seek to its correct point, then use “Mark here & advance” or press M. The previous phrase closes automatically.</p>
-          </div>
-          <div class="editor-actions">
-            <button class="button secondary small" id="evenSpacingButton">Reset evenly</button>
-            <button class="button primary small" id="closeEditorButton">Done editing</button>
+    <div class="cc-shell">
+      <!-- Left rail: browse and filter (desktop only; mobile gets the sheet) -->
+      <aside class="cc-rail cc-rail-left" aria-label="Browse and filter">
+        <div class="cc-panel">
+          <h3>Browse</h3>
+          <div class="cc-rail-nav" id="ccRailNav"></div>
+          <div class="cc-filter-group">
+            <label for="ccCategory">Category</label>
+            <select class="cc-select" id="ccCategory"></select>
           </div>
         </div>
-        <div class="editor-table-wrap">
-          <table class="editor-table">
-            <thead>
-              <tr><th>#</th><th>Start</th><th>End</th><th>Phrase</th><th></th></tr>
-            </thead>
-            <tbody id="editorBody"></tbody>
-          </table>
-        </div>
-      </section>
+      </aside>
 
-    </main>
+      <main class="cc-main">
+        <!-- Today's Daf: the defining addition from the Daf-first concept.
+             Prominent, but deliberately not tall enough to push the feed
+             below the fold. -->
+        <section class="cc-today" id="ccToday" aria-label="Today's daf"></section>
 
-    <main class="chaburah-main">
-      <section class="card chaburah-hero">
-        <div class="eyebrow">Community</div>
-        <h1>Cloud Chaburah</h1>
-        <p>Public notes and discussion from readers across the daf, gathered in one feed.</p>
-      </section>
+        <div class="cc-mobile-filter-bar">
+          <button class="cc-btn cc-btn-sm" id="ccOpenFilters" type="button">Filters</button>
+        </div>
 
-      <section class="card chaburah-feed-card">
-        <div class="chaburah-view-switch" role="group" aria-label="Feed view" id="chaburahViewSwitch">
-          <button class="active" data-view="latest" type="button">Latest</button>
-          <button data-view="this-daf" type="button">This daf</button>
-          <button data-view="this-masechta" type="button">This masechta</button>
-          <button data-view="following" type="button">Following</button>
-          <button data-view="most-helpful" type="button">Most helpful</button>
-          <button data-view="unanswered" type="button">Unanswered</button>
+        <div class="cc-tabs" id="ccTabs" role="tablist" aria-label="Discussion views"></div>
+
+        <!-- Screen-reader announcements for load results and failures. -->
+        <p class="cc-visually-hidden" id="ccStatus" role="status" aria-live="polite"></p>
+
+        <div class="cc-feed" id="ccFeed"></div>
+
+        <div class="cc-feed-footer" id="ccFeedFooter" hidden>
+          <button class="cc-btn" id="ccLoadMore" type="button">Load more discussions</button>
         </div>
-        <div class="search-notes-category-filter">
-          <label for="chaburahCategoryFilter">Category</label>
-          <select id="chaburahCategoryFilter"></select>
+      </main>
+
+      <!-- Right rail: personal orientation and curated discovery -->
+      <aside class="cc-rail cc-rail-right" aria-label="Your activity">
+        <div class="cc-panel" id="ccActivity">
+          <h3>Your activity</h3>
+          <p style="margin:0;color:var(--cc-muted);font-size:13.5px;">
+            Sign in to follow discussions, save them for later, and pick up where you left off.
+          </p>
         </div>
-        <div class="note-list chaburah-feed-list" id="chaburahFeedList">
-          <p class="field-note">Loading…</p>
+        <div class="cc-panel">
+          <h3>Community guidelines</h3>
+          <p style="margin:0;color:var(--cc-muted);font-size:13.5px;">
+            Every discussion is anchored to an exact passage. Keep replies tied to the text,
+            and mark an answer when a question is settled.
+          </p>
         </div>
-        <div class="chaburah-feed-actions">
-          <button class="button secondary small" id="chaburahLoadMoreButton" type="button" hidden>Load more</button>
-        </div>
-      </section>
-    </main>
+      </aside>
+    </div>
   </div>
 
-  <dialog id="helpDialog">
-    <button class="dialog-close" id="closeHelp" aria-label="Close">×</button>
-    <div class="eyebrow">Guide</div>
-    <h2>How to use Interactive Daf</h2>
-    <ol>
-      <li>Pick a tractate, daf, and amud above, or use the "Previous page"/"Next page" buttons to flip through in order.</li>
-      <li>Tap any word on the page to play the shiur right here, starting at the exact moment it's discussed.</li>
-      <li>Switch English/Hebrew and Regular/Chazarah Daf above to browse whichever recording you want a tapped word to jump to.</li>
-    </ol>
-    <p class="dialog-note">Tapping a word only works for a daf that already has a synced shiur -- others will show what's available once it does.</p>
-  </dialog>
-
-  <dialog id="syncDialog">
-    <button class="dialog-close" id="closeSyncDialog" aria-label="Close">×</button>
-    <div class="eyebrow">Caption-box sync</div>
-    <h2>Generate a sync from a lecture video</h2>
-    <p class="dialog-note">Pick the daf the video covers, then process it either
-      with the DafSync desktop app on this computer, or on our server from a
-      Google Drive link.</p>
-
-    <div class="sync-picker">
-      <div class="sync-picker-row">
-        <label class="sync-field">
-          <span>Tractate</span>
-          <select id="syncTractateSelect"></select>
-        </label>
-        <label class="sync-field sync-field-narrow">
-          <span>Daf</span>
-          <select id="syncDafSelect"></select>
-        </label>
-        <label class="sync-field sync-field-narrow">
-          <span>Amud</span>
-          <div class="amud-toggle" id="syncAmudToggle" role="group" aria-label="Amud">
-            <button type="button" class="amud-option active" data-side="a">a</button>
-            <button type="button" class="amud-option" data-side="b">b</button>
-          </div>
-        </label>
-        <button class="button primary small" id="syncAddReadingButton" type="button">+ Add reading</button>
+  <!-- Mobile filter sheet -->
+  <dialog class="cc-sheet" id="ccFilterSheet" aria-label="Filter discussions">
+    <div class="cc-sheet-panel">
+      <div class="cc-sheet-handle" aria-hidden="true"></div>
+      <div class="cc-filter-group">
+        <label for="ccCategorySheet">Category</label>
+        <select class="cc-select" id="ccCategorySheet"></select>
       </div>
-      <div class="sync-picker-row">
-        <label class="sync-field">
-          <span>Shiur type</span>
-          <div class="shiur-variant-toggle" id="syncShiurToggle" role="group" aria-label="Shiur type">
-            <button type="button" class="shiur-variant-option active" data-variant="regular">Regular</button>
-            <button type="button" class="shiur-variant-option" data-variant="chazarah">Chazarah Daf (shorter, gemara-only review)</button>
-          </div>
-        </label>
-        <label class="sync-field">
-          <span>Language</span>
-          <div class="shiur-variant-toggle" id="syncLanguageToggle" role="group" aria-label="Shiur language">
-            <button type="button" class="language-option active" data-language="en">English</button>
-            <button type="button" class="language-option" data-language="he">Hebrew</button>
-          </div>
-        </label>
+      <div style="margin-top:16px;display:flex;justify-content:flex-end;">
+        <button class="cc-btn cc-btn-primary" id="ccCloseFilters" type="button">Done</button>
       </div>
-    </div>
-
-    <div class="sync-readings-head">
-      <strong>Readings covered, in order</strong>
-      <button class="button ghost small" id="syncClearReadingsButton" type="button">Clear all</button>
-    </div>
-    <div class="sync-readings-list" id="syncReadingsList">
-      <p class="field-note">No readings added yet.</p>
-    </div>
-
-    <div class="sync-tabs" role="tablist" aria-label="Processing method">
-      <button class="sync-tab active" type="button" data-sync-panel="syncLocalPanel" role="tab" aria-selected="true">Local file (Desktop App)</button>
-      <button class="sync-tab" type="button" data-sync-panel="syncDrivePanel" role="tab" aria-selected="false">Google Drive link</button>
-      <button class="sync-tab" type="button" data-sync-panel="syncYoutubePanel" role="tab" aria-selected="false">YouTube link</button>
-      <button class="sync-tab" type="button" data-sync-panel="syncVoicePanel" role="tab" aria-selected="false">Voice recognition (beta)</button>
-    </div>
-
-    <div class="sync-source-panel" id="syncLocalPanel" role="tabpanel">
-      <label class="button secondary file-button small">
-        <input id="syncVideoInput" type="file" accept="video/*" hidden />
-        Choose video
-      </label>
-      <span id="syncVideoFileName" class="field-note">Processed on this computer, never uploaded</span>
-      <div class="sync-app-status" id="syncAppStatus">
-        <span class="status-dot muted"></span>
-        <span id="syncAppStatusText">Checking for the DafSync desktop app…</span>
-        <a class="button secondary small" id="syncOpenAppButton" href="dafsync://open" hidden>Open DafSync app</a>
-        <a class="button ghost small" href="https://github.com/mosesar9319/MDYsync/releases/latest" target="_blank" rel="noopener">Don't have it? Download</a>
-      </div>
-      <button class="button primary" id="syncLocalStartButton" type="button">Sync using desktop app</button>
-    </div>
-
-    <div class="sync-source-panel" id="syncDrivePanel" role="tabpanel" hidden>
-      <label class="sync-field">
-        <span>Google Drive video link</span>
-        <input id="syncDriveUrlInput" type="url" placeholder="https://drive.google.com/file/d/…/view" spellcheck="false" />
-      </label>
-      <span class="field-note">The file must be shared as "Anyone with the link." Processing runs on our server and can take a few minutes.</span>
-      <button class="button primary" id="syncDriveStartButton" type="button">Sync from Google Drive</button>
-    </div>
-
-    <div class="sync-source-panel" id="syncYoutubePanel" role="tabpanel" hidden>
-      <label class="sync-field">
-        <span>YouTube video link</span>
-        <input id="syncYoutubeUrlInput" type="url" placeholder="https://www.youtube.com/watch?v=…" spellcheck="false" />
-      </label>
-      <span class="field-note">Restricted to recent Mercaz Daf Yomi uploads. Processing runs on our server and can take a few minutes.</span>
-      <button class="button primary" id="syncYoutubeStartButton" type="button">Sync from YouTube</button>
-    </div>
-
-    <div class="sync-source-panel" id="syncVoicePanel" role="tabpanel" hidden>
-      <label class="sync-field">
-        <span>YouTube video link</span>
-        <input id="syncVoiceUrlInput" type="url" placeholder="https://www.youtube.com/watch?v=…" spellcheck="false" />
-      </label>
-      <span class="field-note">
-        Experimental: no on-screen caption box needed -- transcribes the audio and anchors it against the daf's
-        own text instead. Accuracy is still rough in places; review the result in the editor before trusting it,
-        same as any other draft sync. Restricted to recent Mercaz Daf Yomi uploads. Can take several minutes.
-      </span>
-      <button class="button primary" id="syncVoiceStartButton" type="button">Sync from voice recognition</button>
-    </div>
-
-    <div class="sync-progress-wrap" id="syncProgressWrap" hidden>
-      <div class="sync-progress-row">
-        <div class="sync-progress-track"><div class="sync-progress-fill" id="syncProgressFill"></div></div>
-        <span class="sync-progress-pct" id="syncProgressPct">0%</span>
-      </div>
-      <div class="sync-log" id="syncLog"></div>
     </div>
   </dialog>
 
@@ -1031,7 +169,7 @@
     <button class="dialog-close" id="closeAuthDialog" aria-label="Close">×</button>
     <div class="eyebrow" id="authDialogEyebrow">Account</div>
     <h2 id="authDialogTitle">Sign in</h2>
-    <p class="dialog-note" id="authDialogNote">Sign in to save favorites, resume playback where you left off, and keep your player settings across devices.</p>
+    <p class="dialog-note" id="authDialogNote">Sign in to follow discussions, save them for later, and keep your place across devices.</p>
     <button class="button secondary google-auth-button" id="googleAuthButton" type="button">
       <svg viewBox="0 0 18 18" aria-hidden="true" width="18" height="18">
         <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.84 2.09-1.79 2.73v2.27h2.9c1.7-1.56 2.68-3.87 2.68-6.64z"/>
@@ -1059,102 +197,19 @@
     </form>
   </dialog>
 
-  <dialog id="favoritesDialog">
-    <button class="dialog-close" id="closeFavoritesDialog" aria-label="Close">×</button>
-    <div class="eyebrow">Saved</div>
-    <h2>My favorites</h2>
-    <div class="favorites-list" id="favoritesList">
-      <p class="field-note">No favorites yet. Use the star next to "Current location" while viewing a daf.</p>
-    </div>
-  </dialog>
-
-  <dialog id="noteDialog">
-    <button class="dialog-close" id="closeNoteDialog" aria-label="Close">×</button>
-    <div class="eyebrow" id="noteDialogRef">Note</div>
-    <h2>Line notes</h2>
-    <p class="dialog-note" id="noteDialogText"></p>
-    <div class="note-list" id="noteList">
-      <p class="field-note">Loading notes…</p>
-    </div>
-    <div class="note-compose" id="noteCompose" hidden>
-      <div class="note-privacy-toggle" id="notePrivacyToggle" role="group" aria-label="Note visibility">
-        <button type="button" class="note-privacy-option active" data-privacy="private">🔒 Private</button>
-        <button type="button" class="note-privacy-option" data-privacy="live">🌐 Live</button>
-      </div>
-      <div class="note-category-picker">
-        <div class="note-category-label">Category <span class="field-note">(optional)</span></div>
-        <div class="note-category-options" id="noteCategoryOptions"></div>
-        <button type="button" class="note-category-more-toggle" id="noteCategoryMoreToggle">More categories ▾</button>
-        <div class="note-category-options note-category-options-secondary" id="noteCategorySecondaryOptions" hidden></div>
-      </div>
-      <div class="note-format-toolbar" role="group" aria-label="Formatting">
-        <button type="button" class="note-format-button" data-format="bold" title="Bold" aria-label="Bold"><strong>B</strong></button>
-        <button type="button" class="note-format-button" data-format="italic" title="Italic" aria-label="Italic"><em>I</em></button>
-        <button type="button" class="note-format-button" data-format="highlight" title="Highlight" aria-label="Highlight">🖍</button>
-        <button type="button" class="note-format-button" data-format="large" title="Large text" aria-label="Large text">A+</button>
-        <button type="button" class="note-format-button" data-format="list" title="Bullet list" aria-label="Bullet list">≡</button>
-      </div>
-      <textarea id="noteBodyInput" maxlength="2000" rows="3" placeholder="Write a note on this line…"></textarea>
-      <label class="note-timestamp-toggle" id="noteTimestampToggle" hidden>
-        <input type="checkbox" id="noteTimestampCheckbox">
-        <span>Tag this note with the current moment in the video</span>
-      </label>
-      <div class="note-compose-actions">
-        <span class="field-note" id="notePrivacyHint">Only you will see this note.</span>
-        <button class="button primary small" id="saveNoteButton" type="button">Save note</button>
-      </div>
-    </div>
-    <p class="dialog-note" id="noteSignInPrompt" hidden>
-      <button class="button secondary small" id="noteSignInButton" type="button">Sign in to add a note</button>
-    </p>
-  </dialog>
-
-  <dialog id="searchNotesDialog">
-    <button class="dialog-close" id="closeSearchNotesDialog" aria-label="Close">×</button>
-    <div class="eyebrow">Search</div>
-    <h2>Search notes &amp; replies</h2>
-    <div class="search-notes-field">
-      <input type="search" id="searchNotesInput" placeholder="Search public notes, replies, and your own private notes…" maxlength="200">
-    </div>
-    <div class="search-notes-category-filter">
-      <label for="searchCategoryFilter">Category</label>
-      <select id="searchCategoryFilter"></select>
-    </div>
-    <div class="note-list" id="searchNotesResults">
-      <p class="field-note">Type to search, or pick a category to browse.</p>
-    </div>
-  </dialog>
-
-    <dialog id="highlightsDialog">
-    <button class="dialog-close" id="closeHighlightsDialog" aria-label="Close">×</button>
-    <div class="eyebrow">Saved</div>
-    <h2>My highlights</h2>
-    <div class="note-list" id="highlightsList">
-      <p class="field-note">Loading…</p>
-    </div>
-  </dialog>
-
-  <dialog id="wordLookupDialog">
-    <button class="dialog-close" id="closeWordLookupDialog" aria-label="Close">×</button>
-    <div class="eyebrow">Dictionary</div>
-    <h2 dir="rtl" lang="he" id="wordLookupTitle"></h2>
-    <div class="word-lookup-body" id="wordLookupBody">
-      <p class="field-note">Looking up…</p>
-    </div>
-    <p class="dialog-note">Lexicon entries from Sefaria (Jastrow, Klein, and others).</p>
-  </dialog>
-
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <!-- Script order is load-bearing (no build step, no modules): the data and
+       component modules must define window.DafSyncChabura before the home
+       controller reads it. Notably ABSENT compared with the old page: app.js
+       (409KB), player-chrome.js, daf-context-menu.js, highlights.js,
+       account-features.js and notes.js -- the old /chaburah/ shipped all of
+       them, plus an entire hidden Interactive Daf workspace, to render a list
+       of discussions (Phase 1 audit F-13). -->
   <script src="../vendor/supabase-js.min.js"></script>
   <script src="../auth.js"></script>
-  <script src="../app.js" defer></script>
-  <script src="../account-features.js" defer></script>
   <script src="../notes-format.js" defer></script>
-  <script src="../notes.js" defer></script>
-  <script src="../highlights.js" defer></script>
-  <script src="../daf-context-menu.js" defer></script>
-  <script src="../player-chrome.js" defer></script>
-  <script src="../chaburah.js" defer></script>
+  <script src="../chabura-data.js" defer></script>
+  <script src="../chabura-components.js" defer></script>
+  <script src="../chabura-home.js" defer></script>
   <script src="../nav.js" defer></script>
   <script src="../collapse.js" defer></script>
 </body>
