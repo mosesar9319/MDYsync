@@ -1492,7 +1492,8 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     // all start getting a flat 429, which loadVideoCatalog below silently
     // swallows into an empty catalog. Confirmed live on a real device.
     const CATALOG_URL = "/api/get-catalog";
-    const SEFARIA_CALENDAR_URL = "https://www.sefaria.org/api/calendars";
+    const SEFARIA_CALENDAR_URL = "/api/sefaria-calendars";
+    const SEFARIA_CALENDAR_DIRECT_URL = "https://www.sefaria.org/api/calendars";
     // Only tractates the site actually has shiurim for are worth surfacing --
     // catalog.json can carry stray entries from a title-matching misfire on
     // a tractate nobody has linked on purpose yet.
@@ -1589,7 +1590,15 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     async function loadTodaysDaf() {
       try {
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-        const response = await fetch(`${SEFARIA_CALENDAR_URL}?timezone=${encodeURIComponent(timezone)}`);
+        // Proxy first (see app.js's fetchTodaysDafRef for the same pattern),
+        // falling straight to Sefaria directly if the proxy itself fails.
+        let response;
+        try {
+          response = await fetch(`${SEFARIA_CALENDAR_URL}?timezone=${encodeURIComponent(timezone)}`);
+          if (!response.ok) throw new Error("Proxy unavailable");
+        } catch {
+          response = await fetch(`${SEFARIA_CALENDAR_DIRECT_URL}?timezone=${encodeURIComponent(timezone)}`);
+        }
         if (!response.ok) throw new Error(`Sefaria returned ${response.status}`);
         const data = await response.json();
         const item = (data.calendar_items || []).find((i) => i.category === "Talmud" && i.title?.en === "Daf Yomi");
