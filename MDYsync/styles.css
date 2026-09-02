@@ -1174,7 +1174,14 @@ dialog ol { color: #d8e2eb; padding-left: 21px; line-height: 1.6; }
 }
 @media (max-width: 700px) {
   .app-shell { width: min(100% - 18px, 1540px); }
-  .topbar { align-items: flex-start; padding: 16px 0; }
+  /* flex-wrap was missing here -- .topbar's own two children (.mobile-brand,
+     .top-actions) never wrapped, and .top-actions' own four buttons (How it
+     works / Back to library / search / sign in) never did either, so on a
+     narrow phone they all just overflowed the header sideways instead of
+     stacking -- the "align-items: flex-start" alongside them only makes
+     sense for a wrapped, multi-row header, which this now actually is. */
+  .topbar { align-items: flex-start; padding: 16px 0; flex-wrap: wrap; row-gap: 10px; }
+  .top-actions { flex-wrap: wrap; row-gap: 8px; }
   .top-actions .status-pill { display: none; }
   .setup-strip { grid-template-columns: 1fr; padding: 15px; }
   .setup-field + .setup-field { border-left: 0; border-top: 1px solid var(--line); padding: 15px 0 0; }
@@ -1660,7 +1667,13 @@ mark.daf-highlight { background: rgba(240, 200, 90, .34); color: inherit; border
 @media (max-width: 760px) {
   .mobile-nav {
     align-items: stretch;
-    background: rgba(255, 253, 248, 0.96);
+    /* Fully opaque, not translucent -- on a page whose own content behind it
+       is a similarly pale card (the daf/Vilna pages, all ivory-themed via
+       watch-theme.css), the old rgba(...,.96) let that content bleed
+       faintly through, ghosting text underneath the tab labels. This bar is
+       chrome, not a frosted overlay -- it should read as solid regardless
+       of what's scrolled underneath it. */
+    background: #fffdf8;
     border-top: 1px solid var(--line);
     bottom: 0;
     box-shadow: 0 -5px 20px rgba(61, 43, 23, 0.06);
