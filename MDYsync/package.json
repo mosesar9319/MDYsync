@@ -3,8 +3,18 @@
   "version": "1.0.0",
   "private": true,
   "description": "A browser-based prototype for synchronizing a Daf Yomi lecture video with the exact portion of Gemara currently being discussed.",
+  "scripts": {
+    "test": "playwright test",
+    "test:desktop": "playwright test --project=desktop",
+    "test:mobile": "playwright test --project=mobile",
+    "test:ui": "playwright test --ui",
+    "serve": "node tests/static-server.mjs"
+  },
   "dependencies": {
     "jimp": "^1.6.1",
     "tesseract.js": "^7.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1"
   }
 }
