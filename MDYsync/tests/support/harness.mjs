@@ -42,12 +42,12 @@ const API_RESPONSES = {
       'The new year for animal tithe; Rabbi Elazar and Rabbi Shimon say: On the first of Tishrei.',
     ],
   },
-  // app.js's fetchTodaysDafRef() calls www.sefaria.org/api/calendars DIRECTLY
-  // rather than through the /api/sefaria Netlify proxy every other Sefaria read
-  // goes through (see the audit's finding F-4). Stubbed here so the suite is
-  // deterministic and offline; the unproxied call itself is a real defect, not
-  // something this harness is papering over.
-  '/api/calendars': {
+  // The Today's Daf lookup (app.js's fetchTodaysDafRef, index.html's
+  // loadTodaysDaf) goes through this dedicated proxy function rather than
+  // calling www.sefaria.org directly -- audit finding F-4, closed by
+  // netlify/functions/sefaria-calendars.mjs. Stubbed here so the suite stays
+  // deterministic and offline.
+  '/api/sefaria-calendars': {
     calendar_items: [
       { category: 'Talmud', title: { en: 'Daf Yomi' }, displayValue: { en: 'Chullin 89' } },
     ],
