@@ -1331,7 +1331,17 @@ function nextDafRef(ref) {
 async function fetchTodaysDafRef() {
   try {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-    const response = await fetch(`https://www.sefaria.org/api/calendars?timezone=${encodeURIComponent(timezone)}`);
+    // Proxied the same way fetchSefariaParagraphs proxies text reads (try our
+    // own Netlify Function first, fall straight to Sefaria directly if that
+    // fails) -- this used to call sefaria.org straight from the browser, the
+    // one Sefaria read in the codebase that skipped the proxy.
+    let response;
+    try {
+      response = await fetch(`/api/sefaria-calendars?timezone=${encodeURIComponent(timezone)}`);
+      if (!response.ok) throw new Error('Proxy unavailable');
+    } catch {
+      response = await fetch(`https://www.sefaria.org/api/calendars?timezone=${encodeURIComponent(timezone)}`);
+    }
     if (!response.ok) throw new Error(`Sefaria returned ${response.status}`);
     const data = await response.json();
     const item = (data.calendar_items || []).find((i) => i.category === 'Talmud' && i.title?.en === 'Daf Yomi');
