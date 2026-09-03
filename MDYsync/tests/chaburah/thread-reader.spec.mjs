@@ -361,6 +361,13 @@ test.describe('Thread reader — composer', () => {
     const insert = calls.find((c) => c.table === 'comments' && c.operation === 'insert');
     expect(insert.rows[0].parent_comment_id).toBeNull();
     expect(insert.rows[0].depth).toBe(0);
+    // comments.author_display_name is NOT NULL in the real schema -- the stub
+    // does not enforce that (same "server rule, not client behaviour" split
+    // as can_post_publicly() above), so a regression here would insert a
+    // reply with the field simply missing and this would still pass without
+    // this assertion. Reported directly in production as the bare Postgres
+    // 23502 constraint-violation message reaching a reader's screen.
+    expect(insert.rows[0].author_display_name).toBe(USERS.ordinary.display_name);
   });
 
   test('an inline reply carries its parent and nests one level deeper', async ({ page }) => {
@@ -377,6 +384,7 @@ test.describe('Thread reader — composer', () => {
     const insert = calls.find((c) => c.table === 'comments' && c.operation === 'insert');
     expect(insert.rows[0].parent_comment_id).toBe(DEEP.l1);
     expect(insert.rows[0].depth).toBe(1);
+    expect(insert.rows[0].author_display_name).toBe(USERS.ordinary.display_name);
   });
 
   test('Ctrl+Enter submits', async ({ page }) => {

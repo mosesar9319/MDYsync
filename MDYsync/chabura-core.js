@@ -19,6 +19,21 @@
     return window.DafSyncAuth?.getUser?.() || null;
   }
 
+  // The auth user object (currentUser) carries no display_name -- that's a
+  // column on `profiles`, loaded separately (see auth.js's loadProfile) and
+  // exposed as DafSyncAuth.getProfile(). Every insert this app makes into a
+  // table with a NOT NULL author_display_name needs this, not currentUser()
+  // alone: notes.js has done `profile?.display_name || user.email` since the
+  // original note/reply composer; this is that same fallback, shared so
+  // every Cloud Chabura write path gets it identically rather than each
+  // re-deriving it (and, once, forgetting to).
+  function currentDisplayName() {
+    const user = currentUser();
+    if (!user) return null;
+    const profile = window.DafSyncAuth?.getProfile?.();
+    return profile?.display_name || user.email || null;
+  }
+
   // PostgREST errors are not presentable as-is. Map the ones a reader can
   // actually hit to something that says what to do about it, and keep the
   // original for the console so a real fault is still debuggable.
@@ -53,5 +68,5 @@
   }
 
   window.DafSyncChabura = window.DafSyncChabura || {};
-  window.DafSyncChabura.core = { client, currentUser, describeError, generations };
+  window.DafSyncChabura.core = { client, currentUser, currentDisplayName, describeError, generations };
 })();

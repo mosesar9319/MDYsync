@@ -23,7 +23,7 @@
 //      enforcement.
 
 (function () {
-  const { client, currentUser, describeError, generations } = window.DafSyncChabura.core;
+  const { client, currentUser, currentDisplayName, describeError, generations } = window.DafSyncChabura.core;
 
   // Top-level branches per page, and how many descendants of a branch to pull
   // in one batch. Bounded on purpose: the plan's "do not render all replies at
@@ -291,6 +291,11 @@
       id: id || newCommentId(),
       note_id: noteId,
       author_id: user.id,
+      // comments.author_display_name is NOT NULL. Missing here until now --
+      // every insert went straight to the database as a bare 23502 (not-null
+      // violation) instead of a reply, reported directly by the exact
+      // constraint text reaching a reader's screen.
+      author_display_name: currentDisplayName() || 'Anonymous',
       body,
       parent_comment_id: parentCommentId || null,
       mentioned_user_ids: mentionedUserIds || [],

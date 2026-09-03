@@ -68,17 +68,18 @@ const state = {
   vilnaFallbackSegmentsKey: null,
   // Live word-highlight-during-playback for the scanned photo -- the same
   // idea as vilnaOverlayKey above (a dedup key so the highlight doesn't
-  // rebuild on every playback tick), just for #scanWordOverlay's
-  // .scan-word-box elements instead of the Vilna page's phrase regions
-  // (see renderVilnaWordBoxes/activeVilnaWordElements, which read the
-  // already-rendered #vilnaActiveOverlay directly rather than keeping a
-  // parallel element map the way this one still does). scanWordBoxes is the
-  // source list (updateScanOverlay needs to iterate it the same way
-  // updateVilnaOverlay iterates state.vilnaPageMap.wordBoxes); scanWordEls
-  // is populated alongside it in showScanResult.
+  // rebuild on every playback tick). updateScanOverlay draws merged
+  // per-line bars into #scanActiveOverlay, the same
+  // groupBoxesIntoLineRects/appendLineRects pass updateVilnaOverlay uses for
+  // #vilnaActiveOverlay -- #scanWordOverlay's own .scan-word-box elements
+  // stay pure click targets (tap a word to jump the video there), the same
+  // split as .vilna-phrase-box vs .vilna-active-rect. scanPageMap is a
+  // stable { wordBoxes } wrapper around scanWordBoxes so pageLinePitch's
+  // WeakMap cache actually hits across repaints, instead of every call
+  // building a fresh object that can never be found again.
   scanOverlayKey: '',
   scanWordBoxes: null,
-  scanWordEls: null,
+  scanPageMap: null,
   // A scanned page can't tell which amud it shows (see scan-daf-page.mjs's
   // own KNOWN v1 LIMITATION) -- the server now projects word positions for
   // BOTH amudim of the matched daf when b's page data exists at all
@@ -2792,7 +2793,7 @@ function resetScanUi() {
   state.scanCorners = null;
   state.scanCornersManuallyEdited = false;
   state.scanWordBoxes = null;
-  state.scanWordEls = null;
+  state.scanPageMap = null;
   state.scanOverlayKey = '';
   state.scanSelectedRef = null;
   state.scanWordBoxesA = null;
@@ -3414,12 +3415,16 @@ async function renderScanMatch(ref, wordBoxes, hintSuffix = '') {
 
   const overlay = $('scanWordOverlay');
   overlay.innerHTML = '';
-  // scanWordBoxes/scanWordEls drive updateScanOverlay's live "highlight the
-  // word being spoken right now" pass, the same way vilnaPageMap.wordBoxes/
-  // vilnaWordEls drive updateVilnaOverlay for the Vilna page view.
+  const activeOverlay = $('scanActiveOverlay');
+  if (activeOverlay) activeOverlay.innerHTML = '';
+  // scanWordBoxes/scanPageMap drive updateScanOverlay's live "highlight the
+  // word being spoken right now" pass, the same way vilnaPageMap.wordBoxes
+  // drives updateVilnaOverlay for the Vilna page view. #scanWordOverlay's
+  // own elements below stay pure click targets, never touched by the
+  // highlight -- see the state block's own comment for why.
   const normalizedWordBoxes = normalizePageWordBoxes(wordBoxes);
   state.scanWordBoxes = normalizedWordBoxes;
-  state.scanWordEls = new Map();
+  state.scanPageMap = { wordBoxes: normalizedWordBoxes };
   state.scanOverlayKey = '';
   for (const box of normalizedWordBoxes) {
     const el = document.createElement('div');
@@ -3435,7 +3440,6 @@ async function renderScanMatch(ref, wordBoxes, hintSuffix = '') {
       tapScannedWord(box.ref, box.wordIndex);
     });
     overlay.appendChild(el);
-    state.scanWordEls.set(`${box.ref}:${box.wordIndex}`, el);
   }
   updateScanOverlay(getCurrentTime());
 }
@@ -3534,26 +3538,48 @@ async function switchScanVideo() {
 // the scan feature's equivalent of updateVilnaOverlay (see there for the
 // full rationale, including why this is keyed on the whole segment/phrase
 // rather than just wordTimeline, and why the dedup key exists). Reads from
-// scanWordBoxes/scanWordEls (populated in showScanResult) instead of
-// vilnaPageMap.wordBoxes/vilnaWordEls, since a scanned photo isn't
-// necessarily showing the same daf as state.vilnaPageMap would resolve to
-// (Vilna-page and Scan are independent view-switch tabs on the same daf).
+// scanWordBoxes/scanPageMap (populated in renderScanMatch) instead of
+// vilnaPageMap.wordBoxes, since a scanned photo isn't necessarily showing
+// the same daf as state.vilnaPageMap would resolve to (Vilna-page and Scan
+// are independent view-switch tabs on the same daf).
+//
+// Draws merged per-line bars into #scanActiveOverlay via
+// groupBoxesIntoLineRects/appendLineRects -- the same pass
+// updateVilnaOverlay uses -- rather than toggling an 'active' class per
+// word box the way this used to. That per-word toggle was the last place
+// still drawing the old oversized, solid-yellow per-word highlight
+// (.scan-word-box.active) the rest of the daf/video views moved off of when
+// updateVilnaOverlay/updateVideoOverlay were rebuilt around merged line
+// rects: reported directly as "still boxy and yellow" against the current
+// blue bar the other two views share. inkBands is always null here -- a
+// scanned photo has no rendered canvas of its own to measure real ink bands
+// from (these boxes come from server-side OCR on the photo, not from pdf.js
+// rasterizing a page DafSync owns) -- groupBoxesIntoLineRects degrades to
+// its estimated-height fallback in that case, the same fallback
+// updateVideoOverlay already relies on when the Vilna canvas isn't visible.
 function updateScanOverlay(time) {
-  if (!state.scanWordEls || !state.scanWordEls.size) return;
+  const overlay = $('scanActiveOverlay');
+  if (!overlay) return;
+  if (!state.scanWordBoxes || !state.scanWordBoxes.length) {
+    if (state.scanOverlayKey) {
+      overlay.innerHTML = '';
+      state.scanOverlayKey = '';
+    }
+    return;
+  }
   const activeSegment = state.segments[state.activeIndex];
   const dedupKey = activeSegment ? `${activeSegment.ref}:${activeSegment.w0}:${activeSegment.w1}` : '';
   if (dedupKey === state.scanOverlayKey) return;
   state.scanOverlayKey = dedupKey;
 
-  const activeRef = activeSegment?.ref || '';
-  const hasRange = activeSegment && activeSegment.w0 !== null && activeSegment.w1 !== null;
-  for (const box of state.scanWordBoxes) {
-    const el = state.scanWordEls.get(`${box.ref}:${box.wordIndex}`);
-    if (!el) continue;
-    const hit = activeRef !== '' && box.ref === activeRef
-      && (!hasRange || (box.wordIndex >= activeSegment.w0 && box.wordIndex <= activeSegment.w1));
-    el.classList.toggle('active', hit);
-  }
+  overlay.innerHTML = '';
+  if (!activeSegment) return;
+  const hasRange = activeSegment.w0 !== null && activeSegment.w1 !== null;
+  const boxes = state.scanWordBoxes
+    .filter((box) => box.ref === activeSegment.ref
+      && (!hasRange || (box.wordIndex >= activeSegment.w0 && box.wordIndex <= activeSegment.w1)))
+    .sort((a, b) => a.wordIndex - b.wordIndex);
+  appendLineRects(overlay, groupBoxesIntoLineRects(boxes, state.scanPageMap, null), 'scan-active-rect');
 }
 
 // Pinch-to-zoom on the synced result photo. A CSS transform on
@@ -6050,6 +6076,15 @@ function handleVideoFile(file) {
   state.videoSource = { type: 'local', fileName: file.name, label: 'Local file' };
   htmlVideo.src = state.objectUrl;
   htmlVideo.load();
+  // .load() resets playbackRate to 1 (confirmed against a real <video>
+  // element, not documented behaviour anyone would guess) -- without this,
+  // a reader who had set e.g. 1.5x kept the select showing "1.5x" while the
+  // video itself silently played at 1x underneath, and going back to "1x"
+  // from there was a genuine no-op: the select already read "1x" pre-load
+  // (its default), so re-picking the same option fires no 'change' event at
+  // all and setPlaybackRate never got called. Matches what the YouTube path
+  // already does after cueVideoById -- see waitForYouTubeMetadata's caller.
+  setPlaybackRate(Number($('speedSelect').value));
   $('videoFileName').textContent = file.name;
   $('lectureTitle').textContent = file.name.replace(/\.[^.]+$/, '');
   setSourceBadge('Local file');
@@ -6340,6 +6375,9 @@ function loadDirectVideoUrl(url, saveRefs = null, locked = false) {
   state.videoSource = { type: 'direct', url: parsed.href, label: 'Direct link', locked };
   htmlVideo.src = parsed.href;
   htmlVideo.load();
+  // Re-syncs the real rate after .load() resets it to 1 -- see the matching
+  // comment in handleVideoFile above.
+  setPlaybackRate(Number($('speedSelect').value));
   $('lectureTitle').textContent = titleFromUrl(parsed.href);
   setSourceBadge('Direct link');
   setSourcePanel('linkSourcePanel');

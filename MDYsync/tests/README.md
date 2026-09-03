@@ -55,6 +55,8 @@ belongs in SQL, not here.
 | `tests/chaburah/summary.spec.mjs` | Generated summaries and related discussions: labelling, citations, withdrawn points, catch-up, and every failure path leaving the thread readable |
 | `tests/functions/chabura-summary.test.mjs` | What the summary function lets reach a model, and when it generates at all — run with `npm run test:functions`, for the same reason as the link-preview tests |
 | `tests/notes/select-text.spec.mjs` | Reading order, multi-ref selection runs, saved `word_ranges` payload |
+| `tests/player/speed.spec.mjs` | The video player's playback-speed control survives a new video/daf load, instead of `HTMLMediaElement.load()`'s silent reset to 1x going unnoticed |
+| `tests/player/scan-highlight.spec.mjs` | DafScan's "word being spoken right now" highlight is a merged blue bar (matching the Vilna page and video overlay), not the old per-word yellow box; its click-to-jump targets are unaffected |
 
 ## Writing a test
 
