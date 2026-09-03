@@ -16,7 +16,19 @@
 // existing caller keeps working unchanged; window.DafNotesFormat below is the
 // handle new code should use, so it does not have to rely on load-order luck.
 //
-// Depends on escapeHtml (app.js) at call time only.
+// renderFormattedBody needs escapeHtml, which app.js declares. The Cloud
+// Chabura pages deliberately do NOT load app.js -- shipping a 409KB player
+// monolith to render a list of discussions was one of the Phase 1 audit's
+// findings (F-13) -- so provide the identical implementation when it is
+// absent. On any page that does load app.js this is a no-op: a top-level
+// `function escapeHtml` there already put it on window before this runs.
+if (typeof window.escapeHtml !== 'function') {
+  window.escapeHtml = function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text || '';
+    return div.innerHTML;
+  };
+}
 
 // Optional single category tag on a NOTE (not a reply -- replies aren't
 // categorized). `primary: true` entries show directly in the composer;

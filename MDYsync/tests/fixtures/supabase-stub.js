@@ -48,6 +48,83 @@
     return a < b ? -1 : 1;
   }
 
+  // --- PostgREST filter expressions ---------------------------------------
+  // `.or()` takes a raw PostgREST expression string, not a builder call, so the
+  // stub has to parse it. The keyset pagination in chabura-data.js sends
+  //   last_activity_at.lt.<ts>,and(last_activity_at.eq.<ts>,id.lt.<id>)
+  // which needs comma-splitting at depth 0, nested and(...) groups, and the
+  // ordering operators. Kept deliberately small: it supports exactly the
+  // grammar this repo emits, and throws on anything else rather than silently
+  // matching every row and making a broken query look like a passing test.
+  function splitTopLevel(text) {
+    const parts = [];
+    let depth = 0;
+    let current = '';
+    for (const character of text) {
+      if (character === '(') { depth += 1; current += character; }
+      else if (character === ')') { depth -= 1; current += character; }
+      else if (character === ',' && depth === 0) { parts.push(current); current = ''; }
+      else current += character;
+    }
+    parts.push(current);
+    return parts.map((part) => part.trim()).filter(Boolean);
+  }
+
+  function parseExpression(text) {
+    const group = /^(and|or)\(([\s\S]*)\)$/.exec(text.trim());
+    if (group) {
+      return { kind: group[1], children: splitTopLevel(group[2]).map(parseExpression) };
+    }
+    const firstDot = text.indexOf('.');
+    const secondDot = text.indexOf('.', firstDot + 1);
+    if (firstDot < 0 || secondDot < 0) {
+      throw new Error('supabase-stub: cannot parse PostgREST filter "' + text + '"');
+    }
+    // A leaf that still contains a top-level comma or a group means the caller
+    // handed a whole list where a single condition was expected. Left
+    // unchecked, the remainder gets swallowed into the comparison VALUE and the
+    // filter quietly matches the wrong rows -- which is exactly how a
+    // mis-parsed keyset cursor let its own boundary row through twice.
+    if (splitTopLevel(text).length > 1 || text.includes('(')) {
+      throw new Error('supabase-stub: expected a single condition, got a list: "' + text + '"');
+    }
+    return {
+      kind: 'leaf',
+      column: text.slice(0, firstDot),
+      operator: text.slice(firstDot + 1, secondDot),
+      value: text.slice(secondDot + 1),
+    };
+  }
+
+  // `.is(col, null)` and `.not(col, 'is', null)` both land here. PostgREST
+  // spells the null literal as the bare word "null" inside an expression
+  // string and as a real null when passed through the builder.
+  function isNullish(value) { return value === null || value === undefined; }
+
+  function testIs(value, target) {
+    if (target === null || target === 'null') return isNullish(value);
+    if (target === true || target === 'true') return value === true;
+    if (target === false || target === 'false') return value === false;
+    return value === target;
+  }
+
+  function evaluate(row, node) {
+    if (node.kind === 'and') return node.children.every((child) => evaluate(row, child));
+    if (node.kind === 'or') return node.children.some((child) => evaluate(row, child));
+    const value = row[node.column];
+    const target = node.value;
+    switch (node.operator) {
+      case 'eq': return String(value) === String(target);
+      case 'neq': return String(value) !== String(target);
+      case 'lt': return !isNullish(value) && compare(value, target) < 0;
+      case 'lte': return !isNullish(value) && compare(value, target) <= 0;
+      case 'gt': return !isNullish(value) && compare(value, target) > 0;
+      case 'gte': return !isNullish(value) && compare(value, target) >= 0;
+      case 'is': return testIs(value, target);
+      default: throw new Error('supabase-stub: unsupported PostgREST operator "' + node.operator + '"');
+    }
+  }
+
   function createClient() {
     const db = window.__DAFSYNC_TEST_DB__ || {};
     const control = window.__DAFSYNC_TEST_CONTROL__ || {};
@@ -92,6 +169,9 @@
           if (filter.type === 'eq') return value === filter.value;
           if (filter.type === 'in') return filter.value.includes(value);
           if (filter.type === 'ilike') return typeof value === 'string' && ilikeToRegExp(filter.value).test(value);
+          if (filter.type === 'is') return testIs(value, filter.value);
+          if (filter.type === 'not') return !evaluate(row, { kind: 'leaf', column: filter.column, operator: filter.operator, value: filter.value });
+          if (filter.type === 'or') return evaluate(row, filter.node);
           if (filter.type === 'textSearch') {
             // body_tsv is a generated column over body (+ selected_text on
             // line_notes); the stub searches those source columns directly
@@ -111,12 +191,20 @@
         const error = injectedError(tableName, 'select');
         if (error) return { data: null, error };
         let rows = table(tableName).filter(matches);
-        query.orders.forEach((order) => {
+        if (query.orders.length) {
+          // PostgREST applies successive .order() calls as tie-breakers, not as
+          // independent passes. Sorting once per order (which is what this did
+          // before) let the LAST call win outright and silently broke the
+          // (last_activity_at desc, id desc) keyset ordering the feed relies on.
           rows = rows.slice().sort((a, b) => {
-            const direction = order.ascending ? 1 : -1;
-            return compare(a[order.column], b[order.column]) * direction;
+            for (const order of query.orders) {
+              const direction = order.ascending ? 1 : -1;
+              const result = compare(a[order.column], b[order.column]) * direction;
+              if (result !== 0) return result;
+            }
+            return 0;
           });
-        });
+        }
         if (query.limitCount !== null) rows = rows.slice(0, query.limitCount);
         if (query.rowMode === 'single') {
           if (rows.length !== 1) {
@@ -196,6 +284,16 @@
         in(column, value) { query.filters.push({ type: 'in', column, value: value || [] }); return api; },
         ilike(column, value) { query.filters.push({ type: 'ilike', column, value }); return api; },
         textSearch(column, value) { query.filters.push({ type: 'textSearch', column, value }); return api; },
+        is(column, value) { query.filters.push({ type: 'is', column, value }); return api; },
+        not(column, operator, value) { query.filters.push({ type: 'not', column, operator, value }); return api; },
+        // PostgREST's `or=` takes a COMMA-SEPARATED LIST of conditions, any one
+        // of which may match -- not a single condition. Splitting at the top
+        // level is therefore part of the operator, not an optimisation.
+        or(expression) {
+          const node = { kind: 'or', children: splitTopLevel(expression).map(parseExpression) };
+          query.filters.push({ type: 'or', node });
+          return api;
+        },
         order(column, options) { query.orders.push({ column, ascending: options ? options.ascending !== false : true }); return api; },
         limit(count) { query.limitCount = count; return api; },
         single() { query.rowMode = 'single'; return api; },

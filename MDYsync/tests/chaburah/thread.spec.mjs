@@ -2,21 +2,25 @@ import { test, expect } from '@playwright/test';
 import { preparePage, readTestCalls } from '../support/harness.mjs';
 import { buildDatabase, USERS, NOTE_IDS } from '../fixtures/dataset.mjs';
 
-// Discussion behaviour inside the shared note dialog (notes.js), which is what
-// Cloud Chaburah's "View thread" currently opens. Phase 4 replaces this with a
-// dedicated /chaburah/thread/ route; until then this is the regression contract
-// for replies, nested replies, reactions, follows, mentions and reporting.
+// Discussion behaviour inside the shared note dialog (notes.js). This suite ran
+// against /chaburah/ until Prompt 3, when the Cloud Chabura home stopped loading
+// app.js and notes.js entirely (audit F-13). The dialog itself did not change --
+// it now lives only on the reading pages -- so the suite moved to /browse/, the
+// Interactive Daf, which is where a reader actually opens a thread today.
+// Prompt 4 replaces it with a dedicated thread route; until then this is the
+// regression contract for replies, nested replies, reactions, follows, mentions
+// and reporting.
 
 const DIALOG = '#noteDialog';
 const NOTE = (id) => `${DIALOG} .note-item[data-id="${id}"]`;
 
 async function openThread(page, segmentRef = 'Chullin 89a.1') {
   await page.evaluate((ref) => {
-    // chaburah.js sets state.dafRef the same way before delegating to the
-    // shared dialog; mirroring that here keeps the test on the real path.
-    // `state` is a top-level `const` in a classic script, so it lives in the
-    // global LEXICAL scope and is not reachable as window.state -- it has to
-    // be referenced bare, exactly as chaburah.js itself does.
+    // The daf pages set state.dafRef during their own load; pinning it here
+    // makes the fixture segment deterministic regardless of what /browse/
+    // resolved. `state` is a top-level `const` in a classic script, so it lives
+    // in the global LEXICAL scope and is not reachable as window.state -- it
+    // has to be referenced bare, exactly as the page's own code does.
     state.dafRef = 'Chullin 89a';
     window.DafNotes.open(ref, '');
   }, segmentRef);
@@ -27,7 +31,7 @@ async function openThread(page, segmentRef = 'Chullin 89a.1') {
 test.describe('Note thread — reading', () => {
   test('signed-out reader sees public notes and a sign-in prompt, no composer', async ({ page }) => {
     await preparePage(page, { user: null });
-    await page.goto('/chaburah/');
+    await page.goto('/browse/?ref=Chullin%2089a');
     await openThread(page);
 
     await expect(page.locator('#noteSignInPrompt')).toBeVisible();
@@ -40,7 +44,7 @@ test.describe('Note thread — reading', () => {
 
   test('signed-in reader gets the composer and reply controls', async ({ page }) => {
     await preparePage(page, { user: USERS.ordinary });
-    await page.goto('/chaburah/');
+    await page.goto('/browse/?ref=Chullin%2089a');
     await openThread(page);
 
     await expect(page.locator('#noteCompose')).toBeVisible();
@@ -50,7 +54,7 @@ test.describe('Note thread — reading', () => {
 
   test('renders a four-level nested reply chain', async ({ page }) => {
     await preparePage(page, { user: USERS.ordinary });
-    await page.goto('/chaburah/');
+    await page.goto('/browse/?ref=Chullin%2089a');
     await openThread(page);
 
     const thread = page.locator(NOTE(NOTE_IDS.deepThread));
@@ -61,7 +65,7 @@ test.describe('Note thread — reading', () => {
 
   test('a moderator-hidden reply keeps its visible descendant', async ({ page }) => {
     await preparePage(page, { user: USERS.ordinary });
-    await page.goto('/chaburah/');
+    await page.goto('/browse/?ref=Chullin%2089a');
     await openThread(page);
 
     const thread = page.locator(NOTE(NOTE_IDS.hiddenParentThread));
@@ -72,7 +76,7 @@ test.describe('Note thread — reading', () => {
 
   test('a word-range note quotes its own selected passage', async ({ page }) => {
     await preparePage(page, { user: USERS.ordinary });
-    await page.goto('/chaburah/');
+    await page.goto('/browse/?ref=Chullin%2089a');
     await openThread(page);
 
     await expect(page.locator(`${NOTE(NOTE_IDS.singleWordRange)} .note-item-quote`))
@@ -81,7 +85,7 @@ test.describe('Note thread — reading', () => {
 
   test('a note with a video timestamp shows a seek pill; one without does not', async ({ page }) => {
     await preparePage(page, { user: USERS.ordinary });
-    await page.goto('/chaburah/');
+    await page.goto('/browse/?ref=Chullin%2089a');
     await openThread(page);
 
     await expect(page.locator(`${NOTE(NOTE_IDS.singleWordRange)} .note-timestamp-seek`)).toHaveCount(1);
@@ -92,7 +96,7 @@ test.describe('Note thread — reading', () => {
 test.describe('Note thread — writing', () => {
   test('posts a top-level reply', async ({ page }) => {
     await preparePage(page, { user: USERS.ordinary });
-    await page.goto('/chaburah/');
+    await page.goto('/browse/?ref=Chullin%2089a');
     await openThread(page);
 
     const noteId = NOTE_IDS.noReplies;
@@ -111,7 +115,7 @@ test.describe('Note thread — writing', () => {
 
   test('posts a nested reply carrying its parent_comment_id', async ({ page }) => {
     await preparePage(page, { user: USERS.ordinary });
-    await page.goto('/chaburah/');
+    await page.goto('/browse/?ref=Chullin%2089a');
     await openThread(page);
 
     const noteId = NOTE_IDS.deepThread;
@@ -134,7 +138,7 @@ test.describe('Note thread — writing', () => {
       // brand-new or rate-limited account.
       control: { failures: { 'comments:insert': { message: 'new row violates row-level security policy' } } },
     });
-    await page.goto('/chaburah/');
+    await page.goto('/browse/?ref=Chullin%2089a');
     await openThread(page);
 
     const noteId = NOTE_IDS.noReplies;
@@ -154,7 +158,7 @@ test.describe('Note thread — writing', () => {
 
   test('an unsent draft does NOT survive a reload (audit F-7, Phase 5 target)', async ({ page }) => {
     await preparePage(page, { user: USERS.ordinary });
-    await page.goto('/chaburah/');
+    await page.goto('/browse/?ref=Chullin%2089a');
     await openThread(page);
 
     const noteId = NOTE_IDS.noReplies;
@@ -174,7 +178,7 @@ test.describe('Note thread — writing', () => {
 
   test('mention chips are limited to thread participants and never expose email', async ({ page }) => {
     await preparePage(page, { user: USERS.ordinary });
-    await page.goto('/chaburah/');
+    await page.goto('/browse/?ref=Chullin%2089a');
     await openThread(page);
 
     const noteId = NOTE_IDS.deepThread;
@@ -193,7 +197,7 @@ test.describe('Note thread — writing', () => {
 
   test('selected mention chips are sent as mentioned_user_ids', async ({ page }) => {
     await preparePage(page, { user: USERS.ordinary });
-    await page.goto('/chaburah/');
+    await page.goto('/browse/?ref=Chullin%2089a');
     await openThread(page);
 
     const noteId = NOTE_IDS.deepThread;
@@ -214,7 +218,7 @@ test.describe('Note thread — writing', () => {
 test.describe('Note thread — reactions, follows, reports', () => {
   test('adds a reaction through the reaction menu', async ({ page }) => {
     await preparePage(page, { user: USERS.ordinary });
-    await page.goto('/chaburah/');
+    await page.goto('/browse/?ref=Chullin%2089a');
     await openThread(page);
 
     const note = page.locator(NOTE(NOTE_IDS.noReplies));
@@ -230,7 +234,7 @@ test.describe('Note thread — reactions, follows, reports', () => {
 
   test('removes an existing reaction by selecting it again', async ({ page }) => {
     await preparePage(page, { user: USERS.ordinary });
-    await page.goto('/chaburah/');
+    await page.goto('/browse/?ref=Chullin%2089a');
     await openThread(page);
 
     const note = page.locator(NOTE(NOTE_IDS.singleWordRange));
@@ -244,7 +248,7 @@ test.describe('Note thread — reactions, follows, reports', () => {
   test('a reader may hold more than one reaction type on the same note', async ({ page }) => {
     const db = buildDatabase();
     await preparePage(page, { user: USERS.ordinary, db });
-    await page.goto('/chaburah/');
+    await page.goto('/browse/?ref=Chullin%2089a');
     await openThread(page);
 
     const note = page.locator(NOTE(NOTE_IDS.singleWordRange));
@@ -260,7 +264,7 @@ test.describe('Note thread — reactions, follows, reports', () => {
 
   test('follows and unfollows a thread', async ({ page }) => {
     await preparePage(page, { user: USERS.ordinary });
-    await page.goto('/chaburah/');
+    await page.goto('/browse/?ref=Chullin%2089a');
     await openThread(page);
 
     const unfollowed = page.locator(`.follow-toggle-button[data-note-id="${NOTE_IDS.noReplies}"]`);
@@ -272,9 +276,17 @@ test.describe('Note thread — reactions, follows, reports', () => {
     expect(calls.find((c) => c.table === 'thread_follows' && c.operation === 'insert')).toBeTruthy();
   });
 
-  test('reports a note with a reason', async ({ page }) => {
+  test('reports a note with a reason', async ({ page }, testInfo) => {
+    // Skipped on mobile, not worked around: audit F-15. /browse/ lays out
+    // 472px wide on a 412px phone, and #noteDialog is right-anchored to that
+    // wider layout, so its rightmost ~60px -- exactly where 🚩 and × sit -- is
+    // off the physical screen. The click genuinely cannot land. The mobile
+    // guard test below fails the moment that overflow is fixed, which is the
+    // signal to delete this skip.
+    test.skip(testInfo.project.name === 'mobile', 'Audit F-15: note sidebar controls are off-screen at 412px');
+
     await preparePage(page, { user: USERS.ordinary });
-    await page.goto('/chaburah/');
+    await page.goto('/browse/?ref=Chullin%2089a');
     page.on('dialog', (dialog) => dialog.accept('Off topic and unsourced.'));
     await openThread(page);
 
@@ -291,9 +303,17 @@ test.describe('Note thread — reactions, follows, reports', () => {
     expect(insert.rows[0].target_type).toBe('note');
   });
 
-  test('a cancelled report prompt files nothing', async ({ page }) => {
+  test('a cancelled report prompt files nothing', async ({ page }, testInfo) => {
+    // Skipped on mobile, not worked around: audit F-15. /browse/ lays out
+    // 472px wide on a 412px phone, and #noteDialog is right-anchored to that
+    // wider layout, so its rightmost ~60px -- exactly where 🚩 and × sit -- is
+    // off the physical screen. The click genuinely cannot land. The mobile
+    // guard test below fails the moment that overflow is fixed, which is the
+    // signal to delete this skip.
+    test.skip(testInfo.project.name === 'mobile', 'Audit F-15: note sidebar controls are off-screen at 412px');
+
     await preparePage(page, { user: USERS.ordinary });
-    await page.goto('/chaburah/');
+    await page.goto('/browse/?ref=Chullin%2089a');
     page.on('dialog', (dialog) => dialog.dismiss());
     await openThread(page);
 
@@ -306,10 +326,37 @@ test.describe('Note thread — reactions, follows, reports', () => {
 
   test('a reader is never offered a report button on their own note', async ({ page }) => {
     await preparePage(page, { user: USERS.author });
-    await page.goto('/chaburah/');
+    await page.goto('/browse/?ref=Chullin%2089a');
     await openThread(page);
 
     // Every fixture note on this segment is authored by USERS.author.
     await expect(page.locator(`${NOTE(NOTE_IDS.noReplies)} .note-report-button`)).toHaveCount(0);
+  });
+});
+
+test.describe('Interactive Daf — mobile layout (audit F-15)', () => {
+  test('the note sidebar controls are reachable on a phone', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'Only meaningful at a phone viewport');
+
+    await preparePage(page, { user: USERS.ordinary });
+    await page.goto('/browse/?ref=Chullin%2089a');
+    await openThread(page);
+
+    // Measured, not assumed: /browse/ lays out 472px wide inside a 412px
+    // visual viewport, while /, /watch/ and /chaburah/ all lay out at 412.
+    // Hiding .mobile-nav does not narrow it, so the bottom nav is a symptom --
+    // the overflow is upstream, in the RTL daf layout itself.
+    const layout = await page.evaluate(() => ({
+      visual: Math.round(window.visualViewport.width),
+      document: document.documentElement.scrollWidth,
+      dialogRight: Math.round(document.getElementById('noteDialog').getBoundingClientRect().right),
+    }));
+
+    // This assertion DOCUMENTS the defect so it cannot regress silently and so
+    // fixing it fails loudly here. When it does: replace these with
+    // `expect(layout.document).toBe(layout.visual)` and drop the two mobile
+    // skips above.
+    expect(layout.document).toBeGreaterThan(layout.visual);
+    expect(layout.dialogRight).toBeGreaterThan(layout.visual);
   });
 });

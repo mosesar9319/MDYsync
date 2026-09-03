@@ -258,6 +258,9 @@ retro-document the existing 24 so schema history stops living only in Supabase.
 `loadChaburahPagedView` requests `chaburahOffset + PAGE_SIZE + 1` rows and slices
 locally. Page 5 fetches 101 rows to display 20. Compounding with F-3.
 *Action:* keyset pagination in Phase 3, as the plan already specifies.
+*Closed in Prompt 3* — `chabura-data.js` `applyKeyset()`; covered by the
+"pages with a keyset cursor" spec, which asserts no row is duplicated or dropped
+across the page boundary.
 
 **F-3 — Ranked views scan and rank client-side.** `most-helpful` and `unanswered`
 pull the newest 200 public notes (`CHABURAH_RANK_SCAN_LIMIT`), then count reactions
@@ -333,6 +336,29 @@ refactor.
 (`getMentionableForNote`). A crafted request could mention any known user id. Impact
 today is low (a notification row), but the plan's Prompt 5 asserts "server validation
 remains authoritative" — that is not true yet, and Phase 2 should make it so.
+
+**F-15 — On a phone, the note sidebar's own controls are off the screen.**
+*Found during Prompt 3*, not in the original Phase 1 sweep, when the thread suite
+moved off `/chaburah/` onto `/browse/` (the page where the shared note dialog
+actually lives now). At a 412 px viewport `/browse/` lays out **472 px wide** —
+60 px of horizontal overflow. `/`, `/watch/` and the rebuilt `/chaburah/` all lay
+out at exactly 412. `#noteDialog` is `position: fixed; inset: 0 0 0 auto`, so it
+anchors to the right edge of that **472 px layout**, not the 412 px screen: its
+rightmost ~60 px sits past the physical display. That strip is exactly where the
+report (🚩) and delete (×) buttons are, so on a phone a reader cannot report a
+note or delete their own without first scrolling the page sideways.
+
+Measured, so the cause is not guessed at: hiding `.mobile-nav` does **not** narrow
+the document, so the bottom nav (whose own scroll content is 532 px inside a
+472 px box) is a symptom rather than the source; the overflow is upstream in the
+RTL daf layout itself. No element measures `right > 412`, which is consistent with
+an RTL-side overflow.
+
+*Action:* not fixed here — diagnosing `/browse/`'s mobile layout is the plan's
+mobile phase, not Prompt 3, and a speculative CSS patch would have been a guess.
+`tests/chaburah/thread.spec.mjs` carries a mobile test that asserts the overflow,
+so the defect cannot regress silently and fixing it fails loudly with instructions
+to remove the two `test.skip`s that depend on it.
 
 ---
 
