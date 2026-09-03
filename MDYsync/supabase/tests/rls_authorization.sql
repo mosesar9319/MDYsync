@@ -762,4 +762,85 @@ select dafsync_test.check(
   '42501');
 
 -- ===========================================================================
+-- Prompt 7: every SECURITY DEFINER function reachable over PostgREST, called
+-- directly as anon and as an ordinary authenticated user.
+--
+-- "UI hiding is not security." resolve_report, set_note_hidden and
+-- set_comment_hidden are covered above. These are the remaining three that a
+-- browser can call: is_admin and can_post_publicly (granted to anon AND
+-- authenticated) and comment_is_in_note (authenticated only). Each is a
+-- SECURITY DEFINER function running as its owner, so each is worth calling
+-- directly rather than trusting that only our own code calls it.
+-- ===========================================================================
+
+select dafsync_test.check(
+  'is_admin() is false for anon',
+  dafsync_test.read_as('anon', null, 'select public.is_admin()::text'),
+  'false');
+
+select dafsync_test.check(
+  'is_admin() is false for an ordinary authenticated user',
+  dafsync_test.read_as('authenticated', :reader, 'select public.is_admin()::text'),
+  'false');
+
+select dafsync_test.check(
+  'is_admin() is true only for the admin',
+  dafsync_test.read_as('authenticated', :admin, 'select public.is_admin()::text'),
+  'true');
+
+select dafsync_test.check(
+  'can_post_publicly() is false for anon',
+  dafsync_test.read_as('anon', null, 'select public.can_post_publicly()::text'),
+  'false');
+
+select dafsync_test.check(
+  'can_post_publicly() is false for an account younger than a day',
+  dafsync_test.read_as('authenticated', :newbie, 'select public.can_post_publicly()::text'),
+  'false');
+
+select dafsync_test.check(
+  'can_post_publicly() is true for an established account',
+  dafsync_test.read_as('authenticated', :reader, 'select public.can_post_publicly()::text'),
+  'true');
+
+-- comment_is_in_note is the helper the reply-recursion hotfix introduced. It
+-- answers one boolean about a pair of ids the caller must already hold, and it
+-- must not become a way to probe threads a reader cannot see.
+select dafsync_test.check(
+  'anon cannot call comment_is_in_note at all',
+  dafsync_test.read_as('anon', null,
+    format('select public.comment_is_in_note(%L, %L)::text', :deep_reply, :deep_note)),
+  'ERROR:42501');
+
+select dafsync_test.check(
+  'comment_is_in_note answers truthfully for a pair the caller already holds',
+  dafsync_test.read_as('authenticated', :reader,
+    format('select public.comment_is_in_note(%L, %L)::text', :deep_reply, :deep_note)),
+  'true');
+
+select dafsync_test.check(
+  'comment_is_in_note says false for a mismatched pair rather than erroring',
+  dafsync_test.read_as('authenticated', :reader,
+    format('select public.comment_is_in_note(%L, %L)::text', :deep_reply, :open_note)),
+  'false');
+
+-- The trigger functions must remain uncallable: they were revoked from PUBLIC
+-- in the Prompt 1 grant tightening, and a regression there would hand any
+-- browser a SECURITY DEFINER function that writes rows.
+select dafsync_test.check(
+  'authenticated cannot call the new-user trigger function',
+  dafsync_test.read_as('authenticated', :reader, 'select public.handle_new_user()::text'),
+  'ERROR:42501');
+
+select dafsync_test.check(
+  'authenticated cannot call the mention-validation trigger function',
+  dafsync_test.read_as('authenticated', :reader, 'select public.validate_mentions()::text'),
+  'ERROR:42501');
+
+select dafsync_test.check(
+  'anon cannot call the hidden-note guard trigger function',
+  dafsync_test.read_as('anon', null, 'select public.line_notes_guard_hidden()::text'),
+  'ERROR:42501');
+
+-- ===========================================================================
 do $$ begin raise notice 'ALL AUTHORIZATION TESTS PASSED'; end $$;

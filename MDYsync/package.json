@@ -8,7 +8,9 @@
     "test:desktop": "playwright test --project=desktop",
     "test:mobile": "playwright test --project=mobile",
     "test:ui": "playwright test --ui",
-    "serve": "node tests/static-server.mjs"
+    "serve": "node tests/static-server.mjs",
+    "test:functions": "node --test \"tests/functions/*.test.mjs\"",
+    "test:all": "node --test \"tests/functions/*.test.mjs\" && playwright test"
   },
   "dependencies": {
     "jimp": "^1.6.1",

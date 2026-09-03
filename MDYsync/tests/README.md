@@ -48,6 +48,9 @@ belongs in SQL, not here.
 | `tests/fixtures/dataset.mjs` | Personas and the fixture database |
 | `tests/chaburah/feed.spec.mjs` | Cloud Chabura home (`/chaburah/`): views, filters, URL state, pagination, cards, actions, Today's Daf |
 | `tests/chaburah/thread.spec.mjs` | Note dialog on `/browse/`: replies, nesting, reactions, follows, mentions, reports, signed-out |
+| `tests/functions/link-preview.test.mjs` | SSRF defences on the link-preview fetcher — run with `npm run test:functions` (node --test), NOT Playwright: nothing in that suite can reach a Netlify function |
+| `tests/chaburah/scale.spec.mjs` | Query counts and DOM size at 320 and 1,000 replies |
+| `tests/chaburah/a11y.spec.mjs` | WCAG 2.2 AA checks that can be made mechanical; see `docs/ACCESSIBILITY.md` for what they cannot cover |
 | `tests/chaburah/thread-reader.spec.mjs` | Cloud Chabura thread reader (`/chaburah/thread/`): source context, reply tree, permalinks, composer, answers, edit/delete, outline, search, keyboard, scale, mobile |
 | `tests/notes/select-text.spec.mjs` | Reading order, multi-ref selection runs, saved `word_ranges` payload |
 
@@ -114,6 +117,11 @@ update, delete and rpc the page issued.
   depends on it: the thread composer sends a client-generated id so a retry
   after a timeout collides (23505) rather than posting a second reply. Without
   the constraint modelled, that safety net could not be tested at all.
+- **Query counts are measured from the stub, not the network.** The stub is
+  in-page, so no request leaves the browser and counting HTTP traffic would
+  measure zero and pass regardless. `readTestQueries(page)` returns the reads the
+  stub actually served, which is the only way a "no N+1" assertion means
+  anything.
 - **Never assert authorization here.** The stub answers every query as a trusted
   caller. A spec that "proves" a private thread is hidden is proving nothing --
   remove the row from the fixture to model what RLS returns, and put the real

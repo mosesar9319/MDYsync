@@ -97,6 +97,46 @@ function comment(overrides) {
   };
 }
 
+// A thread far past the plan's 300-reply threshold, built on demand rather than
+// in every buildDatabase() call -- 1,000 extra rows in every test would slow the
+// whole suite to measure something only two specs care about.
+export function withHugeThread(db, replies = 1000) {
+  const rootId = 'a0000000-0000-4000-8000-00000000000a';
+  db.line_notes.push({
+    id: rootId,
+    author_id: USERS.author.id,
+    author_display_name: USERS.author.display_name,
+    daf_ref_key: 'Chullin-89a',
+    segment_ref: 'Chullin 89a.1',
+    body: 'Root of a thousand-reply thread.',
+    hidden: false, is_private: false,
+    created_at: isoMinutesAgo(200),
+    updated_at: isoMinutesAgo(200),
+    last_activity_at: isoMinutesAgo(1),
+    start_word: null, end_word: null, selected_text: null, word_ranges: null,
+    mentioned_user_ids: [], category: 'question', video_timestamp_seconds: null, is_demo: false,
+    title: null, status: 'open', highlighted_comment_id: null, edited_at: null, deleted_at: null,
+  });
+  for (let i = 0; i < replies; i += 1) {
+    const id = `e${String(i).padStart(7, '0')}-0000-4000-8000-000000000000`;
+    db.comments.push({
+      id,
+      note_id: rootId,
+      author_id: USERS.ordinary.id,
+      author_display_name: USERS.ordinary.display_name,
+      body: `Scale reply number ${i}.`,
+      hidden: false,
+      created_at: new Date(Date.parse('2026-09-02T06:00:00.000Z') + i * 1000).toISOString(),
+      updated_at: new Date(Date.parse('2026-09-02T06:00:00.000Z') + i * 1000).toISOString(),
+      parent_comment_id: null,
+      mentioned_user_ids: [], is_demo: false,
+      root_comment_id: id, depth: 0, activity_sequence: i + 1,
+      edited_at: null, deleted_at: null, quoted_comment_id: null, quoted_excerpt: null,
+    });
+  }
+  return { db, rootId };
+}
+
 // Builds a fresh, mutable database for one test. Always call this per test --
 // specs mutate it (posting replies, reacting) and must not share state.
 export function buildDatabase() {

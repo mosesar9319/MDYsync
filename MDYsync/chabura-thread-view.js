@@ -45,6 +45,20 @@
       .map((part) => part[0] || '').join('').toUpperCase() || '?';
   }
 
+  // A display name that is always safe to render. Three cases the data really
+  // produces: a legacy row written before display names were stored, an author
+  // whose profile row is gone (deleted account), and a row whose stored name is
+  // blank. None may fall back to showing a user id -- that is a private
+  // identifier, and putting it on screen would leak it to every reader.
+  function displayNameFor(row, profiles) {
+    const stored = (row?.author_display_name || '').trim();
+    if (stored) return stored;
+    const profile = profiles?.get?.(row?.author_id);
+    const fromProfile = (profile?.display_name || '').trim();
+    if (fromProfile) return fromProfile;
+    return row?.author_id ? 'A member' : 'Anonymous';
+  }
+
   function avatar(name, profile) {
     const node = el('span', 'ct-avatar', initials(name));
     node.setAttribute('aria-hidden', 'true');
@@ -360,15 +374,41 @@
     return card;
   }
 
+  // The FIRST http(s) link in a body, which is the one worth previewing. Kept
+  // deliberately narrow: no scheme-relative or bare-domain matching, because a
+  // preview request is a server-side fetch of attacker-supplied text and the
+  // set of things that become a request should be as small as possible.
+  function firstLinkIn(text) {
+    const match = /https?:\/\/[^\s<>"']+/i.exec(String(text || ''));
+    if (!match) return null;
+    // Trailing punctuation is almost always sentence punctuation, not URL.
+    return match[0].replace(/[.,;:!?)\]]+$/, '');
+  }
+
+  // Text only. No remote HTML, no remote image: the card links to the origin
+  // and shows what the server parsed, so a hostile page cannot render anything
+  // inside a reader's thread.
+  function linkPreviewCard(preview) {
+    const card = el('a', 'ct-preview');
+    card.href = preview.url;
+    card.rel = 'noopener noreferrer nofollow ugc';
+    card.target = '_blank';
+    card.appendChild(el('span', 'ct-preview-host', preview.siteName || preview.host));
+    if (preview.title) card.appendChild(el('span', 'ct-preview-title', preview.title));
+    if (preview.description) card.appendChild(el('span', 'ct-preview-desc', preview.description));
+    return card;
+  }
+
   function rootPost(note, ctx) {
     const article = el('article', 'ct-root');
     article.id = 'root-post';
     article.setAttribute('aria-label', 'Opening post');
 
     const head = el('div', 'ct-post-head');
-    head.appendChild(avatar(note.author_display_name, ctx.profiles.get(note.author_id)));
+    const noteName = displayNameFor(note, ctx.profiles);
+    head.appendChild(avatar(noteName, ctx.profiles.get(note.author_id)));
     const who = el('div', 'ct-who');
-    who.appendChild(el('span', 'ct-author', note.author_display_name || 'Anonymous'));
+    who.appendChild(el('span', 'ct-author', noteName));
     const role = ctx.profiles.get(note.author_id)?.role_label;
     if (role) who.appendChild(el('span', 'ct-role', role));
     who.appendChild(timeNode(note.created_at, note.edited_at));
@@ -415,9 +455,10 @@
     // A screen reader gets the author and the nesting level, which the visual
     // indentation alone conveys only to sighted users.
     const parent = row.parent_comment_id ? ctx.state.commentsById.get(row.parent_comment_id) : null;
-    const parentName = parent ? (parent.author_display_name || 'Anonymous') : null;
+    const parentName = parent ? displayNameFor(parent, ctx.profiles) : null;
+    const replyName = displayNameFor(row, ctx.profiles);
     item.setAttribute('aria-label',
-      `Reply by ${row.author_display_name || 'Anonymous'}, level ${row.depth + 1}` +
+      `Reply by ${replyName}, level ${row.depth + 1}` +
       (parentName ? `, replying to ${parentName}` : ''));
 
     if (ctx.note.highlighted_comment_id === row.id) {
@@ -426,13 +467,13 @@
 
     const head = el('div', 'ct-post-head');
     if (!S.isTombstone(row)) {
-      head.appendChild(avatar(row.author_display_name, ctx.profiles.get(row.author_id)));
+      head.appendChild(avatar(replyName, ctx.profiles.get(row.author_id)));
     }
     const who = el('div', 'ct-who');
     if (S.isTombstone(row)) {
       who.appendChild(el('span', 'ct-author ct-author-removed', 'Removed'));
     } else {
-      who.appendChild(el('span', 'ct-author', row.author_display_name || 'Anonymous'));
+      who.appendChild(el('span', 'ct-author', replyName));
       const role = ctx.profiles.get(row.author_id)?.role_label;
       if (role) who.appendChild(el('span', 'ct-role', role));
       who.appendChild(timeNode(row.created_at, row.edited_at));
@@ -565,8 +606,11 @@
     timeNode,
     categoryChip,
     statusChip,
+    displayNameFor,
     displayTitle,
     bodyNode,
+    firstLinkIn,
+    linkPreviewCard,
     sourceContext,
     reactionBar,
     reactionMenu,
