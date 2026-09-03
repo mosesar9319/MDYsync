@@ -130,7 +130,43 @@ function renderFormattedBody(raw) {
 
 // Explicit surface for new code. The bare globals above remain for the
 // existing callers; prefer this handle in anything written from here on.
+// The word runs a note is anchored to. word_ranges (see saveNote) is the
+// authoritative shape for a selection that crossed a ref boundary;
+// start_word/end_word/segment_ref still mirror its FIRST run for every older
+// query and render that only knows that trio.
+function noteAnchorRuns(row) {
+  if (row.word_ranges?.length) return row.word_ranges;
+  if (row.start_word !== null && row.start_word !== undefined) {
+    return [{ ref: row.segment_ref, start: row.start_word, end: row.end_word }];
+  }
+  return [];
+}
+
+// The cheap anchor-drift heuristic, made pure so more than one page can run it.
+// It used to read notes.js's bare `state.vilnaPageMap` directly, which meant
+// only the Interactive Daf could ask the question; the Cloud Chabura thread
+// reader needs the same answer and fetches the page map itself.
+//
+// Does the saved range still resolve to as many real word boxes on the CURRENT
+// page as it did at save time (end - start + 1)? A mismatch is a reliable sign
+// something shifted -- a word dropped out of, or added into, that span. A
+// same-count shift with different content still slips past it: a real gap in
+// coverage, traded for not costing every render a round trip to re-fetch and
+// diff the canonical text.
+function anchorMayHaveShifted(row, wordBoxes) {
+  const runs = noteAnchorRuns(row);
+  if (!runs.length || !Array.isArray(wordBoxes) || !wordBoxes.length) return false;
+  return runs.some((run) => {
+    const count = wordBoxes
+      .filter((box) => box.ref === run.ref && box.wordIndex >= run.start && box.wordIndex <= run.end)
+      .length;
+    return count !== (run.end - run.start + 1);
+  });
+}
+
 window.DafNotesFormat = {
+  noteAnchorRuns,
+  anchorMayHaveShifted,
   CATEGORY_TYPES,
   categoryByKey,
   formatTimestamp,

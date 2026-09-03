@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Cloud Chabura: questions, insights and sources attached to the daf." />
-  <title>DafSync — Cloud Chabura</title>
+  <meta name="description" content="A Cloud Chabura discussion, anchored to an exact passage of the daf." />
+  <title>DafSync — Discussion</title>
   <script>
     // Surfaces any otherwise-silent failure (a script that fails to load,
     // an uncaught exception, a rejected promise nobody caught) as a plain,
@@ -48,9 +48,10 @@
        (sidebar, bottom nav, the auth dialog). chaburah.css comes last and
        scopes the Editorial Blue palette to .cloud-chabura, so nothing here
        reskins the player or the Interactive Daf. -->
-  <link rel="stylesheet" href="../styles.css" />
-  <link rel="stylesheet" href="../watch-theme.css" />
-  <link rel="stylesheet" href="../chaburah.css" />
+  <link rel="stylesheet" href="../../styles.css" />
+  <link rel="stylesheet" href="../../watch-theme.css" />
+  <link rel="stylesheet" href="../../chaburah.css" />
+  <link rel="stylesheet" href="../../chabura-thread.css" />
 </head>
 <body data-page="chaburah" class="cloud-chabura">
   <aside class="sidebar">
@@ -82,87 +83,71 @@
       </div>
     </header>
 
-    <div class="cc-header">
-      <div class="cc-header-titles">
-        <h1>Cloud Chabura</h1>
-        <p class="cc-tagline">Questions, insights, and sources attached to the daf.</p>
-      </div>
-      <div class="cc-header-actions">
+    
+    <div class="ct-header" id="ctHeader"></div>
+
+    <!-- Sticky utility bar: search, sort and unread navigation stay reachable
+         however far down a long thread the reader has scrolled. -->
+    <div class="ct-sticky-top">
+      <div class="ct-toolbar" id="ctToolbar" hidden>
         <div class="cc-search">
           <span aria-hidden="true">🔍</span>
-          <label class="cc-visually-hidden" for="ccSearch">Search discussions</label>
-          <input id="ccSearch" type="search" placeholder="Search discussions…" autocomplete="off" />
+          <label class="cc-visually-hidden" for="ctSearch">Search within this discussion</label>
+          <input id="ctSearch" type="search" placeholder="Search this discussion…" autocomplete="off" />
         </div>
-        <a class="cc-btn cc-btn-primary" href="/browse/">Start from a daf</a>
+        <div class="ct-toolbar-group">
+          <button class="cc-btn cc-btn-sm" id="ctSearchPrev" type="button" aria-label="Previous match">↑</button>
+          <button class="cc-btn cc-btn-sm" id="ctSearchNext" type="button" aria-label="Next match">↓</button>
+        </div>
+        <div class="ct-toolbar-group">
+          <label class="cc-visually-hidden" for="ctSort">Sort branches</label>
+          <select class="cc-select" id="ctSort">
+            <option value="conversation">Conversation</option>
+            <option value="newest">Newest activity</option>
+            <option value="helpful">Most helpful</option>
+          </select>
+        </div>
+        <button class="cc-btn cc-btn-sm" id="ctJumpUnread" type="button">Jump to unread</button>
+        <button class="cc-btn cc-btn-sm" id="ctCollapseRead" type="button">Collapse read</button>
+        <button class="cc-btn cc-btn-sm" id="ctExpandAll" type="button">Expand all</button>
+        <button class="cc-btn cc-btn-sm ct-drawer-toggle" id="ctSourceToggle" type="button" aria-expanded="false">Source</button>
+        <button class="cc-btn cc-btn-sm ct-drawer-toggle" id="ctOutlineToggle" type="button" aria-expanded="false">Outline</button>
+        <button class="cc-btn cc-btn-sm" id="ctHelp" type="button" aria-label="Keyboard shortcuts">?</button>
       </div>
     </div>
 
-    <div class="cc-shell">
-      <!-- Left rail: browse and filter (desktop only; mobile gets the sheet) -->
-      <aside class="cc-rail cc-rail-left" aria-label="Browse and filter">
-        <div class="cc-panel">
-          <h3>Browse</h3>
-          <div class="cc-rail-nav" id="ccRailNav"></div>
-          <div class="cc-filter-group">
-            <label for="ccCategory">Category</label>
-            <select class="cc-select" id="ccCategory"></select>
-          </div>
-        </div>
-      </aside>
+    <div class="ct-shell">
+      <aside class="ct-rail ct-rail-left ct-drawer" id="ctSource" aria-label="Source context"></aside>
 
       <main class="cc-main">
-        <!-- Today's Daf: the defining addition from the Daf-first concept.
-             Prominent, but deliberately not tall enough to push the feed
-             below the fold. -->
-        <section class="cc-today" id="ccToday" aria-label="Today's daf"></section>
+        <!-- Screen-reader announcements for loads, jumps and failures. -->
+        <p class="cc-visually-hidden" id="ctStatus" role="status" aria-live="polite"></p>
 
-        <div class="cc-mobile-filter-bar">
-          <button class="cc-btn cc-btn-sm" id="ccOpenFilters" type="button">Filters</button>
+        <div id="ctDiscussion"></div>
+
+        <div class="cc-feed-footer" id="ctLoadMoreWrap" hidden>
+          <button class="cc-btn" id="ctLoadMore" type="button">Load more replies</button>
         </div>
 
-        <div class="cc-tabs" id="ccTabs" role="tablist" aria-label="Discussion views"></div>
-
-        <!-- Screen-reader announcements for load results and failures. -->
-        <p class="cc-visually-hidden" id="ccStatus" role="status" aria-live="polite"></p>
-
-        <div class="cc-feed" id="ccFeed"></div>
-
-        <div class="cc-feed-footer" id="ccFeedFooter" hidden>
-          <button class="cc-btn" id="ccLoadMore" type="button">Load more discussions</button>
-        </div>
+        <div id="ctComposer"></div>
       </main>
 
-      <!-- Right rail: personal orientation and curated discovery -->
-      <aside class="cc-rail cc-rail-right" aria-label="Your activity">
-        <div class="cc-panel" id="ccActivity">
-          <h3>Your activity</h3>
-          <p style="margin:0;color:var(--cc-muted);font-size:13.5px;">
-            Sign in to follow discussions, save them for later, and pick up where you left off.
-          </p>
-        </div>
-        <div class="cc-panel">
-          <h3>Community guidelines</h3>
-          <p style="margin:0;color:var(--cc-muted);font-size:13.5px;">
-            Every discussion is anchored to an exact passage. Keep replies tied to the text,
-            and mark an answer when a question is settled.
-          </p>
-        </div>
-      </aside>
+      <aside class="ct-rail ct-rail-right ct-drawer" id="ctOutline" aria-label="Thread outline"></aside>
     </div>
   </div>
 
-  <!-- Mobile filter sheet -->
-  <dialog class="cc-sheet" id="ccFilterSheet" aria-label="Filter discussions">
-    <div class="cc-sheet-panel">
-      <div class="cc-sheet-handle" aria-hidden="true"></div>
-      <div class="cc-filter-group">
-        <label for="ccCategorySheet">Category</label>
-        <select class="cc-select" id="ccCategorySheet"></select>
-      </div>
-      <div style="margin-top:16px;display:flex;justify-content:flex-end;">
-        <button class="cc-btn cc-btn-primary" id="ccCloseFilters" type="button">Done</button>
-      </div>
-    </div>
+  <dialog class="ct-help-dialog" id="ctHelpDialog" aria-label="Keyboard shortcuts">
+    <h2>Keyboard shortcuts</h2>
+    <dl>
+      <dt>/</dt><dd>Search within this discussion</dd>
+      <dt>r</dt><dd>Reply to the discussion</dd>
+      <dt>u</dt><dd>Jump to the first unread reply</dd>
+      <dt>j / k</dt><dd>Next / previous top-level branch</dd>
+      <dt>?</dt><dd>Open this list</dd>
+      <dt>Esc</dt><dd>Close a menu, dialog or drawer</dd>
+      <dt>Ctrl+Enter</dt><dd>Post, while writing a reply</dd>
+    </dl>
+    <button class="cc-btn cc-btn-primary" id="ctHelpClose" type="button">Close</button>
   </dialog>
 
   <dialog id="authDialog">
@@ -197,21 +182,20 @@
     </form>
   </dialog>
 
-  <!-- Script order is load-bearing (no build step, no modules): the data and
-       component modules must define window.DafSyncChabura before the home
-       controller reads it. Notably ABSENT compared with the old page: app.js
-       (409KB), player-chrome.js, daf-context-menu.js, highlights.js,
-       account-features.js and notes.js -- the old /chaburah/ shipped all of
-       them, plus an entire hidden Interactive Daf workspace, to render a list
-       of discussions (Phase 1 audit F-13). -->
-  <script src="../vendor/supabase-js.min.js"></script>
-  <script src="../auth.js"></script>
-  <script src="../notes-format.js" defer></script>
-  <script src="../chabura-core.js" defer></script>
-  <script src="../chabura-data.js" defer></script>
-  <script src="../chabura-components.js" defer></script>
-  <script src="../chabura-home.js" defer></script>
-  <script src="../nav.js" defer></script>
-  <script src="../collapse.js" defer></script>
+  <!-- Script order is load-bearing (no build step, no modules): core, then the
+       data/state/view/composer modules that define window.DafSyncChabura, then
+       the controller that consumes them. app.js, notes.js, highlights.js and
+       the player chrome are deliberately absent, exactly as on the feed. -->
+  <script src="../../vendor/supabase-js.min.js"></script>
+  <script src="../../auth.js"></script>
+  <script src="../../notes-format.js" defer></script>
+  <script src="../../chabura-core.js" defer></script>
+  <script src="../../chabura-thread-data.js" defer></script>
+  <script src="../../chabura-thread-state.js" defer></script>
+  <script src="../../chabura-thread-view.js" defer></script>
+  <script src="../../chabura-thread-composer.js" defer></script>
+  <script src="../../chabura-thread.js" defer></script>
+  <script src="../../nav.js" defer></script>
+  <script src="../../collapse.js" defer></script>
 </body>
 </html>

@@ -78,6 +78,23 @@ test.describe('Cloud Chabura home — shell', () => {
     expect(loaded.chabura).toBe('object');
   });
 
+  test('a card links to the thread route and carries the feed state back', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await page.goto('/chaburah/');
+    await waitForFeed(page);
+
+    const link = page.locator(`${CARD}[data-id="${NOTE_IDS.deepThread}"] .cc-card-title a`);
+    await expect(link).toHaveAttribute('href', `/chaburah/thread/?thread=${NOTE_IDS.deepThread}`);
+
+    // From a filtered view the link carries that filter, so Back returns to the
+    // view the reader was actually in rather than a reset feed.
+    await page.click('#cc-tab-highlighted');
+    await expect(page.locator(CARD)).toHaveCount(1);
+    const filtered = await page.locator(`${CARD} .cc-card-title a`).getAttribute('href');
+    expect(filtered).toContain(`thread=${NOTE_IDS.deepThread}`);
+    expect(filtered).toContain('back=view%3Dhighlighted');
+  });
+
   test('never renders a private note in the public feed', async ({ page }) => {
     await preparePage(page, { user: USERS.ordinary });
     await page.goto('/chaburah/');
@@ -155,7 +172,9 @@ test.describe('Cloud Chabura home — cards', () => {
     await page.goto('/chaburah/');
     await waitForFeed(page);
 
-    await expect(page.locator(`${CARD}[data-id="${NOTE_IDS.deepThread}"]`)).toContainText('4 replies');
+    // Five: the four-level chain plus the quoting reply the thread reader's
+    // fixtures added.
+    await expect(page.locator(`${CARD}[data-id="${NOTE_IDS.deepThread}"]`)).toContainText('5 replies');
     await expect(page.locator(`${CARD}[data-id="${NOTE_IDS.noReplies}"]`)).toContainText('0 replies');
   });
 
@@ -173,8 +192,8 @@ test.describe('Cloud Chabura home — cards', () => {
     await page.goto('/chaburah/');
     await waitForFeed(page);
 
-    // Read up to reply 2 of 4, so replies 3 and 4 are new.
-    await expect(page.locator(`${CARD}[data-id="${NOTE_IDS.deepThread}"]`)).toContainText('2 new');
+    // Read up to reply 2 of 5, so replies 3, 4 and 5 are new.
+    await expect(page.locator(`${CARD}[data-id="${NOTE_IDS.deepThread}"]`)).toContainText('3 new');
     // No read-state row at all means "never opened", which must not render as
     // "every reply is unread".
     await expect(page.locator(`${CARD}[data-id="${NOTE_IDS.largeThread}"] .cc-chip-unread`)).toHaveCount(0);

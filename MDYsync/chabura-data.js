@@ -21,37 +21,12 @@
 (function () {
   const PAGE_SIZE = 20;
 
-  // Bumped on every user-initiated load. A result whose token is no longer
-  // current is discarded -- the cheap, dependency-free equivalent of
-  // AbortController for a query builder that does not accept a signal.
-  let generation = 0;
-  function nextGeneration() { generation += 1; return generation; }
-  function isCurrent(token) { return token === generation; }
-
-  function client() {
-    const auth = window.DafSyncAuth;
-    if (!auth || !auth.client) throw new Error('Sign-in library is not ready.');
-    return auth.client;
-  }
-
-  function currentUser() {
-    return window.DafSyncAuth?.getUser?.() || null;
-  }
-
-  // PostgREST errors are not presentable as-is. Map the ones a reader can
-  // actually hit to something that says what to do about it, and keep the
-  // original for the console so a real fault is still debuggable.
-  function describeError(error) {
-    if (!error) return 'Something went wrong.';
-    const code = error.code || '';
-    if (code === 'PGRST301' || code === '401') return 'Your session expired. Sign in again to continue.';
-    if (code === '42501') return 'You do not have permission to do that.';
-    if (code === '42P17') return 'The server rejected this request. This is a bug, not something you did.';
-    if (error.message && /Failed to fetch|NetworkError/i.test(error.message)) {
-      return 'Could not reach the server. Check your connection and try again.';
-    }
-    return error.message || 'Something went wrong.';
-  }
+  // client, currentUser, describeError and the generation counter moved to
+  // chabura-core.js when the thread reader needed the same four (Prompt 4).
+  const { client, currentUser, describeError } = window.DafSyncChabura.core;
+  const generation = window.DafSyncChabura.core.generations();
+  function nextGeneration() { return generation.next(); }
+  function isCurrent(token) { return generation.isCurrent(token); }
 
   // The columns the feed renders. Explicit rather than '*' so a future column
   // (or a private one) is never shipped to the browser by accident.

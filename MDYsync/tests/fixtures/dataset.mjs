@@ -90,8 +90,10 @@ function comment(overrides) {
     root_comment_id: null,
     depth: 0,
     activity_sequence: 0,
-    edited_at: null,
+    edited_at: overrides.edited_at ?? null,
     deleted_at: overrides.deleted_at ?? null,
+    quoted_comment_id: overrides.quoted_comment_id ?? null,
+    quoted_excerpt: overrides.quoted_excerpt ?? null,
   };
 }
 
@@ -178,6 +180,36 @@ export function buildDatabase() {
   comments.push(comment({ id: 'c0000000-0000-4000-8000-000000000002', note_id: NOTE_IDS.hiddenParentThread, parent_comment_id: 'c0000000-0000-4000-8000-000000000001', body: 'HIDDEN-CANARY moderator-hidden reply.', hidden: true, created_at: isoMinutesAgo(58) }));
   comments.push(comment({ id: 'c0000000-0000-4000-8000-000000000003', note_id: NOTE_IDS.hiddenParentThread, parent_comment_id: 'c0000000-0000-4000-8000-000000000002', body: 'Descendant of a hidden reply.', created_at: isoMinutesAgo(57) }));
 
+  // Author-deleted, with a visible child beneath it. The body is already
+  // '[deleted]' because redact_on_soft_delete rewrote it server-side -- the
+  // fixture stores what the API actually returns, not the original text.
+  comments.push(comment({
+    id: 'c0000000-0000-4000-8000-000000000005',
+    note_id: NOTE_IDS.hiddenParentThread,
+    body: '[deleted]',
+    deleted_at: isoMinutesAgo(56),
+    created_at: isoMinutesAgo(58),
+  }));
+  comments.push(comment({
+    id: 'c0000000-0000-4000-8000-000000000006',
+    note_id: NOTE_IDS.hiddenParentThread,
+    parent_comment_id: 'c0000000-0000-4000-8000-000000000005',
+    body: 'Descendant of an author-deleted reply.',
+    created_at: isoMinutesAgo(55),
+  }));
+
+  // A quoted reply: quoted_comment_id plus the immutable excerpt that keeps a
+  // quote readable after its original is removed.
+  comments.push(comment({
+    id: 'c0000000-0000-4000-8000-000000000004',
+    note_id: NOTE_IDS.deepThread,
+    parent_comment_id: 'b0000000-0000-4000-8000-000000000001',
+    body: 'Quoting the first reply.',
+    quoted_comment_id: 'b0000000-0000-4000-8000-000000000001',
+    quoted_excerpt: 'Reply at level 1.',
+    created_at: isoMinutesAgo(44),
+  }));
+
   // 320 replies: above the plan's 300+ performance fixture threshold.
   for (let i = 0; i < 320; i += 1) {
     comments.push(comment({
@@ -219,6 +251,15 @@ export function buildDatabase() {
     })),
     line_notes,
     comments,
+    // The view the browser is allowed to read. Deliberately a SEPARATE array
+    // from `profiles` and deliberately without `email`: a spec that queried
+    // public_profiles and got an email back would be a real finding.
+    public_profiles: Object.values(USERS).map((user) => ({
+      id: user.id,
+      display_name: user.display_name,
+      avatar_path: null,
+      role_label: user.id === USERS.admin.id ? 'Moderator' : null,
+    })),
     reactions: [
       { id: 'e0000000-0000-4000-8000-000000000001', user_id: USERS.ordinary.id, target_type: 'note', target_id: NOTE_IDS.singleWordRange, reaction_type: 'helpful', created_at: isoMinutesAgo(9) },
       { id: 'e0000000-0000-4000-8000-000000000002', user_id: USERS.admin.id, target_type: 'note', target_id: NOTE_IDS.singleWordRange, reaction_type: 'insightful', created_at: isoMinutesAgo(8) },

@@ -1,0 +1,348 @@
+/* Cloud Chabura thread reader.
+   Layers on chaburah.css: the Editorial Blue tokens are defined there, scoped
+   to .cloud-chabura, and this file only adds the thread's own structure. */
+
+/* --- Three-column shell -------------------------------------------------- */
+.ct-shell {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr) 240px;
+  gap: 20px;
+  align-items: start;
+  padding: 0 20px 96px;
+  max-width: 1400px;
+}
+
+/* The source and outline rails stick; the discussion scrolls with the page.
+   No independent nested scroll pane -- a second scrollbar inside a thread is
+   how "where am I" gets lost, and the plan asks for it to be justified. */
+.ct-rail { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; }
+
+@media (max-width: 1180px) {
+  .ct-shell { grid-template-columns: minmax(0, 1fr) 240px; }
+  .ct-rail-left { position: static; max-height: none; }
+}
+/* Declared BEFORE the media query on purpose. With the same specificity the
+   later rule wins, so putting this after it hid the toggles at every width --
+   which left the source panel, the plan's stated differentiator, unreachable on
+   a phone with no way to open it at all. */
+.ct-drawer-toggle { display: none; }
+
+@media (max-width: 900px) {
+  .ct-shell { grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 0 12px 120px; }
+  .ct-rail { position: static; max-height: none; }
+  /* On a phone both rails collapse behind their own toggle so the discussion
+     is what the first screen actually shows. */
+  .ct-rail:not(.is-open) > * { display: none; }
+  .ct-rail:not(.is-open) { margin: 0; padding: 0; border: 0; }
+  .ct-drawer-toggle { display: inline-flex; }
+}
+
+.ct-sticky-top {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--cc-bg); border-bottom: 1px solid var(--cc-border);
+  padding: 8px 20px;
+  /* min-width:0 because the default `auto` refuses to shrink a flex/grid item
+     below its content. Without it the scrolling toolbar inside widened the
+     whole document past the phone screen instead of scrolling within itself --
+     the same class of overflow as audit F-15 on /browse/. */
+  min-width: 0;
+}
+@media (max-width: 900px) { .ct-sticky-top { padding: 8px 12px; } }
+
+/* --- Header -------------------------------------------------------------- */
+.ct-header { padding: 18px 20px 10px; max-width: 1400px; }
+@media (max-width: 900px) { .ct-header { padding: 14px 12px 8px; } }
+.ct-back { display: inline-block; margin-bottom: 8px; color: var(--cc-primary); text-decoration: none; font-size: 13.5px; font-weight: 600; }
+.ct-back:hover { text-decoration: underline; }
+.ct-header-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.ct-title { font-size: 26px; line-height: 1.25; margin: 0 0 10px; letter-spacing: -0.01em; }
+@media (max-width: 900px) { .ct-title { font-size: 21px; } }
+.ct-header-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* --- Panels -------------------------------------------------------------- */
+.ct-panel-title {
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--cc-muted); margin: 0 0 10px; font-weight: 700;
+}
+.ct-source, .ct-outline {
+  background: var(--cc-surface); border: 1px solid var(--cc-border);
+  border-radius: 14px; padding: 14px 15px; margin-bottom: 12px;
+}
+
+/* --- Source context ------------------------------------------------------ */
+.ct-source-ref { margin: 0; font-weight: 700; font-size: 15px; }
+.ct-source-segment { margin: 2px 0 10px; color: var(--cc-muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.ct-source-text {
+  margin: 0 0 10px; padding: 10px 12px;
+  border-right: 3px solid var(--cc-primary);
+  background: var(--cc-primary-soft); border-radius: 0 10px 10px 0;
+  font-family: "Frank Ruhl Libre", Georgia, serif; font-size: 16px; line-height: 1.7;
+  /* The passage is the point of the panel: never clip it to a fixed height. */
+  white-space: pre-wrap;
+}
+.ct-source-empty { margin: 8px 0 0; color: var(--cc-muted); font-size: 12.5px; }
+.ct-source-drift {
+  margin: 0 0 10px; padding: 8px 10px; border-radius: 8px;
+  background: var(--cc-warn-soft, #fdf6e7); border: 1px solid var(--cc-warn-border, #e8d9b0);
+  color: var(--cc-warn-text, #6b5320); font-size: 12.5px; line-height: 1.5;
+}
+.ct-source-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* --- Posts --------------------------------------------------------------- */
+.ct-root {
+  background: var(--cc-surface); border: 1px solid var(--cc-border);
+  border-radius: 14px; padding: 18px 20px; margin-bottom: 16px;
+  /* Stronger than a reply, but deliberately not a hero card. */
+  box-shadow: 0 1px 2px rgba(16, 32, 55, .04);
+}
+@media (max-width: 900px) { .ct-root { padding: 14px 15px; } }
+
+.ct-post-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.ct-avatar {
+  flex: none; width: 30px; height: 30px; border-radius: 50%;
+  display: inline-grid; place-items: center;
+  background: var(--cc-primary-soft); color: var(--cc-primary);
+  font-size: 11.5px; font-weight: 700;
+}
+.ct-avatar-role { box-shadow: 0 0 0 2px var(--cc-primary); }
+.ct-who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; min-width: 0; }
+.ct-author { font-weight: 700; font-size: 14px; }
+.ct-author-removed { color: var(--cc-muted); font-style: italic; font-weight: 500; }
+.ct-role {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--cc-primary); background: var(--cc-primary-soft);
+  padding: 1px 6px; border-radius: 999px;
+}
+.ct-time { color: var(--cc-muted); font-size: 12.5px; display: inline-flex; gap: 6px; }
+.ct-edited { font-style: italic; }
+.ct-replying-to { font-size: 12.5px; color: var(--cc-muted); }
+.ct-replying-to a { color: var(--cc-primary); }
+
+.ct-body { margin: 0 0 10px; font-size: 15px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ct-body-removed { color: var(--cc-muted); font-style: italic; }
+
+/* --- Quotes -------------------------------------------------------------- */
+.ct-quote {
+  margin: 0 0 10px; padding: 8px 12px;
+  border-left: 3px solid var(--cc-border-strong, var(--cc-border));
+  background: var(--cc-bg); border-radius: 0 8px 8px 0;
+}
+.ct-quote-head { margin: 0 0 3px; font-size: 12px; color: var(--cc-muted); font-weight: 600; }
+.ct-quote-body {
+  margin: 0; font-size: 13.5px; color: var(--cc-muted); line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* --- Reply tree ---------------------------------------------------------- */
+.ct-branch { margin-bottom: 6px; position: relative; }
+.ct-branch-toggle {
+  border: 1px solid var(--cc-border); background: var(--cc-surface); color: var(--cc-muted);
+  font-size: 11.5px; font-weight: 600; cursor: pointer;
+  padding: 3px 10px; border-radius: 999px; margin-bottom: 4px; min-height: 26px;
+}
+.ct-branch-toggle:hover { color: var(--cc-primary); border-color: var(--cc-primary); }
+@media (max-width: 900px) { .ct-branch-toggle { min-height: 32px; } }
+
+.ct-reply {
+  --ct-indent: 0;
+  position: relative;
+  margin-left: calc(var(--ct-indent) * 22px);
+  padding: 12px 14px;
+  background: var(--cc-surface);
+  border: 1px solid var(--cc-border);
+  border-radius: 12px;
+  margin-bottom: 6px;
+}
+/* The rail is what makes nesting legible; it stops growing at the cap so a
+   deep back-and-forth never squeezes the text into a sliver. */
+.ct-reply[data-depth]:not([data-depth="0"])::before {
+  content: ""; position: absolute; left: -11px; top: 0; bottom: 0;
+  border-left: 1px solid var(--cc-border);
+}
+@media (max-width: 900px) {
+  .ct-reply { margin-left: calc(var(--ct-indent) * 14px); padding: 11px 12px; }
+}
+.ct-reply.is-unread { border-left: 3px solid var(--cc-primary); }
+.ct-reply.is-answer { border-color: var(--cc-primary); background: var(--cc-primary-soft); }
+.ct-reply.is-removed { background: transparent; border-style: dashed; }
+.ct-reply.is-permalinked { animation: ct-flash 2.4s ease-out; }
+.ct-reply.is-search-hit { box-shadow: inset 0 0 0 2px var(--cc-warn-border, #e8d9b0); }
+.ct-reply.is-search-current { box-shadow: inset 0 0 0 2px var(--cc-primary); }
+.ct-reply:focus-visible { outline: 2px solid var(--cc-primary); outline-offset: 2px; }
+
+@keyframes ct-flash {
+  0%, 40% { background: var(--cc-primary-soft); }
+  100% { background: var(--cc-surface); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ct-reply.is-permalinked { animation: none; box-shadow: inset 0 0 0 2px var(--cc-primary); }
+  * { scroll-behavior: auto !important; }
+}
+
+.ct-answer-flag {
+  margin: 0 0 6px; font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--cc-primary);
+}
+.ct-collapsed { margin-left: 22px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.ct-collapsed-button {
+  border: 1px dashed var(--cc-border); background: transparent; color: var(--cc-muted);
+  border-radius: 999px; padding: 6px 12px; font-size: 12.5px; cursor: pointer; min-height: 32px;
+}
+.ct-collapsed-button:hover { border-color: var(--cc-primary); color: var(--cc-primary); }
+.ct-unread-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--cc-primary); }
+
+.ct-unread-marker {
+  display: flex; align-items: center; gap: 10px;
+  margin: 14px 0 8px; color: var(--cc-primary);
+  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+}
+.ct-unread-marker::before, .ct-unread-marker::after {
+  content: ""; flex: 1; height: 1px; background: var(--cc-primary); opacity: .35;
+}
+.ct-empty { color: var(--cc-muted); font-size: 14px; padding: 14px 0; }
+
+/* --- Actions and reactions ----------------------------------------------- */
+.ct-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ct-reactions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.ct-reaction {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid var(--cc-border); background: var(--cc-surface);
+  border-radius: 999px; padding: 4px 10px; font-size: 12px; cursor: pointer;
+  min-height: 30px; color: var(--cc-text);
+}
+.ct-reaction.is-mine { background: var(--cc-primary-soft); border-color: var(--cc-primary); color: var(--cc-primary); font-weight: 600; }
+.ct-reaction-count { font-variant-numeric: tabular-nums; }
+.ct-reaction-more { font-size: 12px; color: var(--cc-muted); }
+.ct-reaction-add {
+  border: 1px solid var(--cc-border); background: transparent; color: var(--cc-muted);
+  border-radius: 999px; width: 30px; height: 30px; cursor: pointer; line-height: 1;
+}
+.ct-reaction-add:hover { border-color: var(--cc-primary); color: var(--cc-primary); }
+/* Reply and More stay visible at every width: on touch there is no hover to
+   reveal them, and the plan requires them discoverable there. */
+.ct-more { font-size: 16px; line-height: 1; }
+@media (max-width: 900px) {
+  .ct-reaction, .ct-reaction-add, .ct-collapsed-button { min-height: 34px; }
+  .ct-actions .cc-btn-sm { min-height: 34px; }
+}
+
+/* --- Menus and dialogs --------------------------------------------------- */
+.ct-menu {
+  position: absolute; z-index: 300; min-width: 200px;
+  background: var(--cc-surface); border: 1px solid var(--cc-border);
+  border-radius: 12px; padding: 5px; box-shadow: 0 12px 32px rgba(16, 32, 55, .14);
+}
+.ct-menu-item {
+  display: block; width: 100%; text-align: left; border: 0; background: transparent;
+  padding: 9px 11px; border-radius: 8px; font: inherit; font-size: 13.5px; cursor: pointer; color: var(--cc-text);
+}
+.ct-menu-item:hover, .ct-menu-item:focus-visible { background: var(--cc-primary-soft); color: var(--cc-primary); }
+.ct-menu-item.is-danger { color: var(--cc-danger, #9a2f2f); }
+.ct-menu-item[aria-checked="true"]::after { content: " ✓"; }
+
+.ct-confirm {
+  border: 1px solid var(--cc-border); border-radius: 16px; padding: 20px 22px;
+  max-width: 440px; background: var(--cc-surface); color: var(--cc-text);
+}
+.ct-confirm::backdrop { background: rgba(16, 32, 55, .45); }
+.ct-confirm h2 { margin: 0 0 8px; font-size: 18px; }
+.ct-confirm p { margin: 0 0 16px; color: var(--cc-muted); font-size: 14px; line-height: 1.6; }
+.ct-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.ct-btn-danger { background: var(--cc-danger, #9a2f2f); border-color: var(--cc-danger, #9a2f2f); color: #fff; }
+
+/* --- Composer ------------------------------------------------------------ */
+.ct-composer {
+  background: var(--cc-surface); border: 1px solid var(--cc-border);
+  border-radius: 14px; padding: 14px 15px; margin-top: 16px;
+}
+.ct-inline-composer { margin: 4px 0 10px calc(22px); }
+@media (max-width: 900px) { .ct-inline-composer { margin-left: 14px; } }
+.ct-composer-context { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 13px; color: var(--cc-muted); }
+.ct-composer-input {
+  width: 100%; box-sizing: border-box; resize: vertical;
+  border: 1px solid var(--cc-border); border-radius: 10px; padding: 10px 12px;
+  font: inherit; font-size: 14.5px; line-height: 1.6; color: var(--cc-text);
+  background: var(--cc-bg);
+}
+.ct-composer-input:focus { outline: none; border-color: var(--cc-primary); box-shadow: 0 0 0 3px var(--cc-focus); }
+.ct-composer-footer { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.ct-composer-help { font-size: 12px; color: var(--cc-muted); }
+.ct-composer-count { margin-left: auto; font-size: 12px; color: var(--cc-muted); font-variant-numeric: tabular-nums; }
+.ct-composer-count.is-over { color: var(--cc-danger, #9a2f2f); font-weight: 700; }
+.ct-composer-footer .cc-btn { margin-left: auto; }
+.ct-composer-count + .cc-btn { margin-left: 0; }
+.ct-composer-error { margin: 8px 0 0; color: var(--cc-danger, #9a2f2f); font-size: 13px; line-height: 1.5; }
+.ct-composer-restored { margin: 6px 0 0; font-size: 12px; color: var(--cc-muted); font-style: italic; }
+.ct-composer-disabled { margin: 0; color: var(--cc-muted); font-size: 13.5px; line-height: 1.6; }
+.ct-mentions { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 8px; }
+.ct-mentions-label { font-size: 12px; color: var(--cc-muted); }
+.ct-mention-chip {
+  border: 1px solid var(--cc-border); background: transparent; color: var(--cc-muted);
+  border-radius: 999px; padding: 3px 10px; font-size: 12px; cursor: pointer; min-height: 28px;
+}
+.ct-mention-chip.is-selected { background: var(--cc-primary-soft); border-color: var(--cc-primary); color: var(--cc-primary); font-weight: 600; }
+.ct-quote-draft { background: var(--cc-bg); margin-bottom: 8px; }
+
+/* --- Outline ------------------------------------------------------------- */
+.ct-participants { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ct-participants li { display: flex; align-items: center; gap: 7px; font-size: 13px; }
+.ct-outline-more { margin: 0 0 12px; font-size: 12px; color: var(--cc-muted); }
+.ct-branch-map { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.ct-branch-link {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  border: 0; background: transparent; padding: 6px 8px; border-radius: 8px;
+  font: inherit; font-size: 12.5px; cursor: pointer; color: var(--cc-text); min-height: 32px;
+}
+.ct-branch-link:hover { background: var(--cc-primary-soft); }
+.ct-branch-author { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-branch-count { color: var(--cc-muted); font-variant-numeric: tabular-nums; }
+.ct-branch-answer { color: var(--cc-primary); font-weight: 700; }
+
+/* --- Toolbar ------------------------------------------------------------- */
+/* position:relative so the visually-hidden <label>s inside are contained by
+   this scroll container. Absolutely positioned, they otherwise resolve against
+   the nearest positioned ancestor, escape the overflow clip, and stretch the
+   document past the phone screen from their static position deep in the
+   scrolled content. */
+.ct-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; position: relative; }
+.ct-toolbar .cc-search { min-width: 0; flex: 1 1 180px; }
+.ct-toolbar-group { display: flex; align-items: center; gap: 4px; }
+
+@media (max-width: 900px) {
+  /* Wrapped, these eight controls stacked four rows deep and pushed the whole
+     discussion off the first screen -- the same mistake the feed's Today's Daf
+     panel made. One scrolling row keeps every control reachable in ~52px. */
+  .ct-toolbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; min-width: 0; max-width: 100%; }
+  .ct-toolbar::-webkit-scrollbar { display: none; }
+  .ct-toolbar > * { flex: none; }
+  .ct-toolbar .cc-search { flex: 0 0 170px; }
+  .ct-toolbar .cc-btn, .ct-toolbar .cc-select { min-height: 38px; white-space: nowrap; }
+  /* Source and Outline lead: on a phone they are the two the reader cannot
+     otherwise get to. */
+  #ctSourceToggle { order: -2; }
+  #ctOutlineToggle { order: -1; }
+}
+
+/* --- Toast --------------------------------------------------------------- */
+.ct-toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 16px);
+  opacity: 0; pointer-events: none; transition: .2s;
+  background: var(--cc-text); color: var(--cc-surface);
+  padding: 11px 16px; border-radius: 10px; font-size: 13.5px; z-index: 400;
+  max-width: min(520px, calc(100vw - 32px));
+}
+.ct-toast.is-visible { transform: translate(-50%, 0); opacity: 1; }
+
+.ct-help-dialog {
+  border: 1px solid var(--cc-border); border-radius: 16px; padding: 20px 24px;
+  background: var(--cc-surface); color: var(--cc-text); max-width: 420px;
+}
+.ct-help-dialog::backdrop { background: rgba(16, 32, 55, .45); }
+.ct-help-dialog dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0 0 16px; font-size: 13.5px; }
+.ct-help-dialog dt { font-weight: 700; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.ct-help-dialog dd { margin: 0; color: var(--cc-muted); }
+
+.cc-visually-hidden {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}

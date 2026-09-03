@@ -47,6 +47,26 @@ const API_RESPONSES = {
   // calling www.sefaria.org directly -- audit finding F-4, closed by
   // netlify/functions/sefaria-calendars.mjs. Stubbed here so the suite stays
   // deterministic and offline.
+  // The Cloud Chabura thread reader fetches this daf's word boxes to run the
+  // anchor-drift heuristic (notes-format.js anchorMayHaveShifted). The fixture
+  // note NOTE_IDS.singleWordRange claims words 3..6 of Chullin 89a.1, and this
+  // map supplies exactly four boxes for that span -- so the default answer is
+  // "no drift". A spec that wants the warning removes a box.
+  '/api/get-results-file': {
+    wordBoxes: [
+      { ref: 'Chullin 89a.1', wordIndex: 3, x: 0.8, y: 0.1, w: 0.05, h: 0.02 },
+      { ref: 'Chullin 89a.1', wordIndex: 4, x: 0.7, y: 0.1, w: 0.05, h: 0.02 },
+      { ref: 'Chullin 89a.1', wordIndex: 5, x: 0.6, y: 0.1, w: 0.05, h: 0.02 },
+      { ref: 'Chullin 89a.1', wordIndex: 6, x: 0.5, y: 0.1, w: 0.05, h: 0.02 },
+      { ref: 'Chullin 89a.1', wordIndex: 8, x: 0.4, y: 0.1, w: 0.05, h: 0.02 },
+      { ref: 'Chullin 89a.1', wordIndex: 9, x: 0.3, y: 0.1, w: 0.05, h: 0.02 },
+      { ref: 'Chullin 89a.1', wordIndex: 10, x: 0.2, y: 0.1, w: 0.05, h: 0.02 },
+      { ref: 'Chullin 89a.1', wordIndex: 11, x: 0.1, y: 0.1, w: 0.05, h: 0.02 },
+      { ref: 'Chullin 89a.2', wordIndex: 0, x: 0.8, y: 0.2, w: 0.05, h: 0.02 },
+      { ref: 'Chullin 89a.2', wordIndex: 1, x: 0.7, y: 0.2, w: 0.05, h: 0.02 },
+      { ref: 'Chullin 89a.2', wordIndex: 2, x: 0.6, y: 0.2, w: 0.05, h: 0.02 },
+    ],
+  },
   '/api/sefaria-calendars': {
     calendar_items: [
       { category: 'Talmud', title: { en: 'Daf Yomi' }, displayValue: { en: 'Chullin 89' } },

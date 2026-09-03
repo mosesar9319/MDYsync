@@ -185,21 +185,12 @@ async function loadNotesForCurrentDaf() {
 // content would slip past it -- a real gap in coverage, traded here for
 // not costing every note render a round trip.
 function noteAnchorMayHaveShifted(row) {
-  // word_ranges (see saveNote) is the authoritative shape for a selection
-  // that crossed a ref boundary -- start_word/end_word/segment_ref still
-  // mirror its FIRST run for every older query/render that only knows that
-  // trio, but checking drift against the first run alone would miss a shift
-  // in any LATER run.
-  const runs = row.word_ranges?.length
-    ? row.word_ranges
-    : (row.start_word !== null ? [{ ref: row.segment_ref, start: row.start_word, end: row.end_word }] : []);
-  if (!runs.length || !state.vilnaPageMap) return false;
-  return runs.some((run) => {
-    const count = state.vilnaPageMap.wordBoxes
-      .filter((box) => box.ref === run.ref && box.wordIndex >= run.start && box.wordIndex <= run.end)
-      .length;
-    return count !== (run.end - run.start + 1);
-  });
+  // The heuristic itself moved to notes-format.js so the Cloud Chabura thread
+  // reader can ask the same question (it fetches the page map itself rather
+  // than reading this page's `state`). This wrapper supplies the word boxes
+  // and keeps every existing caller here unchanged.
+  if (!state.vilnaPageMap) return false;
+  return window.DafNotesFormat.anchorMayHaveShifted(row, state.vilnaPageMap.wordBoxes);
 }
 
 // Visual nesting cap only -- replies keep their real parent_comment_id
