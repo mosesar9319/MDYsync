@@ -1090,7 +1090,14 @@
       id,
       note_id: state.note.id,
       author_id: user.id,
-      author_display_name: user.display_name || user.email || 'You',
+      // user (the raw Supabase auth object) has no display_name at all --
+      // that's a `profiles` column, reached through
+      // DafSyncChabura.core.currentDisplayName(). This was reading
+      // user.display_name (always undefined) and falling through to
+      // user.email, so the composer's own optimistic row showed a reader's
+      // email for the few hundred ms before the server's row (which now
+      // carries the real display name -- see postReply) replaced it.
+      author_display_name: window.DafSyncChabura.core.currentDisplayName() || 'You',
       body: payload.body,
       parent_comment_id: parentId || null,
       root_comment_id: parent ? parent.root_comment_id : id,

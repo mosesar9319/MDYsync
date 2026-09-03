@@ -228,10 +228,18 @@ h2 { margin-bottom: 0; }
 .large-play:hover { transform: scale(1.05); background: rgba(220,172,82,.85); color: #231703; }
 .large-play svg { width: 38px; height: 38px; }
 
-/* The bottom is reserved for the docked timeline + control bar below, so the
-   Vilna-page overlay never visually covers (or, via its pointer-events:auto
-   canvas, blocks clicks on) either. */
-.video-vilna-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: calc(var(--pc-bar-h) + var(--pc-timeline-h)); pointer-events: none; overflow: hidden; z-index: 3; }
+/* Covers the whole video frame -- the bottom used to stop short by
+   calc(var(--pc-bar-h) + var(--pc-timeline-h)) to stay clear of the docked
+   timeline + control bar below, but those auto-hide during playback
+   (.video-frame.controls-hidden), so that reserved strip sat empty of daf
+   most of the time a video is actually playing: reported directly as "the
+   bottom third or so is clear of daf." z-index alone keeps this from
+   covering the controls when they ARE shown -- .player-controls is 6 and
+   .scrubber-wrap is 7, both above this wrap's 3, so the browser always
+   routes a click in the control bar's own screen area to it, never to this
+   wrap's pointer-events:auto canvas beneath, independent of how far down
+   this box now extends. */
+.video-vilna-overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 3; }
 .video-vilna-overlay.mode-strip { top: auto; height: 30%; }
 #videoVilnaCanvas { width: 100%; height: 100%; display: block; pointer-events: auto; cursor: grab; touch-action: none; }
 #videoVilnaCanvas:active { cursor: grabbing; }
@@ -261,9 +269,10 @@ h2 { margin-bottom: 0; }
    this app's own. Real descendants of .video-frame this way, unlike their
    old below-the-card position, which is also what makes the FULL control set
    reachable in native fullscreen: only .video-frame's own descendants render
-   at all there. Fixed pixel heights (kept in sync with .video-vilna-overlay's
-   own bottom offset above) rather than content-driven sizing, so that offset
-   stays reliably correct regardless of what's actually in the bar. */
+   at all there. Fixed pixel heights, both bars stacked absolutely with
+   z-index above the daf overlay's own -- see that rule's comment for why the
+   overlay's box can extend the full height of the frame without either bar
+   losing clicks to it. */
 /* z-index 7, one above .player-controls's 6: reported (with a screenshot)
    as the bottom half of the scrubber thumb getting cut off underneath the
    control bar. They share one edge (this wrap's bottom sits exactly at the
@@ -1080,19 +1089,36 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .scan-video-picker, .scan-engine-picker { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 0 0 14px; }
 .scan-video-picker-label { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .scan-word-overlay { position: absolute; inset: 0; }
+/* Pure click targets now -- tap a word to jump the video there. Same role as
+   .vilna-phrase-box: the "word being spoken right now" highlight is a
+   separate layer (.scan-active-overlay/.scan-active-rect below), not a class
+   toggled on these. Kept individually per-word (not merged into one region
+   per .scan-word-box like .vilna-phrase-box) because scanWordBoxes has no
+   phrase/segment grouping of its own the way vilnaPageMap's boxes do. */
 .scan-word-box {
   position: absolute;
   transform: scale(1.25, 1.8);
   cursor: pointer;
   border-radius: 2px;
 }
-.scan-word-box:hover, .scan-word-box:focus-visible { background: rgba(220,172,82,.28); }
-/* The word being spoken right now (updateScanOverlay in app.js) -- same
-   treatment as .vilna-word-box.active, so the scanned photo and the Vilna
-   page view read as the same feature. */
-.scan-word-box.active {
-  background: #ffd400;
+/* A tint of .scan-active-rect's own blue, matching .vilna-phrase-box.phrase-hover
+   -- distinct from that solid "playing right now" highlight below. */
+.scan-word-box:hover, .scan-word-box:focus-visible { background: rgba(142, 205, 245, .38); }
+/* The word(s) being spoken right now (updateScanOverlay in app.js) -- one
+   merged bar per printed line via groupBoxesIntoLineRects/appendLineRects,
+   the same pass and the same blue (#8ecdf5) .vilna-active-rect uses, so the
+   scanned photo, the Vilna page and the in-video overlay all read as the
+   same feature. This used to toggle .active on individual (deliberately
+   oversized, for tapping) .scan-word-box elements above, which rendered a
+   multi-word phrase as a jagged block of overlapping solid-yellow
+   rectangles -- reported directly as visibly out of step with the blue,
+   narrow bar the other two views had already moved to. */
+.scan-active-overlay { position: absolute; inset: 0; pointer-events: none; }
+.scan-active-rect {
+  position: absolute;
+  background: #8ecdf5;
   mix-blend-mode: multiply;
+  border-radius: 999px;
   animation: vilna-highlight-in .12s ease-out;
 }
 /* Live guided-capture camera view (see openScanCamera in app.js) --
