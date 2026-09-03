@@ -334,9 +334,15 @@
       const link = el('a', null, `${who} wrote`);
       link.href = `#comment-${row.quoted_comment_id}`;
       head.appendChild(link);
+      // An excerpt is immutable, so it can drift from an original that was
+      // edited afterwards. Saying so is the difference between a stale quote
+      // and an apparent misquote.
+      if (source.edited_at && Date.parse(source.edited_at) > Date.parse(row.created_at)) {
+        head.appendChild(el('span', 'ct-quote-stale', ' — edited since'));
+      }
     } else {
       // The stored excerpt is why a quote survives its original being removed.
-      head.appendChild(el('span', null, source ? `${who} wrote (since removed)` : 'Quoted reply'));
+      head.appendChild(el('span', null, source ? `${who} wrote — since removed` : 'Quoted reply'));
     }
     card.appendChild(head);
     card.appendChild(el('p', 'ct-quote-body', row.quoted_excerpt || ''));
@@ -389,6 +395,7 @@
     item.style.setProperty('--ct-indent', String(level));
     if (S.isIndentCapped(row.depth, ctx.isMobile)) item.classList.add('ct-reply-capped');
 
+    if (row.pending) item.classList.add('is-pending');
     const unread = row.activity_sequence > ctx.state.viewer.lastReadSequence;
     if (unread) item.classList.add('is-unread');
     if (ctx.note.highlighted_comment_id === row.id) item.classList.add('is-answer');
@@ -437,7 +444,15 @@
     if (quote) item.appendChild(quote);
 
     item.appendChild(bodyNode(row));
-    if (!S.isTombstone(row)) item.appendChild(actionRow(row, 'comment', ctx));
+    if (row.pending) {
+      // No action row while it is in flight: reacting to or replying to a reply
+      // the server has not accepted yet would fail on a foreign key.
+      const sending = el('p', 'ct-sending', 'Sending…');
+      sending.setAttribute('role', 'status');
+      item.appendChild(sending);
+    } else if (!S.isTombstone(row)) {
+      item.appendChild(actionRow(row, 'comment', ctx));
+    }
     return item;
   }
 

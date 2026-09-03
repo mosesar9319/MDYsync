@@ -273,6 +273,21 @@
 .ct-composer-count + .cc-btn { margin-left: 0; }
 .ct-composer-error { margin: 8px 0 0; color: var(--cc-danger, #9a2f2f); font-size: 13px; line-height: 1.5; }
 .ct-composer-restored { margin: 6px 0 0; font-size: 12px; color: var(--cc-muted); font-style: italic; }
+.ct-sending { margin: 0; font-size: 12px; color: var(--cc-muted); font-style: italic; }
+.ct-reply.is-pending { opacity: .72; border-style: dashed; }
+.ct-quote-stale { color: var(--cc-muted); font-weight: 400; font-style: italic; }
+.ct-editor { margin-top: 8px; }
+
+@media (max-width: 900px) {
+  /* The on-screen keyboard covers roughly the lower 40% of a phone. Scroll
+     padding keeps the submit and cancel controls above it when the textarea
+     takes focus, instead of leaving the reader typing into a box whose Post
+     button is behind the keyboard. */
+  html { scroll-padding-bottom: 160px; }
+  .ct-composer { scroll-margin-bottom: 160px; }
+  .ct-composer-footer { position: sticky; bottom: 0; background: var(--cc-surface); padding-top: 6px; }
+  .ct-composer-footer .cc-btn { min-height: 40px; }
+}
 .ct-composer-disabled { margin: 0; color: var(--cc-muted); font-size: 13.5px; line-height: 1.6; }
 .ct-mentions { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 8px; }
 .ct-mentions-label { font-size: 12px; color: var(--cc-muted); }
