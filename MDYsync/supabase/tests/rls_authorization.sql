@@ -34,6 +34,25 @@ exception when others then
   return sqlstate;
 end $$;
 
+-- Like attempt(), but reports how many rows the statement actually touched.
+-- Necessary because RLS does not make a forbidden UPDATE *fail* -- it makes it
+-- match zero rows and succeed, which attempt() reports as 'OK' exactly like a
+-- real one. Any test asserting "X may not modify Y" has to look at the count.
+create or replace function dafsync_test.attempt_rows(p_role text, p_uid text, p_sql text)
+returns text language plpgsql as $$
+declare v_count integer;
+begin
+  perform set_config('role', p_role, true);
+  perform set_config('request.jwt.claim.sub', coalesce(p_uid, ''), true);
+  execute p_sql;
+  get diagnostics v_count = row_count;
+  perform set_config('role', 'postgres', true);
+  return v_count::text;
+exception when others then
+  perform set_config('role', 'postgres', true);
+  return sqlstate;
+end $$;
+
 -- Reads a single value as a given role/subject.
 create or replace function dafsync_test.read_as(p_role text, p_uid text, p_sql text)
 returns text language plpgsql as $$
@@ -418,6 +437,208 @@ select dafsync_test.check(
   (select last_read_sequence::text from public.thread_read_state
    where user_id = '11111111-1111-4111-8111-111111111111'),
   '9');
+
+-- ===========================================================================
+-- Prompt 4: the write paths the thread reader added.
+--
+-- The Playwright suite drives these through a stub with NO row-level security,
+-- so it can only prove the UI calls them. Whether a reader is ALLOWED to do
+-- them is decided here, against a real Postgres with real roles.
+-- ===========================================================================
+
+-- Editing ------------------------------------------------------------------
+
+select dafsync_test.check(
+  'an author may edit their own reply',
+  dafsync_test.attempt_rows('authenticated', :reader,
+    format('update public.comments set body = ''edited by owner'', edited_at = now() where id = %L', :deep_reply)),
+  '1');
+
+select dafsync_test.check(
+  'a non-author''s edit of someone else''s reply matches zero rows',
+  dafsync_test.attempt_rows('authenticated', :author,
+    format('update public.comments set body = ''hijacked'' where id = %L', :deep_reply)),
+  '0');
+
+select dafsync_test.check(
+  'the edit by the non-author did not land',
+  dafsync_test.read_as('anon', null, format('select body from public.comments where id = %L', :deep_reply)),
+  'edited by owner');
+
+select dafsync_test.check(
+  'anon may not edit any reply',
+  dafsync_test.attempt_rows('anon', null,
+    format('update public.comments set body = ''anon was here'' where id = %L', :deep_reply)),
+  '0');
+
+-- Soft delete --------------------------------------------------------------
+
+select dafsync_test.check(
+  'an author may soft-delete their own reply',
+  dafsync_test.attempt_rows('authenticated', :reader,
+    format('update public.comments set deleted_at = now() where id = %L', :deep_reply)),
+  '1');
+
+select dafsync_test.check(
+  'soft-deleting a reply redacts its body server-side, not merely in the UI',
+  dafsync_test.read_as('anon', null, format('select body from public.comments where id = %L', :deep_reply)),
+  '[deleted]');
+
+select dafsync_test.check(
+  'the tombstoned reply is still readable, so descendants stay connected',
+  dafsync_test.read_as('anon', null, format('select count(*)::text from public.comments where id = %L', :deep_reply)),
+  '1');
+
+-- The invariant that matters is reachability of the whole branch, not a direct
+-- child count (earlier tests in this file add children of their own). The seed
+-- chain runs six levels deep beneath this reply.
+select dafsync_test.check(
+  'the deepest descendant of a soft-deleted reply is still readable',
+  dafsync_test.read_as('anon', null,
+    'select body from public.comments where id = ''b0000000-0000-4000-8000-000000000006'''),
+  'Reply at level 5.');
+
+select dafsync_test.check(
+  'no descendant was redacted along with its deleted ancestor',
+  dafsync_test.read_as('anon', null,
+    format('select count(*)::text from public.comments where root_comment_id = %L and body = ''[deleted]''', :deep_reply)),
+  '1');
+
+-- Highlighted answer -------------------------------------------------------
+-- The reply used below is a fresh, visible one on the open note.
+insert into public.comments (id, note_id, author_id, author_display_name, body)
+values ('b0000000-0000-4000-8000-00000000000a', :open_note, :reader, 'Reader One', 'A candidate answer.');
+
+select dafsync_test.check(
+  'the root author may mark a reply as the answer',
+  dafsync_test.attempt_rows('authenticated', :author,
+    format('update public.line_notes set highlighted_comment_id = %L where id = %L',
+           'b0000000-0000-4000-8000-00000000000a', :open_note)),
+  '1');
+
+select dafsync_test.check(
+  'the answer pointer is actually stored',
+  dafsync_test.read_as('anon', null,
+    format('select highlighted_comment_id::text from public.line_notes where id = %L', :open_note)),
+  'b0000000-0000-4000-8000-00000000000a');
+
+select dafsync_test.check(
+  'a reader who is neither author nor admin matches zero rows marking an answer',
+  dafsync_test.attempt_rows('authenticated', :newbie,
+    format('update public.line_notes set highlighted_comment_id = null where id = %L', :open_note)),
+  '0');
+
+select dafsync_test.check(
+  'and the answer they tried to clear is still set',
+  dafsync_test.read_as('anon', null,
+    format('select highlighted_comment_id::text from public.line_notes where id = %L', :open_note)),
+  'b0000000-0000-4000-8000-00000000000a');
+
+select dafsync_test.check(
+  'an admin may change the highlighted answer',
+  dafsync_test.attempt_rows('authenticated', :admin,
+    format('update public.line_notes set highlighted_comment_id = null where id = %L', :open_note)),
+  '1');
+
+-- A reply from a DIFFERENT thread must be refused: the pointer is validated
+-- server-side, so a crafted request cannot make one thread advertise another
+-- thread's reply as its answer.
+select dafsync_test.check(
+  'a reply from another thread cannot be marked as this thread''s answer',
+  dafsync_test.attempt_rows('authenticated', :author,
+    format('update public.line_notes set highlighted_comment_id = %L where id = %L', :deep_reply, :open_note)),
+  '23514');
+
+-- Status -------------------------------------------------------------------
+
+select dafsync_test.check(
+  'the root author may resolve their own discussion',
+  dafsync_test.attempt_rows('authenticated', :author,
+    format('update public.line_notes set status = ''resolved'' where id = %L', :open_note)),
+  '1');
+
+-- Resolved is not locked: the plan is explicit that a question can be settled
+-- without shutting the conversation down.
+select dafsync_test.check(
+  'a resolved discussion still accepts replies',
+  dafsync_test.attempt('authenticated', :reader,
+    format('insert into public.comments (note_id, author_id, author_display_name, body) values (%L, %L, ''Reader One'', ''Still talking.'')', :open_note, :reader)),
+  'OK');
+
+select dafsync_test.check(
+  'an unrelated reader matches zero rows changing a discussion''s status',
+  dafsync_test.attempt_rows('authenticated', :newbie,
+    format('update public.line_notes set status = ''locked'' where id = %L', :open_note)),
+  '0');
+
+select dafsync_test.check(
+  'an invalid status value is refused',
+  dafsync_test.attempt_rows('authenticated', :author,
+    format('update public.line_notes set status = ''archived'' where id = %L', :open_note)),
+  '23514');
+
+-- Quoting ------------------------------------------------------------------
+
+select dafsync_test.check(
+  'a quote may point at a reply in the same thread',
+  dafsync_test.attempt('authenticated', :reader,
+    format('insert into public.comments (note_id, author_id, author_display_name, body, quoted_comment_id, quoted_excerpt) values (%L, %L, ''Reader One'', ''Quoting.'', %L, ''An excerpt.'')',
+           :open_note, :reader, 'b0000000-0000-4000-8000-00000000000a')),
+  'OK');
+
+select dafsync_test.check(
+  'an over-long quote excerpt is refused rather than silently truncated',
+  dafsync_test.attempt('authenticated', :reader,
+    format('insert into public.comments (note_id, author_id, author_display_name, body, quoted_excerpt) values (%L, %L, ''Reader One'', ''Quoting.'', %L)',
+           :open_note, :reader, repeat('x', 501))),
+  '23514');
+
+-- Bookmarks ----------------------------------------------------------------
+
+select dafsync_test.check(
+  'a reader may save a thread for themselves',
+  dafsync_test.attempt('authenticated', :reader,
+    format('insert into public.bookmarks (user_id, target_type, target_id) values (%L, ''note'', %L)', :reader, :open_note)),
+  'OK');
+
+select dafsync_test.check(
+  'a reader may not save a thread on someone else''s behalf',
+  dafsync_test.attempt('authenticated', :reader,
+    format('insert into public.bookmarks (user_id, target_type, target_id) values (%L, ''note'', %L)', :author, :open_note)),
+  '42501');
+
+select dafsync_test.check(
+  'a reader cannot read another reader''s saved threads',
+  dafsync_test.read_as('authenticated', :author,
+    format('select count(*)::text from public.bookmarks where user_id = %L', :reader)),
+  '0');
+
+-- read_as() prefixes a failure with ERROR:, unlike attempt() which returns the
+-- bare sqlstate. 42501 here is stronger than "zero rows": anon has no grant on
+-- the table at all, so the request is refused outright.
+select dafsync_test.check(
+  'anon cannot read saved threads at all',
+  dafsync_test.read_as('anon', null, 'select count(*)::text from public.bookmarks'),
+  'ERROR:42501');
+
+-- Locking ------------------------------------------------------------------
+
+select dafsync_test.check(
+  'the root author may lock their discussion',
+  dafsync_test.attempt_rows('authenticated', :author,
+    format('update public.line_notes set status = ''locked'' where id = %L', :open_note)),
+  '1');
+
+select dafsync_test.check(
+  'a locked discussion refuses new replies server-side',
+  dafsync_test.attempt('authenticated', :reader,
+    format('insert into public.comments (note_id, author_id, author_display_name, body) values (%L, %L, ''Reader One'', ''Sneaking in.'')', :open_note, :reader)),
+  '42501');
+
+select dafsync_test.check(
+  'a locked discussion is still readable',
+  dafsync_test.read_as('anon', null, format('select count(*)::text from public.line_notes where id = %L', :open_note)),
+  '1');
 
 -- ===========================================================================
 do $$ begin raise notice 'ALL AUTHORIZATION TESTS PASSED'; end $$;

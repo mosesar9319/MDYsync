@@ -48,6 +48,7 @@ belongs in SQL, not here.
 | `tests/fixtures/dataset.mjs` | Personas and the fixture database |
 | `tests/chaburah/feed.spec.mjs` | Cloud Chabura home (`/chaburah/`): views, filters, URL state, pagination, cards, actions, Today's Daf |
 | `tests/chaburah/thread.spec.mjs` | Note dialog on `/browse/`: replies, nesting, reactions, follows, mentions, reports, signed-out |
+| `tests/chaburah/thread-reader.spec.mjs` | Cloud Chabura thread reader (`/chaburah/thread/`): source context, reply tree, permalinks, composer, answers, edit/delete, outline, search, keyboard, scale, mobile |
 | `tests/notes/select-text.spec.mjs` | Reading order, multi-ref selection runs, saved `word_ranges` payload |
 
 ## Writing a test
@@ -102,10 +103,23 @@ update, delete and rpc the page issued.
   comparison value makes a broken filter look like a passing test. That is exactly
   how a mis-parsed keyset cursor first let its own boundary row through twice.
 
+- **The stub models a few server-side derivations, and only a few.** A comment
+  insert comes back with `root_comment_id`, `depth` and `activity_sequence`
+  filled in, and a soft delete redacts the body -- because the thread reader
+  reads those straight off the row it just wrote, and without them a spec
+  asserting nesting would pass on a lie. They MIRROR the triggers in
+  `20260902190000_cloud_chabura_thread_foundation.sql`; they do not prove them.
+  That proof is `supabase/tests/rls_authorization.sql`, against a real Postgres.
+- **Never assert authorization here.** The stub answers every query as a trusted
+  caller. A spec that "proves" a private thread is hidden is proving nothing --
+  remove the row from the fixture to model what RLS returns, and put the real
+  question in the SQL suite.
+
 ### Query operators the stub supports
 
-`eq`, `in`, `is`, `not(col, op, value)`, `ilike`, `textSearch` (over `body` +
-`selected_text`, not a real tsvector), `or(expression)`, `order` (chained),
-`limit`, `single`, `maybeSingle`, and the `insert` / `upsert` / `update` / `delete`
-mutations. Anything else is unimplemented — add it rather than working around it,
+`eq`, `neq`, `in`, `is`, `not(col, op, value)`, `ilike`, `textSearch` (over
+`body` + `selected_text`, not a real tsvector), `or(expression)`, `order`
+(chained), `limit`, `single`, `maybeSingle`, and the `insert` / `upsert` /
+`update` / `delete` mutations. `upsert` keys on whichever of `user_id`,
+`ref_key`, `variant`, `note_id`, `target_type`, `target_id` the payload carries. Anything else is unimplemented — add it rather than working around it,
 and make it throw on input it cannot represent.

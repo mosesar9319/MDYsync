@@ -1,0 +1,773 @@
+import { test, expect } from '@playwright/test';
+import { preparePage, failOnPageError, readTestCalls } from '../support/harness.mjs';
+import { buildDatabase, sessionFor, USERS, NOTE_IDS } from '../fixtures/dataset.mjs';
+
+// The dedicated Cloud Chabura thread reader (Prompt 4):
+// /chaburah/thread/?thread=<uuid>&comment=<optional uuid>
+//
+// The plan's acceptance criteria are the spine of this file: zero replies,
+// four-level nesting, deleted parent, hidden reply, null timestamp, multi-ref
+// word_ranges, a 300+ reply fixture, permalinks surviving refresh, mobile text
+// width, and screen-reader identification of author/level/expanded state.
+
+const ROOT = '.ct-root';
+const REPLY = '.ct-reply';
+const reply = (id) => `#comment-${id}`;
+
+const DEEP = {
+  l1: 'b0000000-0000-4000-8000-000000000001',
+  l2: 'b0000000-0000-4000-8000-000000000002',
+  l3: 'b0000000-0000-4000-8000-000000000003',
+  l4: 'b0000000-0000-4000-8000-000000000004',
+  quoting: 'c0000000-0000-4000-8000-000000000004',
+};
+const HIDDEN = {
+  visibleTop: 'c0000000-0000-4000-8000-000000000001',
+  hiddenMiddle: 'c0000000-0000-4000-8000-000000000002',
+  survivor: 'c0000000-0000-4000-8000-000000000003',
+  deletedTop: 'c0000000-0000-4000-8000-000000000005',
+  deletedChild: 'c0000000-0000-4000-8000-000000000006',
+};
+
+function threadUrl(noteId, extra = '') {
+  return `/chaburah/thread/?thread=${noteId}${extra}`;
+}
+
+async function openThread(page, noteId, extra = '') {
+  await page.goto(threadUrl(noteId, extra));
+  await expect(page.locator(ROOT)).toBeVisible();
+}
+
+test.describe('Thread reader — shell and states', () => {
+  test('loads a thread signed out with no page errors', async ({ page }) => {
+    const errors = failOnPageError(page);
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await expect(page.locator('h1')).toHaveCount(1);
+    await expect(page.locator('main')).toHaveCount(1);
+    await expect(page.locator(ROOT)).toContainText('Root of a four-level reply chain.');
+    expect(errors).toEqual([]);
+  });
+
+  test('a thread with no replies says so instead of rendering an empty list', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.noReplies);
+
+    await expect(page.locator(REPLY)).toHaveCount(0);
+    await expect(page.locator('.ct-empty')).toContainText('No replies yet');
+  });
+
+  test('a missing thread parameter explains itself and never renders a skeleton forever', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await page.goto('/chaburah/thread/');
+    await expect(page.locator('.cc-empty')).toContainText('missing a discussion');
+  });
+
+  test('a thread the viewer may not see leaks nothing about it', async ({ page }) => {
+    // The row is REMOVED from the fixture rather than marked private, because
+    // the stub does not enforce RLS and would happily serve a private note --
+    // see its header. What is under test here is only the client's handling of
+    // the empty result RLS produces. That RLS itself is proven in
+    // supabase/tests/rls_authorization.sql against a real Postgres.
+    const db = buildDatabase();
+    db.line_notes = db.line_notes.filter((row) => row.id !== NOTE_IDS.privateNote);
+    await preparePage(page, { user: null, db });
+    await page.goto(threadUrl(NOTE_IDS.privateNote));
+
+    // Signed out, the honest answer is "sign in", not "this is private" --
+    // which would confirm the id names something real.
+    await expect(page.locator('.cc-empty')).toContainText('Sign in to see this discussion');
+    await expect(page.locator('body')).not.toContainText('PRIVATE-CANARY');
+  });
+
+  test('a signed-in reader who still cannot see it gets no confirmation it exists', async ({ page }) => {
+    const db = buildDatabase();
+    db.line_notes = db.line_notes.filter((row) => row.id !== NOTE_IDS.privateNote);
+    await preparePage(page, { user: USERS.ordinary, db });
+    await page.goto(threadUrl(NOTE_IDS.privateNote));
+
+    await expect(page.locator('.cc-empty')).toContainText('not available');
+    // "removed, or not shared with you" -- deliberately does not distinguish,
+    // because distinguishing confirms the id names a real discussion.
+    await expect(page.locator('.cc-empty')).toContainText('may not be shared with you');
+  });
+
+  test('surfaces a load failure with a working retry', async ({ page }) => {
+    await preparePage(page, {
+      user: null,
+      control: { failures: { 'line_notes:select': { message: 'permission denied', code: '42501' } } },
+    });
+    await page.goto(threadUrl(NOTE_IDS.deepThread));
+
+    await expect(page.locator('[role="alert"]')).toContainText('You do not have permission to do that.');
+    await page.evaluate(() => { delete window.__DAFSYNC_TEST_CONTROL__.failures['line_notes:select']; });
+    await page.click('button:has-text("Try again")');
+    await expect(page.locator(ROOT)).toBeVisible();
+  });
+});
+
+test.describe('Thread reader — source context', () => {
+  test('shows the exact anchored passage in RTL, not just a reference', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.singleWordRange);
+
+    const source = page.locator('#ctSource');
+    await expect(source.locator('.ct-source-text')).toHaveText('ארבעה ראשי שנים הם');
+    await expect(source.locator('.ct-source-text')).toHaveAttribute('dir', 'rtl');
+    await expect(source).toContainText('Chullin 89a');
+  });
+
+  test('offers Play shiur moment only when a real timestamp exists', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.singleWordRange);
+    await expect(page.locator('#ctSource a:has-text("Play shiur moment")')).toHaveCount(1);
+
+    // Same page, a note whose video_timestamp_seconds is null: no invented
+    // timestamp, and a sentence saying why there is no action.
+    await openThread(page, NOTE_IDS.multiRefWordRange);
+    await expect(page.locator('#ctSource a:has-text("Play shiur moment")')).toHaveCount(0);
+    await expect(page.locator('#ctSource')).toContainText('No synchronized shiur moment');
+  });
+
+  test('links to the Interactive Daf at this passage', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.deepThread);
+    await expect(page.locator('#ctSource a:has-text("Show on daf")'))
+      .toHaveAttribute('href', '/browse/?ref=Chullin%2089a');
+  });
+
+  test('stays quiet about drift when the anchor still resolves', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.singleWordRange);
+    await expect(page.locator('.ct-source-drift')).toHaveCount(0);
+  });
+
+  test('warns when the saved word range no longer resolves to as many words', async ({ page }) => {
+    await preparePage(page, { user: null });
+    // One box removed from the note's 3..6 span, which is exactly what the
+    // heuristic detects: a word dropped out from under a saved selection.
+    await page.route('**/api/get-results-file*', (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        wordBoxes: [
+          { ref: 'Chullin 89a.1', wordIndex: 3 },
+          { ref: 'Chullin 89a.1', wordIndex: 4 },
+          { ref: 'Chullin 89a.1', wordIndex: 5 },
+        ],
+      }),
+    }));
+    await openThread(page, NOTE_IDS.singleWordRange);
+    await expect(page.locator('.ct-source-drift')).toContainText('may no longer match');
+  });
+
+  test('a multi-ref selection still renders its passage', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.multiRefWordRange);
+    await expect(page.locator('.ct-source-text')).toHaveText('תנו רבנן ארבעה');
+  });
+});
+
+test.describe('Thread reader — reply tree', () => {
+  test('renders four real levels of nesting, not a flattened list', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    for (const [level, id] of [[0, DEEP.l1], [1, DEEP.l2], [2, DEEP.l3], [3, DEEP.l4]]) {
+      await expect(page.locator(reply(id))).toHaveAttribute('data-depth', String(level));
+    }
+  });
+
+  test('indentation stops increasing past the cap and names the parent instead', async ({ page }, testInfo) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    // Desktop indents depths 0-2; mobile only 0-1. Either way depth 3 (the
+    // fourth level) is past the cap.
+    const capped = page.locator(reply(DEEP.l4));
+    await expect(capped).toHaveClass(/ct-reply-capped/);
+    await expect(capped).toContainText('Replying to');
+
+    // Below the cap the parent is obvious from the rail, so it is not restated.
+    await expect(page.locator(reply(DEEP.l2))).not.toContainText('Replying to');
+
+    // The capped reply is held at the same inset as the last uncapped one
+    // rather than shifting further right.
+    const insets = await page.evaluate((ids) => ids.map((id) =>
+      getComputedStyle(document.getElementById(`comment-${id}`)).marginLeft), [DEEP.l3, DEEP.l4]);
+    expect(insets[0]).toBe(insets[1]);
+  });
+
+  test('a moderator-hidden reply is a tombstone with its descendant intact', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.hiddenParentThread);
+
+    const tomb = page.locator(reply(HIDDEN.hiddenMiddle));
+    await expect(tomb).toHaveClass(/is-removed/);
+    await expect(tomb).toContainText('removed by a moderator');
+    await expect(page.locator('body')).not.toContainText('HIDDEN-CANARY');
+    // The whole point of a tombstone: the child survives and stays connected.
+    await expect(page.locator(reply(HIDDEN.survivor))).toContainText('Descendant of a hidden reply');
+  });
+
+  test('an author-deleted reply is a distinct tombstone, also keeping its child', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.hiddenParentThread);
+
+    const tomb = page.locator(reply(HIDDEN.deletedTop));
+    await expect(tomb).toContainText('deleted by its author');
+    await expect(page.locator(reply(HIDDEN.deletedChild))).toContainText('Descendant of an author-deleted reply');
+  });
+
+  test('a tombstone does not advertise its author', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.hiddenParentThread);
+    await expect(page.locator(`${reply(HIDDEN.hiddenMiddle)} .ct-author`)).toHaveText('Removed');
+  });
+
+  test('a quote links back to its source and shows the stored excerpt', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    const quote = page.locator(`${reply(DEEP.quoting)} .ct-quote`);
+    await expect(quote).toContainText('Reply at level 1.');
+    await expect(quote.locator('a')).toHaveAttribute('href', `#comment-${DEEP.l1}`);
+  });
+
+  test('collapsing a branch hides its descendants and summarises them', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await expect(page.locator(reply(DEEP.l2))).toBeVisible();
+    await page.locator('.ct-branch-toggle').first().click();
+
+    await expect(page.locator(reply(DEEP.l2))).toHaveCount(0);
+    await expect(page.locator('.ct-collapsed-button').first()).toContainText('replies');
+    // The root of the branch stays; only what hangs beneath it collapses.
+    await expect(page.locator(reply(DEEP.l1))).toBeVisible();
+  });
+
+  test('a collapsed branch keeps its unread count visible', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.locator('.ct-branch-toggle').first().click();
+    await expect(page.locator('.ct-collapsed-button').first()).toContainText('unread');
+  });
+
+  test('sorting branches never reorders replies inside one', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.selectOption('#ctSort', 'newest');
+    const order = await page.locator(REPLY).evaluateAll((nodes) => nodes.map((n) => n.dataset.id));
+    // Level 1 still precedes level 2, which still precedes level 3.
+    expect(order.indexOf(DEEP.l1)).toBeLessThan(order.indexOf(DEEP.l2));
+    expect(order.indexOf(DEEP.l2)).toBeLessThan(order.indexOf(DEEP.l3));
+  });
+});
+
+test.describe('Thread reader — permalinks', () => {
+  test('a permalink to a deep reply expands its ancestors and focuses it', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.deepThread, `&comment=${DEEP.l4}`);
+
+    const target = page.locator(reply(DEEP.l4));
+    await expect(target).toBeVisible();
+    await expect(target).toHaveClass(/is-permalinked/);
+    // Focus lands on the target so a keyboard or screen-reader user arrives
+    // there too, not just the scroll position.
+    await expect(target).toBeFocused();
+  });
+
+  test('a permalink survives a reload', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.deepThread, `&comment=${DEEP.l3}`);
+    await expect(page.locator(reply(DEEP.l3))).toBeFocused();
+
+    await page.reload();
+    await expect(page.locator(reply(DEEP.l3))).toBeVisible();
+    await expect(page.locator(reply(DEEP.l3))).toBeFocused();
+  });
+
+  test('a permalink to a reply that is gone falls back to the discussion', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.deepThread, '&comment=b0000000-0000-4000-8000-999999999999');
+
+    await expect(page.locator(ROOT)).toBeVisible();
+    await expect(page.locator('#ctToast')).toContainText('no longer available');
+  });
+
+  test('Copy link to reply produces the permalink for that reply', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.locator(`${reply(DEEP.l1)} .ct-more`).click();
+    await page.click('.ct-menu-item:has-text("Copy link to reply")');
+    const copied = await page.evaluate(() => navigator.clipboard.readText());
+    expect(copied).toContain(`thread=${NOTE_IDS.deepThread}`);
+    expect(copied).toContain(`comment=${DEEP.l1}`);
+  });
+});
+
+test.describe('Thread reader — reactions', () => {
+  test('reacting is optimistic and persists', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.locator(`${reply(DEEP.l1)} .ct-reaction-add`).click();
+    await page.click('.ct-menu-item:has-text("Insightful")');
+
+    await expect(page.locator(`${reply(DEEP.l1)} .ct-reaction.is-mine`)).toContainText('Insightful');
+    const calls = await readTestCalls(page);
+    const insert = calls.find((c) => c.table === 'reactions' && c.operation === 'insert');
+    expect(insert.rows[0].reaction_type).toBe('insightful');
+    expect(insert.rows[0].target_type).toBe('comment');
+  });
+
+  test('a rejected reaction is rolled back rather than left looking successful', async ({ page }) => {
+    await preparePage(page, {
+      user: USERS.ordinary,
+      control: { failures: { 'reactions:insert': { message: 'permission denied', code: '42501' } } },
+    });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.locator(`${reply(DEEP.l1)} .ct-reaction-add`).click();
+    await page.click('.ct-menu-item:has-text("Helpful")');
+
+    await expect(page.locator(`${reply(DEEP.l1)} .ct-reaction.is-mine`)).toHaveCount(0);
+    await expect(page.locator('#ctToast')).toContainText('You do not have permission to do that.');
+  });
+
+  test('a signed-out reader sees counts but cannot react', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.singleWordRange);
+    await expect(page.locator('.ct-reaction-add')).toHaveCount(0);
+  });
+});
+
+test.describe('Thread reader — composer', () => {
+  test('posts a top-level reply and threads it correctly', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.noReplies);
+
+    await page.fill('.ct-composer-input', 'A brand new reply.');
+    await page.click('.ct-composer button[type="submit"]');
+
+    await expect(page.locator(REPLY)).toContainText('A brand new reply.');
+    const calls = await readTestCalls(page);
+    const insert = calls.find((c) => c.table === 'comments' && c.operation === 'insert');
+    expect(insert.rows[0].parent_comment_id).toBeNull();
+    expect(insert.rows[0].depth).toBe(0);
+  });
+
+  test('an inline reply carries its parent and nests one level deeper', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.locator(`${reply(DEEP.l1)} button:has-text("Reply")`).click();
+    const inline = page.locator('.ct-inline-composer .ct-composer-input');
+    await expect(inline).toBeVisible();
+    await inline.fill('Nested under level one.');
+    await page.click('.ct-inline-composer button[type="submit"]');
+
+    const calls = await readTestCalls(page);
+    const insert = calls.find((c) => c.table === 'comments' && c.operation === 'insert');
+    expect(insert.rows[0].parent_comment_id).toBe(DEEP.l1);
+    expect(insert.rows[0].depth).toBe(1);
+  });
+
+  test('Ctrl+Enter submits', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.noReplies);
+
+    await page.fill('.ct-composer-input', 'Posted with the keyboard.');
+    await page.locator('.ct-composer-input').press('Control+Enter');
+    await expect(page.locator(REPLY)).toContainText('Posted with the keyboard.');
+  });
+
+  test('a failed post preserves the complete draft and says what went wrong', async ({ page }) => {
+    await preparePage(page, {
+      user: USERS.ordinary,
+      control: { failures: { 'comments:insert': { message: 'new row violates row-level security policy' } } },
+    });
+    await openThread(page, NOTE_IDS.noReplies);
+
+    await page.fill('.ct-composer-input', 'This should fail but must not vanish.');
+    await page.click('.ct-composer button[type="submit"]');
+
+    await expect(page.locator('.ct-composer-error')).toContainText('row-level security');
+    await expect(page.locator('.ct-composer-input')).toHaveValue('This should fail but must not vanish.');
+    await expect(page.locator('.ct-composer button[type="submit"]')).toBeEnabled();
+  });
+
+  test('an unsent draft survives a reload (the F-7 gap, now closed here)', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.noReplies);
+
+    await page.fill('.ct-composer-input', 'Half-written thought worth keeping.');
+    await page.waitForTimeout(400); // debounced persist
+    await page.reload();
+    await expect(page.locator(ROOT)).toBeVisible();
+
+    await expect(page.locator('.ct-composer-input')).toHaveValue('Half-written thought worth keeping.');
+    await expect(page.locator('.ct-composer-restored')).toContainText('Draft restored');
+  });
+
+  test('over-long text is refused with a count, never silently truncated', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.noReplies);
+
+    const long = 'x'.repeat(2050);
+    await page.fill('.ct-composer-input', long);
+    // The textarea keeps every character the reader typed.
+    await expect(page.locator('.ct-composer-input')).toHaveValue(long);
+    await expect(page.locator('.ct-composer-count')).toContainText('2050 / 2000');
+
+    await page.click('.ct-composer button[type="submit"]');
+    await expect(page.locator('.ct-composer-error')).toContainText('50 characters over');
+    const calls = await readTestCalls(page);
+    expect(calls.find((c) => c.table === 'comments' && c.operation === 'insert')).toBeFalsy();
+  });
+
+  test('the character count stays hidden until the limit is close', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.noReplies);
+
+    await page.fill('.ct-composer-input', 'short');
+    await expect(page.locator('.ct-composer-count')).toBeHidden();
+    await page.fill('.ct-composer-input', 'x'.repeat(1850));
+    await expect(page.locator('.ct-composer-count')).toBeVisible();
+  });
+
+  test('quoting seeds the composer with a removable quote card', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.locator(`${reply(DEEP.l1)} button:has-text("Quote")`).click();
+    const draft = page.locator('.ct-inline-composer .ct-quote-draft');
+    await expect(draft).toContainText('Reply at level 1.');
+
+    await page.locator('.ct-inline-composer .ct-composer-input').fill('Answering the quote.');
+    await page.click('.ct-inline-composer button[type="submit"]');
+
+    const calls = await readTestCalls(page);
+    const insert = calls.find((c) => c.table === 'comments' && c.operation === 'insert');
+    expect(insert.rows[0].quoted_comment_id).toBe(DEEP.l1);
+    expect(insert.rows[0].quoted_excerpt).toContain('Reply at level 1.');
+  });
+
+  test('mention chips are limited to thread participants and never expose email', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    const labels = await page.locator('.ct-mention-chip').allTextContents();
+    expect(labels.length).toBeGreaterThan(0);
+    expect(labels.join(' ')).not.toContain(USERS.ordinary.display_name);
+    for (const user of Object.values(USERS)) {
+      expect(labels.join(' ')).not.toContain(user.email);
+    }
+  });
+
+  test('the composer is closed with an explanation on a locked thread', async ({ page }) => {
+    const db = buildDatabase();
+    db.line_notes.find((row) => row.id === NOTE_IDS.noReplies).status = 'locked';
+    await preparePage(page, { user: USERS.ordinary, db });
+    await openThread(page, NOTE_IDS.noReplies);
+
+    await expect(page.locator('.ct-composer-disabled')).toContainText('locked');
+    await expect(page.locator('.ct-composer-input')).toHaveCount(0);
+    // Locked means no new replies, not unreadable.
+    await expect(page.locator(ROOT)).toBeVisible();
+  });
+
+  test('a signed-out reader is invited to sign in rather than shown a dead composer', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.noReplies);
+    await expect(page.locator('.ct-composer-disabled')).toContainText('Sign in');
+  });
+});
+
+test.describe('Thread reader — answers, edit and delete', () => {
+  test('the root author can mark and unmark an answer', async ({ page }) => {
+    await preparePage(page, { user: USERS.author });
+    await openThread(page, NOTE_IDS.noReplies);
+
+    // Post a reply as the author, then mark it.
+    await page.fill('.ct-composer-input', 'This answers it.');
+    await page.click('.ct-composer button[type="submit"]');
+    await expect(page.locator(REPLY)).toHaveCount(1);
+
+    await page.locator(`${REPLY} .ct-more`).first().click();
+    await page.click('.ct-menu-item:has-text("Mark as answer")');
+
+    await expect(page.locator(`${REPLY}.is-answer`)).toHaveCount(1);
+    await expect(page.locator('.ct-answer-flag')).toContainText('Highlighted answer');
+  });
+
+  test('a reader who is not the root author is not offered Mark as answer', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.locator(`${reply(DEEP.l1)} .ct-more`).click();
+    await expect(page.locator('.ct-menu-item:has-text("Mark as answer")')).toHaveCount(0);
+  });
+
+  test('an author can edit their own reply and it shows as edited', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+    page.on('dialog', (dialog) => dialog.accept('Reply at level 1, clarified.'));
+
+    await page.locator(`${reply(DEEP.l1)} .ct-more`).click();
+    await page.click('.ct-menu-item:has-text("Edit")');
+
+    await expect(page.locator(reply(DEEP.l1))).toContainText('clarified');
+    await expect(page.locator(`${reply(DEEP.l1)} .ct-edited`)).toBeVisible();
+  });
+
+  test('a reader is not offered Edit or Delete on someone else’s reply', async ({ page }) => {
+    await preparePage(page, { user: USERS.author });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.locator(`${reply(DEEP.l1)} .ct-more`).click();
+    await expect(page.locator('.ct-menu-item:has-text("Edit")')).toHaveCount(0);
+    await expect(page.locator('.ct-menu-item:has-text("Delete")')).toHaveCount(0);
+  });
+
+  test('deleting states what survives, and the descendants do survive', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.locator(`${reply(DEEP.l1)} .ct-more`).click();
+    await page.click('.ct-menu-item:has-text("Delete")');
+
+    const dialog = page.locator('.ct-confirm');
+    await expect(dialog).toContainText('stay visible and stay connected');
+    await dialog.locator('button:has-text("Delete")').click();
+
+    await expect(page.locator(reply(DEEP.l1))).toContainText('deleted by its author');
+    // The chain beneath it is intact.
+    await expect(page.locator(reply(DEEP.l2))).toContainText('Reply at level 2');
+    await expect(page.locator(reply(DEEP.l4))).toContainText('Reply at level 4');
+  });
+
+  test('cancelling the delete confirmation changes nothing', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.locator(`${reply(DEEP.l1)} .ct-more`).click();
+    await page.click('.ct-menu-item:has-text("Delete")');
+    await page.locator('.ct-confirm button:has-text("Cancel")').click();
+
+    await expect(page.locator(reply(DEEP.l1))).toContainText('Reply at level 1');
+    const calls = await readTestCalls(page);
+    expect(calls.find((c) => c.table === 'comments' && c.operation === 'update')).toBeFalsy();
+  });
+});
+
+test.describe('Thread reader — outline, search and unread', () => {
+  test('the outline lists branches with reply counts and marks the answer', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    const outline = page.locator('#ctOutline');
+    await expect(outline.locator('.ct-branch-link')).not.toHaveCount(0);
+    await expect(outline).toContainText('Author Two');
+  });
+
+  test('search finds a reply, says how many, and jumps to it', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.fill('#ctSearch', 'level 3');
+    await expect(page.locator('.ct-reply.is-search-hit')).toHaveCount(1);
+    await expect(page.locator('#ctStatus')).toContainText('1 matching reply');
+  });
+
+  test('search says plainly that it covers only what is loaded', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.fill('#ctSearch', 'zzzznotpresent');
+    await expect(page.locator('#ctStatus')).toContainText('replies loaded so far');
+  });
+
+  test('an unread marker appears for a returning reader', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await expect(page.locator('.ct-unread-marker')).toContainText('New since your last visit');
+    await expect(page.locator('.ct-reply.is-unread')).not.toHaveCount(0);
+  });
+
+  test('collapse read branches leaves the ones with unread activity open', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.click('#ctCollapseRead');
+    await expect(page.locator('#ctStatus')).toContainText('Read branches collapsed');
+    // The deep branch has unread replies, so it stays expanded.
+    await expect(page.locator(reply(DEEP.l3))).toBeVisible();
+  });
+
+  test('marks the thread read, and never moves the marker backwards', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await expect.poll(async () => {
+      const calls = await readTestCalls(page);
+      return Boolean(calls.find((c) => c.table === 'thread_read_state'));
+    }, { timeout: 8000 }).toBe(true);
+
+    const calls = await readTestCalls(page);
+    const write = calls.find((c) => c.table === 'thread_read_state');
+    // Reader One's stored position is 2; the thread has 5 replies.
+    expect(write.rows[0].last_read_sequence).toBeGreaterThan(2);
+  });
+});
+
+test.describe('Thread reader — keyboard', () => {
+  test('slash focuses search and r opens the composer', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.locator('body').press('/');
+    await expect(page.locator('#ctSearch')).toBeFocused();
+
+    await page.locator('#ctSearch').press('Escape');
+    await page.locator('body').press('r');
+    await expect(page.locator('.ct-composer-input')).toBeFocused();
+  });
+
+  test('shortcuts never fire while typing', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.locator('.ct-composer-input').fill('');
+    await page.locator('.ct-composer-input').type('r/u j k');
+    await expect(page.locator('.ct-composer-input')).toHaveValue('r/u j k');
+    await expect(page.locator('#ctSearch')).not.toBeFocused();
+  });
+
+  test('the shortcut list is reachable and documented', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.click('#ctHelp');
+    const dialog = page.locator('#ctHelpDialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText('Jump to the first unread');
+  });
+});
+
+test.describe('Thread reader — scale and mobile', () => {
+  test('a 300+ reply thread pages its branches instead of rendering them all', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.largeThread);
+
+    // BRANCH_PAGE_SIZE is 10, so the first screen holds ten branches, not 320.
+    await expect(page.locator(REPLY)).toHaveCount(10);
+    await expect(page.locator('#ctLoadMore')).toBeVisible();
+
+    await page.click('#ctLoadMore');
+    await expect(page.locator(REPLY)).toHaveCount(20);
+  });
+
+  test('mobile keeps the reply text readable rather than squeezing it', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'About the phone layout specifically');
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    // The deepest reply must still have a usable measure, which is exactly what
+    // capping indentation at one level on mobile is for.
+    const width = await page.locator(reply(DEEP.l4)).evaluate((node) => node.getBoundingClientRect().width);
+    expect(width).toBeGreaterThan(240);
+  });
+
+  test('the source panel is reachable on a phone', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'About the phone layout specifically');
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.singleWordRange);
+
+    // The rails collapse on a phone, so the toggle is the ONLY way to reach the
+    // source panel -- the plan's stated differentiator. It was briefly
+    // unreachable at every width because a display:none rule outranked the
+    // media query that was meant to reveal it.
+    const toggle = page.locator('#ctSourceToggle');
+    await expect(toggle).toBeVisible();
+    await expect(page.locator('.ct-source-text')).toBeHidden();
+
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('.ct-source-text')).toBeVisible();
+    await expect(page.locator('.ct-source-text')).toHaveText('ארבעה ראשי שנים הם');
+  });
+
+  test('the outline is reachable on a phone', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'About the phone layout specifically');
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.click('#ctOutlineToggle');
+    await expect(page.locator('.ct-branch-map')).toBeVisible();
+  });
+
+  test('the toolbar does not push the discussion off the first screen', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'About the phone layout specifically');
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    // Eight wrapped controls used to stack four rows deep and put the opening
+    // post below the fold on a 915px-tall phone.
+    const toolbar = await page.locator('#ctToolbar').evaluate((n) => n.getBoundingClientRect().height);
+    expect(toolbar).toBeLessThan(80);
+
+    const rootTop = await page.locator('.ct-root').evaluate((n) => n.getBoundingClientRect().top);
+    const viewport = await page.evaluate(() => window.innerHeight);
+    expect(rootTop).toBeLessThan(viewport);
+  });
+
+  test('the page does not scroll horizontally on a phone', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'About the phone layout specifically');
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    const layout = await page.evaluate(() => ({
+      visual: Math.round(window.visualViewport.width),
+      document: document.documentElement.scrollWidth,
+    }));
+    // Unlike /browse/ (audit F-15), this page must fit the screen exactly.
+    expect(layout.document).toBe(layout.visual);
+  });
+});
+
+test.describe('Thread reader — accessibility', () => {
+  test('each reply announces its author and nesting level', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await expect(page.locator(reply(DEEP.l3)))
+      .toHaveAttribute('aria-label', /Reply by .+, level 3, replying to /);
+  });
+
+  test('a branch toggle exposes its expanded state', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    const toggle = page.locator('.ct-branch-toggle').first();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await toggle.click();
+    await expect(page.locator('.ct-collapsed-button').first()).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('a selected reaction exposes its pressed state and count', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.singleWordRange);
+
+    const pill = page.locator('.ct-reaction').first();
+    await expect(pill).toHaveAttribute('aria-pressed', /true|false/);
+    await expect(pill).toHaveAttribute('aria-label', /Helpful|Insightful|Chazak|Shtark|Great Kasha/);
+  });
+});

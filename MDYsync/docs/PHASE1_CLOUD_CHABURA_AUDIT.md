@@ -356,6 +356,12 @@ an RTL-side overflow.
 
 *Action:* not fixed here — diagnosing `/browse/`'s mobile layout is the plan's
 mobile phase, not Prompt 3, and a speculative CSS patch would have been a guess.
+*Prompt 4 note:* the thread reader hit the same class of bug in its own new
+toolbar (a scrolling flex row that widened the document instead of scrolling
+within itself, because `min-width` defaults to `auto` and an absolutely
+positioned visually-hidden `<label>` escaped the overflow clip). That one **is**
+fixed, and `/chaburah/thread/` now asserts `document.scrollWidth === visualViewport.width`
+on a phone. The same measurement is what F-15 fails on `/browse/`.
 `tests/chaburah/thread.spec.mjs` carries a mobile test that asserts the overflow,
 so the defect cannot regress silently and fixing it fails loudly with instructions
 to remove the two `test.skip`s that depend on it.

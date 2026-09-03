@@ -241,11 +241,17 @@
   }
 
   function threadHref(row) {
-    // The dedicated thread route arrives with the thread reader (Prompt 4).
-    // Until then a card opens the passage on the Interactive Daf, which is
-    // where the discussion is readable today.
-    const ref = components.dafLabel(row.daf_ref_key);
-    return `/browse/?ref=${encodeURIComponent(ref)}`;
+    // Carries the current feed state along as ?back= so the thread's back link
+    // returns to the view the reader actually came from, not a reset feed.
+    const params = new URLSearchParams();
+    if (state.scope !== 'latest') params.set('view', state.scope);
+    if (state.category) params.set('category', state.category);
+    if (state.tractate) params.set('tractate', state.tractate);
+    if (state.search) params.set('q', state.search);
+    const back = params.toString();
+    const url = new URLSearchParams({ thread: row.id });
+    if (back) url.set('back', back);
+    return `/chaburah/thread/?${url.toString()}`;
   }
 
   // --- Feed ---------------------------------------------------------------

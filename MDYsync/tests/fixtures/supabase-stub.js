@@ -218,6 +218,45 @@
         return { data: clone(rows), error: null };
       }
 
+      // The database derives several columns with triggers, and the thread
+      // reader reads them straight back off an inserted row. Without these the
+      // stub would hand back a comment with no depth, no root and no sequence,
+      // and a spec asserting nesting would pass on a lie. These MIRROR the real
+      // triggers in 20260902190000_cloud_chabura_thread_foundation.sql -- they
+      // do not prove them. That proof is supabase/tests/rls_authorization.sql,
+      // which runs against a real Postgres.
+      function applyServerDerivations(record) {
+        if (tableName === 'comments') {
+          const siblings = table('comments').filter((row) => row.note_id === record.note_id);
+          record.activity_sequence = siblings.length + 1;
+          if (!record.parent_comment_id) {
+            record.root_comment_id = record.id;
+            record.depth = 0;
+          } else {
+            const parent = siblings.find((row) => row.id === record.parent_comment_id);
+            record.root_comment_id = parent ? parent.root_comment_id : record.id;
+            record.depth = parent ? (parent.depth || 0) + 1 : 0;
+          }
+          if (record.deleted_at === undefined) record.deleted_at = null;
+          if (record.edited_at === undefined) record.edited_at = null;
+          if (record.hidden === undefined) record.hidden = false;
+        }
+        return record;
+      }
+
+      // redact_on_soft_delete: the body is replaced server-side on the
+      // transition to deleted, so a client that skipped the step cannot leave
+      // the original text readable over the API.
+      function applyRedaction(previous, next) {
+        if (!previous || previous.deleted_at || !next.deleted_at) return next;
+        const redacted = { ...next, body: '[deleted]' };
+        if (tableName === 'line_notes') {
+          redacted.title = null;
+          redacted.selected_text = null;
+        }
+        return redacted;
+      }
+
       function runMutation() {
         const error = injectedError(tableName, query.operation);
         if (error) return { data: null, error };
@@ -226,11 +265,16 @@
         if (query.operation === 'insert' || query.operation === 'upsert') {
           const incoming = Array.isArray(query.payload) ? query.payload : [query.payload];
           const inserted = incoming.map((row) => {
-            const record = Object.assign({ id: uuid(), created_at: new Date().toISOString() }, clone(row));
+            const record = applyServerDerivations(
+              Object.assign({ id: uuid(), created_at: new Date().toISOString() }, clone(row))
+            );
             if (query.operation === 'upsert') {
-              // Only `progress` and `preferences` are upserted in this repo,
-              // both keyed on the columns present in the payload itself.
-              const keys = Object.keys(record).filter((k) => k === 'user_id' || k === 'ref_key' || k === 'variant');
+              // Upserted tables in this repo and the columns their primary keys
+              // are made of: progress/preferences (user_id, ref_key, variant),
+              // thread_read_state (user_id, note_id), bookmarks (user_id,
+              // target_type, target_id).
+              const KEY_COLUMNS = ['user_id', 'ref_key', 'variant', 'note_id', 'target_type', 'target_id'];
+              const keys = Object.keys(record).filter((k) => KEY_COLUMNS.includes(k));
               const existingIndex = rows.findIndex((existing) => keys.every((k) => existing[k] === record[k]));
               if (existingIndex >= 0) {
                 rows[existingIndex] = Object.assign({}, rows[existingIndex], record);
@@ -248,7 +292,7 @@
           const updated = [];
           rows.forEach((row, index) => {
             if (!matches(row)) return;
-            rows[index] = Object.assign({}, row, clone(query.payload));
+            rows[index] = applyRedaction(row, Object.assign({}, row, clone(query.payload)));
             updated.push(rows[index]);
           });
           recordCall({ table: tableName, operation: 'update', rows: clone(updated) });
@@ -285,6 +329,7 @@
         ilike(column, value) { query.filters.push({ type: 'ilike', column, value }); return api; },
         textSearch(column, value) { query.filters.push({ type: 'textSearch', column, value }); return api; },
         is(column, value) { query.filters.push({ type: 'is', column, value }); return api; },
+        neq(column, value) { query.filters.push({ type: 'not', column, operator: 'eq', value }); return api; },
         not(column, operator, value) { query.filters.push({ type: 'not', column, operator, value }); return api; },
         // PostgREST's `or=` takes a COMMA-SEPARATED LIST of conditions, any one
         // of which may match -- not a single condition. Splitting at the top
