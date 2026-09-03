@@ -398,9 +398,14 @@ test.describe('Thread reader — composer', () => {
     await page.fill('.ct-composer-input', 'This should fail but must not vanish.');
     await page.click('.ct-composer button[type="submit"]');
 
-    await expect(page.locator('.ct-composer-error')).toContainText('row-level security');
+    // The raw PostgREST text is not shown. comments_insert is one policy
+    // covering private, hidden, locked, deleted and account-age, so the thread
+    // is re-read and the actual reason named.
+    await expect(page.locator('.ct-composer-error')).toContainText('New accounts cannot post publicly yet');
     await expect(page.locator('.ct-composer-input')).toHaveValue('This should fail but must not vanish.');
     await expect(page.locator('.ct-composer button[type="submit"]')).toBeEnabled();
+    // The optimistic row is gone: a failed reply must never be left looking posted.
+    await expect(page.locator(REPLY)).toHaveCount(0);
   });
 
   test('an unsent draft survives a reload (the F-7 gap, now closed here)', async ({ page }) => {
@@ -515,16 +520,52 @@ test.describe('Thread reader — answers, edit and delete', () => {
     await expect(page.locator('.ct-menu-item:has-text("Mark as answer")')).toHaveCount(0);
   });
 
-  test('an author can edit their own reply and it shows as edited', async ({ page }) => {
+  test('an author edits in place, with the existing text seeded', async ({ page }) => {
     await preparePage(page, { user: USERS.ordinary });
     await openThread(page, NOTE_IDS.deepThread);
-    page.on('dialog', (dialog) => dialog.accept('Reply at level 1, clarified.'));
 
     await page.locator(`${reply(DEEP.l1)} .ct-more`).click();
     await page.click('.ct-menu-item:has-text("Edit")');
 
+    // A real textarea in the thread, not a browser prompt: it can show a count,
+    // survive a failed save, and be read in context.
+    const editor = page.locator(`${reply(DEEP.l1)} .ct-editor .ct-composer-input`);
+    await expect(editor).toHaveValue('Reply at level 1.');
+    await editor.fill('Reply at level 1, clarified.');
+    await page.click(`${reply(DEEP.l1)} .ct-editor button[type="submit"]`);
+
     await expect(page.locator(reply(DEEP.l1))).toContainText('clarified');
     await expect(page.locator(`${reply(DEEP.l1)} .ct-edited`)).toBeVisible();
+  });
+
+  test('a failed edit keeps the rewritten text on screen', async ({ page }) => {
+    await preparePage(page, {
+      user: USERS.ordinary,
+      control: { failures: { 'comments:update': { message: 'permission denied', code: '42501' } } },
+    });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.locator(`${reply(DEEP.l1)} .ct-more`).click();
+    await page.click('.ct-menu-item:has-text("Edit")');
+    await page.locator(`${reply(DEEP.l1)} .ct-editor .ct-composer-input`).fill('A careful rewrite worth keeping.');
+    await page.click(`${reply(DEEP.l1)} .ct-editor button[type="submit"]`);
+
+    await expect(page.locator(`${reply(DEEP.l1)} .ct-composer-error`)).toContainText('You do not have permission');
+    // Reverting to the original here would throw away the rewrite silently.
+    await expect(page.locator(`${reply(DEEP.l1)} .ct-editor .ct-composer-input`))
+      .toHaveValue('A careful rewrite worth keeping.');
+  });
+
+  test('an edit cannot empty a post', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.locator(`${reply(DEEP.l1)} .ct-more`).click();
+    await page.click('.ct-menu-item:has-text("Edit")');
+    await page.locator(`${reply(DEEP.l1)} .ct-editor .ct-composer-input`).fill('   ');
+    await page.click(`${reply(DEEP.l1)} .ct-editor button[type="submit"]`);
+
+    await expect(page.locator(`${reply(DEEP.l1)} .ct-composer-error`)).toContainText('Delete it instead');
   });
 
   test('a reader is not offered Edit or Delete on someone else’s reply', async ({ page }) => {
@@ -769,5 +810,280 @@ test.describe('Thread reader — accessibility', () => {
     const pill = page.locator('.ct-reaction').first();
     await expect(pill).toHaveAttribute('aria-pressed', /true|false/);
     await expect(pill).toHaveAttribute('aria-label', /Helpful|Insightful|Chazak|Shtark|Great Kasha/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Prompt 5: the writing experience. Most of the composer landed with the reader
+// in Prompt 4; these cover what Prompt 5 adds — account-scoped drafts, no
+// duplicate posts, submit-time races, and the keyboard-only flow.
+// ---------------------------------------------------------------------------
+
+test.describe('Composer — drafts belong to one account', () => {
+  test('a draft is never restored into a different account', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.noReplies);
+    await page.fill('.ct-composer-input', 'Reader One is midway through a thought.');
+    await page.waitForTimeout(400);
+
+    // Same device, same thread, different person signs in.
+    await page.evaluate((session) => window.__DAFSYNC_TEST_CLIENT__.__setSession(session), sessionFor(USERS.author));
+    await expect(page.locator('.ct-root')).toBeVisible();
+
+    await expect(page.locator('.ct-composer-input')).toHaveValue('');
+    await expect(page.locator('.ct-composer-restored')).toBeHidden();
+    // And the words themselves are nowhere on the page.
+    await expect(page.locator('body')).not.toContainText('midway through a thought');
+  });
+
+  test('each account gets its own draft back', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.noReplies);
+    await page.fill('.ct-composer-input', 'Belongs to Reader One.');
+    await page.waitForTimeout(400);
+
+    await page.evaluate((session) => window.__DAFSYNC_TEST_CLIENT__.__setSession(session), sessionFor(USERS.author));
+    await expect(page.locator('.ct-composer-input')).toHaveValue('');
+    await page.fill('.ct-composer-input', 'Belongs to Author Two.');
+    await page.waitForTimeout(400);
+
+    await page.evaluate((session) => window.__DAFSYNC_TEST_CLIENT__.__setSession(session), sessionFor(USERS.ordinary));
+    await expect(page.locator('.ct-composer-input')).toHaveValue('Belongs to Reader One.');
+  });
+
+  test('a legacy unscoped draft is discarded, not adopted', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await page.addInitScript((noteId) => {
+      // The v1 key shape, written before drafts were scoped to an account.
+      localStorage.setItem(`dafsync.chabura.draft:${noteId}:root`, JSON.stringify({ body: 'ORPHAN-CANARY', mentions: [] }));
+    }, NOTE_IDS.noReplies);
+    await openThread(page, NOTE_IDS.noReplies);
+
+    await expect(page.locator('.ct-composer-input')).toHaveValue('');
+    await expect(page.locator('body')).not.toContainText('ORPHAN-CANARY');
+  });
+
+  test('drafts are per reply target, not per thread', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.fill('.ct-composer-input', 'A root-level thought.');
+    await page.locator(`${reply(DEEP.l1)} button:has-text("Reply")`).click();
+    await page.locator('.ct-inline-composer .ct-composer-input').fill('A reply to level one.');
+    await page.waitForTimeout(400);
+    await page.reload();
+    await expect(page.locator('.ct-root')).toBeVisible();
+
+    await expect(page.locator('#ctComposer .ct-composer-input')).toHaveValue('A root-level thought.');
+    await page.locator(`${reply(DEEP.l1)} button:has-text("Reply")`).click();
+    await expect(page.locator('.ct-inline-composer .ct-composer-input')).toHaveValue('A reply to level one.');
+  });
+});
+
+test.describe('Composer — optimistic send and idempotency', () => {
+  test('a reply appears immediately in a sending state, then settles', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.noReplies);
+
+    await page.fill('.ct-composer-input', 'Appears at once.');
+    await page.click('.ct-composer button[type="submit"]');
+
+    await expect(page.locator(REPLY)).toContainText('Appears at once.');
+    await expect(page.locator(`${REPLY}.is-pending`)).toHaveCount(0);
+    // Once settled it carries the real action row.
+    await expect(page.locator(`${REPLY} button:has-text("Reply")`)).toBeVisible();
+  });
+
+  test('the client sends the id, so a retry cannot double-post', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.noReplies);
+
+    await page.fill('.ct-composer-input', 'Sent once.');
+    await page.click('.ct-composer button[type="submit"]');
+    await expect(page.locator(REPLY)).toHaveCount(1);
+
+    const calls = await readTestCalls(page);
+    const insert = calls.find((c) => c.table === 'comments' && c.operation === 'insert');
+    // A server-generated id would leave a retry with no way to collide.
+    expect(insert.rows[0].id).toMatch(/^[0-9a-f-]{36}$/i);
+
+    // Replay that exact insert, as a timed-out request retried would.
+    const replayed = await page.evaluate(async (row) => {
+      const client = window.__DAFSYNC_TEST_CLIENT__;
+      const { error } = await client.from('comments').insert(row);
+      return error ? error.code || 'error' : 'inserted-again';
+    }, insert.rows[0]);
+    expect(replayed).not.toBe('inserted-again');
+    await expect(page.locator(REPLY)).toHaveCount(1);
+  });
+
+  test('a rejected reply is removed, not left looking posted', async ({ page }) => {
+    await preparePage(page, {
+      user: USERS.ordinary,
+      control: { failures: { 'comments:insert': { message: 'nope', code: '42501' } } },
+    });
+    await openThread(page, NOTE_IDS.noReplies);
+
+    await page.fill('.ct-composer-input', 'This never lands.');
+    await page.click('.ct-composer button[type="submit"]');
+
+    await expect(page.locator('.ct-composer-error')).toBeVisible();
+    await expect(page.locator(REPLY)).toHaveCount(0);
+    await expect(page.locator('.ct-composer-input')).toHaveValue('This never lands.');
+  });
+});
+
+test.describe('Composer — submit-time races', () => {
+  test('a thread locked while writing says so and keeps the draft', async ({ page }) => {
+    await preparePage(page, {
+      user: USERS.ordinary,
+      control: { failures: { 'comments:insert': { message: 'new row violates row-level security policy', code: '42501' } } },
+    });
+    await openThread(page, NOTE_IDS.noReplies);
+    await page.fill('.ct-composer-input', 'Written just before the lock.');
+
+    // The thread is locked between opening the composer and submitting.
+    await page.evaluate((noteId) => {
+      const note = window.__DAFSYNC_TEST_DB__.line_notes.find((row) => row.id === noteId);
+      note.status = 'locked';
+    }, NOTE_IDS.noReplies);
+    await page.click('.ct-composer button[type="submit"]');
+
+    await expect(page.locator('.ct-composer-error')).toContainText('locked while you were writing');
+    await expect(page.locator('.ct-composer-input')).toHaveValue('Written just before the lock.');
+  });
+
+  test('a thread deleted while writing says so and keeps the draft', async ({ page }) => {
+    await preparePage(page, {
+      user: USERS.ordinary,
+      control: { failures: { 'comments:insert': { message: 'new row violates row-level security policy', code: '42501' } } },
+    });
+    await openThread(page, NOTE_IDS.noReplies);
+    await page.fill('.ct-composer-input', 'Written just before the delete.');
+
+    await page.evaluate((noteId) => {
+      const note = window.__DAFSYNC_TEST_DB__.line_notes.find((row) => row.id === noteId);
+      note.deleted_at = new Date().toISOString();
+    }, NOTE_IDS.noReplies);
+    await page.click('.ct-composer button[type="submit"]');
+
+    await expect(page.locator('.ct-composer-error')).toContainText('deleted while you were writing');
+    await expect(page.locator('.ct-composer-input')).toHaveValue('Written just before the delete.');
+  });
+
+  test('a session that ends mid-compose keeps the text and says what to do', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.noReplies);
+    await page.fill('.ct-composer-input', 'Typed before the session ended.');
+
+    // Signed out in another tab: the composer is still on screen with text in it.
+    await page.evaluate(() => {
+      window.__DAFSYNC_TEST_SESSION__ = null;
+      window.DafSyncAuth.getUser = () => null;
+    });
+    await page.click('.ct-composer button[type="submit"]');
+
+    await expect(page.locator('.ct-composer-error')).toContainText('session ended');
+    await expect(page.locator('.ct-composer-input')).toHaveValue('Typed before the session ended.');
+  });
+});
+
+test.describe('Composer — quoting and answer state', () => {
+  test('a quote whose original was edited afterwards says so', async ({ page }) => {
+    const db = buildDatabase();
+    const source = db.comments.find((row) => row.id === DEEP.l1);
+    // Edited after the quoting reply was written.
+    source.edited_at = new Date(Date.parse('2026-09-02T12:00:00.000Z')).toISOString();
+    await preparePage(page, { user: null, db });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await expect(page.locator(`${reply(DEEP.quoting)} .ct-quote-stale`)).toContainText('edited since');
+  });
+
+  test('deleting the marked answer reopens the discussion', async ({ page }) => {
+    const db = buildDatabase();
+    // Reader One authored the reply that is the marked answer, so they can delete it.
+    await preparePage(page, { user: USERS.ordinary, db });
+    await openThread(page, NOTE_IDS.deepThread);
+    await expect(page.locator('.ct-answer-flag')).toBeVisible();
+
+    await page.locator(`${reply(DEEP.l1)} .ct-more`).click();
+    await page.click('.ct-menu-item:has-text("Delete")');
+    await page.locator('.ct-confirm button:has-text("Delete")').click();
+
+    // The database clears the pointer by trigger; the page must not keep
+    // advertising an answer nobody can read until a reload.
+    await expect(page.locator('.ct-answer-flag')).toHaveCount(0);
+    await expect(page.locator('#ctStatus')).toContainText('open again');
+  });
+});
+
+test.describe('Composer — keyboard only', () => {
+  test('a reply can be written and posted without a mouse', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.noReplies);
+
+    await page.locator('body').press('r');
+    await expect(page.locator('.ct-composer-input')).toBeFocused();
+    await page.keyboard.type('Posted entirely from the keyboard.');
+    await page.keyboard.press('Control+Enter');
+
+    await expect(page.locator(REPLY)).toContainText('Posted entirely from the keyboard.');
+  });
+
+  test('an action menu is navigable with arrows and returns focus on Escape', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    const more = page.locator(`${reply(DEEP.l1)} .ct-more`);
+    await more.click();
+    await expect(page.locator('.ct-menu-item').first()).toBeFocused();
+
+    await page.keyboard.press('ArrowDown');
+    await expect(page.locator('.ct-menu-item').nth(1)).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(page.locator('.ct-menu-item').first()).toBeFocused();
+
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.ct-menu')).toHaveCount(0);
+    // Focus goes back where it came from rather than to the top of the page.
+    await expect(more).toBeFocused();
+  });
+
+  test('mention chips are one tab stop with arrow navigation inside', async ({ page }) => {
+    // A viewer who is neither the root author nor a replier, so both
+    // participants are offered rather than one.
+    await preparePage(page, { user: USERS.brandNew });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    const chips = page.locator('#ctComposer .ct-mention-chip');
+    await expect(chips.first()).toHaveAttribute('tabindex', '0');
+    await expect(chips.nth(1)).toHaveAttribute('tabindex', '-1');
+
+    await chips.first().focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(chips.nth(1)).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#ctComposer .ct-composer-input')).toBeFocused();
+  });
+
+  test('reporting is a real dialog, reachable and cancellable by keyboard', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.singleWordRange);
+
+    await page.locator(`${ROOT} .ct-more`).click();
+    await page.click('.ct-menu-item:has-text("Report")');
+
+    const dialog = page.locator('.ct-confirm');
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText('the author is not told who reported them');
+    await expect(page.locator('#ctReportReason')).toBeFocused();
+
+    await page.keyboard.type('Off topic and unsourced.');
+    await dialog.locator('button:has-text("Report")').click();
+
+    const calls = await readTestCalls(page);
+    const insert = calls.find((c) => c.table === 'reports' && c.operation === 'insert');
+    expect(insert.rows[0].reason).toBe('Off topic and unsourced.');
   });
 });

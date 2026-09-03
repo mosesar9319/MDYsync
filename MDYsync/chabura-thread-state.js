@@ -84,6 +84,21 @@
     touched.forEach((parent) => sortChildren(state, parent));
   }
 
+  // Removes an optimistic row that the server rejected. Only ever called for a
+  // row this client invented, which by definition has no children yet.
+  function removeComment(state, commentId) {
+    const row = state.commentsById.get(commentId);
+    if (!row) return;
+    state.commentsById.delete(commentId);
+    const parent = row.parent_comment_id || TOP;
+    const siblings = state.childrenByParent.get(parent);
+    if (siblings) {
+      const index = siblings.indexOf(commentId);
+      if (index >= 0) siblings.splice(index, 1);
+    }
+    state.childrenByParent.delete(commentId);
+  }
+
   function topLevelIds(state) {
     return state.childrenByParent.get(TOP) || [];
   }
@@ -249,6 +264,7 @@
     MAX_INDENT_MOBILE,
     createState,
     mergeComments,
+    removeComment,
     topLevelIds,
     childIds,
     descendantIds,

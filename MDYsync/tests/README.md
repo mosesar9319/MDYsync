@@ -110,6 +110,10 @@ update, delete and rpc the page issued.
   asserting nesting would pass on a lie. They MIRROR the triggers in
   `20260902190000_cloud_chabura_thread_foundation.sql`; they do not prove them.
   That proof is `supabase/tests/rls_authorization.sql`, against a real Postgres.
+- **The stub enforces the `comments` primary key.** Added because a feature
+  depends on it: the thread composer sends a client-generated id so a retry
+  after a timeout collides (23505) rather than posting a second reply. Without
+  the constraint modelled, that safety net could not be tested at all.
 - **Never assert authorization here.** The stub answers every query as a trusted
   caller. A spec that "proves" a private thread is hidden is proving nothing --
   remove the row from the fixture to model what RLS returns, and put the real

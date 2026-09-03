@@ -264,6 +264,16 @@
 
         if (query.operation === 'insert' || query.operation === 'upsert') {
           const incoming = Array.isArray(query.payload) ? query.payload : [query.payload];
+          // Primary key uniqueness. Modelled because a feature depends on it:
+          // the thread composer sends a client-generated comment id so a retry
+          // after a timeout COLLIDES instead of posting a second reply. Without
+          // the constraint here that safety net could not be tested at all.
+          if (query.operation === 'insert') {
+            const clash = incoming.find((row) => row && row.id && rows.some((existing) => existing.id === row.id));
+            if (clash) {
+              return { data: null, error: { message: `duplicate key value violates unique constraint "${tableName}_pkey"`, code: '23505' } };
+            }
+          }
           const inserted = incoming.map((row) => {
             const record = applyServerDerivations(
               Object.assign({ id: uuid(), created_at: new Date().toISOString() }, clone(row))

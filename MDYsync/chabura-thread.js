@@ -509,9 +509,14 @@
 
   function closeMenu() {
     if (!openMenu) return;
-    openMenu.trigger?.setAttribute('aria-expanded', 'false');
-    openMenu.node.remove();
+    const { trigger, node } = openMenu;
     openMenu = null;
+    trigger?.setAttribute('aria-expanded', 'false');
+    // Return focus only if it is still inside the menu being removed; stealing
+    // it back after the reader has clicked elsewhere would be worse than losing it.
+    const restore = node.contains(document.activeElement);
+    node.remove();
+    if (restore) trigger?.focus();
   }
 
   function showMenu(trigger, node) {
@@ -522,7 +527,20 @@
     node.style.left = `${Math.max(8, Math.min(box.left + window.scrollX, window.innerWidth - 220))}px`;
     trigger.setAttribute('aria-expanded', 'true');
     openMenu = { trigger, node };
-    node.querySelector('button')?.focus();
+
+    // Arrow keys, Home/End and Escape, with focus returning to the trigger on
+    // close -- otherwise closing a menu drops keyboard focus to the top of the
+    // document and a keyboard-only reader loses their place in the thread.
+    const items = [...node.querySelectorAll('button')];
+    node.addEventListener('keydown', (event) => {
+      const index = items.indexOf(document.activeElement);
+      if (event.key === 'ArrowDown') { event.preventDefault(); items[(index + 1) % items.length]?.focus(); }
+      else if (event.key === 'ArrowUp') { event.preventDefault(); items[(index - 1 + items.length) % items.length]?.focus(); }
+      else if (event.key === 'Home') { event.preventDefault(); items[0]?.focus(); }
+      else if (event.key === 'End') { event.preventDefault(); items[items.length - 1]?.focus(); }
+      else if (event.key === 'Escape' || event.key === 'Tab') { event.preventDefault(); closeMenu(); }
+    });
+    items[0]?.focus();
   }
 
   function confirmDialog({ title, body, confirmLabel, danger }) {
@@ -544,23 +562,80 @@
 
   // --- Mutations -----------------------------------------------------------
 
+  // Renders the reply immediately in a sending state, then reconciles with what
+  // the server actually stored. The id is generated up front and sent with the
+  // insert, so the optimistic row and the confirmed row are the SAME row --
+  // there is nothing to deduplicate afterwards, and a retry after a timeout
+  // collides on the primary key instead of posting twice.
   async function submitReply(parentId, payload) {
-    const row = await data.postReply({
-      noteId: state.note.id,
-      parentCommentId: parentId,
+    const user = window.DafSyncAuth?.getUser?.();
+    if (!user) throw new Error('Sign in to reply.');
+
+    const id = payload.id || data.newCommentId();
+    const parent = parentId ? state.commentsById.get(parentId) : null;
+    const optimistic = {
+      id,
+      note_id: state.note.id,
+      author_id: user.id,
+      author_display_name: user.display_name || user.email || 'You',
       body: payload.body,
-      mentionedUserIds: payload.mentionedUserIds,
-      quotedCommentId: payload.quotedCommentId,
-      quotedExcerpt: payload.quotedExcerpt,
-    });
-    if (row) {
-      S.mergeComments(state, [row]);
-      state.loadedBranchRoots.add(row.root_comment_id);
-      if (parentId) { activeComposer = null; }
+      parent_comment_id: parentId || null,
+      root_comment_id: parent ? parent.root_comment_id : id,
+      depth: parent ? (parent.depth || 0) + 1 : 0,
+      activity_sequence: S.highestSequence(state) + 1,
+      quoted_comment_id: payload.quotedCommentId || null,
+      quoted_excerpt: payload.quotedExcerpt || null,
+      mentioned_user_ids: payload.mentionedUserIds || [],
+      hidden: false,
+      is_demo: false,
+      created_at: new Date().toISOString(),
+      edited_at: null,
+      deleted_at: null,
+      pending: true,
+    };
+
+    S.mergeComments(state, [optimistic]);
+    state.loadedBranchRoots.add(optimistic.root_comment_id);
+
+    // Only the discussion is redrawn, NOT the composer. A full render() here
+    // replaced the composer element while its own submit was still in flight,
+    // so a failure showed its message on a node already detached from the
+    // document -- the reader saw an empty composer and no error at all.
+    renderDiscussion();
+    renderOutlinePanel();
+    scrollTo(id);
+    announce('Posting your reply…');
+
+    try {
+      const row = await data.postReply({
+        id,
+        noteId: state.note.id,
+        parentCommentId: parentId,
+        body: payload.body,
+        mentionedUserIds: payload.mentionedUserIds,
+        quotedCommentId: payload.quotedCommentId,
+        quotedExcerpt: payload.quotedExcerpt,
+      });
+      // The server's row wins: it carries the derived depth, root and sequence,
+      // and `pending` is cleared by the merge overwriting it.
+      S.mergeComments(state, [{ ...(row || optimistic), pending: false }]);
+      // Now that it is accepted, the composer can go: an inline one is removed,
+      // the root one is rebuilt empty.
+      if (parentId && activeComposer && activeComposer.parentId === parentId) {
+        activeComposer.host.remove();
+        activeComposer = null;
+      }
       render();
       afterRender({});
-      scrollTo(row.id);
       announce('Reply posted.');
+    } catch (error) {
+      // The optimistic row goes so the reader is never left believing a failed
+      // reply was published, but the composer stays mounted -- it is what
+      // holds the draft and shows the reason.
+      S.removeComment(state, id);
+      renderDiscussion();
+      renderOutlinePanel();
+      throw error;
     }
   }
 
@@ -670,24 +745,10 @@
       }
     },
 
-    async onEdit(commentId) {
+    onEdit(commentId) {
       const row = commentId ? state.commentsById.get(commentId) : state.note;
       if (!row) return;
-      const next = window.prompt('Edit your post:', row.body || '');
-      if (next === null || next.trim() === (row.body || '').trim()) return;
-      if (next.length > C.BODY_LIMIT) {
-        toast(`That is ${next.length - C.BODY_LIMIT} characters over the ${C.BODY_LIMIT} limit. Nothing was changed.`);
-        return;
-      }
-      try {
-        const updated = commentId
-          ? await data.editComment(commentId, next.trim())
-          : await data.editNote(state.note.id, { body: next.trim() });
-        if (commentId) S.mergeComments(state, [updated]);
-        else state.note = updated;
-        render();
-        announce('Edit saved.');
-      } catch (error) { toast(data.describeError(error)); }
+      openEditor(commentId, row);
     },
 
     async onDelete(commentId) {
@@ -705,10 +766,22 @@
       });
       if (!ok) return;
       try {
-        if (commentId) S.mergeComments(state, [await data.softDeleteComment(commentId)]);
-        else state.note = await data.softDeleteNote(state.note.id);
+        if (commentId) {
+          S.mergeComments(state, [await data.softDeleteComment(commentId)]);
+          // clear_highlight_when_reply_unavailable drops the pointer server-side
+          // the moment its reply is deleted or hidden. Mirroring that here stops
+          // the thread advertising an answer nobody can read until a reload.
+          if (state.note.highlighted_comment_id === commentId) {
+            state.note = { ...state.note, highlighted_comment_id: null };
+            announce('That reply was the marked answer, so the discussion is open again.');
+          }
+        } else {
+          state.note = await data.softDeleteNote(state.note.id);
+        }
+        closeEditor();
         render();
-        announce('Deleted.');
+        afterRender({});
+        if (!commentId) announce('Deleted.');
       } catch (error) { toast(data.describeError(error)); }
     },
 
@@ -729,20 +802,95 @@
     },
 
     async onReport(targetType, targetId) {
-      const reason = window.prompt('What is wrong with this post? A moderator will review it.');
-      if (!reason || !reason.trim()) return;
+      const reason = await reportDialog();
+      if (!reason) return;
       try {
-        await data.reportTarget(targetType, targetId, reason.trim());
-        toast('Reported. Thank you.');
+        await data.reportTarget(targetType, targetId, reason);
+        toast('Reported. A moderator will review it. Thank you.');
       } catch (error) { toast(data.describeError(error)); }
     },
   };
+
+  // Replaces the post's body with an editor in place, so the reader keeps the
+  // surrounding thread as context while rewriting.
+  let activeEditor = null;
+  function openEditor(commentId, row) {
+    closeEditor();
+    const host = commentId ? document.getElementById(`comment-${commentId}`) : document.getElementById('root-post');
+    if (!host) return;
+    const body = host.querySelector('.ct-body');
+    const actions = host.querySelector('.ct-actions');
+    const editor = C.createEditor({
+      body: row.body || '',
+      onSave: async (next) => {
+        const updated = commentId
+          ? await data.editComment(commentId, next)
+          : await data.editNote(state.note.id, { body: next });
+        if (commentId) S.mergeComments(state, [updated]);
+        else state.note = updated;
+        activeEditor = null;
+        render();
+        afterRender({});
+        announce('Edit saved.');
+      },
+      onCancel: () => { closeEditor(); render(); afterRender({}); },
+    });
+    if (body) body.hidden = true;
+    if (actions) actions.hidden = true;
+    host.appendChild(editor.node);
+    activeEditor = { commentId, node: editor.node, host };
+    editor.focus();
+  }
+
+  function closeEditor() {
+    if (!activeEditor) return;
+    activeEditor.node.remove();
+    activeEditor = null;
+  }
+
+  // A real dialog rather than window.prompt: it can explain what reporting does
+  // before the reader commits, and it is reachable by keyboard like every other
+  // control here.
+  function reportDialog() {
+    return new Promise((resolve) => {
+      const dialog = document.createElement('dialog');
+      dialog.className = 'ct-confirm';
+      dialog.appendChild(el('h2', null, 'Report this post'));
+      dialog.appendChild(el('p', null, 'Tell a moderator what is wrong with it. Your name is recorded with the report so it can be followed up, and the author is not told who reported them.'));
+      const label = el('label', 'cc-visually-hidden', 'Reason');
+      label.setAttribute('for', 'ctReportReason');
+      const input = document.createElement('textarea');
+      input.id = 'ctReportReason';
+      input.className = 'ct-composer-input';
+      input.rows = 3;
+      input.placeholder = 'What is wrong with this post?';
+      dialog.append(label, input);
+      const row = el('div', 'ct-confirm-actions');
+      row.appendChild(button('cc-btn', 'Cancel', () => { dialog.close(); resolve(null); }));
+      const send = button('cc-btn ct-btn-danger', 'Report', () => {
+        const reason = input.value.trim();
+        if (!reason) { input.focus(); return; }
+        dialog.close();
+        resolve(reason);
+      });
+      row.appendChild(send);
+      dialog.appendChild(row);
+      dialog.addEventListener('close', () => { dialog.remove(); resolve(null); }, { once: true });
+      document.body.appendChild(dialog);
+      dialog.showModal();
+      input.focus();
+    });
+  }
 
   // Only one inline composer at a time on mobile, and switching away from a
   // nonempty one asks first rather than dropping what was typed.
   function openInlineComposer(parentId, quote) {
     if (activeComposer && activeComposer.parentId !== parentId) {
-      if (activeComposer.instance.isDirty() && !window.confirm('You have an unsent reply. Discard it and reply here instead?')) return;
+      // Only an INLINE composer is destroyed by switching, so only that case
+      // costs anything. The root composer stays mounted with its text intact,
+      // so asking about it would be a decision with no consequence.
+      const losesText = activeComposer.parentId !== null && activeComposer.instance.isDirty();
+      if (losesText && !window.confirm('You have an unsent reply here. Discard it and reply somewhere else instead?')) return;
       if (activeComposer.parentId !== null) activeComposer.host.remove();
       activeComposer = null;
     }
