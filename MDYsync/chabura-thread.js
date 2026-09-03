@@ -11,6 +11,8 @@
   const S = window.DafSyncChabura.threadState;
   const V = window.DafSyncChabura.threadView;
   const C = window.DafSyncChabura.threadComposer;
+  const Sum = window.DafSyncChabura.summary;
+  const Rel = window.DafSyncChabura.related;
   const { el, button } = V;
 
   const MOBILE_QUERY = '(max-width: 900px)';
@@ -43,6 +45,9 @@
     els.loadMoreWrap = document.getElementById('ctLoadMoreWrap');
     els.help = document.getElementById('ctHelp');
     els.helpDialog = document.getElementById('ctHelpDialog');
+    els.summary = document.getElementById('ctSummary');
+    els.catchup = document.getElementById('ctCatchup');
+    els.related = document.getElementById('ctRelated');
     els.sourceToggle = document.getElementById('ctSourceToggle');
     els.outlineToggle = document.getElementById('ctOutlineToggle');
   }
@@ -149,6 +154,11 @@
       state.loading = false;
       render();
       afterRender({ scrollToPermalink: Boolean(state.permalinkTarget) });
+      // Deliberately not awaited. The summary and the related panel are both
+      // reading aids: the thread is already usable, and neither is allowed to
+      // delay it or to break it by failing.
+      loadSummary(token);
+      loadRelated(token);
       checkDrift();
       observeForReading();
       startPolling();
@@ -248,6 +258,9 @@
     els.source.innerHTML = '';
     els.outline.innerHTML = '';
     els.composer.innerHTML = '';
+    if (els.summary) { els.summary.innerHTML = ''; els.summary.hidden = true; }
+    if (els.catchup) { els.catchup.innerHTML = ''; els.catchup.hidden = true; }
+    if (els.related) { els.related.innerHTML = ''; els.related.hidden = true; }
     els.loadMoreWrap.hidden = true;
     els.toolbar.hidden = true;
     const wrap = el('div', 'cc-empty');
@@ -312,9 +325,12 @@
   function render() {
     renderHeader();
     renderSource();
+    renderCatchup();
+    renderSummary();
     renderDiscussion();
     renderOutlinePanel();
     renderComposer();
+    renderRelated();
     els.toolbar.hidden = false;
     els.loadMoreWrap.hidden = !state.hasMoreBranches;
   }
@@ -384,6 +400,275 @@
   function renderOutlinePanel() {
     els.outline.innerHTML = '';
     els.outline.appendChild(V.threadOutline(context()));
+  }
+
+  // --- Generated summaries and related discussions --------------------------
+  //
+  // Everything in this section is optional. Each piece loads after the thread
+  // is already on screen, never blocks it, and renders nothing at all when it
+  // has nothing to say -- including when no provider is configured, which is
+  // the state a deploy is in until somebody sets a key.
+
+  let summaryRow = null;         // the cached summary, as stored
+  let catchupResult = null;      // this viewer's catch-up, never stored anywhere
+  let relatedItems = null;
+  let summaryBusy = false;
+  let summaryError = null;
+  let catchupDismissed = false;
+  let summaryUnavailable = false; // set once a request comes back 'unconfigured'
+
+  async function loadSummary(token) {
+    try {
+      const row = await Sum.fetchSummary(state.note.id);
+      if (!data.isCurrent(token)) return;
+      summaryRow = row;
+      renderSummary();
+      renderCatchup();
+    } catch (error) {
+      // A summary that cannot be read is not an error the reader needs to see.
+      console.warn('Cloud Chabura summary could not be read.', error);
+    }
+  }
+
+  async function loadRelated(token) {
+    try {
+      const items = await Rel.fetchRelated(state.note);
+      if (!data.isCurrent(token)) return;
+      relatedItems = items;
+      renderRelated();
+    } catch (error) {
+      console.warn('Cloud Chabura related discussions could not be read.', error);
+    }
+  }
+
+  function renderRelated() {
+    if (!els.related) return;
+    const { back } = readUrl();
+    Rel.renderInto(els.related, relatedItems || [], { back });
+  }
+
+  // A citation link scrolls when the reply is already loaded, and falls through
+  // to its permalink when it is not -- which is the honest behaviour, because
+  // loading an arbitrary branch mid-scroll would move the page under the reader.
+  function resolveCitation(commentId) {
+    if (!state.commentsById.has(commentId)) return false;
+    scrollTo(commentId);
+    return true;
+  }
+
+  function summaryContext() {
+    return {
+      noteId: state.note.id,
+      resolve: resolveCitation,
+      signedIn: signedIn(),
+      isAdmin: Boolean(state.viewer.isAdmin),
+      busy: summaryBusy,
+      error: summaryError,
+      onFeedback: handleFeedback,
+      onRegenerate: () => generateSummary({ force: true }),
+      onGenerate: () => generateSummary({ force: false }),
+      onReport: handleReportSummary,
+      onModerate: handleModerateSummary,
+      onWithdrawPoint: handleWithdrawPoint,
+      onRewordPoint: handleRewordPoint,
+    };
+  }
+
+  function renderSummary() {
+    if (!els.summary || !state.note) return;
+
+    if (summaryRow) {
+      // A summary is stale when the thread has moved on; regeneration is
+      // offered only to people who could actually trigger one.
+      Sum.renderInto(els.summary, {
+        ...summaryContext(),
+        state: 'summary',
+        mode: 'thread',
+        summary: summaryRow,
+        canRegenerate: signedIn() && !summaryUnavailable,
+      });
+      return;
+    }
+
+    // No stored summary. Offer to make one only when the thread is long enough
+    // to be worth it, the reader is signed in (generating costs money, so it is
+    // not an anonymous action), and the endpoint has not already said it is off.
+    const replyCount = state.commentsById.size;
+    if (summaryUnavailable || !signedIn() || replyCount < Sum.MIN_REPLIES_FOR_SUMMARY) {
+      // Say why once if a request already failed; otherwise show nothing at
+      // all, which is the state an unconfigured deploy stays in for ever.
+      Sum.renderInto(els.summary, summaryError
+        ? { ...summaryContext(), state: 'error' }
+        : { state: 'hidden' });
+      return;
+    }
+    Sum.renderInto(els.summary, {
+      ...summaryContext(),
+      state: 'offer',
+      offerText: `This discussion has ${replyCount} replies. A generated summary can give you the shape of it before you read.`,
+    });
+  }
+
+  function renderCatchup() {
+    if (!els.catchup || !state.note) return;
+
+    if (catchupResult) {
+      Sum.renderInto(els.catchup, {
+        ...summaryContext(),
+        state: 'catchup',
+        mode: 'catchup',
+        summary: catchupResult,
+        canRegenerate: false,
+      });
+      return;
+    }
+
+    const unread = S.unreadIds(state).length;
+    if (catchupDismissed || summaryUnavailable || !signedIn() || unread < Sum.MIN_CATCHUP_REPLIES) {
+      Sum.renderInto(els.catchup, { state: 'hidden' });
+      return;
+    }
+    Sum.renderInto(els.catchup, {
+      ...summaryContext(),
+      state: 'offer',
+      offerHeading: 'What you missed',
+      offerText: `${unread} replies have been posted since you were last here.`,
+      onGenerate: runCatchup,
+    });
+    // The shared offer renderer labels its button for the thread summary; for
+    // catch-up it has to say what it actually does.
+    const action = els.catchup.querySelector('button');
+    if (action && !summaryBusy) action.textContent = 'Catch me up';
+  }
+
+  async function generateSummary({ force }) {
+    if (summaryBusy) return;
+    summaryBusy = true;
+    summaryError = null;
+    renderSummary();
+    try {
+      const result = await Sum.requestThreadSummary(state.note.id, { force });
+      if (result.ok && result.body.status === 'ok') {
+        // The stored rows are re-read through RLS rather than trusting the
+        // response body: what a reader sees is what the database will serve
+        // anyone else, including after a moderator has been at it.
+        summaryRow = await Sum.fetchSummary(state.note.id);
+        announce('Summary ready.');
+      } else if (result.body?.status === 'not-eligible' && result.body.reason === 'current') {
+        summaryRow = await Sum.fetchSummary(state.note.id);
+        summaryError = 'This summary is already up to date.';
+      } else {
+        if (result.body?.error === 'unconfigured') summaryUnavailable = true;
+        summaryError = Sum.describeRequestFailure(result);
+      }
+    } catch (error) {
+      summaryError = Sum.describeRequestFailure({ body: {} });
+      console.warn('Cloud Chabura summary request failed.', error);
+    } finally {
+      summaryBusy = false;
+      renderSummary();
+      renderCatchup();
+    }
+  }
+
+  async function runCatchup() {
+    if (summaryBusy) return;
+    summaryBusy = true;
+    summaryError = null;
+    renderCatchup();
+    try {
+      const result = await Sum.requestCatchup(state.note.id, state.viewer.lastReadSequence || 0);
+      if (result.ok && result.body.status === 'ok') {
+        catchupResult = { ...result.body, points: result.body.points.map((point, index) => ({
+          id: `catchup-${index}`,
+          position: index,
+          body: point.text,
+          source_comment_ids: point.source_comment_ids,
+          redacted: false,
+          moderator_edited: false,
+        })) };
+        announce('Caught up.');
+      } else {
+        if (result.body?.error === 'unconfigured') summaryUnavailable = true;
+        // Nothing to catch up on is not a failure worth a red box -- it just
+        // means reading the replies is quicker, so the offer goes away.
+        if (result.body?.reason === 'too-few-new') catchupDismissed = true;
+        else toast(Sum.describeRequestFailure(result));
+      }
+    } catch (error) {
+      toast(Sum.describeRequestFailure({ body: {} }));
+      console.warn('Cloud Chabura catch-up request failed.', error);
+    } finally {
+      summaryBusy = false;
+      renderCatchup();
+    }
+  }
+
+  async function handleFeedback(verdict) {
+    if (!summaryRow) return;
+    try {
+      const next = await Sum.setFeedback(summaryRow.id, verdict, summaryRow.myVerdict);
+      // Re-read for the tallies, which a trigger maintains server-side.
+      summaryRow = await Sum.fetchSummary(state.note.id);
+      if (summaryRow) summaryRow.myVerdict = next;
+      renderSummary();
+    } catch (error) {
+      toast(data.describeError(error));
+    }
+  }
+
+  async function handleReportSummary() {
+    if (!summaryRow) return;
+    const reason = await reportDialog({
+      title: 'Report this summary',
+      body: 'A generated summary is not a participant and not a ruling. Tell a moderator what it got wrong; they can withdraw a point or hide the summary entirely.',
+      categories: SUMMARY_REPORT_CATEGORIES,
+      placeholder: 'What is wrong with this summary?',
+    });
+    if (reason == null) return;
+    try {
+      await Sum.reportSummary(summaryRow.id, reason);
+      toast('Reported. A moderator will look at it.');
+    } catch (error) {
+      toast(data.describeError(error));
+    }
+  }
+
+  async function handleModerateSummary() {
+    if (!summaryRow) return;
+    try {
+      await Sum.moderateSummary(summaryRow.id, !summaryRow.hidden, 'moderator');
+      summaryRow = await Sum.fetchSummary(state.note.id);
+      renderSummary();
+    } catch (error) {
+      toast(data.describeError(error));
+    }
+  }
+
+  async function handleWithdrawPoint(point) {
+    try {
+      await Sum.moderatePoint(point.id, { redact: true });
+      summaryRow = await Sum.fetchSummary(state.note.id);
+      renderSummary();
+    } catch (error) {
+      toast(data.describeError(error));
+    }
+  }
+
+  async function handleRewordPoint(point) {
+    const replacement = await textDialog({
+      title: 'Reword this point',
+      body: 'Readers see your wording instead, marked as a moderator edit. The sources stay as they were.',
+      initial: point.body || '',
+    });
+    if (replacement == null) return;
+    try {
+      await Sum.moderatePoint(point.id, { body: replacement });
+      summaryRow = await Sum.fetchSummary(state.note.id);
+      renderSummary();
+    } catch (error) {
+      toast(data.describeError(error));
+    }
   }
 
   function renderComposer() {
@@ -1092,25 +1377,77 @@
   // A real dialog rather than window.prompt: it can explain what reporting does
   // before the reader commits, and it is reachable by keyboard like every other
   // control here.
-  function reportDialog() {
+  // A one-field editor, for the moderator's "reword this point". Prompt 5
+  // replaced every window.prompt in this file with a real dialog; this keeps
+  // that rule rather than reintroducing one for the newest feature.
+  function textDialog({ title, body, initial = '', confirmLabel = 'Save' }) {
     return new Promise((resolve) => {
       const dialog = document.createElement('dialog');
       dialog.className = 'ct-confirm';
-      dialog.appendChild(el('h2', null, 'Report this post'));
-      dialog.appendChild(el('p', null, 'Tell a moderator what is wrong with it. Your name is recorded with the report so it can be followed up, and the author is not told who reported them.'));
+      dialog.appendChild(el('h2', null, title));
+      if (body) dialog.appendChild(el('p', null, body));
 
-      // Categories, because "what is wrong with it" alone gives a moderator no
-      // way to triage a queue. The chosen category is prefixed onto the stored
-      // reason rather than needing a schema change, and the free-text box stays
-      // because a category is never the whole story.
-      const CATEGORIES = [
-        ['off-topic', 'Off topic for this passage'],
-        ['incorrect', 'Factually wrong or misleading'],
-        ['unsourced', 'States something as fact without a source'],
-        ['disrespectful', 'Disrespectful or personal'],
-        ['spam', 'Spam or advertising'],
-        ['other', 'Something else'],
-      ];
+      const label = el('label', 'cc-visually-hidden', title);
+      label.setAttribute('for', 'ctTextDialogInput');
+      const input = document.createElement('textarea');
+      input.id = 'ctTextDialogInput';
+      input.className = 'ct-composer-input';
+      input.rows = 4;
+      input.value = initial;
+      dialog.append(label, input);
+
+      const row = el('div', 'ct-confirm-actions');
+      row.appendChild(button('cc-btn', 'Cancel', () => { dialog.close(); resolve(null); }));
+      row.appendChild(button('cc-btn cc-btn-primary', confirmLabel, () => {
+        const value = input.value.trim();
+        if (!value) { input.focus(); return; }
+        dialog.close();
+        resolve(value);
+      }));
+      dialog.appendChild(row);
+      dialog.addEventListener('close', () => { dialog.remove(); resolve(null); }, { once: true });
+      document.body.appendChild(dialog);
+      dialog.showModal();
+      input.focus();
+      input.select();
+    });
+  }
+
+  // Categories, because "what is wrong with it" alone gives a moderator no way
+  // to triage a queue. The chosen category is prefixed onto the stored reason
+  // rather than needing a schema change, and the free-text box stays because a
+  // category is never the whole story.
+  const POST_REPORT_CATEGORIES = [
+    ['off-topic', 'Off topic for this passage'],
+    ['incorrect', 'Factually wrong or misleading'],
+    ['unsourced', 'States something as fact without a source'],
+    ['disrespectful', 'Disrespectful or personal'],
+    ['spam', 'Spam or advertising'],
+    ['other', 'Something else'],
+  ];
+
+  // A generated summary goes wrong in different ways from a post, so it gets
+  // its own list. "Reads like a ruling" is first because it is the failure this
+  // feature must never be allowed to normalise.
+  const SUMMARY_REPORT_CATEGORIES = [
+    ['ruling', 'Reads like a ruling or a decision'],
+    ['misrepresents', 'Misrepresents what someone said'],
+    ['unsupported', 'Says something no cited reply says'],
+    ['missing', 'Leaves out the main point'],
+    ['other', 'Something else'],
+  ];
+
+  function reportDialog(options = {}) {
+    const title = options.title || 'Report this post';
+    const explanation = options.body
+      || 'Tell a moderator what is wrong with it. Your name is recorded with the report so it can be followed up, and the author is not told who reported them.';
+    const CATEGORIES = options.categories || POST_REPORT_CATEGORIES;
+    return new Promise((resolve) => {
+      const dialog = document.createElement('dialog');
+      dialog.className = 'ct-confirm';
+      dialog.appendChild(el('h2', null, title));
+      dialog.appendChild(el('p', null, explanation));
+
       const group = el('div', 'ct-report-categories');
       group.setAttribute('role', 'radiogroup');
       group.setAttribute('aria-label', 'Reason category');
@@ -1136,7 +1473,7 @@
       input.id = 'ctReportReason';
       input.className = 'ct-composer-input';
       input.rows = 3;
-      input.placeholder = 'What is wrong with this post?';
+      input.placeholder = options.placeholder || 'What is wrong with this post?';
       dialog.append(label, input);
       const row = el('div', 'ct-confirm-actions');
       row.appendChild(button('cc-btn', 'Cancel', () => { dialog.close(); resolve(null); }));

@@ -843,4 +843,252 @@ select dafsync_test.check(
   'ERROR:42501');
 
 -- ===========================================================================
+-- 10. Generated thread summaries (Phase 8)
+-- ===========================================================================
+--
+-- The summary tables are written ONLY by the service role, from the Netlify
+-- function that holds the provider credential. Every check below is about a
+-- browser -- anon or an ordinary signed-in reader -- and what it can do when
+-- it talks to PostgREST directly instead of using the UI.
+
+-- Fixture, created as postgres exactly as the service role would. One summary
+-- on the public deep thread, citing two live replies and the moderator-hidden
+-- one, so redaction has something real to bite on.
+\set summary_a '''d0000000-0000-4000-8000-000000000001'''
+\set summary_private '''d0000000-0000-4000-8000-000000000002'''
+\set point_live '''e0000000-0000-4000-8000-000000000001'''
+\set point_cites_hidden '''e0000000-0000-4000-8000-000000000002'''
+
+insert into public.thread_summaries
+  (id, note_id, prompt_version, model_id, source_comment_ids, source_comment_count, source_max_sequence)
+values
+  (:summary_a, :deep_note, 'chabura-thread-v1', 'test-model',
+   array[:deep_reply::uuid, 'b0000000-0000-4000-8000-000000000007'::uuid], 2,
+   (select max(activity_sequence) from public.comments where note_id = :deep_note)),
+  (:summary_private, :private_note, 'chabura-thread-v1', 'test-model',
+   array[:deep_reply::uuid], 1, 0);
+
+insert into public.thread_summary_points (id, summary_id, position, body, source_comment_ids) values
+  (:point_live, :summary_a, 0, 'A point resting on a live reply.', array[:deep_reply::uuid]),
+  (:point_cites_hidden, :summary_a, 1, 'CANARY-SUMMARY point resting on a reply a moderator will hide.',
+   array['b0000000-0000-4000-8000-000000000007'::uuid]);
+
+-- --- Traceability is a constraint, not a convention ------------------------
+select dafsync_test.check(
+  'a summary point with no sources cannot be stored at all',
+  dafsync_test.attempt('postgres', null, format(
+    'insert into public.thread_summary_points (summary_id, position, body, source_comment_ids)
+     values (%L, 9, ''uncited'', ''{}''::uuid[])', :summary_a)),
+  '23514');  -- check_violation
+
+-- --- What a browser may read ----------------------------------------------
+select dafsync_test.check(
+  'anon can read a summary of a public thread',
+  dafsync_test.read_as('anon', null, format(
+    'select count(*)::text from public.thread_summaries where id = %L', :summary_a)),
+  '1');
+
+select dafsync_test.check(
+  'anon cannot read a summary of a private thread',
+  dafsync_test.read_as('anon', null, format(
+    'select count(*)::text from public.thread_summaries where id = %L', :summary_private)),
+  '0');
+
+select dafsync_test.check(
+  'a signed-in reader cannot read a summary of someone else''s private thread',
+  dafsync_test.read_as('authenticated', :reader, format(
+    'select count(*)::text from public.thread_summaries where id = %L', :summary_private)),
+  '0');
+
+-- The base points table is not granted to a browser at all: the redaction
+-- lives in the view, so reaching the table would side-step it.
+select dafsync_test.check(
+  'anon cannot select the summary points base table',
+  dafsync_test.read_as('anon', null, 'select count(*)::text from public.thread_summary_points'),
+  'ERROR:42501');
+
+select dafsync_test.check(
+  'a signed-in reader cannot select the summary points base table either',
+  dafsync_test.read_as('authenticated', :reader, 'select count(*)::text from public.thread_summary_points'),
+  'ERROR:42501');
+
+select dafsync_test.check(
+  'anon reads summary points through the projection view',
+  dafsync_test.read_as('anon', null, format(
+    'select count(*)::text from public.thread_summary_points_public where summary_id = %L', :summary_a)),
+  '2');
+
+-- --- Nothing in a browser may write a summary ------------------------------
+select dafsync_test.check(
+  'anon cannot insert a summary',
+  dafsync_test.attempt('anon', null, format(
+    'insert into public.thread_summaries (note_id, prompt_version, model_id, source_comment_ids,
+     source_comment_count, source_max_sequence) values (%L, ''x'', ''x'', ''{}''::uuid[], 0, 0)', :open_note)),
+  '42501');
+
+select dafsync_test.check(
+  'a signed-in reader cannot insert a summary',
+  dafsync_test.attempt('authenticated', :reader, format(
+    'insert into public.thread_summaries (note_id, prompt_version, model_id, source_comment_ids,
+     source_comment_count, source_max_sequence) values (%L, ''x'', ''x'', ''{}''::uuid[], 0, 0)', :open_note)),
+  '42501');
+
+-- RLS narrows an UPDATE to zero rows rather than refusing it, so this asks how
+-- many rows actually changed -- see attempt_rows()'s header.
+select dafsync_test.check(
+  'a signed-in reader cannot rewrite a summary''s text',
+  dafsync_test.attempt_rows('authenticated', :reader, format(
+    'update public.thread_summaries set stale = false, model_id = ''pwned'' where id = %L', :summary_a)),
+  '42501');
+
+select dafsync_test.check(
+  'a signed-in reader cannot delete a summary',
+  dafsync_test.attempt_rows('authenticated', :reader, format(
+    'delete from public.thread_summaries where id = %L', :summary_a)),
+  '42501');
+
+-- Unlike public_profiles -- a single-table view, and therefore auto-updatable
+-- and needing an explicit REVOKE to stop writes going straight through it --
+-- this one joins three tables, so Postgres refuses to make it writable at all
+-- (55000, object_not_in_prerequisite_state). Asserted so a later simplification
+-- of the view cannot quietly turn it into a write path.
+select dafsync_test.check(
+  'the projection view is not writable at all',
+  dafsync_test.attempt('authenticated', :reader,
+    'update public.thread_summary_points_public set body = ''pwned'''),
+  '55000');
+
+-- --- Feedback is private to its author -------------------------------------
+select dafsync_test.check(
+  'a reader may record their own feedback',
+  dafsync_test.attempt('authenticated', :reader, format(
+    'insert into public.thread_summary_feedback (summary_id, user_id, verdict) values (%L, %L, ''useful'')',
+    :summary_a, :reader)),
+  'OK');
+
+select dafsync_test.check(
+  'the tally is maintained server-side',
+  dafsync_test.read_as('anon', null, format(
+    'select useful_count::text from public.thread_summaries where id = %L', :summary_a)),
+  '1');
+
+select dafsync_test.check(
+  'a reader cannot see who else voted',
+  dafsync_test.read_as('authenticated', :author,
+    'select count(*)::text from public.thread_summary_feedback'),
+  '0');
+
+select dafsync_test.check(
+  'a reader cannot vote on someone else''s behalf',
+  dafsync_test.attempt('authenticated', :author, format(
+    'insert into public.thread_summary_feedback (summary_id, user_id, verdict) values (%L, %L, ''not_useful'')',
+    :summary_a, :reader)),
+  '42501');
+
+-- --- Moderator overrides ---------------------------------------------------
+select dafsync_test.check(
+  'anon cannot call the summary moderation function',
+  dafsync_test.read_as('anon', null, format(
+    'select public.moderate_thread_summary(%L, true, ''nope'')::text', :summary_a)),
+  'ERROR:42501');
+
+select dafsync_test.check(
+  'an ordinary reader cannot hide a summary',
+  dafsync_test.read_as('authenticated', :reader, format(
+    'select public.moderate_thread_summary(%L, true, ''nope'')::text', :summary_a)),
+  'ERROR:42501');
+
+select dafsync_test.check(
+  'an ordinary reader cannot rewrite a summary point',
+  dafsync_test.read_as('authenticated', :reader, format(
+    'select public.moderate_thread_summary_point(%L, false, ''pwned'')::text', :point_live)),
+  'ERROR:42501');
+
+-- Returns void, which read_as() reports as an empty string; anything else
+-- would be an error code.
+select dafsync_test.check(
+  'a moderator can rewrite a summary point',
+  dafsync_test.read_as('authenticated', :admin, format(
+    'select public.moderate_thread_summary_point(%L, false, ''Reworded by a moderator.'')::text',
+    :point_live)),
+  '');
+
+select dafsync_test.check(
+  'the projection view serves the moderator''s wording',
+  dafsync_test.read_as('anon', null, format(
+    'select body from public.thread_summary_points_public where id = %L', :point_live)),
+  'Reworded by a moderator.');
+
+select dafsync_test.check(
+  'the moderator edit is flagged as such',
+  dafsync_test.read_as('anon', null, format(
+    'select moderator_edited::text from public.thread_summary_points_public where id = %L', :point_live)),
+  'true');
+
+-- --- Moderation of a REPLY invalidates the points that rested on it --------
+-- This is the acceptance criterion "hidden/private content cannot be
+-- recovered through summaries", tested at the only layer that can enforce it.
+select dafsync_test.attempt('postgres', :admin,
+  'update public.comments set hidden = true where id = ''b0000000-0000-4000-8000-000000000007''');
+
+select dafsync_test.check(
+  'hiding a reply redacts every summary point that cited it',
+  dafsync_test.read_as('anon', null, format(
+    'select redacted::text from public.thread_summary_points_public where id = %L', :point_cites_hidden)),
+  'true');
+
+select dafsync_test.check(
+  'a redacted point serves no text at all',
+  dafsync_test.read_as('anon', null, format(
+    'select coalesce(body, ''<null>'') from public.thread_summary_points_public where id = %L', :point_cites_hidden)),
+  '<null>');
+
+select dafsync_test.check(
+  'a redacted point serves no sources either',
+  dafsync_test.read_as('anon', null, format(
+    'select cardinality(source_comment_ids)::text from public.thread_summary_points_public where id = %L',
+    :point_cites_hidden)),
+  '0');
+
+select dafsync_test.check(
+  'the point that did not cite the hidden reply is untouched',
+  dafsync_test.read_as('anon', null, format(
+    'select redacted::text from public.thread_summary_points_public where id = %L', :point_live)),
+  'false');
+
+select dafsync_test.check(
+  'hiding a cited reply marks the whole summary stale',
+  dafsync_test.read_as('anon', null, format(
+    'select stale::text from public.thread_summaries where id = %L', :summary_a)),
+  'true');
+
+-- A hard DELETE has no foreign key to cascade through a uuid[], so the
+-- delete trigger is the only thing standing between a removed reply and a
+-- summary that still quotes it.
+select dafsync_test.attempt('postgres', :admin, format(
+  'delete from public.comments where id = %L', :deep_reply));
+
+select dafsync_test.check(
+  'deleting a reply outright redacts the points that cited it',
+  dafsync_test.read_as('anon', null, format(
+    'select redacted::text from public.thread_summary_points_public where id = %L', :point_live)),
+  'true');
+
+-- --- A thread leaving public view takes its summary with it ---------------
+select dafsync_test.attempt('postgres', :admin, format(
+  'update public.line_notes set is_private = true where id = %L', :deep_note));
+
+select dafsync_test.check(
+  'making a thread private deletes its summary rather than merely hiding it',
+  dafsync_test.read_as('postgres', null, format(
+    'select count(*)::text from public.thread_summaries where id = %L', :summary_a)),
+  '0');
+
+select dafsync_test.check(
+  'and its points go with it',
+  dafsync_test.read_as('postgres', null, format(
+    'select count(*)::text from public.thread_summary_points where summary_id = %L', :summary_a)),
+  '0');
+
+-- ===========================================================================
 do $$ begin raise notice 'ALL AUTHORIZATION TESTS PASSED'; end $$;

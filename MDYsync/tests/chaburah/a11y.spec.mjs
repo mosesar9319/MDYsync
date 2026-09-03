@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { preparePage } from '../support/harness.mjs';
-import { USERS, NOTE_IDS } from '../fixtures/dataset.mjs';
+import { USERS, NOTE_IDS, buildDatabase } from '../fixtures/dataset.mjs';
 
 // The WCAG 2.2 AA checks that can be made mechanical. The rest of the review —
 // contrast ratios, screen-reader narration, high-contrast mode — is recorded in
@@ -129,6 +129,55 @@ test.describe('Accessibility — touch, zoom and motion', () => {
         .map(({ el, r }) => `${el.tagName}.${el.className} ${Math.round(r.width)}x${Math.round(r.height)}`);
     });
     // WCAG 2.2 AA target size (minimum) is 24x24 CSS px.
+    expect(small).toEqual([]);
+  });
+
+  // The summary panel adds new interactive targets that the default fixtures
+  // do not reach: a stored summary's citation links, feedback buttons and
+  // moderator controls only exist once there is a summary row to render.
+  test('the summary panel meets the minimum target size on a phone', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'Touch target sizing is a phone concern');
+    const db = buildDatabase();
+    const replies = db.comments
+      .filter((row) => row.note_id === NOTE_IDS.deepThread)
+      .sort((a, b) => a.activity_sequence - b.activity_sequence);
+    db.thread_summaries = [{
+      id: 'aa000000-0000-4000-8000-000000000009',
+      note_id: NOTE_IDS.deepThread, scope: 'thread', summary_version: 1,
+      prompt_version: 'chabura-thread-v1', model_id: 'claude-opus-5',
+      source_comment_ids: replies.slice(0, 2).map((row) => row.id),
+      source_comment_count: 2, source_max_sequence: replies[1].activity_sequence,
+      generated_at: '2026-09-02T09:30:00.000Z', stale: false, hidden: false,
+      useful_count: 0, not_useful_count: 0,
+    }];
+    db.thread_summary_points_public = [{
+      id: 'ab000000-0000-4000-8000-000000000009',
+      summary_id: 'aa000000-0000-4000-8000-000000000009', position: 0,
+      body: 'Participants disagreed, and the question was left open.',
+      source_comment_ids: replies.slice(0, 2).map((row) => row.id),
+      redacted: false, moderator_edited: false,
+    }];
+    await preparePage(page, { user: USERS.admin, db });
+    await page.goto(THREAD);
+    await expect(page.locator('#ctSummary .cs-panel')).toBeVisible();
+
+    const small = await page.evaluate(() => {
+      // Citation links sit inside "From: reply 1, reply 2" — a sentence of
+      // non-target text — which is the criterion's own inline exception. Same
+      // rule the whole-page check above applies.
+      const isInlineInSentence = (el) => {
+        if (el.tagName !== 'A') return false;
+        const own = (el.textContent || '').trim().length;
+        const parent = (el.parentElement?.textContent || '').trim().length;
+        return own > 0 && parent > own + 3;
+      };
+      return [...document.querySelectorAll('#ctSummary button, #ctSummary a[href], #ctRelated a[href]')]
+        .filter((el) => el.offsetParent !== null)
+        .filter((el) => !isInlineInSentence(el))
+        .map((el) => ({ el, r: el.getBoundingClientRect() }))
+        .filter(({ r }) => r.width > 0 && r.height > 0 && (r.height < 24 || r.width < 24))
+        .map(({ el, r }) => `${el.tagName}.${el.className} ${Math.round(r.width)}x${Math.round(r.height)}`);
+    });
     expect(small).toEqual([]);
   });
 

@@ -1209,6 +1209,9 @@ let reportFilter = 'pending';
 // report's target_id actually points at right now (it may since have been
 // hidden by other moderation, or deleted entirely by its own author).
 let reportTargetsById = new Map();
+// summary id -> the thread it belongs to, so a summary report can link to the
+// page where it is actually moderated.
+let reportSummaryNoteIds = new Map();
 
 function reportTargetKey(row) {
   return `${row.target_type}:${row.target_id}`;
@@ -1226,17 +1229,29 @@ function renderReportList() {
     // target row to preview or hide -- it carries its own ref, word range and
     // quoted passage instead (see the anchor_reports migration).
     const isAnchor = row.target_type === 'anchor';
-    const target = isAnchor ? null : reportTargetsById.get(reportTargetKey(row));
+    // A generated summary is not a post by anybody, so it has no author to
+    // hide and no body stored in line_notes or comments. It is moderated on the
+    // thread page itself (withdraw a point, or hide the summary), and the queue
+    // links there rather than pretending it can act on it from here.
+    const isSummary = row.target_type === 'summary';
+    const target = (isAnchor || isSummary) ? null : reportTargetsById.get(reportTargetKey(row));
     const kindPill = isAnchor
       ? '<span class="note-pill note-pill-drift">Text / alignment</span>'
-      : (row.target_type === 'note'
-        ? '<span class="note-pill note-pill-live">Note</span>'
-        : '<span class="note-pill note-pill-private">Reply</span>');
+      : (isSummary
+        ? '<span class="note-pill note-pill-drift">Generated summary</span>'
+        : (row.target_type === 'note'
+          ? '<span class="note-pill note-pill-live">Note</span>'
+          : '<span class="note-pill note-pill-private">Reply</span>'));
     const statusPill = row.status !== 'pending'
       ? `<span class="note-pill note-pill-hidden">${row.status === 'resolved' ? 'Resolved' : 'Dismissed'}</span>`
       : '';
     let targetPreview;
-    if (isAnchor) {
+    if (isSummary) {
+      const noteId = reportSummaryNoteIds.get(row.target_id);
+      targetPreview = noteId
+        ? `<p class="note-item-body"><a class="note-pill" href="../chaburah/thread/?thread=${encodeURIComponent(noteId)}" target="_blank" rel="noopener">Open the discussion to review its summary</a></p>`
+        : '<p class="field-note">That summary no longer exists — it was regenerated, or its discussion left public view.</p>';
+    } else if (isAnchor) {
       const refDisplay = (row.daf_ref_key || '').replace(/-/g, ' ');
       const words = row.start_word != null
         ? ` · word${row.end_word > row.start_word ? `s ${row.start_word}–${row.end_word}` : ` ${row.start_word}`}`
@@ -1255,8 +1270,8 @@ function renderReportList() {
     }
     const actions = row.status === 'pending' ? `
       <div class="note-mod-actions">
-        ${!isAnchor && target && !target.hidden ? `<button type="button" class="button secondary small report-hide-button" data-id="${row.id}">Hide &amp; resolve</button>` : ''}
-        ${isAnchor || (target && target.hidden) ? `<button type="button" class="button secondary small report-resolve-button" data-id="${row.id}">Mark resolved</button>` : ''}
+        ${!isAnchor && !isSummary && target && !target.hidden ? `<button type="button" class="button secondary small report-hide-button" data-id="${row.id}">Hide &amp; resolve</button>` : ''}
+        ${isAnchor || isSummary || (target && target.hidden) ? `<button type="button" class="button secondary small report-resolve-button" data-id="${row.id}">Mark resolved</button>` : ''}
         <button type="button" class="button ghost small report-dismiss-button" data-id="${row.id}">Dismiss</button>
       </div>` : '';
     return `
@@ -1335,6 +1350,15 @@ async function loadReportsQueue() {
   if (commentIds.length) {
     const { data: comments } = await auth.client.from('comments').select('id, body, hidden').in('id', commentIds);
     for (const comment of comments || []) reportTargetsById.set(`comment:${comment.id}`, comment);
+  }
+  reportSummaryNoteIds = new Map();
+  const summaryIds = reportRows.filter((row) => row.target_type === 'summary').map((row) => row.target_id);
+  if (summaryIds.length) {
+    // A regenerated summary is a new row, so an older report can point at an id
+    // that no longer exists. That is expected, and renders as such.
+    const { data: summaries } = await auth.client
+      .from('thread_summaries').select('id, note_id').in('id', summaryIds);
+    for (const summary of summaries || []) reportSummaryNoteIds.set(summary.id, summary.note_id);
   }
   renderReportList();
 }

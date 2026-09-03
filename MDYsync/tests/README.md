@@ -52,6 +52,8 @@ belongs in SQL, not here.
 | `tests/chaburah/scale.spec.mjs` | Query counts and DOM size at 320 and 1,000 replies |
 | `tests/chaburah/a11y.spec.mjs` | WCAG 2.2 AA checks that can be made mechanical; see `docs/ACCESSIBILITY.md` for what they cannot cover |
 | `tests/chaburah/thread-reader.spec.mjs` | Cloud Chabura thread reader (`/chaburah/thread/`): source context, reply tree, permalinks, composer, answers, edit/delete, outline, search, keyboard, scale, mobile |
+| `tests/chaburah/summary.spec.mjs` | Generated summaries and related discussions: labelling, citations, withdrawn points, catch-up, and every failure path leaving the thread readable |
+| `tests/functions/chabura-summary.test.mjs` | What the summary function lets reach a model, and when it generates at all — run with `npm run test:functions`, for the same reason as the link-preview tests |
 | `tests/notes/select-text.spec.mjs` | Reading order, multi-ref selection runs, saved `word_ranges` payload |
 
 ## Writing a test

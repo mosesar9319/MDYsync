@@ -417,3 +417,95 @@
   color: var(--cc-primary); font-weight: 600;
 }
 .ct-report-category:focus-visible { outline: 2px solid var(--cc-primary); outline-offset: 2px; }
+
+/* ---------------------------------------------------------------------------
+   Generated summaries (Phase 8).
+
+   Visually set apart from every participant's words on purpose. A generated
+   paragraph that looks like a reply is a generated paragraph a reader will
+   quote as if a person wrote it, so the panel gets its own ground, its own
+   dashed edge and a standing label -- and the points inside are never styled
+   like .ct-reply bodies.
+--------------------------------------------------------------------------- */
+.cs-panel {
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border: 1px dashed var(--cc-border);
+  border-radius: var(--cc-radius-md);
+  background: var(--cc-surface-subtle);
+}
+.cs-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.cs-title { margin: 0; font-size: 15px; font-weight: 700; color: var(--cc-text); }
+.cs-ai-badge {
+  border: 1px solid var(--cc-warning); color: var(--cc-warning);
+  border-radius: 999px; padding: 1px 9px; font-size: 11px; font-weight: 700;
+  letter-spacing: 0.02em; text-transform: uppercase;
+}
+.cs-meta, .cs-note { margin: 4px 0 0; font-size: 12px; color: var(--cc-muted); }
+.cs-meta { flex-basis: 100%; }
+.cs-caveat {
+  margin: 8px 0 10px; font-size: 12.5px; line-height: 1.5; color: var(--cc-muted);
+  border-inline-start: 3px solid var(--cc-warning); padding-inline-start: 10px;
+}
+
+.cs-points { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.cs-point {
+  padding: 10px 12px; background: var(--cc-surface);
+  border: 1px solid var(--cc-border); border-radius: var(--cc-radius-sm);
+}
+.cs-point-body { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--cc-text); }
+.cs-point-foot { margin: 6px 0 0; font-size: 12px; color: var(--cc-muted); display: flex; flex-wrap: wrap; gap: 8px; }
+.cs-point-redacted .cs-point-body { color: var(--cc-muted); font-style: italic; }
+
+.cs-sources-label { color: var(--cc-muted); }
+/* Citation links sit inside a sentence of running text, which is the WCAG 2.2
+   §2.5.8 inline exception -- see docs/ACCESSIBILITY.md. They are not padded
+   out to 24px because doing so would break the line they belong to. */
+.cs-source-link { color: var(--cc-primary); text-decoration: underline; }
+.cs-source-link:focus-visible { outline: 2px solid var(--cc-primary); outline-offset: 2px; }
+.cs-badge {
+  border: 1px solid var(--cc-border); border-radius: 999px;
+  padding: 0 8px; font-size: 11px; color: var(--cc-muted);
+}
+
+.cs-point-tools { display: flex; gap: 6px; margin-top: 8px; }
+.cs-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.cs-tally { font-size: 12px; color: var(--cc-muted); }
+
+.cs-notice {
+  margin: 10px 0 0; padding: 8px 10px; border-radius: var(--cc-radius-sm);
+  font-size: 12.5px; line-height: 1.5;
+}
+.cs-notice-stale { background: #fbf3e2; color: var(--cc-warning); }
+.cs-notice-error { background: #f8eae8; color: var(--cc-danger); }
+
+/* ---------------------------------------------------------------------------
+   Related discussions. No AI involved -- these come from the passage anchor
+   and a full-text match, so they are styled as plain navigation rather than
+   borrowing the generated panel's warning colours.
+--------------------------------------------------------------------------- */
+.cr-panel {
+  margin: 20px 0 0; padding: 14px 16px;
+  border: 1px solid var(--cc-border); border-radius: var(--cc-radius-md);
+  background: var(--cc-surface);
+}
+.cr-heading { margin: 0; font-size: 15px; font-weight: 700; }
+.cr-note { margin: 4px 0 10px; font-size: 12px; color: var(--cc-muted); }
+.cr-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.cr-item { padding: 8px 0; border-top: 1px solid var(--cc-border); }
+.cr-item:first-child { border-top: 0; padding-top: 0; }
+/* A block-level link: the whole title line is the target, which clears the
+   24px minimum on its own without padding a sentence apart. */
+.cr-link {
+  display: block; font-size: 13.5px; font-weight: 600; line-height: 1.5;
+  min-height: 24px; color: var(--cc-primary); text-decoration: none;
+}
+.cr-link:hover { text-decoration: underline; }
+.cr-link:focus-visible { outline: 2px solid var(--cc-primary); outline-offset: 2px; }
+.cr-meta { margin: 2px 0 0; font-size: 11.5px; color: var(--cc-muted); }
+.cr-excerpt { margin: 4px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--cc-muted); }
+
+@media (max-width: 900px) {
+  .cs-panel, .cr-panel { padding: 12px; }
+  .cs-actions { gap: 6px; }
+}

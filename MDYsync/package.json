@@ -13,6 +13,7 @@
     "test:all": "node --test \"tests/functions/*.test.mjs\" && playwright test"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.123.0",
     "jimp": "^1.6.1",
     "tesseract.js": "^7.0.0"
   },

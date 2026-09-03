@@ -134,6 +134,12 @@
         <!-- Screen-reader announcements for loads, jumps and failures. -->
         <p class="cc-visually-hidden" id="ctStatus" role="status" aria-live="polite"></p>
 
+        <!-- Generated-summary surfaces. Both start empty and hidden: if no
+             provider is configured, or a request fails, they stay hidden and
+             the discussion below is exactly what it was. -->
+        <div id="ctCatchup" hidden></div>
+        <div id="ctSummary" hidden></div>
+
         <div id="ctDiscussion"></div>
 
         <div class="cc-feed-footer" id="ctLoadMoreWrap" hidden>
@@ -141,6 +147,10 @@
         </div>
 
         <div id="ctComposer"></div>
+
+        <!-- Non-AI: neighbouring discussions found from the passage anchor and
+             a full-text match. Renders nothing when there is nothing to show. -->
+        <div id="ctRelated" hidden></div>
       </main>
 
       <aside class="ct-rail ct-rail-right ct-drawer" id="ctOutline" aria-label="Thread outline"></aside>
@@ -203,6 +213,8 @@
   <script src="../../chabura-core.js" defer></script>
   <script src="../../chabura-notifications.js" defer></script>
   <script src="../../chabura-thread-data.js" defer></script>
+  <script src="../../chabura-related.js" defer></script>
+  <script src="../../chabura-summary.js" defer></script>
   <script src="../../chabura-thread-state.js" defer></script>
   <script src="../../chabura-thread-view.js" defer></script>
   <script src="../../chabura-thread-composer.js" defer></script>
