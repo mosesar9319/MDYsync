@@ -5,13 +5,19 @@ built through Prompt 7. Prompt 7's acceptance criterion is a **documented**
 checklist with its remaining exceptions, so this records what was checked, how,
 and what is still open — not a claim that the pages are accessible.
 
-**Reviewed:** 2026-09-03, against `main` at the Prompt 7 branch point.
+**Reviewed:** 2026-09-03, against `main` at the Prompt 7 branch point. Prompt 8's
+generated-summary and related-discussions panels were added afterwards and are
+covered by one further check — the summary panel's own target sizes on a phone,
+which the default fixtures could not reach because they contain no summary row.
+Its citation links take the same §2.5.8 inline exception as the quote
+attribution link recorded below: they sit inside "From: reply 1, reply 2", a
+sentence of non-target text.
 
 ## How each item was checked
 
 | Method | What it can and cannot establish |
 |---|---|
-| `tests/chaburah/a11y.spec.mjs` | 13 automated checks × 2 viewports. Catches structural and attribute-level regressions. Cannot judge whether a name *reads well*, or how a screen reader actually narrates a thread. |
+| `tests/chaburah/a11y.spec.mjs` | 14 automated checks × 2 viewports. Catches structural and attribute-level regressions. Cannot judge whether a name *reads well*, or how a screen reader actually narrates a thread. |
 | Reading the rendered DOM | Element semantics, roles, relationships. |
 | Manual keyboard walkthrough | Real focus order and traps, in this sandbox's Chromium only. |
 | **Not done** | No screen reader was run. No automated contrast measurement. Both are listed as exceptions below rather than implied. |

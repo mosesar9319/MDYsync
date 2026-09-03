@@ -16,7 +16,12 @@ export const USERS = {
 };
 
 export function sessionFor(user) {
-  return user ? { user: { id: user.id, email: user.email } } : null;
+  // access_token matters: anything that calls a Netlify Function on the
+  // reader's behalf (the summary endpoint) sends it as a bearer token, and a
+  // session without one is indistinguishable from being signed out.
+  return user
+    ? { user: { id: user.id, email: user.email }, access_token: `test-token-${user.id}` }
+    : null;
 }
 
 function isoMinutesAgo(minutes) {

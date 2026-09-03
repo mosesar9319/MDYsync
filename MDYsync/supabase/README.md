@@ -30,7 +30,7 @@ directly the way a caller bypassing the UI would.
 | `baseline/01_seed_representative_data.sql` | Personas and the awkward shapes (deep chain, hidden-with-visible-descendant, private canary) the migrations must handle. Mirrors `../tests/fixtures/dataset.mjs`. |
 | `migrations/*.sql` | Forward migrations, applied in filename order. |
 | `migrations/*.down.sql` | Rollbacks, where one exists. |
-| `tests/rls_authorization.sql` | The adversarial suite. 49 checks. |
+| `tests/rls_authorization.sql` | The adversarial suite. 133 checks. |
 | `run-tests.sh` | Applies baseline + seed + every migration, then runs the suite. |
 
 ## Running locally
