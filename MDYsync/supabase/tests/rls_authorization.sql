@@ -641,4 +641,125 @@ select dafsync_test.check(
   '1');
 
 -- ===========================================================================
+-- Prompt 6: notifications and per-reply saves.
+--
+-- The notifications panel groups rows and marks them read from the browser, so
+-- what matters here is that a reader can only ever see and clear their OWN --
+-- the stub has no RLS and would happily serve everyone's.
+-- ===========================================================================
+
+insert into public.notifications
+  (id, user_id, type, actor_id, actor_display_name, note_id, daf_ref_key, segment_ref, preview)
+values
+  ('d1000000-0000-4000-8000-000000000001', :reader, 'reply', :author, 'Author Two',
+   :open_note, 'Chullin-89a', 'Chullin 89a.1', 'A reply for the reader.'),
+  ('d1000000-0000-4000-8000-000000000002', :author, 'reply', :reader, 'Reader One',
+   :open_note, 'Chullin-89a', 'Chullin 89a.1', 'A reply for the author.');
+
+-- Scoped to the two rows inserted just above: the seed already carries
+-- notifications of its own, so an unqualified count would be measuring the
+-- fixture rather than the policy.
+select dafsync_test.check(
+  'a reader sees only their own of the two just written',
+  dafsync_test.read_as('authenticated', :reader,
+    'select count(*)::text from public.notifications where id in (''d1000000-0000-4000-8000-000000000001'', ''d1000000-0000-4000-8000-000000000002'')'),
+  '1');
+
+select dafsync_test.check(
+  'and the one they see is theirs',
+  dafsync_test.read_as('authenticated', :reader,
+    'select preview from public.notifications where id in (''d1000000-0000-4000-8000-000000000001'', ''d1000000-0000-4000-8000-000000000002'')'),
+  'A reply for the reader.');
+
+select dafsync_test.check(
+  'the other account sees only its own of the same two',
+  dafsync_test.read_as('authenticated', :author,
+    'select preview from public.notifications where id in (''d1000000-0000-4000-8000-000000000001'', ''d1000000-0000-4000-8000-000000000002'')'),
+  'A reply for the author.');
+
+select dafsync_test.check(
+  'a reader cannot mark someone else''s notification read',
+  dafsync_test.attempt_rows('authenticated', :reader,
+    format('update public.notifications set read = true where id = %L', 'd1000000-0000-4000-8000-000000000002')),
+  '0');
+
+select dafsync_test.check(
+  'the other account''s notification is still unread',
+  dafsync_test.read_as('authenticated', :author,
+    format('select read::text from public.notifications where id = %L', 'd1000000-0000-4000-8000-000000000002')),
+  'false');
+
+select dafsync_test.check(
+  'a reader CAN mark their own notification read',
+  dafsync_test.attempt_rows('authenticated', :reader,
+    format('update public.notifications set read = true where id = %L', 'd1000000-0000-4000-8000-000000000001')),
+  '1');
+
+select dafsync_test.check(
+  'a reader cannot delete someone else''s notification',
+  dafsync_test.attempt_rows('authenticated', :reader,
+    format('delete from public.notifications where id = %L', 'd1000000-0000-4000-8000-000000000002')),
+  '0');
+
+-- Weaker than bookmarks and thread_read_state, which anon has no grant on at
+-- all and which therefore fail with 42501. notifications DOES grant select to
+-- anon and relies on RLS (auth.uid() = user_id) to return nothing, since
+-- auth.uid() is null for anon. Safe, but safe by one mechanism rather than two,
+-- so it is asserted as what it actually is rather than what would be tidier.
+select dafsync_test.check(
+  'anon reads no notifications (filtered to empty by RLS, not refused outright)',
+  dafsync_test.read_as('anon', null, 'select count(*)::text from public.notifications'),
+  '0');
+
+-- Saving an individual reply ------------------------------------------------
+-- bookmarks has carried target_type='comment' since Phase 2; Prompt 6 is the
+-- first thing to write one, so the ownership rules get their own coverage.
+
+select dafsync_test.check(
+  'a reader may save an individual reply',
+  dafsync_test.attempt('authenticated', :reader,
+    format('insert into public.bookmarks (user_id, target_type, target_id) values (%L, ''comment'', %L)',
+           :reader, 'b0000000-0000-4000-8000-00000000000a')),
+  'OK');
+
+select dafsync_test.check(
+  'a saved reply is not visible to another account',
+  dafsync_test.read_as('authenticated', :author,
+    format('select count(*)::text from public.bookmarks where target_type = ''comment'' and target_id = %L',
+           'b0000000-0000-4000-8000-00000000000a')),
+  '0');
+
+select dafsync_test.check(
+  'a reader cannot save a reply on someone else''s behalf',
+  dafsync_test.attempt('authenticated', :reader,
+    format('insert into public.bookmarks (user_id, target_type, target_id) values (%L, ''comment'', %L)',
+           :author, 'b0000000-0000-4000-8000-00000000000a')),
+  '42501');
+
+-- 42501, not the 23514 the CHECK constraint would give: bookmarks_insert_own
+-- enumerates the valid target types itself AND requires the target to exist and
+-- be visible to this reader, so the policy refuses first. Stronger than the
+-- constraint alone, which is why it is asserted as the policy's answer.
+select dafsync_test.check(
+  'an invalid bookmark target type is refused by the policy, before the constraint',
+  dafsync_test.attempt('authenticated', :reader,
+    format('insert into public.bookmarks (user_id, target_type, target_id) values (%L, ''daf'', %L)',
+           :reader, :open_note)),
+  '42501');
+
+select dafsync_test.check(
+  'a reply that does not exist cannot be saved',
+  dafsync_test.attempt('authenticated', :reader,
+    format('insert into public.bookmarks (user_id, target_type, target_id) values (%L, ''comment'', %L)',
+           :reader, 'b0000000-0000-4000-8000-0000000000ff')),
+  '42501');
+
+select dafsync_test.check(
+  'a reply on a private note belonging to someone else cannot be saved',
+  dafsync_test.attempt('authenticated', :author,
+    format('insert into public.bookmarks (user_id, target_type, target_id) values (%L, ''comment'', %L)',
+           :author, :hidden_reply)),
+  '42501');
+
+-- ===========================================================================
 do $$ begin raise notice 'ALL AUTHORIZATION TESTS PASSED'; end $$;

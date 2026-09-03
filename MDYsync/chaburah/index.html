@@ -67,6 +67,13 @@
     <header class="topbar">
       <div class="mobile-brand"><a class="brand" href="/"><span class="brand-mark"><img src="/assets/dafsync-mark.svg" alt="" /></span><span class="brand-name">DafSync</span></a></div>
       <div class="top-actions">
+        <div class="cc-notify" >
+          <button class="cc-notify-button" id="ccNotifyButton" type="button" aria-expanded="false" aria-label="Notifications" hidden>
+            <span aria-hidden="true">🔔</span>
+            <span class="cc-notify-badge" id="ccNotifyBadge" hidden>0</span>
+          </button>
+          <div class="cc-notify-panel" id="ccNotifyPanel" role="dialog" aria-label="Notifications" hidden></div>
+        </div>
         <div class="auth-widget" id="authWidget">
           <button class="button secondary small" id="signInButton" type="button">Sign in</button>
           <div class="account-menu" id="accountMenu" hidden>
@@ -208,6 +215,7 @@
   <script src="../auth.js"></script>
   <script src="../notes-format.js" defer></script>
   <script src="../chabura-core.js" defer></script>
+  <script src="../chabura-notifications.js" defer></script>
   <script src="../chabura-data.js" defer></script>
   <script src="../chabura-components.js" defer></script>
   <script src="../chabura-home.js" defer></script>

@@ -121,8 +121,9 @@ update, delete and rpc the page issued.
 
 ### Query operators the stub supports
 
-`eq`, `neq`, `in`, `is`, `not(col, op, value)`, `ilike`, `textSearch` (over
-`body` + `selected_text`, not a real tsvector), `or(expression)`, `order`
+`eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in`, `is`, `not(col, op, value)`,
+`ilike`, `textSearch` (over `body` + `selected_text`, not a real tsvector),
+`or(expression)`, `order`
 (chained), `limit`, `single`, `maybeSingle`, and the `insert` / `upsert` /
 `update` / `delete` mutations. `upsert` keys on whichever of `user_id`,
 `ref_key`, `variant`, `note_id`, `target_type`, `target_id` the payload carries. Anything else is unimplemented — add it rather than working around it,

@@ -627,12 +627,26 @@ test.describe('Thread reader — outline, search and unread', () => {
     await expect(page.locator('#ctStatus')).toContainText('1 matching reply');
   });
 
-  test('search says plainly that it covers only what is loaded', async ({ page }) => {
+  test('search reports no match against the whole discussion, not just the DOM', async ({ page }) => {
     await preparePage(page, { user: null });
     await openThread(page, NOTE_IDS.deepThread);
 
     await page.fill('#ctSearch', 'zzzznotpresent');
-    await expect(page.locator('#ctStatus')).toContainText('replies loaded so far');
+    await expect(page.locator('#ctStatus')).toContainText('No replies in this discussion match');
+  });
+
+  test('search finds a reply in a branch that was never loaded', async ({ page }) => {
+    await preparePage(page, { user: null });
+    // The large thread pages 10 branches at a time; this match is in the 300th.
+    await openThread(page, NOTE_IDS.largeThread);
+    await expect(page.locator(REPLY)).toHaveCount(10);
+
+    await page.fill('#ctSearch', 'Bulk reply number 299');
+    // A DOM-only search would report nothing here, because that branch was
+    // never fetched. body_tsv is searched server-side instead.
+    await expect(page.locator('#ctStatus')).toContainText('in this discussion');
+    await expect(page.locator('.ct-reply.is-search-hit')).not.toHaveCount(0);
+    await expect(page.locator('.ct-reply.is-search-current')).toContainText('Bulk reply number 299');
   });
 
   test('an unread marker appears for a returning reader', async ({ page }) => {
@@ -653,19 +667,56 @@ test.describe('Thread reader — outline, search and unread', () => {
     await expect(page.locator(reply(DEEP.l3))).toBeVisible();
   });
 
-  test('marks the thread read, and never moves the marker backwards', async ({ page }) => {
+  test('loading a thread does not mark it read', async ({ page }) => {
     await preparePage(page, { user: USERS.ordinary });
     await openThread(page, NOTE_IDS.deepThread);
 
+    // Long enough for the old timer-based version to have fired.
+    await page.waitForTimeout(4000);
+    const calls = await readTestCalls(page);
+    expect(calls.find((c) => c.table === 'thread_read_state')).toBeFalsy();
+    // The unread markers are still there because nothing was read.
+    await expect(page.locator('.ct-unread-marker')).toBeVisible();
+  });
+
+  test('reading a reply advances the marker; skipping ahead does not', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    // Reader One's stored position is 2. Dwell on reply 3 specifically.
+    await page.locator(reply(DEEP.l3)).scrollIntoViewIfNeeded();
     await expect.poll(async () => {
       const calls = await readTestCalls(page);
-      return Boolean(calls.find((c) => c.table === 'thread_read_state'));
-    }, { timeout: 8000 }).toBe(true);
+      const write = calls.filter((c) => c.table === 'thread_read_state').pop();
+      return write ? write.rows[0].last_read_sequence : 0;
+    }, { timeout: 12000 }).toBeGreaterThanOrEqual(3);
 
     const calls = await readTestCalls(page);
-    const write = calls.find((c) => c.table === 'thread_read_state');
-    // Reader One's stored position is 2; the thread has 5 replies.
-    expect(write.rows[0].last_read_sequence).toBeGreaterThan(2);
+    const write = calls.filter((c) => c.table === 'thread_read_state').pop();
+    // It stops at the highest CONTIGUOUS sequence seen. Reaching reply 3 must
+    // not silently mark 4 and 5 read as well.
+    expect(write.rows[0].last_read_sequence).toBeLessThanOrEqual(5);
+  });
+
+  test('an old permalink does not mark newer replies read', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    // The 320-reply thread, not the four-level one: on a desktop screen every
+    // reply of the small thread is genuinely visible at once, so it cannot show
+    // the difference between "seen" and "scrolled past". Here reply 1 and reply
+    // 300 cannot both be on screen, which is the real shape of the problem.
+    const firstBulkReply = 'd0000000-0000-4000-8000-000000000000';
+    await openThread(page, NOTE_IDS.largeThread, `&comment=${firstBulkReply}`);
+    await expect(page.locator(reply(firstBulkReply))).toBeFocused();
+    await page.waitForTimeout(4500);
+
+    const calls = await readTestCalls(page);
+    const write = calls.filter((c) => c.table === 'thread_read_state').pop();
+    const sequence = write ? write.rows[0].last_read_sequence : 0;
+    // Following a permalink is navigation, not reading. Whatever was never on
+    // screen stays unread, so the marker lands near the top of the thread
+    // rather than at its end.
+    expect(sequence).toBeLessThan(60);
+    await expect(page.locator('.ct-reply.is-unread')).not.toHaveCount(0);
   });
 });
 
@@ -1085,5 +1136,152 @@ test.describe('Composer — keyboard only', () => {
     const calls = await readTestCalls(page);
     const insert = calls.find((c) => c.table === 'reports' && c.operation === 'insert');
     expect(insert.rows[0].reason).toBe('Off topic and unsourced.');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Prompt 6: orientation and continuity. Read state, saves, server-side search
+// and notifications. Read-state and search coverage lives with their own
+// describes above; these are the pieces Prompt 6 adds.
+// ---------------------------------------------------------------------------
+
+test.describe('Notifications', () => {
+  test('a burst on one thread collapses into a single row', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.click('#ccNotifyButton');
+    const items = page.locator('.cc-notify-item');
+    // Six rows in the fixture: three replies on one thread, a mention on
+    // another, one already-read row on a third, and one belonging to a
+    // different account. This reader sees three groups, and the burst of three
+    // is ONE of them -- a storm of identical lines is the failure mode avoided.
+    await expect(items).toHaveCount(3);
+    await expect(page.locator('.cc-notify-panel')).toContainText('Author Two replied (3 times)');
+    // Newest first, so the mention that arrived last leads.
+    await expect(items.first()).toContainText('mentioned you');
+  });
+
+  test('the badge counts unread rows and ignores other accounts', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    // Four unread for this reader; the fifth is read and the sixth belongs to
+    // someone else.
+    await expect(page.locator('#ccNotifyBadge')).toHaveText('4');
+    await page.click('#ccNotifyButton');
+    await expect(page.locator('.cc-notify-panel')).not.toContainText('OTHER-ACCOUNT-CANARY');
+  });
+
+  test('opening the panel does not mark anything read', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.click('#ccNotifyButton');
+    await expect(page.locator('.cc-notify-item').first()).toBeVisible();
+    await page.waitForTimeout(600);
+
+    const calls = await readTestCalls(page);
+    expect(calls.find((c) => c.table === 'notifications' && c.operation === 'update')).toBeFalsy();
+    await expect(page.locator('#ccNotifyBadge')).toHaveText('4');
+  });
+
+  test('opening one group marks only that group read', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.click('#ccNotifyButton');
+    // Following the link navigates, and navigation re-seeds the fixture, which
+    // would wipe the very calls under test. The default is suppressed in the
+    // capture phase so the link's own handler still runs.
+    await page.evaluate(() => {
+      document.addEventListener('click', (event) => {
+        if (event.target.closest('a')) event.preventDefault();
+      }, true);
+    });
+
+    await page.locator('.cc-notify-item', { hasText: 'replied (3 times)' }).locator('a').click();
+    await page.waitForTimeout(400);
+
+    const calls = await readTestCalls(page);
+    const update = calls.find((c) => c.table === 'notifications' && c.operation === 'update');
+    expect(update).toBeTruthy();
+    // The three rows of that thread, and not the mention on the other one.
+    expect(update.rows).toHaveLength(3);
+    expect(update.rows.every((row) => row.note_id === NOTE_IDS.deepThread)).toBe(true);
+  });
+
+  test('a notification deep-links to the exact reply', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.click('#ccNotifyButton');
+    const href = await page.locator('.cc-notify-item', { hasText: 'replied (3 times)' })
+      .locator('a').getAttribute('href');
+    expect(href).toContain(`thread=${NOTE_IDS.deepThread}`);
+    // The LATEST reply of the burst, so following it lands on what is new.
+    expect(href).toContain('comment=b0000000-0000-4000-8000-000000000004');
+
+    await page.goto(href);
+    await expect(page.locator('#comment-b0000000-0000-4000-8000-000000000004')).toBeFocused();
+  });
+
+  test('a signed-out reader is offered no notification bell at all', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.deepThread);
+    await expect(page.locator('#ccNotifyButton')).toBeHidden();
+  });
+
+  test('mark all read clears the badge', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.click('#ccNotifyButton');
+    await page.click('.cc-notify-head button:has-text("Mark all read")');
+    await expect(page.locator('#ccNotifyBadge')).toBeHidden();
+  });
+});
+
+test.describe('Saved replies and orientation', () => {
+  test('a single reply can be saved and unsaved', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    const save = page.locator(`${reply(DEEP.l2)} button[aria-pressed]:has-text("Save")`);
+    await save.click();
+    await expect(page.locator(`${reply(DEEP.l2)} button[aria-pressed="true"]`)).toHaveText('Saved');
+
+    const calls = await readTestCalls(page);
+    const insert = calls.find((c) => c.table === 'bookmarks' && c.operation === 'insert');
+    expect(insert.rows[0].target_type).toBe('comment');
+    expect(insert.rows[0].target_id).toBe(DEEP.l2);
+  });
+
+  test('a failed save of a reply is rolled back', async ({ page }) => {
+    await preparePage(page, {
+      user: USERS.ordinary,
+      control: { failures: { 'bookmarks:insert': { message: 'permission denied', code: '42501' } } },
+    });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await page.locator(`${reply(DEEP.l2)} button[aria-pressed]:has-text("Save")`).click();
+    await expect(page.locator(`${reply(DEEP.l2)} button[aria-pressed]`)).toHaveText('Save');
+    await expect(page.locator('#ctToast')).toContainText('You do not have permission');
+  });
+
+  test('previous and next unread controls are a pair', async ({ page }) => {
+    await preparePage(page, { user: USERS.ordinary });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    await expect(page.locator('#ctUnreadPrev')).toBeVisible();
+    await expect(page.locator('#ctUnreadNext')).toBeVisible();
+    await page.click('#ctUnreadNext');
+    await expect(page.locator('.ct-reply.is-unread').first()).toBeVisible();
+  });
+
+  test('a signed-out reader is not offered Save on a reply', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.deepThread);
+    await expect(page.locator(`${reply(DEEP.l2)} button:has-text("Save")`)).toHaveCount(0);
   });
 });

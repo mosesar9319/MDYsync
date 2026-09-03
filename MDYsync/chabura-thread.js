@@ -150,7 +150,8 @@
       render();
       afterRender({ scrollToPermalink: Boolean(state.permalinkTarget) });
       checkDrift();
-      scheduleMarkRead();
+      observeForReading();
+      startPolling();
     } catch (error) {
       if (!data.isCurrent(token)) return;
       console.error('Cloud Chabura thread failed to load.', error);
@@ -164,13 +165,15 @@
   async function hydrate(token) {
     const commentIds = [...state.commentsById.keys()];
     const authorIds = [state.note.author_id].concat([...state.commentsById.values()].map((row) => row.author_id));
-    const [profiles, reactions] = await Promise.all([
+    const [profiles, reactions, savedComments] = await Promise.all([
       data.fetchProfiles(authorIds),
       data.fetchReactions(state.note.id, commentIds),
+      data.fetchSavedCommentIds(commentIds),
     ]);
     if (!data.isCurrent(token)) return;
     state.profiles = profiles;
     state.reactions = reactions;
+    state.savedComments = savedComments;
   }
 
   // The drift heuristic needs this daf's word boxes. Fetched once, only when
@@ -294,6 +297,8 @@
       note,
       profiles: state.profiles,
       reactions: state.reactions,
+      savedComments: state.savedComments,
+      currentBranchId: state.currentBranchId,
       viewerId: viewerId(),
       signedIn: signedIn(),
       isMobile: isMobile(),
@@ -372,6 +377,8 @@
     els.replies.id = 'ctReplies';
     els.discussion.appendChild(els.replies);
     applySearchHighlight();
+    // Re-observe: the previous nodes were just discarded by the re-render.
+    observeForReading();
   }
 
   function renderOutlinePanel() {
@@ -407,6 +414,7 @@
   // Scrolls the target clear of the sticky header rather than under it, then
   // moves real keyboard focus there so a screen-reader user lands on it too.
   function focusPermalink(commentId) {
+    suppressReadTracking();
     S.expandAncestors(state, commentId);
     renderDiscussion();
     const node = document.getElementById(`comment-${commentId}`);
@@ -436,14 +444,53 @@
     if (current) document.getElementById(`comment-${current}`)?.classList.add('is-search-current');
   }
 
-  function runSearch(term) {
+  // Asks the SERVER, so a match in a branch this client never loaded is still
+  // found; the matching branches are then fetched so each hit is shown in
+  // context rather than floating alone.
+  let searchToken = 0;
+  async function runSearch(term) {
+    const token = (searchToken += 1);
+    if (!term.trim()) {
+      S.runSearch(state, '');
+      renderDiscussion();
+      announce('');
+      return;
+    }
+    announce('Searching…');
+    let matches = [];
+    try {
+      matches = await data.searchThread(state.note.id, term);
+    } catch (error) {
+      if (token !== searchToken) return;
+      toast(data.describeError(error));
+      return;
+    }
+    if (token !== searchToken) return;
+
+    if (matches.length) {
+      const missingRoots = matches
+        .map((row) => row.root_comment_id)
+        .filter((rootId) => !state.commentsById.has(rootId));
+      if (missingRoots.length) {
+        try {
+          const branches = await data.fetchBranchesFor(state.note.id, missingRoots);
+          if (token !== searchToken) return;
+          S.mergeComments(state, branches);
+          branches.forEach((row) => state.loadedBranchRoots.add(row.root_comment_id));
+        } catch (error) { console.error('Could not load a matching branch.', error); }
+      }
+      S.mergeComments(state, matches);
+    }
+
+    // The local pass now runs over a state that contains every server match,
+    // so ordering and highlighting stay consistent with what is rendered.
     S.runSearch(state, term);
-    // A match inside a collapsed branch is unreachable until it is expanded.
     state.searchMatches.forEach((id) => S.expandAncestors(state, id));
     renderDiscussion();
-    if (!term.trim()) { announce(''); return; }
+    renderOutlinePanel();
+
     if (!state.searchMatches.length) {
-      announce('No matches among the replies loaded so far.');
+      announce(`No replies in this discussion match “${term.trim()}”.`);
       return;
     }
     // Jump first, then announce -- jumpToSearch also announces, and doing it
@@ -451,7 +498,7 @@
     // screen reader ever reached it.
     jumpToSearch(0);
     const count = state.searchMatches.length;
-    announce(`${count} matching ${count === 1 ? 'reply' : 'replies'} among the replies loaded so far. Showing match 1 of ${count}.`);
+    announce(`${count} matching ${count === 1 ? 'reply' : 'replies'} in this discussion. Showing match 1 of ${count}.`);
   }
 
   function jumpToSearch(index) {
@@ -465,6 +512,9 @@
   }
 
   function scrollTo(commentId) {
+    // Navigation, not reading: whatever the viewport sweeps past on the way
+    // must not count.
+    suppressReadTracking();
     S.expandAncestors(state, commentId);
     const node = document.getElementById(`comment-${commentId}`);
     if (!node) { renderDiscussion(); }
@@ -487,22 +537,174 @@
     scrollTo(unread[index]);
   }
 
-  // Only marks read what the viewer has actually had rendered to them, and the
-  // monotonic trigger makes a stale tab harmless.
-  let markReadTimer = null;
-  function scheduleMarkRead() {
-    clearTimeout(markReadTimer);
-    markReadTimer = setTimeout(async () => {
-      if (!signedIn() || !state.note) return;
-      const highest = S.highestSequence(state);
-      if (!highest || highest <= state.viewer.lastReadSequence) return;
-      try {
-        await data.markRead(state.note.id, highest);
-        state.viewer.lastReadSequence = highest;
-      } catch (error) {
-        console.error('Could not save your reading position.', error);
-      }
-    }, 2500);
+  // --- Read state ----------------------------------------------------------
+  //
+  // "Do not mark a thread read on load." The previous version marked the
+  // highest LOADED sequence 2.5 seconds after load, which meant opening a
+  // months-old permalink silently marked every newer reply read -- the reader
+  // lost their unread markers by following a link, without ever seeing the
+  // replies. Read state now advances only for replies that were actually on
+  // screen long enough to have been read.
+
+  const READ_DWELL_MS = 1200;     // how long a reply must be visible to count
+  const READ_FLUSH_MS = 2000;     // batching window, so scrolling is not chatty
+  const seenSequences = new Set();
+  const dwellTimers = new Map();
+  let readObserver = null;
+  let flushTimer = null;
+  // Programmatic scrolling (a permalink, a search jump, jump-to-unread) sweeps
+  // the viewport past replies the reader never looked at. Observation is muted
+  // while that happens, so navigation cannot mark anything read.
+  let suppressUntil = 0;
+
+  function suppressReadTracking(ms = 900) {
+    suppressUntil = Date.now() + ms;
+  }
+
+  function observeForReading() {
+    if (!signedIn() || !state.note) return;
+    if (readObserver) readObserver.disconnect();
+    dwellTimers.forEach((timer) => clearTimeout(timer));
+    dwellTimers.clear();
+
+    if (typeof IntersectionObserver !== 'function') return; // nothing marked rather than everything
+
+    readObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const id = entry.target.dataset.id;
+        if (!id) return;
+        if (!entry.isIntersecting) {
+          clearTimeout(dwellTimers.get(id));
+          dwellTimers.delete(id);
+          return;
+        }
+        if (dwellTimers.has(id)) return;
+        dwellTimers.set(id, setTimeout(() => {
+          dwellTimers.delete(id);
+          if (Date.now() < suppressUntil) return;
+          const row = state.commentsById.get(id);
+          if (!row || row.pending) return;
+          seenSequences.add(row.activity_sequence);
+          scheduleFlush();
+        }, READ_DWELL_MS));
+      });
+    }, { threshold: 0.6 });
+
+    els.discussion.querySelectorAll('.ct-reply').forEach((node) => readObserver.observe(node));
+  }
+
+  // The branch nearest the top of the viewport, so the outline can say where
+  // the reader currently is in a long thread.
+  function trackLocation() {
+    const branches = [...els.discussion.querySelectorAll('.ct-branch')];
+    let current = null;
+    let best = Infinity;
+    branches.forEach((node) => {
+      const top = node.getBoundingClientRect().top;
+      const distance = Math.abs(top - 120);
+      if (top < window.innerHeight && distance < best) { best = distance; current = node.dataset.root; }
+    });
+    if (current && current !== state.currentBranchId) {
+      state.currentBranchId = current;
+      renderOutlinePanel();
+    }
+  }
+
+  function scheduleFlush() {
+    clearTimeout(flushTimer);
+    flushTimer = setTimeout(flushReadState, READ_FLUSH_MS);
+  }
+
+  // Only advances to the highest CONTIGUOUS sequence actually seen. Jumping to
+  // reply 90 and reading it must not mark 3..89 read as a side effect, so the
+  // marker stops at the first gap.
+  async function flushReadState() {
+    if (!signedIn() || !state.note || !seenSequences.size) return;
+    let candidate = state.viewer.lastReadSequence;
+    while (seenSequences.has(candidate + 1)) candidate += 1;
+    if (candidate <= state.viewer.lastReadSequence) return;
+    try {
+      await data.markRead(state.note.id, candidate);
+      state.viewer.lastReadSequence = candidate;
+      renderOutlinePanel();
+    } catch (error) {
+      console.error('Could not save your reading position.', error);
+    }
+  }
+
+  // A reader leaving the page mid-scroll should not lose the position they did
+  // reach, so the pending batch is flushed on the way out.
+  function flushOnExit() {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') { clearTimeout(flushTimer); flushReadState(); }
+    });
+    window.addEventListener('pagehide', () => { clearTimeout(flushTimer); flushReadState(); });
+  }
+
+  // --- New replies while reading -------------------------------------------
+  //
+  // Replies that arrive while the page is open are NEVER inserted underneath
+  // the reader: doing so moves the text they are mid-sentence in. They are held
+  // and announced by a control, and inserted only when the reader asks.
+
+  const NEW_REPLY_POLL_MS = 30000;
+  let pollTimer = null;
+
+  function startPolling() {
+    clearInterval(pollTimer);
+    if (!state.note) return;
+    pollTimer = setInterval(checkForNewReplies, NEW_REPLY_POLL_MS);
+  }
+
+  async function checkForNewReplies() {
+    if (!state.note || document.visibilityState === 'hidden') return;
+    const highest = S.highestSequence(state);
+    try {
+      const rows = await data.fetchRepliesSince(state.note.id, highest);
+      const fresh = rows.filter((row) => !state.commentsById.has(row.id));
+      if (!fresh.length) return;
+      state.newReplies = state.newReplies.concat(fresh);
+      renderNewRepliesControl();
+    } catch { /* a failed poll is not worth interrupting a reader for */ }
+  }
+
+  function renderNewRepliesControl() {
+    let bar = document.getElementById('ctNewReplies');
+    if (!state.newReplies.length) { bar?.remove(); return; }
+    if (!bar) {
+      bar = el('div', 'ct-new-replies');
+      bar.id = 'ctNewReplies';
+      bar.setAttribute('role', 'status');
+      document.body.appendChild(bar);
+    }
+    bar.innerHTML = '';
+    const count = state.newReplies.length;
+    bar.appendChild(button('cc-btn cc-btn-primary cc-btn-sm',
+      `${count} new ${count === 1 ? 'reply' : 'replies'} — show`,
+      () => showNewReplies()));
+    bar.appendChild(button('cc-btn cc-btn-quiet cc-btn-sm', 'Dismiss', () => {
+      // Dismiss hides the control; the replies still arrive on the next load.
+      state.newReplies = [];
+      renderNewRepliesControl();
+    }, { ariaLabel: 'Dismiss new replies notice' }));
+  }
+
+  function showNewReplies() {
+    const rows = state.newReplies;
+    state.newReplies = [];
+    if (!rows.length) return;
+    // Anchor on the scroll position so inserting above the viewport does not
+    // shift what the reader is looking at.
+    const anchor = document.querySelector('.ct-reply');
+    const before = anchor ? anchor.getBoundingClientRect().top : 0;
+    S.mergeComments(state, rows);
+    rows.forEach((row) => state.loadedBranchRoots.add(row.root_comment_id));
+    renderDiscussion();
+    renderOutlinePanel();
+    renderNewRepliesControl();
+    const after = anchor && document.body.contains(anchor) ? anchor.getBoundingClientRect().top : before;
+    if (after !== before) window.scrollBy(0, after - before);
+    announce(`${rows.length} new ${rows.length === 1 ? 'reply' : 'replies'} added.`);
   }
 
   // --- Menus and dialogs ---------------------------------------------------
@@ -728,6 +930,19 @@
       catch (error) {
         state.viewer.isFollowed = !next;
         renderHeader();
+        toast(data.describeError(error));
+      }
+    },
+
+    async onToggleSavedComment(commentId) {
+      if (!signedIn()) { document.getElementById('signInButton')?.click(); return; }
+      const next = !state.savedComments.has(commentId);
+      if (next) state.savedComments.add(commentId); else state.savedComments.delete(commentId);
+      renderDiscussion();
+      try { await data.setCommentSaved(commentId, next); }
+      catch (error) {
+        if (next) state.savedComments.delete(commentId); else state.savedComments.add(commentId);
+        renderDiscussion();
         toast(data.describeError(error));
       }
     },
@@ -994,6 +1209,14 @@
     document.getElementById('ctSearchNext')?.addEventListener('click', () => jumpToSearch(state.searchIndex + 1));
     document.getElementById('ctSearchPrev')?.addEventListener('click', () => jumpToSearch(state.searchIndex - 1));
     document.getElementById('ctJumpUnread')?.addEventListener('click', () => jumpToUnread(1));
+    document.getElementById('ctUnreadNext')?.addEventListener('click', () => jumpToUnread(1));
+    document.getElementById('ctUnreadPrev')?.addEventListener('click', () => jumpToUnread(-1));
+
+    let locationTimer = null;
+    window.addEventListener('scroll', () => {
+      clearTimeout(locationTimer);
+      locationTimer = setTimeout(trackLocation, 150);
+    }, { passive: true });
 
     document.getElementById('ctCollapseRead')?.addEventListener('click', () => {
       S.orderedTopLevel(state).forEach((rootId) => {
@@ -1041,6 +1264,8 @@
     cacheEls();
     if (!els.discussion) return; // not the thread page
     wire();
+    flushOnExit();
+    window.DafSyncChabura.notifications?.mount({ onError: (message) => toast(message) });
     load();
   }
 

@@ -279,7 +279,17 @@ export function buildDatabase() {
     thread_read_state: [
       { user_id: USERS.ordinary.id, note_id: NOTE_IDS.deepThread, last_read_sequence: 2, updated_at: isoMinutesAgo(3) },
     ],
-    notifications: [],
+    // A burst on ONE thread plus a single mention on another: enough to prove
+    // grouping collapses the burst instead of showing five identical lines.
+    notifications: [
+      { id: 'n0000000-0000-4000-8000-000000000001', user_id: USERS.ordinary.id, type: 'reply', actor_id: USERS.author.id, actor_display_name: USERS.author.display_name, note_id: NOTE_IDS.deepThread, comment_id: 'b0000000-0000-4000-8000-000000000002', daf_ref_key: 'Chullin-89a', segment_ref: 'Chullin 89a.1', preview: 'Reply at level 2.', read: false, created_at: isoMinutesAgo(9) },
+      { id: 'n0000000-0000-4000-8000-000000000002', user_id: USERS.ordinary.id, type: 'reply', actor_id: USERS.author.id, actor_display_name: USERS.author.display_name, note_id: NOTE_IDS.deepThread, comment_id: 'b0000000-0000-4000-8000-000000000003', daf_ref_key: 'Chullin-89a', segment_ref: 'Chullin 89a.1', preview: 'Reply at level 3.', read: false, created_at: isoMinutesAgo(8) },
+      { id: 'n0000000-0000-4000-8000-000000000003', user_id: USERS.ordinary.id, type: 'reply', actor_id: USERS.author.id, actor_display_name: USERS.author.display_name, note_id: NOTE_IDS.deepThread, comment_id: 'b0000000-0000-4000-8000-000000000004', daf_ref_key: 'Chullin-89a', segment_ref: 'Chullin 89a.1', preview: 'Reply at level 4.', read: false, created_at: isoMinutesAgo(7) },
+      { id: 'n0000000-0000-4000-8000-000000000004', user_id: USERS.ordinary.id, type: 'mention', actor_id: USERS.admin.id, actor_display_name: USERS.admin.display_name, note_id: NOTE_IDS.noReplies, comment_id: null, daf_ref_key: 'Chullin-89a', segment_ref: 'Chullin 89a.1', preview: 'Mentioned you here.', read: false, created_at: isoMinutesAgo(6) },
+      // Already read, and belonging to someone else: neither may be counted.
+      { id: 'n0000000-0000-4000-8000-000000000005', user_id: USERS.ordinary.id, type: 'reply', actor_id: USERS.author.id, actor_display_name: USERS.author.display_name, note_id: NOTE_IDS.largeThread, comment_id: null, daf_ref_key: 'Chullin-89a', segment_ref: 'Chullin 89a.1', preview: 'An older one.', read: true, created_at: isoMinutesAgo(120) },
+      { id: 'n0000000-0000-4000-8000-000000000006', user_id: USERS.author.id, type: 'reply', actor_id: USERS.ordinary.id, actor_display_name: USERS.ordinary.display_name, note_id: NOTE_IDS.deepThread, comment_id: null, daf_ref_key: 'Chullin-89a', segment_ref: 'Chullin 89a.1', preview: 'OTHER-ACCOUNT-CANARY', read: false, created_at: isoMinutesAgo(5) },
+    ],
     reports: [],
     highlights: [],
     favorites: [],

@@ -487,6 +487,7 @@
     renderToday();
 
     wire();
+    window.DafSyncChabura.notifications?.mount({ onError: (message) => announce(message) });
     loadFeed();
   }
 

@@ -253,6 +253,17 @@
         () => ctx.handlers.onQuote(kind === 'note' ? null : row.id)));
     }
 
+    // Saving a single reply, not just the whole thread. bookmarks has carried
+    // target_type='comment' since Phase 2; only the UI was missing.
+    if (kind === 'comment' && ctx.signedIn && !removed) {
+      const saved = ctx.savedComments.has(row.id);
+      actions.appendChild(button('cc-btn cc-btn-quiet cc-btn-sm', saved ? 'Saved' : 'Save',
+        () => ctx.handlers.onToggleSavedComment(row.id), {
+          pressed: saved,
+          title: saved ? 'Remove this reply from saved' : 'Save this reply for later',
+        }));
+    }
+
     const menuItems = buildMenuItems(row, kind, ctx);
     if (menuItems.length) {
       const more = button('cc-btn cc-btn-quiet cc-btn-sm ct-more', '⋯', null, {
@@ -525,6 +536,10 @@
       const stats = S.branchStats(ctx.state, rootId);
       const item = el('li');
       const link = button('ct-branch-link', '', () => ctx.handlers.onJumpTo(rootId));
+      if (ctx.currentBranchId === rootId) {
+        link.classList.add('is-current');
+        link.setAttribute('aria-current', 'true');
+      }
       const who = S.isTombstone(row) ? 'Removed' : (row.author_display_name || 'Anonymous');
       link.appendChild(el('span', 'ct-branch-author', who));
       link.appendChild(el('span', 'ct-branch-count',

@@ -172,6 +172,7 @@
           if (filter.type === 'is') return testIs(value, filter.value);
           if (filter.type === 'not') return !evaluate(row, { kind: 'leaf', column: filter.column, operator: filter.operator, value: filter.value });
           if (filter.type === 'or') return evaluate(row, filter.node);
+          if (filter.type === 'cmp') return evaluate(row, { kind: 'leaf', column: filter.column, operator: filter.operator, value: filter.value });
           if (filter.type === 'textSearch') {
             // body_tsv is a generated column over body (+ selected_text on
             // line_notes); the stub searches those source columns directly
@@ -340,6 +341,10 @@
         textSearch(column, value) { query.filters.push({ type: 'textSearch', column, value }); return api; },
         is(column, value) { query.filters.push({ type: 'is', column, value }); return api; },
         neq(column, value) { query.filters.push({ type: 'not', column, operator: 'eq', value }); return api; },
+        gt(column, value) { query.filters.push({ type: 'cmp', column, operator: 'gt', value }); return api; },
+        gte(column, value) { query.filters.push({ type: 'cmp', column, operator: 'gte', value }); return api; },
+        lt(column, value) { query.filters.push({ type: 'cmp', column, operator: 'lt', value }); return api; },
+        lte(column, value) { query.filters.push({ type: 'cmp', column, operator: 'lte', value }); return api; },
         not(column, operator, value) { query.filters.push({ type: 'not', column, operator, value }); return api; },
         // PostgREST's `or=` takes a COMMA-SEPARATED LIST of conditions, any one
         // of which may match -- not a single condition. Splitting at the top
