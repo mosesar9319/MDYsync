@@ -108,6 +108,7 @@ export async function preparePage(page, options = {}) {
       window.__DAFSYNC_TEST_SESSION__ = JSON.parse(sessionJson);
       window.__DAFSYNC_TEST_CONTROL__ = JSON.parse(controlJson);
       window.__DAFSYNC_TEST_CALLS__ = [];
+      window.__DAFSYNC_TEST_QUERIES__ = [];
     },
     { dbJson: JSON.stringify(db), sessionJson: JSON.stringify(session), controlJson: JSON.stringify(control) }
   );
@@ -128,4 +129,15 @@ export function failOnPageError(page, errors = []) {
 
 export async function readTestCalls(page) {
   return page.evaluate(() => window.__DAFSYNC_TEST_CALLS__ || []);
+}
+
+// Every read the page issued, as table names in order. Used by the scale specs
+// to measure query counts: the supabase stub is in-page, so counting HTTP
+// requests measures nothing at all.
+export async function readTestQueries(page) {
+  return page.evaluate(() => window.__DAFSYNC_TEST_QUERIES__ || []);
+}
+
+export async function resetTestQueries(page) {
+  await page.evaluate(() => { window.__DAFSYNC_TEST_QUERIES__ = []; });
 }

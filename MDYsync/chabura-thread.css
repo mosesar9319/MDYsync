@@ -52,7 +52,15 @@
 /* --- Header -------------------------------------------------------------- */
 .ct-header { padding: 18px 20px 10px; max-width: 1400px; }
 @media (max-width: 900px) { .ct-header { padding: 14px 12px 8px; } }
-.ct-back { display: inline-block; margin-bottom: 8px; color: var(--cc-primary); text-decoration: none; font-size: 13.5px; font-weight: 600; }
+/* A standalone navigation link, so WCAG 2.2 target size (minimum) applies in
+   full -- the inline-link exception covers links inside a sentence, which this
+   is not. It measured 22px tall before the padding. */
+.ct-back {
+  display: inline-flex; align-items: center; min-height: 24px; padding: 4px 0;
+  margin-bottom: 6px; color: var(--cc-primary); text-decoration: none;
+  font-size: 13.5px; font-weight: 600;
+}
+@media (max-width: 900px) { .ct-back { min-height: 44px; } }
 .ct-back:hover { text-decoration: underline; }
 .ct-header-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .ct-title { font-size: 26px; line-height: 1.25; margin: 0 0 10px; letter-spacing: -0.01em; }
@@ -128,6 +136,10 @@
   background: var(--cc-bg); border-radius: 0 8px 8px 0;
 }
 .ct-quote-head { margin: 0 0 3px; font-size: 12px; color: var(--cc-muted); font-weight: 600; }
+/* The attribution link is the whole line, so it is NOT covered by WCAG 2.2's
+   inline exception (which is for a target inside a sentence, constrained by the
+   line-height of surrounding non-target text). It measured 14px tall. */
+.ct-quote-head a { display: inline-flex; align-items: center; min-height: 24px; }
 .ct-quote-body {
   margin: 0; font-size: 13.5px; color: var(--cc-muted); line-height: 1.5;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
@@ -377,3 +389,31 @@
   box-shadow: inset 2px 0 0 var(--cc-primary);
   font-weight: 600;
 }
+
+/* Link previews. Text and a link to the origin -- never remote HTML and never
+   a remote image, so a hostile page cannot render anything inside a thread. */
+.ct-preview {
+  display: grid; gap: 2px; margin: 0 0 10px;
+  padding: 10px 12px; border: 1px solid var(--cc-border); border-radius: 10px;
+  background: var(--cc-bg); text-decoration: none; color: var(--cc-text);
+}
+.ct-preview:hover { border-color: var(--cc-primary); }
+.ct-preview-host { font-size: 11.5px; color: var(--cc-primary); font-weight: 600; }
+.ct-preview-title { font-size: 13.5px; font-weight: 600; }
+.ct-preview-desc {
+  font-size: 12.5px; color: var(--cc-muted); line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* Report categories. Radios in behaviour, chips in appearance. */
+.ct-report-categories { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.ct-report-category {
+  border: 1px solid var(--cc-border); background: transparent; color: var(--cc-text);
+  border-radius: 999px; padding: 6px 12px; font-size: 12.5px; cursor: pointer; min-height: 34px;
+}
+.ct-report-category:hover { border-color: var(--cc-primary); }
+.ct-report-category.is-chosen {
+  background: var(--cc-primary-soft); border-color: var(--cc-primary);
+  color: var(--cc-primary); font-weight: 600;
+}
+.ct-report-category:focus-visible { outline: 2px solid var(--cc-primary); outline-offset: 2px; }

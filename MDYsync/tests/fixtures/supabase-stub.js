@@ -189,6 +189,12 @@
       }
 
       function runSelect() {
+        // Reads are counted, not recorded in full: a spec asserting "no N+1"
+        // needs the COUNT of queries, and keeping every row of every read would
+        // make the 1,000-reply fixture's call log enormous. Writes are still
+        // recorded in full via recordCall, since specs assert on their payload.
+        if (!window.__DAFSYNC_TEST_QUERIES__) window.__DAFSYNC_TEST_QUERIES__ = [];
+        window.__DAFSYNC_TEST_QUERIES__.push(tableName);
         const error = injectedError(tableName, 'select');
         if (error) return { data: null, error };
         let rows = table(tableName).filter(matches);

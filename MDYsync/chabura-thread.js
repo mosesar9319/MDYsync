@@ -409,6 +409,32 @@
 
   function afterRender({ scrollToPermalink }) {
     if (scrollToPermalink && state.permalinkTarget) focusPermalink(state.permalinkTarget);
+    attachLinkPreviews();
+  }
+
+  // Previews load after the thread is readable and are appended in place, so a
+  // slow or failed preview never delays or breaks the discussion itself.
+  const previewed = new Set();
+  function attachLinkPreviews() {
+    const posts = [...els.discussion.querySelectorAll('.ct-reply, .ct-root')];
+    posts.forEach(async (node) => {
+      const id = node.dataset.id || 'root';
+      if (previewed.has(id)) return;
+      const row = node.dataset.id ? state.commentsById.get(node.dataset.id) : state.note;
+      if (!row || S.isTombstone(row)) return;
+      const url = V.firstLinkIn(row.body);
+      if (!url) return;
+      previewed.add(id);
+      const preview = await data.fetchLinkPreview(url);
+      if (!preview) return;
+      // The node may have been replaced by a re-render while the fetch was in
+      // flight; look it up again rather than appending to a detached element.
+      const live = node.dataset.id
+        ? document.getElementById(`comment-${node.dataset.id}`)
+        : document.getElementById('root-post');
+      if (!live || live.querySelector('.ct-preview')) return;
+      live.querySelector('.ct-body')?.after(V.linkPreviewCard(preview));
+    });
   }
 
   // Scrolls the target clear of the sticky header rather than under it, then
@@ -1072,6 +1098,38 @@
       dialog.className = 'ct-confirm';
       dialog.appendChild(el('h2', null, 'Report this post'));
       dialog.appendChild(el('p', null, 'Tell a moderator what is wrong with it. Your name is recorded with the report so it can be followed up, and the author is not told who reported them.'));
+
+      // Categories, because "what is wrong with it" alone gives a moderator no
+      // way to triage a queue. The chosen category is prefixed onto the stored
+      // reason rather than needing a schema change, and the free-text box stays
+      // because a category is never the whole story.
+      const CATEGORIES = [
+        ['off-topic', 'Off topic for this passage'],
+        ['incorrect', 'Factually wrong or misleading'],
+        ['unsourced', 'States something as fact without a source'],
+        ['disrespectful', 'Disrespectful or personal'],
+        ['spam', 'Spam or advertising'],
+        ['other', 'Something else'],
+      ];
+      const group = el('div', 'ct-report-categories');
+      group.setAttribute('role', 'radiogroup');
+      group.setAttribute('aria-label', 'Reason category');
+      let chosen = null;
+      CATEGORIES.forEach(([key, label]) => {
+        const option = button('ct-report-category', label, () => {
+          chosen = key;
+          group.querySelectorAll('.ct-report-category').forEach((node) => {
+            node.setAttribute('aria-checked', String(node === option));
+            node.classList.toggle('is-chosen', node === option);
+          });
+        }, { ariaLabel: label });
+        option.setAttribute('role', 'radio');
+        option.setAttribute('aria-checked', 'false');
+        option.dataset.category = key;
+        group.appendChild(option);
+      });
+      dialog.appendChild(group);
+
       const label = el('label', 'cc-visually-hidden', 'Reason');
       label.setAttribute('for', 'ctReportReason');
       const input = document.createElement('textarea');
@@ -1084,9 +1142,11 @@
       row.appendChild(button('cc-btn', 'Cancel', () => { dialog.close(); resolve(null); }));
       const send = button('cc-btn ct-btn-danger', 'Report', () => {
         const reason = input.value.trim();
-        if (!reason) { input.focus(); return; }
+        if (!chosen && !reason) { group.querySelector('.ct-report-category')?.focus(); return; }
         dialog.close();
-        resolve(reason);
+        // The category leads so a moderator can sort the queue without reading
+        // every body; the reader's own words follow.
+        resolve(chosen ? `[${chosen}] ${reason}`.trim() : reason);
       });
       row.appendChild(send);
       dialog.appendChild(row);

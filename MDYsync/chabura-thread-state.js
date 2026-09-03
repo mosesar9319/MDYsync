@@ -214,7 +214,9 @@
     state.commentsById.forEach((row) => {
       if (isTombstone(row)) return; // a removed reply does not advertise its author
       if (row.author_id && !seen.has(row.author_id)) {
-        seen.set(row.author_id, row.author_display_name || 'Anonymous');
+        // Never an id: it is a private identifier, and a mention chip or
+        // participant list showing one would leak it to every reader.
+        seen.set(row.author_id, (row.author_display_name || '').trim() || 'A member');
       }
     });
     return [...seen.entries()].map(([id, name]) => ({ id, name }));

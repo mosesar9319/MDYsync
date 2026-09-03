@@ -183,6 +183,29 @@
     return data || [];
   }
 
+  // Link previews are fetched by the SERVER, never by the reader's browser --
+  // see netlify/functions/link-preview.mjs for why. Cached per URL for the life
+  // of the page so a thread quoting the same link twenty times asks once.
+  const previewCache = new Map();
+
+  async function fetchLinkPreview(url) {
+    if (previewCache.has(url)) return previewCache.get(url);
+    const pending = (async () => {
+      try {
+        const response = await fetch(`/api/link-preview?url=${encodeURIComponent(url)}`);
+        if (!response.ok) return null;
+        const preview = await response.json();
+        return preview && (preview.title || preview.description) ? preview : null;
+      } catch {
+        // A preview is decoration. Failing to get one must never look like a
+        // failure of the reply it belongs to.
+        return null;
+      }
+    })();
+    previewCache.set(url, pending);
+    return pending;
+  }
+
   // Safe public identity only. profiles carries the email; public_profiles is
   // the view that does not, and it is what the browser is allowed to read.
   async function fetchProfiles(userIds) {
@@ -473,6 +496,7 @@
     fetchPermalinkBranch,
     searchThread,
     fetchBranchesFor,
+    fetchLinkPreview,
     fetchProfiles,
     fetchReactions,
     fetchViewerState,
