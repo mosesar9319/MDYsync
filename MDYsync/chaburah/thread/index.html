@@ -68,6 +68,13 @@
     <header class="topbar">
       <div class="mobile-brand"><a class="brand" href="/"><span class="brand-mark"><img src="/assets/dafsync-mark.svg" alt="" /></span><span class="brand-name">DafSync</span></a></div>
       <div class="top-actions">
+        <div class="cc-notify" >
+          <button class="cc-notify-button" id="ccNotifyButton" type="button" aria-expanded="false" aria-label="Notifications" hidden>
+            <span aria-hidden="true">🔔</span>
+            <span class="cc-notify-badge" id="ccNotifyBadge" hidden>0</span>
+          </button>
+          <div class="cc-notify-panel" id="ccNotifyPanel" role="dialog" aria-label="Notifications" hidden></div>
+        </div>
         <div class="auth-widget" id="authWidget">
           <button class="button secondary small" id="signInButton" type="button">Sign in</button>
           <div class="account-menu" id="accountMenu" hidden>
@@ -108,6 +115,10 @@
           </select>
         </div>
         <button class="cc-btn cc-btn-sm" id="ctJumpUnread" type="button">Jump to unread</button>
+        <div class="ct-toolbar-group">
+          <button class="cc-btn cc-btn-sm" id="ctUnreadPrev" type="button" aria-label="Previous unread reply">↑ unread</button>
+          <button class="cc-btn cc-btn-sm" id="ctUnreadNext" type="button" aria-label="Next unread reply">↓ unread</button>
+        </div>
         <button class="cc-btn cc-btn-sm" id="ctCollapseRead" type="button">Collapse read</button>
         <button class="cc-btn cc-btn-sm" id="ctExpandAll" type="button">Expand all</button>
         <button class="cc-btn cc-btn-sm ct-drawer-toggle" id="ctSourceToggle" type="button" aria-expanded="false">Source</button>
@@ -190,6 +201,7 @@
   <script src="../../auth.js"></script>
   <script src="../../notes-format.js" defer></script>
   <script src="../../chabura-core.js" defer></script>
+  <script src="../../chabura-notifications.js" defer></script>
   <script src="../../chabura-thread-data.js" defer></script>
   <script src="../../chabura-thread-state.js" defer></script>
   <script src="../../chabura-thread-view.js" defer></script>

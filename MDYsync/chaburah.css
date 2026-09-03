@@ -383,3 +383,55 @@
 
 /* Hebrew source text is RTL inside an otherwise LTR interface. */
 .cloud-chabura [lang="he"] { direction: rtl; text-align: right; }
+
+/* --- Notifications ------------------------------------------------------- */
+.cc-notify { position: relative; }
+.cc-notify-button {
+  position: relative; display: inline-grid; place-items: center;
+  width: 36px; height: 36px; border-radius: 999px;
+  border: 1px solid var(--cc-border); background: var(--cc-surface);
+  cursor: pointer; font-size: 15px; line-height: 1;
+}
+.cc-notify-button:hover { border-color: var(--cc-primary); }
+.cc-notify-badge {
+  position: absolute; top: -4px; right: -4px; min-width: 17px; height: 17px;
+  padding: 0 4px; border-radius: 999px; background: var(--cc-primary); color: #fff;
+  font-size: 10.5px; font-weight: 700; line-height: 17px; text-align: center;
+}
+.cc-notify-panel {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 300;
+  width: min(380px, calc(100vw - 24px));
+  max-height: min(70vh, 520px); overflow-y: auto;
+  background: var(--cc-surface); border: 1px solid var(--cc-border);
+  border-radius: 14px; box-shadow: 0 16px 40px rgba(16, 32, 55, .16);
+}
+.cc-notify-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 12px 14px 8px; position: sticky; top: 0; background: var(--cc-surface);
+  border-bottom: 1px solid var(--cc-border);
+}
+.cc-notify-head h2 { margin: 0; font-size: 14px; }
+.cc-notify-empty { margin: 0; padding: 18px 16px; color: var(--cc-muted); font-size: 13.5px; line-height: 1.6; }
+.cc-notify-list { list-style: none; margin: 0; padding: 4px; display: flex; flex-direction: column; gap: 2px; }
+.cc-notify-item { position: relative; display: flex; align-items: flex-start; }
+.cc-notify-link {
+  flex: 1; display: grid; gap: 2px; padding: 10px 12px; border-radius: 10px;
+  text-decoration: none; color: var(--cc-text); min-width: 0;
+}
+.cc-notify-link:hover { background: var(--cc-primary-soft); }
+.cc-notify-item.is-unread .cc-notify-link { background: var(--cc-primary-soft); }
+.cc-notify-summary { font-size: 13.5px; font-weight: 600; }
+.cc-notify-where { font-size: 11.5px; color: var(--cc-primary); font-weight: 600; }
+.cc-notify-preview {
+  font-size: 12.5px; color: var(--cc-muted); line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.cc-notify-time { font-size: 11.5px; color: var(--cc-muted); }
+.cc-notify-dot {
+  position: absolute; right: 8px; top: 12px;
+  width: 7px; height: 7px; border-radius: 50%; background: var(--cc-primary);
+}
+@media (max-width: 900px) {
+  .cc-notify-button { width: 40px; height: 40px; }
+  .cc-notify-panel { position: fixed; top: auto; bottom: 64px; right: 12px; left: 12px; width: auto; }
+}

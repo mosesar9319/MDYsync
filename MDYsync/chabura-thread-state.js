@@ -39,6 +39,9 @@
       permalinkTarget: null,
       permalinkPending: false,
       viewer: { isFollowed: false, isSaved: false, lastReadSequence: 0, isAdmin: false },
+      savedComments: new Set(),   // individually saved replies
+      currentBranchId: null,      // where the reader is, for the outline
+      newReplies: [],             // arrived while reading, not yet inserted
       sort: 'conversation',      // conversation | newest | helpful
       search: '',
       searchMatches: [],

@@ -152,6 +152,37 @@
     return { target, rows: data || [] };
   }
 
+  // Searches the WHOLE thread, not the rows the client happens to have loaded.
+  // comments.body_tsv is a generated tsvector with a gin index, so a match in a
+  // branch that was never fetched is still found -- which is the difference
+  // between "search this discussion" and "search what is on screen".
+  async function searchThread(noteId, term) {
+    const needle = (term || '').trim();
+    if (!needle) return [];
+    const { data, error } = await client()
+      .from('comments').select(COMMENT_COLUMNS)
+      .eq('note_id', noteId)
+      .textSearch('body_tsv', needle, { type: 'websearch', config: 'simple' })
+      .order('created_at', { ascending: true })
+      .limit(200);
+    if (error) throw error;
+    return data || [];
+  }
+
+  // The branches those matches live in, so an expanded match has its ancestors
+  // and siblings around it rather than appearing on its own.
+  async function fetchBranchesFor(noteId, rootIds) {
+    if (!rootIds.length) return [];
+    const { data, error } = await client()
+      .from('comments').select(COMMENT_COLUMNS)
+      .eq('note_id', noteId)
+      .in('root_comment_id', [...new Set(rootIds)])
+      .order('created_at', { ascending: true })
+      .limit(DESCENDANT_BATCH);
+    if (error) throw error;
+    return data || [];
+  }
+
   // Safe public identity only. profiles carries the email; public_profiles is
   // the view that does not, and it is what the browser is allowed to read.
   async function fetchProfiles(userIds) {
@@ -348,6 +379,48 @@
     }
   }
 
+  async function fetchSavedCommentIds(commentIds) {
+    const user = currentUser();
+    if (!user || !commentIds.length) return new Set();
+    const { data, error } = await client()
+      .from('bookmarks').select('target_id')
+      .eq('user_id', user.id).eq('target_type', 'comment').in('target_id', commentIds);
+    if (error) throw error;
+    return new Set((data || []).map((row) => row.target_id));
+  }
+
+  async function setCommentSaved(commentId, shouldSave) {
+    const user = currentUser();
+    if (!user) throw new Error('Sign in to save a reply.');
+    if (shouldSave) {
+      const { error } = await client().from('bookmarks')
+        .insert({ user_id: user.id, target_type: 'comment', target_id: commentId });
+      if (error) throw error;
+    } else {
+      const { error } = await client().from('bookmarks').delete()
+        .eq('user_id', user.id).eq('target_type', 'comment').eq('target_id', commentId);
+      if (error) throw error;
+    }
+  }
+
+  // Replies added since the reader arrived. Polled rather than pushed: the
+  // vendored client does carry realtime, but subscribing to `comments` needs
+  // that table added to a publication in production, which is a production
+  // configuration change and not one to make unilaterally. The user-facing
+  // behaviour -- new replies never move the page under the reader, and a
+  // control appears when they are offscreen -- is identical either way, and
+  // this function is the seam a channel would drive instead.
+  async function fetchRepliesSince(noteId, sinceSequence) {
+    const { data, error } = await client()
+      .from('comments').select(COMMENT_COLUMNS)
+      .eq('note_id', noteId)
+      .gt('activity_sequence', sinceSequence)
+      .order('activity_sequence', { ascending: true })
+      .limit(50);
+    if (error) throw error;
+    return data || [];
+  }
+
   async function setSaved(noteId, shouldSave) {
     const user = currentUser();
     if (!user) throw new Error('Sign in to save a discussion.');
@@ -398,6 +471,8 @@
     fetchBranchPage,
     fetchDescendants,
     fetchPermalinkBranch,
+    searchThread,
+    fetchBranchesFor,
     fetchProfiles,
     fetchReactions,
     fetchViewerState,
@@ -413,6 +488,9 @@
     toggleReaction,
     setFollowed,
     setSaved,
+    fetchSavedCommentIds,
+    setCommentSaved,
+    fetchRepliesSince,
     markRead,
     reportTarget,
   };
