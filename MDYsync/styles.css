@@ -546,11 +546,23 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
    noticeably longer than it needs to for two characters and a chevron ("1x
    ▾"), next to icon buttons that are all pure glyph with no padding to
    spare by comparison. */
-.pc-speed { position: relative; display: inline-flex; align-items: center; height: 30px; padding: 0 4px; gap: 1px; border: 1px solid rgba(255,255,255,.25); border-radius: 8px; background: rgba(255,255,255,.1); color: rgba(255,255,255,.92); }
-.pc-speed select { appearance: none; -webkit-appearance: none; width: auto; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+/* The <select> fills the whole pill, and the pill has no padding of its own:
+   the padding is the SELECT's, so every pixel inside the border belongs to
+   the control. Reported directly as "nothing happens when I press the 1x
+   button" -- the pill is what reads as a button, but the select inside it
+   was only 47x16 (40x14 on a phone) floating in the middle of a 60x30 box,
+   so the border, the padding and, worst of all, the chevron -- the one part
+   of a dropdown everybody aims at -- were all inert .pc-speed div with no
+   handler on it. align-items: stretch (not center) is what makes the select
+   take the pill's full height; the chevron is positioned over the select's
+   own right padding and keeps pointer-events: none, so clicks on it fall
+   through to the select underneath rather than landing on the wrapper. */
+.pc-speed { position: relative; display: inline-flex; align-items: stretch; height: 30px; padding: 0; border: 1px solid rgba(255,255,255,.25); border-radius: 8px; background: rgba(255,255,255,.1); color: rgba(255,255,255,.92); }
+.pc-speed select { appearance: none; -webkit-appearance: none; width: auto; min-width: 0; height: 100%; padding: 0 17px 0 8px; border: 0; background: none; color: inherit; font: inherit; font-size: 14px; font-weight: 700; line-height: 1; cursor: pointer; }
 .pc-speed select:focus { outline: none; box-shadow: none; }
+.pc-speed select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .pc-speed select option { background: #0d1b2c; color: #fff; }
-.pc-speed::after { content: '▾'; align-self: center; margin-left: -3px; font-size: 10px; line-height: 1; opacity: .75; pointer-events: none; }
+.pc-speed::after { content: '▾'; position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font-size: 10px; line-height: 1; opacity: .75; pointer-events: none; }
 
 /* The two "where does the daf go" toggles. Their pressed look is the gold
    outline, so which one is on reads at a glance from across the room. */
@@ -709,7 +721,8 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .video-frame.is-tiny .pc-transport .play-button svg { width: 12px; height: 12px; }
 .video-frame.is-tiny .pc-pill { height: 22px; padding: 0 5px; }
 .video-frame.is-tiny .pc-pill svg { width: 14px; height: 14px; }
-.video-frame.is-tiny .pc-speed { height: 22px; padding: 0 3px; }
+.video-frame.is-tiny .pc-speed { height: 22px; }
+.video-frame.is-tiny .pc-speed select { padding: 0 15px 0 6px; }
 .video-frame.is-tiny .pc-speed select { font-size: 12px; }
 .video-frame.is-tiny .player-topbar { height: 30px; padding: 0 7px; }
 
