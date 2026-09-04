@@ -1089,27 +1089,29 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .scan-video-picker, .scan-engine-picker { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 0 0 14px; }
 .scan-video-picker-label { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .scan-word-overlay { position: absolute; inset: 0; }
-/* Pure click targets now -- tap a word to jump the video there. Same role as
-   .vilna-phrase-box: the "word being spoken right now" highlight is a
-   separate layer (.scan-active-overlay/.scan-active-rect below), not a class
-   toggled on these. Kept individually per-word (not merged into one region
-   per .scan-word-box like .vilna-phrase-box) because scanWordBoxes has no
-   phrase/segment grouping of its own the way vilnaPageMap's boxes do. */
-.scan-word-box {
+/* One clickable region per PHRASE (segment), not per word -- exactly
+   .vilna-phrase-box's own shape and reasoning (see renderScanMatch/
+   renderVilnaWordBoxes in app.js): a word-sized hit-region, oversized for
+   easier tapping, routinely bled into the line above or below and stole
+   taps meant for a neighboring word; a phrase's own line-shaped region has
+   no such padding to overlap with. Pure click target -- the "word being
+   spoken right now" highlight is a separate layer
+   (.scan-active-overlay/.scan-active-rect below), not a class toggled on
+   these. */
+.scan-phrase-box {
   position: absolute;
-  transform: scale(1.25, 1.8);
   cursor: pointer;
-  border-radius: 2px;
+  border-radius: 999px;
 }
-/* A tint of .scan-active-rect's own blue, matching .vilna-phrase-box.phrase-hover
-   -- distinct from that solid "playing right now" highlight below. */
-.scan-word-box:hover, .scan-word-box:focus-visible { background: rgba(142, 205, 245, .38); }
+/* .vilna-phrase-box.phrase-hover's own blue tint -- distinct from
+   .scan-active-rect's solid "playing right now" highlight below. */
+.scan-phrase-box.phrase-hover { background: rgba(142, 205, 245, .58); mix-blend-mode: multiply; }
 /* The word(s) being spoken right now (updateScanOverlay in app.js) -- one
    merged bar per printed line via groupBoxesIntoLineRects/appendLineRects,
    the same pass and the same blue (#8ecdf5) .vilna-active-rect uses, so the
    scanned photo, the Vilna page and the in-video overlay all read as the
    same feature. This used to toggle .active on individual (deliberately
-   oversized, for tapping) .scan-word-box elements above, which rendered a
+   oversized, for tapping) .scan-word-box elements, which rendered a
    multi-word phrase as a jagged block of overlapping solid-yellow
    rectangles -- reported directly as visibly out of step with the blue,
    narrow bar the other two views had already moved to. */

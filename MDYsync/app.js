@@ -71,12 +71,14 @@ const state = {
   // rebuild on every playback tick). updateScanOverlay draws merged
   // per-line bars into #scanActiveOverlay, the same
   // groupBoxesIntoLineRects/appendLineRects pass updateVilnaOverlay uses for
-  // #vilnaActiveOverlay -- #scanWordOverlay's own .scan-word-box elements
-  // stay pure click targets (tap a word to jump the video there), the same
-  // split as .vilna-phrase-box vs .vilna-active-rect. scanPageMap is a
-  // stable { wordBoxes } wrapper around scanWordBoxes so pageLinePitch's
-  // WeakMap cache actually hits across repaints, instead of every call
-  // building a fresh object that can never be found again.
+  // #vilnaActiveOverlay -- #scanWordOverlay's own .scan-phrase-box elements
+  // stay pure click targets (tap a phrase to jump the video to its start),
+  // the same split as .vilna-phrase-box vs .vilna-active-rect, and grouped
+  // by segment the same way renderVilnaWordBoxes groups .vilna-phrase-box --
+  // see renderScanMatch. scanPageMap is a stable { wordBoxes } wrapper
+  // around scanWordBoxes so pageLinePitch's WeakMap cache actually hits
+  // across repaints, instead of every call building a fresh object that can
+  // never be found again.
   scanOverlayKey: '',
   scanWordBoxes: null,
   scanPageMap: null,
@@ -3395,7 +3397,7 @@ async function showScanResult(result) {
 // if it isn't already loaded, and rebuilds the tap-to-seek word overlay from
 // the given wordBoxes.
 async function renderScanMatch(ref, wordBoxes, hintSuffix = '') {
-  $('scanResultHint').textContent = `Recognized ${ref} — tap any word to jump the video there. Pinch or scroll to zoom in.${hintSuffix}`;
+  $('scanResultHint').textContent = `Recognized ${ref} — tap a phrase to jump the video there. Pinch or scroll to zoom in.${hintSuffix}`;
 
   // A page was just identified -- this is the first point the video player
   // has anything useful to show, so reveal it now (see the ?view=scan
@@ -3426,20 +3428,71 @@ async function renderScanMatch(ref, wordBoxes, hintSuffix = '') {
   state.scanWordBoxes = normalizedWordBoxes;
   state.scanPageMap = { wordBoxes: normalizedWordBoxes };
   state.scanOverlayKey = '';
-  for (const box of normalizedWordBoxes) {
-    const el = document.createElement('div');
-    el.className = 'scan-word-box';
-    el.style.left = `${box.x * 100}%`;
-    el.style.top = `${box.y * 100}%`;
-    el.style.width = `${box.w * 100}%`;
-    el.style.height = `${box.h * 100}%`;
-    el.tabIndex = 0;
-    el.setAttribute('role', 'button');
-    el.addEventListener('click', () => {
-      hapticTap();
-      tapScannedWord(box.ref, box.wordIndex);
+
+  // One clickable region per PHRASE (segment), not per word -- the exact
+  // same renderVilnaWordBoxes/groupBoxesIntoLineRects pass the Vilna page
+  // uses for .vilna-phrase-box, and for the same reason: reported directly
+  // as "the daf scan should have the same box per phrase as all the other
+  // daf views." A word-sized box here was ALSO the old .vilna-word-box
+  // mistake this app already found and fixed once -- deliberately oversized
+  // for easier tapping, which routinely bled into the line above or below
+  // and stole taps meant for a neighboring word. A phrase's own line-shaped
+  // hit-region has no such padding to overlap with.
+  //
+  // By this point state.dafRef === ref is guaranteed (the loadDaf call
+  // above either found it already loaded or just loaded it), so
+  // state.segments is whichever alignment actually covers this scanned
+  // page -- no video-free fallback is needed the way the Daf browser's
+  // effectiveVilnaSegments() needs one, since a scan always has a daf (and
+  // therefore a segments array, even if empty) behind it by now. A word
+  // with no segment covering it at all is simply not a click target here,
+  // same as on the Vilna page -- there is nothing to seek it to.
+  //
+  // inkBands is null: a scanned photo has no rendered canvas of its own to
+  // measure real ink bands from (these boxes come from server-side OCR on
+  // the photo), so this uses groupBoxesIntoLineRects's estimated-height
+  // fallback, the same one updateVideoOverlay already relies on when the
+  // Vilna canvas isn't visible.
+  const spans = new Map(); // spanKey -> segment, deduped like renderVilnaWordBoxes
+  state.segments.forEach((segment) => {
+    const spanKey = `${segment.ref}:${segment.w0}:${segment.w1}`;
+    if (!spans.has(spanKey)) spans.set(spanKey, segment);
+  });
+  for (const segment of spans.values()) {
+    const hasRange = segment.w0 !== null && segment.w1 !== null;
+    const boxes = normalizedWordBoxes
+      .filter((box) => box.ref === segment.ref
+        && (!hasRange || (box.wordIndex >= segment.w0 && box.wordIndex <= segment.w1)))
+      .sort((a, b) => a.wordIndex - b.wordIndex);
+    if (!boxes.length) continue;
+
+    const els = groupBoxesIntoLineRects(boxes, state.scanPageMap, null).map((rect) => {
+      const el = document.createElement('div');
+      el.className = 'scan-phrase-box';
+      el.style.left = `${rect.left * 100}%`;
+      el.style.top = `${rect.top * 100}%`;
+      el.style.width = `${rect.width * 100}%`;
+      el.style.height = `${rect.height * 100}%`;
+      el.tabIndex = 0;
+      el.setAttribute('role', 'button');
+      overlay.appendChild(el);
+      return el;
     });
-    overlay.appendChild(el);
+    // A phrase spanning several printed lines is several rect elements --
+    // hovering any one of them highlights all of them together, and any of
+    // them is an equally valid click target for the same phrase.
+    const wordIndex = segment.w0 ?? 0;
+    const onEnter = () => { for (const el of els) el.classList.add('phrase-hover'); };
+    const onLeave = () => { for (const el of els) el.classList.remove('phrase-hover'); };
+    const onClick = () => {
+      hapticTap();
+      tapScannedWord(segment.ref, wordIndex);
+    };
+    for (const el of els) {
+      el.addEventListener('pointerenter', onEnter);
+      el.addEventListener('pointerleave', onLeave);
+      el.addEventListener('click', onClick);
+    }
   }
   updateScanOverlay(getCurrentTime());
 }
