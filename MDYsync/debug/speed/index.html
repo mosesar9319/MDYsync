@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DafSync — speed control diagnostic</title>
+<!--
+  A throwaway diagnostic page, not part of the site. Nothing links to it.
+
+  The player's speed control has been reported broken five times from an
+  Android phone. Four fixes went in, each for a real defect, and none was the
+  one being reported. The reason they kept missing is written down here so it
+  is not repeated: headless Chromium DOES NOT RENDER NATIVE <select> POPUPS AT
+  ALL, so every automated check of "the menu opens" was measuring a proxy --
+  focus landing on the element, or showPicker() being called -- and a proxy
+  cannot tell you whether a menu actually appeared on a real phone.
+
+  The reporter's last answer was that the pill highlights when tapped (so the
+  tap reaches the select and focuses it) but no menu opens. This page splits
+  the possible causes apart so one run on the actual device says which it is,
+  rather than another round of guessing:
+
+    A  a bare <select>, no styling of ours whatsoever
+    B  the same <select> with the player's own .pc-speed styling
+    C  the same again inside a replica of the player's control bar, including
+       the .player-wake-layer that sits over it
+    D  showPicker() called directly
+
+  Read the results as: A fails      -> nothing to do with DafSync's code
+                      A ok, B fails -> our CSS (appearance:none et al)
+                      B ok, C fails -> our layout/overlay/stacking
+                      C ok, D fails -> showPicker specifically
+-->
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 16px; background: #0b1420; color: #e8eef6;
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  h1 { font-size: 19px; margin: 0 0 4px; }
+  p.lede { margin: 0 0 18px; color: #9fb2c8; font-size: 14px; }
+  section { border: 1px solid #24384f; border-radius: 12px; padding: 14px; margin: 0 0 14px; background: #0f1c2b; }
+  h2 { font-size: 15px; margin: 0 0 10px; }
+  .ask { color: #f0c674; font-size: 13px; margin: 10px 0 0; }
+  dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; font-size: 13px; }
+  dt { color: #9fb2c8; }
+  dd { margin: 0; word-break: break-word; }
+  #log { font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap;
+         background: #071019; border: 1px solid #24384f; border-radius: 8px; padding: 10px;
+         min-height: 90px; max-height: 260px; overflow: auto; }
+  button.util { font: inherit; font-size: 13px; padding: 8px 12px; border-radius: 8px;
+                border: 1px solid #24384f; background: #16283b; color: inherit; }
+
+  /* A: nothing of ours at all. */
+
+  /* B: copied verbatim from styles.css so this measures the real rules. */
+  .pc-speed { position: relative; display: inline-flex; align-items: stretch; height: 30px; padding: 0; border: 1px solid rgba(255,255,255,.25); border-radius: 8px; background: rgba(255,255,255,.1); color: rgba(255,255,255,.92); }
+  .pc-speed select { appearance: none; -webkit-appearance: none; width: auto; min-width: 0; height: 100%; padding: 0 17px 0 8px; border: 0; background: none; color: inherit; font: inherit; font-size: 14px; font-weight: 700; line-height: 1; cursor: pointer; }
+  .pc-speed select:focus { outline: none; box-shadow: none; }
+  .pc-speed select:focus-visible { outline: 2px solid #dcac52; outline-offset: 1px; }
+  .pc-speed select option { background: #0d1b2c; color: #fff; }
+  .pc-speed::after { content: '▾'; position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font-size: 10px; line-height: 1; opacity: .75; pointer-events: none; }
+
+  /* C: the frame, the bar and the wake layer, at the real z-indexes. */
+  .video-frame { --pc-bar-h: 44px; position: relative; background: #020812; overflow: hidden;
+                 border-radius: 15px; aspect-ratio: 16/9; border: 1px solid #24384f; }
+  .player-controls { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; height: var(--pc-bar-h);
+                     display: flex; align-items: center; gap: 10px; padding: 0 12px;
+                     background: rgba(6,15,26,.93); border-top: 1px solid rgba(255,255,255,.07);
+                     backdrop-filter: blur(12px); }
+  .player-wake-layer { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+</style>
+</head>
+<body>
+
+<h1>Speed control diagnostic</h1>
+<p class="lede">Tap each control below and note whether a list of speeds actually appears. Then screenshot this whole page (including the log at the bottom) and send it back.</p>
+
+<section>
+  <h2>This device</h2>
+  <dl>
+    <dt>Browser</dt><dd id="ua">—</dd>
+    <dt>showPicker on &lt;select&gt;</dt><dd id="picker">—</dd>
+    <dt>Touch points</dt><dd id="touch">—</dd>
+    <dt>Viewport</dt><dd id="vp">—</dd>
+  </dl>
+</section>
+
+<section>
+  <h2>A — a plain &lt;select&gt;, none of our styling</h2>
+  <select id="selA"><option>1x</option><option>1.25x</option><option>1.5x</option><option>1.75x</option><option>2x</option></select>
+  <p class="ask">Does a list of speeds appear?</p>
+</section>
+
+<section>
+  <h2>B — the same, with the player's pill styling</h2>
+  <div class="pc-speed"><select id="selB"><option>1x</option><option>1.25x</option><option>1.5x</option><option>1.75x</option><option>2x</option></select></div>
+  <p class="ask">Does a list of speeds appear?</p>
+</section>
+
+<section>
+  <h2>C — the same, inside a replica of the player's control bar</h2>
+  <div class="video-frame">
+    <div class="player-wake-layer"></div>
+    <div class="player-controls">
+      <div class="pc-speed"><select id="selC"><option>1x</option><option>1.25x</option><option>1.5x</option><option>1.75x</option><option>2x</option></select></div>
+    </div>
+  </div>
+  <p class="ask">Does a list of speeds appear?</p>
+</section>
+
+<section>
+  <h2>D — opened by script instead of by your tap</h2>
+  <button class="util" id="btnD">Open B's menu with showPicker()</button>
+  <p class="ask">Does a list of speeds appear?</p>
+</section>
+
+<section>
+  <h2>Event log</h2>
+  <div id="log">Tap something above…</div>
+  <p><button class="util" id="clear">Clear</button></p>
+</section>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  $('ua').textContent = navigator.userAgent;
+  $('picker').textContent = typeof HTMLSelectElement.prototype.showPicker === 'function'
+    ? 'supported' : 'NOT SUPPORTED';
+  $('touch').textContent = String(navigator.maxTouchPoints);
+  $('vp').textContent = `${innerWidth}x${innerHeight} @${devicePixelRatio}`;
+
+  const log = $('log');
+  let lines = [];
+  const write = (text) => {
+    lines.push(text);
+    if (lines.length > 40) lines = lines.slice(-40);
+    log.textContent = lines.join('\n');
+    log.scrollTop = log.scrollHeight;
+  };
+  $('clear').addEventListener('click', () => { lines = []; log.textContent = 'cleared'; });
+
+  // Logged from the BUBBLE phase at the document, so anything that called
+  // preventDefault on the way up has already done so and shows here -- that
+  // is the single most likely reason a picker refuses to open on touch.
+  for (const type of ['pointerdown', 'touchstart', 'mousedown', 'click']) {
+    document.addEventListener(type, (event) => {
+      const t = event.target;
+      const name = t.tagName + (t.id ? '#' + t.id : '');
+      // Only annotate the interesting case, so each entry stays on one line
+      // on a phone and anything prevented stands out in a screenshot.
+      write(`${type.padEnd(11)} ${name}${event.defaultPrevented ? '   <-- PREVENTED' : ''}`);
+    });
+  }
+  for (const id of ['selA', 'selB', 'selC']) {
+    $(id).addEventListener('change', (e) => write(`change      ${id} = ${e.target.value}   <-- MENU WORKED`));
+  }
+
+  $('btnD').addEventListener('click', () => {
+    const sel = $('selB');
+    if (typeof sel.showPicker !== 'function') { write('showPicker   NOT SUPPORTED on this browser'); return; }
+    try { sel.showPicker(); write('showPicker  called, no error'); }
+    catch (err) { write(`showPicker  THREW ${err.name}: ${err.message}`); }
+  });
+
+  addEventListener('error', (e) => write(`PAGE ERROR   ${e.message}`));
+})();
+</script>
+</body>
+</html>
