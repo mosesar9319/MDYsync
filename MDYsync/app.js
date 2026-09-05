@@ -7224,23 +7224,75 @@ $('dafScroll').addEventListener('touchmove', markManualScroll, { passive: true }
 // there. Never hides mid-drag on the scrubber (state.seeking), while the
 // speed/quality gear is open (#videoSettings), or while Reading Mode's own
 // floating mini-player is being dragged/resized (#readingVideoFloat's
-// is-dragging/is-resizing) -- all four mean the reader's attention is on
-// the controls (or the player itself), not idly away from the video.
+// is-dragging/is-resizing) -- each means the reader's attention is on the
+// controls (or the player itself), not idly away from the video.
+// controlsShouldStayVisible below holds the full set; the two added to it
+// last (a mouse resting on the bar, and focus-visible inside it) are what
+// stop the bar disappearing out from under a reader mid-press, and carry
+// their own explanation there.
 const CONTROLS_AUTO_HIDE_MS = 2800;
 let controlsHideTimer = null;
+// True only while a MOUSE is resting somewhere on the bar or the timeline.
+// See the pointerover/pointerout listeners below for why touch never sets it.
+let pointerRestingOnControls = false;
+const CONTROLS_HOVER_SELECTOR = '.player-controls, .scrubber-wrap';
+
+// The bar used to fade out from under a pointer that was still sitting on it.
+// A stationary mouse generates no mousemove, and mousemove is the only thing
+// that re-armed the timeout -- so aiming at a control for longer than
+// CONTROLS_AUTO_HIDE_MS left .player-controls at opacity:0/pointer-events:none
+// with the reader's pointer parked right on top of it. The press then landed
+// on .player-wake-layer (which is pointer-events:auto exactly while the
+// controls are hidden) and did nothing but bring the bar back; the control
+// underneath never saw it.
+//
+// Reported three times over as "the 1x button does nothing." Every control
+// has the same dead first press, but the speed pill is where it actually
+// gets noticed: reading what the rate currently says is what costs the 2.8
+// seconds, and unlike a play or fullscreen button -- which the second press
+// then works, indistinguishably from the first having been slow -- a menu
+// that never opened reads unambiguously as a broken button. It also survived
+// two attempted fixes (#124's playbackRate resync, #126's hit area) because
+// both were about a bar that was on screen: neither could see a bar that had
+// already gone.
+//
+// The fade also killed the menu once it HAD opened. A native <select> popup
+// takes the pointer for as long as it is up, so no mousemove reaches the
+// page while the reader is choosing a speed; 2.8s later the bar hid and the
+// browser dismissed the popup out from under them. Focus stays on the select
+// the whole time its popup is open, which is what the focus guard covers --
+// :focus-visible rather than plain focus because Chrome leaves an ordinary
+// mouse-clicked <button> focused but NOT focus-visible, so guarding on bare
+// activeElement would pin the bar open for good after any click on it, while
+// a <select> (and anything reached by keyboard) is focus-visible and does
+// need the bar to stay.
+function controlsShouldStayVisible() {
+  const readingFloat = $('readingVideoFloat');
+  if ($('videoSettings')?.open || state.seeking
+      || readingFloat?.classList.contains('is-dragging')
+      || readingFloat?.classList.contains('is-resizing')) return true;
+  if (pointerRestingOnControls) return true;
+  const active = document.activeElement;
+  return !!(active && active.closest?.(CONTROLS_HOVER_SELECTOR) && active.matches(':focus-visible'));
+}
 
 function showVideoControls() {
   const frame = $('videoFrame');
   if (!frame) return;
   frame.classList.remove('controls-hidden');
   if (controlsHideTimer) clearTimeout(controlsHideTimer);
-  controlsHideTimer = setTimeout(() => {
-    const readingFloat = $('readingVideoFloat');
-    if ($('videoSettings')?.open || state.seeking
-        || readingFloat?.classList.contains('is-dragging')
-        || readingFloat?.classList.contains('is-resizing')) return;
+  // Re-arm rather than abandon the timer while something is holding the bar
+  // open. Every one of those conditions ends without necessarily producing
+  // another mousemove over the frame -- closing the gear menu, finishing a
+  // scrub, dismissing the speed menu, moving off the bar and out of the
+  // window -- and simply returning left the bar docked until one happened to
+  // come along, which on a YouTube shiur (whose iframe swallows them) could
+  // be never.
+  const tick = () => {
+    if (controlsShouldStayVisible()) { controlsHideTimer = setTimeout(tick, CONTROLS_AUTO_HIDE_MS); return; }
     frame.classList.add('controls-hidden');
-  }, CONTROLS_AUTO_HIDE_MS);
+  };
+  controlsHideTimer = setTimeout(tick, CONTROLS_AUTO_HIDE_MS);
 }
 
 (() => {
@@ -7249,6 +7301,24 @@ function showVideoControls() {
   frame.addEventListener('mousemove', showVideoControls);
   frame.addEventListener('mouseenter', showVideoControls);
   frame.addEventListener('touchstart', showVideoControls, { passive: true });
+  // Delegated on the frame (which is in every page's markup) rather than
+  // bound to .player-controls itself, because player-chrome.js builds that
+  // bar from a separate deferred script and may not have run yet. pointerover
+  // fires on each element the pointer crosses, so moving between controls
+  // keeps this true and moving onto the video clears it.
+  //
+  // Mouse only: on a touchscreen the hover/pointerover state sticks wherever
+  // the last tap landed, so honouring touch here would pin the bar open for
+  // good after any tap on it. Touch keeps the unchanged timeout behaviour --
+  // it has no resting pointer to be robbed of a press in the first place.
+  frame.addEventListener('pointerover', (event) => {
+    if (event.pointerType !== 'mouse') return;
+    pointerRestingOnControls = !!event.target?.closest?.(CONTROLS_HOVER_SELECTOR);
+  });
+  frame.addEventListener('pointerout', (event) => {
+    if (event.pointerType !== 'mouse') return;
+    if (!event.relatedTarget || !frame.contains(event.relatedTarget)) pointerRestingOnControls = false;
+  });
 })();
 
 function handleScrubInput(event) {

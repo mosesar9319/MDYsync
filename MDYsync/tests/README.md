@@ -55,6 +55,7 @@ belongs in SQL, not here.
 | `tests/chaburah/summary.spec.mjs` | Generated summaries and related discussions: labelling, citations, withdrawn points, catch-up, and every failure path leaving the thread readable |
 | `tests/functions/chabura-summary.test.mjs` | What the summary function lets reach a model, and when it generates at all — run with `npm run test:functions`, for the same reason as the link-preview tests |
 | `tests/notes/select-text.spec.mjs` | Reading order, multi-ref selection runs, saved `word_ranges` payload |
+| `tests/player/controls-autohide.spec.mjs` | The player's control bar auto-hide, from the reader's side: it must not fade out from under a pointer resting on it (which swallowed the press and was reported three times as "the 1x button does nothing"), must not fade behind an open speed menu, must still hide once the pointer leaves, and must not be pinned open by a touch |
 | `tests/player/speed.spec.mjs` | The video player's playback-speed control: its whole pill is pressable (hit-tested per point, chevron included — the rest of this file drives the `<select>` programmatically and so cannot see an unpressable control), and the chosen rate survives a new video/daf load instead of `HTMLMediaElement.load()`'s silent reset to 1x going unnoticed |
 | `tests/player/scan-highlight.spec.mjs` | DafScan's "word being spoken right now" highlight is a merged blue bar (matching the Vilna page and video overlay), not the old per-word yellow box; its click-to-jump targets are one region per phrase (matching the Vilna page's own click regions), not one oversized box per word |
 
@@ -126,6 +127,14 @@ update, delete and rpc the page issued.
   measure zero and pass regardless. `readTestQueries(page)` returns the reads the
   stub actually served, which is the only way a "no N+1" assertion means
   anything.
+- **A scripted interaction cannot see a control that has become unreachable.**
+  `selectOption`, `.click()` on a locator, and setting `.value` all act on the
+  element directly: they neither wait where a reader waits nor hit-test where a
+  reader presses. The player's control bar auto-hides on a timer, so a control
+  can be gone by the time anyone actually presses it -- a defect a whole spec
+  file for that control stayed green through twice. When the question is "can a
+  reader work this?", drive `page.mouse` at real coordinates, wait the real
+  delay, and assert on `document.elementFromPoint` / `document.activeElement`.
 - **Never assert authorization here.** The stub answers every query as a trusted
   caller. A spec that "proves" a private thread is hidden is proving nothing --
   remove the row from the fixture to model what RLS returns, and put the real
