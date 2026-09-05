@@ -787,9 +787,47 @@
   wakeLayer.className = 'player-wake-layer';
   wakeLayer.setAttribute('aria-hidden', 'true');
   frame.appendChild(wakeLayer);
+  let wokenByPressOn = null;
   for (const type of ['mousemove', 'pointerdown', 'touchstart']) {
-    wakeLayer.addEventListener(type, () => showVideoControls(), { passive: true });
+    wakeLayer.addEventListener(type, (event) => {
+      if (event.type === 'pointerdown') wokenByPressOn = event;
+      showVideoControls();
+    }, { passive: true });
   }
+
+  // ...and this is what that costs the speed control, which is the one thing
+  // in the bar that does NOT activate on the click.
+  //
+  // A native <select> opens its picker on POINTERDOWN. While the controls are
+  // hidden that pointerdown belongs to the layer above, where it is spent
+  // bringing the bar back; only the click that follows lands on the select,
+  // by which time the bar is hit-testable again. So the select takes focus
+  // and no menu ever opens. Every button in the bar is unaffected -- they
+  // activate on that same click -- which is why the speed pill alone looked
+  // broken. Traced on an emulated phone as, in order:
+  //     pointerdown -> DIV.player-wake-layer
+  //     touchstart  -> DIV.player-wake-layer
+  //     click       -> SELECT#speedSelect
+  //
+  // It bites hardest on a phone, where there is no hover to hold the bar open
+  // and so nearly every press arrives this way once the bar has faded --
+  // reported as "most times I press it, nothing happens at all."
+  //
+  // showPicker() is the only way to open that menu from script. It needs
+  // transient user activation, which a click handler has and a touchstart
+  // handler does not, so the recovery belongs here rather than on the press
+  // itself. Guarded on the press having actually gone to the wake layer, so
+  // a press that did reach the select is left alone: the browser has already
+  // opened the picker and calling showPicker again would toggle it shut.
+  const wakeSpeedSelect = $('speedSelect');
+  wakeSpeedSelect?.addEventListener('click', (event) => {
+    const woken = wokenByPressOn;
+    wokenByPressOn = null;
+    if (!woken || typeof wakeSpeedSelect.showPicker !== 'function') return;
+    // Same interaction, not a stale press from an earlier one.
+    if (event.pointerId != null && woken.pointerId != null && event.pointerId !== woken.pointerId) return;
+    try { wakeSpeedSelect.showPicker(); } catch { /* no activation, or unsupported */ }
+  });
 
   if (video) {
     video.addEventListener('durationchange', refreshChapterMarkers);

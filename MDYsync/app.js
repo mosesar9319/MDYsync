@@ -7273,7 +7273,18 @@ function controlsShouldStayVisible() {
       || readingFloat?.classList.contains('is-resizing')) return true;
   if (pointerRestingOnControls) return true;
   const active = document.activeElement;
-  return !!(active && active.closest?.(CONTROLS_HOVER_SELECTOR) && active.matches(':focus-visible'));
+  if (!active || !active.closest?.(CONTROLS_HOVER_SELECTOR)) return false;
+  // A <select> holds the bar open on PLAIN focus, not focus-visible. Its
+  // menu is a native picker that the browser closes the moment the element
+  // behind it goes opacity:0/pointer-events:none, and on touch Chrome does
+  // not necessarily mark a tapped control focus-visible -- so the
+  // focus-visible test alone let the bar hide out from under an open picker.
+  // Reported as the menu "popping up for a split second and vanishing before
+  // I can even see what it was": the hide was already most of the way
+  // through its 2.8s when the press that opened the picker arrived, because
+  // an earlier tap is what started that clock.
+  if (active.tagName === 'SELECT') return true;
+  return active.matches(':focus-visible');
 }
 
 function showVideoControls() {
