@@ -225,21 +225,203 @@
   volume.appendChild($('volumeSlider'));
 
   // Speed comes out from behind the gear and into the bar as its own labelled
-  // control, the way the mockup shows it. It's still the same <select> app.js
-  // listens to, so nothing about setting the rate changes -- a native select
-  // also keeps the whole thing keyboard- and screen-reader-navigable for free.
-  // Never an overflow candidate below (see OVERFLOW_PRIORITY) -- it's already
-  // the narrowest control .pc-tools has, so there's nothing to gain by
-  // hiding it that isn't better spent moving something wider first.
+  // control, the way the mockup shows it. Never an overflow candidate below
+  // (see OVERFLOW_PRIORITY) -- it's already the narrowest control .pc-tools
+  // has, so there's nothing to gain by hiding it that isn't better spent
+  // moving something wider first.
+  //
+  // #speedSelect is a plain <button>, not a <select> -- deliberately, after
+  // "the 1x button does nothing" being reported again and again, each time traced to a
+  // real defect in getting a press through to a NATIVE <select>'s own
+  // picker: the hit area (#126), the control bar fading out from under a
+  // resting pointer (#127), the picker opening on pointerdown rather than
+  // click on touch (#128). Every one of those held up in this repo's own
+  // tests and in a real Chromium build. The picker still would not reliably
+  // open on the reporting user's own Android phone after all three, and no
+  // automated check anywhere can see whether a native popup actually
+  // appeared -- headless Chromium does not render one at all -- so there was
+  // no way to keep chasing this that this repo's tests could ever confirm.
+  //
+  // This is not a <select> wrapped or patched: it is a button plus a listbox
+  // this file draws, positions and owns outright (openSpeedMenu/
+  // closeSpeedMenu below), the same way the daf and "More" menus above and
+  // the tools overflow tray below already are. There is no browser popup
+  // left to fail to open, no pointerdown-vs-click quirk to chase, and no
+  // separate wrapper-vs-inner-control sizing to get wrong (#126's whole bug
+  // class) -- the visible pill and the clickable element are the same node.
+  //
+  // The external contract #speedSelect has always had is unchanged: a
+  // `.value` string and a real, bubbling 'change' event. Every <button> has
+  // its own native .value property (seeded here from the value="1" HTML
+  // attribute), so app.js's three reads of $('speedSelect').value and its
+  // one 'change' listener needed no changes at all -- only what backs that
+  // id is different.
   let speedStack = null;
-  const speedSelect = $('speedSelect');
-  if (speedSelect) {
-    const speedWrap = document.createElement('div');
-    speedWrap.className = 'pc-speed';
-    speedWrap.appendChild(speedSelect);
-    speedStack = stack(speedWrap, 'Speed');
+  const speedButton = $('speedSelect');
+  if (speedButton) {
+    speedStack = stack(speedButton, 'Speed');
     tools.appendChild(speedStack);
     $('videoSettings')?.querySelector('.speed-control')?.remove();
+
+    const SPEED_RATES = [
+      { value: '0.75', label: '0.75\u00d7' },
+      { value: '1', label: '1\u00d7' },
+      { value: '1.25', label: '1.25\u00d7' },
+      { value: '1.5', label: '1.5\u00d7' },
+      { value: '2', label: '2\u00d7' },
+    ];
+    // speedButton.querySelector(...), not $('speedSelectValue') --
+    // deliberately. #speedSelect (and the whole `tools` group it's built
+    // into) is still a DETACHED in-memory subtree at this point, not yet
+    // inserted into the document -- see "controls.replaceChildren(transport,
+    // volume, tools)" much further down, which is what finally attaches it.
+    // A global $() / getElementById lookup only ever searches the connected
+    // document, so calling it here would silently and permanently close
+    // over null: the button's own outerHTML would show the span sitting
+    // right there the whole time, while document.getElementById(its id)
+    // returned nothing, for as long as the subtree stayed detached. Querying
+    // FROM the button works on a detached subtree exactly the same as a
+    // connected one, since it only walks the tree it's given rather than
+    // asking the document to find something in it.
+    const speedValueEl = speedButton.querySelector('.speed-select-value');
+    const speedMenu = document.createElement('ul');
+    speedMenu.className = 'speed-menu';
+    speedMenu.id = 'speedMenu';
+    speedMenu.setAttribute('role', 'listbox');
+    speedMenu.setAttribute('aria-label', 'Playback speed');
+    speedMenu.tabIndex = -1;
+    speedMenu.hidden = true;
+    // Portaled to <body>, exactly like .pc-tools-menu below and for the
+    // identical reason: a descendant of .player-controls can't out-rank
+    // .scrubber-wrap's z-index no matter how high it's set, and
+    // .video-frame's own overflow:hidden would clip it outright in the
+    // reading-mode mini player specifically.
+    document.body.appendChild(speedMenu);
+    speedButton.setAttribute('aria-controls', 'speedMenu');
+    // Clicking an option is a MOUSEDOWN-then-mouseup-then-click sequence, and
+    // mousedown's own default action is to focus the nearest focusable
+    // ancestor of whatever was pressed -- speedMenu itself, since it (not
+    // any one <li>) is what carries the tabindex. That default action is
+    // applied once the whole press finishes, AFTER every 'click' listener
+    // below has already run, so it silently overrode any focus this file
+    // set during the click: speedButton.focus() would visibly take effect
+    // (a real focusin fires) and then be undone a moment later by this same
+    // default action landing last. The fix ARIA APG gives for exactly this
+    // shape of listbox is this: suppress the default action at its source.
+    speedMenu.addEventListener('mousedown', (event) => event.preventDefault());
+
+    for (const rate of SPEED_RATES) {
+      const li = document.createElement('li');
+      li.setAttribute('role', 'option');
+      li.id = `speedOption-${rate.value}`;
+      li.dataset.value = rate.value;
+      li.setAttribute('aria-selected', 'false');
+      li.textContent = rate.label;
+      // click, not pointerdown/touchstart -- exactly the event every other
+      // control in this bar already activates on, and the one event a plain
+      // DOM element (no native popup involved) has never had a problem
+      // receiving on any device this bug was reported from.
+      li.addEventListener('click', () => { selectSpeed(rate.value, { fireChange: true }); speedButton.focus({ preventScroll: true }); closeSpeedMenu(); });
+      speedMenu.appendChild(li);
+    }
+
+    // Sets the button's OWN value/label and the listbox's aria-selected
+    // state together, so the two can never show a different rate from one
+    // another. fireChange is false for the initial sync below (nothing has
+    // actually changed yet) and true for every user pick.
+    function selectSpeed(value, { fireChange = false } = {}) {
+      const rate = SPEED_RATES.find((r) => r.value === value) || SPEED_RATES[1];
+      speedButton.value = rate.value;
+      if (speedValueEl) speedValueEl.textContent = rate.label;
+      // A direct aria-label, not aria-labelledby pointing at the fallback
+      // location's own "Speed" caption -- that caption is a sibling of the
+      // button inside .speed-control, and only the BUTTON moves into the
+      // bar (stack() above); the leftover wrapper (caption included) is
+      // what $('videoSettings')?.querySelector('.speed-control')?.remove()
+      // cleans up a few lines up, which would have left aria-labelledby
+      // pointing at a dead id. Every other control in this bar (PiP,
+      // Captions, Settings, Fullscreen) already gives itself its own
+      // aria-label rather than relying on an external element for exactly
+      // this reason -- this one includes the current rate in it, the way a
+      // native <select> announces its own selected option.
+      speedButton.setAttribute('aria-label', `Playback speed, ${rate.label}`);
+      for (const li of speedMenu.children) li.setAttribute('aria-selected', String(li.dataset.value === rate.value));
+      if (fireChange) speedButton.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    selectSpeed(speedButton.value);
+
+    // aria-activedescendant, not per-option tabindex: focus stays on the
+    // listbox itself while arrow keys move a highlighted option, the
+    // "Collapsible Dropdown Listbox" shape the ARIA APG describes for a
+    // select replacement. Simpler to get right than juggling roving
+    // tabindex across five <li>s, and works identically for a tap, which
+    // never depended on any of this in the first place.
+    function activeOption() {
+      const id = speedMenu.getAttribute('aria-activedescendant');
+      return id ? speedMenu.querySelector(`#${CSS.escape(id)}`) : null;
+    }
+    function setActiveOption(li) {
+      if (!li) return;
+      speedMenu.setAttribute('aria-activedescendant', li.id);
+      for (const opt of speedMenu.children) opt.classList.toggle('is-active', opt === li);
+    }
+    // Anchored from the button's own live screen position, opening UPWARD
+    // (bottom-anchored) and left-aligned to it -- this bar sits at the very
+    // bottom of the frame with nothing under it, the same placement
+    // positionToolsMenu below uses for the same reason.
+    function positionSpeedMenu() {
+      const r = speedButton.getBoundingClientRect();
+      speedMenu.style.position = 'fixed';
+      speedMenu.style.left = `${Math.max(8, r.left)}px`;
+      speedMenu.style.bottom = `${Math.max(8, window.innerHeight - r.top + 8)}px`;
+    }
+    function openSpeedMenu() {
+      positionSpeedMenu();
+      speedMenu.hidden = false;
+      speedButton.setAttribute('aria-expanded', 'true');
+      setActiveOption(speedMenu.querySelector(`[data-value="${CSS.escape(speedButton.value)}"]`) || speedMenu.firstElementChild);
+      // preventScroll: this is already on screen (a fixed-position element
+      // inside the viewport) -- nothing here should cause the page itself to
+      // jump just because a listbox took focus.
+      speedMenu.focus({ preventScroll: true });
+    }
+    function closeSpeedMenu() {
+      speedMenu.hidden = true;
+      speedButton.setAttribute('aria-expanded', 'false');
+    }
+    speedButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (speedMenu.hidden) openSpeedMenu(); else closeSpeedMenu();
+    });
+    speedMenu.addEventListener('keydown', (event) => {
+      const items = [...speedMenu.children];
+      const idx = items.indexOf(activeOption());
+      if (event.key === 'ArrowDown') { event.preventDefault(); setActiveOption(items[Math.min(items.length - 1, idx + 1)]); }
+      else if (event.key === 'ArrowUp') { event.preventDefault(); setActiveOption(items[Math.max(0, idx - 1)]); }
+      else if (event.key === 'Home') { event.preventDefault(); setActiveOption(items[0]); }
+      else if (event.key === 'End') { event.preventDefault(); setActiveOption(items[items.length - 1]); }
+      else if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        const li = activeOption();
+        if (li) { selectSpeed(li.dataset.value, { fireChange: true }); speedButton.focus({ preventScroll: true }); closeSpeedMenu(); }
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        closeSpeedMenu();
+        speedButton.focus({ preventScroll: true });
+      } else if (event.key === 'Tab') {
+        closeSpeedMenu();
+      }
+    });
+    document.addEventListener('click', (event) => {
+      if (speedMenu.hidden || speedMenu.contains(event.target) || speedButton.contains(event.target)) return;
+      closeSpeedMenu();
+    });
+    // A safety net, not the primary close path (openSpeedMenu moves focus
+    // INTO the listbox, so its own keydown handler above is what normally
+    // handles Escape) -- matching closeToolsMenu's identical document-level
+    // listener below, for the same "focus ended up somewhere else" case.
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !speedMenu.hidden) closeSpeedMenu(); });
+    window.addEventListener('resize', () => { if (!speedMenu.hidden) positionSpeedMenu(); });
   }
   const captionsStack = $('captionsButton') ? stack($('captionsButton'), 'Captions', 'captionsStack') : null;
   if (captionsStack) tools.appendChild(captionsStack);
@@ -721,6 +903,28 @@
   function fitChrome() {
     controlsObserver.disconnect();
 
+    // tools.append(...TOOLS_ORDER) two lines down always re-inserts every
+    // candidate, even ones already exactly where they belong -- that's how
+    // it recovers a control a previous, narrower pass stranded in the
+    // overflow menu. Per the DOM's own definition, re-appending a node to
+    // the parent it's ALREADY in is still "remove, then insert" -- and
+    // Chromium blurs a focused element that gets moved that way, even back
+    // to the same spot. Reported as the speed control's own listbox losing
+    // its reader's focus a moment after they picked a rate: setting that
+    // rate changes the button's visible label ("1x" -> "1.5x"), a childList
+    // mutation on a descendant of .player-controls that controlsObserver
+    // (subtree: true) reacts to precisely because it's supposed to --
+    // MutationObserver callbacks run as a microtask, so this fires AFTER
+    // the click handler that focused the button has already returned, by
+    // which point nothing in that handler is still around to notice its own
+    // focus() call being undone. Saved and restored around the reorder
+    // rather than avoided: the recovery-from-overflow behaviour above
+    // depends on genuinely re-inserting every candidate, and any other
+    // control gaining focus-losing side effects here in the future would
+    // hit the exact same thing.
+    const focusedBefore = document.activeElement;
+    const shouldRestoreFocus = focusedBefore && focusedBefore !== document.body && controls.contains(focusedBefore);
+
     // Put every candidate back in its normal spot before re-measuring, so a
     // resize that FREES UP room brings a control back rather than leaving it
     // stranded in the menu from a previous, narrower pass.
@@ -756,6 +960,8 @@
     // currently showing anything.
     if (fullscreenStack) tools.appendChild(fullscreenStack);
 
+    if (shouldRestoreFocus && document.activeElement !== focusedBefore) focusedBefore.focus({ preventScroll: true });
+
     controlsObserver.observe(controls, {
       subtree: true, childList: true, attributes: true, attributeFilter: ['hidden', 'style', 'class'],
     });
@@ -787,47 +993,16 @@
   wakeLayer.className = 'player-wake-layer';
   wakeLayer.setAttribute('aria-hidden', 'true');
   frame.appendChild(wakeLayer);
-  let wokenByPressOn = null;
   for (const type of ['mousemove', 'pointerdown', 'touchstart']) {
-    wakeLayer.addEventListener(type, (event) => {
-      if (event.type === 'pointerdown') wokenByPressOn = event;
-      showVideoControls();
-    }, { passive: true });
+    wakeLayer.addEventListener(type, () => showVideoControls(), { passive: true });
   }
-
-  // ...and this is what that costs the speed control, which is the one thing
-  // in the bar that does NOT activate on the click.
-  //
-  // A native <select> opens its picker on POINTERDOWN. While the controls are
-  // hidden that pointerdown belongs to the layer above, where it is spent
-  // bringing the bar back; only the click that follows lands on the select,
-  // by which time the bar is hit-testable again. So the select takes focus
-  // and no menu ever opens. Every button in the bar is unaffected -- they
-  // activate on that same click -- which is why the speed pill alone looked
-  // broken. Traced on an emulated phone as, in order:
-  //     pointerdown -> DIV.player-wake-layer
-  //     touchstart  -> DIV.player-wake-layer
-  //     click       -> SELECT#speedSelect
-  //
-  // It bites hardest on a phone, where there is no hover to hold the bar open
-  // and so nearly every press arrives this way once the bar has faded --
-  // reported as "most times I press it, nothing happens at all."
-  //
-  // showPicker() is the only way to open that menu from script. It needs
-  // transient user activation, which a click handler has and a touchstart
-  // handler does not, so the recovery belongs here rather than on the press
-  // itself. Guarded on the press having actually gone to the wake layer, so
-  // a press that did reach the select is left alone: the browser has already
-  // opened the picker and calling showPicker again would toggle it shut.
-  const wakeSpeedSelect = $('speedSelect');
-  wakeSpeedSelect?.addEventListener('click', (event) => {
-    const woken = wokenByPressOn;
-    wokenByPressOn = null;
-    if (!woken || typeof wakeSpeedSelect.showPicker !== 'function') return;
-    // Same interaction, not a stale press from an earlier one.
-    if (event.pointerId != null && woken.pointerId != null && event.pointerId !== woken.pointerId) return;
-    try { wakeSpeedSelect.showPicker(); } catch { /* no activation, or unsupported */ }
-  });
+  // A native <select>'s pointerdown-vs-click quirk used to make this layer
+  // swallow a press meant for the speed control specifically (every other
+  // control in the bar activates on click and was never affected) -- see
+  // the long comment above #speedSelect's own construction. Replacing that
+  // <select> outright with a plain button removed the quirk at its root, so
+  // there is nothing left for this layer to special-case for any one
+  // control.
 
   if (video) {
     video.addEventListener('durationchange', refreshChapterMarkers);

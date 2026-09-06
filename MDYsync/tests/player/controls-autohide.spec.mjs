@@ -5,23 +5,26 @@ import { preparePage } from '../support/harness.mjs';
 // CONTROLS_AUTO_HIDE_MS), and until this file nothing covered what that does
 // to a reader who is trying to press something on it.
 //
-// The bug these cover was reported three separate times as "the 1x button
-// does nothing", and survived two fixes aimed at the button itself, because
-// the button was never the problem. mousemove over the frame was the only
-// thing that re-armed the hide timeout, and a mouse RESTING on a control
-// generates no mousemove -- so aiming at one for longer than the timeout
-// faded .player-controls to opacity:0/pointer-events:none with the pointer
-// still parked on it. The press then landed on .player-wake-layer (live
-// exactly while the controls are hidden) and did nothing but bring the bar
-// back. Every control had the same dead first press; the speed pill is where
-// it got noticed, because reading what the rate currently says is what costs
-// the seconds, and a menu that never opens reads as a broken button in a way
-// a play button that "just needed another click" does not.
+// The bug these cover was reported again and again as "the 1x button
+// does nothing", and survived three fixes aimed at the button itself,
+// because the button was never the problem:
+//   #126 -- the pill's hit area (a wrapper bigger than the <select> it wrapped)
+//   #127 -- the bar itself fading out from under a pointer resting on it
+//   #128 -- a native <select> opening its picker on pointerdown, which the
+//           wake layer swallowed, rather than on the click that followed
+// Each held up in this repo's own tests and in a real Chromium build, and
+// none of them was what the reporter kept seeing on their own Android
+// phone. #speedSelect was replaced outright with a plain button and a
+// listbox this page draws itself (see its construction in player-chrome.js)
+// specifically because no automated check anywhere -- headless Chromium
+// does not render a native popup at all -- could ever have confirmed the
+// fourth attempt either.
 //
-// These drive a REAL pointer and a REAL press. The rest of speed.spec.mjs
-// drives the <select> programmatically, which is why a whole spec file for
-// this control could stay green through all of it: a scripted selectOption
-// neither waits nor hit-tests, so it cannot see a bar that has gone.
+// These drive a REAL pointer and a REAL press. speed.spec.mjs drives the
+// control programmatically (a scripted .click()), which is why a whole spec
+// file for this control could stay green through every one of those first
+// three reports: a scripted click neither waits nor hit-tests the way a
+// reader's own press does.
 
 const hideDelay = (page) => page.evaluate(() => CONTROLS_AUTO_HIDE_MS);
 const barHidden = (page) => page.evaluate(() => document.getElementById('videoFrame').classList.contains('controls-hidden'));
@@ -31,7 +34,10 @@ async function openPlayer(page) {
   await page.goto('/watch/?ref=Chullin%2089a');
   await expect(page.locator('#speedSelect')).toBeAttached();
   return page.evaluate(() => {
-    const r = document.getElementById('speedSelect').closest('.pc-speed').getBoundingClientRect();
+    // #speedSelect's own rect, not a wrapper's -- there is no separate
+    // wrapper any more (see speed.spec.mjs's "one element, not a pill
+    // around a smaller one").
+    const r = document.getElementById('speedSelect').getBoundingClientRect();
     return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
   });
 }
@@ -47,50 +53,49 @@ test.describe('Video player -- the control bar does not fade out from under a pr
     await page.mouse.move(pill.x, pill.y);
     await page.waitForTimeout(delay + 600);
 
-    // Before the fix the bar was hidden by now and the pill's own screen
+    // Before #127's fix the bar was hidden by now and the pill's own screen
     // position belonged to .player-wake-layer.
     expect(await barHidden(page)).toBe(false);
     await expect
       .poll(() => page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.id, pill))
       .toBe('speedSelect');
 
-    // And the press reaches the select rather than being spent waking the bar.
+    // And the press reaches the button rather than being spent waking the
+    // bar -- provably so, unlike the native <select> this replaced: a real
+    // click on a real button opens a real, scriptable listbox, so this can
+    // assert the menu actually opened rather than only that focus moved
+    // somewhere plausible.
     await page.mouse.down();
     await page.mouse.up();
-    expect(await page.evaluate(() => document.activeElement?.id)).toBe('speedSelect');
+    expect(await page.locator('#speedMenu').isHidden()).toBe(false);
+    expect(await page.locator('#speedSelect').getAttribute('aria-expanded')).toBe('true');
   });
 
   test('an open speed menu is not dismissed by the bar fading behind it', async ({ page }) => {
     const pill = await openPlayer(page);
     const delay = await hideDelay(page);
 
-    // A native <select> popup takes the pointer while it is up, so the page
-    // sees no mousemove for as long as the reader is choosing -- and the bar
-    // hiding underneath is what made the browser dismiss the popup mid-choice.
+    // Opening the menu sets #speedSelect's own aria-expanded="true", which
+    // controlsShouldStayVisible (app.js) checks directly -- unlike the old
+    // native <select>, there is no browser-owned popup here for the bar
+    // fading underneath to silently dismiss, but the menu still must not be
+    // stranded over a bar that has visually gone.
     await page.mouse.move(pill.x, pill.y);
     await page.mouse.down();
     await page.mouse.up();
-    expect(await page.evaluate(() => document.activeElement?.id)).toBe('speedSelect');
+    expect(await page.locator('#speedSelect').getAttribute('aria-expanded')).toBe('true');
 
-    // Move the pointer off the bar so the "pointer resting on it" guard is
-    // NOT what is being measured here -- this leaves focus alone to hold the
-    // bar open, which is the part that keeps an open popup alive. Chrome
-    // reports a mouse-clicked <select> as :focus-visible, unlike a
-    // mouse-clicked <button>, which is why the guard is focus-visible rather
-    // than bare activeElement: on the latter every click on the bar would
-    // pin it open for good. Assert that distinction here rather than trust it.
+    // Move the pointer off the bar entirely, so the "pointer resting on it"
+    // guard is NOT what is being measured here -- aria-expanded alone is.
     const away = await page.evaluate(() => {
       const r = document.getElementById('videoFrame').getBoundingClientRect();
       return { x: r.left + r.width / 2, y: r.top + 20 };
     });
     await page.mouse.move(away.x, away.y);
-    expect(await page.evaluate(() => {
-      const sel = document.getElementById('speedSelect');
-      return document.activeElement === sel && sel.matches(':focus-visible');
-    })).toBe(true);
 
     await page.waitForTimeout(delay + 600);
     expect(await barHidden(page)).toBe(false);
+    expect(await page.locator('#speedMenu').isHidden()).toBe(false);
   });
 
   test('the bar still auto-hides once the pointer is off it', async ({ page }) => {
@@ -138,46 +143,32 @@ test.describe('Video player -- the control bar does not fade out from under a pr
 });
 
 // The touch path, which had no coverage at all until the same bug was
-// reported a fifth time -- from an Android phone, where the two symptoms were
-// "most times nothing happens at all" and "sometimes something pops up for a
-// split second and vanishes before I can even see what it was."
+// reported a fifth time -- from an Android phone, where the two symptoms
+// were "most times nothing happens at all" and "sometimes something pops up
+// for a split second and vanishes before I can even see what it was." Both
+// came from a NATIVE <select>'s picker opening on pointerdown, which the
+// wake layer swallowed while the bar was hidden, and from the bar then
+// fading again out from under a picker that briefly did open.
 //
-// Both come from the bar having auto-hidden, and the speed control is the one
-// thing in the bar that does not survive it. A native <select> opens its
-// picker on POINTERDOWN; while the controls are hidden that pointerdown
-// belongs to .player-wake-layer, which spends it bringing the bar back, and
-// only the click that follows reaches the select. Traced in order:
-//     pointerdown -> DIV.player-wake-layer
-//     touchstart  -> DIV.player-wake-layer
-//     click       -> SELECT#speedSelect
-// The select ends up focused with no menu. Every button in the bar activates
-// on that same click and so was never affected -- which is exactly why the
-// speed pill alone kept getting reported.
-//
-// A phone has no hover to hold the bar open, so once it has faded nearly
-// every press arrives this way. That is the whole reason the previous fix,
-// which keeps the bar alive under a resting MOUSE, did nothing here.
+// #speedSelect is a plain <button> now, and a button activates on CLICK --
+// exactly what every other control in this bar already did, and exactly
+// what was never affected by any of this. The one thing worth proving here
+// is that a tap on the FADED bar wakes it and opens the menu in the SAME
+// gesture: pointerdown/touchstart reach .player-wake-layer first (which
+// removes .controls-hidden synchronously), and the click that follows is
+// hit-tested fresh against the now-visible, now-interactive button --
+// unlike a native picker, which only ever asked to open on the pointerdown
+// that the wake layer had already spent.
 test.describe('Video player -- the speed menu opens from a touch that also wakes the bar', () => {
   test.skip(({ hasTouch }) => !hasTouch, 'touch-only: the desktop project has no touchscreen');
-
-  // showPicker() opening a native menu is not observable from script, so
-  // count the call itself rather than assert on something invisible.
-  const countPickerCalls = (page) => page.evaluate(() => {
-    const sel = document.getElementById('speedSelect');
-    window.__pickerCalls = 0;
-    const real = sel.showPicker.bind(sel);
-    sel.showPicker = () => { window.__pickerCalls++; try { real(); } catch { /* headless */ } };
-  });
-  const pickerCalls = (page) => page.evaluate(() => window.__pickerCalls);
 
   async function openPlayerForTouch(page) {
     await preparePage(page, { user: null });
     await page.goto('/watch/?ref=Chullin%2089a');
     await expect(page.locator('#speedSelect')).toBeAttached();
-    await countPickerCalls(page);
     return page.evaluate(() => {
       const f = document.getElementById('videoFrame').getBoundingClientRect();
-      const r = document.getElementById('speedSelect').closest('.pc-speed').getBoundingClientRect();
+      const r = document.getElementById('speedSelect').getBoundingClientRect();
       return {
         video: { x: Math.round(r.left + r.width / 2), y: Math.round(f.top + (f.bottom - f.top) * 0.3) },
         pill: { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) },
@@ -185,7 +176,7 @@ test.describe('Video player -- the speed menu opens from a touch that also wakes
     });
   }
 
-  test('a tap on the faded bar opens the speed menu instead of only waking it', async ({ page }) => {
+  test('a tap on the faded bar wakes it and opens the menu in one gesture', async ({ page }) => {
     const geo = await openPlayerForTouch(page);
     const delay = await hideDelay(page);
 
@@ -198,8 +189,24 @@ test.describe('Video player -- the speed menu opens from a touch that also wakes
 
     await page.touchscreen.tap(geo.pill.x, geo.pill.y);
 
-    expect(await pickerCalls(page)).toBe(1);
-    expect(await page.evaluate(() => document.activeElement?.id)).toBe('speedSelect');
+    expect(await barHidden(page)).toBe(false);
+    expect(await page.locator('#speedMenu').isHidden()).toBe(false);
+    expect(await page.locator('#speedSelect').getAttribute('aria-expanded')).toBe('true');
+  });
+
+  test('choosing a rate from that same menu still applies it', async ({ page }) => {
+    const geo = await openPlayerForTouch(page);
+    const delay = await hideDelay(page);
+
+    await page.touchscreen.tap(geo.video.x, geo.video.y);
+    await page.waitForTimeout(delay + 600);
+    await page.touchscreen.tap(geo.pill.x, geo.pill.y);
+
+    await page.locator('#speedMenu li[data-value="1.5"]').tap();
+
+    expect(await page.locator('#speedMenu').isHidden()).toBe(true);
+    expect(await page.locator('#speedSelect').getAttribute('value')).toBe('1.5');
+    expect(await page.evaluate(() => document.getElementById('video').playbackRate)).toBe(1.5);
   });
 
   test('the bar does not fade back out from behind the open menu', async ({ page }) => {
@@ -209,34 +216,29 @@ test.describe('Video player -- the speed menu opens from a touch that also wakes
     await page.touchscreen.tap(geo.video.x, geo.video.y);
     await page.waitForTimeout(delay + 600);
     await page.touchscreen.tap(geo.pill.x, geo.pill.y);
+    expect(await page.locator('#speedMenu').isHidden()).toBe(false);
 
-    // A native picker takes the touch while it is up, so nothing re-arms the
-    // timeout while the reader is choosing. The bar hiding underneath is what
-    // the browser treats as reason to dismiss the picker.
-    //
-    // Honest caveat: this one passes with or without the guard it covers,
-    // because emulated Chromium reports a TAPPED <select> as :focus-visible
-    // and the older focus-visible test therefore already held the bar. It is
-    // here because that heuristic is not something to depend on -- Chrome
-    // does not promise focus-visible for pointer-initiated focus, the
-    // reporter saw the menu "pop up for a split second and vanish" on a real
-    // Android device, and a <select> is held open on plain focus now for
-    // that reason. Treat this as a guard on the rule, not a reproduction of
-    // the failure.
+    // aria-expanded, not focus-visible or any other heuristic about HOW the
+    // press arrived -- see controlsShouldStayVisible (app.js). Reported as
+    // the menu "popping up for a split second and vanishing before I can
+    // even see what it was" against the old native picker; that whole class
+    // of heuristic is gone along with the picker it existed to cover for.
     await page.waitForTimeout(delay + 600);
     expect(await barHidden(page)).toBe(false);
+    expect(await page.locator('#speedMenu').isHidden()).toBe(false);
   });
 
-  test('a tap the select receives directly is not toggled shut again', async ({ page }) => {
+  test('a tap that lands on the button while the bar is already up just toggles the menu once', async ({ page }) => {
     const geo = await openPlayerForTouch(page);
 
-    // Bar already up, so the pointerdown reaches the select and the browser
-    // opens the picker itself. Calling showPicker on the click after that
-    // would shut the menu the reader just opened.
     expect(await barHidden(page)).toBe(false);
     await page.touchscreen.tap(geo.pill.x, geo.pill.y);
+    expect(await page.locator('#speedMenu').isHidden()).toBe(false);
 
-    expect(await pickerCalls(page)).toBe(0);
-    expect(await page.evaluate(() => document.activeElement?.id)).toBe('speedSelect');
+    // A second tap on the button (not an option, not outside) closes it --
+    // ordinary toggle behaviour, the same as every other menu button in
+    // this bar (the daf picker, "More", the tools overflow tray).
+    await page.touchscreen.tap(geo.pill.x, geo.pill.y);
+    expect(await page.locator('#speedMenu').isHidden()).toBe(true);
   });
 });

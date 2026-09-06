@@ -55,8 +55,8 @@ belongs in SQL, not here.
 | `tests/chaburah/summary.spec.mjs` | Generated summaries and related discussions: labelling, citations, withdrawn points, catch-up, and every failure path leaving the thread readable |
 | `tests/functions/chabura-summary.test.mjs` | What the summary function lets reach a model, and when it generates at all — run with `npm run test:functions`, for the same reason as the link-preview tests |
 | `tests/notes/select-text.spec.mjs` | Reading order, multi-ref selection runs, saved `word_ranges` payload |
-| `tests/player/controls-autohide.spec.mjs` | The player's control bar auto-hide, from the reader's side: it must not fade out from under a pointer resting on it (which swallowed the press and was reported three times as "the 1x button does nothing"), must not fade behind an open speed menu, must still hide once the pointer leaves, and must not be pinned open by a touch. Also the touch path: a tap on a bar that has faded must still open the speed menu, not merely wake the bar -- a native `<select>` opens its picker on `pointerdown`, which `.player-wake-layer` swallows, and every button in the bar activates on the `click` that follows and so was never affected |
-| `tests/player/speed.spec.mjs` | The video player's playback-speed control: its whole pill is pressable (hit-tested per point, chevron included — the rest of this file drives the `<select>` programmatically and so cannot see an unpressable control), and the chosen rate survives a new video/daf load instead of `HTMLMediaElement.load()`'s silent reset to 1x going unnoticed |
+| `tests/player/controls-autohide.spec.mjs` | The player's control bar auto-hide, from the reader's side: it must not fade out from under a pointer resting on it, must not fade behind an open speed menu, must still hide once the pointer leaves, and must not be pinned open by a touch. Also the touch path: a tap on a bar that has faded must wake it and open the speed menu in the same gesture -- provable directly now that the menu is a plain listbox this page draws itself, not a native popup |
+| `tests/player/speed.spec.mjs` | The video player's playback-speed control -- a button plus a listbox (player-chrome.js), not a `<select>`, after "the 1x button does nothing" kept being reported against the native picker it replaced (PRs #126/#127/#128): opening/closing, choosing a rate (value, label, `aria-selected`, focus return), keyboard (arrows/Enter/Escape), reselecting the rate already shown (a native `<select>` fires no `change` for that -- this control always does), an accessible name that survives being moved into the bar, and that the chosen rate survives a new video/daf load instead of `HTMLMediaElement.load()`'s silent reset to 1x going unnoticed |
 | `tests/player/scan-highlight.spec.mjs` | DafScan's "word being spoken right now" highlight is a merged blue bar (matching the Vilna page and video overlay), not the old per-word yellow box; its click-to-jump targets are one region per phrase (matching the Vilna page's own click regions), not one oversized box per word |
 
 ## Writing a test
@@ -138,9 +138,19 @@ update, delete and rpc the page issued.
 - **Touch is a different code path, and the desktop project cannot see it.**
   `page.mouse` works in the mobile project too, so a "mobile" test can pass
   while the real touch path is broken -- there is no hover on a phone, and a
-  `<select>` opens its picker on `pointerdown` rather than on the click. Use
-  `page.touchscreen.tap` and gate the spec with
-  `test.skip(({ hasTouch }) => !hasTouch, ...)`.
+  native `<select>` opens its picker on `pointerdown` rather than on the
+  click (the reason `#speedSelect` isn't one any more -- see its
+  construction in `player-chrome.js`). Use `page.touchscreen.tap` and gate
+  the spec with `test.skip(({ hasTouch }) => !hasTouch, ...)`.
+- **Headless Chromium does not render native `<select>` / `<input type="...">`
+  popups at all.** A test that opens one and checks `document.activeElement`
+  or calls the browser's own `showPicker()` is measuring a proxy, not
+  whether a menu actually appeared -- confirmed the hard way, across four
+  separate fixes to the OLD native speed control that each passed every
+  check here and in a real Chromium build, and still didn't work on the
+  reporting user's own phone. A custom-drawn replacement (a plain element
+  plus a listbox the page owns, like `#speedSelect` now) sidesteps this
+  entirely: everything about it, popup included, is real, inspectable DOM.
 - **Never assert authorization here.** The stub answers every query as a trusted
   caller. A spec that "proves" a private thread is hidden is proving nothing --
   remove the row from the fixture to model what RLS returns, and put the real
