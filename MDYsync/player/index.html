@@ -1121,15 +1121,21 @@
               <details class="video-settings" id="videoSettings">
                 <summary aria-label="Video settings"></summary>
                 <div class="video-settings-body">
-                  <label class="speed-control">Speed
-                    <select id="speedSelect">
-                      <option value="0.75">0.75×</option>
-                      <option value="1" selected>1×</option>
-                      <option value="1.25">1.25×</option>
-                      <option value="1.5">1.5×</option>
-                      <option value="2">2×</option>
-                    </select>
-                  </label>
+                  <div class="speed-control">
+                    <span id="speedControlCaption">Speed</span>
+                    <!-- Not a <select> -- see the long comment in player-chrome.js
+                         on why a native picker was replaced outright after five
+                         separate "the 1x button does nothing" reports. value="1"
+                         seeds the button's own native .value property (every
+                         <button> has one, just as a <select> does), which is all
+                         app.js's three reads of $('speedSelect').value and its one
+                         'change' listener ever needed -- neither had to change. -->
+                    <button type="button" id="speedSelect" class="speed-select" value="1"
+                            aria-haspopup="listbox" aria-expanded="false"
+                            aria-label="Playback speed, 1×">
+                      <span class="speed-select-value" id="speedSelectValue">1×</span>
+                    </button>
+                  </div>
                   <label class="quality-control" id="qualityControl" hidden>Quality
                     <select id="qualitySelect"></select>
                   </label>

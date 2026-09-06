@@ -7226,10 +7226,11 @@ $('dafScroll').addEventListener('touchmove', markManualScroll, { passive: true }
 // floating mini-player is being dragged/resized (#readingVideoFloat's
 // is-dragging/is-resizing) -- each means the reader's attention is on the
 // controls (or the player itself), not idly away from the video.
-// controlsShouldStayVisible below holds the full set; the two added to it
-// last (a mouse resting on the bar, and focus-visible inside it) are what
-// stop the bar disappearing out from under a reader mid-press, and carry
-// their own explanation there.
+// controlsShouldStayVisible below holds the full set; a mouse resting on
+// the bar, focus-visible inside it, and the speed control's own listbox
+// being open are what stop the bar disappearing out from under a reader
+// mid-press or behind a menu they're still choosing from, and carry their
+// own explanation there.
 const CONTROLS_AUTO_HIDE_MS = 2800;
 let controlsHideTimer = null;
 // True only while a MOUSE is resting somewhere on the bar or the timeline.
@@ -7272,19 +7273,17 @@ function controlsShouldStayVisible() {
       || readingFloat?.classList.contains('is-dragging')
       || readingFloat?.classList.contains('is-resizing')) return true;
   if (pointerRestingOnControls) return true;
+  // The speed control's own listbox (player-chrome.js) is a plain button
+  // plus a menu this file draws itself, not a native popup the browser
+  // could silently dismiss -- but it still must not be hidden BEHIND a bar
+  // that fades out from underneath it while it's open, the same reason the
+  // gear's own settings panel is covered by the videoSettings check above.
+  // This used to instead special-case document.activeElement.tagName ===
+  // 'SELECT', back when that control really was a native <select>; reading
+  // its own aria-expanded is what replaced it when the <select> did.
+  if ($('speedSelect')?.getAttribute('aria-expanded') === 'true') return true;
   const active = document.activeElement;
-  if (!active || !active.closest?.(CONTROLS_HOVER_SELECTOR)) return false;
-  // A <select> holds the bar open on PLAIN focus, not focus-visible. Its
-  // menu is a native picker that the browser closes the moment the element
-  // behind it goes opacity:0/pointer-events:none, and on touch Chrome does
-  // not necessarily mark a tapped control focus-visible -- so the
-  // focus-visible test alone let the bar hide out from under an open picker.
-  // Reported as the menu "popping up for a split second and vanishing before
-  // I can even see what it was": the hide was already most of the way
-  // through its 2.8s when the press that opened the picker arrived, because
-  // an earlier tap is what started that clock.
-  if (active.tagName === 'SELECT') return true;
-  return active.matches(':focus-visible');
+  return !!(active && active.closest?.(CONTROLS_HOVER_SELECTOR) && active.matches(':focus-visible'));
 }
 
 function showVideoControls() {

@@ -364,7 +364,6 @@ h2 { margin-bottom: 0; }
 .volume-button svg { width: 16px; height: 16px; }
 .volume-slider { width: 54px; accent-color: var(--accent); flex-shrink: 0; }
 .speed-control { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: inherit; font-size: 12px; }
-.speed-control select { width: auto; padding: 4px 20px 4px 6px; }
 .push-right { margin-left: auto; }
 
 /* Edit-mode-row (admin-only "Edit synchronization" button, the one control
@@ -546,23 +545,35 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
    noticeably longer than it needs to for two characters and a chevron ("1x
    ▾"), next to icon buttons that are all pure glyph with no padding to
    spare by comparison. */
-/* The <select> fills the whole pill, and the pill has no padding of its own:
-   the padding is the SELECT's, so every pixel inside the border belongs to
-   the control. Reported directly as "nothing happens when I press the 1x
-   button" -- the pill is what reads as a button, but the select inside it
-   was only 47x16 (40x14 on a phone) floating in the middle of a 60x30 box,
-   so the border, the padding and, worst of all, the chevron -- the one part
-   of a dropdown everybody aims at -- were all inert .pc-speed div with no
-   handler on it. align-items: stretch (not center) is what makes the select
-   take the pill's full height; the chevron is positioned over the select's
-   own right padding and keeps pointer-events: none, so clicks on it fall
-   through to the select underneath rather than landing on the wrapper. */
-.pc-speed { position: relative; display: inline-flex; align-items: stretch; height: 30px; padding: 0; border: 1px solid rgba(255,255,255,.25); border-radius: 8px; background: rgba(255,255,255,.1); color: rgba(255,255,255,.92); }
-.pc-speed select { appearance: none; -webkit-appearance: none; width: auto; min-width: 0; height: 100%; padding: 0 17px 0 8px; border: 0; background: none; color: inherit; font: inherit; font-size: 14px; font-weight: 700; line-height: 1; cursor: pointer; }
-.pc-speed select:focus { outline: none; box-shadow: none; }
-.pc-speed select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.pc-speed select option { background: #0d1b2c; color: #fff; }
-.pc-speed::after { content: '▾'; position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font-size: 10px; line-height: 1; opacity: .75; pointer-events: none; }
+/* #speedSelect is one plain <button>, not a wrapper around a differently-
+   sized <select> -- see the long comment on its construction in
+   player-chrome.js for why a native picker was replaced outright. The
+   visible box and the clickable element are the same node, which makes the
+   old bug class here (a pill bigger than the control it wraps, reported
+   directly as "nothing happens when I press the 1x button") structurally
+   impossible: there is no separate wrapper left to be the wrong size. */
+.speed-select { position: relative; display: inline-flex; align-items: center; height: 30px; padding: 0 17px 0 8px; border: 1px solid rgba(255,255,255,.25); border-radius: 8px; background: rgba(255,255,255,.1); color: rgba(255,255,255,.92); font: inherit; font-size: 14px; font-weight: 700; line-height: 1; cursor: pointer; touch-action: manipulation; }
+.speed-select:focus { outline: none; box-shadow: none; }
+.speed-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* pointer-events: none -- purely decorative text, not an independently
+   hit-testable target. Without it, a click landing exactly on the label
+   still reaches the button (the click bubbles), but elementFromPoint would
+   report the SPAN there instead of the button -- the same shape of gap
+   (a child quietly answering for its own ancestor's hit area) that #126 was
+   about in the first place, just with no functional break behind it here. */
+.speed-select-value { pointer-events: none; }
+.speed-select::after { content: '▾'; position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font-size: 10px; line-height: 1; opacity: .75; pointer-events: none; }
+
+/* The listbox itself: portaled to <body> and positioned in JS
+   (positionSpeedMenu in player-chrome.js), exactly like .pc-tools-menu below
+   and for the identical reason -- a descendant of .player-controls can't
+   out-rank .scrubber-wrap's z-index, and .video-frame's own overflow:hidden
+   would clip it outright in the reading-mode mini player specifically. */
+.speed-menu { position: fixed; z-index: 30; min-width: 92px; margin: 0; padding: 4px; list-style: none; border-radius: 10px; background: rgba(10,20,32,.96); border: 1px solid rgba(255,255,255,.15); box-shadow: 0 14px 38px rgba(0,0,0,.45); }
+.speed-menu:focus { outline: none; }
+.speed-menu li { padding: 8px 10px; border-radius: 7px; font-size: 13px; font-weight: 600; color: rgba(255,255,255,.85); cursor: pointer; }
+.speed-menu li:hover, .speed-menu li.is-active { background: rgba(255,255,255,.12); color: #fff; }
+.speed-menu li[aria-selected="true"] { color: var(--accent); }
 
 /* The two "where does the daf go" toggles. Their pressed look is the gold
    outline, so which one is on reads at a glance from across the room. */
@@ -721,9 +732,7 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .video-frame.is-tiny .pc-transport .play-button svg { width: 12px; height: 12px; }
 .video-frame.is-tiny .pc-pill { height: 22px; padding: 0 5px; }
 .video-frame.is-tiny .pc-pill svg { width: 14px; height: 14px; }
-.video-frame.is-tiny .pc-speed { height: 22px; }
-.video-frame.is-tiny .pc-speed select { padding: 0 15px 0 6px; }
-.video-frame.is-tiny .pc-speed select { font-size: 12px; }
+.video-frame.is-tiny .speed-select { height: 22px; padding: 0 15px 0 6px; font-size: 12px; }
 .video-frame.is-tiny .player-topbar { height: 30px; padding: 0 7px; }
 
 .now-learning { margin-top: 17px; padding: 15px 17px; border-radius: 14px; border: 1px solid rgba(220,172,82,.24); background: linear-gradient(135deg, rgba(220,172,82,.11), rgba(82,167,255,.06)); min-height: 113px; }
