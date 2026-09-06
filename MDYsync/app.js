@@ -8621,3 +8621,70 @@ document.querySelectorAll('.sync-tab').forEach((tab) => {
     if (tab.dataset.syncPanel === 'syncYoutubePanel' || tab.dataset.syncPanel === 'syncVoicePanel') prefillYoutubeSyncTab();
   });
 });
+
+// --- TEMPORARY: on-page event log for the speed-control bug ---------------
+// Delete this together with /debug/speed/ once that bug is found.
+//
+// Inert unless the URL carries ?debug=speed, so it costs a returning reader
+// nothing. It exists because the bug has been reported six times from an
+// Android phone and cannot be reproduced here: headless Chromium does not
+// render native <select> popups at all, so every automated check of "the
+// menu opens" was measuring a proxy. /debug/speed/ established on the real
+// device that a bare <select>, the same one with .pc-speed's styling, and
+// the same again inside a replica of the control bar ALL open normally --
+// so the control, the CSS and the layout are cleared, and whatever breaks it
+// is on this page. This prints, on the phone, exactly which events reach the
+// speed control here and what state the bar is in when they do.
+(() => {
+  if (!/(^|[?&])debug=speed(&|$)/.test(location.search)) return;
+  const panel = document.createElement('div');
+  panel.setAttribute('style', [
+    'position:fixed', 'left:0', 'right:0', 'bottom:0', 'z-index:99999',
+    'max-height:42vh', 'overflow:auto', 'margin:0', 'padding:8px 10px',
+    'background:#071019', 'color:#e8eef6', 'border-top:2px solid #dcac52',
+    'font:12px/1.45 ui-monospace,Menlo,Consolas,monospace', 'white-space:pre-wrap',
+  ].join(';'));
+  panel.textContent = 'Tap the 1x speed control, then screenshot this.\n';
+  const add = () => document.body.appendChild(panel);
+  if (document.body) add(); else addEventListener('DOMContentLoaded', add);
+
+  let lines = [];
+  const write = (text) => {
+    lines.push(text);
+    if (lines.length > 26) lines = lines.slice(-26);
+    panel.textContent = 'Tap the 1x speed control, then screenshot this.\n' + lines.join('\n');
+    panel.scrollTop = panel.scrollHeight;
+  };
+  const name = (el) => !el ? 'null'
+    : el.tagName + (el.id ? '#' + el.id : (el.className && typeof el.className === 'string' ? '.' + el.className.split(' ')[0] : ''));
+  const barState = () => $('videoFrame')?.classList.contains('controls-hidden') ? 'bar:HIDDEN' : 'bar:shown';
+
+  // Bubble phase at the document, so anything that called preventDefault or
+  // stopped the event on the way up has already done so and shows up here.
+  for (const type of ['pointerdown', 'touchstart', 'mousedown', 'click', 'pointercancel', 'touchcancel', 'focusin', 'change']) {
+    document.addEventListener(type, (event) => {
+      write(`${type.padEnd(13)} ${name(event.target).slice(0, 22).padEnd(23)} ${barState()}${event.defaultPrevented ? ' <-- PREVENTED' : ''}`);
+    });
+  }
+  // A tap that never becomes a click is the shape /debug/speed/ showed for a
+  // press the browser reinterpreted as a scroll -- worth seeing explicitly.
+  document.addEventListener('pointerup', (event) => {
+    if (event.target?.closest?.('.player-controls, .scrubber-wrap')) write(`pointerup     ${name(event.target).slice(0, 22)}`);
+  });
+
+  // The whole point of the current fix (player-chrome.js) is that when the
+  // wake layer takes the pointerdown, the select's click handler reopens the
+  // menu with showPicker(). Nothing on the page can observe whether a native
+  // picker actually appeared, but this at least says whether that call is
+  // reached on the real device and whether it throws -- which is the one
+  // thing left that could not be checked from here.
+  const realShowPicker = HTMLSelectElement.prototype.showPicker;
+  if (typeof realShowPicker === 'function') {
+    HTMLSelectElement.prototype.showPicker = function patchedShowPicker() {
+      try { realShowPicker.call(this); write('showPicker    called, no error'); }
+      catch (err) { write(`showPicker    THREW ${err.name}: ${err.message}`); }
+    };
+  } else {
+    write('showPicker    NOT SUPPORTED on this browser');
+  }
+})();
