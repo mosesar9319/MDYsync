@@ -8638,21 +8638,50 @@ document.querySelectorAll('.sync-tab').forEach((tab) => {
 (() => {
   if (!/(^|[?&])debug=speed(&|$)/.test(location.search)) return;
   const panel = document.createElement('div');
+  // A FIXED height, not max-height, and the log scrolls inside it. When the
+  // panel grew with each entry it pushed its own button upwards between
+  // pointerdown and mousedown, so the browser retargeted the click and the
+  // button's presses never landed -- the same class of layout-shift bug this
+  // whole investigation is about, which is a fair warning about how easily
+  // it happens.
   panel.setAttribute('style', [
     'position:fixed', 'left:0', 'right:0', 'bottom:0', 'z-index:99999',
-    'max-height:42vh', 'overflow:auto', 'margin:0', 'padding:8px 10px',
+    'height:42vh', 'display:flex', 'flex-direction:column', 'overflow:hidden',
+    'margin:0', 'padding:8px 10px', 'box-sizing:border-box',
     'background:#071019', 'color:#e8eef6', 'border-top:2px solid #dcac52',
     'font:12px/1.45 ui-monospace,Menlo,Consolas,monospace', 'white-space:pre-wrap',
   ].join(';'));
-  panel.textContent = 'Tap the 1x speed control, then screenshot this.\n';
-  const add = () => document.body.appendChild(panel);
+  // The control works fine while the bar is up -- confirmed on the reporter's
+  // own phone, where every event reached the select and the menu opened with
+  // no showPicker call needed. The failure needs the bar FADED, which
+  // normally means loading a shiur and waiting out CONTROLS_AUTO_HIDE_MS.
+  // This button puts the page straight into that state so the one case that
+  // matters can be tapped deliberately instead of waited for.
+  const hideButton = document.createElement('button');
+  hideButton.type = 'button';
+  hideButton.textContent = '1. Hide the control bar';
+  hideButton.setAttribute('style', [
+    'display:block', 'width:100%', 'margin:0 0 6px', 'padding:12px',
+    'font:inherit', 'font-weight:700', 'border-radius:8px', 'border:1px solid #dcac52',
+    'background:#dcac52', 'color:#231703', 'touch-action:manipulation', 'flex:0 0 auto',
+  ].join(';'));
+  // The log lives in its own child rather than being written to the panel's
+  // textContent: rewriting that would re-insert the button on every entry,
+  // which moves the node mid-gesture and makes the browser retarget the
+  // click away from it -- the button's own presses stopped landing.
+  const heading = document.createElement('div');
+  heading.textContent = 'Tap "Hide the control bar", then tap where the 1x pill was.';
+  heading.setAttribute('style', 'margin:0 0 6px;color:#dcac52;flex:0 0 auto');
+  const logEl = document.createElement('div');
+  logEl.setAttribute('style', 'flex:1;overflow:auto;min-height:0');
+  const add = () => { panel.append(hideButton, heading, logEl); document.body.appendChild(panel); };
   if (document.body) add(); else addEventListener('DOMContentLoaded', add);
 
   let lines = [];
   const write = (text) => {
     lines.push(text);
     if (lines.length > 26) lines = lines.slice(-26);
-    panel.textContent = 'Tap the 1x speed control, then screenshot this.\n' + lines.join('\n');
+    logEl.textContent = lines.join('\n');
     panel.scrollTop = panel.scrollHeight;
   };
   const name = (el) => !el ? 'null'
@@ -8678,6 +8707,16 @@ document.querySelectorAll('.sync-tab').forEach((tab) => {
   // picker actually appeared, but this at least says whether that call is
   // reached on the real device and whether it throws -- which is the one
   // thing left that could not be checked from here.
+  hideButton.addEventListener('click', () => {
+    const frame = $('videoFrame');
+    if (!frame) { write('no #videoFrame on this page'); return; }
+    // Clear the pending timer first, so the bar stays hidden until the tap
+    // being tested wakes it -- exactly the state it is in mid-shiur.
+    if (typeof controlsHideTimer !== 'undefined' && controlsHideTimer) clearTimeout(controlsHideTimer);
+    frame.classList.add('controls-hidden');
+    write('--- bar hidden. Now tap where the 1x pill was. ---');
+  });
+
   const realShowPicker = HTMLSelectElement.prototype.showPicker;
   if (typeof realShowPicker === 'function') {
     HTMLSelectElement.prototype.showPicker = function patchedShowPicker() {
