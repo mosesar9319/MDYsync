@@ -1,1 +1,8 @@
-{"type":"youtube","url":"https://www.youtube.com/watch?v=p9G1qkXGXFY","videoId":"p9G1qkXGXFY","label":"מרכז דף יומי - חולין דף קל. - ר' אלי סטפנסקי שליט\"א","coveredRefs":["Chullin 129b","Chullin 130a","Chullin 130b"],"source":"channel-auto"}
+{
+  "label": "מרכז דף יומי - חולין דף קל. - ר' אלי סטפנסקי שליט\"א",
+  "locked": false,
+  "source": "manual",
+  "type": "youtube",
+  "url": "https://www.youtube.com/watch?v=p9G1qkXGXFY",
+  "videoId": "p9G1qkXGXFY"
+}
