@@ -1649,6 +1649,49 @@ function normalizePageWordBoxes(wordBoxes) {
     : [];
 }
 
+// The OCR pipeline (tools/caption-sync/page_ocr_align.py) deliberately reads
+// the WHOLE page -- Gemara, Rashi, Tosafot, marginal reference columns, all
+// of it -- and relies on matching against the *known* Gemara word list to
+// pick out real Gemara words, rather than a fixed spatial crop (see that
+// file's own comment on why: real pages don't hold Gemara to one constant
+// column width). Rashi and Tosafot routinely quote the Gemara verbatim (a
+// "dibur hamatchil") before commenting on it, so that textual match can
+// occasionally succeed against the WRONG physical occurrence -- the
+// quotation sitting in Rashi's or Tosafot's own column, not the real Gemara
+// text. Reported directly: the "now playing" highlight sometimes jumping
+// fully or partially into Rashi or Tosafot.
+//
+// textBlock (present on any page OCR'd since the pipeline's v2 output) is
+// the Gemara column's own bounding box on that specific page, computed
+// there from where the aligned words actually landed -- not a fixed
+// fraction, since real pages don't hold Gemara to one constant width
+// either. Filtering every word box to it here, once, at the one place a
+// results file becomes state.vilnaPageMap, is what keeps every consumer
+// (the click-target overlay, the "now playing" highlight, Select Text, the
+// context menu's word lookup, ...) from ever drawing anything outside the
+// Gemara column, rather than teaching each of them the same bounds check
+// separately.
+//
+// A box's CENTER is what has to fall inside the block, not its whole
+// extent -- a word right at the column's edge can have its own bounding
+// box straddle the boundary by a pixel or two without actually being a
+// misplaced word.
+//
+// No textBlock at all (an older, pre-v2 results file) leaves every box in
+// place rather than filtering the page down to nothing: no bounds to check
+// against is a reason to skip this pass, not to treat every word as out of
+// bounds.
+function restrictWordBoxesToGemaraBlock(wordBoxes, textBlock) {
+  if (!textBlock) return wordBoxes;
+  const { left, right, top, bottom } = textBlock;
+  if (![left, right, top, bottom].every(Number.isFinite)) return wordBoxes;
+  return wordBoxes.filter((box) => {
+    const cx = box.x + box.w / 2;
+    const cy = box.y + box.h / 2;
+    return cx >= left && cx <= right && cy >= top && cy <= bottom;
+  });
+}
+
 function stopVilnaPagePoll() {
   if (state.vilnaPagePollTimer) {
     clearInterval(state.vilnaPagePollTimer);
@@ -1716,7 +1759,7 @@ async function loadVilnaPageMap(parsed, stillWanted = () => true) {
       if (!response.ok) return false;
       const data = await response.json();
       if (!stillWanted()) return true;
-      data.wordBoxes = normalizePageWordBoxes(data.wordBoxes);
+      data.wordBoxes = restrictWordBoxesToGemaraBlock(normalizePageWordBoxes(data.wordBoxes), data.textBlock);
       state.vilnaPageMap = data;
       await ensureVilnaPageSegments(parsed, data.wordBoxes, stillWanted);
       if (!stillWanted()) return true;
@@ -2374,8 +2417,15 @@ async function seekToVilnaWord(ref, wordIndex) {
   const time = findWordTime(state.wordTimeline, state.segments, ref, wordIndex);
   if (time === null) return;
   state.lastManualScrollAt = 0;
+  // seek() already forces an active-segment update using this exact target
+  // time -- a second, redundant call here used to follow it with no time
+  // override, so it fell back to getCurrentTime(). For a YouTube-sourced
+  // shiur, player.seekTo() is asynchronous: getCurrentTime() read straight
+  // back still reported the OLD position, so this second call clobbered the
+  // correct, just-set activeIndex with the stale one a moment later --
+  // reported directly as the video jumping to the right place while the
+  // highlight stayed stuck on whatever was playing before the tap.
   seek(time + 0.03, true);
-  updateActiveSegment(true);
 }
 
 // --- Camera-scan feature (see scan-daf-page.mjs) ---------------------------
@@ -3992,19 +4042,61 @@ function measureInkBands(canvas, wordBoxes) {
 
   const threshold = peak * 0.15;
   const minBandPx = Math.max(3, Math.round(canvas.height * 0.002));
-  const bands = [];
+  const rawBands = [];
   let start = -1;
   for (let row = 0; row <= height; row += 1) {
     const inked = row < height && inkPerRow[row] >= threshold;
     if (inked && start < 0) start = row;
     else if (!inked && start >= 0) {
-      if (row - start >= minBandPx) {
-        bands.push({ top: (y0 + start) / canvas.height, bottom: (y0 + row) / canvas.height });
-      }
+      if (row - start >= minBandPx) rawBands.push({ start, end: row });
       start = -1;
     }
   }
-  return bands.length ? bands : null;
+  if (!rawBands.length) return null;
+
+  // `threshold` is one fraction of the single darkest row on the WHOLE
+  // page -- fine for a typical, densely-set line, but a line with
+  // noticeably less ink overall (a short line at a paragraph's end, or
+  // simply fewer/thinner letters at that row) can have every one of its
+  // OWN rows fall well under it, so only its darkest row or two ever
+  // clears the bar. That clips the measured band down from the letters'
+  // real height, reported directly as some highlighted lines still
+  // rendering very thin. Every band is re-measured against its own LOCAL
+  // peak (the darkest row within roughly one line's height around it)
+  // instead of the page's -- a no-op for a normally-dense line (its local
+  // peak already IS the page's, or close enough that the same rows still
+  // clear the bar), but it recovers the rest of a light line's real ink
+  // instead of clipping it to whatever the darkest line elsewhere happens
+  // to allow.
+  // Rounded: an even count of raw bands makes medianOf average its two
+  // middle values into a non-integer, and a fractional row silently reads
+  // as undefined from a typed array (never negative, so a bare `>=
+  // threshold` comparison against it is always false, and the local-peak
+  // scan below would find nothing without ever throwing) -- which zeroed
+  // localPeak/localThreshold outright and let the walk below treat every
+  // row in the window as inked, expanding the band into blank whitespace
+  // instead of recovering real ink. Caught directly by this fix's own
+  // test once the sampled dapim happened to produce an even band count.
+  const typicalRows = Math.round(medianOf(rawBands.map((band) => band.end - band.start)));
+  const bands = rawBands.map((band) => {
+    const windowStart = Math.max(0, band.start - typicalRows);
+    const windowEnd = Math.min(height, band.end + typicalRows);
+    let localPeak = 0;
+    for (let row = windowStart; row < windowEnd; row += 1) {
+      if (inkPerRow[row] > localPeak) localPeak = inkPerRow[row];
+    }
+    const localThreshold = localPeak * 0.15;
+    let refinedStart = band.start;
+    while (refinedStart > windowStart && inkPerRow[refinedStart - 1] >= localThreshold) refinedStart -= 1;
+    let refinedEnd = band.end;
+    while (refinedEnd < windowEnd && inkPerRow[refinedEnd] >= localThreshold) refinedEnd += 1;
+    return { start: refinedStart, end: refinedEnd };
+  });
+
+  return bands.map((band) => ({
+    top: (y0 + band.start) / canvas.height,
+    bottom: (y0 + band.end) / canvas.height,
+  }));
 }
 
 // Keyed by page and raster size, so a zoom or a page turn re-measures on
@@ -5470,8 +5562,12 @@ function seekToSegment(index) {
   const segment = state.segments[index];
   if (!segment) return;
   state.lastManualScrollAt = 0;
+  // See seekToVilnaWord's own comment above -- seek() already forces the
+  // correct active-segment update using this exact target time; a second
+  // call here with no time override used to re-derive it from
+  // getCurrentTime(), which a YouTube-sourced shiur's asynchronous seekTo()
+  // has not caught up to yet at this point.
   seek(segment.start + 0.03, true);
-  updateActiveSegment(true);
 }
 
 
