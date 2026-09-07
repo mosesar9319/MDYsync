@@ -2370,8 +2370,15 @@ async function seekToVilnaWord(ref, wordIndex) {
   const time = findWordTime(state.wordTimeline, state.segments, ref, wordIndex);
   if (time === null) return;
   state.lastManualScrollAt = 0;
+  // seek() already forces an active-segment update using this exact target
+  // time -- a second, redundant call here used to follow it with no time
+  // override, so it fell back to getCurrentTime(). For a YouTube-sourced
+  // shiur, player.seekTo() is asynchronous: getCurrentTime() read straight
+  // back still reported the OLD position, so this second call clobbered the
+  // correct, just-set activeIndex with the stale one a moment later --
+  // reported directly as the video jumping to the right place while the
+  // highlight stayed stuck on whatever was playing before the tap.
   seek(time + 0.03, true);
-  updateActiveSegment(true);
 }
 
 // --- Camera-scan feature (see scan-daf-page.mjs) ---------------------------
@@ -5466,8 +5473,12 @@ function seekToSegment(index) {
   const segment = state.segments[index];
   if (!segment) return;
   state.lastManualScrollAt = 0;
+  // See seekToVilnaWord's own comment above -- seek() already forces the
+  // correct active-segment update using this exact target time; a second
+  // call here with no time override used to re-derive it from
+  // getCurrentTime(), which a YouTube-sourced shiur's asynchronous seekTo()
+  // has not caught up to yet at this point.
   seek(segment.start + 0.03, true);
-  updateActiveSegment(true);
 }
 
 
