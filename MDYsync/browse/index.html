@@ -173,6 +173,12 @@
     }
     body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-mark-toggle { width: auto; padding: 0 10px; }
     body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-mark-toggle.active { color: #fff; background: var(--gold); }
+    /* Without this, .vilna-select-text-toggle inherits the 30x30 icon-square
+       sizing above (it carries .vilna-zoom-btn too, for the shared hover/
+       border treatment) despite holding a text label, not an icon -- the
+       label then overflows that box with nothing to clip it and runs
+       straight into the fullscreen button beside it. */
+    body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-select-text-toggle { width: auto; padding: 0 10px; }
     body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-fullscreen-button { margin-left: 2px; }
     body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-page-status { padding: 34px 12px 42px; }
     body[data-page="browse"] .daf-card[data-daf-view="page"] .page-silhouette {
