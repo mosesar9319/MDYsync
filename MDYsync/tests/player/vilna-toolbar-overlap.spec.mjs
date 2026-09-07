@@ -76,3 +76,42 @@ for (const path of PAGES_WITH_OVERRIDE) {
     await expect(button).toHaveText('Select text');
   });
 }
+
+// Reported directly, after the fix above widened "Select text" into a real
+// text pill: on a narrow/zoomed screen there's no longer room for every
+// button on one row, and the LAST one (Fullscreen) wrapped onto a new line
+// by itself -- growing the whole sticky toolbar's height ("thicker than it
+// should be"). #vilnaZoomControls used flex-wrap for a real reason (a
+// different report: Fullscreen sitting on top of Discard changes in mark
+// mode when nowrap's default just let them overlap) -- so the fix is
+// scrolling the overflow horizontally instead of either wrapping or
+// overlapping. ALL_PAGES here since this is the shared styles.css rule
+// everything (including /watch/ and /studio/, not just the two pages with
+// their own page-scoped override) inherits from.
+for (const path of ALL_PAGES) {
+  test(`the toolbar stays one row and scrolls instead of wrapping when it doesn't fit on ${path}`, async ({ page }) => {
+    await preparePage(page, { user: null });
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.goto(`${path}?ref=Chullin%2089a`);
+    await page.waitForTimeout(300);
+    await page.evaluate(() => switchDafView('page'));
+    await page.waitForTimeout(200);
+
+    const controls = page.locator('#vilnaZoomControls');
+    const flexWrap = await controls.evaluate((el) => getComputedStyle(el).flexWrap);
+    const overflowX = await controls.evaluate((el) => getComputedStyle(el).overflowX);
+    expect(flexWrap).toBe('nowrap');
+    expect(overflowX).toBe('auto');
+
+    // The first and last buttons in the row -- if either had wrapped onto
+    // its own line, their vertical centers would land a button's height
+    // apart instead of together.
+    const firstBox = await page.locator('#vilnaZoomOutButton').boundingBox();
+    const lastBox = await page.locator('#vilnaFullscreenButton').boundingBox();
+    expect(firstBox).not.toBeNull();
+    expect(lastBox).not.toBeNull();
+    const firstCenterY = firstBox.y + firstBox.height / 2;
+    const lastCenterY = lastBox.y + lastBox.height / 2;
+    expect(Math.abs(firstCenterY - lastCenterY)).toBeLessThan(4);
+  });
+}
