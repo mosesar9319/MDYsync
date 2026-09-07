@@ -172,6 +172,11 @@ function vilnaTargetAt(clientX, clientY) {
     text: null,
     segment: segmentForWord(first.ref, first.start),
     runs,
+    // The literal word the pointer is over, regardless of whether an
+    // existing selection widened `runs`/`start`/`end` above to the whole
+    // selection -- "Select this word"/"Select whole phrase" always act on
+    // this exact word, never on whatever was already selected.
+    word: { ref: box.ref, wordIndex: box.wordIndex },
   };
 }
 
@@ -484,7 +489,29 @@ function buildMenuItems(target) {
     : null;
   const momentUrl = videoMomentUrl(target);
 
-  const items = [
+  const items = [];
+
+  // Only on the printed Vilna page (target.word) -- the plain text view
+  // already has real, native browser text selection for this, and has no
+  // yellow-highlight overlay of its own to put it into (see Select-text
+  // mode, Vilna-page-only, in app.js). Puts the whole selection engine
+  // within one right-click/long-press of a reader who never found the
+  // toolbar's own Select text toggle -- previously the only way in.
+  if (target.source === 'vilna' && target.word) {
+    items.push(
+      {
+        label: 'Select this word',
+        onClick: () => selectVilnaWord(target.word.ref, target.word.wordIndex),
+      },
+      {
+        label: 'Select whole phrase',
+        onClick: () => selectVilnaPhrase(target.word.ref, target.word.wordIndex),
+      },
+      { separator: true },
+    );
+  }
+
+  items.push(
     {
       label: multiWord ? 'Add note on this passage' : 'Add note here',
       onClick: () => addNoteFor(target),
@@ -511,7 +538,7 @@ function buildMenuItems(target) {
       label: 'Copy link to this line',
       onClick: () => copyLineLink(target),
     },
-  ];
+  );
 
   if (momentUrl) {
     items.push({
@@ -608,7 +635,16 @@ function initDafContextMenu() {
   $('closeWordLookupDialog')?.addEventListener('click', () => $('wordLookupDialog').close());
 
   document.addEventListener('click', (event) => {
-    if (Date.now() < suppressClickUntil) {
+    // Never swallow a click that landed ON the open menu itself -- only the
+    // browser's own stray synthesized click (from the long press that
+    // OPENED the menu) is what this is meant to eat. Without this
+    // exclusion, a reader tapping a menu item quickly enough (well within
+    // SUPPRESS_CLICK_WINDOW_MS, which is common) could have their own tap
+    // eaten instead whenever the browser suppresses that synthesized click
+    // by itself -- reported directly as "Select whole phrase" doing
+    // nothing, the menu item's own click handler never running at all.
+    const onMenu = menuEl && !menuEl.hidden && menuEl.contains(event.target);
+    if (Date.now() < suppressClickUntil && !onMenu) {
       suppressClickUntil = 0;
       event.stopPropagation();
       event.preventDefault();
