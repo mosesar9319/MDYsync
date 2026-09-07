@@ -965,20 +965,27 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .vilna-page-wrap.select-text-mode .vilna-select-text-word-target { pointer-events: auto; }
 .vilna-page-wrap.select-text-mode { cursor: text; }
 
-/* The current selection -- same whole-line-rect treatment as
-   .vilna-active-rect/.vilna-mark-target-rect above, gold to read as "this
-   is what a menu action would act on," distinct from the blue "playing
-   right now" highlight and the dashed mark-target outline. One rect PER RUN
-   (see groupBoxesIntoRuns in app.js) when the selection crosses a
-   phrase-alignment/ref boundary -- still one continuous-looking selection
-   visually, just drawn as however many per-line bars its words actually
-   span. */
+/* The current selection -- drawn from the exact same per-line rects
+   (groupBoxesIntoLineRects) and PAD_X end-cap padding as .vilna-active-rect
+   above, but until now styled nothing like it: a thin rgba fill boxed in a
+   1px border with 4px corners, which clipped the rounded end-cap padding
+   PAD_X was added for and read as disconnected, uneven boxes on anything
+   spanning more than one line. Now the identical solid-fill/multiply-blend/
+   999px-pill/fade-in treatment as .vilna-active-rect, just gold (var(--highlight),
+   already this site's "highlighted" wash -- see .daf-segment.active) instead
+   of blue, to read as "this is what a menu action would act on," distinct
+   from the blue "playing right now" highlight and the dashed mark-target
+   outline. One rect PER RUN (see groupBoxesIntoRuns in app.js) when the
+   selection crosses a phrase-alignment/ref boundary -- still one
+   continuous-looking selection visually, just drawn as however many
+   per-line bars its words actually span. */
 .vilna-select-text-selection-overlay { position: absolute; inset: 0; pointer-events: none; }
 .vilna-select-text-selection-rect {
   position: absolute;
-  background: rgba(186, 132, 34, .3);
-  border: 1px solid rgba(186, 132, 34, .6);
-  border-radius: 4px;
+  background: var(--highlight);
+  mix-blend-mode: multiply;
+  border-radius: 999px;
+  animation: vilna-highlight-in .12s ease-out;
 }
 
 /* Small floating "Add note"/clear action -- pinned to the bottom of the

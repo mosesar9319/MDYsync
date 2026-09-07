@@ -4038,19 +4038,61 @@ function measureInkBands(canvas, wordBoxes) {
 
   const threshold = peak * 0.15;
   const minBandPx = Math.max(3, Math.round(canvas.height * 0.002));
-  const bands = [];
+  const rawBands = [];
   let start = -1;
   for (let row = 0; row <= height; row += 1) {
     const inked = row < height && inkPerRow[row] >= threshold;
     if (inked && start < 0) start = row;
     else if (!inked && start >= 0) {
-      if (row - start >= minBandPx) {
-        bands.push({ top: (y0 + start) / canvas.height, bottom: (y0 + row) / canvas.height });
-      }
+      if (row - start >= minBandPx) rawBands.push({ start, end: row });
       start = -1;
     }
   }
-  return bands.length ? bands : null;
+  if (!rawBands.length) return null;
+
+  // `threshold` is one fraction of the single darkest row on the WHOLE
+  // page -- fine for a typical, densely-set line, but a line with
+  // noticeably less ink overall (a short line at a paragraph's end, or
+  // simply fewer/thinner letters at that row) can have every one of its
+  // OWN rows fall well under it, so only its darkest row or two ever
+  // clears the bar. That clips the measured band down from the letters'
+  // real height, reported directly as some highlighted lines still
+  // rendering very thin. Every band is re-measured against its own LOCAL
+  // peak (the darkest row within roughly one line's height around it)
+  // instead of the page's -- a no-op for a normally-dense line (its local
+  // peak already IS the page's, or close enough that the same rows still
+  // clear the bar), but it recovers the rest of a light line's real ink
+  // instead of clipping it to whatever the darkest line elsewhere happens
+  // to allow.
+  // Rounded: an even count of raw bands makes medianOf average its two
+  // middle values into a non-integer, and a fractional row silently reads
+  // as undefined from a typed array (never negative, so a bare `>=
+  // threshold` comparison against it is always false, and the local-peak
+  // scan below would find nothing without ever throwing) -- which zeroed
+  // localPeak/localThreshold outright and let the walk below treat every
+  // row in the window as inked, expanding the band into blank whitespace
+  // instead of recovering real ink. Caught directly by this fix's own
+  // test once the sampled dapim happened to produce an even band count.
+  const typicalRows = Math.round(medianOf(rawBands.map((band) => band.end - band.start)));
+  const bands = rawBands.map((band) => {
+    const windowStart = Math.max(0, band.start - typicalRows);
+    const windowEnd = Math.min(height, band.end + typicalRows);
+    let localPeak = 0;
+    for (let row = windowStart; row < windowEnd; row += 1) {
+      if (inkPerRow[row] > localPeak) localPeak = inkPerRow[row];
+    }
+    const localThreshold = localPeak * 0.15;
+    let refinedStart = band.start;
+    while (refinedStart > windowStart && inkPerRow[refinedStart - 1] >= localThreshold) refinedStart -= 1;
+    let refinedEnd = band.end;
+    while (refinedEnd < windowEnd && inkPerRow[refinedEnd] >= localThreshold) refinedEnd += 1;
+    return { start: refinedStart, end: refinedEnd };
+  });
+
+  return bands.map((band) => ({
+    top: (y0 + band.start) / canvas.height,
+    bottom: (y0 + band.end) / canvas.height,
+  }));
 }
 
 // Keyed by page and raster size, so a zoom or a page turn re-measures on
