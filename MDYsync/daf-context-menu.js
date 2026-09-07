@@ -554,6 +554,13 @@ function buildMenuItems(target) {
       onClick: () => withResolvedText(target, (text) => window.DafNotesSearch?.openWith(text)),
     },
     {
+      // Works the same for a single word and a multiword selection --
+      // withResolvedText already resolves either shape of target.runs to
+      // one string, and that's the entire query (see shas-search.js).
+      label: multiWord ? 'Search this passage in Shas' : `Search ${quoted} in Shas`,
+      onClick: () => withResolvedText(target, (text) => window.ShasSearch?.openWith(text)),
+    },
+    {
       label: 'Flag a problem with this text',
       disabled: !user,
       hint: !user ? 'sign in' : '',

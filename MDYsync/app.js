@@ -1142,6 +1142,10 @@ function buildSegmentSpan(segment, index) {
   // optional in the same way the note button above is, since highlights.js
   // only ships on the pages that have the notes UI at all.
   window.DafHighlights?.applyToSegmentSpan(span, segment);
+  // Flashes this WHOLE segment when it's the one a "Search in Shas" result
+  // just landed on (see shas-search.js) -- optional the same way, since
+  // shas-search.js only ships on the same pages as the notes UI.
+  window.ShasSearch?.applyFlashToSegmentSpan(span, segment);
   return span;
 }
 

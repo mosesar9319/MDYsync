@@ -1762,6 +1762,65 @@ mark.daf-highlight { background: rgba(240, 200, 90, .34); color: inherit; border
 .word-lookup-senses { margin: 8px 0 0; padding-inline-start: 20px; line-height: 1.55; font-size: 13px; }
 .word-lookup-notes { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 
+/* --- "Search in Shas" (shas-search.js) ------------------------------------- */
+.shas-search-body { max-height: 58vh; overflow-y: auto; margin: 12px 0; }
+.shas-search-results { display: flex; flex-direction: column; gap: 10px; }
+.shas-search-result {
+  display: block;
+  width: 100%;
+  text-align: right;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,.03);
+  color: inherit;
+  cursor: pointer;
+}
+.shas-search-result:hover, .shas-search-result:focus-visible { background: rgba(255,255,255,.08); }
+.shas-search-result-loc { display: block; margin-bottom: 5px; font-size: 12px; font-weight: 700; color: var(--muted); text-align: left; direction: ltr; }
+.shas-search-result-excerpt { display: block; font-family: "Frank Ruhl Libre", serif; font-size: 15px; line-height: 1.55; }
+/* Same "here's the highlighted match" wash .note-item-body's own mark
+   already uses -- the excerpt's <mark> comes straight from Sefaria's own
+   highlighted snippet (see sefariaSnippetToSafeHtml), not a separate
+   in-house match-finder, so it should read the same as every other
+   "this word is what matched" marking already on the site. */
+.shas-search-result-excerpt mark.shas-search-match { background: var(--accent-soft); color: var(--text); padding: 0 2px; border-radius: 3px; }
+.shas-search-result-note { margin: 10px 2px 0; color: var(--muted); font-size: 12px; }
+
+/* The destination side of a result: the whole matched segment, briefly
+   drawing the eye the way .vilna-select-text-selection-rect's own fade-in
+   does on the Vilna page -- same gold wash mark.daf-highlight above already
+   uses, since visually it's the same idea ("this is what led you here"),
+   just not a standing, saved highlight. */
+@keyframes daf-search-flash-in { from { background-color: rgba(240, 200, 90, .7); } to { background-color: rgba(240, 200, 90, .34); } }
+mark.daf-search-flash { background: rgba(240, 200, 90, .34); color: inherit; border-radius: 3px; padding: 0 1px; animation: daf-search-flash-in 1.2s ease-out; }
+
+.shas-search-back-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 10px 17px 0;
+  padding: 9px 13px;
+  border: 1px solid rgba(90,66,34,.16);
+  border-radius: 11px;
+  background: rgba(255,253,248,.8);
+  color: var(--muted, #6c6358);
+  font-size: 13px;
+}
+.shas-search-back-button {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  border: 1px solid rgba(90,66,34,.25);
+  border-radius: 999px;
+  background: rgba(255,255,255,.6);
+  color: inherit;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+}
+.shas-search-back-button:hover { background: rgba(255,255,255,.95); }
+
 /* --- Cloud Chaburah feed (chaburah/index.html) ----------------------------- */
 .chaburah-main { display: flex; flex-direction: column; gap: 18px; }
 .chaburah-hero { padding: 22px 24px; }
