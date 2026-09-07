@@ -113,6 +113,49 @@ test.describe('selectVilnaWord / selectVilnaPhrase — the selection engine', ()
   });
 });
 
+test.describe('word-target tap wiring -- drag/tap-to-extend disabled for now', () => {
+  // Reported directly: tapping a word further down the page could extend
+  // the selection from its old anchor all the way there, highlighting a
+  // huge chunk of intervening text -- and long-pressing a word INSIDE an
+  // existing selection (to add a note on the whole thing) could shrink the
+  // selection before the context menu even opened, because pointerdown on
+  // the word-target overlay used to mutate state.textSelection immediately.
+  // extendTextSelection itself still knows how to extend (selectVilnaPhrase
+  // and the tests above call it directly) -- only the tap/drag WIRING is
+  // disabled here.
+  test.beforeEach(async ({ page }) => {
+    await preparePage(page, { user: null });
+    await page.goto('/browse/');
+  });
+
+  test('a plain tap on a word target starts a fresh single-word selection instead of extending the old one', async ({ page }) => {
+    await seed(page);
+    await page.evaluate(() => selectVilnaWord('Chullin 89a.1', 0));
+    const targets = page.locator('.vilna-select-text-word-target');
+    await targets.nth(4).dispatchEvent('pointerdown', { button: 0 }); // ref 1, wordIndex 4
+    const runs = await page.evaluate(() => state.textSelection.runs);
+    expect(runs).toEqual([{ ref: 'Chullin 89a.1', start: 4, end: 4 }]); // not extended to 0..4
+  });
+
+  test('a tap on a word already inside the current selection leaves the selection untouched', async ({ page }) => {
+    await seed(page, { segments: [{ ref: 'Chullin 89a.1', w0: 1, w1: 3, start: 0, end: 10, he: 'x', en: 'x' }] });
+    await page.evaluate(() => selectVilnaPhrase('Chullin 89a.1', 2)); // selects words 1..3
+    const targets = page.locator('.vilna-select-text-word-target');
+    await targets.nth(2).dispatchEvent('pointerdown', { button: 0 }); // wordIndex 2, inside 1..3
+    const runs = await page.evaluate(() => state.textSelection.runs);
+    expect(runs).toEqual([{ ref: 'Chullin 89a.1', start: 1, end: 3 }]); // untouched, not collapsed
+  });
+
+  test('a tap on a word outside the current selection replaces it, not extends it', async ({ page }) => {
+    await seed(page, { segments: [{ ref: 'Chullin 89a.1', w0: 1, w1: 2, start: 0, end: 10, he: 'x', en: 'x' }] });
+    await page.evaluate(() => selectVilnaPhrase('Chullin 89a.1', 1)); // selects words 1..2
+    const targets = page.locator('.vilna-select-text-word-target');
+    await targets.nth(4).dispatchEvent('pointerdown', { button: 0 }); // wordIndex 4, outside 1..2
+    const runs = await page.evaluate(() => state.textSelection.runs);
+    expect(runs).toEqual([{ ref: 'Chullin 89a.1', start: 4, end: 4 }]); // replaced, not 1..4
+  });
+});
+
 test.describe('the "now playing" blue highlight defers to an active selection', () => {
   test.beforeEach(async ({ page }) => {
     await preparePage(page, { user: null });
@@ -205,6 +248,54 @@ test.describe('the context menu — Select this word / Select whole phrase', () 
     });
     const runs = await page.evaluate(() => state.textSelection.runs);
     expect(runs).toEqual([{ ref: 'Chullin 89a.1', start: 1, end: 3 }]);
+  });
+
+  test('a real tap on a menu item is not swallowed by the long-press click-suppression window', async ({ page }) => {
+    // Reported directly: "Select whole phrase" doing nothing -- the same
+    // single word stayed highlighted. Root cause: the long press that opens
+    // this menu arms a short window (SUPPRESS_CLICK_WINDOW_MS) meant to eat
+    // the ONE stray click some browsers synthesize afterward, so it doesn't
+    // fall through and seek the video. But plenty of mobile browsers never
+    // fire that synthesized click at all once a long press already opened a
+    // context menu -- and this document-level listener can't tell the
+    // difference, so it ends up eating the reader's own very next tap
+    // instead, menu item included, whenever they tap quickly (which is
+    // normal). Simulates that: a menu is open and the suppression window is
+    // still armed (as it would be right after the long press that opened
+    // it), and a real click lands on a menu item.
+    await page.evaluate(() => {
+      const target = {
+        source: 'vilna', ref: 'Chullin 89a.1', start: 2, end: 2, text: null, segment: null,
+        runs: [{ ref: 'Chullin 89a.1', start: 2, end: 2 }],
+        word: { ref: 'Chullin 89a.1', wordIndex: 2 },
+      };
+      openDafMenu(target, 100, 100);
+      suppressClickUntil = Date.now() + 500;
+    });
+    await page.getByRole('menuitem', { name: 'Select whole phrase' }).click();
+    const runs = await page.evaluate(() => state.textSelection?.runs);
+    expect(runs).toEqual([{ ref: 'Chullin 89a.1', start: 1, end: 3 }]);
+  });
+
+  test('a stray click elsewhere within the suppression window is still swallowed', async ({ page }) => {
+    await page.evaluate(() => {
+      const target = {
+        source: 'vilna', ref: 'Chullin 89a.1', start: 2, end: 2, text: null, segment: null,
+        runs: [{ ref: 'Chullin 89a.1', start: 2, end: 2 }],
+        word: { ref: 'Chullin 89a.1', wordIndex: 2 },
+      };
+      openDafMenu(target, 100, 100);
+      suppressClickUntil = Date.now() + 500;
+    });
+    // Far outside the menu -- the stray synthesized click this window
+    // exists for lands on the page underneath, not on the menu itself. The
+    // swallow returns before ever reaching closeDafMenu, so the menu stays
+    // open exactly as it did before this fix -- only the "was this click ON
+    // the menu" carve-out is new.
+    await page.mouse.click(5, 5);
+    const selection = await page.evaluate(() => state.textSelection);
+    expect(selection).toBeNull(); // no menu item ran
+    await expect(page.locator('.daf-context-menu')).toBeVisible();
   });
 
   test('vilnaTargetAt exposes the literal clicked word even inside an active selection', async ({ page }) => {

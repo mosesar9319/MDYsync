@@ -1980,33 +1980,30 @@ function renderVilnaSelectTextWordTargets() {
       // right-click (button 2) inside an ALREADY-selected word must reach
       // the context menu as a right-click on that whole selection (see
       // vilnaTargetAt in daf-context-menu.js), not restart/reshape the
-      // selection out from under it. Harmless for a single-ref selection
-      // (extending it to a word it already covers is a no-op there), but a
-      // real bug once a selection can span more than one ref: reshaping it
-      // from the anchor to whichever word got right-clicked can DROP a run
-      // the drag had already covered, right before the menu reads it.
+      // selection out from under it.
       if (event.button !== 0) return;
-      event.preventDefault(); // no native text-selection/drag-image while dragging across words
-      startTextSelectionDrag(box.ref, box.wordIndex);
-    });
-    el.addEventListener('pointerenter', () => {
-      if (textSelectionDragging) extendTextSelection(box.ref, box.wordIndex);
+      event.preventDefault(); // no native text-selection/drag-image on tap
+      // Drag/tap-to-extend across the reading order is disabled for now --
+      // reported directly: tapping a word further down the page could
+      // extend the selection from its old anchor all the way there,
+      // highlighting a huge chunk of intervening text. A plain tap now
+      // always starts a FRESH single-word selection instead (extendTextSelection
+      // itself still knows how to extend -- see selectVilnaPhrase -- this
+      // only stops a tap on the page from doing it). A tap on a word that's
+      // already inside the CURRENT selection leaves it untouched rather
+      // than collapsing it to that one word, so long-pressing INSIDE a
+      // selection (to act on the whole thing from the context menu -- e.g.
+      // "Add note on this passage") can't shrink the selection out from
+      // under itself before the menu even opens.
+      const selection = state.textSelection;
+      const alreadySelected = selection?.runs?.some((run) => run.ref === box.ref
+        && box.wordIndex >= run.start && box.wordIndex <= run.end);
+      if (alreadySelected) return;
+      state.textSelection = null;
+      extendTextSelection(box.ref, box.wordIndex);
     });
     overlay.appendChild(el);
   }
-}
-
-// Whether a pointer is currently down and dragging a selection -- module-
-// level rather than state.* since it's a transient input gesture, the same
-// distinction state.seeking/the reading-video drag flags etc. already draw
-// elsewhere in this file.
-let textSelectionDragging = false;
-
-function startTextSelectionDrag(ref, wordIndex) {
-  textSelectionDragging = true;
-  extendTextSelection(ref, wordIndex);
-  const finish = () => { textSelectionDragging = false; document.removeEventListener('pointerup', finish); };
-  document.addEventListener('pointerup', finish);
 }
 
 // Word boxes for the CURRENT Vilna page, ordered the way a reader actually
@@ -2056,16 +2053,16 @@ function groupBoxesIntoRuns(orderedBoxes) {
   return runs;
 }
 
-// The single rule covering both interaction styles the feature needs to
-// support (desktop click-drag, and a tap-then-tap alternative that works
-// everywhere including mobile, without needing draggable selection-handle
-// UI): extending an EXISTING selection grows it from its ORIGINAL anchor
-// word to wherever the pointer is now, in READING order -- a plain tap on
-// one word, then a second plain tap on another, is just two separate
-// one-word "drags" that both land here and both extend the same anchor.
-// Nothing here resets the anchor or is limited to one ref; only
+// Grows an EXISTING selection from its ORIGINAL anchor word to `ref`/
+// `wordIndex`, in READING order. Not wired to any tap/drag gesture on the
+// page itself right now (see renderVilnaSelectTextWordTargets -- disabled
+// there for being too easy to trigger by accident, reported directly as
+// highlighting a huge chunk of the page from one stray tap); still used
+// directly by selectVilnaPhrase, which calls it twice (once per end of the
+// phrase) to build a real multi-word span deliberately rather than by
+// gesture. Nothing here resets the anchor or is limited to one ref; only
 // clearTextSelection (the × button, or a selection getting saved) does
-// that, or a fresh drag that starts once no selection is active.
+// that, or selectVilnaWord/selectVilnaPhrase starting a fresh one.
 function extendTextSelection(ref, wordIndex) {
   const { boxes, indexOf } = vilnaReadingOrder(state.vilnaPageMap);
   const index = indexOf.get(`${ref}:${wordIndex}`);

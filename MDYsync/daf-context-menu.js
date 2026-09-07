@@ -628,7 +628,16 @@ function initDafContextMenu() {
   $('closeWordLookupDialog')?.addEventListener('click', () => $('wordLookupDialog').close());
 
   document.addEventListener('click', (event) => {
-    if (Date.now() < suppressClickUntil) {
+    // Never swallow a click that landed ON the open menu itself -- only the
+    // browser's own stray synthesized click (from the long press that
+    // OPENED the menu) is what this is meant to eat. Without this
+    // exclusion, a reader tapping a menu item quickly enough (well within
+    // SUPPRESS_CLICK_WINDOW_MS, which is common) could have their own tap
+    // eaten instead whenever the browser suppresses that synthesized click
+    // by itself -- reported directly as "Select whole phrase" doing
+    // nothing, the menu item's own click handler never running at all.
+    const onMenu = menuEl && !menuEl.hidden && menuEl.contains(event.target);
+    if (Date.now() < suppressClickUntil && !onMenu) {
       suppressClickUntil = 0;
       event.stopPropagation();
       event.preventDefault();
