@@ -148,6 +148,27 @@ test.describe('the Search in Shas dialog', () => {
     await expect(page.locator('#toast')).toContainText('No Hebrew text');
     expect(searchCalled).toBe(false);
   });
+
+  // Reported directly: always failing on the live site ("Could not reach
+  // Sefaria's search just now") despite working from a plain curl request --
+  // the textbook signature of a CORS preflight a browser sends (and curl
+  // never does) getting rejected. Confirmed directly against the real
+  // endpoint: its OPTIONS response carries access-control-allow-origin but
+  // no Access-Control-Allow-Headers/-Methods at all, so a browser refuses
+  // the preflight for any POST whose Content-Type isn't one of the three
+  // CORS-"simple" values -- application/json is not one of them,
+  // text/plain is. The server parses the JSON body identically either way
+  // (confirmed directly too), so this is a pure client-side fix: staying
+  // out of preflight territory entirely, not asking Sefaria for anything.
+  test('the request never triggers a CORS preflight -- Content-Type stays text/plain, not application/json', async ({ page }) => {
+    let capturedContentType;
+    await page.route('**/api/search-wrapper**', (route) => {
+      capturedContentType = route.request().headers()['content-type'];
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ hits: { total: 0, hits: [] } }) });
+    });
+    await page.evaluate(() => window.ShasSearch.openWith('ארבעה'));
+    expect(capturedContentType).toBe('text/plain');
+  });
 });
 
 test.describe('the context menu — Search in Shas', () => {

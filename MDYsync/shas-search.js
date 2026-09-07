@@ -83,7 +83,20 @@ function dedupeShasHits(hits) {
 async function searchShas(query) {
   const response = await fetch(SHAS_SEARCH_ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    // text/plain, not application/json -- reported directly as always
+    // failing on the live site despite working from a plain curl request.
+    // curl never preflights; a browser does, for any POST carrying a
+    // Content-Type outside the three CORS-"simple" values (text/plain,
+    // multipart/form-data, application/x-www-form-urlencoded), and
+    // confirmed directly against the real endpoint: its OPTIONS response
+    // carries access-control-allow-origin but no Access-Control-Allow-
+    // Headers/-Methods at all, so the browser refuses the preflight and
+    // never sends the real POST. text/plain keeps this a "simple" request
+    // (no preflight at all), and the server parses the JSON body exactly
+    // the same regardless of what Content-Type it's declared under
+    // (confirmed directly too -- identical results with text/plain, with
+    // no header at all, and with application/json).
+    headers: { 'Content-Type': 'text/plain' },
     body: JSON.stringify({
       query,
       type: 'text',
