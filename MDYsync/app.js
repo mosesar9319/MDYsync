@@ -2075,11 +2075,18 @@ function extendTextSelection(ref, wordIndex) {
   const hi = Math.max(anchorIndex, index);
   state.textSelection = { anchorIndex, runs: groupBoxesIntoRuns(boxes.slice(lo, hi + 1)) };
   updateTextSelectionOverlay();
+  // The "now playing" blue rect excludes whatever the selection now covers
+  // (see updateVilnaOverlay) so a selected word never shows both highlights
+  // layered on top of each other -- that only takes effect on the next
+  // redraw, and updateVilnaOverlay's own dedup guard would otherwise leave
+  // a stale blue rect showing until the next 100ms playback tick forces one.
+  updateVilnaOverlay();
 }
 
 function clearTextSelection() {
   state.textSelection = null;
   updateTextSelectionOverlay();
+  updateVilnaOverlay();
 }
 
 // Renders the gold highlight over the current selection -- one rect PER RUN
@@ -2115,6 +2122,22 @@ function updateTextSelectionOverlay() {
   if (actionBar) actionBar.hidden = boxCount === 0;
 }
 
+// Turns Select-text mode on from a standing start, without flipping it back
+// off if it's already on -- unlike toggleVilnaSelectTextMode below, which
+// always flips. Shared by that toggle (the toolbar button, which really
+// does want on/off) and by the context menu's "Select this word"/"Select
+// whole phrase" (selectVilnaWord/selectVilnaPhrase below), which only ever
+// want select-text mode ON, whatever it was before a right-click/long-press.
+function enterVilnaSelectTextMode() {
+  if (state.vilnaSelectTextMode) return;
+  state.vilnaSelectTextMode = true;
+  $('vilnaSelectTextModeButton')?.classList.add('active');
+  $('vilnaSelectTextModeButton')?.setAttribute('aria-pressed', 'true');
+  $('vilnaPageWrap')?.classList.add('select-text-mode');
+  switchDafView('page');
+  renderVilnaSelectTextWordTargets();
+}
+
 // Reader-facing toggle (see vilnaMarkModeButton's own admin-only equivalent
 // above) -- same "hasn't been synced yet" guard, since a printed page with
 // no wordBoxes at all has nothing to select.
@@ -2123,16 +2146,55 @@ function toggleVilnaSelectTextMode() {
     showToast("This daf's Vilna page hasn't been synced yet -- open the Vilna page tab first.", 'error');
     return;
   }
-  state.vilnaSelectTextMode = !state.vilnaSelectTextMode;
-  $('vilnaSelectTextModeButton')?.classList.toggle('active', state.vilnaSelectTextMode);
-  $('vilnaSelectTextModeButton')?.setAttribute('aria-pressed', String(state.vilnaSelectTextMode));
-  $('vilnaPageWrap')?.classList.toggle('select-text-mode', state.vilnaSelectTextMode);
   if (state.vilnaSelectTextMode) {
-    switchDafView('page');
-    renderVilnaSelectTextWordTargets();
-  } else {
+    state.vilnaSelectTextMode = false;
+    $('vilnaSelectTextModeButton')?.classList.remove('active');
+    $('vilnaSelectTextModeButton')?.setAttribute('aria-pressed', 'false');
+    $('vilnaPageWrap')?.classList.remove('select-text-mode');
     clearTextSelection();
+  } else {
+    enterVilnaSelectTextMode();
   }
+}
+
+// "Select this word" (daf-context-menu.js) -- replaces whatever selection
+// there was with exactly the one word right-clicked/long-pressed, then puts
+// the daf in Select-text mode so the reader can drag to extend it from
+// there. state.textSelection is cleared first so extendTextSelection takes
+// this word as a fresh anchor instead of growing the OLD selection to reach
+// it (its own documented behavior when a selection already exists).
+function selectVilnaWord(ref, wordIndex) {
+  if (!state.vilnaPageMap) return;
+  enterVilnaSelectTextMode();
+  state.textSelection = null;
+  extendTextSelection(ref, wordIndex);
+}
+
+// "Select whole phrase" (daf-context-menu.js) -- selects every word in the
+// synchronized segment covering (ref, wordIndex), the same phrase the blue
+// "now playing" highlight would draw for it. Falls back to the whole ref's
+// words when that segment has no word-level w0/w1 yet -- the identical
+// fallback updateVilnaOverlay already uses for an unaligned segment, so
+// "whole phrase" always means the same span the blue highlight would show
+// if this were the one currently playing. Falls back further, to just the
+// single word, when there is no synchronized segment covering this ref at
+// all -- there is no "synchronized phrase" to select there.
+function selectVilnaPhrase(ref, wordIndex) {
+  if (!state.vilnaPageMap) return;
+  const segments = (state.segments || []).filter((segment) => segment.ref === ref);
+  const segment = segments.find((candidate) => candidate.w0 == null || candidate.w1 == null
+    || (wordIndex >= candidate.w0 && wordIndex <= candidate.w1)) || null;
+  if (!segment) { selectVilnaWord(ref, wordIndex); return; }
+  const hasRange = segment.w0 != null && segment.w1 != null;
+  const boxes = state.vilnaPageMap.wordBoxes.filter((box) => box.ref === ref
+    && (!hasRange || (box.wordIndex >= segment.w0 && box.wordIndex <= segment.w1)));
+  if (!boxes.length) { selectVilnaWord(ref, wordIndex); return; }
+  const start = Math.min(...boxes.map((box) => box.wordIndex));
+  const end = Math.max(...boxes.map((box) => box.wordIndex));
+  enterVilnaSelectTextMode();
+  state.textSelection = null;
+  extendTextSelection(ref, start);
+  extendTextSelection(ref, end);
 }
 
 // Small margin markers for word-range notes on the current daf -- navy for
@@ -4093,6 +4155,15 @@ function updateVilnaOverlay() {
   }
   const activeSegment = state.segments[state.activeIndex];
 
+  // A word currently covered by the Select-text selection shows the gold
+  // selection highlight instead (updateTextSelectionOverlay) -- reported
+  // directly as "Select whole phrase" needing to replace the phrase's blue
+  // sync highlight with the yellow selection highlight for as long as it's
+  // selected, rather than the two stacking into a muddled blend.
+  const selection = state.textSelection;
+  const isSelected = (ref, wordIndex) => selection?.runs?.some((run) => run.ref === ref
+    && wordIndex >= run.start && wordIndex <= run.end) || false;
+
   // The YouTube poll re-runs this every 100ms; without this check the
   // overlay was being rebuilt on every single tick even when the
   // highlighted phrase hadn't changed, restarting the CSS entrance
@@ -4101,8 +4172,17 @@ function updateVilnaOverlay() {
   // it's supposed to settle into. Keyed on the segment's own ref/w0/w1
   // rather than raw activeIndex, so two different indices that happen to
   // cover the identical word range don't count as a change worth
-  // re-rendering for.
-  const dedupKey = activeSegment ? `${activeSegment.ref}:${activeSegment.w0}:${activeSegment.w1}` : '';
+  // re-rendering for. Also keyed on the selection's own full run signature
+  // (not just whether it touches this ref at all) -- a drag that grows an
+  // EXISTING selection across the same ref, word by word, has to force a
+  // fresh redraw at every step so the box filter below keeps excluding
+  // exactly the newly-covered words; a coarser "still overlapping" signal
+  // would keep matching the previous key and leave the blue rect stuck
+  // showing the words the selection had already grown past.
+  const selectionSignature = selection?.runs?.map((run) => `${run.ref}:${run.start}-${run.end}`).join(',') || '';
+  const dedupKey = activeSegment
+    ? `${activeSegment.ref}:${activeSegment.w0}:${activeSegment.w1}:${selectionSignature}`
+    : '';
   if (dedupKey === state.vilnaOverlayKey) return;
   state.vilnaOverlayKey = dedupKey;
 
@@ -4111,7 +4191,8 @@ function updateVilnaOverlay() {
   const hasRange = activeSegment.w0 !== null && activeSegment.w1 !== null;
   const boxes = state.vilnaPageMap.wordBoxes
     .filter((box) => box.ref === activeSegment.ref
-      && (!hasRange || (box.wordIndex >= activeSegment.w0 && box.wordIndex <= activeSegment.w1)))
+      && (!hasRange || (box.wordIndex >= activeSegment.w0 && box.wordIndex <= activeSegment.w1))
+      && !isSelected(box.ref, box.wordIndex))
     .sort((a, b) => a.wordIndex - b.wordIndex);
   appendLineRects(overlay, groupBoxesIntoLineRects(boxes, state.vilnaPageMap, vilnaInkBands(state.vilnaPageMap)), 'vilna-active-rect');
 }
