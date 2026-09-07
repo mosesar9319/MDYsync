@@ -764,13 +764,23 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .segment-marker { color: #8a6c2f; font-size: .58em; vertical-align: super; margin-left: 2px; font-family: "Assistant", sans-serif; }
 .daf-window-more { direction: ltr; text-align: center; color: #8a7a5c; font-family: "Assistant", sans-serif; font-size: 12px; font-weight: 700; letter-spacing: .04em; margin: 4px 0 14px; opacity: .75; }
 .vilna-placeholder { min-height: 100%; padding: 20px; color: #453c2e; text-align: center; }
-/* flex-wrap: wrap -- this row holds a growing number of buttons (zoom,
-   reset, admin-only Mark words/Show unmatched, and while mark mode is
-   active, Save/Discard too, on top of Fullscreen), and nowrap's default
-   forced them to overlap rather than move to a second line once they
-   stopped fitting one row -- confirmed by a real report of Fullscreen
-   sitting on top of Discard changes on the player page while marking. */
-.vilna-zoom-controls { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; margin: -20px -20px 14px -20px; background: rgba(244,236,217,.94); backdrop-filter: blur(4px); border-bottom: 1px solid rgba(50,43,31,.14); }
+/* This row holds a growing number of buttons (zoom, reset, admin-only Mark
+   words/Show unmatched, and while mark mode is active, Save/Discard too, on
+   top of Fullscreen) and needs to never let two of them overlap -- a real
+   report of Fullscreen sitting on top of Discard changes on the player page
+   while marking is what first put flex-wrap here. But wrapping the overflow
+   onto a second row grows the whole sticky toolbar taller, and on an
+   ordinary reader's narrow/zoomed-in screen it's usually just the LAST
+   button (Fullscreen) that doesn't fit, wrapping alone onto its own row --
+   reported directly as making the bar "thicker than it should be". Scrolling
+   the overflow horizontally instead (the same pattern as .mobile-nav below)
+   fixes both at once: nothing can ever overlap (nothing is ever forced into
+   a shared row it doesn't fit in), and the bar's height never changes.
+   flex-shrink: 0 on every child keeps buttons at their real size instead of
+   getting squashed illegibly thin before the scroll takes over. */
+.vilna-zoom-controls { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; align-items: center; gap: 8px; padding: 8px 10px; margin: -20px -20px 14px -20px; background: rgba(244,236,217,.94); backdrop-filter: blur(4px); border-bottom: 1px solid rgba(50,43,31,.14); }
+.vilna-zoom-controls::-webkit-scrollbar { display: none; }
+.vilna-zoom-controls > * { flex-shrink: 0; }
 .vilna-zoom-btn { width: 28px; height: 26px; border-radius: 8px; border: 1px solid rgba(50,43,31,.25); background: rgba(255,255,255,.55); color: #30291e; font-weight: 700; cursor: pointer; }
 .vilna-zoom-btn:hover { background: rgba(255,255,255,.9); }
 #vilnaZoomLabel { font-size: 12px; color: #453c2e; min-width: 38px; text-align: center; }

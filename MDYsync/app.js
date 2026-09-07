@@ -1645,6 +1645,49 @@ function normalizePageWordBoxes(wordBoxes) {
     : [];
 }
 
+// The OCR pipeline (tools/caption-sync/page_ocr_align.py) deliberately reads
+// the WHOLE page -- Gemara, Rashi, Tosafot, marginal reference columns, all
+// of it -- and relies on matching against the *known* Gemara word list to
+// pick out real Gemara words, rather than a fixed spatial crop (see that
+// file's own comment on why: real pages don't hold Gemara to one constant
+// column width). Rashi and Tosafot routinely quote the Gemara verbatim (a
+// "dibur hamatchil") before commenting on it, so that textual match can
+// occasionally succeed against the WRONG physical occurrence -- the
+// quotation sitting in Rashi's or Tosafot's own column, not the real Gemara
+// text. Reported directly: the "now playing" highlight sometimes jumping
+// fully or partially into Rashi or Tosafot.
+//
+// textBlock (present on any page OCR'd since the pipeline's v2 output) is
+// the Gemara column's own bounding box on that specific page, computed
+// there from where the aligned words actually landed -- not a fixed
+// fraction, since real pages don't hold Gemara to one constant width
+// either. Filtering every word box to it here, once, at the one place a
+// results file becomes state.vilnaPageMap, is what keeps every consumer
+// (the click-target overlay, the "now playing" highlight, Select Text, the
+// context menu's word lookup, ...) from ever drawing anything outside the
+// Gemara column, rather than teaching each of them the same bounds check
+// separately.
+//
+// A box's CENTER is what has to fall inside the block, not its whole
+// extent -- a word right at the column's edge can have its own bounding
+// box straddle the boundary by a pixel or two without actually being a
+// misplaced word.
+//
+// No textBlock at all (an older, pre-v2 results file) leaves every box in
+// place rather than filtering the page down to nothing: no bounds to check
+// against is a reason to skip this pass, not to treat every word as out of
+// bounds.
+function restrictWordBoxesToGemaraBlock(wordBoxes, textBlock) {
+  if (!textBlock) return wordBoxes;
+  const { left, right, top, bottom } = textBlock;
+  if (![left, right, top, bottom].every(Number.isFinite)) return wordBoxes;
+  return wordBoxes.filter((box) => {
+    const cx = box.x + box.w / 2;
+    const cy = box.y + box.h / 2;
+    return cx >= left && cx <= right && cy >= top && cy <= bottom;
+  });
+}
+
 function stopVilnaPagePoll() {
   if (state.vilnaPagePollTimer) {
     clearInterval(state.vilnaPagePollTimer);
@@ -1712,7 +1755,7 @@ async function loadVilnaPageMap(parsed, stillWanted = () => true) {
       if (!response.ok) return false;
       const data = await response.json();
       if (!stillWanted()) return true;
-      data.wordBoxes = normalizePageWordBoxes(data.wordBoxes);
+      data.wordBoxes = restrictWordBoxesToGemaraBlock(normalizePageWordBoxes(data.wordBoxes), data.textBlock);
       state.vilnaPageMap = data;
       await ensureVilnaPageSegments(parsed, data.wordBoxes, stillWanted);
       if (!stillWanted()) return true;
@@ -2370,8 +2413,15 @@ async function seekToVilnaWord(ref, wordIndex) {
   const time = findWordTime(state.wordTimeline, state.segments, ref, wordIndex);
   if (time === null) return;
   state.lastManualScrollAt = 0;
+  // seek() already forces an active-segment update using this exact target
+  // time -- a second, redundant call here used to follow it with no time
+  // override, so it fell back to getCurrentTime(). For a YouTube-sourced
+  // shiur, player.seekTo() is asynchronous: getCurrentTime() read straight
+  // back still reported the OLD position, so this second call clobbered the
+  // correct, just-set activeIndex with the stale one a moment later --
+  // reported directly as the video jumping to the right place while the
+  // highlight stayed stuck on whatever was playing before the tap.
   seek(time + 0.03, true);
-  updateActiveSegment(true);
 }
 
 // --- Camera-scan feature (see scan-daf-page.mjs) ---------------------------
@@ -5508,8 +5558,12 @@ function seekToSegment(index) {
   const segment = state.segments[index];
   if (!segment) return;
   state.lastManualScrollAt = 0;
+  // See seekToVilnaWord's own comment above -- seek() already forces the
+  // correct active-segment update using this exact target time; a second
+  // call here with no time override used to re-derive it from
+  // getCurrentTime(), which a YouTube-sourced shiur's asynchronous seekTo()
+  // has not caught up to yet at this point.
   seek(segment.start + 0.03, true);
-  updateActiveSegment(true);
 }
 
 
