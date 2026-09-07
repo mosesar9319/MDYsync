@@ -1127,6 +1127,16 @@
     <p class="dialog-note">Lexicon entries from Sefaria (Jastrow, Klein, and others).</p>
   </dialog>
 
+  <dialog id="shasSearchDialog">
+    <button class="dialog-close" id="closeShasSearchDialog" aria-label="Close">×</button>
+    <div class="eyebrow">Search in Shas</div>
+    <h2 dir="rtl" lang="he" id="shasSearchQuery"></h2>
+    <div class="shas-search-body" id="shasSearchBody">
+      <p class="field-note">Searching…</p>
+    </div>
+    <p class="dialog-note">Results from Sefaria's Talmud Bavli text search.</p>
+  </dialog>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="../vendor/supabase-js.min.js"></script>
   <script src="../auth.js"></script>
@@ -1136,6 +1146,7 @@
   <script src="../notes.js" defer></script>
   <script src="../highlights.js" defer></script>
   <script src="../daf-context-menu.js" defer></script>
+  <script src="../shas-search.js" defer></script>
   <script src="../player-chrome.js" defer></script>
   <script src="../nav.js" defer></script>
   <script src="../collapse.js" defer></script>
