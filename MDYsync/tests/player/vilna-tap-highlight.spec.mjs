@@ -27,6 +27,17 @@ import { preparePage } from '../support/harness.mjs';
 // same asynchronous seekTo() a real YouTube player has, so they exercise
 // the actual race rather than the HTML5 path that happened to hide it.
 
+// state.vilnaOverlayKey's own format is `${ref}:${w0}:${w1}`, plus a
+// trailing `:${selectionSignature}` (see updateVilnaOverlay) that's this
+// test's own concern to ignore -- these tests are about which SEGMENT the
+// highlight follows, not about Select-text's own dedup guard against a
+// concurrent selection, which is never active here. Checking the prefix
+// rather than the exact string keeps this from being coupled to a detail
+// this file has nothing to do with.
+function overlayKeyPrefix(ref, w0, w1) {
+  return `${ref}:${w0}:${w1}`;
+}
+
 function pageMapFixture() {
   const boxes = [];
   const row = (ref, y, count) => {
@@ -76,7 +87,7 @@ test.describe('Vilna page -- tapping a word moves the "now playing" highlight', 
     await page.goto('/watch/?ref=Chullin%2089a');
     await seedAsyncYoutubeScenario(page);
 
-    expect(await page.evaluate(() => state.vilnaOverlayKey)).toBe('Chullin 89a.1:0:4');
+    expect(await page.evaluate(() => state.vilnaOverlayKey)).toContain(overlayKeyPrefix('Chullin 89a.1', 0, 4));
 
     // Two phrase boxes exist, in segment order (renderVilnaWordBoxes builds
     // them from spans.values(), first-seen order) -- the second is segment 1
@@ -90,7 +101,7 @@ test.describe('Vilna page -- tapping a word moves the "now playing" highlight', 
     // The video's seek target is right immediately -- this was never in
     // doubt; the bug was specifically that the HIGHLIGHT didn't follow it.
     expect(await page.evaluate(() => state.activeIndex)).toBe(1);
-    expect(await page.evaluate(() => state.vilnaOverlayKey)).toBe('Chullin 89a.2:0:3');
+    expect(await page.evaluate(() => state.vilnaOverlayKey)).toContain(overlayKeyPrefix('Chullin 89a.2', 0, 3));
     await expect(page.locator('#vilnaActiveOverlay .vilna-active-rect')).toHaveCount(1);
 
     // And it STAYS moved once the simulated async seek actually lands --
@@ -98,7 +109,7 @@ test.describe('Vilna page -- tapping a word moves the "now playing" highlight', 
     // short of the next real playback tick.
     await page.waitForTimeout(500);
     expect(await page.evaluate(() => state.activeIndex)).toBe(1);
-    expect(await page.evaluate(() => state.vilnaOverlayKey)).toBe('Chullin 89a.2:0:3');
+    expect(await page.evaluate(() => state.vilnaOverlayKey)).toContain(overlayKeyPrefix('Chullin 89a.2', 0, 3));
   });
 
   test('the same fix applies to jumping backward to an earlier segment', async ({ page }) => {
@@ -115,12 +126,12 @@ test.describe('Vilna page -- tapping a word moves the "now playing" highlight', 
     // playback ticks (force=false) only; a deliberate tap always passes
     // force=true and must be able to move either direction.
     await page.evaluate(() => { window.__simTime = 105; state.activeIndex = 1; updateVilnaOverlay(); });
-    expect(await page.evaluate(() => state.vilnaOverlayKey)).toBe('Chullin 89a.2:0:3');
+    expect(await page.evaluate(() => state.vilnaOverlayKey)).toContain(overlayKeyPrefix('Chullin 89a.2', 0, 3));
 
     await page.locator('.vilna-phrase-box').first().dispatchEvent('click');
 
     expect(await page.evaluate(() => state.activeIndex)).toBe(0);
-    expect(await page.evaluate(() => state.vilnaOverlayKey)).toBe('Chullin 89a.1:0:4');
+    expect(await page.evaluate(() => state.vilnaOverlayKey)).toContain(overlayKeyPrefix('Chullin 89a.1', 0, 4));
   });
 
   test('the scanned-photo tap-to-jump path shares the same fix', async ({ page }) => {
