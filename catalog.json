@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-08T01:00:37.771Z",
+  "generatedAt": "2026-09-08T07:00:40.926Z",
   "tractates": {
     "Chullin": [
       {
@@ -2942,8 +2942,13 @@
       {
         "daf": 131,
         "regularHe": {
-          "videoId": "QQZ1ZqJDYF0",
-          "label": "מרכז דף יומי -  חולין דף קלא. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
+          "videoId": "off7JHZtByc",
+          "label": "מרכז דף יומי - חולין דף קלא. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
+        "regularEn": {
+          "videoId": "k_t-uNnW0rg",
+          "label": "Daf Yomi Chullin Daf 131 by R’ Eli Stefansky (unedited)",
           "amud": "a"
         }
       }
