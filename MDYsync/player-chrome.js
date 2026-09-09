@@ -68,7 +68,7 @@
   const hasNotes = Boolean($('noteDialog'));
   topbar.innerHTML = `
     <div class="player-topbar-group">
-      <span class="player-brand"><img src="/assets/dafsync-mark.svg" alt="" /><span>DafSync</span></span>
+      <span class="player-brand"><img src="/assets/dafsync-mark.png" alt="" /><span>DafSync</span></span>
       <span class="player-topbar-rule"></span>
       <button class="player-daf-button" id="playerDafButton" type="button" aria-expanded="false" ${isStudio ? 'disabled' : ''}>
         <span id="playerDafLabel">No daf loaded</span>
