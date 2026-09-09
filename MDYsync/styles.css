@@ -92,6 +92,7 @@ button { color: inherit; }
 .mobile-brand .brand-name { display: block; font-size: 24px; }
 @media (max-width: 760px) { .mobile-brand { display: block; } }
 .sidebar .desktop-navigation { display: flex; flex-direction: column; }
+.icon { flex: 0 0 auto; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
 .side-link {
   height: 88px;
   display: flex;
