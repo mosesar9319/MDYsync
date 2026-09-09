@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#fbf8f2">
+  <meta name="theme-color" content="#f4f7fb">
   <meta name="description" content="Watch a Daf Yomi shiur while following along inside the daf.">
   <title>DafSync — Shiur Player</title>
   <script>
@@ -60,18 +60,18 @@
   <link rel="stylesheet" href="../watch-theme.css" />
   <style>
     :root {
-      --ivory: #fbf8f2;
-      --paper: #fffdf8;
-      --paper-deep: #f5ecdc;
-      --navy: #0c263d;
-      --navy-soft: #17364f;
-      --gold: #ba8422;
-      --gold-light: #d9a848;
-      --gold-wash: #f6e8c9;
-      --ink: #17212b;
-      --muted: #706b64;
-      --line: #e6ded1;
-      --shadow: 0 14px 38px rgba(63,45,23,.1);
+      --ivory: #f4f7fb;
+      --paper: #ffffff;
+      --paper-deep: #eef3f9;
+      --navy: #132238;
+      --navy-soft: #1c3350;
+      --gold: #2f6ea5;
+      --gold-light: #4a90c9;
+      --gold-wash: #e7f0f8;
+      --ink: #132238;
+      --muted: #65748a;
+      --line: #d9e1eb;
+      --shadow: 0 14px 38px rgba(29,57,88,.1);
     }
 
     * { box-sizing: border-box; }
@@ -83,7 +83,7 @@
       font-family: Arial, Helvetica, sans-serif;
       background:
         radial-gradient(circle at 62% -10%, rgba(255,255,255,.96), transparent 38rem),
-        linear-gradient(130deg, #fcfaf5 0%, #f8f3ea 100%);
+        linear-gradient(130deg, #fcfdfe 0%, #eef3f9 100%);
     }
     button, input, select { font: inherit; }
     button, a { -webkit-tap-highlight-color: transparent; }
@@ -100,9 +100,9 @@
       width: 148px;
       display: flex;
       flex-direction: column;
-      background: rgba(255,253,248,.96);
+      background: rgba(244, 247, 251,.96);
       border-right: 1px solid var(--line);
-      box-shadow: 10px 0 30px rgba(77,54,27,.035);
+      box-shadow: 10px 0 30px rgba(29, 57, 88,.035);
     }
     .brand {
       display: flex;
@@ -131,13 +131,13 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-      color: #544e46;
+      color: #65748a;
       text-decoration: none;
       font: 16px Georgia,"Times New Roman",serif;
       border-left: 4px solid transparent;
       transition: .18s ease;
     }
-    .side-link:hover, .side-link.active { color: var(--gold); background: #fcf7ec; border-left-color: var(--gold); }
+    .side-link:hover, .side-link.active { color: var(--gold); background: #eef3f9; border-left-color: var(--gold); }
 
     .page { min-height: 100vh; margin-left: 148px; }
     .topbar {
@@ -150,7 +150,7 @@
       align-items: center;
       gap: 22px;
       padding: 0 clamp(22px,4vw,64px);
-      background: rgba(255,253,248,.92);
+      background: rgba(244, 247, 251,.92);
       border-bottom: 1px solid var(--line);
       backdrop-filter: blur(16px);
     }
@@ -173,12 +173,12 @@
       align-items: center;
       gap: 13px;
       padding: 0 22px;
-      color: #77736d;
+      color: #65748a;
       background: rgba(255,255,255,.42);
-      border: 1px solid #dcd2c2;
+      border: 1px solid #d9e1eb;
       border-radius: 999px;
     }
-    .search-box:focus-within { border-color: var(--gold-light); box-shadow: 0 0 0 4px rgba(186,132,34,.1); }
+    .search-box:focus-within { border-color: var(--gold-light); box-shadow: 0 0 0 4px rgba(47, 110, 165,.1); }
     .search-box input { width: 100%; border: 0; outline: 0; color: var(--ink); background: transparent; font-size: 17px; }
     .topbar .auth-widget { justify-self: end; }
 
@@ -385,7 +385,7 @@
     .about-card h2 { color: var(--navy); font: 700 25px Georgia,"Times New Roman",serif; }
     .about-card p { color: var(--muted); line-height: 1.7; }
     .details { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
-    .detail-pill { padding: 8px 12px; color: #5e564d; background: #faf6ee; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; }
+    .detail-pill { padding: 8px 12px; color: #65748a; background: #eef3f9; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; }
 
     /* The right-hand daf card keeps its box styling from the shared .card
        class (below, via styles.css + watch-theme.css); this just adds the
@@ -425,28 +425,28 @@
        player-card side -- see the alignment comment near .watch-layout)
        an unpredictable height depending on daf ref length/viewport width.
        The title truncates instead; the tools never need to. */
-    .daf-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 18px 18px 15px; border-bottom: 1px solid rgba(90,66,34,.1); flex-wrap: nowrap; background: rgba(255,253,248,.72); }
+    .daf-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 18px 18px 15px; border-bottom: 1px solid rgba(19, 34, 56,.1); flex-wrap: nowrap; background: rgba(244, 247, 251,.72); }
     .daf-header > div:first-child { min-width: 0; overflow: hidden; }
     .daf-header h2 { margin: 3px 0 0; color: var(--navy); font: 700 25px Georgia,"Times New Roman",serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .daf-header .daf-tools { flex-shrink: 0; }
     .daf-tools { display: flex; align-items: center; gap: 7px; flex-wrap: nowrap; }
-    .daf-card .view-switch { padding: 3px; border: 1px solid rgba(90,66,34,.1); background: #f7f1e7; }
+    .daf-card .view-switch { padding: 3px; border: 1px solid rgba(19, 34, 56,.1); background: #eef3f9; }
     .daf-card .view-switch button { padding: 7px 9px; white-space: nowrap; }
-    .tool-button { width: 34px; height: 34px; display: grid; place-items: center; color: #655e55; background: transparent; border: 1px solid rgba(90,66,34,.14); border-radius: 999px; }
-    .tool-button:hover { color: var(--gold); border-color: #d9bd85; }
+    .tool-button { width: 34px; height: 34px; display: grid; place-items: center; color: #65748a; background: transparent; border: 1px solid rgba(19, 34, 56,.14); border-radius: 999px; }
+    .tool-button:hover { color: var(--gold); border-color: #4a90c9; }
     .daf-card:not([data-daf-view="text"]) .tool-button { display: none; }
 
     .daf-card .daf-scroll {
       min-height: 510px;
       border-radius: 0;
       box-shadow: none;
-      scrollbar-color: rgba(90,66,34,.25) transparent;
+      scrollbar-color: rgba(19, 34, 56,.25) transparent;
     }
     .daf-card[data-daf-view="page"] .daf-scroll { background: transparent; touch-action: pan-x pan-y; }
     .daf-card[data-daf-view="page"] .vilna-placeholder {
       min-height: 100%;
       padding: 0 8px 18px;
-      color: #453c2e;
+      color: #132238;
       background: #fff;
     }
     .daf-card[data-daf-view="page"] .vilna-zoom-controls {
@@ -456,10 +456,10 @@
       margin: 12px auto 16px;
       padding: 5px 6px;
       gap: 5px;
-      border: 1px solid rgba(90,66,34,.13);
+      border: 1px solid rgba(19, 34, 56,.13);
       border-radius: 999px;
-      background: rgba(255,253,248,.93);
-      box-shadow: 0 8px 22px rgba(63,45,23,.08);
+      background: rgba(244, 247, 251,.93);
+      box-shadow: 0 8px 22px rgba(29, 57, 88,.08);
       backdrop-filter: blur(12px);
     }
     .daf-card[data-daf-view="page"] .vilna-zoom-btn,
@@ -473,15 +473,15 @@
     }
     .daf-card[data-daf-view="page"] .vilna-zoom-btn:hover,
     .daf-card[data-daf-view="page"] .vilna-fullscreen-button:hover { background: var(--gold-wash); color: var(--gold); }
-    .daf-card[data-daf-view="page"] #vilnaZoomLabel { color: #6c6358; font-variant-numeric: tabular-nums; }
+    .daf-card[data-daf-view="page"] #vilnaZoomLabel { color: #65748a; font-variant-numeric: tabular-nums; }
     .daf-card[data-daf-view="page"] .vilna-zoom-reset {
       padding: 6px 10px;
       border: 0;
-      border-left: 1px solid rgba(90,66,34,.12);
-      border-right: 1px solid rgba(90,66,34,.12);
+      border-left: 1px solid rgba(19, 34, 56,.12);
+      border-right: 1px solid rgba(19, 34, 56,.12);
       border-radius: 0;
       background: transparent;
-      color: #6c6358;
+      color: #65748a;
     }
     .daf-card[data-daf-view="page"] .vilna-zoom-reset:hover { color: var(--gold); background: transparent; }
     .daf-card[data-daf-view="page"] .vilna-mark-toggle { width: auto; padding: 0 10px; }
@@ -495,30 +495,30 @@
     .daf-card[data-daf-view="page"] .vilna-fullscreen-button { margin-left: 2px; }
     .daf-card[data-daf-view="page"] .vilna-page-status { padding: 30px 12px 38px; }
     .daf-card[data-daf-view="page"] .page-silhouette {
-      border-color: rgba(90,66,34,.18);
+      border-color: rgba(19, 34, 56,.18);
       border-radius: 2px;
-      box-shadow: 0 14px 34px rgba(63,45,23,.11);
+      box-shadow: 0 14px 34px rgba(29, 57, 88,.11);
     }
     .daf-card[data-daf-view="page"] .vilna-page-wrap { max-width: 100%; margin: 0 auto; }
     .daf-card[data-daf-view="page"] #vilnaPageCanvas {
-      border: 1px solid rgba(90,66,34,.11);
+      border: 1px solid rgba(19, 34, 56,.11);
       border-radius: 2px;
       background: #fff;
-      box-shadow: 0 12px 32px rgba(63,45,23,.11);
+      box-shadow: 0 12px 32px rgba(29, 57, 88,.11);
     }
     .daf-card .daf-toolbar {
       margin: 0;
       padding: 11px 18px;
-      border-color: rgba(90,66,34,.1);
-      background: rgba(255,253,248,.78);
+      border-color: rgba(19, 34, 56,.1);
+      background: rgba(244, 247, 251,.78);
     }
     .daf-card .daf-footer {
       margin: 0;
       padding: 12px 18px 14px;
-      border-top-color: rgba(90,66,34,.1);
-      background: rgba(255,253,248,.78);
+      border-top-color: rgba(19, 34, 56,.1);
+      background: rgba(244, 247, 251,.78);
     }
-    .sync-note { display: flex; align-items: center; gap: 9px; margin: 14px 17px 0; padding: 11px 13px; color: #68501f; background: #fbf4e5; border: 1px solid #ead8af; border-radius: 11px; font-size: 12px; line-height: 1.45; }
+    .sync-note { display: flex; align-items: center; gap: 9px; margin: 14px 17px 0; padding: 11px 13px; color: #132238; background: #eef3f9; border: 1px solid #d9e1eb; border-radius: 11px; font-size: 12px; line-height: 1.45; }
     .daf-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px 17px; color: var(--muted); border-top: 1px solid var(--line); font-size: 12px; }
 
     /* Reading Mode reverses the existing Vilna-on-video overlay: the daf
@@ -532,16 +532,16 @@
       gap: 7px;
       min-height: 34px;
       padding: 7px 11px;
-      border: 1px solid rgba(90,66,34,.16);
+      border: 1px solid rgba(19, 34, 56,.16);
       border-radius: 999px;
       color: var(--navy);
-      background: #fffdf8;
+      background: #f4f7fb;
       font: 700 12px/1 "Assistant", sans-serif;
       white-space: nowrap;
       cursor: pointer;
       transition: color .16s ease, background .16s ease, border-color .16s ease, transform .16s ease;
     }
-    .reading-mode-entry:hover { color: var(--gold); border-color: #d9bd85; transform: translateY(-1px); }
+    .reading-mode-entry:hover { color: var(--gold); border-color: #4a90c9; transform: translateY(-1px); }
     .reading-mode-entry.active { color: #fff; background: var(--navy); border-color: var(--navy); }
     .reading-mode-entry svg { width: 16px; height: 16px; flex: 0 0 auto; }
     .daf-card:not([data-daf-view="page"]) .reading-mode-entry { display: none; }
@@ -572,7 +572,7 @@
       height: max(700px, calc(100svh - 142px));
       min-height: 700px;
       margin: 0 auto;
-      box-shadow: 0 22px 58px rgba(63,45,23,.11);
+      box-shadow: 0 22px 58px rgba(29, 57, 88,.11);
     }
     /* The floating video (.reading-video-float, z-index 30) is an absolutely
        positioned sibling of .daf-card, fixed at top:110px regardless of how
@@ -600,7 +600,7 @@
       margin: 0;
       padding: 0;
       overflow: hidden;
-      background: #f5f0e7;
+      background: #eef3f9;
     }
     body.reading-mode-active .watch-layout:fullscreen .daf-card,
     body.reading-mode-active .watch-layout:-webkit-full-screen .daf-card {
@@ -643,7 +643,7 @@
       pointer-events: auto;
     }
     body.reading-mode-active .reading-video-float.is-dragging,
-    body.reading-mode-active .reading-video-float.is-resizing { transition: none; box-shadow: 0 24px 62px rgba(4,14,27,.46), 0 0 0 2px rgba(186,132,34,.42); }
+    body.reading-mode-active .reading-video-float.is-resizing { transition: none; box-shadow: 0 24px 62px rgba(4,14,27,.46), 0 0 0 2px rgba(47, 110, 165,.42); }
     body.reading-mode-active .reading-video-slot { background: #020812; }
     body.reading-mode-active .reading-video-slot .video-frame { width: 100%; border: 0; border-radius: 0; }
     /* The inverse overlay cannot be enabled while the player itself is on
@@ -732,11 +732,11 @@
       transform: translateX(-50%);
       max-width: calc(100% - 24px);
       padding: 7px 11px;
-      border: 1px solid rgba(90,66,34,.14);
+      border: 1px solid rgba(19, 34, 56,.14);
       border-radius: 999px;
-      color: #625b51;
-      background: rgba(255,253,248,.94);
-      box-shadow: 0 8px 22px rgba(63,45,23,.1);
+      color: #65748a;
+      background: rgba(244, 247, 251,.94);
+      box-shadow: 0 8px 22px rgba(29, 57, 88,.1);
       backdrop-filter: blur(10px);
       font-size: 11px;
       white-space: nowrap;
@@ -758,7 +758,7 @@
       body.reading-mode-active .reading-video-float #vaaterButton { display: none; }
     }
 
-    :focus-visible { outline: 3px solid rgba(186,132,34,.42); outline-offset: 3px; }
+    :focus-visible { outline: 3px solid rgba(47, 110, 165,.42); outline-offset: 3px; }
 
     @media (max-width: 1120px) {
       .watch-layout { grid-template-columns: 1fr; }
