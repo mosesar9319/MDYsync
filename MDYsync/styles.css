@@ -1206,6 +1206,7 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
    frame around it, so there's no separate mask element to keep in sync. */
 .scan-camera-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
 .scan-camera-cutout {
+  position: relative;
   aspect-ratio: 1 / 1.42; /* PAGE_ASPECT_RATIO in app.js -- a Vilna Shas page's own proportions */
   width: auto;
   height: min(68vh, calc(88vw * 1.42));
@@ -1213,6 +1214,31 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
   border: 3px solid #2f6ea5;
   border-radius: 10px;
   box-shadow: 0 0 0 100vmax rgba(0,0,0,.62);
+}
+/* Matches scan-daf-page.mjs's own HEADER_BAND fraction (top 5% of the
+   aligned page) exactly -- see the HTML comment above this element. */
+.scan-camera-header-band {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5%;
+  border-bottom: 2px dashed #8ecdf5;
+  background: rgba(142, 205, 245, .28);
+  border-radius: 7px 7px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+.scan-camera-header-band span {
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-shadow: 0 1px 3px rgba(0,0,0,.8);
+  white-space: nowrap;
 }
 .scan-camera-top-text { position: absolute; top: max(18px, env(safe-area-inset-top)); left: 16px; right: 16px; text-align: center; }
 .scan-camera-hint { color: #fff; font-size: 13px; margin: 0 0 6px; text-shadow: 0 1px 4px rgba(0,0,0,.6); }

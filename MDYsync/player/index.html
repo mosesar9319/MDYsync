@@ -1339,7 +1339,21 @@
                   <img class="scan-camera-photo" id="scanCameraPhotoZoom" alt="Selected page photo" />
                 </div>
                 <div class="scan-camera-overlay">
-                  <div class="scan-camera-cutout" id="scanCameraCutout"></div>
+                  <div class="scan-camera-cutout" id="scanCameraCutout">
+                    <!-- Marks exactly the region scan-daf-page.mjs's own
+                         HEADER_BAND crops server-side (the top 5% of the
+                         aligned page) -- the reader lines the physical
+                         header up with THIS strip, not just "somewhere near
+                         the top of the page outline", so what they see here
+                         is exactly what gets OCR'd to identify the daf. Purely
+                         a visual guide: captureScanPhotoFromCamera only ever
+                         reads scanCameraCutout's own rect, so this adds no
+                         new crop math, it just narrows where user error can
+                         land within the crop that already happens. -->
+                    <div class="scan-camera-header-band" id="scanCameraHeaderBand">
+                      <span>Line up the header here</span>
+                    </div>
+                  </div>
                 </div>
                 <div class="scan-camera-top-text">
                   <p class="scan-camera-hint" id="scanCameraHint">Fit the page inside the frame, then tap to capture.</p>
@@ -1354,7 +1368,7 @@
                        one region that actually has to be sharp, level, and
                        fully in frame for a match to work, more than the body
                        text below it. -->
-                  <p class="scan-camera-tips" id="scanCameraTips">For the best match: hold the phone flat and directly above the page, and make sure the page's header at the very top (the line with the masechta name and daf number, above the Gemara text) is fully visible and in focus. Avoid shadows or glare.</p>
+                  <p class="scan-camera-tips" id="scanCameraTips">For the best match: hold the phone flat and directly above the page, and line up the header (the masechta name and daf number, above the Gemara text) inside the highlighted strip at the top of the frame. Avoid shadows or glare.</p>
                 </div>
                 <div class="scan-camera-controls">
                   <button class="button secondary scan-camera-controls-cancel" id="scanCameraCancelButton" type="button">Cancel</button>
