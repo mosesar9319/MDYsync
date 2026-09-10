@@ -1,5 +1,19 @@
 'use strict';
 
+// How tall a region (as a fraction of the aligned page) counts as "the
+// header" for Daf Scan's identification step. Declared here, ahead of
+// `state` below, because state.scanHeaderBandFraction needs the default at
+// module-init time -- the rest of the scan feature (constants, camera view,
+// confirmScan) lives much further down with everything else it's used by.
+// See scan-daf-page.mjs's resolveHeaderBandFraction for the server-side
+// half of this and why MIN/MAX exist: a real misidentification bug
+// (Chullin 101a misread as 86a) was traced directly to a too-wide crop
+// reaching into body text, which is exactly what a value above MAX would
+// reintroduce.
+const SCAN_HEADER_BAND_FRACTION_DEFAULT = 0.05;
+const SCAN_HEADER_BAND_FRACTION_MIN = 0.02;
+const SCAN_HEADER_BAND_FRACTION_MAX = 0.08;
+
 const state = {
   dafRef: '',
   segments: [],
@@ -167,6 +181,13 @@ const state = {
   // correction with a slower automatic result that only shows up after they've
   // already started fixing it by hand.
   scanCornersManuallyEdited: false,
+  // Live-adjustable copy of SCAN_HEADER_BAND_FRACTION_DEFAULT -- starts at
+  // the default and only ever changes via the debug slider (see
+  // renderScanDebugControls), which only exists at all behind ?debugScan=1.
+  // Ordinary users never see or touch this; it's a testing knob, not a
+  // preference (see the slider's own comment for why this isn't a normal
+  // setting).
+  scanHeaderBandFraction: SCAN_HEADER_BAND_FRACTION_DEFAULT,
   // Pinch/pan zoom on the synced result photo (see wireScanResultZoom) --
   // a plain CSS transform on #scanResultZoom (translate in wrap-relative
   // px, then scale), reset to identity each time a fresh photo is shown.
@@ -2504,20 +2525,17 @@ async function seekToVilnaWord(ref, wordIndex) {
 // page (see matchHeader's minMargin). Still well clear of scan-daf-page.mjs's
 // 8MB cap: a real degraded test photo at 2400 came out under 450KB as JPEG.
 const SCAN_MAX_DIMENSION = 2400;
-// Single source of truth for "how tall is the header region" -- drives both
-// the guided-capture cutout's visual header-band guide (see
-// applyScanHeaderBandHeight below) and, sent as headerBandFraction on every
-// confirmScan() request, the server's own crop (see scan-daf-page.mjs's
-// resolveHeaderBandFraction). Kept in exactly one place on purpose: the two
-// used to be separate hand-maintained numbers (a CSS percentage here, a
-// fraction in that file), and letting the visual guide and the real crop
-// drift apart would mean the reader could frame the header exactly where
-// the guide shows and still miss the region the server actually reads. The
-// value itself (0.05) is unchanged from before -- see resolveHeaderBandFraction's
-// own comment for why it's not simply doubled: a wider crop already caused
-// a real misidentification bug once (body text leaking in and accidentally
-// out-scoring the real header on a short gematria match).
-const SCAN_HEADER_BAND_FRACTION = 0.05;
+// SCAN_HEADER_BAND_FRACTION_DEFAULT/MIN/MAX live at the very top of this
+// file (state.scanHeaderBandFraction needs the default before `state` is
+// even defined) -- state.scanHeaderBandFraction, not a plain constant, is
+// the actual live value everything below reads: it drives both the
+// guided-capture cutout's visual header-band guide (see the debug slider
+// and applyScanHeaderBandHeight below) and, sent as headerBandFraction on
+// every confirmScan() request, the server's own crop (see
+// scan-daf-page.mjs's resolveHeaderBandFraction). It starts at
+// SCAN_HEADER_BAND_FRACTION_DEFAULT and only moves if the ?debugScan=1
+// slider does -- ordinary users never change it, so in practice it's the
+// same single fixed value it always was.
 // Corners default to a generous inward inset, not the photo's own edges --
 // most photos have some background/table visible around the book, so
 // starting the drag handles a little inside a typical framing needs less
@@ -3438,10 +3456,10 @@ async function confirmScan(engineOverride = null) {
         // of a shiur variant. See scan-daf-page.mjs's own engine-selection
         // comment for what each option actually does server-side.
         engine: engineOverride || activeShiurVariant('scanEngineToggle'),
-        // See SCAN_HEADER_BAND_FRACTION's own comment -- keeps the server's
-        // real crop in lockstep with whatever height the capture UI's
-        // on-screen header guide actually showed the reader.
-        headerBandFraction: SCAN_HEADER_BAND_FRACTION,
+        // See state.scanHeaderBandFraction's own comment -- keeps the
+        // server's real crop in lockstep with whatever height the capture
+        // UI's on-screen header guide actually showed the reader.
+        headerBandFraction: state.scanHeaderBandFraction,
       }),
     });
     const result = await response.json();
@@ -7596,12 +7614,40 @@ $('scanCameraCancelButton')?.addEventListener('click', () => {
   stopScanCamera();
   $('scanIntro').hidden = false;
 });
-// Drives the visual header-band guide's height from the same constant the
-// server crop uses (see SCAN_HEADER_BAND_FRACTION above) -- the CSS rule's
-// own height:5% is just a static fallback for the instant before this runs.
-if ($('scanCameraHeaderBand')) {
-  $('scanCameraHeaderBand').style.height = `${SCAN_HEADER_BAND_FRACTION * 100}%`;
+// Drives the visual header-band guide's height from state.scanHeaderBandFraction
+// (see its own comment) -- the CSS rule's own height:5% is just a static
+// fallback for the instant before this first runs. Also called by the debug
+// slider below on every drag, so the guide always reflects whatever value
+// confirmScan() would actually send.
+function applyScanHeaderBandHeight() {
+  const band = $('scanCameraHeaderBand');
+  if (band) band.style.height = `${state.scanHeaderBandFraction * 100}%`;
 }
+applyScanHeaderBandHeight();
+
+// Wires up the ?debugScan=1-only header-band slider (see its markup's own
+// comment for why this isn't a normal user-facing control). Reads the flag
+// once at load -- there's no legitimate reason it would change mid-session,
+// so no need to re-check on every scan.
+const SCAN_DEBUG = new URLSearchParams(location.search).get('debugScan') === '1';
+function initScanDebugControls() {
+  const wrap = $('scanCameraDebugControls');
+  const slider = $('scanHeaderBandSlider');
+  if (!wrap || !slider || !SCAN_DEBUG) return; // stays hidden -- nothing to wire up
+  wrap.hidden = false;
+  slider.min = String(SCAN_HEADER_BAND_FRACTION_MIN);
+  slider.max = String(SCAN_HEADER_BAND_FRACTION_MAX);
+  slider.value = String(state.scanHeaderBandFraction);
+  const label = $('scanHeaderBandSliderValue');
+  const updateLabel = () => { label.textContent = `${Math.round(state.scanHeaderBandFraction * 100)}%`; };
+  updateLabel();
+  slider.addEventListener('input', () => {
+    state.scanHeaderBandFraction = Number(slider.value);
+    applyScanHeaderBandHeight();
+    updateLabel();
+  });
+}
+initScanDebugControls();
 $('scanCameraShutterButton')?.addEventListener('click', handleScanCameraCapture);
 $('scanCameraConfirmCropButton')?.addEventListener('click', handleScanCameraConfirmCrop);
 $('scanCameraLibraryButton')?.addEventListener('click', () => $('scanLibraryInput').click());

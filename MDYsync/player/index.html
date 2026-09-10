@@ -1370,6 +1370,20 @@
                        text below it. -->
                   <p class="scan-camera-tips" id="scanCameraTips">For the best match: hold the phone flat and directly above the page, and line up the header (the masechta name and daf number, above the Gemara text) inside the highlighted strip at the top of the frame. Avoid shadows or glare.</p>
                 </div>
+                <!-- Testing-only control, never shown to ordinary readers --
+                     stays hidden (see initScanDebugControls in app.js) unless
+                     the page was loaded with ?debugScan=1. This is NOT a
+                     user preference: the header-band height is tied to a
+                     real, already-fixed misidentification bug (a too-wide
+                     crop reading into body text), so exposing it to every
+                     reader risked them dragging it the wrong way and quietly
+                     breaking their own scans with no way to know why. This
+                     exists purely so a developer can try a different height
+                     against a real photo without a redeploy. -->
+                <div class="scan-camera-debug" id="scanCameraDebugControls" hidden>
+                  <label for="scanHeaderBandSlider">DEBUG · Header band <span id="scanHeaderBandSliderValue">5%</span></label>
+                  <input type="range" id="scanHeaderBandSlider" min="0.02" max="0.08" step="0.005" value="0.05" />
+                </div>
                 <div class="scan-camera-controls">
                   <button class="button secondary scan-camera-controls-cancel" id="scanCameraCancelButton" type="button">Cancel</button>
                   <button class="scan-camera-shutter" id="scanCameraShutterButton" type="button" aria-label="Capture photo"></button>
