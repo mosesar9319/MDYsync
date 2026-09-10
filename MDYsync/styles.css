@@ -1206,6 +1206,7 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
    frame around it, so there's no separate mask element to keep in sync. */
 .scan-camera-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
 .scan-camera-cutout {
+  position: relative;
   aspect-ratio: 1 / 1.42; /* PAGE_ASPECT_RATIO in app.js -- a Vilna Shas page's own proportions */
   width: auto;
   height: min(68vh, calc(88vw * 1.42));
@@ -1214,9 +1215,57 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
   border-radius: 10px;
   box-shadow: 0 0 0 100vmax rgba(0,0,0,.62);
 }
+/* Matches scan-daf-page.mjs's own HEADER_BAND fraction (top 5% of the
+   aligned page) exactly -- see the HTML comment above this element. */
+.scan-camera-header-band {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5%;
+  border-bottom: 2px dashed #8ecdf5;
+  background: rgba(142, 205, 245, .28);
+  border-radius: 7px 7px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+.scan-camera-header-band span {
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-shadow: 0 1px 3px rgba(0,0,0,.8);
+  white-space: nowrap;
+}
 .scan-camera-top-text { position: absolute; top: max(18px, env(safe-area-inset-top)); left: 16px; right: 16px; text-align: center; }
 .scan-camera-hint { color: #fff; font-size: 13px; margin: 0 0 6px; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
 .scan-camera-tips { color: rgba(255,255,255,.8); font-size: 11.5px; line-height: 1.4; margin: 0; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
+/* ?debugScan=1 only -- deliberately un-styled-as-a-real-feature (dashed
+   border, monospace, explicit "DEBUG" label) so it reads as a testing tool
+   even to someone who stumbles onto the flag, not a hidden setting. */
+.scan-camera-debug {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 118px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0,0,0,.55);
+  border: 1px dashed rgba(255,255,255,.5);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+.scan-camera-debug label {
+  color: #fff;
+  font: 11px/1.3 ui-monospace, "SF Mono", Menlo, monospace;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.scan-camera-debug input[type="range"] { flex: 1 1 auto; }
 /* Three fixed slots (cancel / shutter-or-confirm / library) on a grid rather
    than a centered flex row, so the shutter stays perfectly centered whether
    or not the library button on the right is visible (hidden while a library

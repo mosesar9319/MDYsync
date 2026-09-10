@@ -75,8 +75,27 @@ const ALLOWED_ORIGINS = new Set([
 // string. 0.05 keeps a real margin above the measured ~4.5% the header line
 // itself needs (real camera photos won't crop as precisely as a clean PDF
 // render) while staying well clear of body text.
-const HEADER_BAND = [[0, 0], [1, 0], [1, 0.05], [0, 0.05]];
+//
+// Adjustable, not fixed: the capture UI's own on-screen header guide (see
+// SCAN_HEADER_BAND_FRACTION in app.js) is what the reader actually frames
+// against, and it sends its value here as headerBandFraction on every
+// request rather than this file guessing independently -- one number
+// changed in one place (app.js) moves both the visual guide and the real
+// crop together, so they can never drift out of sync the way two
+// hand-maintained constants in two files eventually would. MIN/MAX below
+// exist because that number now arrives over the wire: MAX keeps a future
+// larger value from reintroducing the exact 0.09 bug this comment
+// documents, MIN keeps a too-small value from cropping out the header
+// itself.
+const DEFAULT_HEADER_BAND_FRACTION = 0.05;
+const MIN_HEADER_BAND_FRACTION = 0.02;
+const MAX_HEADER_BAND_FRACTION = 0.08;
 const CANONICAL_CORNERS = [[0, 0], [1, 0], [1, 1], [0, 1]];
+
+function resolveHeaderBandFraction(requested) {
+  if (!Number.isFinite(requested)) return DEFAULT_HEADER_BAND_FRACTION;
+  return Math.min(MAX_HEADER_BAND_FRACTION, Math.max(MIN_HEADER_BAND_FRACTION, requested));
+}
 
 // A phone photo, base64-encoded, inflated ~33% by that encoding -- this
 // caps the *decoded* size, generous for a downscaled capture (the frontend
@@ -219,7 +238,7 @@ export default async (request) => {
     return Response.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }
 
-  const { imageBase64, imageWidth, imageHeight, corners, engine: requestedEngine } = body || {};
+  const { imageBase64, imageWidth, imageHeight, corners, engine: requestedEngine, headerBandFraction: requestedHeaderBandFraction } = body || {};
   if (typeof imageBase64 !== 'string' || !imageBase64) {
     return Response.json({ error: 'imageBase64 is required.' }, { status: 400 });
   }
@@ -252,7 +271,9 @@ export default async (request) => {
     return Response.json({ error: 'Could not align the marked page corners.', detail: error.message }, { status: 400 });
   }
 
-  const headerRect = boundingBox(HEADER_BAND.map(([x, y]) => applyHomography(homography, x, y)));
+  const headerBandFraction = resolveHeaderBandFraction(requestedHeaderBandFraction);
+  const headerBand = [[0, 0], [1, 0], [1, headerBandFraction], [0, headerBandFraction]];
+  const headerRect = boundingBox(headerBand.map(([x, y]) => applyHomography(homography, x, y)));
   const rectangle = {
     left: Math.max(0, Math.round(headerRect.left)),
     top: Math.max(0, Math.round(headerRect.top)),
