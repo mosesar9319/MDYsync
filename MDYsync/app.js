@@ -2504,6 +2504,20 @@ async function seekToVilnaWord(ref, wordIndex) {
 // page (see matchHeader's minMargin). Still well clear of scan-daf-page.mjs's
 // 8MB cap: a real degraded test photo at 2400 came out under 450KB as JPEG.
 const SCAN_MAX_DIMENSION = 2400;
+// Single source of truth for "how tall is the header region" -- drives both
+// the guided-capture cutout's visual header-band guide (see
+// applyScanHeaderBandHeight below) and, sent as headerBandFraction on every
+// confirmScan() request, the server's own crop (see scan-daf-page.mjs's
+// resolveHeaderBandFraction). Kept in exactly one place on purpose: the two
+// used to be separate hand-maintained numbers (a CSS percentage here, a
+// fraction in that file), and letting the visual guide and the real crop
+// drift apart would mean the reader could frame the header exactly where
+// the guide shows and still miss the region the server actually reads. The
+// value itself (0.05) is unchanged from before -- see resolveHeaderBandFraction's
+// own comment for why it's not simply doubled: a wider crop already caused
+// a real misidentification bug once (body text leaking in and accidentally
+// out-scoring the real header on a short gematria match).
+const SCAN_HEADER_BAND_FRACTION = 0.05;
 // Corners default to a generous inward inset, not the photo's own edges --
 // most photos have some background/table visible around the book, so
 // starting the drag handles a little inside a typical framing needs less
@@ -3424,6 +3438,10 @@ async function confirmScan(engineOverride = null) {
         // of a shiur variant. See scan-daf-page.mjs's own engine-selection
         // comment for what each option actually does server-side.
         engine: engineOverride || activeShiurVariant('scanEngineToggle'),
+        // See SCAN_HEADER_BAND_FRACTION's own comment -- keeps the server's
+        // real crop in lockstep with whatever height the capture UI's
+        // on-screen header guide actually showed the reader.
+        headerBandFraction: SCAN_HEADER_BAND_FRACTION,
       }),
     });
     const result = await response.json();
@@ -7578,6 +7596,12 @@ $('scanCameraCancelButton')?.addEventListener('click', () => {
   stopScanCamera();
   $('scanIntro').hidden = false;
 });
+// Drives the visual header-band guide's height from the same constant the
+// server crop uses (see SCAN_HEADER_BAND_FRACTION above) -- the CSS rule's
+// own height:5% is just a static fallback for the instant before this runs.
+if ($('scanCameraHeaderBand')) {
+  $('scanCameraHeaderBand').style.height = `${SCAN_HEADER_BAND_FRACTION * 100}%`;
+}
 $('scanCameraShutterButton')?.addEventListener('click', handleScanCameraCapture);
 $('scanCameraConfirmCropButton')?.addEventListener('click', handleScanCameraConfirmCrop);
 $('scanCameraLibraryButton')?.addEventListener('click', () => $('scanLibraryInput').click());
