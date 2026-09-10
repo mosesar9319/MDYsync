@@ -131,7 +131,7 @@ def fetch_page_pdf(tractate, daf, amud, out_path):
         f.write(data)
 
 
-def pdf_to_png(pdf_path, out_prefix, dpi=300):
+def pdf_to_png(pdf_path, out_prefix, dpi=150):
     ret = os.system(f'pdftoppm -png -r {dpi} "{pdf_path}" "{out_prefix}"')
     if ret != 0:
         raise RuntimeError('pdftoppm failed; is poppler-utils installed?')
