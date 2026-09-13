@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-13T18:00:42.946Z",
+  "generatedAt": "2026-09-13T19:00:36.922Z",
   "tractates": {
     "Chullin": [
       {
@@ -3024,8 +3024,16 @@
           "amud": "a"
         },
         "regularEn": {
-          "videoId": "-bqMFNvHhe0",
+          "videoId": "IuJLCFqf_z0",
           "label": "Daf Yomi Chullin Daf 135 by R’ Eli Stefansky (unedited)",
+          "amud": "a"
+        }
+      },
+      {
+        "daf": 136,
+        "regularEn": {
+          "videoId": "-bqMFNvHhe0",
+          "label": "Daf Yomi Chullin Daf 136 by R’ Eli Stefansky (unedited)",
           "amud": "a"
         }
       }
