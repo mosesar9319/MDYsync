@@ -74,11 +74,14 @@ export function buildHeaderVocabulary(availableDapim) {
     }));
 }
 
-// Amud isn't determined by the header at all -- Vilna pages don't print
-// "a"/"b" anywhere on the page itself, only the daf number, so the header
-// can only narrow a match down to a daf (both amudim share one physical
-// page/photo anyway). Whichever amud is actually being read has to come
-// from elsewhere (the reader picking it, or defaulting to 'a').
+// Vilna pages never print "a"/"b" literally anywhere on the page -- the
+// header text alone (Masechta name + gematria) can only narrow a match down
+// to a DAF, not which of its two amudim (they share one physical page/photo
+// anyway). But the header's LAYOUT still tells them apart: amud א prints
+// the daf number to the left of the tractate/perek name, amud ב to the
+// right (see resolveAmud below) -- a real, confirmed convention, not
+// inferred. matchHeader uses this as a second, independent signal on top of
+// its own text matching above.
 
 // Tesseract occasionally hallucinates a stray niqqud/cantillation mark onto
 // otherwise-correct Hebrew text (confirmed directly on a real photo: a
@@ -134,24 +137,74 @@ function stripNiqqud(s) {
 // alone couldn't break. Stripping it first fixes the comparison at its
 // source instead of trying to out-tune minMargin around it.
 function gematriaCandidates(tokens) {
-  const punctuated = tokens.filter((t) => /[.,:]$/.test(t));
-  return (punctuated.length ? punctuated : tokens).map((t) => t.replace(/[.,:]$/, ''));
+  const punctuated = tokens.filter((t) => /[.,:]$/.test(t.text));
+  const source = punctuated.length ? punctuated : tokens;
+  return source.map((t) => ({ ...t, text: t.text.replace(/[.,:]$/, '') }));
+}
+
+// Returns which TOKEN scored best against target, not just the score itself
+// -- resolveAmud below needs the winning token's own position, not a bare
+// number, to compare where the gematria and hebrew matches physically sit
+// in the header crop.
+function bestMatch(tokens, target) {
+  let best = null;
+  for (const token of tokens) {
+    const score = ratio(token.text, target);
+    if (!best || score > best.score) best = { token, score };
+  }
+  return best || { token: null, score: 0 };
 }
 
 function scoreEntry(tokens, gematriaTokens, entry) {
-  const hebrewScore = Math.max(...tokens.map((t) => ratio(t, entry.hebrew)));
-  const gematriaScore = Math.max(...gematriaTokens.map((t) => ratio(t, entry.gematria)));
-  return { entry, score: (hebrewScore + gematriaScore) / 2, hebrewScore, gematriaScore };
+  const hebrewBest = bestMatch(tokens, entry.hebrew);
+  const gematriaBest = bestMatch(gematriaTokens, entry.gematria);
+  return {
+    entry,
+    score: (hebrewBest.score + gematriaBest.score) / 2,
+    hebrewScore: hebrewBest.score,
+    gematriaScore: gematriaBest.score,
+    hebrewToken: hebrewBest.token,
+    gematriaToken: gematriaBest.token,
+  };
+}
+
+// A Vilna Shas header prints the daf number on one side and the tractate +
+// perek name together on the other -- which side is which is exactly what
+// tells amud a from amud b (amud a: daf number to the LEFT of the tractate/
+// perek name; amud b: to the RIGHT -- confirmed convention, not inferred).
+// This is a DIFFERENT signal from matchHeader's own order-independent
+// identification above (see its docstring: which piece the OCR engine
+// happened to list first isn't reliable) -- resolveAmud instead compares
+// where the two WINNING tokens physically sit in the crop, which the
+// engine's scan order never affected in the first place. Perek name itself
+// is never matched against any vocabulary (there isn't one) -- it doesn't
+// need to be, since it always sits immediately next to the tractate name,
+// so the tractate token's own position already stands in for that whole
+// side of the header.
+function resolveAmud(best) {
+  const { hebrewToken, gematriaToken } = best;
+  if (!hebrewToken || !gematriaToken) return null;
+  if (typeof hebrewToken.x !== 'number' || typeof gematriaToken.x !== 'number') return null;
+  // Same OCR token winning both comparisons means there's no real position
+  // signal (e.g. only one legible token in the whole crop) -- fail closed
+  // rather than report a coin-flip amud with false confidence.
+  if (hebrewToken.index === gematriaToken.index) return null;
+  return gematriaToken.x < hebrewToken.x ? 'a' : 'b';
 }
 
 /**
- * Matches OCR'd header text against the vocabulary. The physical header
- * has two pieces of text (Masechta name, daf gematria) whose left-to-right
- * scan order in the OCR output isn't something to rely on -- it depends on
- * the specific page's margin layout, which side amud a/b puts each piece
- * on, and how tesseract happens to walk the region -- so this matches each
+ * Matches OCR'd header tokens against the vocabulary. `ocrTokens` is an
+ * array of {text, x} -- x is each word's horizontal center in the header
+ * crop's own pixel space, used only for resolveAmud below; every other
+ * comparison here is still purely textual. The physical header has two
+ * pieces of text (Masechta name, daf gematria) whose left-to-right scan
+ * ORDER in the OCR output isn't something to rely on -- it depends on the
+ * specific page's margin layout, which side amud a/b puts each piece on,
+ * and how the OCR engine happens to walk the region -- so this matches each
  * vocabulary entry's two pieces against whichever OCR'd token fits best,
- * independent of order, rather than assuming a fixed order.
+ * independent of scan order, rather than assuming a fixed one. (Their
+ * physical POSITION, as opposed to scan order, is a separate and reliable
+ * signal -- see resolveAmud.)
  *
  * minMargin guards against a specific, confirmed failure mode: many
  * gematria values are literal prefixes of each other (100's "ק" is the
@@ -167,8 +220,10 @@ function scoreEntry(tokens, gematriaTokens, entry) {
  * mis-projects every word position onto the wrong page, worse than
  * returning "couldn't identify" and letting the reader retry the scan.
  */
-export function matchHeader(ocrText, vocabulary, minScore = 55, minMargin = 10) {
-  const tokens = ocrText.split(/\s+/).map((t) => stripNiqqud(t.trim())).filter(Boolean);
+export function matchHeader(ocrTokens, vocabulary, minScore = 55, minMargin = 10) {
+  const tokens = ocrTokens
+    .map((t, index) => ({ index, x: t.x, text: stripNiqqud(String(t.text || '').trim()) }))
+    .filter((t) => t.text);
   if (!tokens.length || !vocabulary.length) return null;
   const gematriaTokens = gematriaCandidates(tokens);
 
@@ -189,5 +244,5 @@ export function matchHeader(ocrText, vocabulary, minScore = 55, minMargin = 10) 
   }
   if (runnerUp && best.score - runnerUp.score < minMargin) return null;
 
-  return best;
+  return { entry: best.entry, score: best.score, amud: resolveAmud(best) };
 }
