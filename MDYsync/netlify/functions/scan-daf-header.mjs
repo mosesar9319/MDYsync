@@ -19,9 +19,14 @@
 // startup cost is fine to pay ONCE per full-page scan, not dozens of times a
 // minute during live framing.
 //
-// AMUD: unlike scan-daf-page.mjs, this endpoint NEVER reports a
-// position-based amud guess, even though matchHeader/resolveAmud compute
-// one internally -- see the module comment on amud below for why.
+// AMUD: same position-based signal scan-daf-page.mjs uses (daf number left
+// of the tractate/perek name = amud א, right = amud ב -- see resolveAmud in
+// daf-header-vocabulary.mjs), falling back to 'a' the same way that file
+// does whenever the signal is missing or ambiguous. NOTE this endpoint's
+// crop is a raw, unwarped on-screen guide cutout, not the homography-
+// projected, page-corner-aligned region resolveAmud was originally tuned
+// and confirmed against -- see the amud assignment below for the caveat
+// that follows from that.
 //
 // SECURITY: Google credentials (GOOGLE_VISION_API_KEY /
 // GOOGLE_VISION_CREDENTIALS_JSON) are read server-side only, exactly like
@@ -31,7 +36,7 @@
 import { Jimp } from 'jimp';
 import { createWorker } from 'tesseract.js';
 import { buildHeaderVocabulary, matchHeader, MASECHTA_HEBREW } from '../../shared/daf-header-vocabulary.mjs';
-import { ocrHeaderGoogleVision, extractTesseractTokens } from '../../shared/vision-header-ocr.mjs';
+import { ocrHeaderGoogleVision, extractTesseractTokens, filterTokensBySize } from '../../shared/vision-header-ocr.mjs';
 import { listAvailablePages } from '../../shared/available-dapim.mjs';
 import { ALLOWED_ORIGINS } from '../../shared/dafsync-config.mjs';
 
@@ -219,9 +224,15 @@ export default async (request) => {
     return Response.json({ matched: false, error: 'Could not read the header.' }, { status: 502 });
   }
 
+  // Drop small Rashi/Tosafot-sized text that leaked into the crop before
+  // ever handing tokens to matchHeader -- see filterTokensBySize's own
+  // comment. Complementary to, not a replacement for, matchHeader's own
+  // punctuation-based noise filtering (gematriaCandidates): this catches
+  // small text regardless of trailing punctuation, that doesn't.
+  const filteredTokens = filterTokensBySize(ocrResult.tokens);
   const availableDapim = await listAvailablePages(token, Object.keys(MASECHTA_HEBREW));
   const vocabulary = buildHeaderVocabulary(availableDapim);
-  let match = matchHeader(ocrResult.tokens, vocabulary);
+  let match = matchHeader(filteredTokens, vocabulary);
 
   // Both halves of the header (tractate name AND daf number) have to be
   // individually legible, not just averaged into a passing overall score --
@@ -242,23 +253,17 @@ export default async (request) => {
     return Response.json({ matched: false }, { headers: { 'Access-Control-Allow-Origin': origin } });
   }
 
-  // Deliberately 'a', always -- NOT match.amud. Two independent reasons:
-  //  1. The task this endpoint was built for explicitly requires preserving
-  //     the site's existing safe default-to-'a' behavior for this NEW flow
-  //     until position-based amud inference has been proven reliable
-  //     against real devices, which is real-world testing this endpoint's
-  //     own author cannot do from here.
-  //  2. matchHeader's resolveAmud signal was tuned and confirmed against
-  //     scan-daf-page.mjs's own header crop, which is produced by a
-  //     homography-projected, page-corner-aligned region -- structurally
-  //     different from this endpoint's crop (a raw on-screen guide cutout,
-  //     no perspective correction at all). Reusing that signal here without
-  //     separately validating it against THIS crop shape would be claiming
-  //     amud recognition this endpoint hasn't actually earned.
-  // match.amud is still computed above (inside matchHeader) and simply
-  // discarded here -- not blanked out inside matchHeader itself, since
-  // scan-daf-page.mjs's own call still needs and uses it correctly.
-  const amud = 'a';
+  // Same position-based signal scan-daf-page.mjs uses (see this file's own
+  // module comment, and resolveAmud in daf-header-vocabulary.mjs) -- only
+  // ever trusts an explicit 'b' reading; anything else (null/ambiguous,
+  // or a genuine 'a') falls back to 'a', the same fail-closed shape that
+  // file's own detectedAmud uses. Unlike that file, this crop is a raw,
+  // unwarped on-screen guide cutout rather than a homography-projected,
+  // page-corner-aligned region -- resolveAmud's left/right comparison was
+  // tuned and confirmed against the LATTER shape specifically, so this
+  // signal on THIS crop shape is exactly what real-device testing still
+  // needs to confirm (see this feature's own known-limitations note).
+  const amud = match.amud === 'b' ? 'b' : 'a';
   const ref = `${match.entry.tractate} ${match.entry.daf}${amud}`;
 
   // Up to two boxes -- the tractate-name word and the daf-number word that

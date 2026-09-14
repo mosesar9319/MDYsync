@@ -17,20 +17,27 @@ import { preparePage } from '../support/harness.mjs';
 // cannot substitute for -- see the feature's own final report.
 
 test.describe('scan-live.js -- pure logic', () => {
-  test('dafKeyOf builds a stable tractate+daf key, and null for no match', async ({ page }) => {
+  test('dafKeyOf builds a stable tractate+daf+amud key, and null for no match', async ({ page }) => {
     await preparePage(page, { user: null });
     await page.goto('/player/?ref=Chullin%2089a');
     const result = await page.evaluate(() => {
       const { dafKeyOf } = window.ScanLive.__testing;
       return {
-        a: dafKeyOf({ tractate: 'Chullin', daf: 89 }),
-        b: dafKeyOf({ tractate: 'Chullin', daf: 89 }),
-        different: dafKeyOf({ tractate: 'Chullin', daf: 86 }),
+        a: dafKeyOf({ tractate: 'Chullin', daf: 89, amud: 'a' }),
+        b: dafKeyOf({ tractate: 'Chullin', daf: 89, amud: 'a' }),
+        differentDaf: dafKeyOf({ tractate: 'Chullin', daf: 86, amud: 'a' }),
+        differentAmud: dafKeyOf({ tractate: 'Chullin', daf: 89, amud: 'b' }),
         none: dafKeyOf(null),
       };
     });
     expect(result.a).toBe(result.b);
-    expect(result.a).not.toBe(result.different);
+    expect(result.a).not.toBe(result.differentDaf);
+    // Same daf, different amud -- must NOT be treated as the same read.
+    // scan-daf-header.mjs's amud is a real, potentially noisy position
+    // signal now, not a constant -- two frames agreeing on the daf but
+    // disagreeing on amud is exactly what consensus should catch, the same
+    // way disagreeing on daf already does (see dafKeyOf's own comment).
+    expect(result.a).not.toBe(result.differentAmud);
     expect(result.none).toBe(null);
   });
 

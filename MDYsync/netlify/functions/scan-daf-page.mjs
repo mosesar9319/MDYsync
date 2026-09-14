@@ -46,7 +46,7 @@ import { Jimp, intToRGBA } from 'jimp';
 import { solveHomography, applyHomography } from '../../shared/perspective-transform.mjs';
 import { buildHeaderVocabulary, matchHeader, MASECHTA_HEBREW } from '../../shared/daf-header-vocabulary.mjs';
 import { detectTextBlockQuad } from '../../shared/text-block-detect.mjs';
-import { ocrHeaderGoogleVision, extractHeaderTokens, extractTesseractTokens } from '../../shared/vision-header-ocr.mjs';
+import { ocrHeaderGoogleVision, extractHeaderTokens, extractTesseractTokens, filterTokensBySize } from '../../shared/vision-header-ocr.mjs';
 import { listAvailablePages } from '../../shared/available-dapim.mjs';
 import { OWNER, REPO, ALLOWED_ORIGINS } from '../../shared/dafsync-config.mjs';
 
@@ -314,7 +314,15 @@ export default async (request) => {
     } catch (error) {
       return { engine: oneEngine, ocrError: error.message || 'Could not read the page header.' };
     }
-    return { engine: oneEngine, ocrText: ocrResult.text, match: matchHeader(ocrResult.tokens, vocabulary) };
+    // Drops small Rashi/Tosafot-sized text that leaked below the header
+    // line -- a real camera photo's crop isn't as pixel-precise as the
+    // HEADER_BAND fraction it's aiming for (see that constant's own
+    // comment on why 0.05 already leaves a margin above real body text),
+    // so this is a second, independent line of defense: filtering by
+    // glyph size rather than position, on top of the position-based crop
+    // itself. See filterTokensBySize's own comment.
+    const filteredTokens = filterTokensBySize(ocrResult.tokens);
+    return { engine: oneEngine, ocrText: ocrResult.text, match: matchHeader(filteredTokens, vocabulary) };
   }
 
   let match; // the one match actually used to build wordBoxes below

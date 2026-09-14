@@ -82,10 +82,6 @@ const SCAN_LIVE_ENDPOINT = '/api/scan-daf-header';
 
 // --- Pure helpers (no DOM/video access -- unit-testable directly) -----------
 
-// entry is {tractate, daf} (or null for "no match this round") -- amud is
-// deliberately NOT part of the key: this endpoint always reports 'a' (see
-// scan-daf-header.mjs's own comment on why), so including it would just be
-// baking in a constant, not a real distinguishing signal.
 // The exact same canonical route every other DafSync entry point builds
 // (see shas-search.js/daf-context-menu.js/chabura-home.js's own
 // `/browse/?ref=${encodeURIComponent(...)}`) -- a separate, tiny, pure
@@ -97,9 +93,17 @@ function buildScanLiveHref(ref) {
   return `/browse/?ref=${encodeURIComponent(ref)}`;
 }
 
+// entry is {tractate, daf, amud} (or null for "no match this round").
+// amud is part of the key deliberately: scan-daf-header.mjs now reports a
+// real position-based amud signal (not a constant -- see its own module
+// comment), and two frames agreeing on the daf but flip-flopping on amud
+// is exactly the kind of noisy read this consensus check exists to catch.
+// Locking on the wrong amud would still navigate to the right DAF, just
+// silently open the wrong side of it -- worth guarding the same way a
+// disagreeing daf already is.
 function dafKeyOf(entry) {
   if (!entry) return null;
-  return `${entry.tractate}::${entry.daf}`;
+  return `${entry.tractate}::${entry.daf}::${entry.amud}`;
 }
 
 // Appends `key` (a dafKeyOf(...) result, or null for a non-matching round)
@@ -404,7 +408,7 @@ async function runScanLiveTick(session) {
     return;
   }
 
-  const matchedEntry = result.matched ? { tractate: result.tractate, daf: result.daf } : null;
+  const matchedEntry = result.matched ? { tractate: result.tractate, daf: result.daf, amud: result.amud } : null;
   session.history = pushScanHistory(session.history, dafKeyOf(matchedEntry));
 
   if (matchedEntry) {

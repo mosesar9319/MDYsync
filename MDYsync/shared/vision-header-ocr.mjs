@@ -169,3 +169,35 @@ export function extractTesseractTokens(data) {
   }
   return { text: data.text || '', tokens };
 }
+
+// Drops tokens whose glyph height marks them as smaller commentary text
+// (Rashi/Tosafot, printed noticeably smaller than a Vilna page's own
+// header) that leaked into a header crop -- a real risk for a camera-
+// framed crop (the reader's own alignment, or a slightly generous on-
+// screen guide) in a way a precisely-cropped PDF render never has. Uses
+// each token's OWN bounding-box height (already computed by both
+// extractHeaderTokens and extractTesseractTokens above) as a glyph-size
+// proxy, relative to the TALLEST token's height in the SAME crop -- not an
+// absolute pixel threshold, which would break the moment the crop's own
+// resolution/zoom/upscale factor changed. The real header text is expected
+// to be the largest text present in a header-only crop, so using it as the
+// reference scales automatically with whatever this particular photo's
+// resolution happens to be.
+//
+// minRelativeHeight defaults to a deliberately conservative 0.6, not
+// something tighter like 0.8: OCR-measured glyph heights vary somewhat
+// even within genuinely same-size printed text (different letters have
+// different ascender/descender extents; a slightly rotated crop skews
+// bounding boxes unevenly) -- too tight a threshold would start discarding
+// real header tokens along with genuine small-text leakage, not just the
+// leakage. A token with no usable height (missing/non-finite/zero) is kept
+// rather than dropped -- this filter is a purely additive safety net, so
+// an engine/response that doesn't report reliable geometry should behave
+// exactly as if this filter never ran, not lose tokens to a comparison it
+// can't actually make.
+export function filterTokensBySize(tokens, minRelativeHeight = 0.6) {
+  const heights = tokens.map((t) => t.height).filter((h) => Number.isFinite(h) && h > 0);
+  if (!heights.length) return tokens;
+  const threshold = Math.max(...heights) * minRelativeHeight;
+  return tokens.filter((t) => !Number.isFinite(t.height) || t.height <= 0 || t.height >= threshold);
+}
