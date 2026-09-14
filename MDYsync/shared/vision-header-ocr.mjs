@@ -170,73 +170,43 @@ export function extractTesseractTokens(data) {
   return { text: data.text || '', tokens };
 }
 
-// --- Glyph-extent normalization ----------------------------------------------
-// A word's OCR bounding-box height is NOT a usable proxy for its font size on
-// its own, because Hebrew letters occupy very different vertical bands:
+// --- Size-based filtering ------------------------------------------------
+// Drops tokens that are noticeably SMALLER than the tallest token in the
+// same crop -- catches small Rashi/Tosafot commentary text that leaked into
+// a header crop (a real risk for a camera-framed live-scan capture: the
+// reader's own alignment, or a slightly generous on-screen guide, unlike a
+// precisely-cropped PDF render) before matchHeader ever sees it.
 //
-//   ל          rises well ABOVE the normal letter height (the only ascender)
-//   ך ן ף ץ ק  descend well BELOW the baseline
-//   everything else sits within the plain letter band
+// Compares RAW OCR box heights directly. An earlier version of this
+// function tried to normalize each height by the vertical span its own
+// letters were expected to occupy (Hebrew ל rises above the letter band,
+// ך ן ף ץ ק descend below it), on the theory that a short word like a daf
+// number could otherwise read as "too small" purely for lacking those
+// letters. That theory was built and calibrated against synthetic text
+// rendered in generic system fonts (FreeSerif/Liberation), where an
+// ascender or descender really does add ~35-45% extra box height. It does
+// NOT hold for real printed Vilna Shas headers: measured directly from a
+// real photo's own Vision OCR output, six header-line words at the exact
+// same printed size -- with zero, one, or BOTH an ascender and a descender
+// letter -- came back within 8% of each other in raw box height (109-120px:
+// no-extent words at 119, an ascender-only word at 120, a descender-only
+// word at 118, and the two words carrying BOTH -- "חולין" and "קלא",
+// which happen to be exactly the tractate name and daf number this feature
+// exists to identify -- at 117 and 112). The normalization model actively
+// mis-scored those two: dividing their height by an assumed ~1.8x span,
+// versus ~1.0-1.4x for the surrounding perek-name words that don't need
+// both corrections, made them look smaller than the very words they were
+// printed alongside at the same size, and the 0.6 relative-size cutoff
+// dropped them outright -- reproduced live: a real Chullin 131a header
+// scan returned matched:false, and the endpoint's raw OCR tokens showed
+// both the tractate-name and daf-number tokens missing from the filtered
+// list while five unrelated words (the perek/chapter name) survived.
 //
-// So "חולין" (which has BOTH ל and ן) produces a box roughly 1.8x as tall as
-// "פט" (which has neither) at the exact same printed font size. Measured
-// directly, rendering each letter in two different serif faces:
-//
-//   ל  +0.41 above      ך +0.44/+0.33   ן +0.44/+0.34
-//   ק  +0.47/+0.33      ף +0.44/+0.33   ץ +0.45/+0.33   (FreeSerif/Liberation)
-//
-// and end to end on real rendered header text:
-//
-//   חולין  118px raw -> 0.56x the height of ... no: 1.00 (reference)
-//   פט.     66px raw -> 0.56x  <-- same font size, yet barely half as tall
-//   קל.    120px raw -> 1.02x  <-- same font size again
-//
-// That 0.56 is the whole bug this normalization exists to fix: a naive
-// "drop anything under 60% of the tallest token" rule throws away the DAF
-// NUMBER of a perfectly good header, because short-glyph gematria like פט
-// legitimately measures ~56% of a tractate name carrying an ascender and a
-// descender. Dividing each box height by the vertical span its own letters
-// are EXPECTED to occupy recovers the underlying font size instead:
-// the three tokens above normalize to 65.6 / 66.0 / 66.7 -- within 2%.
-const HEBREW_ASCENDERS = new Set(['ל']);
-const HEBREW_DESCENDERS = new Set(['ך', 'ן', 'ף', 'ץ', 'ק']);
-// Measured at +0.33..+0.47 across two faces; 0.4 is the middle of that range.
-// ע descends in some faces (+0.34) but not others, so it is deliberately NOT
-// listed -- an over-correction on a face where it doesn't descend would
-// shrink that token's estimated size and risk dropping a real word, which is
-// strictly worse than simply not correcting for it.
-const GLYPH_EXTENT = 0.4;
-
-// The vertical span, in "plain letter height" units, that `text`'s own
-// letters are expected to occupy. 1.0 for ordinary text, up to ~1.8 for a
-// word carrying both an ascender and a descender.
-export function expectedGlyphSpan(text) {
-  let span = 1;
-  const chars = [...String(text || '')];
-  if (chars.some((c) => HEBREW_ASCENDERS.has(c))) span += GLYPH_EXTENT;
-  if (chars.some((c) => HEBREW_DESCENDERS.has(c))) span += GLYPH_EXTENT;
-  return span;
-}
-
-// One token's estimated FONT SIZE (not box height): its measured box height
-// divided by the span its letters were expected to occupy. Comparable
-// across words regardless of which letters they happen to contain.
-export function estimateGlyphUnit(token) {
-  if (!token || !Number.isFinite(token.height) || token.height <= 0) return null;
-  return token.height / expectedGlyphSpan(token.text);
-}
-
-// Drops tokens whose estimated font size marks them as smaller commentary
-// text (Rashi/Tosafot, printed noticeably smaller than a Vilna page's own
-// header) that leaked into a header crop -- a real risk for a camera-framed
-// crop (the reader's own alignment, or a slightly generous on-screen guide)
-// in a way a precisely-cropped PDF render never has.
-//
-// Compares ESTIMATED FONT SIZES (see estimateGlyphUnit), never raw box
-// heights -- see the long comment above for why raw heights are unusable
-// here -- relative to the largest one in the SAME crop, so the comparison
-// scales automatically with whatever resolution/upscale this particular
-// photo went through rather than depending on any absolute pixel threshold.
+// Real Rashi/Tosafot text differs from a header by a LARGE margin (a
+// noticeably smaller point size, not a same-size ascender/descender
+// wobble), so a plain raw-height comparison at the same 0.6 relative floor
+// still does the job this filter exists for, without the false-drop risk
+// the letter-shape model introduced.
 //
 // Two deliberate safety properties, because over-filtering here silently
 // destroys a match while under-filtering merely leaves noise the matcher
@@ -250,12 +220,14 @@ export function estimateGlyphUnit(token) {
 //     satisfy that is proof this filter over-reached on this particular
 //     crop, and noise is the lesser failure.
 export function filterTokensBySize(tokens, minRelativeSize = 0.6) {
-  const units = tokens.map(estimateGlyphUnit).filter((u) => u !== null);
-  if (!units.length) return tokens;
-  const threshold = Math.max(...units) * minRelativeSize;
+  const heights = tokens
+    .map((t) => t.height)
+    .filter((h) => Number.isFinite(h) && h > 0);
+  if (!heights.length) return tokens;
+  const threshold = Math.max(...heights) * minRelativeSize;
   const kept = tokens.filter((t) => {
-    const unit = estimateGlyphUnit(t);
-    return unit === null || unit >= threshold;
+    const h = t.height;
+    return !Number.isFinite(h) || h <= 0 || h >= threshold;
   });
   if (kept.length < 2 && tokens.length >= 2) return tokens;
   return kept;

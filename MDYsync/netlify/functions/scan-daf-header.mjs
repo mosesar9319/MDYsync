@@ -249,27 +249,6 @@ export default async (request) => {
   const vocabulary = buildHeaderVocabulary(availableDapim);
   let match = matchHeader(filteredTokens, vocabulary);
 
-  // TEMPORARY diagnostic echo -- NEVER reaches production. Gated on both
-  // an explicit opt-in flag in the request body AND the request not coming
-  // from the production origin, so this can't activate even if someone
-  // guesses the flag name against the live site. No credential values are
-  // ever included -- only this request's own OCR read of the image it was
-  // just given. Exists purely to see Vision's actual raw token output for
-  // one specific real-photo failure under live investigation; strip this
-  // block out before this PR is considered done.
-  if (body?.debugEcho === true && origin !== 'https://dafsync.netlify.app') {
-    return Response.json({
-      debug: true,
-      ocrText: ocrResult.text,
-      rawTokens: ocrResult.tokens,
-      filteredTokens,
-      matchResult: match ? {
-        ref: `${match.entry.tractate} ${match.entry.daf}`,
-        score: match.score, hebrewScore: match.hebrewScore, gematriaScore: match.gematriaScore,
-        amud: match.amud, amudConflict: match.amudConflict,
-      } : null,
-    }, { headers: { 'Access-Control-Allow-Origin': origin } });
-  }
 
   // Both halves of the header (tractate name AND daf number) have to be
   // individually legible, not just averaged into a passing overall score --
