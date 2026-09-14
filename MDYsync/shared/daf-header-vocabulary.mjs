@@ -161,7 +161,25 @@ function gematriaCandidates(tokens) {
   const pool = usable.length ? usable : tokens;
   const punctuated = pool.filter((t) => /[.,:]$/.test(t.text));
   const source = punctuated.length ? punctuated : pool;
-  return source.map((t) => ({ ...t, text: t.text.replace(/[.,:]$/, '') }));
+  // rawText keeps the trailing punctuation around (text itself has it
+  // stripped, for scoring -- see above) so resolveAmud's own punctuation
+  // signal below has something to read off the winning token.
+  return source.map((t) => ({ ...t, rawText: t.text, text: t.text.replace(/[.,:]$/, '') }));
+}
+
+// The daf number's own trailing punctuation is a second, independent amud
+// signal (see the long comment above gematriaCandidates: period = amud א,
+// colon = amud ב, a trailing comma treated the same as a period since a
+// comma misread of a period is a documented, common OCR substitution).
+// Returns null when the token carries none of these -- including the case
+// where OCR split the punctuation off into its own token entirely (see
+// PUNCTUATION_ONLY above): that mark still exists somewhere in the crop,
+// but not attached to the winning gematria token, so there is genuinely no
+// punctuation signal to read here, not a false one.
+function punctuationAmud(text) {
+  if (/:$/.test(text)) return 'b';
+  if (/[.,]$/.test(text)) return 'a';
+  return null;
 }
 
 // Returns which TOKEN scored best against target, not just the score itself
@@ -203,15 +221,41 @@ function scoreEntry(tokens, gematriaTokens, entry) {
 // need to be, since it always sits immediately next to the tractate name,
 // so the tractate token's own position already stands in for that whole
 // side of the header.
+// Combines BOTH amud signals -- header layout position (this function's own
+// original job) and the daf number's own trailing punctuation
+// (punctuationAmud, above) -- into one verdict, and returns whether they
+// actually agreed. Position stays primary (it depends on whole-word
+// geometry, which tends to survive blur/low-resolution/skew better than one
+// or two dots of ink), punctuation is consulted as a second opinion, and
+// when punctuation is legible but DISAGREES with position, that is treated
+// as a genuine conflict -- {amud: null, conflict: true} -- rather than
+// picking one arbitrarily. On a real, correctly-printed page the two can
+// never actually disagree, so a conflict here means at least one signal
+// misread this particular crop; the caller (see scan-daf-header.mjs) uses
+// `conflict` to refuse to treat that round as a confident match at all,
+// specifically so the live scanner's multi-frame consensus can never LOCK
+// in on a guessed amud -- it just waits for a cleaner frame instead.
 function resolveAmud(best) {
   const { hebrewToken, gematriaToken } = best;
-  if (!hebrewToken || !gematriaToken) return null;
-  if (typeof hebrewToken.x !== 'number' || typeof gematriaToken.x !== 'number') return null;
-  // Same OCR token winning both comparisons means there's no real position
-  // signal (e.g. only one legible token in the whole crop) -- fail closed
-  // rather than report a coin-flip amud with false confidence.
-  if (hebrewToken.index === gematriaToken.index) return null;
-  return gematriaToken.x < hebrewToken.x ? 'a' : 'b';
+  let positional = null;
+  if (hebrewToken && gematriaToken
+      && typeof hebrewToken.x === 'number' && typeof gematriaToken.x === 'number'
+      // Same OCR token winning both comparisons means there's no real
+      // position signal (e.g. only one legible token in the whole crop) --
+      // fail closed rather than report a coin-flip amud with false
+      // confidence.
+      && hebrewToken.index !== gematriaToken.index) {
+    positional = gematriaToken.x < hebrewToken.x ? 'a' : 'b';
+  }
+  const punctuational = gematriaToken ? punctuationAmud(gematriaToken.rawText ?? gematriaToken.text ?? '') : null;
+
+  if (positional && punctuational && positional !== punctuational) {
+    return { amud: null, conflict: true };
+  }
+  // Punctuation alone is enough when position has no signal (e.g. the
+  // tractate name never got a usable token this round) -- "use both"
+  // rather than "position only, punctuation as a tiebreaker".
+  return { amud: positional || punctuational, conflict: false };
 }
 
 /**
@@ -273,10 +317,18 @@ export function matchHeader(ocrTokens, vocabulary, minScore = 55, minMargin = 10
   }
   if (runnerUp && best.score - runnerUp.score < minMargin) return null;
 
+  const amudResult = resolveAmud(best);
   return {
     entry: best.entry,
     score: best.score,
-    amud: resolveAmud(best),
+    amud: amudResult.amud,
+    // True only when position and punctuation both had a real, LEGIBLE
+    // reading and disagreed -- see resolveAmud's own comment. `amud` above
+    // is null in this case too (never a guessed value), so a caller that
+    // ignores this field entirely still gets the same fail-closed default
+    // it always did; this exists for callers (scan-daf-header.mjs) that
+    // want to treat a conflict as more serious than plain "no signal".
+    amudConflict: amudResult.conflict,
     // The two OCR tokens that actually won each half of the match -- null
     // when there was no legible token to win at all (score 0 against every
     // candidate). Exists so a caller can highlight exactly the words it

@@ -19,14 +19,21 @@
 // startup cost is fine to pay ONCE per full-page scan, not dozens of times a
 // minute during live framing.
 //
-// AMUD: same position-based signal scan-daf-page.mjs uses (daf number left
-// of the tractate/perek name = amud א, right = amud ב -- see resolveAmud in
-// daf-header-vocabulary.mjs), falling back to 'a' the same way that file
-// does whenever the signal is missing or ambiguous. NOTE this endpoint's
-// crop is a raw, unwarped on-screen guide cutout, not the homography-
-// projected, page-corner-aligned region resolveAmud was originally tuned
-// and confirmed against -- see the amud assignment below for the caveat
-// that follows from that.
+// AMUD: same combined position+punctuation signal scan-daf-page.mjs uses
+// (daf number left of the tractate/perek name = amud א, right = amud ב;
+// trailing period/comma on the daf number = amud א, colon = amud ב -- see
+// resolveAmud in daf-header-vocabulary.mjs), falling back to 'a' the same
+// way that file does whenever both signals are missing or agree-by-default
+// (only one was legible). Unlike that file, THIS endpoint treats an actual
+// disagreement between the two signals as more serious than plain missing
+// signal -- it drops the whole match for that round rather than default to
+// 'a', specifically so a conflicting frame can never satisfy the live
+// scanner's multi-frame consensus and auto-navigate to a guessed amud (see
+// the MIN_FIELD_SCORE block below). NOTE this endpoint's crop is a raw,
+// unwarped on-screen guide cutout, not the homography-projected, page-
+// corner-aligned region resolveAmud's position comparison was originally
+// tuned and confirmed against -- see the amud assignment below for the
+// caveat that follows from that.
 //
 // SECURITY: Google credentials (GOOGLE_VISION_API_KEY /
 // GOOGLE_VISION_CREDENTIALS_JSON) are read server-side only, exactly like
@@ -261,6 +268,20 @@ export default async (request) => {
   const MIN_FIELD_SCORE = 25;
   if (match && (match.hebrewScore < MIN_FIELD_SCORE || match.gematriaScore < MIN_FIELD_SCORE)) match = null;
 
+  // resolveAmud (daf-header-vocabulary.mjs) now checks TWO independent amud
+  // signals -- header layout position and the daf number's own trailing
+  // punctuation -- and flags amudConflict when both were legible but
+  // disagreed. This endpoint drives an unattended auto-navigate with no
+  // reader confirmation step (see the MIN_FIELD_SCORE comment above for the
+  // same reasoning applied to text matching), so a conflicting amud read
+  // gets treated the same as no match at all here: it's dropped BEFORE the
+  // response goes out, not defaulted to 'a' the way plain missing-signal
+  // amud is below. That guarantees a conflicted round can never become part
+  // of the live scanner's multi-frame consensus and lock in on a guessed
+  // amud -- the very next frame (almost always a cleaner read) just gets a
+  // fresh chance instead.
+  if (match && match.amudConflict) match = null;
+
   if (!match) {
     await logScanEvent({
       requested_engine: engine, engine_used: engine, matched: false, error: 'no daf matched the header',
@@ -268,16 +289,21 @@ export default async (request) => {
     return Response.json({ matched: false }, { headers: { 'Access-Control-Allow-Origin': origin } });
   }
 
-  // Same position-based signal scan-daf-page.mjs uses (see this file's own
-  // module comment, and resolveAmud in daf-header-vocabulary.mjs) -- only
-  // ever trusts an explicit 'b' reading; anything else (null/ambiguous,
-  // or a genuine 'a') falls back to 'a', the same fail-closed shape that
-  // file's own detectedAmud uses. Unlike that file, this crop is a raw,
-  // unwarped on-screen guide cutout rather than a homography-projected,
-  // page-corner-aligned region -- resolveAmud's left/right comparison was
-  // tuned and confirmed against the LATTER shape specifically, so this
-  // signal on THIS crop shape is exactly what real-device testing still
-  // needs to confirm (see this feature's own known-limitations note).
+  // Same combined position+punctuation signal scan-daf-page.mjs uses (see
+  // this file's own module comment, and resolveAmud in
+  // daf-header-vocabulary.mjs) -- only ever trusts an explicit 'b' reading;
+  // anything else falls back to 'a', the same fail-closed shape that file's
+  // own detectedAmud uses. A genuine signal CONFLICT never reaches this
+  // line at all -- it was already turned into `match = null` above, before
+  // this point, specifically so it can't silently become a confident 'a'
+  // here. What's left is only "no signal either way" (a real, weaker case
+  // than a conflict), which still safely defaults to 'a'. Unlike
+  // scan-daf-page.mjs, this crop is a raw, unwarped on-screen guide cutout
+  // rather than a homography-projected, page-corner-aligned region --
+  // resolveAmud's position comparison was tuned and confirmed against the
+  // LATTER shape specifically, so how well it holds up on THIS crop shape
+  // is exactly what real-device testing still needs to confirm (see this
+  // feature's own known-limitations note).
   const amud = match.amud === 'b' ? 'b' : 'a';
   const ref = `${match.entry.tractate} ${match.entry.daf}${amud}`;
 

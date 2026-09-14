@@ -402,7 +402,7 @@ export default async (request) => {
   const engineUsedLabel = engine === 'both' ? 'both' : engine;
 
   // Which amud the photo actually shows now comes from matchHeader's own
-  // position-based detection (see resolveAmud in daf-header-vocabulary.mjs)
+  // position+punctuation detection (see resolveAmud in daf-header-vocabulary.mjs)
   // -- no longer the fixed "always amud a" guess the module docstring's
   // ORIGINAL known limitation described. a's own page data is still fetched
   // unconditionally regardless of which amud was detected (its absence is a
