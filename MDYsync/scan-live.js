@@ -61,11 +61,6 @@ const SCAN_LIVE_REQUEST_TIMEOUT_MS = 12000;
 const SCAN_LIVE_HISTORY_WINDOW = 3;
 const SCAN_LIVE_CONSENSUS_COUNT = 2;
 
-// After enough consecutive network/server failures in a row, say so --
-// purely informational (the loop keeps retrying regardless; this only
-// changes what the status line says).
-const SCAN_LIVE_ERRORS_BEFORE_NOTICE = 5;
-
 // Cheap, dependency-free quality gates, computed against a small downsampled
 // sample of the guide cutout ONLY (never the full video frame) so this stays
 // fast enough to run every tick. All thresholds are on a 0-255 luminance
@@ -616,11 +611,35 @@ async function fetchScanDafHeader(dataUrl) {
       body: JSON.stringify({ imageBase64: dataUrl.split(',')[1] }),
       signal: controller.signal,
     });
-    if (!response.ok) throw new Error(`Server returned ${response.status}`);
+    if (!response.ok) {
+      // The status is carried on the Error so the loop can SAY what went
+      // wrong rather than just failing quietly -- see runScanLiveTick's own
+      // error handling. A 403 in particular (origin not on the endpoint's
+      // allowlist) used to be indistinguishable, from the reader's side,
+      // from "the header just isn't matching": every request failed, the
+      // guide sat on its mid-scan color indefinitely, and nothing on screen
+      // ever said the requests were being rejected outright.
+      const error = new Error(`Server returned ${response.status}`);
+      error.status = response.status;
+      throw error;
+    }
     return await response.json();
   } finally {
     clearTimeout(timeout);
   }
+}
+
+// What to put on screen for a request that never produced a result. Kept
+// separate from the loop (and exported for tests) because the whole point is
+// that each distinct failure reads differently -- a silent, uniform "still
+// scanning" for every one of these is what hid a 100%-failing endpoint.
+function describeScanLiveFailure(error) {
+  if (error?.name === 'AbortError') return 'The scan timed out — trying again.';
+  if (error?.status === 403) return 'This site can’t reach the scanner (request refused). Try the photo scan instead.';
+  if (error?.status === 413) return 'That frame was too large to scan — trying again.';
+  if (error?.status === 503) return 'The scanner isn’t configured on the server yet.';
+  if (Number.isFinite(error?.status)) return `Scan server error (${error.status}) — trying again.`;
+  return 'Can’t reach the scan server — check your connection.';
 }
 
 async function runScanLiveTick(session) {
@@ -654,12 +673,14 @@ async function runScanLiveTick(session) {
   if (!session.locked) setScanLiveState('reading');
 
   let result;
+  let requestError = null;
   try {
     result = await fetchScanDafHeader(captured.dataUrl);
     session.consecutiveErrors = 0;
   } catch (error) {
     console.error('Live scan request failed:', error);
     session.consecutiveErrors += 1;
+    requestError = error;
     result = null;
   }
 
@@ -672,8 +693,15 @@ async function runScanLiveTick(session) {
   if (session.stopped || mySeq !== session.requestSeq) return;
 
   if (!result) {
-    if (session.consecutiveErrors >= SCAN_LIVE_ERRORS_BEFORE_NOTICE) {
-      setScanLiveStatus("Having trouble connecting — we'll keep trying.");
+    // Say something on the FIRST failure, and drop the guide back out of its
+    // mid-scan color. The old code only spoke up after five consecutive
+    // errors and never touched the state, so an endpoint that was rejecting
+    // 100% of requests looked exactly like a scan that was running fine but
+    // not recognizing anything -- the guide simply sat on 'reading' forever.
+    if (!session.locked) {
+      setScanLiveState('aligning');
+      clearScanLiveWordOverlay();
+      setScanLiveStatus(describeScanLiveFailure(requestError));
     }
     return;
   }
@@ -892,4 +920,5 @@ window.ScanLive = { start: startLiveScan, stop: stopLiveScan };
 window.ScanLive.__testing = {
   dafKeyOf, pushScanHistory, evaluateConsensus, buildScanLiveHref,
   computeLuminanceStats, computeEdgeVariance, computeMotionDiff, evaluateFrameQuality,
+  describeScanLiveFailure,
 };

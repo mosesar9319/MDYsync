@@ -48,7 +48,7 @@ import { buildHeaderVocabulary, matchHeader, MASECHTA_HEBREW } from '../../share
 import { detectTextBlockQuad } from '../../shared/text-block-detect.mjs';
 import { ocrHeaderGoogleVision, extractHeaderTokens, extractTesseractTokens, filterTokensBySize } from '../../shared/vision-header-ocr.mjs';
 import { listAvailablePages } from '../../shared/available-dapim.mjs';
-import { OWNER, REPO, ALLOWED_ORIGINS } from '../../shared/dafsync-config.mjs';
+import { OWNER, REPO, isAllowedOrigin } from '../../shared/dafsync-config.mjs';
 
 // Was 0.09 (9% of page height) -- confirmed directly (rendering the real
 // canonical PDF for a real daf, OCRing progressively taller crops) that this
@@ -160,7 +160,7 @@ export default async (request) => {
   }
 
   const origin = request.headers.get('Origin') || '';
-  if (!ALLOWED_ORIGINS.has(origin)) {
+  if (!isAllowedOrigin(origin)) {
     return Response.json({ error: 'Origin not permitted.' }, { status: 403 });
   }
 

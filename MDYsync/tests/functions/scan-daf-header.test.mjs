@@ -11,9 +11,15 @@ import { __testing } from '../../netlify/functions/scan-daf-header.mjs';
 
 const { resolveLanguageHints, tokenToFractionalBox } = __testing;
 
-test('resolveLanguageHints defaults to the documented Hebrew hint code "iw"', () => {
-  assert.deepEqual(resolveLanguageHints(undefined), ['iw']);
-  assert.deepEqual(resolveLanguageHints(''), ['iw']);
+// The default is 'he', NOT the 'iw' that Google's own language-support table
+// lists for Hebrew. Measured against the same rendered header image: with
+// 'iw' the endpoint returned no match at 280x56, 480x96, 700x140 and even
+// 1200x240, while the legacy /api/scan-daf-page pipeline -- identical except
+// that it sends 'he' -- matched at score 100. See the comment on
+// DEFAULT_LANGUAGE_HINT in scan-daf-header.mjs.
+test('resolveLanguageHints defaults to the Hebrew hint code that Vision actually honours', () => {
+  assert.deepEqual(resolveLanguageHints(undefined), ['he']);
+  assert.deepEqual(resolveLanguageHints(''), ['he']);
 });
 
 test('resolveLanguageHints passes through an explicitly configured hint', () => {

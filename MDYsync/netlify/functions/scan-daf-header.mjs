@@ -36,9 +36,9 @@
 import { Jimp } from 'jimp';
 import { createWorker } from 'tesseract.js';
 import { buildHeaderVocabulary, matchHeader, MASECHTA_HEBREW } from '../../shared/daf-header-vocabulary.mjs';
-import { ocrHeaderGoogleVision, extractTesseractTokens } from '../../shared/vision-header-ocr.mjs';
+import { ocrHeaderGoogleVision, extractTesseractTokens, filterTokensBySize } from '../../shared/vision-header-ocr.mjs';
 import { listAvailablePages } from '../../shared/available-dapim.mjs';
-import { ALLOWED_ORIGINS } from '../../shared/dafsync-config.mjs';
+import { isAllowedOrigin } from '../../shared/dafsync-config.mjs';
 
 // A header-guide crop only -- the client sends just the cutout region, not a
 // whole photo (contrast with scan-daf-page.mjs's MAX_IMAGE_BYTES, which has
@@ -54,21 +54,24 @@ const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024;
 // two short, independently-documented constants.
 const VISION_UPSCALE_FACTOR = 2.5;
 
-// Google's own documented Hebrew OCR hint code is "iw", not the "he" this
-// codebase has used everywhere else since page_ocr_align.py's original
-// implementation (confirmed directly against Vision's language-support
-// docs: https://cloud.google.com/vision/docs/languages). Fixing "he" -> "iw"
-// in the existing, already-shipped scan-daf-page.mjs pipeline is out of
-// scope here -- this is a NEW endpoint, so it gets the corrected code
-// without touching that one.
+// "he", matching scan-daf-page.mjs and page_ocr_align.py -- NOT "iw".
 //
-// Configurable via env var rather than hardcoded, specifically so the
-// language-hint-vs-auto-detect question can actually be tested against real
-// devices/photos without a code change: set SCAN_HEADER_LANGUAGE_HINT to
-// "auto" (or leave it unset with no default) to send no languageHints at all
-// and let Vision auto-detect instead. resolveLanguageHints is the pure,
-// directly-testable piece of that decision -- see __testing below.
-const DEFAULT_LANGUAGE_HINT = 'iw';
+// This shipped as "iw" first, on the strength of Google's own language-
+// support docs listing "iw" as the Hebrew code. That was a documentation
+// reading, never an empirical one, and it was wrong in practice: with
+// everything else held identical (same credentials, same 2.5x upscale +
+// greyscale + normalize preprocessing, same vocabulary, same matchHeader),
+// the legacy endpoint sending "he" matched a rendered Hebrew header at
+// score 100 while this endpoint sending "iw" returned no match on the very
+// same content, at every resolution from 280x56 up to 1200x240.
+//
+// So: stay on the value that is actually observed to work against the live
+// API. Still env-var configurable (set SCAN_HEADER_LANGUAGE_HINT to "auto"
+// for no hint at all and let Vision auto-detect, or to any other code to
+// A/B it) so revisiting this needs a config change, not a deploy --
+// resolveLanguageHints is the pure, directly-testable piece of that
+// decision, see __testing below.
+const DEFAULT_LANGUAGE_HINT = 'he';
 
 function env(name) {
   if (typeof Netlify !== 'undefined' && Netlify.env) return Netlify.env.get(name) || '';
@@ -134,7 +137,7 @@ export default async (request) => {
   }
 
   const origin = request.headers.get('Origin') || '';
-  if (!ALLOWED_ORIGINS.has(origin)) {
+  if (!isAllowedOrigin(origin)) {
     return Response.json({ error: 'Origin not permitted.' }, { status: 403 });
   }
 
@@ -224,25 +227,20 @@ export default async (request) => {
     return Response.json({ matched: false, error: 'Could not read the header.' }, { status: 502 });
   }
 
-  // NOTE: this endpoint deliberately does NOT run ocrResult.tokens through
-  // filterTokensBySize (unlike scan-daf-page.mjs). It was tried here first
-  // but reverted after real-device testing (Android Chrome) found it
-  // rejecting genuinely correct header reads far too often -- the client's
-  // own crop is already tightly bound to the on-screen guide band, which
-  // gave the filter little real Rashi/Tosafot leakage to catch in the first
-  // place, while its "smaller than 60% of the tallest token" rule turned
-  // out to trigger on ordinary letter-shape variance WITHIN the header
-  // itself (Hebrew final-form letters like ך ם ן ף ץ have descenders that
-  // inflate one word's own bounding-box height well past another same-size
-  // word's, especially at this crop's small scale) -- see
-  // filterTokensBySize's own comment in shared/vision-header-ocr.mjs for
-  // the mechanism. Left in place there for now (that pipeline's wider,
-  // page-corner-projected crop has a real, previously-confirmed leakage
-  // problem this addresses -- see HEADER_BAND's own comment) but not
-  // reused here until it's been made robust to that failure mode.
+  // Drops small Rashi/Tosafot-sized text that leaked into the crop before
+  // matchHeader ever sees it. Compares each token's ESTIMATED FONT SIZE,
+  // not its raw box height -- see filterTokensBySize in
+  // shared/vision-header-ocr.mjs for why raw heights are unusable for
+  // Hebrew (a measured 0.56x height ratio between two words at the SAME
+  // font size, purely from ascender/descender letters) and for the
+  // fall-back-to-unfiltered guard that keeps it from ever over-reaching.
+  // Complementary to matchHeader's own punctuation-based noise filtering
+  // (gematriaCandidates): this catches small text regardless of trailing
+  // punctuation, that doesn't.
+  const filteredTokens = filterTokensBySize(ocrResult.tokens);
   const availableDapim = await listAvailablePages(token, Object.keys(MASECHTA_HEBREW));
   const vocabulary = buildHeaderVocabulary(availableDapim);
-  let match = matchHeader(ocrResult.tokens, vocabulary);
+  let match = matchHeader(filteredTokens, vocabulary);
 
   // Both halves of the header (tractate name AND daf number) have to be
   // individually legible, not just averaged into a passing overall score --
