@@ -136,9 +136,31 @@ function stripNiqqud(s) {
 // scored 83.33 before this, a dead tie the punctuation-recognition fix
 // alone couldn't break. Stripping it first fixes the comparison at its
 // source instead of trying to out-tune minMargin around it.
+// A token that is NOTHING BUT punctuation is not a daf-number candidate --
+// and, worse, it used to disqualify every real one. The filter below asks
+// "does any token end in .,:?", and a bare ":" answers yes, so a crop where
+// the OCR engine split the colon off into its own token ("פט" + ":" rather
+// than one "פט:") produced a candidate set containing only the colon, which
+// strips to the empty string and can never match any daf. Exactly the
+// failure the colon-recognition fix above was meant to end, arriving through
+// a different door: the real daf-number token is filtered out and the match
+// fails outright. Reproduced against the live endpoint on an amud-ב header
+// -- identical crops differing only in the daf number's trailing character
+// matched at score 83 with "פט." and returned no match at all with "פט:",
+// at 480px, 800px and 1200px wide alike.
+//
+// Dropping these before the "did we find any?" decision is strictly safer
+// than the old behaviour in both directions: a punctuation-only token can
+// never BE the answer, so it should never be the sole candidate, and when
+// the colon does stay attached (the common case in real photos) nothing
+// about the existing path changes.
+const PUNCTUATION_ONLY = /^[.,:׃'"־-]+$/;
+
 function gematriaCandidates(tokens) {
-  const punctuated = tokens.filter((t) => /[.,:]$/.test(t.text));
-  const source = punctuated.length ? punctuated : tokens;
+  const usable = tokens.filter((t) => !PUNCTUATION_ONLY.test(t.text));
+  const pool = usable.length ? usable : tokens;
+  const punctuated = pool.filter((t) => /[.,:]$/.test(t.text));
+  const source = punctuated.length ? punctuated : pool;
   return source.map((t) => ({ ...t, text: t.text.replace(/[.,:]$/, '') }));
 }
 

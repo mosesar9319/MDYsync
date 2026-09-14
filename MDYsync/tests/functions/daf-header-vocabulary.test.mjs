@@ -108,3 +108,29 @@ test('hebrewToken/gematriaToken carry through y/width/height for highlight boxes
   assert.equal(match.hebrewToken.height, 24);
   assert.equal(match.gematriaToken.y, 22);
 });
+
+test('a colon split into its own token does not disqualify the real daf-number token', () => {
+  // Some crops come back from OCR as "פט" + ":" rather than one "פט:"
+  // token. The bare ":" satisfies the "ends in punctuation" test used to
+  // pick out daf-number candidates, so it used to become the ONLY candidate
+  // -- and it strips to the empty string, which matches no daf at all.
+  // Reproduced against the live endpoint: identical crops differing only in
+  // that trailing character matched with "פט." and failed with "פט:", at
+  // 480px, 800px and 1200px wide alike.
+  const match = matchHeader([tok('חולין', 100), tok('פט', 400), tok(':', 430)], VOCAB);
+  assert.ok(match, 'expected a match despite the split-off colon');
+  assert.equal(match.entry.daf, 89);
+  // And the position signal still reads off the real token, not the colon.
+  assert.equal(match.amud, 'b');
+});
+
+test('an attached colon still works exactly as before (the common real-photo case)', () => {
+  const match = matchHeader([tok('חולין', 100), tok('פט:', 400)], VOCAB);
+  assert.ok(match);
+  assert.equal(match.entry.daf, 89);
+  assert.equal(match.amud, 'b');
+});
+
+test('a crop of nothing but punctuation still returns no match rather than throwing', () => {
+  assert.equal(matchHeader([tok('.', 10), tok(':', 20)], VOCAB), null);
+});
