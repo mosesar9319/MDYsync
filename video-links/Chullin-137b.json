@@ -1,1 +1,8 @@
-{"type":"youtube","url":"https://www.youtube.com/watch?v=AvKCsWSb7e8","videoId":"AvKCsWSb7e8","label":"Daf Yomi Chullin Daf 137 by R’ Eli Stefansky (unedited)","coveredRefs":["Chullin 136b","Chullin 137a","Chullin 137b"],"source":"channel-auto"}
+{
+  "label": "Daf Yomi Chullin Daf 137 by R’ Eli Stefansky (unedited)",
+  "locked": false,
+  "source": "manual",
+  "type": "youtube",
+  "url": "https://www.youtube.com/watch?v=AvKCsWSb7e8",
+  "videoId": "AvKCsWSb7e8"
+}
