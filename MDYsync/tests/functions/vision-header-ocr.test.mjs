@@ -1,73 +1,23 @@
-// Direct tests for the glyph-size filter (shared/vision-header-ocr.mjs), run
+// Direct tests for the size-based filter (shared/vision-header-ocr.mjs), run
 // with `npm run test:functions` (node --test). extractHeaderTokens/
 // extractTesseractTokens are already covered indirectly via
 // tests/functions/scan-daf-page.test.mjs's __testing re-export; this file
-// covers the pieces that are new here and directly exported.
+// covers the piece that's directly exported here.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  expectedGlyphSpan,
-  estimateGlyphUnit,
-  filterTokensBySize,
-} from '../../shared/vision-header-ocr.mjs';
+import { filterTokensBySize } from '../../shared/vision-header-ocr.mjs';
 
 function tok(text, height) {
   return { text, x: 0, y: 0, width: 10, height };
 }
 
-test('expectedGlyphSpan is 1 for text with no Hebrew ascender or descender', () => {
-  assert.equal(expectedGlyphSpan('פט.'), 1);
-  assert.equal(expectedGlyphSpan('מאימתי'), 1);
-  assert.equal(expectedGlyphSpan(''), 1);
-  assert.equal(expectedGlyphSpan(undefined), 1);
-});
-
-// Spans are sums of floating-point extents, so compare with a tolerance
-// rather than for exact equality (1 + 0.4 + 0.4 is 1.7999999999999998).
-function assertSpan(text, expected) {
-  const actual = expectedGlyphSpan(text);
-  assert.ok(Math.abs(actual - expected) < 1e-9, `${text}: ${actual} != ${expected}`);
-}
-
-test('expectedGlyphSpan adds one extent for an ascender and one for a descender', () => {
-  assertSpan('כל', 1.4);     // ל ascends
-  assertSpan('דין', 1.4);    // ן descends
-  assertSpan('חולין', 1.8);  // ל ascends AND ן descends
-  assertSpan('קל.', 1.8);    // ק descends AND ל ascends
-});
-
-test('expectedGlyphSpan counts each direction once, no matter how many such letters', () => {
-  // Two ascenders and two descenders still only reach the same ink extremes.
-  assertSpan('ללךך', 1.8);
-});
-
-test('estimateGlyphUnit normalizes away the ascender/descender height bonus', () => {
-  // The real measured case that broke matching: rendered at one font size,
-  // חולין's ink box is 118px tall while פט.'s is only 66px -- a raw ratio of
-  // 0.56, under the 0.6 floor, so the daf number was being thrown away as if
-  // it were Rashi text. Normalized, the two agree within ~2%.
-  const chullin = estimateGlyphUnit(tok('חולין', 118));
-  const daf = estimateGlyphUnit(tok('פט.', 66));
-  assert.ok(Math.abs(chullin - daf) / daf < 0.03, `${chullin} vs ${daf}`);
-});
-
-test('estimateGlyphUnit returns null for missing, zero or non-finite heights', () => {
-  assert.equal(estimateGlyphUnit(tok('א', undefined)), null);
-  assert.equal(estimateGlyphUnit(tok('א', 0)), null);
-  assert.equal(estimateGlyphUnit(tok('א', NaN)), null);
-  assert.equal(estimateGlyphUnit(tok('א', -5)), null);
-  assert.equal(estimateGlyphUnit(null), null);
-});
-
 test('filterTokensBySize keeps a full header and drops genuinely smaller body text', () => {
-  // Header words at one size (חולין taller only because of ל+ן), Rashi- and
-  // Tosafot-sized fragments at roughly half that.
   const tokens = [
     tok('חולין', 118),
-    tok('פט.', 66),
-    tok('הכל', 92),
-    tok('שוחטין', 92),
+    tok('פט.', 112),
+    tok('הכל', 116),
+    tok('שוחטין', 114),
     tok('רש', 30),
     tok('תוס', 34),
   ];
@@ -75,15 +25,41 @@ test('filterTokensBySize keeps a full header and drops genuinely smaller body te
   assert.deepEqual(kept, ['חולין', 'פט.', 'הכל', 'שוחטין']);
 });
 
-test('filterTokensBySize no longer drops the daf number just for lacking tall letters', () => {
-  // This is the regression the normalization exists to prevent: raw heights
-  // 118 and 66 are a 0.56 ratio, which the old max-raw-height filter cut.
-  const kept = filterTokensBySize([tok('חולין', 118), tok('פט.', 66)]).map((t) => t.text);
-  assert.deepEqual(kept, ['חולין', 'פט.']);
+// Pinned directly to a real photo's own measured OCR output (a real Vilna
+// Shas header, Chullin 131a): "הזרוע"/"עשירי" (no ascender or descender
+// letter) at 119px, "והלחיים" (ascender only) at 120px, "פרק" (descender
+// only) at 118px, and -- the two words this feature actually needs to
+// identify -- "חולין" (BOTH an ascender letter ל and a descender letter ן)
+// at 117px and "קלא" (also both) at 112px. All six, printed at the exact
+// same size on the real page, land within 8% of each other in raw OCR box
+// height. This is the regression test for a real production bug: an
+// earlier version of this filter normalized each height by the vertical
+// span its own letters were expected to occupy, calibrated against
+// synthetic text rendered in generic system fonts where an ascender or
+// descender genuinely adds ~35-45% extra box height -- a model that does
+// NOT hold for this real printed typeface. It scored "חולין" and "קלא" as
+// if they should be ~80% taller than they actually are, made them look
+// smaller than the surrounding words, and the 0.6 relative-size cutoff
+// dropped both of them outright -- reproduced live: this exact header
+// returned matched:false, with the endpoint's own raw OCR tokens showing
+// both the tractate-name and daf-number tokens missing from the filtered
+// list while the five unrelated perek-name words survived.
+test('a real photo\'s own measured header heights all survive together (regression: Chullin 131a)', () => {
+  const tokens = [
+    tok('הזרוע', 119),
+    tok('והלחיים', 120),
+    tok('פרק', 118),
+    tok('עשירי', 119),
+    tok('חולין', 117),
+    tok('קלא', 112),
+    tok('.', 109),
+  ];
+  const kept = filterTokensBySize(tokens).map((t) => t.text);
+  assert.deepEqual(kept, ['הזרוע', 'והלחיים', 'פרק', 'עשירי', 'חולין', 'קלא', '.']);
 });
 
-test('filterTokensBySize keeps everything when all tokens are the same glyph size', () => {
-  const tokens = [tok('חולין', 72), tok('פט.', 40), tok('פרק', 40)];
+test('filterTokensBySize keeps everything when all tokens are the same size', () => {
+  const tokens = [tok('חולין', 72), tok('פט.', 70), tok('פרק', 71)];
   const kept = filterTokensBySize(tokens).map((t) => t.text);
   assert.deepEqual(kept, ['חולין', 'פט.', 'פרק']);
 });
@@ -91,7 +67,7 @@ test('filterTokensBySize keeps everything when all tokens are the same glyph siz
 test('filterTokensBySize keeps a token with missing/zero/non-finite height rather than dropping it', () => {
   const tokens = [
     tok('חולין', 40),
-    tok('פט.', 22),
+    tok('פט.', 39),
     { text: 'no-height', x: 0, y: 0, width: 10, height: undefined },
     { text: 'zero-height', x: 0, y: 0, width: 10, height: 0 },
     { text: 'nan-height', x: 0, y: 0, width: 10, height: NaN },

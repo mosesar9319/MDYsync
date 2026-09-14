@@ -195,8 +195,72 @@ function bestMatch(tokens, target) {
   return best || { token: null, score: 0 };
 }
 
+// A Vilna Shas header line commonly prints THREE things, not two: the daf
+// number, the tractate name, AND the perek (chapter) name/number, all
+// immediately adjacent on one line -- e.g. "הזרוע והלחיים פרק עשירי חולין קלא.".
+// The vocabulary here has no entry for perek names at all (see this file's
+// own module comment on why: only the daf-identifying pieces are matched),
+// which is fine on its own -- extra, correctly-tokenized noise words simply
+// never outscore the real tractate name (confirmed directly: feeding
+// matchHeader the whole extra phrase as clean, separately-tokenized words
+// changes nothing). The real failure mode is different: under real-world
+// photo conditions (slight blur, skew, tight print spacing -- not the wide,
+// synthetic gaps this feature's own earlier tests used), Google Vision's
+// own word segmentation can glue that whole run into a SINGLE OCR token
+// instead of separate words. Confirmed directly on a real photo of Chullin
+// 131a's header: cropped exactly as the live scanner would capture it, the
+// endpoint returned matched:false; with only the perek-name text blanked
+// out of the SAME crop (no change to the tractate name/daf number's own
+// pixels at all), it matched at score 100. Vision had merged
+// "עשירי חולין" (or worse) into one token, and plain
+// ratio(token.text, 'חולין') scores that correctly-but-uselessly low --
+// a 25-character merged token containing the real 5-character tractate name
+// scores ~20, under MIN_FIELD_SCORE -- because whole-string edit-distance
+// treats "correct word plus a lot of glued-on neighbor text" exactly like
+// "mostly wrong word", when they mean very different things for legibility.
+//
+// bestHebrewMatch (used ONLY for the tractate-name comparison, never for
+// the gematria digits -- see EXACT_SUBSTRING_MIN_LENGTH below) additionally
+// checks whether `target` appears as a clean, EXACT (zero-edit) substring
+// inside a token that's otherwise longer than it. An exact substring hit
+// means every one of the target's own letters was read correctly and only
+// the TOKENIZER is uncertain (where the word boundary actually falls), not
+// the OCR itself -- categorically stronger evidence than a near-miss fuzzy
+// match, so it's scored a comfortably high, fixed value regardless of how
+// much unrelated text is glued on, rather than degrading with the noise
+// length the way ratio() necessarily does for a whole-string comparison.
+const EXACT_SUBSTRING_MATCH_SCORE = 90;
+
+// Every MASECHTA_HEBREW name is at least 3 characters (שבת/נדה, the two
+// shortest) -- this guard exists mainly as an explicit, defensive floor
+// against ever substring-matching on a trivially short target, since a
+// 1-character hit is nearly guaranteed to appear by pure chance inside any
+// longer merged token.
+const EXACT_SUBSTRING_MIN_LENGTH = 3;
+
+function bestHebrewMatch(tokens, target) {
+  let best = null;
+  for (const token of tokens) {
+    let score = ratio(token.text, target);
+    if (
+      target.length >= EXACT_SUBSTRING_MIN_LENGTH &&
+      token.text.length > target.length &&
+      token.text.includes(target)
+    ) {
+      score = Math.max(score, EXACT_SUBSTRING_MATCH_SCORE);
+    }
+    if (!best || score > best.score) best = { token, score };
+  }
+  return best || { token: null, score: 0 };
+}
+
 function scoreEntry(tokens, gematriaTokens, entry) {
-  const hebrewBest = bestMatch(tokens, entry.hebrew);
+  const hebrewBest = bestHebrewMatch(tokens, entry.hebrew);
+  // Gematria intentionally stays on the plain ratio()-only bestMatch, never
+  // the substring boost above -- printed daf numbers can be as short as a
+  // single letter (daf 2 = "ב"), where a same-length-or-longer substring
+  // hit inside noise is far too likely to be coincidence to treat as strong
+  // evidence the way a >=3-character tractate name hit is.
   const gematriaBest = bestMatch(gematriaTokens, entry.gematria);
   return {
     entry,

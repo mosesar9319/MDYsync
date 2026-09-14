@@ -249,6 +249,7 @@ export default async (request) => {
   const vocabulary = buildHeaderVocabulary(availableDapim);
   let match = matchHeader(filteredTokens, vocabulary);
 
+
   // Both halves of the header (tractate name AND daf number) have to be
   // individually legible, not just averaged into a passing overall score --
   // see matchHeader's own comment on hebrewScore/gematriaScore for the exact

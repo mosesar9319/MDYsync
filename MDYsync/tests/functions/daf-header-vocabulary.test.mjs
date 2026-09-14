@@ -19,6 +19,16 @@ const VOCAB = buildHeaderVocabulary([
   { tractate: 'Chullin', daf: 100 },
 ]);
 
+// A separate small vocabulary spanning daf 131 plus its neighbors (130,
+// 132) -- used by the merged-token tolerance tests below, which need
+// minMargin to have real, close competitors to distinguish against, not
+// just a single trivially-correct entry.
+const VOCAB_131 = buildHeaderVocabulary([
+  { tractate: 'Chullin', daf: 130 },
+  { tractate: 'Chullin', daf: 131 },
+  { tractate: 'Chullin', daf: 132 },
+]);
+
 function tok(text, x, y, width, height) {
   return { text, x, y, width, height };
 }
@@ -186,4 +196,80 @@ test('an attached colon still works exactly as before (the common real-photo cas
 
 test('a crop of nothing but punctuation still returns no match rather than throwing', () => {
   assert.equal(matchHeader([tok('.', 10), tok(':', 20)], VOCAB), null);
+});
+
+// --- Merged-token tolerance (bestHebrewMatch's exact-substring boost) ------
+// Real Vilna Shas headers commonly print the daf number, the tractate name,
+// AND the perek (chapter) name/number all on one line. Google Vision's own
+// word segmentation can glue that whole run into a single OCR token under
+// real-world photo conditions (blur, skew, tight print spacing) rather than
+// returning separate words -- confirmed directly against a real photo of
+// Chullin 131a's header (see bestHebrewMatch's own comment for the exact
+// scores). These tests pin that specific fix down with synthetic input.
+
+test('a tractate name merged with trailing noise into one OCR token still matches', () => {
+  // The exact real-world case: the whole perek-name phrase glued onto
+  // "חולין" (25 chars total, tractate name is only the last 5) -- plain
+  // ratio() alone scores this ~20, under MIN_FIELD_SCORE; the substring
+  // boost brings it to a confident, comfortably-clearing score.
+  const merged = tok('הזרועוהלחייםפרקעשיריחולין', 400);
+  const match = matchHeader([tok('קלא.', 100), merged], VOCAB_131);
+  assert.ok(match, 'expected a match despite the merged token');
+  assert.equal(match.entry.daf, 131);
+  assert.ok(match.hebrewScore >= 55, `hebrewScore too low: ${match.hebrewScore}`);
+  // matchHeader remaps every input token into a new object internally, so
+  // compare by the field that survives that remap, not by reference.
+  assert.equal(match.hebrewToken.text, merged.text); // the merged token is still the one credited
+});
+
+test('merged-token tolerance also works with the noise glued on the OTHER side', () => {
+  const merged = tok('חוליןפרקעשיריוהזרוע', 400);
+  const match = matchHeader([tok('קלא.', 100), merged], VOCAB_131);
+  assert.ok(match);
+  assert.equal(match.entry.daf, 131);
+});
+
+test('a clean, unmerged tractate name still scores a full, un-boosted 100', () => {
+  // The boost is a floor (EXACT_SUBSTRING_MATCH_SCORE), not a ceiling --
+  // an exact, standalone token match must still score higher than a merged
+  // one, so matchHeader/minMargin can tell a clean read from a noisy one.
+  const match = matchHeader([tok('קלא.', 100), tok('חולין', 400)], VOCAB_131);
+  assert.equal(match.hebrewScore, 100);
+});
+
+test('the substring boost never applies to the gematria (daf-number) side', () => {
+  // Printed daf numbers can be a single letter (daf 2 = "ב") -- a
+  // same-length-or-shorter "hit" inside unrelated noise is far too likely
+  // to be pure coincidence to treat as strong evidence the way a
+  // >=3-character tractate-name hit is. Vocabulary of exactly one entry
+  // (Chullin 2) so there's no other candidate for a real match to hide in.
+  const vocabDaf2 = buildHeaderVocabulary([{ tractate: 'Chullin', daf: 2 }]);
+  const match = matchHeader([tok('חולין', 400), tok('זבזבזבזבזבזב', 100)], vocabDaf2);
+  assert.equal(match, null);
+});
+
+test('the substring boost never fires for a target shorter than 3 characters', () => {
+  // Defensive floor, exercised directly rather than only relying on real
+  // vocabulary happening to have no such target (every real MASECHTA_HEBREW
+  // name is already >=3 chars -- שבת/נדה -- but the guard is tested here on
+  // its own so it can never silently stop doing anything if that changes).
+  const twoLetterVocab = [{ tractate: 'X', daf: 5, hebrew: 'אב', gematria: 'ה' }];
+  const match = matchHeader([tok('אבגדהוזחטיכלמנ', 400)], twoLetterVocab, 0, 0);
+  // Without the boost, ratio('אבגדהוזחטיכלמנ', 'אב') is a low score for a
+  // 14-char token against a 2-char target -- confirm it stays low, i.e. the
+  // boost did NOT kick in and inflate it to EXACT_SUBSTRING_MATCH_SCORE.
+  assert.ok(match.hebrewScore < 90, `expected the boost to stay off, got ${match.hebrewScore}`);
+});
+
+test('the substring boost requires an EXACT match -- a fuzzy near-miss still uses plain ratio()', () => {
+  // "חולון" (one letter off from "חולין") is not a clean substring hit
+  // anywhere in a longer token containing it with that typo -- confirms
+  // this is a strict substring check, not another fuzzy layer stacked on
+  // top of the existing one.
+  const withTypo = tok('פרקעשיריחולון', 400); // חולין misspelled as חולון, still embedded
+  const match = matchHeader([tok('קלא.', 100), withTypo], VOCAB_131);
+  // Some score still comes through from plain ratio() (partial letter
+  // overlap), but it must NOT be boosted to the high fixed floor a clean
+  // hit would get.
+  assert.ok(match === null || match.hebrewScore < 90);
 });
