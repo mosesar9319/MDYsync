@@ -36,7 +36,7 @@
 import { Jimp } from 'jimp';
 import { createWorker } from 'tesseract.js';
 import { buildHeaderVocabulary, matchHeader, MASECHTA_HEBREW } from '../../shared/daf-header-vocabulary.mjs';
-import { ocrHeaderGoogleVision, extractTesseractTokens, filterTokensBySize } from '../../shared/vision-header-ocr.mjs';
+import { ocrHeaderGoogleVision, extractTesseractTokens } from '../../shared/vision-header-ocr.mjs';
 import { listAvailablePages } from '../../shared/available-dapim.mjs';
 import { ALLOWED_ORIGINS } from '../../shared/dafsync-config.mjs';
 
@@ -224,15 +224,25 @@ export default async (request) => {
     return Response.json({ matched: false, error: 'Could not read the header.' }, { status: 502 });
   }
 
-  // Drop small Rashi/Tosafot-sized text that leaked into the crop before
-  // ever handing tokens to matchHeader -- see filterTokensBySize's own
-  // comment. Complementary to, not a replacement for, matchHeader's own
-  // punctuation-based noise filtering (gematriaCandidates): this catches
-  // small text regardless of trailing punctuation, that doesn't.
-  const filteredTokens = filterTokensBySize(ocrResult.tokens);
+  // NOTE: this endpoint deliberately does NOT run ocrResult.tokens through
+  // filterTokensBySize (unlike scan-daf-page.mjs). It was tried here first
+  // but reverted after real-device testing (Android Chrome) found it
+  // rejecting genuinely correct header reads far too often -- the client's
+  // own crop is already tightly bound to the on-screen guide band, which
+  // gave the filter little real Rashi/Tosafot leakage to catch in the first
+  // place, while its "smaller than 60% of the tallest token" rule turned
+  // out to trigger on ordinary letter-shape variance WITHIN the header
+  // itself (Hebrew final-form letters like ך ם ן ף ץ have descenders that
+  // inflate one word's own bounding-box height well past another same-size
+  // word's, especially at this crop's small scale) -- see
+  // filterTokensBySize's own comment in shared/vision-header-ocr.mjs for
+  // the mechanism. Left in place there for now (that pipeline's wider,
+  // page-corner-projected crop has a real, previously-confirmed leakage
+  // problem this addresses -- see HEADER_BAND's own comment) but not
+  // reused here until it's been made robust to that failure mode.
   const availableDapim = await listAvailablePages(token, Object.keys(MASECHTA_HEBREW));
   const vocabulary = buildHeaderVocabulary(availableDapim);
-  let match = matchHeader(filteredTokens, vocabulary);
+  let match = matchHeader(ocrResult.tokens, vocabulary);
 
   // Both halves of the header (tractate name AND daf number) have to be
   // individually legible, not just averaged into a passing overall score --
@@ -242,8 +252,15 @@ export default async (request) => {
   // number exists in nearly every tractate). This endpoint drives an
   // unattended auto-navigate with no reader confirmation step, so it holds
   // itself to a stricter bar here than scan-daf-page.mjs's own always-
-  // reviewed-before-navigating flow does.
-  const MIN_FIELD_SCORE = 40;
+  // reviewed-before-navigating flow does -- but 40 (out of matchHeader's own
+  // 0-100 fuzzy-match scale) turned out too strict against real, noisy
+  // phone-camera OCR reads during real-device testing, routinely rejecting
+  // genuinely correct matches. 25 still reliably catches the specific
+  // failure case this exists for (a confirmed, reproduced "only the daf
+  // number was legible" read scores exactly 20 here -- see this file's own
+  // test), just with more headroom for a real but imperfect read of the
+  // tractate name.
+  const MIN_FIELD_SCORE = 25;
   if (match && (match.hebrewScore < MIN_FIELD_SCORE || match.gematriaScore < MIN_FIELD_SCORE)) match = null;
 
   if (!match) {
