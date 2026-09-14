@@ -2521,17 +2521,26 @@ async function seekToVilnaWord(ref, wordIndex) {
 // there -- reuses seekToVilnaWord() above, since a scanned word's
 // (ref, wordIndex) means the same thing regardless of which view found it.
 
-// Was 1600 -- raised after a direct A/B test (a realistic degraded photo:
-// blur + uneven lighting + JPEG recompression, run through the real OCR/
-// match pipeline) showed the header text simply wasn't legible enough at
-// 1600 on that photo, while the identical photo at 2400 OCR'd and matched
-// correctly. Header OCR only has the header's own printed text to work
-// with -- unlike the word-tap overlay, which can tolerate some blur since
-// a reader is aiming for a whole word, not a single character -- so losing
-// a letter of a 2-3 character gematria number is enough to misidentify the
-// page (see matchHeader's minMargin). Still well clear of scan-daf-page.mjs's
-// 8MB cap: a real degraded test photo at 2400 came out under 450KB as JPEG.
-const SCAN_MAX_DIMENSION = 2400;
+// Was 1600, then 2400 -- raised again after a real reader mixed up קח and קה
+// (ח vs ה, a one-stroke difference) using the live scanner's "Choose a
+// photo" flow. This cap applies to the WHOLE photo, before any cropping --
+// and it's applied well before the header itself ever enters the picture:
+// a header is only a small fraction (roughly 5-8%) of a full page photo's
+// own height, so whatever detail survives this cap is what the header crop
+// has to work with, and most phone cameras shoot well above even this
+// raised value (3000-4000px+ on the long edge), so this was actively
+// discarding real, already-captured detail before OCR ever ran. The
+// server's own upscale (see VISION_UPSCALE_FACTOR in
+// shared/vision-header-ocr.mjs) enlarges pixels, it doesn't invent detail
+// that was already thrown away client-side -- raising the cap here is what
+// actually gives OCR more real pixels to distinguish two similarly-shaped
+// letters like ח and ה.
+// Still comfortable relative to both consumers: scan-daf-page.mjs's own
+// 8MB cap (the legacy flow), and scan-daf-header.mjs's 1.5MB cap on the
+// live-scanner flow -- which only ever uploads the CROPPED header strip,
+// not the whole photo, so its size scales with the crop, not this constant,
+// directly.
+const SCAN_MAX_DIMENSION = 3200;
 // SCAN_HEADER_BAND_FRACTION_DEFAULT/MIN/MAX live at the very top of this
 // file (state.scanHeaderBandFraction needs the default before `state` is
 // even defined) -- state.scanHeaderBandFraction, not a plain constant, is
