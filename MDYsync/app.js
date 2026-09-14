@@ -3511,14 +3511,18 @@ function showScanComparison(comparison) {
 }
 
 async function showScanResult(result) {
-  // The photographed page can't tell which amud it is (see scan-daf-page.mjs's
-  // own KNOWN v1 LIMITATION) -- the server projects word positions for BOTH
-  // amudim whenever amud-ב's page data exists at all (wordBoxesB stays
-  // absent otherwise), stashed here so switchScanAmud can flip between them
-  // with no extra round trip. Every scan starts on amud א.
+  // Which amud to start on now comes from the header's own layout (see
+  // resolveAmud in shared/daf-header-vocabulary.mjs -- daf number left of
+  // the tractate/perek name means amud א, right of it means amud ב),
+  // falling back to 'a' when the server couldn't tell or amud-ב's page data
+  // isn't published yet. wordBoxes/wordBoxesB themselves are still always
+  // amud א's and amud ב's own boxes specifically (wordBoxesB stays absent
+  // when that side has no data at all), stashed here so switchScanAmud can
+  // flip between them with no extra round trip -- result.amud only decides
+  // which of the two to show FIRST.
   state.scanTractate = result.tractate;
   state.scanDaf = result.daf;
-  state.scanAmud = 'a';
+  state.scanAmud = result.amud || 'a';
   state.scanWordBoxesA = result.wordBoxes;
   state.scanWordBoxesB = result.wordBoxesB || null;
 
@@ -3536,7 +3540,8 @@ async function showScanResult(result) {
   const hintSuffix = result.comparison
     ? ` Both engines agreed (Tesseract ${result.comparison.tesseract.matchScore}, Google Vision ${result.comparison.googleVision.matchScore}).`
     : '';
-  await renderScanMatch(result.ref, result.wordBoxes, hintSuffix);
+  const initialWordBoxes = state.scanAmud === 'b' ? state.scanWordBoxesB : state.scanWordBoxesA;
+  await renderScanMatch(result.ref, initialWordBoxes, hintSuffix);
 
   await refreshScanVideoPicker(result.tractate, result.daf);
 }

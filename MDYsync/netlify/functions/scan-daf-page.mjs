@@ -24,11 +24,14 @@
 // for why automatic corner detection was deliberately deferred past v1).
 // Those corners are what this projects the canonical word boxes through.
 //
-// KNOWN v1 LIMITATION: a Vilna page's header prints only the daf number,
-// never "a" or "b" -- both amudim share one physical page, so the header
-// alone can't tell which one is open. This always resolves to amud a;
-// switching to b (once loaded) is the same manual step as anywhere else
-// in the player.
+// AMUD DETECTION: a Vilna page's header never prints "a"/"b" literally --
+// both amudim share one physical page -- but the header's LAYOUT still
+// tells them apart (daf number left of the tractate/perek name = amud א,
+// right of it = amud ב, a real printing convention). See resolveAmud in
+// shared/daf-header-vocabulary.mjs. Falls back to amud א when that signal
+// is missing or amud ב's page data hasn't been published yet -- switching
+// manually (once loaded) is still the same toggle as anywhere else in the
+// player, just no longer the ONLY way to land on the right side.
 //
 // UNVERIFIED AGAINST REAL PHOTOS: the header-OCR step was spike-tested
 // against synthetic Hebrew text (clean and with simulated rotation/blur/
@@ -102,6 +105,39 @@ function resolveHeaderBandFraction(requested) {
 // is expected to downscale before upload; see the capture UI) while still
 // bounding worst-case request cost.
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+
+// --- Diagnostic logging: which engine ran, what it matched -------------
+// See supabase/migrations/20260913150000_scan_events_logging.sql -- a plain
+// append-only log, one row per scan attempt, written with the service-role
+// key (bypasses RLS; the table has no write policy for anon/authenticated
+// at all). Same env()/pg() shape as chabura-summary.mjs's own Supabase-over-
+// plain-HTTP calls, kept local here rather than factored into a shared
+// module since this is the only other function that needs it so far.
+function env(name) {
+  if (typeof Netlify !== 'undefined' && Netlify.env) return Netlify.env.get(name) || '';
+  return process.env[name] || '';
+}
+
+// Never awaited by a caller that lets it reject uncaught -- every call site
+// below is `await logScanEvent(...).catch(() => {})`, so a logging failure
+// (missing config, a transient Supabase error) can never turn a real scan
+// result into a 500. Silently a no-op when Supabase isn't configured at all,
+// same "feature is optional" shape as chabura-summary.mjs.
+async function logScanEvent(fields) {
+  const supabaseUrl = (env('SUPABASE_URL') || env('VITE_SUPABASE_URL')).replace(/\/+$/, '');
+  const serviceKey = env('SUPABASE_SERVICE_ROLE_KEY');
+  if (!supabaseUrl || !serviceKey) return;
+  await fetch(`${supabaseUrl}/rest/v1/scan_events`, {
+    method: 'POST',
+    headers: {
+      apikey: serviceKey,
+      authorization: `Bearer ${serviceKey}`,
+      'content-type': 'application/json',
+      prefer: 'return=minimal',
+    },
+    body: JSON.stringify(fields),
+  });
+}
 
 // google-vision only (see the engine-selection comment below for why
 // tesseract doesn't need this): confirmed directly that Vision's
@@ -196,7 +232,55 @@ async function ocrHeaderGoogleVision(imageBuffer, { apiKey, credentialsJson }) {
     // (400)" fallback, hiding whatever Google's own message actually said.
     throw new Error(result?.error?.message || data?.error?.message || `Vision request failed (${response.status})`);
   }
-  return result.fullTextAnnotation?.text || '';
+  return extractHeaderTokens(result.fullTextAnnotation);
+}
+
+// Flattens Vision's page > block > paragraph > word hierarchy into the flat
+// {text, x} list matchHeader needs for amud detection (x = the word's own
+// horizontal center in the CROPPED header image's pixel space -- upscaled
+// by VISION_UPSCALE_FACTOR same as every other word in the same response,
+// so comparing two words' x against each other is unaffected by that scale
+// factor even though neither is in the original photo's own coordinates).
+// Returns the flat OCR'd text too (unchanged shape/callers -- ocrText is
+// still surfaced as-is in every response and error path below).
+function extractHeaderTokens(fullTextAnnotation) {
+  const text = fullTextAnnotation?.text || '';
+  const tokens = [];
+  for (const page of fullTextAnnotation?.pages || []) {
+    for (const block of page.blocks || []) {
+      for (const paragraph of block.paragraphs || []) {
+        for (const word of paragraph.words || []) {
+          const wordText = (word.symbols || []).map((s) => s.text).join('');
+          const xs = (word.boundingBox?.vertices || []).map((v) => v.x || 0);
+          if (!wordText || !xs.length) continue;
+          tokens.push({ text: wordText, x: (Math.min(...xs) + Math.max(...xs)) / 2 });
+        }
+      }
+    }
+  }
+  return { text, tokens };
+}
+
+// Same job as extractHeaderTokens above, for tesseract.js's own
+// block > paragraph > line > word hierarchy (see node_modules/tesseract.js's
+// own Page/Block/Paragraph/Line/Word types) -- there's no flat words list on
+// its result the way this file's own flattening gives Vision one, so this
+// walks the full nesting itself. bbox.x0/x1 are already in the cropped
+// header image's own pixel space (tesseract runs directly on that buffer,
+// no upscale step -- see the engine-selection comment above for why).
+function extractTesseractTokens(data) {
+  const tokens = [];
+  for (const block of data.blocks || []) {
+    for (const paragraph of block.paragraphs || []) {
+      for (const line of paragraph.lines || []) {
+        for (const word of line.words || []) {
+          if (!word.text || !word.bbox) continue;
+          tokens.push({ text: word.text, x: (word.bbox.x0 + word.bbox.x1) / 2 });
+        }
+      }
+    }
+  }
+  return { text: data.text || '', tokens };
 }
 
 function boundingBox(points) {
@@ -324,7 +408,7 @@ export default async (request) => {
   // them fails outright, rather than the whole request failing because one
   // engine had a bad day.
   async function ocrAndMatchOneEngine(oneEngine) {
-    let ocrText;
+    let ocrResult; // { text, tokens }
     try {
       // Crop the header region ourselves rather than passing tesseract.js's
       // own `rectangle` recognize() option -- confirmed by direct testing
@@ -363,12 +447,12 @@ export default async (request) => {
       const croppedBuffer = await cropped.getBuffer('image/png');
 
       if (oneEngine === 'google-vision') {
-        ocrText = await ocrHeaderGoogleVision(croppedBuffer, visionCredentials);
+        ocrResult = await ocrHeaderGoogleVision(croppedBuffer, visionCredentials);
       } else {
         const worker = await createWorker('heb');
         try {
           const { data } = await worker.recognize(croppedBuffer);
-          ocrText = data.text;
+          ocrResult = extractTesseractTokens(data);
         } finally {
           await worker.terminate();
         }
@@ -376,7 +460,7 @@ export default async (request) => {
     } catch (error) {
       return { engine: oneEngine, ocrError: error.message || 'Could not read the page header.' };
     }
-    return { engine: oneEngine, ocrText, match: matchHeader(ocrText, vocabulary) };
+    return { engine: oneEngine, ocrText: ocrResult.text, match: matchHeader(ocrResult.tokens, vocabulary) };
   }
 
   let match; // the one match actually used to build wordBoxes below
@@ -397,7 +481,11 @@ export default async (request) => {
       if (result.ocrError) return { error: `Could not read the page header: ${result.ocrError}`, ocrText: null };
       if (!result.match) return { error: 'Could not identify the daf from this photo.', ocrText: result.ocrText };
       return {
-        ref: `${result.match.entry.tractate} ${result.match.entry.daf}a`,
+        // Informational only here (this engine's own read, shown in the
+        // comparison UI) -- amud b falling back to a's own page data when
+        // b hasn't been published happens down where the real result gets
+        // built below, not in this per-engine summary.
+        ref: `${result.match.entry.tractate} ${result.match.entry.daf}${result.match.amud || 'a'}`,
         tractate: result.match.entry.tractate,
         daf: result.match.entry.daf,
         matchScore: Math.round(result.match.score),
@@ -416,9 +504,16 @@ export default async (request) => {
   } else {
     const result = await ocrAndMatchOneEngine(engine);
     if (result.ocrError) {
+      await logScanEvent({
+        requested_engine: engine, engine_used: engine, matched: false,
+        error: `header unreadable: ${result.ocrError}`.slice(0, 500),
+      }).catch(() => {});
       return Response.json({ error: 'Could not read the page header.', detail: result.ocrError }, { status: 502 });
     }
     if (!result.match) {
+      await logScanEvent({
+        requested_engine: engine, engine_used: engine, matched: false, error: 'no daf matched the header',
+      }).catch(() => {});
       return Response.json({ error: 'Could not identify the daf from this photo.', ocrText: result.ocrText }, { status: 422 });
     }
     match = result.match;
@@ -431,23 +526,41 @@ export default async (request) => {
     // engine found and can pick one to proceed with (re-submitting with
     // that specific engine forced, the normal single-engine path above) --
     // not a dead-end error.
+    await logScanEvent({
+      requested_engine: 'both', engine_used: 'both', matched: false, comparison_agree: false,
+      error: 'engines disagreed or one/both failed to read the header',
+    }).catch(() => {});
     return Response.json({ comparison }, { headers: { 'Access-Control-Allow-Origin': origin } });
   }
 
-  // The photographed physical page can't tell the reader which amud they're
-  // actually on (see the module docstring's KNOWN v1 LIMITATION) -- a's own
-  // page data is fetched unconditionally (its absence is a genuine "no data
-  // for this daf at all" error, unchanged from before), b's is fetched
-  // best-effort alongside it so the reader can flip to it client-side with
-  // no extra round trip: a 404 on b just means that side hasn't been
-  // published yet (or this is a tractate's last daf with no b at all), not
-  // an error worth failing the whole scan over.
+  // Both-mode only reaches past the `if (!match)` guard above when the two
+  // engines agreed -- logged as 'both' rather than the arbitrary tesseract
+  // pick summarize() above uses for entry/score, since both engines are
+  // equally the reason this succeeded.
+  const engineUsedLabel = engine === 'both' ? 'both' : engine;
+
+  // Which amud the photo actually shows now comes from matchHeader's own
+  // position-based detection (see resolveAmud in daf-header-vocabulary.mjs)
+  // -- no longer the fixed "always amud a" guess the module docstring's
+  // ORIGINAL known limitation described. a's own page data is still fetched
+  // unconditionally regardless of which amud was detected (its absence is a
+  // genuine "no data for this daf at all" error, unchanged from before); b's
+  // is fetched best-effort alongside it, both so the reader can flip to it
+  // client-side with no extra round trip AND so a detected amud b with no
+  // published b data yet can fall back to a rather than reporting an amud
+  // this response has no word positions for at all.
   const pageKeyBase = `${match.entry.tractate.replace(/\s+/g, '-')}-${match.entry.daf}`;
   const [pageResponseA, pageResponseB] = await Promise.all([
     fetch(`https://raw.githubusercontent.com/${OWNER}/${REPO}/results/pages/${pageKeyBase}a.json`),
     fetch(`https://raw.githubusercontent.com/${OWNER}/${REPO}/results/pages/${pageKeyBase}b.json`),
   ]);
   if (!pageResponseA.ok) {
+    await logScanEvent({
+      requested_engine: engine, engine_used: engineUsedLabel, matched: true,
+      tractate: match.entry.tractate, daf: match.entry.daf, amud: match.amud || null,
+      match_score: match.score, comparison_agree: engine === 'both' ? true : null,
+      error: 'no word-position data published for this daf',
+    }).catch(() => {});
     return Response.json(
       { error: `No word-position data for ${match.entry.tractate} ${match.entry.daf}.` },
       { status: 404 }
@@ -455,6 +568,11 @@ export default async (request) => {
   }
   const pageDataA = await pageResponseA.json();
   const pageDataB = pageResponseB.ok ? await pageResponseB.json() : null;
+  // Falls back to 'a' when the header genuinely looked like amud b but that
+  // side hasn't been published yet -- reporting an amud with no word
+  // positions to show would be strictly worse than the previous always-a
+  // behavior, not an improvement on it.
+  const detectedAmud = match.amud === 'b' && pageDataB ? 'b' : 'a';
 
   // Text-block detection runs against the READER'S OWN PHOTO and the
   // corners they marked -- neither depends on which amud's canonical data
@@ -538,10 +656,23 @@ export default async (request) => {
   // availability flag.
   const wordBoxesB = pageDataB ? projectWordBoxes(pageDataB) : null;
 
+  await logScanEvent({
+    requested_engine: engine, engine_used: engineUsedLabel, matched: true,
+    tractate: match.entry.tractate, daf: match.entry.daf, amud: detectedAmud,
+    match_score: match.score, comparison_agree: engine === 'both' ? true : null,
+  }).catch(() => {});
+
   return Response.json({
-    ref: `${match.entry.tractate} ${match.entry.daf}a`,
+    ref: `${match.entry.tractate} ${match.entry.daf}${detectedAmud}`,
     tractate: match.entry.tractate,
     daf: match.entry.daf,
+    // The header-position-detected amud (see resolveAmud), or 'a' when
+    // detection was inconclusive or amud b's data isn't published yet --
+    // the client uses this to decide which amud to show FIRST, not just
+    // which fields are literally called wordBoxes/wordBoxesB below (those
+    // stay tied to amud a/b specifically, unchanged, so the toggle can
+    // still flip to whichever one wasn't shown first).
+    amud: detectedAmud,
     matchScore: Math.round(match.score),
     wordBoxes,
     ...(wordBoxesB ? { wordBoxesB } : {}),
@@ -552,6 +683,18 @@ export default async (request) => {
   }, {
     headers: { 'Access-Control-Allow-Origin': origin },
   });
+};
+
+// Exported for tests/functions/scan-daf-page.test.mjs. Most of this handler
+// needs live network access (GitHub, Google Vision, a real photo) and has no
+// existing test coverage at all -- these three are the pure, synchronous
+// pieces worth pinning down with synthetic fixture data mimicking Vision's
+// and tesseract.js's own response shapes, same reasoning as link-preview.mjs's
+// own __testing export.
+export const __testing = {
+  extractHeaderTokens,
+  extractTesseractTokens,
+  resolveHeaderBandFraction,
 };
 
 export const config = {
