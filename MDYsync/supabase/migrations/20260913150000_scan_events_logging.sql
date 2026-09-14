@@ -1,9 +1,7 @@
 -- Daf Scan diagnostic logging: which OCR engine ran, what it matched (or
 -- didn't), for real scan requests.
 --
--- DRAFT -- NOT APPLIED TO PRODUCTION. Same rule every migration in this repo
--- has followed: the project owner approves the SQL and the rollback before it
--- runs anywhere real. Rollback:
+-- APPLIED TO PRODUCTION 2026-09-14. Rollback:
 --   supabase/migrations/20260913150000_scan_events_logging.down.sql
 -- Validated against supabase/baseline/ on a local Postgres 16 (supabase/README.md).
 --
