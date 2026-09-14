@@ -1315,6 +1315,17 @@
                    this doesn't work well for yet. -->
               <div class="scan-live" id="scanLive" data-state="aligning" hidden>
                 <video class="scan-live-video" id="scanLiveVideo" autoplay playsinline muted></video>
+                <!-- "Choose a photo" mode (see handleScanLiveLibraryFileSelected/
+                     showScanLivePhotoCrop in scan-live.js) -- an existing photo,
+                     positioned by pinch/drag behind the SAME #scanLiveCutout
+                     guide the live camera already aligns against, instead of a
+                     live feed. Reuses app.js's own computeCropSourceRect (the
+                     legacy library-photo flow's pinch/pan/zoom-to-native-pixels
+                     math) rather than a second copy of it. Hidden until a photo
+                     is actually chosen; the video is hidden in its place then. -->
+                <div class="scan-live-photo-wrap" id="scanLivePhotoWrap" hidden>
+                  <img class="scan-live-photo" id="scanLivePhotoZoom" alt="Selected header photo" />
+                </div>
                 <div class="scan-live-overlay">
                   <div class="scan-live-cutout" id="scanLiveCutout">
                     <div class="scan-live-word-overlay" id="scanLiveWordOverlay"></div>
@@ -1331,10 +1342,33 @@
                        brief vibration in scan-live.js's lockScanLiveOn). -->
                   <p class="scan-live-status" id="scanLiveStatus" aria-live="polite">Point your camera at the header, above the Gemara text.</p>
                 </div>
-                <div class="scan-live-controls">
+                <!-- Cancel is deliberately its OWN, permanently-visible row --
+                     never hidden by either mode below -- rather than living
+                     inside one of the two swapped groups: the legacy camera
+                     view's own controls keep cancel in a fixed grid slot
+                     across its live/photo-crop modes for exactly the same
+                     reason (see .scan-camera-controls' own comment) -- there
+                     always has to be a way out, including mid-photo-
+                     positioning. -->
+                <div class="scan-live-controls-row" id="scanLiveControlsRow">
                   <button class="button secondary" id="scanLiveCancelButton" type="button">Cancel</button>
-                  <button class="button secondary small scan-live-fallback" id="scanLiveFallbackButton" type="button">Use photo scan instead</button>
+                  <div class="scan-live-controls" id="scanLiveControls">
+                    <button class="button secondary small" id="scanLiveLibraryButton" type="button">Choose a photo</button>
+                    <button class="button secondary small scan-live-fallback" id="scanLiveFallbackButton" type="button">Use photo scan instead</button>
+                  </div>
+                  <!-- Only shown once a photo has been chosen (see
+                       showScanLivePhotoCrop) -- replaces scanLiveControls'
+                       own mode-specific items, same one-set-at-a-time
+                       convention the legacy camera view's own shutter/confirm
+                       swap uses. -->
+                  <div class="scan-live-photo-controls" id="scanLivePhotoControls" hidden>
+                    <button class="button secondary" id="scanLivePhotoBackButton" type="button">Back to camera</button>
+                    <button class="scan-live-photo-confirm" id="scanLivePhotoConfirmButton" type="button" aria-label="Scan this photo">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                  </div>
                 </div>
+                <input type="file" id="scanLiveLibraryInput" accept="image/*" hidden />
               </div>
 
               <div class="scan-intro" id="scanIntro" hidden>

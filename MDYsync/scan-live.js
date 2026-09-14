@@ -4,8 +4,18 @@
 // inside an on-screen guide, and get auto-navigated to /browse/?ref=... once
 // the header is read with enough confidence across several consecutive
 // frames -- no shutter tap, no four-corner marking, no photo review screen.
-// The photographed frame itself is never shown back or used as a reading
+// The live camera frame itself is never shown back or used as a reading
 // surface; the ONLY thing this feature produces is a navigation.
+//
+// An existing photo (see "Choose a photo" below) is the one deliberate
+// exception to "no photo review" -- there's no way to align a photo that
+// wasn't captured live except by showing it and letting the reader
+// position it, the same way the legacy flow's own library-photo mode
+// already works. It's still never treated as a reading surface: positioning
+// it is the only thing it's shown for, and a single successful match
+// (unlike the live camera's multi-frame consensus -- see below) locks and
+// navigates immediately, the same "one deliberate submission" shape the
+// legacy flow's own "Scan this page" button already has.
 //
 // Talks to scan-daf-header.mjs -- a deliberately lightweight endpoint,
 // nothing like the full scan-daf-page.mjs pipeline this shares its OCR/
@@ -16,11 +26,16 @@
 // yet, or once this needs a fallback for any other reason.
 //
 // Classic deferred script sharing app.js's top-level bindings ($, state,
-// computeCaptureSourceRect, resetScanUi, stopScanCamera), same convention as
-// notes.js/highlights.js/daf-context-menu.js/shas-search.js -- see those
-// files' own header comments. Exposes window.ScanLive = { start, stop } as
-// switchDafView's own entry/exit points, the same shape window.ShasSearch/
-// window.DafNotesSearch already use for their own cross-file entry points.
+// computeCaptureSourceRect, computeCropSourceRect, downscaleImageFile,
+// resetScanUi, stopScanCamera), same convention as notes.js/highlights.js/
+// daf-context-menu.js/shas-search.js -- see those files' own header
+// comments. computeCropSourceRect specifically is the legacy library-photo
+// flow's own pinch/pan/zoom-to-native-pixels math (see its own comment in
+// app.js) -- reused here rather than reimplemented, since it's already a
+// pure function of its arguments (no hardcoded element IDs inside it).
+// Exposes window.ScanLive = { start, stop } as switchDafView's own entry/
+// exit points, the same shape window.ShasSearch/window.DafNotesSearch
+// already use for their own cross-file entry points.
 
 // --- Tunables ----------------------------------------------------------------
 // A request fires no more often than this after the previous one finishes --
@@ -251,6 +266,261 @@ function captureGuideRegion(videoEl, cutoutEl, canvas) {
   return { dataUrl: canvas.toDataURL('image/jpeg', SCAN_LIVE_UPLOAD_JPEG_QUALITY) };
 }
 
+// --- "Choose a photo": pinch/pan/zoom + single-shot submit -------------------
+// A separate, small pinch/pan/zoom controller from the legacy flow's own
+// (scanCropZoom et al in app.js) rather than sharing it -- same underlying
+// math (reused directly via computeCropSourceRect, a pure function with no
+// element IDs baked into it), but kept independent so a change here can't
+// regress that already-shipped screen, and vice versa -- the same reasoning
+// app.js's own version already documents for itself.
+let scanLivePhotoZoomMin = 1;
+const SCAN_LIVE_PHOTO_ZOOM_MAX = 4;
+let scanLivePhotoZoom = 1, scanLivePhotoPanX = 0, scanLivePhotoPanY = 0;
+const scanLivePhotoPointers = new Map();
+let scanLivePhotoDragStart = null; // { x, y, panX, panY }
+let scanLivePhotoPinchStart = null; // { dist, midX, midY, zoom, panX, panY }
+
+// The camera session a chosen photo's eventual scan result should apply to
+// -- set when photo mode is entered, cleared when it's left (Back to
+// camera / Cancel / Use photo scan instead / a fresh start()). Paired with
+// scanLivePhotoRequestSeq below as this mode's own stale-response guard,
+// the same shape runScanLiveTick's own requestSeq/session.stopped check
+// already uses for the live camera loop.
+let scanLivePhotoTargetSession = null;
+let scanLivePhotoRequestSeq = 0;
+let scanLivePhotoRequestInFlight = false;
+
+function isScanLivePhotoModeActive() {
+  const wrap = $('scanLivePhotoWrap');
+  return Boolean(wrap && !wrap.hidden);
+}
+
+function computeMinLivePhotoZoom() {
+  const img = $('scanLivePhotoZoom');
+  const wrap = $('scanLivePhotoWrap');
+  const cutout = $('scanLiveCutout');
+  if (!img?.naturalWidth || !img.naturalHeight) return 1;
+  const wrapRect = wrap.getBoundingClientRect();
+  const cutoutRect = cutout.getBoundingClientRect();
+  if (!wrapRect.width || !cutoutRect.width || !cutoutRect.height) return 1;
+  const displayedWidth = wrapRect.width; // the img is styled width:100% of the wrap at zoom 1
+  const displayedHeight = displayedWidth * (img.naturalHeight / img.naturalWidth);
+  // Whichever axis needs to shrink MORE to fit is the one that actually
+  // constrains "does the whole photo fit" -- the smaller of the two
+  // guarantees BOTH axes end up at or under the cutout's size.
+  return Math.min(cutoutRect.width / displayedWidth, cutoutRect.height / displayedHeight);
+}
+
+function applyLivePhotoCropTransform() {
+  const layer = $('scanLivePhotoZoom');
+  if (layer) layer.style.transform = `translate(${scanLivePhotoPanX}px, ${scanLivePhotoPanY}px) scale(${scanLivePhotoZoom})`;
+}
+
+// Starts at scanLivePhotoZoomMin (the whole photo visible, fit inside the
+// cutout) rather than always zoomed to 1 -- a reader who took a well-framed
+// photo shouldn't have to manually zoom out just to see the header they
+// already have in frame.
+function resetLivePhotoCropTransform() {
+  scanLivePhotoZoomMin = computeMinLivePhotoZoom();
+  scanLivePhotoZoom = scanLivePhotoZoomMin;
+  scanLivePhotoPanX = 0;
+  scanLivePhotoPanY = 0;
+  applyLivePhotoCropTransform();
+}
+
+function scanLivePhotoPointerMidpoint() {
+  const [a, b] = [...scanLivePhotoPointers.values()];
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+function scanLivePhotoPointerDistance() {
+  const [a, b] = [...scanLivePhotoPointers.values()];
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function clampLivePhotoPanAtMinZoom() {
+  if (scanLivePhotoZoom > scanLivePhotoZoomMin) return;
+  scanLivePhotoPanX = 0;
+  scanLivePhotoPanY = 0;
+}
+
+function handleScanLivePhotoPointerDown(event) {
+  $('scanLivePhotoWrap').setPointerCapture(event.pointerId);
+  scanLivePhotoPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (scanLivePhotoPointers.size === 1) {
+    scanLivePhotoDragStart = { x: event.clientX, y: event.clientY, panX: scanLivePhotoPanX, panY: scanLivePhotoPanY };
+    scanLivePhotoPinchStart = null;
+  } else if (scanLivePhotoPointers.size === 2) {
+    const mid = scanLivePhotoPointerMidpoint();
+    scanLivePhotoPinchStart = {
+      dist: scanLivePhotoPointerDistance(),
+      midX: mid.x,
+      midY: mid.y,
+      zoom: scanLivePhotoZoom,
+      panX: scanLivePhotoPanX,
+      panY: scanLivePhotoPanY,
+    };
+  }
+  $('scanLivePhotoZoom')?.classList.add('dragging');
+}
+
+function handleScanLivePhotoPointerMove(event) {
+  if (!scanLivePhotoPointers.has(event.pointerId)) return;
+  scanLivePhotoPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (scanLivePhotoPointers.size >= 2 && scanLivePhotoPinchStart) {
+    const dist = scanLivePhotoPointerDistance();
+    const ratio = dist / (scanLivePhotoPinchStart.dist || dist || 1);
+    scanLivePhotoZoom = Math.max(scanLivePhotoZoomMin, Math.min(SCAN_LIVE_PHOTO_ZOOM_MAX, scanLivePhotoPinchStart.zoom * ratio));
+    const mid = scanLivePhotoPointerMidpoint();
+    scanLivePhotoPanX = scanLivePhotoPinchStart.panX + (mid.x - scanLivePhotoPinchStart.midX);
+    scanLivePhotoPanY = scanLivePhotoPinchStart.panY + (mid.y - scanLivePhotoPinchStart.midY);
+    clampLivePhotoPanAtMinZoom();
+    applyLivePhotoCropTransform();
+  } else if (scanLivePhotoDragStart) {
+    const pt = scanLivePhotoPointers.get(event.pointerId);
+    scanLivePhotoPanX = scanLivePhotoDragStart.panX + (pt.x - scanLivePhotoDragStart.x);
+    scanLivePhotoPanY = scanLivePhotoDragStart.panY + (pt.y - scanLivePhotoDragStart.y);
+    applyLivePhotoCropTransform();
+  }
+}
+
+function handleScanLivePhotoPointerUp(event) {
+  scanLivePhotoPointers.delete(event.pointerId);
+  if (scanLivePhotoPointers.size < 2) scanLivePhotoPinchStart = null;
+  if (scanLivePhotoPointers.size === 1) {
+    const [remaining] = scanLivePhotoPointers.values();
+    scanLivePhotoDragStart = { x: remaining.x, y: remaining.y, panX: scanLivePhotoPanX, panY: scanLivePhotoPanY };
+  } else if (scanLivePhotoPointers.size === 0) {
+    scanLivePhotoDragStart = null;
+    $('scanLivePhotoZoom')?.classList.remove('dragging');
+  }
+}
+
+// Shows the chosen photo behind the SAME #scanLiveCutout the live camera
+// already guides against, in place of the video -- the reader pinches/
+// drags it into place, then taps the confirm button (handleScanLivePhotoConfirm)
+// exactly once, the same "one deliberate submission" shape the legacy
+// flow's own "Scan this page" button already has.
+async function showScanLivePhotoCrop(dataUrl) {
+  const video = $('scanLiveVideo');
+  if (video) video.hidden = true;
+  $('scanLivePhotoWrap').hidden = false;
+  $('scanLiveControls').hidden = true;
+  $('scanLivePhotoControls').hidden = false;
+  clearScanLiveWordOverlay();
+  setScanLiveState('aligning');
+  setScanLiveStatus('Pinch or drag the photo to fit the header inside the frame, then tap the checkmark.');
+
+  const img = $('scanLivePhotoZoom');
+  img.src = dataUrl;
+  try {
+    await img.decode();
+  } catch (error) {
+    console.error('Could not decode the chosen photo:', error);
+  }
+  // Only now does the img have real naturalWidth/Height to fit against --
+  // resetLivePhotoCropTransform's computeMinLivePhotoZoom falls back to
+  // zoom 1 if decode() failed above, same as it always did before.
+  resetLivePhotoCropTransform();
+}
+
+// Reverses showScanLivePhotoCrop -- back to the live video view. Called both
+// by the explicit "Back to camera" button and by resetScanLiveVisuals (so
+// leaving the scanner entirely, mid-photo-mode, via Cancel/fallback/a fresh
+// start() never leaves stale photo-mode markup showing next time).
+function hideScanLivePhotoCrop() {
+  const wrap = $('scanLivePhotoWrap');
+  if (wrap) wrap.hidden = true;
+  const video = $('scanLiveVideo');
+  if (video) video.hidden = false;
+  const controls = $('scanLiveControls');
+  if (controls) controls.hidden = false;
+  const photoControls = $('scanLivePhotoControls');
+  if (photoControls) photoControls.hidden = true;
+  scanLivePhotoTargetSession = null;
+}
+
+async function handleScanLiveLibraryFileSelected(file) {
+  if (!file) return;
+  const session = activeSession;
+  if (!session) return; // the button only exists inside #scanLive, so this shouldn't happen
+  try {
+    const downscaled = await downscaleImageFile(file, SCAN_MAX_DIMENSION);
+    // Invalidates any confirm request still in flight for a PREVIOUSLY
+    // chosen photo -- see handleScanLivePhotoConfirm's own stale-response
+    // guard. Bumped before stopLiveScanSession/showScanLivePhotoCrop below,
+    // not after, so there's no window where an old request could still
+    // apply its result to this new photo.
+    scanLivePhotoRequestSeq += 1;
+    stopLiveScanSession(session); // pause the camera loop while positioning a static photo
+    scanLivePhotoTargetSession = session;
+    await showScanLivePhotoCrop(downscaled.dataUrl);
+  } catch (error) {
+    console.error(error);
+    setScanLiveStatus(`Could not load that photo: ${error.message}`);
+  }
+}
+
+// The one-shot equivalent of runScanLiveTick's per-frame fetch -- a chosen,
+// reader-positioned photo doesn't change between "reads" the way live video
+// frames do, so there's no real second reading to average against (unlike
+// the live camera, this never requires 2 agreeing rounds -- one confident,
+// server-vetted match IS the confirmation, the same shape the legacy flow's
+// own single "Scan this page" tap already has).
+async function handleScanLivePhotoConfirm() {
+  if (scanLivePhotoRequestInFlight) return; // one at a time, same rule the live loop's own requestInFlight enforces
+  const session = scanLivePhotoTargetSession;
+  if (!session) return;
+
+  const img = $('scanLivePhotoZoom');
+  const source = computeCropSourceRect(img, $('scanLivePhotoWrap'), $('scanLiveCutout'), scanLivePhotoPanX, scanLivePhotoPanY, scanLivePhotoZoom);
+  if (!source) {
+    setScanLiveStatus('The photo is not ready yet.');
+    return;
+  }
+
+  const mySeq = scanLivePhotoRequestSeq;
+  scanLivePhotoRequestInFlight = true;
+  const confirmButton = $('scanLivePhotoConfirmButton');
+  if (confirmButton) confirmButton.disabled = true;
+  setScanLiveState('reading');
+  setScanLiveStatus('Reading the photo…');
+
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(source.sWidth);
+  canvas.height = Math.round(source.sHeight);
+  canvas.getContext('2d').drawImage(img, source.sx, source.sy, source.sWidth, source.sHeight, 0, 0, canvas.width, canvas.height);
+  const dataUrl = canvas.toDataURL('image/jpeg', SCAN_LIVE_UPLOAD_JPEG_QUALITY);
+
+  let result;
+  try {
+    result = await fetchScanDafHeader(dataUrl);
+  } catch (error) {
+    console.error('Photo scan request failed:', error);
+    result = null;
+  }
+
+  scanLivePhotoRequestInFlight = false;
+  if (confirmButton) confirmButton.disabled = false;
+
+  // Stale-response guard: a newer photo was chosen, or the reader left
+  // photo mode entirely (Back to camera / Cancel / Use photo scan instead
+  // / a fresh start()), while this request was in flight.
+  if (mySeq !== scanLivePhotoRequestSeq || session !== scanLivePhotoTargetSession) return;
+
+  if (!result || !result.matched) {
+    setScanLiveState('aligning');
+    setScanLiveStatus(result
+      ? 'Could not identify the daf from this photo. Try repositioning it, or choose a different photo.'
+      : 'Could not reach the server. Try again, or reposition the photo.');
+    clearScanLiveWordOverlay();
+    return;
+  }
+
+  renderScanLiveWordOverlay(result.matchedWords);
+  lockScanLiveOn(session, result);
+}
+
 // --- Live session ------------------------------------------------------------
 // `session` objects are created fresh by start() and referenced only via
 // closures from that point on (the tick timer, the in-flight fetch's own
@@ -474,6 +744,7 @@ function resetScanLiveVisuals() {
   clearScanLiveWordOverlay();
   const checkmark = $('scanLiveCheckmark');
   if (checkmark) checkmark.hidden = true;
+  hideScanLivePhotoCrop(); // never leave photo-mode markup showing on the next entry
 }
 
 // Permission denied, no camera hardware, an insecure context (no
@@ -548,9 +819,13 @@ async function startLiveScan() {
         // view stays visible/showing its last state, so "became visible
         // again" below knows a resume is expected.
         stopLiveScanSession(activeSession);
-      } else if ($('scanLive') && !$('scanLive').hidden) {
+      } else if ($('scanLive') && !$('scanLive').hidden && !isScanLivePhotoModeActive()) {
         // Resume fresh -- the paused session's camera/timer are already
-        // gone, so this is a real restart, not a reuse.
+        // gone, so this is a real restart, not a reuse. Skipped while the
+        // reader is mid-photo-positioning (isScanLivePhotoModeActive) --
+        // restarting the camera here would silently throw away a chosen,
+        // not-yet-confirmed photo the moment the reader glanced away and
+        // back, which resumed a live feed can never justify.
         startLiveScan();
       }
     };
@@ -586,6 +861,24 @@ $('scanLiveFallbackButton')?.addEventListener('click', () => {
   state.scanUseLegacyFlow = true;
   resetScanUi();
 });
+
+$('scanLiveLibraryButton')?.addEventListener('click', () => $('scanLiveLibraryInput')?.click());
+$('scanLiveLibraryInput')?.addEventListener('change', (event) => {
+  handleScanLiveLibraryFileSelected(event.target.files?.[0]);
+  event.target.value = ''; // same file picked twice in a row still fires 'change'
+});
+
+$('scanLivePhotoBackButton')?.addEventListener('click', () => {
+  hideScanLivePhotoCrop();
+  startLiveScan(); // fresh camera session, not a resume of a stopped one
+});
+$('scanLivePhotoConfirmButton')?.addEventListener('click', handleScanLivePhotoConfirm);
+
+const scanLivePhotoWrapEl = $('scanLivePhotoWrap');
+scanLivePhotoWrapEl?.addEventListener('pointerdown', handleScanLivePhotoPointerDown);
+scanLivePhotoWrapEl?.addEventListener('pointermove', handleScanLivePhotoPointerMove);
+scanLivePhotoWrapEl?.addEventListener('pointerup', handleScanLivePhotoPointerUp);
+scanLivePhotoWrapEl?.addEventListener('pointercancel', handleScanLivePhotoPointerUp);
 
 // switchDafView's own entry/exit points (see app.js) -- same shape as
 // window.ShasSearch.openWith/window.DafNotesSearch.openWith.
