@@ -1313,7 +1313,7 @@
                    legacy guided-capture flow below (#scanIntro onward)
                    stays reachable via scanLiveFallbackButton for anyone
                    this doesn't work well for yet. -->
-              <div class="scan-live" id="scanLive" data-state="aligning" hidden>
+              <div class="scan-live" id="scanLive" data-state="aligning" data-capture-mode="strip" hidden>
                 <video class="scan-live-video" id="scanLiveVideo" autoplay playsinline muted></video>
                 <!-- "Choose a photo" mode (see handleScanLiveLibraryFileSelected/
                      showScanLivePhotoCrop in scan-live.js) -- an existing photo,
@@ -1355,6 +1355,15 @@
                   <div class="scan-live-controls" id="scanLiveControls">
                     <button class="button secondary small" id="scanLiveLibraryButton" type="button">Choose a photo</button>
                     <button class="button secondary small scan-live-fallback" id="scanLiveFallbackButton" type="button">Use photo scan instead</button>
+                    <!-- Experimental testing toggle (see scan-live.js's own
+                         SCAN_LIVE_FULL_PAGE_* comment) -- only lives here, in
+                         the pre-capture controls, never inside
+                         scanLivePhotoControls below: switching capture mode
+                         mid-photo-positioning would leave the crop's zoom/pan
+                         computed against the OLD cutout shape, so this is
+                         deliberately only choosable before the camera or a
+                         chosen photo is actually being aligned. -->
+                    <button class="button secondary small" id="scanLiveModeToggleButton" type="button" aria-pressed="false">Full page (testing)</button>
                   </div>
                   <!-- Only shown once a photo has been chosen (see
                        showScanLivePhotoCrop) -- replaces scanLiveControls'

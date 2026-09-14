@@ -465,3 +465,151 @@ test.describe('scan-live.js -- "Choose a photo" DOM lifecycle', () => {
     await expect(page.locator('#scanLivePhotoConfirmButton').dispatchEvent('click')).resolves.not.toThrow();
   });
 });
+
+test.describe('scan-live.js -- experimental "full page" capture mode', () => {
+  test('applyFullPageTopCrop shrinks only sHeight, from the top, leaving sx/sy/sWidth untouched', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    const results = await page.evaluate(() => {
+      const { applyFullPageTopCrop } = window.ScanLive.__testing;
+      const source = { sx: 10, sy: 20, sWidth: 300, sHeight: 400 };
+      return {
+        cropped: applyFullPageTopCrop(source, 0.38),
+        stripModeNoop: applyFullPageTopCrop(source, null),
+        oneIsNoop: applyFullPageTopCrop(source, 1),
+        zeroIsNoop: applyFullPageTopCrop(source, 0),
+        nullSourceIsNull: applyFullPageTopCrop(null, 0.38),
+      };
+    });
+    expect(results.cropped).toEqual({ sx: 10, sy: 20, sWidth: 300, sHeight: 152 }); // 400 * 0.38
+    expect(results.stripModeNoop).toEqual({ sx: 10, sy: 20, sWidth: 300, sHeight: 400 });
+    expect(results.oneIsNoop).toEqual({ sx: 10, sy: 20, sWidth: 300, sHeight: 400 });
+    expect(results.zeroIsNoop).toEqual({ sx: 10, sy: 20, sWidth: 300, sHeight: 400 });
+    expect(results.nullSourceIsNull).toBeNull();
+  });
+
+  test('rescaleWordBoxForCaptureMode compresses top/height into the top slice, leaves left/width alone', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    const results = await page.evaluate(() => {
+      const { rescaleWordBoxForCaptureMode } = window.ScanLive.__testing;
+      const box = { left: 0.2, top: 0.5, width: 0.3, height: 0.4 };
+      return {
+        rescaled: rescaleWordBoxForCaptureMode(box, 0.38),
+        stripModeNoop: rescaleWordBoxForCaptureMode(box, null),
+        nullBoxIsNull: rescaleWordBoxForCaptureMode(null, 0.38),
+      };
+    });
+    expect(results.rescaled.left).toBe(0.2); // untouched -- only a vertical crop
+    expect(results.rescaled.width).toBe(0.3); // untouched -- only a vertical crop
+    expect(results.rescaled.top).toBeCloseTo(0.19, 5); // 0.5 * 0.38
+    expect(results.rescaled.height).toBeCloseTo(0.152, 5); // 0.4 * 0.38
+    expect(results.stripModeNoop).toEqual({ left: 0.2, top: 0.5, width: 0.3, height: 0.4 });
+    expect(results.nullBoxIsNull).toBeNull();
+  });
+
+  test('defaultScanLiveStatusText differs by mode', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    const { strip, fullPage } = await page.evaluate(() => {
+      const { defaultScanLiveStatusText, setScanLiveCaptureMode } = window.ScanLive.__testing;
+      setScanLiveCaptureMode('strip');
+      const strip = defaultScanLiveStatusText();
+      setScanLiveCaptureMode('fullPage');
+      const fullPage = defaultScanLiveStatusText();
+      setScanLiveCaptureMode('strip'); // leave state clean for later tests
+      return { strip, fullPage };
+    });
+    expect(strip).toContain('header');
+    expect(fullPage).toContain('whole page');
+    expect(strip).not.toBe(fullPage);
+  });
+
+  test('toggling the mode button reshapes the guide and updates its own label/aria-pressed', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await page.evaluate(() => switchDafView('scan'));
+
+    const cutout = page.locator('#scanLiveCutout');
+    const toggle = page.locator('#scanLiveModeToggleButton');
+
+    await expect(page.locator('#scanLive')).toHaveAttribute('data-capture-mode', 'strip');
+    const stripBox = await cutout.boundingBox();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+
+    await toggle.click();
+    await expect(page.locator('#scanLive')).toHaveAttribute('data-capture-mode', 'fullPage');
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    await expect(toggle).toHaveText('Switch to header strip');
+    const fullPageBox = await cutout.boundingBox();
+    // The strip is wide and short (5:1); the full-page guide is meant to be
+    // tall and narrow (aspect-ratio 0.68) -- confirm the shape actually
+    // flipped, not just that SOME CSS attribute changed.
+    expect(stripBox.width / stripBox.height).toBeGreaterThan(3);
+    expect(fullPageBox.width / fullPageBox.height).toBeLessThan(1);
+    await expect(page.locator('#scanLiveStatus')).toContainText('whole page');
+
+    await toggle.click(); // back to strip, leave state clean for later tests
+    await expect(page.locator('#scanLive')).toHaveAttribute('data-capture-mode', 'strip');
+    await expect(toggle).toHaveText('Full page (testing)');
+  });
+
+  test('a full-page-mode match renders its word-overlay box compressed into the top slice, not stretched across the whole guide', async ({ page }) => {
+    // The real bug this guards against: matchedWords fractions are always
+    // relative to whatever crop was actually SENT (just the top slice in
+    // full-page mode), not the whole cutout the reader sees -- rendering
+    // them unrescaled would place the green highlight box far too low and
+    // far too tall, stretched across the entire page-shaped guide instead
+    // of sitting on the actual header line near its top.
+    const TINY_PNG = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFUlEQVR42mP8z8BQz0AEYBxVSF+FABJADveWkH6oAAAAAElFTkSuQmCC',
+      'base64'
+    );
+    await preparePage(page, { user: null });
+    await page.route('**/api/scan-daf-header', (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        matched: true, ref: 'Chullin 89a', tractate: 'Chullin', daf: 89, amud: 'a',
+        matchScore: 90,
+        // Fractions of the SENT (top-slice) crop -- a token sitting near
+        // the bottom of that slice, e.g. top 0.6, height 0.2.
+        matchedWords: [{ left: 0.1, top: 0.6, width: 0.3, height: 0.2 }],
+      }),
+    }));
+    await page.goto('/player/?ref=Chullin%2088a');
+    await page.evaluate(() => switchDafView('scan'));
+    await page.locator('#scanLiveModeToggleButton').click(); // full-page mode
+    await page.locator('#scanLiveLibraryInput').setInputFiles({ name: 'page.png', mimeType: 'image/png', buffer: TINY_PNG });
+    await expect(page.locator('#scanLivePhotoWrap')).toBeVisible();
+
+    await page.locator('#scanLivePhotoConfirmButton').click();
+    await expect(page.locator('.scan-live-word-box')).toBeVisible();
+
+    const style = await page.locator('.scan-live-word-box').first().evaluate((el) => ({
+      top: el.style.top, height: el.style.height, left: el.style.left, width: el.style.width,
+    }));
+    // top: 0.6 * 0.38 = 0.228 -> 22.8%; height: 0.2 * 0.38 = 0.076 -> 7.6%
+    expect(style.top).toBe('22.8%');
+    expect(style.height).toBe('7.6%');
+    // left/width are untouched -- only the vertical crop needed rescaling.
+    expect(style.left).toBe('10%');
+    expect(style.width).toBe('30%');
+  });
+
+  test('the toggle is never shown mid-photo-positioning', async ({ page }) => {
+    // Scoped deliberately to #scanLiveControls only (see that button's own
+    // HTML comment) -- switching capture mode mid-positioning would leave
+    // the crop's zoom/pan computed against the OLD cutout shape.
+    const TINY_PNG = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFUlEQVR42mP8z8BQz0AEYBxVSF+FABJADveWkH6oAAAAAElFTkSuQmCC',
+      'base64'
+    );
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await page.evaluate(() => switchDafView('scan'));
+    await page.locator('#scanLiveLibraryInput').setInputFiles({ name: 'header.png', mimeType: 'image/png', buffer: TINY_PNG });
+    await expect(page.locator('#scanLivePhotoWrap')).toBeVisible();
+    await expect(page.locator('#scanLiveModeToggleButton')).toBeHidden();
+  });
+});

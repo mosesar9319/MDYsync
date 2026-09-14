@@ -84,6 +84,36 @@ const QUALITY_MAX_MOTION_DIFF = 20;
 const SCAN_LIVE_UPLOAD_MAX_DIMENSION = 480;
 const SCAN_LIVE_UPLOAD_JPEG_QUALITY = 0.8;
 
+// --- Experimental: "Full page" capture mode (testing only) ------------------
+// The default (and only, until this) mode makes the reader precisely align
+// just the printed header into a thin 5:1 strip. This alternate mode lets
+// them frame the WHOLE page instead -- much less finicky to hold steady --
+// and relies on filterTokensBySize (shared/vision-header-ocr.mjs) to pick
+// the header out on its own: a real Vilna Shas header prints noticeably
+// larger than the Gemara body/Rashi/Tosafot text around it (confirmed
+// directly against a real photo earlier in this feature's own work --
+// header words measured 109-120px tall vs. commentary text at roughly half
+// that or less), which is exactly the size gap that filter already exists
+// to act on.
+//
+// Only the TOP fraction of whatever the reader framed actually gets sent
+// for OCR -- the guide still shows (and the reader still aligns) the whole
+// page, for confidence that framing is correct, but cropping to just the
+// top slice before upload keeps payload size and OCR cost close to the
+// strip mode's, and keeps the candidate-token pool from ballooning to an
+// entire page of running Gemara text (more candidate text is more chances
+// for an unrelated word to fuzzy- or substring-match some OTHER daf's
+// name/number well enough to compete -- matchHeader's minMargin exists to
+// catch exactly that, but a whole page is a meaningfully larger candidate
+// pool than this margin check has been exercised against so far).
+const SCAN_LIVE_FULL_PAGE_TOP_FRACTION = 0.38;
+// Raised well above the strip mode's 480: the same page-shaped guide now
+// covers much more physical page area at the same pixel budget, so the
+// header itself would otherwise end up with FEWER effective pixels than
+// the tight strip crop gets it today. Still comfortably under
+// scan-daf-header.mjs's own 1.5MB request cap for a crop this shape.
+const SCAN_LIVE_FULL_PAGE_UPLOAD_MAX_DIMENSION = 840;
+
 // How long the locked/checkmark state stays on screen before navigating --
 // purely so the success state is actually perceivable, not instant-cut.
 const SCAN_LIVE_LOCK_DWELL_MS = 650;
@@ -248,10 +278,28 @@ function sampleGuideRegion(videoEl, cutoutEl, canvas) {
 // Same source-rect math, full resolution (capped to
 // SCAN_LIVE_UPLOAD_MAX_DIMENSION) -- this is the actual crop sent to the
 // server. Returns { dataUrl } or null.
+//
+// In "full page" mode (see SCAN_LIVE_FULL_PAGE_TOP_FRACTION above), `source`
+// still covers the WHOLE page-shaped guide the reader aligned -- only what
+// actually gets drawn/uploaded is cropped down to its own top slice, by
+// applyFullPageTopCrop below, before the max-dimension scale is computed.
+// Pure, directly testable: given a source rect and a fraction (or null/1
+// for "no crop"), returns a new rect with sHeight shrunk to that top
+// fraction and sx/sWidth/sy left alone -- this only ever crops vertically,
+// from the top, never horizontally.
+function applyFullPageTopCrop(source, topFraction) {
+  if (!source) return source;
+  if (!Number.isFinite(topFraction) || topFraction >= 1 || topFraction <= 0) return source;
+  return { ...source, sHeight: source.sHeight * topFraction };
+}
+
 function captureGuideRegion(videoEl, cutoutEl, canvas) {
-  const source = computeCaptureSourceRect(videoEl, cutoutEl);
-  if (!source) return null;
-  const scale = Math.min(1, SCAN_LIVE_UPLOAD_MAX_DIMENSION / Math.max(source.sWidth, source.sHeight));
+  const rawSource = computeCaptureSourceRect(videoEl, cutoutEl);
+  if (!rawSource) return null;
+  const fullPage = scanLiveCaptureMode === 'fullPage';
+  const source = applyFullPageTopCrop(rawSource, fullPage ? SCAN_LIVE_FULL_PAGE_TOP_FRACTION : null);
+  const maxDimension = fullPage ? SCAN_LIVE_FULL_PAGE_UPLOAD_MAX_DIMENSION : SCAN_LIVE_UPLOAD_MAX_DIMENSION;
+  const scale = Math.min(1, maxDimension / Math.max(source.sWidth, source.sHeight));
   const width = Math.max(1, Math.round(source.sWidth * scale));
   const height = Math.max(1, Math.round(source.sHeight * scale));
   canvas.width = width;
@@ -468,11 +516,13 @@ async function handleScanLivePhotoConfirm() {
   if (!session) return;
 
   const img = $('scanLivePhotoZoom');
-  const source = computeCropSourceRect(img, $('scanLivePhotoWrap'), $('scanLiveCutout'), scanLivePhotoPanX, scanLivePhotoPanY, scanLivePhotoZoom);
-  if (!source) {
+  const rawSource = computeCropSourceRect(img, $('scanLivePhotoWrap'), $('scanLiveCutout'), scanLivePhotoPanX, scanLivePhotoPanY, scanLivePhotoZoom);
+  if (!rawSource) {
     setScanLiveStatus('The photo is not ready yet.');
     return;
   }
+  const fullPage = scanLiveCaptureMode === 'fullPage';
+  const source = applyFullPageTopCrop(rawSource, fullPage ? SCAN_LIVE_FULL_PAGE_TOP_FRACTION : null);
 
   const mySeq = scanLivePhotoRequestSeq;
   scanLivePhotoRequestInFlight = true;
@@ -481,9 +531,18 @@ async function handleScanLivePhotoConfirm() {
   setScanLiveState('reading');
   setScanLiveStatus('Reading the photo…');
 
+  // Only full-page mode caps this -- strip mode already sends the
+  // (already-small, since it's just a thin header strip) crop at its own
+  // native resolution, unchanged from before this mode existed. A
+  // page-shaped full-page crop can be large in BOTH dimensions, not just
+  // one, so it gets the same max-dimension treatment the live-camera path
+  // already applies for this mode.
+  const scale = fullPage
+    ? Math.min(1, SCAN_LIVE_FULL_PAGE_UPLOAD_MAX_DIMENSION / Math.max(source.sWidth, source.sHeight))
+    : 1;
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(source.sWidth);
-  canvas.height = Math.round(source.sHeight);
+  canvas.width = Math.max(1, Math.round(source.sWidth * scale));
+  canvas.height = Math.max(1, Math.round(source.sHeight * scale));
   canvas.getContext('2d').drawImage(img, source.sx, source.sy, source.sWidth, source.sHeight, 0, 0, canvas.width, canvas.height);
   const dataUrl = canvas.toDataURL('image/jpeg', SCAN_LIVE_UPLOAD_JPEG_QUALITY);
 
@@ -526,6 +585,13 @@ async function handleScanLivePhotoConfirm() {
 // the DOM or navigating, so a stale response from a torn-down session can
 // never resurrect it or clobber a newer one.
 let activeSession = null;
+
+// 'strip' (default) or 'fullPage' (see the SCAN_LIVE_FULL_PAGE_* tunables
+// above) -- module state, not per-session, since it's a reader-chosen
+// testing option that should stick across a Back-to-camera/fresh-session
+// cycle within the same visit to the Scan tab, the same way
+// state.scanUseLegacyFlow already does for the legacy-flow opt-out.
+let scanLiveCaptureMode = 'strip';
 
 function newSession() {
   return {
@@ -577,20 +643,46 @@ function setScanLiveStatus(message) {
   if (el) el.textContent = message;
 }
 
+// The instruction shown at rest and after a non-matching round -- differs
+// by capture mode since what the reader is actually meant to frame is
+// different (see the SCAN_LIVE_FULL_PAGE_* tunables' own comment).
+function defaultScanLiveStatusText() {
+  return scanLiveCaptureMode === 'fullPage'
+    ? 'Point your camera at the whole page, header included.'
+    : 'Point your camera at the header, above the Gemara text.';
+}
+
 function clearScanLiveWordOverlay() {
   const overlay = $('scanLiveWordOverlay');
   if (overlay) overlay.innerHTML = '';
 }
 
+// A word box's {left, top, width, height} come back as fractions (0-1) of
+// whatever crop was actually SENT to the server. In strip mode that's
+// exactly the same rect #scanLiveCutout covers, so they map straight onto
+// it. In full-page mode, the sent crop is only the TOP topFraction of the
+// cutout (see applyFullPageTopCrop) -- a box positioned as a fraction of
+// THAT slice needs top/height compressed into the same top slice of the
+// full cutout before it's applied as a percentage of the whole overlay, or
+// every highlight would render stretched across the entire page-shaped
+// guide instead of sitting on the actual header line near its top. left/
+// width are untouched -- only the top crop is vertical.
+function rescaleWordBoxForCaptureMode(box, topFraction) {
+  if (!box) return box;
+  if (!Number.isFinite(topFraction) || topFraction >= 1 || topFraction <= 0) return box;
+  return { ...box, top: box.top * topFraction, height: box.height * topFraction };
+}
+
 // boxes: array of {left, top, width, height} fractions (0-1) of the crop
-// sent -- which is exactly the same rect #scanLiveCutout itself covers, so
-// these map directly onto it as plain percentages (same convention
-// renderVilnaWordBoxes/renderScanMatch already use in app.js).
+// sent -- see rescaleWordBoxForCaptureMode above for why that isn't always
+// exactly the same rect #scanLiveCutout covers.
 function renderScanLiveWordOverlay(boxes) {
   const overlay = $('scanLiveWordOverlay');
   if (!overlay) return;
   overlay.innerHTML = '';
-  for (const box of boxes || []) {
+  const topFraction = scanLiveCaptureMode === 'fullPage' ? SCAN_LIVE_FULL_PAGE_TOP_FRACTION : null;
+  for (const rawBox of boxes || []) {
+    const box = rescaleWordBoxForCaptureMode(rawBox, topFraction);
     const el = document.createElement('div');
     el.className = 'scan-live-word-box';
     el.style.left = `${box.left * 100}%`;
@@ -717,7 +809,7 @@ async function runScanLiveTick(session) {
     }
   } else if (!session.locked) {
     setScanLiveState('reading');
-    setScanLiveStatus('Point your camera at the header, above the Gemara text.');
+    setScanLiveStatus(defaultScanLiveStatusText());
     clearScanLiveWordOverlay();
   }
 
@@ -768,11 +860,37 @@ function stopLiveScanSession(session) {
 
 function resetScanLiveVisuals() {
   setScanLiveState('aligning');
-  setScanLiveStatus('Point your camera at the header, above the Gemara text.');
+  setScanLiveStatus(defaultScanLiveStatusText());
   clearScanLiveWordOverlay();
   const checkmark = $('scanLiveCheckmark');
   if (checkmark) checkmark.hidden = true;
   hideScanLivePhotoCrop(); // never leave photo-mode markup showing on the next entry
+}
+
+// Only reachable from #scanLiveControls (never shown mid-photo-positioning
+// -- see the toggle button's own placement in player/index.html), so there
+// is never a stale zoom/pan computed against the OLD cutout shape to worry
+// about here. #scanLive's own [data-capture-mode] attribute drives the
+// cutout's shape in styles.css -- computeCaptureSourceRect/
+// computeCropSourceRect both read the cutout's rendered rect fresh on every
+// call, so this takes effect on the very next tick with no camera restart
+// needed. Resets the soft, mode-dependent visual state (not a full
+// stop/restart) and drops any in-progress multi-frame consensus history,
+// since a "reading" round from the OLD mode's differently-shaped crop
+// shouldn't count toward agreement with a round from the new one.
+function setScanLiveCaptureMode(mode) {
+  scanLiveCaptureMode = mode === 'fullPage' ? 'fullPage' : 'strip';
+  const view = $('scanLive');
+  if (view) view.dataset.captureMode = scanLiveCaptureMode;
+  const toggle = $('scanLiveModeToggleButton');
+  if (toggle) {
+    toggle.textContent = scanLiveCaptureMode === 'fullPage' ? 'Switch to header strip' : 'Full page (testing)';
+    toggle.setAttribute('aria-pressed', String(scanLiveCaptureMode === 'fullPage'));
+  }
+  if (activeSession) activeSession.history = [];
+  setScanLiveState('aligning');
+  setScanLiveStatus(defaultScanLiveStatusText());
+  clearScanLiveWordOverlay();
 }
 
 // Permission denied, no camera hardware, an insecure context (no
@@ -890,6 +1008,10 @@ $('scanLiveFallbackButton')?.addEventListener('click', () => {
   resetScanUi();
 });
 
+$('scanLiveModeToggleButton')?.addEventListener('click', () => {
+  setScanLiveCaptureMode(scanLiveCaptureMode === 'fullPage' ? 'strip' : 'fullPage');
+});
+
 $('scanLiveLibraryButton')?.addEventListener('click', () => $('scanLiveLibraryInput')?.click());
 $('scanLiveLibraryInput')?.addEventListener('change', (event) => {
   handleScanLiveLibraryFileSelected(event.target.files?.[0]);
@@ -921,4 +1043,7 @@ window.ScanLive.__testing = {
   dafKeyOf, pushScanHistory, evaluateConsensus, buildScanLiveHref,
   computeLuminanceStats, computeEdgeVariance, computeMotionDiff, evaluateFrameQuality,
   describeScanLiveFailure,
+  applyFullPageTopCrop, rescaleWordBoxForCaptureMode, defaultScanLiveStatusText,
+  getScanLiveCaptureMode: () => scanLiveCaptureMode,
+  setScanLiveCaptureMode,
 };
