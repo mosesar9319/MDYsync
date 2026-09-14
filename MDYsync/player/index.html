@@ -1302,7 +1302,76 @@
                  point) -> align (drag the 4 page corners to match the
                  photo) -> result (tappable word overlay on the photo). -->
             <div class="scan-placeholder" id="scanPlaceholder" hidden>
-              <div class="scan-intro" id="scanIntro">
+              <!-- Live, shutter-free header scanner (see scan-live.js) --
+                   the default way into Daf Scan now. Point the camera at
+                   the header and hold it inside the guide; recognition
+                   happens automatically in the background and navigates
+                   away once confident, no tap required anywhere in this
+                   view. #scanLive's own data-state attribute (aligning /
+                   reading / almost / locked) drives every visual state in
+                   styles.css -- see scan-live.js's setScanLiveState. The
+                   legacy guided-capture flow below (#scanIntro onward)
+                   stays reachable via scanLiveFallbackButton for anyone
+                   this doesn't work well for yet. -->
+              <div class="scan-live" id="scanLive" data-state="aligning" hidden>
+                <video class="scan-live-video" id="scanLiveVideo" autoplay playsinline muted></video>
+                <!-- "Choose a photo" mode (see handleScanLiveLibraryFileSelected/
+                     showScanLivePhotoCrop in scan-live.js) -- an existing photo,
+                     positioned by pinch/drag behind the SAME #scanLiveCutout
+                     guide the live camera already aligns against, instead of a
+                     live feed. Reuses app.js's own computeCropSourceRect (the
+                     legacy library-photo flow's pinch/pan/zoom-to-native-pixels
+                     math) rather than a second copy of it. Hidden until a photo
+                     is actually chosen; the video is hidden in its place then. -->
+                <div class="scan-live-photo-wrap" id="scanLivePhotoWrap" hidden>
+                  <img class="scan-live-photo" id="scanLivePhotoZoom" alt="Selected header photo" />
+                </div>
+                <div class="scan-live-overlay">
+                  <div class="scan-live-cutout" id="scanLiveCutout">
+                    <div class="scan-live-word-overlay" id="scanLiveWordOverlay"></div>
+                    <div class="scan-live-checkmark" id="scanLiveCheckmark" hidden aria-hidden="true">
+                      <svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                  </div>
+                </div>
+                <div class="scan-live-top-text">
+                  <!-- aria-live so a screen reader announces each state
+                       change on its own, including the final "<Tractate>
+                       <daf> identified" success message -- success here is
+                       never color-only (see also the checkmark icon and the
+                       brief vibration in scan-live.js's lockScanLiveOn). -->
+                  <p class="scan-live-status" id="scanLiveStatus" aria-live="polite">Point your camera at the header, above the Gemara text.</p>
+                </div>
+                <!-- Cancel is deliberately its OWN, permanently-visible row --
+                     never hidden by either mode below -- rather than living
+                     inside one of the two swapped groups: the legacy camera
+                     view's own controls keep cancel in a fixed grid slot
+                     across its live/photo-crop modes for exactly the same
+                     reason (see .scan-camera-controls' own comment) -- there
+                     always has to be a way out, including mid-photo-
+                     positioning. -->
+                <div class="scan-live-controls-row" id="scanLiveControlsRow">
+                  <button class="button secondary" id="scanLiveCancelButton" type="button">Cancel</button>
+                  <div class="scan-live-controls" id="scanLiveControls">
+                    <button class="button secondary small" id="scanLiveLibraryButton" type="button">Choose a photo</button>
+                    <button class="button secondary small scan-live-fallback" id="scanLiveFallbackButton" type="button">Use photo scan instead</button>
+                  </div>
+                  <!-- Only shown once a photo has been chosen (see
+                       showScanLivePhotoCrop) -- replaces scanLiveControls'
+                       own mode-specific items, same one-set-at-a-time
+                       convention the legacy camera view's own shutter/confirm
+                       swap uses. -->
+                  <div class="scan-live-photo-controls" id="scanLivePhotoControls" hidden>
+                    <button class="button secondary" id="scanLivePhotoBackButton" type="button">Back to camera</button>
+                    <button class="scan-live-photo-confirm" id="scanLivePhotoConfirmButton" type="button" aria-label="Scan this photo">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                  </div>
+                </div>
+                <input type="file" id="scanLiveLibraryInput" accept="image/*" hidden />
+              </div>
+
+              <div class="scan-intro" id="scanIntro" hidden>
                 <div class="page-silhouette">
                   <div class="page-column narrow"></div>
                   <div class="page-column wide"></div>
@@ -1850,6 +1919,7 @@
   <script src="../highlights.js" defer></script>
   <script src="../daf-context-menu.js" defer></script>
   <script src="../shas-search.js" defer></script>
+  <script src="../scan-live.js" defer></script>
   <script src="../player-chrome.js" defer></script>
   <script src="../nav.js" defer></script>
   <script src="../collapse.js" defer></script>

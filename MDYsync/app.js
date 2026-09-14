@@ -188,6 +188,13 @@ const state = {
   // preference (see the slider's own comment for why this isn't a normal
   // setting).
   scanHeaderBandFraction: SCAN_HEADER_BAND_FRACTION_DEFAULT,
+  // Set true only by scan-live.js's own "Use photo scan instead" fallback
+  // link -- once a reader opts into the legacy guided-capture flow for this
+  // session, re-opening the Scan tab (e.g. switching to Text and back)
+  // respects that choice instead of dropping them back into the live
+  // scanner every time. Never set anywhere else; a fresh page load always
+  // starts back at false (live scanner first), same as every other reader.
+  scanUseLegacyFlow: false,
   // Pinch/pan zoom on the synced result photo (see wireScanResultZoom) --
   // a plain CSS transform on #scanResultZoom (translate in wrap-relative
   // px, then scale), reset to identity each time a fresh photo is shown.
@@ -7593,16 +7600,22 @@ function switchDafView(mode) {
   const scanPlaceholder = $('scanPlaceholder');
   if (scanPlaceholder) scanPlaceholder.hidden = mode !== 'scan';
   if (mode === 'page') renderVilnaPage();
-  // Only reset to the fresh "open the camera" screen the first time the
-  // reader lands on Scan with nothing captured yet -- once a photo's been
-  // scanned (matched or still mid-align), switching away to Text/Vilna page
-  // and back (see the Sefaria/scanned-photo toggle) must not throw that
-  // work away.
+  // Only reset to a fresh entry screen the first time the reader lands on
+  // Scan with nothing captured yet -- once a photo's been scanned (matched
+  // or still mid-align) via the legacy flow, switching away to Text/Vilna
+  // page and back (see the Sefaria/scanned-photo toggle) must not throw
+  // that work away. The live scanner (see scan-live.js) is the default
+  // entry point; scanUseLegacyFlow is set only by its own "Use photo scan
+  // instead" link, and only for the rest of this page's session.
   if (mode === 'scan') {
-    if (!state.scanPhotoDataUrl) resetScanUi();
+    if (!state.scanPhotoDataUrl) {
+      if (state.scanUseLegacyFlow || !window.ScanLive) resetScanUi();
+      else window.ScanLive.start();
+    }
     if (scanPlaceholder) prewarmScanDetection();
   } else {
     stopScanCamera(); // don't leave the camera light on if the reader navigates away mid-frame
+    window.ScanLive?.stop();
   }
 }
 

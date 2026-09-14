@@ -19,8 +19,8 @@ const VOCAB = buildHeaderVocabulary([
   { tractate: 'Chullin', daf: 100 },
 ]);
 
-function tok(text, x) {
-  return { text, x };
+function tok(text, x, y, width, height) {
+  return { text, x, y, width, height };
 }
 
 test('matches a clean header (tractate + gematria tokens, no position data)', () => {
@@ -71,4 +71,40 @@ test('amud is null when the same token would have to win both comparisons', () =
 test('toGematria still produces the printed forms amud detection relies on', () => {
   assert.equal(toGematria(89), 'פט');
   assert.equal(toGematria(15), 'טו'); // special-cased, not the literal יה
+});
+
+// --- hebrewScore/gematriaScore/hebrewToken/gematriaToken --------------------
+// Added for scan-daf-header.mjs's stricter per-field confidence check (a
+// bare passing `score` can hide one illegible half averaged against an
+// accidentally-similar other-candidate score) and for its matchedWords
+// highlight boxes.
+
+test('a clean match reports both per-field scores near 100 and the winning tokens', () => {
+  const match = matchHeader([tok('חולין', 400, 10, 80, 20), tok('פט.', 100, 10, 40, 20)], VOCAB);
+  assert.ok(match.hebrewScore > 90);
+  assert.ok(match.gematriaScore > 90);
+  assert.equal(match.hebrewToken.text, 'חולין');
+  assert.equal(match.gematriaToken.text, 'פט');
+});
+
+test('a header with only the daf number legible still WINS overall (score) but fails the per-field floor', () => {
+  // No real tractate-name token at all -- just a short, semi-Hebrew-looking
+  // noise fragment (a real credit-line abbreviation, "תוס" -- see
+  // gematriaCandidates' own comment on stray margin-annotation fragments)
+  // that happens to fuzzy-match "חולין" just well enough, on top of a
+  // clean, confident daf-number read, to clear the averaged minScore/
+  // minMargin gate outright. The averaged `score` alone doesn't reveal that
+  // the tractate name itself was never actually read; hebrewScore does.
+  const match = matchHeader([tok('פט.', 100), tok('תוס', 400)], VOCAB);
+  assert.ok(match); // still returns a match -- the averaged score clears minScore/minMargin
+  assert.ok(match.gematriaScore > 90);
+  assert.ok(match.hebrewScore < 40); // this is the signal a caller has to check separately
+});
+
+test('hebrewToken/gematriaToken carry through y/width/height for highlight boxes', () => {
+  const match = matchHeader([tok('חולין', 400, 20, 80, 24), tok('פט.', 100, 22, 40, 22)], VOCAB);
+  assert.equal(match.hebrewToken.y, 20);
+  assert.equal(match.hebrewToken.width, 80);
+  assert.equal(match.hebrewToken.height, 24);
+  assert.equal(match.gematriaToken.y, 22);
 });

@@ -34,6 +34,13 @@
 [functions."scan-daf-page"]
   included_files = ["node_modules/tesseract.js-core/*.wasm", "node_modules/tesseract.js-core/*.wasm.js"]
 
+# scan-daf-header.mjs also imports tesseract.js (as its fallback engine when
+# no Google Vision credential is configured -- see that file's own engine-
+# selection comment) -- same untraceable runtime *.wasm-variant load, same
+# fix, scoped to just this function for the same reason as above.
+[functions."scan-daf-header"]
+  included_files = ["node_modules/tesseract.js-core/*.wasm", "node_modules/tesseract.js-core/*.wasm.js"]
+
 [[redirects]]
   from = "/studio"
   to = "/studio/"

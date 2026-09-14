@@ -222,7 +222,14 @@ function resolveAmud(best) {
  */
 export function matchHeader(ocrTokens, vocabulary, minScore = 55, minMargin = 10) {
   const tokens = ocrTokens
-    .map((t, index) => ({ index, x: t.x, text: stripNiqqud(String(t.text || '').trim()) }))
+    // y/width/height pass through unchanged (not used by any comparison in
+    // this file) purely so a caller that wants to draw a highlight box over
+    // the winning hebrewToken/gematriaToken below -- see this function's own
+    // return -- has real geometry to draw, not just an x coordinate.
+    .map((t, index) => ({
+      index, x: t.x, y: t.y, width: t.width, height: t.height,
+      text: stripNiqqud(String(t.text || '').trim()),
+    }))
     .filter((t) => t.text);
   if (!tokens.length || !vocabulary.length) return null;
   const gematriaTokens = gematriaCandidates(tokens);
@@ -244,5 +251,32 @@ export function matchHeader(ocrTokens, vocabulary, minScore = 55, minMargin = 10
   }
   if (runnerUp && best.score - runnerUp.score < minMargin) return null;
 
-  return { entry: best.entry, score: best.score, amud: resolveAmud(best) };
+  return {
+    entry: best.entry,
+    score: best.score,
+    amud: resolveAmud(best),
+    // The two OCR tokens that actually won each half of the match -- null
+    // when there was no legible token to win at all (score 0 against every
+    // candidate). Exists so a caller can highlight exactly the words it
+    // recognized rather than the whole header crop -- see
+    // scan-daf-header.mjs's matchedWords, the only current consumer.
+    hebrewToken: best.hebrewToken,
+    gematriaToken: best.gematriaToken,
+    // The per-half scores `score` above is the average of -- NOT redundant
+    // with it. `score` alone can clear minScore/minMargin even when only
+    // ONE half (almost always the short, easily-confused gematria digit)
+    // was actually legible and the other scored low-but-similarly-low
+    // across every candidate (so it never got the chance to disqualify a
+    // wrong entry via minMargin either). scan-daf-header.mjs's own live
+    // scanner uses these to additionally require BOTH halves clear their
+    // own floor before ever treating a result as confident enough to
+    // navigate on -- a daf number alone is ambiguous across every tractate
+    // that happens to be on the same daf, which a bare `score` threshold
+    // can't detect. scan-daf-page.mjs does not apply any such check itself
+    // (unchanged behavior -- a reader-driven single-shot scan always leaves
+    // the align screen up for confirmation either way, so this exact
+    // failure mode there is lower-stakes than an unattended auto-navigate).
+    hebrewScore: best.hebrewScore,
+    gematriaScore: best.gematriaScore,
+  };
 }
