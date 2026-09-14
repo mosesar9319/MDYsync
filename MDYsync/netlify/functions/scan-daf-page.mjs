@@ -41,21 +41,14 @@
 // distortion are all still open questions worth testing before relying on
 // this in production.
 
-import { createSign } from 'node:crypto';
 import { createWorker } from 'tesseract.js';
 import { Jimp, intToRGBA } from 'jimp';
 import { solveHomography, applyHomography } from '../../shared/perspective-transform.mjs';
 import { buildHeaderVocabulary, matchHeader, MASECHTA_HEBREW } from '../../shared/daf-header-vocabulary.mjs';
-import { parsePageKey } from '../../shared/daf-key-parsing.mjs';
 import { detectTextBlockQuad } from '../../shared/text-block-detect.mjs';
-
-const OWNER = 'mosesar9319';
-const REPO = 'MDYsync';
-const ALLOWED_ORIGINS = new Set([
-  'https://dafsync.netlify.app',
-  'https://main--dafsync.netlify.app',
-  'http://localhost:8080',
-]);
+import { ocrHeaderGoogleVision, extractHeaderTokens, extractTesseractTokens } from '../../shared/vision-header-ocr.mjs';
+import { listAvailablePages } from '../../shared/available-dapim.mjs';
+import { OWNER, REPO, ALLOWED_ORIGINS } from '../../shared/dafsync-config.mjs';
 
 // Was 0.09 (9% of page height) -- confirmed directly (rendering the real
 // canonical PDF for a real daf, OCRing progressively taller crops) that this
@@ -150,139 +143,6 @@ async function logScanEvent(fields) {
 // readable daf number.
 const VISION_UPSCALE_FACTOR = 2.5;
 
-function base64url(input) {
-  return Buffer.from(input).toString('base64url');
-}
-
-// Same JWT-bearer exchange as page_ocr_align.py's own
-// get_google_vision_access_token (there via the google-auth Python
-// library; here by hand, since pulling in a whole OAuth client library for
-// one token exchange isn't worth it in a Netlify function). A service
-// account is the form some orgs' Cloud project policy requires instead of
-// a plain API key ("API Keys are Disallowed ... use Application Default
-// Credentials instead") -- this is that same ADC path, not a workaround
-// for it.
-async function getGoogleVisionAccessToken(credentialsJson) {
-  const info = JSON.parse(credentialsJson);
-  const now = Math.floor(Date.now() / 1000);
-  const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
-  const claims = base64url(JSON.stringify({
-    iss: info.client_email,
-    scope: 'https://www.googleapis.com/auth/cloud-platform',
-    aud: info.token_uri,
-    iat: now,
-    exp: now + 3600,
-  }));
-  const signature = createSign('RSA-SHA256').update(`${header}.${claims}`).sign(info.private_key, 'base64url');
-  const assertion = `${header}.${claims}.${signature}`;
-
-  const response = await fetch(info.token_uri, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      assertion,
-    }),
-  });
-  const data = await response.json();
-  if (!response.ok || !data.access_token) {
-    throw new Error(data.error_description || data.error || `Token exchange failed (${response.status})`);
-  }
-  return data.access_token;
-}
-
-// Same request shape as page_ocr_align.py's ocr_band_words_google_vision
-// (Python side, run by the batch pre-generation job) -- DOCUMENT_TEXT_
-// DETECTION with a Hebrew language hint, and the same choice between a
-// plain API key and a service-account credential (exactly one of the two
-// is expected). That function reads a whole page; this reads a tiny
-// single-line header crop, but it's the same API and the same tuning
-// question (accuracy on real, noisy camera photos of this typeface) that
-// motivated switching the page pipeline off Tesseract, so it's worth
-// spiking here as a straight engine swap before committing to it -- see
-// matchHeader's own comments for the specific real misreads (a
-// hallucinated niqqud, a dropped letter producing an exact tie with a
-// different real daf) that this is meant to address.
-async function ocrHeaderGoogleVision(imageBuffer, { apiKey, credentialsJson }) {
-  const payload = {
-    requests: [{
-      image: { content: imageBuffer.toString('base64') },
-      features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
-      imageContext: { languageHints: ['he'] },
-    }],
-  };
-  const headers = { 'Content-Type': 'application/json' };
-  const url = credentialsJson
-    ? 'https://vision.googleapis.com/v1/images:annotate'
-    : `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`;
-  if (credentialsJson) headers.Authorization = `Bearer ${await getGoogleVisionAccessToken(credentialsJson)}`;
-
-  const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
-  const data = await response.json();
-  const result = data?.responses?.[0];
-  if (!response.ok || result?.error) {
-    // Two different error shapes Vision can return, and the old version
-    // here only ever checked one of them: a per-image failure comes back
-    // as responses[0].error (request itself was fine, this one image
-    // couldn't be processed), but a malformed-request/auth/quota failure
-    // comes back as a TOP-LEVEL data.error instead, with responses
-    // entirely absent -- confirmed live: a real 400 against the deployed
-    // endpoint had result === undefined (so result?.error was also
-    // undefined) and fell through to the generic "Vision request failed
-    // (400)" fallback, hiding whatever Google's own message actually said.
-    throw new Error(result?.error?.message || data?.error?.message || `Vision request failed (${response.status})`);
-  }
-  return extractHeaderTokens(result.fullTextAnnotation);
-}
-
-// Flattens Vision's page > block > paragraph > word hierarchy into the flat
-// {text, x} list matchHeader needs for amud detection (x = the word's own
-// horizontal center in the CROPPED header image's pixel space -- upscaled
-// by VISION_UPSCALE_FACTOR same as every other word in the same response,
-// so comparing two words' x against each other is unaffected by that scale
-// factor even though neither is in the original photo's own coordinates).
-// Returns the flat OCR'd text too (unchanged shape/callers -- ocrText is
-// still surfaced as-is in every response and error path below).
-function extractHeaderTokens(fullTextAnnotation) {
-  const text = fullTextAnnotation?.text || '';
-  const tokens = [];
-  for (const page of fullTextAnnotation?.pages || []) {
-    for (const block of page.blocks || []) {
-      for (const paragraph of block.paragraphs || []) {
-        for (const word of paragraph.words || []) {
-          const wordText = (word.symbols || []).map((s) => s.text).join('');
-          const xs = (word.boundingBox?.vertices || []).map((v) => v.x || 0);
-          if (!wordText || !xs.length) continue;
-          tokens.push({ text: wordText, x: (Math.min(...xs) + Math.max(...xs)) / 2 });
-        }
-      }
-    }
-  }
-  return { text, tokens };
-}
-
-// Same job as extractHeaderTokens above, for tesseract.js's own
-// block > paragraph > line > word hierarchy (see node_modules/tesseract.js's
-// own Page/Block/Paragraph/Line/Word types) -- there's no flat words list on
-// its result the way this file's own flattening gives Vision one, so this
-// walks the full nesting itself. bbox.x0/x1 are already in the cropped
-// header image's own pixel space (tesseract runs directly on that buffer,
-// no upscale step -- see the engine-selection comment above for why).
-function extractTesseractTokens(data) {
-  const tokens = [];
-  for (const block of data.blocks || []) {
-    for (const paragraph of block.paragraphs || []) {
-      for (const line of paragraph.lines || []) {
-        for (const word of line.words || []) {
-          if (!word.text || !word.bbox) continue;
-          tokens.push({ text: word.text, x: (word.bbox.x0 + word.bbox.x1) / 2 });
-        }
-      }
-    }
-  }
-  return { text: data.text || '', tokens };
-}
-
 function boundingBox(points) {
   const xs = points.map((p) => p[0]);
   const ys = points.map((p) => p[1]);
@@ -292,17 +152,6 @@ function boundingBox(points) {
     width: Math.max(...xs) - Math.min(...xs),
     height: Math.max(...ys) - Math.min(...ys),
   };
-}
-
-async function listAvailablePages(token) {
-  const response = await fetch(
-    `https://api.github.com/repos/${OWNER}/${REPO}/contents/pages?ref=results`,
-    { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' } }
-  );
-  if (!response.ok) return [];
-  const entries = await response.json();
-  if (!Array.isArray(entries)) return [];
-  return entries.map((entry) => parsePageKey(entry.name, Object.keys(MASECHTA_HEBREW))).filter(Boolean);
 }
 
 export default async (request) => {
@@ -396,7 +245,7 @@ export default async (request) => {
 
   const imageBuffer = Buffer.from(imageBase64, 'base64');
   const visionCredentials = { apiKey: visionApiKey, credentialsJson: visionCredentialsJson };
-  const availableDapim = await listAvailablePages(token);
+  const availableDapim = await listAvailablePages(token, Object.keys(MASECHTA_HEBREW));
   const vocabulary = buildHeaderVocabulary(availableDapim);
 
   // Runs ONE engine's full read-the-header-and-identify-the-daf pipeline;
@@ -447,7 +296,12 @@ export default async (request) => {
       const croppedBuffer = await cropped.getBuffer('image/png');
 
       if (oneEngine === 'google-vision') {
-        ocrResult = await ocrHeaderGoogleVision(croppedBuffer, visionCredentials);
+        // 'he' unchanged here -- see shared/vision-header-ocr.mjs's own
+        // comment on ocrHeaderGoogleVision for why this stays 'he' even
+        // though Google's docs specify 'iw' for Hebrew; that correction is
+        // scoped to the new scan-daf-header.mjs endpoint only, not this
+        // already-shipped pipeline.
+        ocrResult = await ocrHeaderGoogleVision(croppedBuffer, { ...visionCredentials, languageHints: ['he'] });
       } else {
         const worker = await createWorker('heb');
         try {
