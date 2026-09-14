@@ -350,8 +350,36 @@ function computeMinLivePhotoZoom() {
   const displayedHeight = displayedWidth * (img.naturalHeight / img.naturalWidth);
   // Whichever axis needs to shrink MORE to fit is the one that actually
   // constrains "does the whole photo fit" -- the smaller of the two
-  // guarantees BOTH axes end up at or under the cutout's size.
+  // guarantees BOTH axes end up at or under the cutout's size. Used only as
+  // the pinch-zoom-OUT floor (see the clamp in the pinch handler below) --
+  // NOT as the starting zoom; see resetLivePhotoCropTransform's own comment
+  // for why that used to be the same value and shouldn't be.
   return Math.min(cutoutRect.width / displayedWidth, cutoutRect.height / displayedHeight);
+}
+
+// The zoom that fits the photo's own WIDTH to the cutout's width -- the
+// starting point resetLivePhotoCropTransform uses. A chosen photo is
+// virtually always a photo of the WHOLE page (portrait, much taller than
+// it is wide), not a pre-cropped header strip -- the header itself spans
+// close to the page's full width and sits right at its top edge. Fitting
+// only the width (not forcing the whole tall page to fit inside a short,
+// wide 5:1 cutout) starts the reader already close to the header at a
+// legible size, with pan(0,0)'s top-left anchor landing on the page's own
+// top edge -- exactly where the header is.
+function computeDefaultLivePhotoZoom(minZoom) {
+  const img = $('scanLivePhotoZoom');
+  const wrap = $('scanLivePhotoWrap');
+  const cutout = $('scanLiveCutout');
+  if (!img?.naturalWidth || !img.naturalHeight) return 1;
+  const wrapRect = wrap.getBoundingClientRect();
+  const cutoutRect = cutout.getBoundingClientRect();
+  if (!wrapRect.width || !cutoutRect.width) return 1;
+  const fitWidthZoom = cutoutRect.width / wrapRect.width;
+  // Clamped both ways: never below the "whole photo must fit" floor (a
+  // photo already wider than it is tall would otherwise overshoot past
+  // that floor into an even smaller zoom than fit-width computed), and
+  // never above the max pinch-zoom the reader could reach by hand anyway.
+  return Math.min(SCAN_LIVE_PHOTO_ZOOM_MAX, Math.max(minZoom, fitWidthZoom));
 }
 
 function applyLivePhotoCropTransform() {
@@ -359,13 +387,19 @@ function applyLivePhotoCropTransform() {
   if (layer) layer.style.transform = `translate(${scanLivePhotoPanX}px, ${scanLivePhotoPanY}px) scale(${scanLivePhotoZoom})`;
 }
 
-// Starts at scanLivePhotoZoomMin (the whole photo visible, fit inside the
-// cutout) rather than always zoomed to 1 -- a reader who took a well-framed
-// photo shouldn't have to manually zoom out just to see the header they
-// already have in frame.
+// Starts at a fit-WIDTH zoom (see computeDefaultLivePhotoZoom), not
+// scanLivePhotoZoomMin (fit the WHOLE photo, both axes) the way this used
+// to. For anything but an already-tightly-cropped header photo -- the
+// common case is a normal photo of the whole page -- fitting the whole
+// TALL page inside a short, wide 5:1 cutout forced an extreme zoom-out
+// (often under 15%), leaving the reader to manually pinch-zoom in a lot
+// just to reach a legible size every single time. Reproduced directly:
+// exactly the reported symptom ("the photo starts off extremely small and
+// I have to zoom in a lot"). scanLivePhotoZoomMin is kept as the pinch-
+// zoom-OUT floor below, not the starting point.
 function resetLivePhotoCropTransform() {
   scanLivePhotoZoomMin = computeMinLivePhotoZoom();
-  scanLivePhotoZoom = scanLivePhotoZoomMin;
+  scanLivePhotoZoom = computeDefaultLivePhotoZoom(scanLivePhotoZoomMin);
   scanLivePhotoPanX = 0;
   scanLivePhotoPanY = 0;
   applyLivePhotoCropTransform();
@@ -829,7 +863,18 @@ function lockScanLiveOn(session, result) {
     try { navigator.vibrate(120); } catch { /* unsupported/blocked -- not essential */ }
   }
   setTimeout(() => {
-    if (session.stopped) return; // torn down during the dwell -- never navigate
+    // Whether THIS scan attempt is still the active one -- not session.stopped,
+    // which the "Choose a photo" flow sets to true the moment a photo is
+    // picked (stopLiveScanSession pauses the camera on purpose, well before
+    // this dwell timer ever starts) and would therefore be true on every
+    // single successful photo scan, silently blocking navigation every time
+    // -- reproduced directly: a photo match always showed the green check
+    // and then just sat there. activeSession only changes out from under
+    // `session` on a REAL abandonment mid-dwell -- Cancel/backgrounding
+    // (stopLiveScan sets it null) or "Back to camera" (a fresh
+    // startLiveScan() call replaces it with a new session object) -- so
+    // this is the correct signal for both the live-camera and photo flows.
+    if (session !== activeSession) return;
     const ref = result.ref;
     // Camera/timers/listeners only -- deliberately NOT resetScanLiveVisuals()
     // or hiding #scanLive (what the outer stopLiveScan() also does): the

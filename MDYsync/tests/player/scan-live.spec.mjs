@@ -464,6 +464,114 @@ test.describe('scan-live.js -- "Choose a photo" DOM lifecycle', () => {
     // ever chosen) rather than a real crop attempt.
     await expect(page.locator('#scanLivePhotoConfirmButton').dispatchEvent('click')).resolves.not.toThrow();
   });
+
+  // A tall, narrow (10x80) portrait PNG -- proportioned like a real photo of
+  // a whole Gemara page (much taller than it is wide), not a pre-cropped
+  // header strip. Exercises the actual reported bug: fitting a photo shaped
+  // like this into a short, wide 5:1 cutout used to force an extreme
+  // zoom-out (well under half the fixed-width zoom below).
+  const TALL_PNG = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAoAAABQCAIAAACvRXN7AAAAJUlEQVR42u3JsQEAMAgDIPX/n9MLdOsGK52kdlMnrbXWWmv9ux//dwOdUZ04KwAAAABJRU5ErkJggg==',
+    'base64'
+  );
+
+  test('a chosen photo starts at a legible fit-WIDTH zoom, not zoomed out to fit the whole (tall) photo', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await page.evaluate(() => switchDafView('scan'));
+    await page.locator('#scanLiveLibraryInput').setInputFiles({ name: 'page.png', mimeType: 'image/png', buffer: TALL_PNG });
+    await expect(page.locator('#scanLivePhotoWrap')).toBeVisible();
+
+    const { actualZoom, fitWidthZoom, fitWholePhotoZoom } = await page.evaluate(() => {
+      const img = document.getElementById('scanLivePhotoZoom');
+      const wrap = document.getElementById('scanLivePhotoWrap');
+      const cutout = document.getElementById('scanLiveCutout');
+      const transform = getComputedStyle(img).transform; // matrix(sx, 0, 0, sy, tx, ty)
+      const match = /matrix\(([^,]+),/.exec(transform);
+      const wrapRect = wrap.getBoundingClientRect();
+      const cutoutRect = cutout.getBoundingClientRect();
+      const displayedWidth = wrapRect.width;
+      const displayedHeight = displayedWidth * (img.naturalHeight / img.naturalWidth);
+      return {
+        actualZoom: match ? parseFloat(match[1]) : null,
+        fitWidthZoom: cutoutRect.width / displayedWidth,
+        fitWholePhotoZoom: Math.min(cutoutRect.width / displayedWidth, cutoutRect.height / displayedHeight),
+      };
+    });
+
+    expect(actualZoom).not.toBeNull();
+    // The bug: it used to start at fitWholePhotoZoom, which for a tall
+    // photo squeezed into a short wide cutout is dramatically smaller than
+    // fitWidthZoom -- reproduced directly by this same fixture's real
+    // aspect ratio against the real, live cutout element.
+    expect(fitWholePhotoZoom).toBeLessThan(fitWidthZoom * 0.5);
+    // The fix: starts at (approximately) the fit-width zoom instead.
+    expect(actualZoom).toBeGreaterThan(fitWholePhotoZoom * 1.5);
+    expect(Math.abs(actualZoom - fitWidthZoom)).toBeLessThan(0.05);
+  });
+
+  test('a photo already wider than it is tall still starts clamped to the "whole photo fits" floor', async ({ page }) => {
+    // Defensive case for computeDefaultLivePhotoZoom's own clamp: a photo
+    // shorter/wider than the cutout itself would make fit-width zoom
+    // OVERSHOOT past what fitting the whole photo needs (the opposite
+    // direction from the tall-photo bug) -- the floor must still hold.
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await page.evaluate(() => switchDafView('scan'));
+    // TINY_PNG (2x2, square) is already covered by the DOM-lifecycle tests
+    // above; reuse it here purely to confirm the clamp doesn't throw or
+    // produce a nonsensical (e.g. negative, infinite) zoom for a
+    // non-portrait image.
+    await page.locator('#scanLiveLibraryInput').setInputFiles({ name: 'square.png', mimeType: 'image/png', buffer: TINY_PNG });
+    await expect(page.locator('#scanLivePhotoWrap')).toBeVisible();
+
+    const zoom = await page.evaluate(() => {
+      const img = document.getElementById('scanLivePhotoZoom');
+      const match = /matrix\(([^,]+),/.exec(getComputedStyle(img).transform);
+      return match ? parseFloat(match[1]) : null;
+    });
+    expect(zoom).not.toBeNull();
+    expect(Number.isFinite(zoom)).toBe(true);
+    expect(zoom).toBeGreaterThan(0);
+  });
+});
+
+test.describe('scan-live.js -- "Choose a photo" successfully navigates on a match', () => {
+  const TINY_PNG = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFUlEQVR42mP8z8BQz0AEYBxVSF+FABJADveWkH6oAAAAAElFTkSuQmCC',
+    'base64'
+  );
+
+  test('a successful photo match actually navigates to /browse/?ref=..., not just showing the checkmark', async ({ page }) => {
+    // The reported bug: lockScanLiveOn's dwell-timer guard used to check
+    // session.stopped, which the "Choose a photo" flow sets to true the
+    // moment a photo is picked (stopLiveScanSession pauses the camera on
+    // purpose) -- true on every successful photo scan, long before the
+    // dwell timer that's supposed to navigate ever runs. The green
+    // checkmark showed, and then nothing happened.
+    await preparePage(page, { user: null });
+    await page.route('**/api/scan-daf-header', (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        matched: true, ref: 'Chullin 89a', tractate: 'Chullin', daf: 89, amud: 'a',
+        matchScore: 90, matchedWords: [],
+      }),
+    }));
+    await page.goto('/player/?ref=Chullin%2088a'); // start elsewhere so navigation is observable
+    await page.evaluate(() => switchDafView('scan'));
+    await page.locator('#scanLiveLibraryInput').setInputFiles({ name: 'header.png', mimeType: 'image/png', buffer: TINY_PNG });
+    await expect(page.locator('#scanLivePhotoWrap')).toBeVisible();
+
+    await page.locator('#scanLivePhotoConfirmButton').click();
+    await expect(page.locator('#scanLiveCheckmark')).toBeVisible();
+    await expect(page.locator('#scanLiveStatus')).toHaveText('Chullin 89 identified');
+
+    // The dwell (SCAN_LIVE_LOCK_DWELL_MS = 650ms) elapses and navigation
+    // actually happens -- this is the assertion that was failing before
+    // the fix (the page just sat on the checkmark forever).
+    await page.waitForURL(/\/browse\/\?ref=Chullin%2089a/, { timeout: 5000 });
+  });
 });
 
 test.describe('scan-live.js -- experimental "full page" capture mode', () => {
