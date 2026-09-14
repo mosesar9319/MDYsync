@@ -1349,6 +1349,42 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
   box-shadow: 0 0 0 100vmax rgba(0,0,0,.62);
   transition: border-color .2s ease, box-shadow .2s ease;
 }
+/* Experimental "full page" capture mode (see scan-live.js's own
+   SCAN_LIVE_FULL_PAGE_* comment) -- a page-shaped guide instead of the
+   thin header strip above, driven by #scanLive's own [data-capture-mode]
+   attribute (setScanLiveCaptureMode). computeCaptureSourceRect/
+   computeCropSourceRect both read this element's OWN rendered rect fresh
+   every time, so swapping this one rule is the entire client-side "switch
+   modes" step -- no separate JS-computed sizing needed. Narrower width cap
+   than the strip's own, since this box is much taller: at the strip's own
+   84vw/480px cap this would run off the bottom of a lot of phone screens
+   once the top status text and bottom controls row are accounted for. */
+/* .scan-live-overlay centers its child (the cutout) across the FULL
+   .scan-live viewport (position: absolute; inset: 0 -- see its own rule
+   above) -- .scan-live-controls-row sits OUTSIDE that centering entirely
+   (position: absolute, pinned a fixed distance from the true bottom of
+   the screen, not from wherever the centered cutout happens to end).
+   Centering a page-shaped box that size purely off a viewport-height
+   FRACTION still let its bottom edge land on top of Cancel on a short
+   phone screen (confirmed directly, at both 375x667 and 360x600): the
+   controls row's own real position doesn't scale down proportionally
+   just because the screen is shorter, so a box centered on the whole
+   screen can still reach into it even after being shrunk.
+   Anchoring from a fixed top offset instead of centering removes that
+   guesswork -- the cutout's own top edge is always a known, fixed
+   distance below the status text, and its height is computed directly
+   against the controls row's own known worst-case height (Cancel + Choose
+   a photo + Use photo scan instead + this mode toggle, four stacked
+   pills), not a fraction that has to happen to leave enough room. */
+.scan-live[data-capture-mode="fullPage"] .scan-live-overlay {
+  align-items: flex-start;
+  padding-top: 84px;
+}
+.scan-live[data-capture-mode="fullPage"] .scan-live-cutout {
+  width: auto;
+  height: min(calc(100vh - 84px - 230px), 420px);
+  aspect-ratio: 0.68;
+}
 @media (prefers-reduced-motion: reduce) {
   .scan-live-cutout { transition: none; }
 }
