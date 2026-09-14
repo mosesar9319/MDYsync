@@ -19,14 +19,21 @@
 // startup cost is fine to pay ONCE per full-page scan, not dozens of times a
 // minute during live framing.
 //
-// AMUD: same position-based signal scan-daf-page.mjs uses (daf number left
-// of the tractate/perek name = amud א, right = amud ב -- see resolveAmud in
-// daf-header-vocabulary.mjs), falling back to 'a' the same way that file
-// does whenever the signal is missing or ambiguous. NOTE this endpoint's
-// crop is a raw, unwarped on-screen guide cutout, not the homography-
-// projected, page-corner-aligned region resolveAmud was originally tuned
-// and confirmed against -- see the amud assignment below for the caveat
-// that follows from that.
+// AMUD: same combined position+punctuation signal scan-daf-page.mjs uses
+// (daf number left of the tractate/perek name = amud א, right = amud ב;
+// trailing period/comma on the daf number = amud א, colon = amud ב -- see
+// resolveAmud in daf-header-vocabulary.mjs), falling back to 'a' the same
+// way that file does whenever both signals are missing or agree-by-default
+// (only one was legible). Unlike that file, THIS endpoint treats an actual
+// disagreement between the two signals as more serious than plain missing
+// signal -- it drops the whole match for that round rather than default to
+// 'a', specifically so a conflicting frame can never satisfy the live
+// scanner's multi-frame consensus and auto-navigate to a guessed amud (see
+// the MIN_FIELD_SCORE block below). NOTE this endpoint's crop is a raw,
+// unwarped on-screen guide cutout, not the homography-projected, page-
+// corner-aligned region resolveAmud's position comparison was originally
+// tuned and confirmed against -- see the amud assignment below for the
+// caveat that follows from that.
 //
 // SECURITY: Google credentials (GOOGLE_VISION_API_KEY /
 // GOOGLE_VISION_CREDENTIALS_JSON) are read server-side only, exactly like
@@ -38,7 +45,7 @@ import { createWorker } from 'tesseract.js';
 import { buildHeaderVocabulary, matchHeader, MASECHTA_HEBREW } from '../../shared/daf-header-vocabulary.mjs';
 import { ocrHeaderGoogleVision, extractTesseractTokens, filterTokensBySize } from '../../shared/vision-header-ocr.mjs';
 import { listAvailablePages } from '../../shared/available-dapim.mjs';
-import { ALLOWED_ORIGINS } from '../../shared/dafsync-config.mjs';
+import { isAllowedOrigin } from '../../shared/dafsync-config.mjs';
 
 // A header-guide crop only -- the client sends just the cutout region, not a
 // whole photo (contrast with scan-daf-page.mjs's MAX_IMAGE_BYTES, which has
@@ -54,21 +61,24 @@ const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024;
 // two short, independently-documented constants.
 const VISION_UPSCALE_FACTOR = 2.5;
 
-// Google's own documented Hebrew OCR hint code is "iw", not the "he" this
-// codebase has used everywhere else since page_ocr_align.py's original
-// implementation (confirmed directly against Vision's language-support
-// docs: https://cloud.google.com/vision/docs/languages). Fixing "he" -> "iw"
-// in the existing, already-shipped scan-daf-page.mjs pipeline is out of
-// scope here -- this is a NEW endpoint, so it gets the corrected code
-// without touching that one.
+// "he", matching scan-daf-page.mjs and page_ocr_align.py -- NOT "iw".
 //
-// Configurable via env var rather than hardcoded, specifically so the
-// language-hint-vs-auto-detect question can actually be tested against real
-// devices/photos without a code change: set SCAN_HEADER_LANGUAGE_HINT to
-// "auto" (or leave it unset with no default) to send no languageHints at all
-// and let Vision auto-detect instead. resolveLanguageHints is the pure,
-// directly-testable piece of that decision -- see __testing below.
-const DEFAULT_LANGUAGE_HINT = 'iw';
+// This shipped as "iw" first, on the strength of Google's own language-
+// support docs listing "iw" as the Hebrew code. That was a documentation
+// reading, never an empirical one, and it was wrong in practice: with
+// everything else held identical (same credentials, same 2.5x upscale +
+// greyscale + normalize preprocessing, same vocabulary, same matchHeader),
+// the legacy endpoint sending "he" matched a rendered Hebrew header at
+// score 100 while this endpoint sending "iw" returned no match on the very
+// same content, at every resolution from 280x56 up to 1200x240.
+//
+// So: stay on the value that is actually observed to work against the live
+// API. Still env-var configurable (set SCAN_HEADER_LANGUAGE_HINT to "auto"
+// for no hint at all and let Vision auto-detect, or to any other code to
+// A/B it) so revisiting this needs a config change, not a deploy --
+// resolveLanguageHints is the pure, directly-testable piece of that
+// decision, see __testing below.
+const DEFAULT_LANGUAGE_HINT = 'he';
 
 function env(name) {
   if (typeof Netlify !== 'undefined' && Netlify.env) return Netlify.env.get(name) || '';
@@ -134,7 +144,7 @@ export default async (request) => {
   }
 
   const origin = request.headers.get('Origin') || '';
-  if (!ALLOWED_ORIGINS.has(origin)) {
+  if (!isAllowedOrigin(origin)) {
     return Response.json({ error: 'Origin not permitted.' }, { status: 403 });
   }
 
@@ -224,11 +234,16 @@ export default async (request) => {
     return Response.json({ matched: false, error: 'Could not read the header.' }, { status: 502 });
   }
 
-  // Drop small Rashi/Tosafot-sized text that leaked into the crop before
-  // ever handing tokens to matchHeader -- see filterTokensBySize's own
-  // comment. Complementary to, not a replacement for, matchHeader's own
-  // punctuation-based noise filtering (gematriaCandidates): this catches
-  // small text regardless of trailing punctuation, that doesn't.
+  // Drops small Rashi/Tosafot-sized text that leaked into the crop before
+  // matchHeader ever sees it. Compares each token's ESTIMATED FONT SIZE,
+  // not its raw box height -- see filterTokensBySize in
+  // shared/vision-header-ocr.mjs for why raw heights are unusable for
+  // Hebrew (a measured 0.56x height ratio between two words at the SAME
+  // font size, purely from ascender/descender letters) and for the
+  // fall-back-to-unfiltered guard that keeps it from ever over-reaching.
+  // Complementary to matchHeader's own punctuation-based noise filtering
+  // (gematriaCandidates): this catches small text regardless of trailing
+  // punctuation, that doesn't.
   const filteredTokens = filterTokensBySize(ocrResult.tokens);
   const availableDapim = await listAvailablePages(token, Object.keys(MASECHTA_HEBREW));
   const vocabulary = buildHeaderVocabulary(availableDapim);
@@ -242,9 +257,30 @@ export default async (request) => {
   // number exists in nearly every tractate). This endpoint drives an
   // unattended auto-navigate with no reader confirmation step, so it holds
   // itself to a stricter bar here than scan-daf-page.mjs's own always-
-  // reviewed-before-navigating flow does.
-  const MIN_FIELD_SCORE = 40;
+  // reviewed-before-navigating flow does -- but 40 (out of matchHeader's own
+  // 0-100 fuzzy-match scale) turned out too strict against real, noisy
+  // phone-camera OCR reads during real-device testing, routinely rejecting
+  // genuinely correct matches. 25 still reliably catches the specific
+  // failure case this exists for (a confirmed, reproduced "only the daf
+  // number was legible" read scores exactly 20 here -- see this file's own
+  // test), just with more headroom for a real but imperfect read of the
+  // tractate name.
+  const MIN_FIELD_SCORE = 25;
   if (match && (match.hebrewScore < MIN_FIELD_SCORE || match.gematriaScore < MIN_FIELD_SCORE)) match = null;
+
+  // resolveAmud (daf-header-vocabulary.mjs) now checks TWO independent amud
+  // signals -- header layout position and the daf number's own trailing
+  // punctuation -- and flags amudConflict when both were legible but
+  // disagreed. This endpoint drives an unattended auto-navigate with no
+  // reader confirmation step (see the MIN_FIELD_SCORE comment above for the
+  // same reasoning applied to text matching), so a conflicting amud read
+  // gets treated the same as no match at all here: it's dropped BEFORE the
+  // response goes out, not defaulted to 'a' the way plain missing-signal
+  // amud is below. That guarantees a conflicted round can never become part
+  // of the live scanner's multi-frame consensus and lock in on a guessed
+  // amud -- the very next frame (almost always a cleaner read) just gets a
+  // fresh chance instead.
+  if (match && match.amudConflict) match = null;
 
   if (!match) {
     await logScanEvent({
@@ -253,16 +289,21 @@ export default async (request) => {
     return Response.json({ matched: false }, { headers: { 'Access-Control-Allow-Origin': origin } });
   }
 
-  // Same position-based signal scan-daf-page.mjs uses (see this file's own
-  // module comment, and resolveAmud in daf-header-vocabulary.mjs) -- only
-  // ever trusts an explicit 'b' reading; anything else (null/ambiguous,
-  // or a genuine 'a') falls back to 'a', the same fail-closed shape that
-  // file's own detectedAmud uses. Unlike that file, this crop is a raw,
-  // unwarped on-screen guide cutout rather than a homography-projected,
-  // page-corner-aligned region -- resolveAmud's left/right comparison was
-  // tuned and confirmed against the LATTER shape specifically, so this
-  // signal on THIS crop shape is exactly what real-device testing still
-  // needs to confirm (see this feature's own known-limitations note).
+  // Same combined position+punctuation signal scan-daf-page.mjs uses (see
+  // this file's own module comment, and resolveAmud in
+  // daf-header-vocabulary.mjs) -- only ever trusts an explicit 'b' reading;
+  // anything else falls back to 'a', the same fail-closed shape that file's
+  // own detectedAmud uses. A genuine signal CONFLICT never reaches this
+  // line at all -- it was already turned into `match = null` above, before
+  // this point, specifically so it can't silently become a confident 'a'
+  // here. What's left is only "no signal either way" (a real, weaker case
+  // than a conflict), which still safely defaults to 'a'. Unlike
+  // scan-daf-page.mjs, this crop is a raw, unwarped on-screen guide cutout
+  // rather than a homography-projected, page-corner-aligned region --
+  // resolveAmud's position comparison was tuned and confirmed against the
+  // LATTER shape specifically, so how well it holds up on THIS crop shape
+  // is exactly what real-device testing still needs to confirm (see this
+  // feature's own known-limitations note).
   const amud = match.amud === 'b' ? 'b' : 'a';
   const ref = `${match.entry.tractate} ${match.entry.daf}${amud}`;
 

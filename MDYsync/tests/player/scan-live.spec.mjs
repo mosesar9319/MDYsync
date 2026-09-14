@@ -140,6 +140,52 @@ test.describe('scan-live.js -- pure logic', () => {
     const href = await page.evaluate(() => window.ScanLive.__testing.buildScanLiveHref('Chullin 89a'));
     expect(href).toBe('/browse/?ref=Chullin%2089a');
   });
+
+  test('describeScanLiveFailure names the actual failure instead of a uniform "still trying"', async ({ page }) => {
+    // The original loop said nothing at all until five consecutive failures
+    // and then only "having trouble connecting", so an endpoint rejecting
+    // 100% of requests (403 from a deploy-preview origin that wasn't on the
+    // CORS allowlist) was indistinguishable on screen from a scanner that
+    // was working fine but not recognizing the header.
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    const messages = await page.evaluate(() => {
+      const { describeScanLiveFailure } = window.ScanLive.__testing;
+      const withStatus = (status) => { const e = new Error('x'); e.status = status; return e; };
+      const abort = new Error('aborted');
+      abort.name = 'AbortError';
+      return {
+        timeout: describeScanLiveFailure(abort),
+        refused: describeScanLiveFailure(withStatus(403)),
+        tooLarge: describeScanLiveFailure(withStatus(413)),
+        unconfigured: describeScanLiveFailure(withStatus(503)),
+        otherStatus: describeScanLiveFailure(withStatus(500)),
+        network: describeScanLiveFailure(new TypeError('Failed to fetch')),
+        nothing: describeScanLiveFailure(undefined),
+      };
+    });
+    expect(messages.timeout).toContain('timed out');
+    expect(messages.refused).toContain('refused');
+    expect(messages.tooLarge).toContain('too large');
+    expect(messages.unconfigured).toContain('configured');
+    expect(messages.otherStatus).toContain('500');
+    expect(messages.network).toContain('connection');
+    // Never undefined/empty -- the status line always says something.
+    for (const message of Object.values(messages)) {
+      expect(typeof message).toBe('string');
+      expect(message.length).toBeGreaterThan(0);
+    }
+    // Each failure the user can act on differently reads differently; that's
+    // the whole point. (A TypeError from fetch and a missing error object
+    // both mean "the request never reached the server", so they legitimately
+    // share the one generic connection message.)
+    const actionable = [
+      messages.timeout, messages.refused, messages.tooLarge,
+      messages.unconfigured, messages.otherStatus, messages.network,
+    ];
+    expect(new Set(actionable).size).toBe(actionable.length);
+    expect(messages.nothing).toBe(messages.network);
+  });
 });
 
 test.describe('scan-live.js -- computeCaptureSourceRect (object-fit: cover math)', () => {

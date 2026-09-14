@@ -170,34 +170,93 @@ export function extractTesseractTokens(data) {
   return { text: data.text || '', tokens };
 }
 
-// Drops tokens whose glyph height marks them as smaller commentary text
-// (Rashi/Tosafot, printed noticeably smaller than a Vilna page's own
-// header) that leaked into a header crop -- a real risk for a camera-
-// framed crop (the reader's own alignment, or a slightly generous on-
-// screen guide) in a way a precisely-cropped PDF render never has. Uses
-// each token's OWN bounding-box height (already computed by both
-// extractHeaderTokens and extractTesseractTokens above) as a glyph-size
-// proxy, relative to the TALLEST token's height in the SAME crop -- not an
-// absolute pixel threshold, which would break the moment the crop's own
-// resolution/zoom/upscale factor changed. The real header text is expected
-// to be the largest text present in a header-only crop, so using it as the
-// reference scales automatically with whatever this particular photo's
-// resolution happens to be.
+// --- Glyph-extent normalization ----------------------------------------------
+// A word's OCR bounding-box height is NOT a usable proxy for its font size on
+// its own, because Hebrew letters occupy very different vertical bands:
 //
-// minRelativeHeight defaults to a deliberately conservative 0.6, not
-// something tighter like 0.8: OCR-measured glyph heights vary somewhat
-// even within genuinely same-size printed text (different letters have
-// different ascender/descender extents; a slightly rotated crop skews
-// bounding boxes unevenly) -- too tight a threshold would start discarding
-// real header tokens along with genuine small-text leakage, not just the
-// leakage. A token with no usable height (missing/non-finite/zero) is kept
-// rather than dropped -- this filter is a purely additive safety net, so
-// an engine/response that doesn't report reliable geometry should behave
-// exactly as if this filter never ran, not lose tokens to a comparison it
-// can't actually make.
-export function filterTokensBySize(tokens, minRelativeHeight = 0.6) {
-  const heights = tokens.map((t) => t.height).filter((h) => Number.isFinite(h) && h > 0);
-  if (!heights.length) return tokens;
-  const threshold = Math.max(...heights) * minRelativeHeight;
-  return tokens.filter((t) => !Number.isFinite(t.height) || t.height <= 0 || t.height >= threshold);
+//   ל          rises well ABOVE the normal letter height (the only ascender)
+//   ך ן ף ץ ק  descend well BELOW the baseline
+//   everything else sits within the plain letter band
+//
+// So "חולין" (which has BOTH ל and ן) produces a box roughly 1.8x as tall as
+// "פט" (which has neither) at the exact same printed font size. Measured
+// directly, rendering each letter in two different serif faces:
+//
+//   ל  +0.41 above      ך +0.44/+0.33   ן +0.44/+0.34
+//   ק  +0.47/+0.33      ף +0.44/+0.33   ץ +0.45/+0.33   (FreeSerif/Liberation)
+//
+// and end to end on real rendered header text:
+//
+//   חולין  118px raw -> 0.56x the height of ... no: 1.00 (reference)
+//   פט.     66px raw -> 0.56x  <-- same font size, yet barely half as tall
+//   קל.    120px raw -> 1.02x  <-- same font size again
+//
+// That 0.56 is the whole bug this normalization exists to fix: a naive
+// "drop anything under 60% of the tallest token" rule throws away the DAF
+// NUMBER of a perfectly good header, because short-glyph gematria like פט
+// legitimately measures ~56% of a tractate name carrying an ascender and a
+// descender. Dividing each box height by the vertical span its own letters
+// are EXPECTED to occupy recovers the underlying font size instead:
+// the three tokens above normalize to 65.6 / 66.0 / 66.7 -- within 2%.
+const HEBREW_ASCENDERS = new Set(['ל']);
+const HEBREW_DESCENDERS = new Set(['ך', 'ן', 'ף', 'ץ', 'ק']);
+// Measured at +0.33..+0.47 across two faces; 0.4 is the middle of that range.
+// ע descends in some faces (+0.34) but not others, so it is deliberately NOT
+// listed -- an over-correction on a face where it doesn't descend would
+// shrink that token's estimated size and risk dropping a real word, which is
+// strictly worse than simply not correcting for it.
+const GLYPH_EXTENT = 0.4;
+
+// The vertical span, in "plain letter height" units, that `text`'s own
+// letters are expected to occupy. 1.0 for ordinary text, up to ~1.8 for a
+// word carrying both an ascender and a descender.
+export function expectedGlyphSpan(text) {
+  let span = 1;
+  const chars = [...String(text || '')];
+  if (chars.some((c) => HEBREW_ASCENDERS.has(c))) span += GLYPH_EXTENT;
+  if (chars.some((c) => HEBREW_DESCENDERS.has(c))) span += GLYPH_EXTENT;
+  return span;
+}
+
+// One token's estimated FONT SIZE (not box height): its measured box height
+// divided by the span its letters were expected to occupy. Comparable
+// across words regardless of which letters they happen to contain.
+export function estimateGlyphUnit(token) {
+  if (!token || !Number.isFinite(token.height) || token.height <= 0) return null;
+  return token.height / expectedGlyphSpan(token.text);
+}
+
+// Drops tokens whose estimated font size marks them as smaller commentary
+// text (Rashi/Tosafot, printed noticeably smaller than a Vilna page's own
+// header) that leaked into a header crop -- a real risk for a camera-framed
+// crop (the reader's own alignment, or a slightly generous on-screen guide)
+// in a way a precisely-cropped PDF render never has.
+//
+// Compares ESTIMATED FONT SIZES (see estimateGlyphUnit), never raw box
+// heights -- see the long comment above for why raw heights are unusable
+// here -- relative to the largest one in the SAME crop, so the comparison
+// scales automatically with whatever resolution/upscale this particular
+// photo went through rather than depending on any absolute pixel threshold.
+//
+// Two deliberate safety properties, because over-filtering here silently
+// destroys a match while under-filtering merely leaves noise the matcher
+// already tolerates:
+//   - A token with no usable height is KEPT, not dropped, so an engine or
+//     response that doesn't report reliable geometry behaves exactly as if
+//     this filter never ran.
+//   - If filtering would leave fewer than 2 tokens when at least 2 came in,
+//     the ORIGINAL list is returned untouched. A header match fundamentally
+//     needs two pieces (tractate name + daf number), so a result that can't
+//     satisfy that is proof this filter over-reached on this particular
+//     crop, and noise is the lesser failure.
+export function filterTokensBySize(tokens, minRelativeSize = 0.6) {
+  const units = tokens.map(estimateGlyphUnit).filter((u) => u !== null);
+  if (!units.length) return tokens;
+  const threshold = Math.max(...units) * minRelativeSize;
+  const kept = tokens.filter((t) => {
+    const unit = estimateGlyphUnit(t);
+    return unit === null || unit >= threshold;
+  });
+  if (kept.length < 2 && tokens.length >= 2) return tokens;
+  return kept;
 }
