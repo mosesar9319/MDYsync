@@ -1503,6 +1503,16 @@
                 </div>
                 <div class="scan-align-actions">
                   <button class="button secondary small" id="scanRetakeButton" type="button">Retake</button>
+                  <!-- Reopens the same pinch/pan crop UI a library-picked
+                       photo gets, on the widest photo this attempt has (see
+                       state.scanWidePhotoDataUrl in app.js) -- lets a
+                       reader whose framing missed the header fix it and
+                       rescan without a full retake. Most useful right after
+                       a failed match (confirmScan's catch block reveals
+                       this screen with an error hint), but works from the
+                       low-confidence auto-detect path too, same photo
+                       either way. -->
+                  <button class="button secondary small" id="scanRepositionButton" type="button">Reposition photo</button>
                   <button class="button primary small" id="scanConfirmButton" type="button">Scan this page</button>
                 </div>
                 <!-- Only shown when engine="both" was scanned and the two

@@ -176,6 +176,16 @@ const state = {
   scanImageHeight: 0,
   scanCorners: null,
   scanDraggingCorner: null,
+  // The widest photo available for THIS scan attempt -- a live-camera
+  // shutter capture crops tightly to the cutout with no slack around it
+  // (see captureScanPhotoFromCamera), so if that framing turns out to have
+  // missed the header, there is no pixel data left to recover from; a
+  // library-picked photo is downscaled but never pre-cropped. Either way,
+  // this is what "Reposition photo" (shown after a failed match) reopens in
+  // the same pinch/pan crop UI -- see showScanCameraPhotoCrop and
+  // handleScanRepositionButton -- so a bad framing can be corrected without
+  // a full retake.
+  scanWidePhotoDataUrl: null,
   // True once the reader has grabbed a corner handle themselves -- guards
   // applyLateDetectionIfStillUseful() below from overwriting a manual
   // correction with a slower automatic result that only shows up after they've
@@ -2953,6 +2963,7 @@ function resetScanUi() {
   $('scanCameraInput').value = '';
   $('scanLibraryInput').value = '';
   state.scanPhotoDataUrl = null;
+  state.scanWidePhotoDataUrl = null;
   state.scanCorners = null;
   state.scanCornersManuallyEdited = false;
   state.scanWordBoxes = null;
@@ -3157,6 +3168,25 @@ function captureScanPhotoFromCamera() {
   return { dataUrl: canvas.toDataURL('image/jpeg', 0.85), width, height };
 }
 
+// Captures the FULL video frame, not just the cutout region -- taken at the
+// exact same shutter press as captureScanPhotoFromCamera's own tight crop,
+// this is what state.scanWidePhotoDataUrl stashes for a later "Reposition
+// photo" recovery (see its own comment). The tight crop alone has no slack
+// to correct a bad framing from; this does.
+function captureScanWidePhotoFromCamera() {
+  const video = $('scanCameraVideo');
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw || !vh) return null;
+  const scale = Math.min(1, SCAN_MAX_DIMENSION / Math.max(vw, vh));
+  const width = Math.round(vw * scale);
+  const height = Math.round(vh * scale);
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext('2d').drawImage(video, 0, 0, vw, vh, 0, 0, width, height);
+  return { dataUrl: canvas.toDataURL('image/jpeg', 0.85), width, height };
+}
+
 async function proceedWithScanCorners(dataUrl, width, height) {
   state.scanPhotoDataUrl = dataUrl;
   state.scanImageWidth = width;
@@ -3172,6 +3202,10 @@ async function proceedWithScanCorners(dataUrl, width, height) {
 async function handleScanCameraCapture() {
   try {
     const { dataUrl, width, height } = captureScanPhotoFromCamera();
+    // Best-effort -- a wide capture failing (video not ready in the exact
+    // same frame, an odd browser quirk) should never block the real scan,
+    // it only means "Reposition photo" won't have anything to offer later.
+    state.scanWidePhotoDataUrl = captureScanWidePhotoFromCamera()?.dataUrl || null;
     stopScanCamera();
     await proceedWithScanCorners(dataUrl, width, height);
   } catch (error) {
@@ -3305,6 +3339,12 @@ function handleScanCropPointerUp(event) {
 }
 
 async function showScanCameraPhotoCrop(dataUrl) {
+  // Stashed here, not just at the two call sites (library pick, and
+  // handleScanRepositionButton's own re-entry) -- this is the one function
+  // both paths always go through before a crop gets submitted, so it is the
+  // single place a "Reposition photo" recovery can always find a wide photo
+  // to come back to, regardless of how the reader got here.
+  state.scanWidePhotoDataUrl = dataUrl;
   stopScanCameraStream(); // no need to keep the live feed running while cropping a chosen photo
   $('scanCameraVideo').hidden = true;
   $('scanCameraPhotoWrap').hidden = false;
@@ -3411,6 +3451,21 @@ async function handleScanCameraConfirmCrop() {
     console.error(error);
     showScanStatus(`Could not crop that photo: ${error.message}`, 'error');
   }
+}
+
+// "Reposition photo" on the failed-scan recovery screen (see confirmScan's
+// catch block) -- reopens the SAME pinch/pan crop UI a library-picked photo
+// already gets, on the widest photo this attempt has (see
+// state.scanWidePhotoDataUrl), so a reader whose framing missed the header
+// can fix it and rescan without a full retake. No-ops if nothing was
+// stashed (shouldn't happen in practice -- both capture paths always stash
+// one -- but this screen can in principle be reached from state a future
+// change forgot to set it for).
+async function handleScanRepositionButton() {
+  if (!state.scanWidePhotoDataUrl) return;
+  $('scanAlign').hidden = true;
+  $('scanComparisonResult').hidden = true;
+  await showScanCameraPhotoCrop(state.scanWidePhotoDataUrl);
 }
 
 function renderScanCorners() {
@@ -7687,6 +7742,7 @@ $('scanCameraPhotoWrap')?.addEventListener('pointercancel', handleScanCropPointe
 $('scanRetakeButton')?.addEventListener('click', resetScanUi);
 $('scanAgainButton')?.addEventListener('click', resetScanUi);
 $('scanConfirmButton')?.addEventListener('click', confirmScan);
+$('scanRepositionButton')?.addEventListener('click', handleScanRepositionButton);
 for (const handle of document.querySelectorAll('.scan-corner-handle')) {
   handle.addEventListener('pointerdown', handleScanCornerPointerDown);
 }
