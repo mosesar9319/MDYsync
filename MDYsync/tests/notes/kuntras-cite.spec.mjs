@@ -169,8 +169,17 @@ test.describe('Kuntras Builder — quoting a document', () => {
   });
 
   test('an over-long selection is refused with the shortfall stated', async ({ page }) => {
-    await page.click(`#knQuoteDocList .note-cite-doc >> text=${DOC_TITLE}`);
+    // Filling the entry body while #knQuoteDialog is still stacked on top of
+    // #knEntryDialog is unreliable at mobile widths -- the same pre-existing
+    // stacked-dialog quirk note-citation.spec.mjs's own budget test works
+    // around by closing first. Escape, fill, then reopen the picker.
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#knQuoteDialog')).toBeHidden();
     await page.fill('#knEntryBody', 'y'.repeat(1990));
+
+    await openQuotePicker(page);
+    await page.click('#knQuoteTabDocuments');
+    await page.click(`#knQuoteDocList .note-cite-doc >> text=${DOC_TITLE}`);
     await selectInPassage(page, 0, 30);
     await expect(page.locator('#knQuoteDocUse')).toBeDisabled();
     await expect(page.locator('#knQuoteDocHint')).toContainText('will fit');

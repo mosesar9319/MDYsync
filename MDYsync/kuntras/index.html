@@ -176,9 +176,11 @@
            as the daf page's own "Quote from my notes" row inside its note
            composer (#noteCiteRow): one button, and a "From <label>" chip
            that appears once a citation is set, right above the text it
-           fills. Only offered signed in, same reasoning as that row: it
-           reads the reader's own notes and documents. -->
-      <div class="note-cite-row" id="knCiteRow" hidden>
+           fills. Unlike that row, this one is never conditionally hidden
+           for a signed-out reader: the entry dialog only exists inside the
+           builder view, which is itself unreachable without being signed
+           in (see showLibrary's own requiresSignIn branch). -->
+      <div class="note-cite-row" id="knCiteRow">
         <button type="button" class="note-cite-button" id="knCiteButton">Quote from my notes</button>
         <span class="note-cite-current" id="knCiteCurrent" hidden>
           From <strong id="knCiteCurrentLabel"></strong>
