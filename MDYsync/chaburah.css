@@ -540,11 +540,13 @@ a.cc-doc-citation:hover { border-color: var(--cc-accent); }
 /* input[type="search"] is not covered by any generic field rule on this
    page either -- same reason #noteCiteSearch and #mnImportDialog's own
    fields each carry their own. */
-#knQuoteNotesSearch, #knQuoteDocSearch {
+#knQuoteNotesSearch, #knQuoteDocSearch, #knQuoteChaburahSearch {
   width: 100%; border: 1px solid var(--cc-border); color: var(--cc-text); background: var(--cc-surface-subtle);
   border-radius: 11px; padding: 10px 12px; font-family: inherit; font-size: 14px; outline: none;
 }
-#knQuoteNotesSearch:focus, #knQuoteDocSearch:focus { border-color: var(--cc-primary); box-shadow: 0 0 0 3px var(--cc-focus); }
+#knQuoteNotesSearch:focus, #knQuoteDocSearch:focus, #knQuoteChaburahSearch:focus {
+  border-color: var(--cc-primary); box-shadow: 0 0 0 3px var(--cc-focus);
+}
 
 /* --- States -------------------------------------------------------------- */
 .cc-empty, .cc-error {

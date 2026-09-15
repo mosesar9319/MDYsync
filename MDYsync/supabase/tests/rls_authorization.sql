@@ -1778,4 +1778,103 @@ select dafsync_test.check(
   'true');
 
 -- ===========================================================================
+-- kuntras_entries.source_chaburah_note_id -- Kuntras Builder slice 3:
+-- quoting a PUBLIC Cloud Chaburah discussion. Unlike source_note_id/
+-- source_document_id above, ownership of the cited row is irrelevant here --
+-- what matters is whether it is still a live, public discussion. kun_reader2
+-- (reader1's kuntras) is still around from the slice 2 section above.
+--
+-- open_note and hidden_note, both defined near the top of this file, are
+-- NOT reused here even though one of them looks superficially reusable for
+-- the "hidden" case: open_note was hidden by an earlier test (line ~178) and
+-- never unhidden, so depending on that would silently couple this section to
+-- test order elsewhere in the file. Fresh rows only.
+-- ===========================================================================
+
+\set chaburah_public  '''f5000000-0000-4000-8000-000000000001'''
+\set chaburah_private '''f5000000-0000-4000-8000-000000000002'''
+\set chaburah_hidden  '''f5000000-0000-4000-8000-000000000003'''
+\set entry_chaburah   '''f5000000-0000-4000-8000-000000000004'''
+
+insert into public.line_notes (id, author_id, author_display_name, daf_ref_key, segment_ref, body, is_private, hidden)
+values
+  (:chaburah_public, '22222222-2222-4222-8222-222222222222', 'Author Two',
+   'Chullin-89a', 'Chullin 89a.1', 'CHABURAH-CANARY a public discussion worth quoting.', false, false),
+  (:chaburah_private, '22222222-2222-4222-8222-222222222222', 'Author Two',
+   'Chullin-89a', 'Chullin 89a.1', 'A private note that happens to exist.', true, false),
+  (:chaburah_hidden, '22222222-2222-4222-8222-222222222222', 'Author Two',
+   'Chullin-89a', 'Chullin 89a.1', 'A note a moderator has since hidden.', false, true);
+
+-- --- Anyone may quote a public discussion, not only its own author ---------
+
+select dafsync_test.check(
+  'a reader can quote a public Cloud Chaburah discussion someone else wrote',
+  dafsync_test.attempt_rows('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('insert into public.kuntras_entries (id, kuntras_id, kind, body, source_chaburah_note_id)
+            values (%L, %L, ''chaburah'', ''Quoted from Cloud Chaburah.'', %L)',
+           :entry_chaburah, :kun_reader2, :chaburah_public)),
+  '1');
+
+-- --- Not public is not quotable, whichever way it fails ---------------------
+
+select dafsync_test.check(
+  'a kuntras cannot quote a note that is private, even via the chaburah path',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('insert into public.kuntras_entries (kuntras_id, kind, body, source_chaburah_note_id)
+            values (%L, ''chaburah'', ''Borrowed.'', %L)', :kun_reader2, :chaburah_private)),
+  'P0001');
+
+select dafsync_test.check(
+  'a kuntras cannot quote a note a moderator has hidden, even though it was never private',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('insert into public.kuntras_entries (kuntras_id, kind, body, source_chaburah_note_id)
+            values (%L, ''chaburah'', ''Borrowed.'', %L)', :kun_reader2, :chaburah_hidden)),
+  'P0001');
+
+select dafsync_test.check(
+  'nor can retargeting an update reach a note that is not public',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('update public.kuntras_entries set kind = ''chaburah'', source_chaburah_note_id = %L where id = %L',
+           :chaburah_private, :entry_plain)),
+  'P0001');
+
+-- --- kind and source must agree ---------------------------------------------
+
+select dafsync_test.check(
+  'a freeform entry cannot carry a source_chaburah_note_id',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('insert into public.kuntras_entries (kuntras_id, kind, body, source_chaburah_note_id)
+            values (%L, ''freeform'', ''Mismatched.'', %L)', :kun_reader2, :chaburah_public)),
+  '23514');
+
+select dafsync_test.check(
+  'a "chaburah" entry must actually carry a source_chaburah_note_id',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('insert into public.kuntras_entries (kuntras_id, kind, body)
+            values (%L, ''chaburah'', ''Missing its source.'')', :kun_reader2)),
+  '23514');
+
+select dafsync_test.check(
+  'an entry cannot carry both a chaburah source and a private-note source at once',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('insert into public.kuntras_entries (kuntras_id, kind, body, source_note_id, source_chaburah_note_id)
+            values (%L, ''chaburah'', ''Two sources.'', %L, %L)',
+           :kun_reader2, :note_open, :chaburah_public)),
+  '23514');
+
+-- --- Losing the source keeps the entry --------------------------------------
+
+select dafsync_test.check(
+  'the note''s own author can hard-delete a public discussion a kuntras entry quotes',
+  dafsync_test.attempt_rows('authenticated', '22222222-2222-4222-8222-222222222222',
+    format('delete from public.line_notes where id = %L', :chaburah_public)),
+  '1');
+
+select dafsync_test.check(
+  'that entry survives too, citation cleared rather than left dangling',
+  dafsync_test.read_as('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('select (source_chaburah_note_id is null)::text from public.kuntras_entries where id = %L', :entry_chaburah)),
+  'true');
+
+-- ===========================================================================
 do $$ begin raise notice 'ALL AUTHORIZATION TESTS PASSED'; end $$;

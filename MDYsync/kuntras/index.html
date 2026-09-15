@@ -212,6 +212,7 @@
     <div class="kn-quote-tabs" role="tablist" aria-label="What to quote from">
       <button type="button" class="kn-quote-tab active" id="knQuoteTabNotes" role="tab" aria-selected="true">My notes</button>
       <button type="button" class="kn-quote-tab" id="knQuoteTabDocuments" role="tab" aria-selected="false">My documents</button>
+      <button type="button" class="kn-quote-tab" id="knQuoteTabChaburah" role="tab" aria-selected="false">Public discussions</button>
     </div>
 
     <!-- .note-cite-list / .note-cite-doc / .note-cite-doc-title /
@@ -246,6 +247,22 @@
           <span class="field-note" id="knQuoteDocHint">Select the words you want to quote.</span>
           <button class="button primary small" id="knQuoteDocUse" type="button" disabled>Use selection</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Unlike the two tabs above, this one is not scoped to the reader's
+         own content at all -- any public Cloud Chaburah discussion may be
+         quoted, written by anyone (see kuntras-data.js's own
+         fetchQuotableChaburahThreads header). A whole-note quote like "My
+         notes", not a passage picker like "My documents": a line_notes body
+         is capped at 2000 characters already, the same cap an entry's own
+         body has, so there is never a document-sized excerpt to narrow down. -->
+    <div id="knQuoteChaburahPane" hidden>
+      <div class="search-notes-field">
+        <input type="search" id="knQuoteChaburahSearch" placeholder="Search public discussions…" maxlength="200">
+      </div>
+      <div class="note-cite-list" id="knQuoteChaburahList">
+        <p class="field-note">Loading public discussions…</p>
       </div>
     </div>
   </dialog>
