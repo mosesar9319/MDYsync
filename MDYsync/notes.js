@@ -1028,7 +1028,7 @@ const CITE_PAGE_SIZE = 20;
 // render twenty two-line excerpts. `preview` is a generated column for this.
 const CITE_LIST_COLUMNS = 'id, title, source_kind, preview, created_at';
 
-const CITE_SOURCE_LABELS = { paste: 'Pasted', txt: 'Text file', md: 'Markdown' };
+const CITE_SOURCE_LABELS = { paste: 'Pasted', txt: 'Text file', md: 'Markdown', docx: 'Word', pdf: 'PDF' };
 
 // The document currently open in the picker's second step, { id, title,
 // full_text }. Held rather than re-fetched so that selecting, changing your
