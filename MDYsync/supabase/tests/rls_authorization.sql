@@ -1653,4 +1653,129 @@ select dafsync_test.check(
   '0');
 
 -- ===========================================================================
+-- kuntras_entries.source_note_id / source_document_id -- Kuntras Builder
+-- slice 2: quoting your own notes and documents.
+--
+-- kun_reader (reader's kuntras) still exists from the slice 1 tests above;
+-- kun_author was hard-deleted by that section's own last test, so a fresh
+-- kuntras is inserted here for the cross-owner cases that need one.
+-- ===========================================================================
+
+\set kun_reader2   '''f4000000-0000-4000-8000-000000000001'''
+\set doc_fresh     '''f4000000-0000-4000-8000-000000000002'''
+\set entry_note    '''f4000000-0000-4000-8000-000000000003'''
+\set entry_doc     '''f4000000-0000-4000-8000-000000000004'''
+\set entry_plain   '''f4000000-0000-4000-8000-000000000005'''
+
+insert into public.kuntrasim (id, owner_id, title) values
+  (:kun_reader2, '11111111-1111-4111-8111-111111111111', 'Reader One''s second kuntras');
+
+-- A fresh document, since doc_author from the note_documents section above
+-- was hard-deleted by its own suite's last test.
+insert into public.note_documents (id, owner_id, title, source_kind, full_text)
+values (:doc_fresh, '22222222-2222-4222-8222-222222222222', 'Author Two''s fresh notebook', 'paste', 'text for the cross-owner check');
+
+insert into public.kuntras_entries (id, kuntras_id, kind, body)
+values (:entry_plain, :kun_reader2, 'freeform', 'An ordinary entry, cited from nothing.');
+
+-- --- Citing your own content -----------------------------------------------
+
+select dafsync_test.check(
+  'an owner can quote their own note into their own kuntras',
+  dafsync_test.attempt_rows('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('insert into public.kuntras_entries (id, kuntras_id, kind, body, source_note_id)
+            values (%L, %L, ''note'', ''PRIVATE-CANARY private note body.'', %L)',
+           :entry_note, :kun_reader2, :private_note)),
+  '1');
+
+select dafsync_test.check(
+  'an owner can quote their own document into their own kuntras',
+  dafsync_test.attempt_rows('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('insert into public.kuntras_entries (id, kuntras_id, kind, body, source_document_id)
+            values (%L, %L, ''document'', ''chullin shechita notes'', %L)',
+           :entry_doc, :kun_reader2, :doc_reader)),
+  '1');
+
+-- --- Cross-owner citations are refused --------------------------------------
+
+select dafsync_test.check(
+  'a kuntras cannot quote a note written by someone else',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('insert into public.kuntras_entries (kuntras_id, kind, body, source_note_id)
+            values (%L, ''note'', ''Borrowed.'', %L)', :kun_reader2, :open_note)),
+  'P0001');
+
+select dafsync_test.check(
+  'a kuntras cannot quote a document imported by someone else',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('insert into public.kuntras_entries (kuntras_id, kind, body, source_document_id)
+            values (%L, ''document'', ''Borrowed.'', %L)', :kun_reader2, :doc_fresh)),
+  'P0001');
+
+-- Both target and attacker own their own rows here -- RLS alone would allow
+-- this write (kuntras_entries_owner_insert only checks the CALLER owns
+-- kuntras_id). The trigger is what stops the entry from citing a note that
+-- belongs to someone else's kuntras despite the entry itself being valid.
+select dafsync_test.check(
+  'nor can it happen via retargeting an update',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('update public.kuntras_entries set kind = ''note'', source_note_id = %L where id = %L',
+           :open_note, :entry_plain)),
+  'P0001');
+
+-- --- kind and source must agree ---------------------------------------------
+
+select dafsync_test.check(
+  'a freeform entry cannot carry a source_note_id',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('insert into public.kuntras_entries (kuntras_id, kind, body, source_note_id)
+            values (%L, ''freeform'', ''Mismatched.'', %L)', :kun_reader2, :private_note)),
+  '23514');
+
+select dafsync_test.check(
+  'a "note" entry must actually carry a source_note_id',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('insert into public.kuntras_entries (kuntras_id, kind, body)
+            values (%L, ''note'', ''Missing its source.'')', :kun_reader2)),
+  '23514');
+
+select dafsync_test.check(
+  'an entry cannot carry both a note and a document source at once',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('insert into public.kuntras_entries (kuntras_id, kind, body, source_note_id, source_document_id)
+            values (%L, ''note'', ''Two sources.'', %L, %L)', :kun_reader2, :private_note, :doc_reader)),
+  '23514');
+
+-- --- Losing the source keeps the entry --------------------------------------
+--
+-- Both note_documents and line_notes are hard-deletable by their owner in
+-- the ordinary course of things (unlike the soft-delete the APP prefers for
+-- documents) -- ON DELETE SET NULL has to hold either way, since the entry
+-- is the reader's own assembled writing and must survive what it quoted.
+
+select dafsync_test.check(
+  'the owner can hard-delete a note a kuntras entry quotes',
+  dafsync_test.attempt_rows('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('delete from public.line_notes where id = %L', :private_note)),
+  '1');
+
+select dafsync_test.check(
+  'the entry survives, with its citation cleared rather than left dangling',
+  dafsync_test.read_as('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('select (source_note_id is null)::text from public.kuntras_entries where id = %L', :entry_note)),
+  'true');
+
+select dafsync_test.check(
+  'the owner can hard-delete a document a kuntras entry quotes',
+  dafsync_test.attempt_rows('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('delete from public.note_documents where id = %L', :doc_reader)),
+  '1');
+
+select dafsync_test.check(
+  'that entry survives too, citation cleared',
+  dafsync_test.read_as('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('select (source_document_id is null)::text from public.kuntras_entries where id = %L', :entry_doc)),
+  'true');
+
+-- ===========================================================================
 do $$ begin raise notice 'ALL AUTHORIZATION TESTS PASSED'; end $$;
