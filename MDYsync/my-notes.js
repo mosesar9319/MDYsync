@@ -268,7 +268,7 @@
     return card;
   }
 
-  const SOURCE_LABELS = { paste: 'Pasted', txt: 'Text file', md: 'Markdown' };
+  const SOURCE_LABELS = { paste: 'Pasted', txt: 'Text file', md: 'Markdown', docx: 'Word', pdf: 'PDF' };
 
   function documentCard(row) {
     const card = ui.el('article', 'cc-card');
@@ -429,33 +429,90 @@
     els.mnImportError.hidden = false;
   }
 
+  // The parsers are an ES module (pdf.js is one, and this has to import it),
+  // loaded on demand: a reader who only ever pastes text never downloads a
+  // PDF engine. See note-import-parsers.mjs for why no file is ever stored.
+  let parsersPromise = null;
+  function loadParsers() {
+    if (!parsersPromise) parsersPromise = import('/note-import-parsers.mjs');
+    return parsersPromise;
+  }
+
+  // A SEPARATE, much larger ceiling from MAX_DOCUMENT_BYTES, because for a
+  // .docx or a PDF the two measure different things. Bytes on disk are a fair
+  // proxy for bytes of text in a .txt, and a bad one here: a Word file with
+  // one embedded photograph is megabytes of image around a few kilobytes of
+  // prose, and refusing it on its file size would reject documents that
+  // import perfectly. So the file size is only a "do not pull this into
+  // memory" guard; what actually has to fit in note_documents is the
+  // EXTRACTED TEXT, which is checked after parsing like any other import.
+  const MAX_SOURCE_FILE_BYTES = 25 * 1024 * 1024;
+
+  function importStatus(message) {
+    els.mnImportSize.classList.remove('over');
+    els.mnImportSize.textContent = message;
+  }
+
   async function onImportFileChosen() {
     const file = els.mnImportFile.files && els.mnImportFile.files[0];
     if (!file) return;
     els.mnImportError.hidden = true;
-    // Checked before reading, so a huge file is refused without being pulled
-    // into memory first. The text is re-measured after decoding too, since
-    // bytes on disk and bytes of decoded text need not match.
-    if (file.size > data.MAX_DOCUMENT_BYTES) {
-      importError(`That file is ${Math.round(file.size / 1024)} KB. The limit is `
-        + `${Math.round(data.MAX_DOCUMENT_BYTES / 1024)} KB — split it into parts and import them separately.`);
+
+    const { sourceKindForFilename, BINARY_KINDS, extractText, ImportParseError } = await loadParsers();
+    const kind = sourceKindForFilename(file.name);
+    const isBinary = BINARY_KINDS.has(kind);
+
+    const ceiling = isBinary ? MAX_SOURCE_FILE_BYTES : data.MAX_DOCUMENT_BYTES;
+    if (file.size > ceiling) {
+      importError(isBinary
+        ? `That file is ${Math.round(file.size / (1024 * 1024))} MB, which is too large to open in the browser. `
+          + 'Split it into parts and import them separately.'
+        : `That file is ${Math.round(file.size / 1024)} KB. The limit is `
+          + `${Math.round(data.MAX_DOCUMENT_BYTES / 1024)} KB — split it into parts and import them separately.`);
       els.mnImportFile.value = '';
       return;
     }
+
+    // Reading a long PDF is genuinely slow -- seconds, sometimes more -- and
+    // a dialog that simply sits there looks broken. The page count is known
+    // only once pdf.js has opened the file, so the first message cannot
+    // promise one.
+    els.mnImportSubmit.disabled = true;
+    importStatus(isBinary ? `Reading ${file.name}…` : '');
     try {
-      els.mnImportText.value = await file.text();
+      const text = await extractText(file, {
+        onProgress: (page, total) => importStatus(`Reading page ${page} of ${total}…`),
+      });
+      els.mnImportText.value = text;
       if (!els.mnImportTitle.value.trim()) {
-        els.mnImportTitle.value = file.name.replace(/\.(txt|md|markdown)$/i, '').slice(0, 200);
+        els.mnImportTitle.value = file.name.replace(/\.(txt|md|markdown|docx|pdf)$/i, '').slice(0, 200);
       }
-      els.mnImportFile.dataset.kind = /\.(md|markdown)$/i.test(file.name) ? 'md' : 'txt';
+      els.mnImportFile.dataset.kind = kind;
       els.mnImportFile.dataset.filename = file.name;
       // What the file actually contained, so onImportSubmit can tell whether
       // the text being submitted is still the file's or has since been
       // replaced by hand.
-      els.mnImportFile.dataset.loadedText = els.mnImportText.value;
+      els.mnImportFile.dataset.loadedText = text;
       refreshImportSize();
-    } catch {
-      importError('That file could not be read. It may not be plain text.');
+    } catch (error) {
+      // ImportParseError messages are written for the reader and say what to
+      // do about it -- a password-protected PDF, a scan with no text layer, a
+      // .doc renamed to .docx. Anything else is a surprise and gets a generic
+      // message rather than an internal one.
+      importStatus('');
+      importError(error instanceof ImportParseError
+        ? error.message
+        : 'That file could not be read. It may be damaged, or not the format its name suggests.');
+      els.mnImportFile.value = '';
+      delete els.mnImportFile.dataset.kind;
+      delete els.mnImportFile.dataset.filename;
+      delete els.mnImportFile.dataset.loadedText;
+    } finally {
+      els.mnImportSubmit.disabled = false;
+      // The reader may have typed over the extracted text while a long PDF
+      // was still parsing; refreshImportSize is the authority on whether
+      // Import can be pressed, so it has the last word.
+      refreshImportSize();
     }
   }
 

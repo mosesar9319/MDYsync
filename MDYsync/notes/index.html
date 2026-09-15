@@ -171,7 +171,7 @@
     <button class="dialog-close" id="mnImportClose" aria-label="Close">×</button>
     <div class="eyebrow">My Notes</div>
     <h2>Import notes</h2>
-    <p class="dialog-note">Paste your notes, or choose a plain-text (.txt) or Markdown (.md) file. Imported notes are private to your account.</p>
+    <p class="dialog-note">Paste your notes, or choose a file: plain text (.txt), Markdown (.md), Word (.docx) or PDF. Word and PDF files are read in your browser — the file itself is never uploaded, only the text you see below. Imported notes are private to your account.</p>
     <form class="auth-form" id="mnImportForm">
       <label class="sync-field">
         <span>Title</span>
@@ -179,13 +179,14 @@
       </label>
       <label class="sync-field">
         <span>Choose a file (optional)</span>
-        <input id="mnImportFile" type="file" accept=".txt,.md,.markdown,text/plain,text/markdown" />
+        <input id="mnImportFile" type="file" accept=".txt,.md,.markdown,.docx,.pdf,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
       </label>
       <label class="sync-field">
         <span>Or paste the text</span>
         <textarea id="mnImportText" rows="10" placeholder="Paste your notes here…"></textarea>
       </label>
       <p class="cc-import-size" id="mnImportSize"></p>
+      <p class="field-note">Text read from a file appears above and can be edited before importing — worth a look for a PDF, where the layout does not always survive.</p>
       <p class="auth-error" id="mnImportError" hidden></p>
       <div class="auth-form-actions">
         <button class="button primary" id="mnImportSubmit" type="submit">Import</button>

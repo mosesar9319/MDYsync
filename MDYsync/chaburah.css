@@ -386,6 +386,23 @@ body[data-page="my-notes"] .cc-shell.no-rail { grid-template-columns: minmax(0, 
    over the ceiling the database itself enforces. */
 .cc-import-size { margin: 4px 0 0; font-size: 12.5px; color: var(--cc-muted); font-variant-numeric: tabular-nums; }
 .cc-import-size.over { color: var(--cc-danger); font-weight: 600; }
+/* styles.css's global .field-note is nowrap + ellipsis, which suits the short
+   inline hints it was written for and silently truncates a sentence. The
+   import dialog's explanation of what happens to a chosen file has to be
+   readable in full, so it wraps here. */
+#mnImportDialog .field-note {
+  white-space: normal; overflow: visible; text-overflow: clip;
+  margin: 8px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--cc-muted);
+}
+/* On a phone the 10-row paste box is taller than the screen, which pushes
+   Import below the fold on every import. The dialog does scroll, so this was
+   reachable rather than broken -- but scrolling past a mostly empty box to
+   reach the only button is a poor way to spend a small screen. The row count
+   stays 10 in the markup, where it suits a desktop; this caps the rendered
+   height instead, so the box still grows to fill what space there is. */
+@media (max-height: 760px), (max-width: 620px) {
+  #mnImportDialog textarea { max-height: 34vh; }
+}
 
 /* Document reader. The text is shown in a <pre> so an imported document keeps
    its own line breaks and indentation; pre-wrap rather than plain pre so long

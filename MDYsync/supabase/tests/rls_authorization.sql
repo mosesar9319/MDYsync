@@ -1411,4 +1411,50 @@ select dafsync_test.check(
   'true');
 
 -- ===========================================================================
+-- note_documents.source_kind -- the file-backed import kinds.
+--
+-- The point of constraining this column rather than leaving it free text is
+-- that the import UI and the table cannot drift apart. These checks are what
+-- make that true in both directions: the kinds the UI can now produce are
+-- accepted, and one it cannot is still refused.
+-- ===========================================================================
+
+select dafsync_test.check(
+  'a .docx import is accepted',
+  dafsync_test.attempt_rows('authenticated', '11111111-1111-4111-8111-111111111111',
+    'insert into public.note_documents (owner_id, title, source_kind, original_filename, full_text)
+     values (''11111111-1111-4111-8111-111111111111'', ''From Word'', ''docx'', ''notes.docx'', ''text read out of the docx'')'),
+  '1');
+
+select dafsync_test.check(
+  'a PDF import is accepted',
+  dafsync_test.attempt_rows('authenticated', '11111111-1111-4111-8111-111111111111',
+    'insert into public.note_documents (owner_id, title, source_kind, original_filename, full_text)
+     values (''11111111-1111-4111-8111-111111111111'', ''From a PDF'', ''pdf'', ''notes.pdf'', ''text read out of the pdf'')'),
+  '1');
+
+-- The constraint is still a constraint. A kind the app has no parser for must
+-- not become storable just because the list grew.
+select dafsync_test.check(
+  'a format the app cannot read is still refused',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    'insert into public.note_documents (owner_id, title, source_kind, full_text)
+     values (''11111111-1111-4111-8111-111111111111'', ''From a .doc'', ''doc'', ''x'')'),
+  '23514');
+
+-- A file-backed import is no more visible to anyone else than a pasted one:
+-- widening source_kind changed what may be STORED, never who may read it.
+select dafsync_test.check(
+  'another reader still cannot see a .docx import',
+  dafsync_test.read_as('authenticated', '22222222-2222-4222-8222-222222222222',
+    'select count(*)::text from public.note_documents where source_kind = ''docx'''),
+  '0');
+
+select dafsync_test.check(
+  'anon is still refused at the table for file-backed imports',
+  dafsync_test.read_as('anon', null,
+    'select count(*)::text from public.note_documents where source_kind in (''docx'', ''pdf'')'),
+  'ERROR:42501');
+
+-- ===========================================================================
 do $$ begin raise notice 'ALL AUTHORIZATION TESTS PASSED'; end $$;
