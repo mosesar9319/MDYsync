@@ -85,6 +85,25 @@
   .cc-rail-left { display: none; }
 }
 
+/* My Notes (/notes/) shares this shell but has no right rail, so the shared
+   three-column template would leave a permanently empty 280px column. And on
+   its Documents tab the LEFT rail is hidden too (its filters describe notes,
+   which a document has none of) -- without .no-rail the main column would
+   then fall into the rail's own 240px slot and the cards would render in a
+   narrow strip with the page empty beside them. Declared after the shared
+   breakpoints above, and repeating them, because these selectors are more
+   specific and would otherwise win at every width. */
+body[data-page="my-notes"] .cc-shell { grid-template-columns: 240px minmax(0, 1fr); }
+body[data-page="my-notes"] .cc-shell.no-rail { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 1100px) {
+  body[data-page="my-notes"] .cc-shell { grid-template-columns: 220px minmax(0, 1fr); }
+  body[data-page="my-notes"] .cc-shell.no-rail { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 900px) {
+  body[data-page="my-notes"] .cc-shell,
+  body[data-page="my-notes"] .cc-shell.no-rail { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* --- Header -------------------------------------------------------------- */
 .cc-header {
   display: flex;
@@ -335,6 +354,50 @@
 .cc-chip-unread { background: var(--cc-primary); color: #fff; }
 .cc-chip-demo { background: rgba(101, 116, 138, 0.14); color: var(--cc-muted); }
 .cc-chip-video { background: rgba(176, 135, 47, 0.14); color: var(--cc-source-accent); }
+
+/* My Notes (/notes/) only: every card there is the reader's own, so the one
+   thing worth reading at a glance is whether a note is still private or has
+   been shared. Deliberately quiet -- private is the default state and should
+   not look like a warning. */
+.cc-chip-private { background: var(--cc-surface-subtle); color: var(--cc-muted); border-color: var(--cc-border); }
+.cc-chip-shared { background: var(--cc-primary-soft); color: var(--cc-primary-hover); }
+
+/* A plain text link inside .cc-card-meta ("Open on the daf" / "Open
+   discussion"), sitting alongside the timestamp rather than as a button row --
+   the whole card title is already the primary link. */
+.cc-card-action { color: var(--cc-primary); font-weight: 600; text-decoration: none; }
+.cc-card-action:hover { text-decoration: underline; }
+
+/* styles.css's global field rule covers input[type=text]/number/select but no
+   textarea -- nothing on the site had one in a dialog until this. Without
+   this the paste box renders as a raw browser default next to a styled title
+   field, in the same dialog. Scoped to the import dialog rather than added to
+   the global rule, so no other textarea on the site changes appearance. */
+#mnImportDialog textarea {
+  width: 100%; font: inherit; color: var(--text);
+  background: rgba(4, 14, 27, .7); border: 1px solid var(--line-strong);
+  border-radius: 11px; padding: 10px 12px; outline: none; resize: vertical;
+}
+#mnImportDialog textarea:focus {
+  border-color: rgba(47, 110, 165, .8); box-shadow: 0 0 0 3px rgba(47, 110, 165, .1);
+}
+
+/* Import dialog: the running byte count, which turns red once the import is
+   over the ceiling the database itself enforces. */
+.cc-import-size { margin: 4px 0 0; font-size: 12.5px; color: var(--cc-muted); font-variant-numeric: tabular-nums; }
+.cc-import-size.over { color: var(--cc-danger); font-weight: 600; }
+
+/* Document reader. The text is shown in a <pre> so an imported document keeps
+   its own line breaks and indentation; pre-wrap rather than plain pre so long
+   lines still wrap instead of forcing the dialog to scroll sideways. */
+.cc-doc-actions { display: flex; gap: 8px; margin: 10px 0 14px; }
+.cc-doc-text {
+  margin: 0; max-height: 60vh; overflow: auto;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  font: inherit; line-height: 1.6;
+  background: var(--cc-surface-subtle); border: 1px solid var(--cc-border);
+  border-radius: var(--cc-radius-sm); padding: 14px;
+}
 
 /* --- States -------------------------------------------------------------- */
 .cc-empty, .cc-error {

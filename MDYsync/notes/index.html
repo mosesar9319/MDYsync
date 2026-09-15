@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="My Notes: your own Torah notes across every daf you've learned." />
+  <title>DafSync — My Notes</title>
+  <script>
+    // Same dependency-free failure banner every other page carries, inline and
+    // ahead of every other <script> so it still works when a stylesheet or
+    // another script is the thing that failed. See chaburah/index.html.
+    (function () {
+      var shown = false;
+      function showBanner(message) {
+        if (shown) return;
+        shown = true;
+        var bar = document.createElement('div');
+        bar.textContent = 'Something on this page failed to load: ' + message + ' -- try reloading the page.';
+        bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#7c1d1d;color:#fff;'
+          + 'font:14px/1.4 -apple-system,system-ui,sans-serif;padding:10px 40px 10px 14px;text-align:left;';
+        var close = document.createElement('button');
+        close.textContent = '×';
+        close.setAttribute('aria-label', 'Dismiss');
+        close.style.cssText = 'position:absolute;right:8px;top:6px;background:transparent;border:0;color:#fff;'
+          + 'font-size:20px;line-height:1;cursor:pointer;padding:4px 8px;';
+        close.onclick = function () { bar.remove(); };
+        bar.appendChild(close);
+        document.body ? document.body.prepend(bar) : document.addEventListener('DOMContentLoaded', function () { document.body.prepend(bar); });
+      }
+      window.addEventListener('error', function (event) {
+        if (event.target && event.target.tagName !== 'SCRIPT') return;
+        var src = event.target && event.target.src;
+        var message = event.message || src || 'unknown error';
+        showBanner(String(message));
+      }, true);
+      window.addEventListener('unhandledrejection', function (event) {
+        showBanner(String(event.reason && event.reason.message || event.reason || 'unknown error'));
+      });
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Frank+Ruhl+Libre:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Same three stylesheets, in the same order, as /chaburah/: the shared site
+       chrome, then chaburah.css last, whose Editorial Blue palette is scoped to
+       .cloud-chabura. This page wears that same palette (it is the private half
+       of the same notes system), so it reuses the cc-* components rather than
+       introducing a second visual language for the same cards. -->
+  <link rel="stylesheet" href="../styles.css" />
+  <link rel="stylesheet" href="../watch-theme.css" />
+  <link rel="stylesheet" href="../chaburah.css" />
+</head>
+<body data-page="my-notes" class="cloud-chabura">
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="DafSync home"><span class="brand-mark"><img src="/assets/dafsync-lockup.png" alt="" /></span></a>
+    <nav class="desktop-navigation" aria-label="Primary navigation"></nav>
+  </aside>
+
+  <div class="app-shell">
+    <!-- Trimmed to exactly what auth.js wires up, same as /chaburah/: this page
+         loads neither notes.js nor account-features.js, so a notifications bell
+         or favorites button here would be a dead control. -->
+    <header class="topbar">
+      <div class="mobile-brand"><a class="brand" href="/"><span class="brand-mark"><img src="/assets/dafsync-mark.png" alt="" /></span><span class="brand-name">DafSync</span></a></div>
+      <div class="top-actions">
+        <div class="auth-widget" id="authWidget">
+          <button class="button secondary small" id="signInButton" type="button">Sign in</button>
+          <div class="account-menu" id="accountMenu" hidden>
+            <button class="button secondary small account-trigger" id="accountMenuButton" type="button">
+              <span id="accountEmailLabel">Account</span>
+              <span class="admin-badge admin-only" id="adminBadge">Admin</span>
+            </button>
+            <div class="account-dropdown" id="accountDropdown" hidden>
+              <button class="account-dropdown-item" id="signOutButton" type="button">Sign out</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="cc-header">
+      <div class="cc-header-titles">
+        <h1>My Notes</h1>
+        <p class="cc-tagline">Everything you've written, across every daf — private by default.</p>
+      </div>
+      <div class="cc-header-actions">
+        <div class="cc-search">
+          <span aria-hidden="true">🔍</span>
+          <label class="cc-visually-hidden" for="mnSearch">Search your notes</label>
+          <input id="mnSearch" type="search" placeholder="Search your notes…" autocomplete="off" />
+        </div>
+        <button class="cc-btn" id="mnImportButton" type="button">Import notes</button>
+        <a class="cc-btn" href="/chaburah/">Cloud Chabura</a>
+        <a class="cc-btn cc-btn-primary" href="/browse/">Open a daf</a>
+      </div>
+    </div>
+
+    <div class="cc-shell">
+      <!-- These filters describe notes (which daf, which category, shared or
+           not). None of them mean anything for an imported document, so the
+           whole rail is hidden on the Documents tab rather than shown with
+           dead controls. -->
+      <aside class="cc-rail cc-rail-left" aria-label="Filter your notes" id="mnFilterRail">
+        <div class="cc-panel">
+          <h3>Masechta</h3>
+          <div class="cc-rail-nav" id="mnTractateNav"></div>
+        </div>
+        <div class="cc-panel">
+          <h3>Filter</h3>
+          <div class="cc-filter-group">
+            <label for="mnCategory">Category</label>
+            <select class="cc-select" id="mnCategory"></select>
+          </div>
+          <div class="cc-filter-group">
+            <label for="mnVisibility">Visibility</label>
+            <select class="cc-select" id="mnVisibility">
+              <option value="">All notes</option>
+              <option value="private">Private only</option>
+              <option value="public">Shared publicly</option>
+            </select>
+          </div>
+        </div>
+      </aside>
+
+      <main class="cc-main">
+        <div class="cc-tabs" id="mnTabs" role="tablist" aria-label="Library views"></div>
+
+        <div class="cc-mobile-filter-bar" id="mnMobileFilterBar">
+          <button class="cc-btn cc-btn-sm" id="mnOpenFilters" type="button">Filters</button>
+        </div>
+
+        <!-- Screen-reader announcements for load results and failures. -->
+        <p class="cc-visually-hidden" id="mnStatus" role="status" aria-live="polite"></p>
+
+        <div class="cc-feed" id="mnFeed"></div>
+
+        <div class="cc-feed-footer" id="mnFeedFooter" hidden>
+          <button class="cc-btn" id="mnLoadMore" type="button">Load more notes</button>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Mobile filter sheet, mirroring /chaburah/'s own. -->
+  <dialog class="cc-sheet" id="mnFilterSheet" aria-label="Filter your notes">
+    <div class="cc-sheet-panel">
+      <div class="cc-sheet-handle" aria-hidden="true"></div>
+      <div class="cc-filter-group">
+        <label for="mnCategorySheet">Category</label>
+        <select class="cc-select" id="mnCategorySheet"></select>
+      </div>
+      <div class="cc-filter-group">
+        <label for="mnVisibilitySheet">Visibility</label>
+        <select class="cc-select" id="mnVisibilitySheet">
+          <option value="">All notes</option>
+          <option value="private">Private only</option>
+          <option value="public">Shared publicly</option>
+        </select>
+      </div>
+      <div style="margin-top:16px;display:flex;justify-content:flex-end;">
+        <button class="cc-btn cc-btn-primary" id="mnCloseFilters" type="button">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Import. Plain text only for now (paste, .txt, .md): those parse in the
+       browser with no library, no upload endpoint and no file storage, so the
+       whole tier ships without any of that machinery. .docx and PDF need a
+       parser and somewhere to keep the original, and come later. -->
+  <dialog id="mnImportDialog" aria-label="Import notes">
+    <button class="dialog-close" id="mnImportClose" aria-label="Close">×</button>
+    <div class="eyebrow">My Notes</div>
+    <h2>Import notes</h2>
+    <p class="dialog-note">Paste your notes, or choose a plain-text (.txt) or Markdown (.md) file. Imported notes are private to your account.</p>
+    <form class="auth-form" id="mnImportForm">
+      <label class="sync-field">
+        <span>Title</span>
+        <input id="mnImportTitle" type="text" maxlength="200" required placeholder="e.g. Chullin notes 5785" />
+      </label>
+      <label class="sync-field">
+        <span>Choose a file (optional)</span>
+        <input id="mnImportFile" type="file" accept=".txt,.md,.markdown,text/plain,text/markdown" />
+      </label>
+      <label class="sync-field">
+        <span>Or paste the text</span>
+        <textarea id="mnImportText" rows="10" placeholder="Paste your notes here…"></textarea>
+      </label>
+      <p class="cc-import-size" id="mnImportSize"></p>
+      <p class="auth-error" id="mnImportError" hidden></p>
+      <div class="auth-form-actions">
+        <button class="button primary" id="mnImportSubmit" type="submit">Import</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Reader. A dialog rather than its own route: a document has no shareable
+       public address (nothing here is ever public), so a URL for one would
+       only ever be openable by its owner anyway. -->
+  <dialog id="mnDocDialog" aria-label="Document">
+    <button class="dialog-close" id="mnDocClose" aria-label="Close">×</button>
+    <div class="eyebrow" id="mnDocMeta"></div>
+    <h2 id="mnDocTitle"></h2>
+    <div class="cc-doc-actions">
+      <button class="cc-btn cc-btn-sm" id="mnDocRename" type="button">Rename</button>
+      <button class="cc-btn cc-btn-sm" id="mnDocDelete" type="button">Delete</button>
+    </div>
+    <pre class="cc-doc-text" id="mnDocText"></pre>
+  </dialog>
+
+  <dialog id="authDialog">
+    <button class="dialog-close" id="closeAuthDialog" aria-label="Close">×</button>
+    <div class="eyebrow" id="authDialogEyebrow">Account</div>
+    <h2 id="authDialogTitle">Sign in</h2>
+    <p class="dialog-note" id="authDialogNote">Sign in to see your own notes from every daf in one place.</p>
+    <button class="button secondary google-auth-button" id="googleAuthButton" type="button">
+      <svg viewBox="0 0 18 18" aria-hidden="true" width="18" height="18">
+        <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.84 2.09-1.79 2.73v2.27h2.9c1.7-1.56 2.68-3.87 2.68-6.64z"/>
+        <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.17l-2.9-2.27c-.8.54-1.83.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.34C2.44 15.98 5.48 18 9 18z"/>
+        <path fill="#FBBC05" d="M3.95 10.7c-.18-.54-.28-1.11-.28-1.7s.1-1.16.28-1.7V4.96H.96A8.996 8.996 0 0 0 0 9c0 1.45.35 2.83.96 4.04l2.99-2.34z"/>
+        <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0 5.48 0 2.44 2.02.96 4.96l2.99 2.34C4.66 5.17 6.65 3.58 9 3.58z"/>
+      </svg>
+      Continue with Google
+    </button>
+    <div class="auth-divider"><span>or</span></div>
+    <form class="auth-form" id="authForm">
+      <label class="sync-field">
+        <span>Email</span>
+        <input id="authEmail" type="email" autocomplete="email" required />
+      </label>
+      <label class="sync-field">
+        <span>Password</span>
+        <input id="authPassword" type="password" autocomplete="current-password" required minlength="6" />
+      </label>
+      <p class="auth-error" id="authError" hidden></p>
+      <div class="auth-form-actions">
+        <button class="button primary" id="authSubmitButton" type="submit">Sign in</button>
+        <button class="button ghost small" id="authSwitchModeButton" type="button">Need an account? Sign up</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Script order is load-bearing (no build step, no modules): chabura-core.js
+       defines window.DafSyncChabura.core, which my-notes-data.js reads at
+       definition time, and my-notes.js reads both. notes-format.js supplies the
+       category vocabulary and the body renderer. app.js is deliberately ABSENT
+       for the same reason /chaburah/ drops it (Phase 1 audit F-13). -->
+  <script src="../vendor/supabase-js.min.js"></script>
+  <script src="../auth.js"></script>
+  <script src="../notes-format.js" defer></script>
+  <script src="../chabura-core.js" defer></script>
+  <script src="../chabura-components.js" defer></script>
+  <script src="../my-notes-data.js" defer></script>
+  <script src="../my-notes.js" defer></script>
+  <script src="../nav.js" defer></script>
+  <script src="../collapse.js" defer></script>
+</body>
+</html>

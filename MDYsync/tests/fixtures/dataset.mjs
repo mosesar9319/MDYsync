@@ -296,6 +296,50 @@ export function buildDatabase() {
     })),
     line_notes,
     comments,
+    // Imported documents (note_documents). `preview` is a generated column in
+    // Postgres -- seeded explicitly here, and derived by the stub on insert,
+    // so a fixture row and a freshly imported one look the same to the UI.
+    note_documents: [
+      {
+        id: 'f0000000-0000-4000-8000-000000000001',
+        owner_id: USERS.author.id,
+        title: 'Chullin notes 5785',
+        source_kind: 'paste',
+        original_filename: null,
+        full_text: 'Shechita requires five things. My notes on the sugya of derasa.',
+        preview: 'Shechita requires five things. My notes on the sugya of derasa.',
+        created_at: isoMinutesAgo(30),
+        updated_at: isoMinutesAgo(30),
+        deleted_at: null,
+      },
+      {
+        id: 'f0000000-0000-4000-8000-000000000002',
+        owner_id: USERS.author.id,
+        title: 'Berachos notebook',
+        source_kind: 'txt',
+        original_filename: 'berachos.txt',
+        full_text: 'Notes on tefillah and the order of the berachos.',
+        preview: 'Notes on tefillah and the order of the berachos.',
+        created_at: isoMinutesAgo(60),
+        updated_at: isoMinutesAgo(60),
+        deleted_at: null,
+      },
+      // Another account's document. Nothing in the UI should ever surface it;
+      // RLS is what really enforces that (see supabase/tests), but a spec
+      // proving the client asks only for its own rows is still worth having.
+      {
+        id: 'f0000000-0000-4000-8000-000000000003',
+        owner_id: USERS.ordinary.id,
+        title: 'Someone else’s notebook',
+        source_kind: 'paste',
+        original_filename: null,
+        full_text: 'Private to Reader One.',
+        preview: 'Private to Reader One.',
+        created_at: isoMinutesAgo(45),
+        updated_at: isoMinutesAgo(45),
+        deleted_at: null,
+      },
+    ],
     // The view the browser is allowed to read. Deliberately a SEPARATE array
     // from `profiles` and deliberately without `email`: a spec that queried
     // public_profiles and got an email back would be a real finding.

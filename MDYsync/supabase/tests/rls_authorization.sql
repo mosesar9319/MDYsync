@@ -1091,4 +1091,168 @@ select dafsync_test.check(
   '0');
 
 -- ===========================================================================
+-- note_documents -- imported notes are private to the account that imported
+-- them, with no way in for anyone else.
+--
+-- This table has no public-read and no admin-read policy, which makes it the
+-- only table here where "an admin cannot see it either" is itself a rule
+-- worth holding. line_notes deliberately lets an admin read non-private
+-- notes so they can be moderated; nothing in note_documents is ever public,
+-- so there is nothing to moderate and no reason to grant a path.
+-- ===========================================================================
+
+\set doc_reader '''d0000000-0000-4000-8000-000000000001'''
+\set doc_author '''d0000000-0000-4000-8000-000000000002'''
+
+insert into public.note_documents (id, owner_id, title, source_kind, full_text)
+values
+  (:doc_reader, '11111111-1111-4111-8111-111111111111',
+   'Reader One''s private notebook', 'paste', 'chullin shechita notes'),
+  (:doc_author, '22222222-2222-4222-8222-222222222222',
+   'Author Two''s private notebook', 'txt', 'berachos notes');
+
+-- --- Reading --------------------------------------------------------------
+select dafsync_test.check(
+  'the owner reads their own document',
+  dafsync_test.read_as('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('select title from public.note_documents where id = %L', :doc_reader)),
+  'Reader One''s private notebook');
+
+select dafsync_test.check(
+  'another signed-in reader cannot see it at all',
+  dafsync_test.read_as('authenticated', '22222222-2222-4222-8222-222222222222',
+    format('select count(*)::text from public.note_documents where id = %L', :doc_reader)),
+  '0');
+
+-- 42501, not an empty result: anon holds no table privilege here at all
+-- (see the migration's grant block), so it is stopped before RLS is even
+-- consulted. Every other table in this schema grants anon SELECT and lets
+-- RLS filter; this one deliberately does not.
+select dafsync_test.check(
+  'anon is refused at the table, not merely filtered by RLS',
+  dafsync_test.read_as('anon', null,
+    format('select count(*)::text from public.note_documents where id = %L', :doc_reader)),
+  'ERROR:42501');
+
+-- The rule this table exists to hold: privacy here is not moderator-visible.
+select dafsync_test.check(
+  'an admin cannot read someone else''s document',
+  dafsync_test.read_as('authenticated', '44444444-4444-4444-8444-444444444444',
+    format('select count(*)::text from public.note_documents where id = %L', :doc_reader)),
+  '0');
+
+select dafsync_test.check(
+  'a reader listing documents sees only their own',
+  dafsync_test.read_as('authenticated', '11111111-1111-4111-8111-111111111111',
+    'select count(*)::text from public.note_documents'),
+  '1');
+
+-- --- Writing --------------------------------------------------------------
+select dafsync_test.check(
+  'anon cannot import a document',
+  dafsync_test.attempt('anon', null,
+    'insert into public.note_documents (owner_id, title, source_kind, full_text)
+     values (''11111111-1111-4111-8111-111111111111'', ''x'', ''paste'', ''y'')'),
+  '42501');
+
+-- The insert policy is WITH CHECK (auth.uid() = owner_id), so a client that
+-- names someone else as the owner is rejected outright rather than silently
+-- creating a document in their library.
+select dafsync_test.check(
+  'a reader cannot import a document into someone else''s library',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    'insert into public.note_documents (owner_id, title, source_kind, full_text)
+     values (''22222222-2222-4222-8222-222222222222'', ''planted'', ''paste'', ''y'')'),
+  '42501');
+
+-- RLS makes a forbidden UPDATE match zero rows rather than fail, so this has
+-- to count rows, not just check for an error (see attempt_rows).
+select dafsync_test.check(
+  'a reader cannot rename someone else''s document',
+  dafsync_test.attempt_rows('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('update public.note_documents set title = ''seized'' where id = %L', :doc_author)),
+  '0');
+
+select dafsync_test.check(
+  'a reader cannot read someone else''s text by rewriting it',
+  dafsync_test.attempt_rows('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('update public.note_documents set full_text = ''overwritten'' where id = %L', :doc_author)),
+  '0');
+
+-- The update policy carries WITH CHECK as well as USING, so an owner cannot
+-- hand their own document to another account on the way past the policy.
+select dafsync_test.check(
+  'an owner cannot reassign their document to another account',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('update public.note_documents set owner_id = ''22222222-2222-4222-8222-222222222222'' where id = %L', :doc_reader)),
+  '42501');
+
+select dafsync_test.check(
+  'a reader cannot delete someone else''s document',
+  dafsync_test.attempt_rows('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('delete from public.note_documents where id = %L', :doc_author)),
+  '0');
+
+select dafsync_test.check(
+  'an admin cannot delete someone else''s document either',
+  dafsync_test.attempt_rows('authenticated', '44444444-4444-4444-8444-444444444444',
+    format('delete from public.note_documents where id = %L', :doc_author)),
+  '0');
+
+select dafsync_test.check(
+  'the owner can rename their own document',
+  dafsync_test.attempt_rows('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('update public.note_documents set title = ''Renamed'' where id = %L', :doc_reader)),
+  '1');
+
+select dafsync_test.check(
+  'the owner can delete their own document',
+  dafsync_test.attempt_rows('authenticated', '22222222-2222-4222-8222-222222222222',
+    format('delete from public.note_documents where id = %L', :doc_author)),
+  '1');
+
+-- --- Size ceiling ---------------------------------------------------------
+-- octet_length, not char_length: a Hebrew character costs two bytes, so a
+-- character-based cap would let a Hebrew import weigh twice an English one.
+-- This proves the constraint counts bytes by feeding it 300k Hebrew
+-- characters -- comfortably under any character limit, 600k bytes and so
+-- over this one.
+select dafsync_test.check(
+  'an over-size import is refused rather than truncated',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    'insert into public.note_documents (owner_id, title, source_kind, full_text)
+     values (''11111111-1111-4111-8111-111111111111'', ''huge'', ''paste'', repeat(''א'', 300000))'),
+  '23514');
+
+-- --- Search ---------------------------------------------------------------
+-- The generated tsvector is what makes an imported document findable at all;
+-- if it stopped being populated the Documents search would silently return
+-- nothing rather than fail.
+select dafsync_test.check(
+  'document text is searchable by its owner',
+  dafsync_test.read_as('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('select count(*)::text from public.note_documents
+            where id = %L and full_text_tsv @@ websearch_to_tsquery(''simple'', ''shechita'')', :doc_reader)),
+  '1');
+
+-- The rename above changed this document's title from "...private notebook"
+-- to "Renamed". That the OLD title is no longer findable, and the new one is,
+-- proves the generated column is recomputed on update rather than only
+-- populated at insert -- which is what keeps a renamed document findable by
+-- the name it now has.
+select dafsync_test.check(
+  'a renamed document is no longer findable by its old title',
+  dafsync_test.read_as('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('select count(*)::text from public.note_documents
+            where id = %L and full_text_tsv @@ websearch_to_tsquery(''simple'', ''notebook'')', :doc_reader)),
+  '0');
+
+select dafsync_test.check(
+  'and is findable by its new one, through the same column as its text',
+  dafsync_test.read_as('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('select count(*)::text from public.note_documents
+            where id = %L and full_text_tsv @@ websearch_to_tsquery(''simple'', ''Renamed'')', :doc_reader)),
+  '1');
+
+-- ===========================================================================
 do $$ begin raise notice 'ALL AUTHORIZATION TESTS PASSED'; end $$;
