@@ -297,6 +297,44 @@ MIN_SCORE = 60          # local matches
 MIN_SCORE_GLOBAL = 72   # global (re)localization is stricter
 MIN_SCORE_SINGLE = 85   # single highlighted words are ambiguous
 RELOCALIZE_AFTER = 12   # consecutive local failures before searching globally
+# A locked local match landing more than this many words from the running
+# cursor is held for one extra sample rather than committed outright. A
+# short/ambiguous highlighted phrase (see MIN_SCORE_SINGLE) can fuzzy-match a
+# repeated formula elsewhere in the local search window on a single noisy
+# frame -- Talmudic text repeats plenty of short formulas -- and committing
+# that instantly both derails the cursor for every following frame's search
+# window and shows up in the published alignment as the highlight jumping to
+# the wrong spot and snapping back a moment later. A genuine jump that far
+# (e.g. the caption box flipping to its next "page") keeps producing a
+# similar match on the very next sample too, so requiring one frame of
+# corroboration filters out one-off decoys while costing at most one
+# sample's delay (~1/sample_fps seconds) on a real jump. Ordinary
+# frame-to-frame reading progress stays under this threshold and still
+# commits immediately, same as before this existed. See _classify_jump.
+JUMP_CONFIRM_WORDS = 8
+
+
+def _classify_jump(s, cursor, pending_s, threshold=JUMP_CONFIRM_WORDS):
+    """Classify a fresh local match's start index `s` against the running
+    cursor and, if any, a still-unconfirmed jump candidate's start index
+    `pending_s` held from the previous sample. Pure and I/O-free (no video/
+    OCR dependency) so the tracking decision itself is directly unit-
+    testable -- see JUMP_CONFIRM_WORDS for why this check exists.
+
+    Returns:
+      "commit"  -- ordinary continuation (within threshold of the cursor);
+                   commit `m` immediately, same as before this existed.
+      "confirm" -- `s` corroborates `pending_s` from the last sample; commit
+                   BOTH the held candidate and this one, at their own real
+                   timestamps.
+      "hold"    -- a first, still-unconfirmed jump candidate; hold it rather
+                   than commit, and wait for the next sample to agree.
+    """
+    if abs(s - cursor) <= threshold:
+        return "commit"
+    if pending_s is not None and abs(s - pending_s) <= threshold:
+        return "confirm"
+    return "hold"
 
 
 def match_phrase(canon, hl, cursor, global_search=False):
@@ -370,6 +408,8 @@ def process_video(path, refs, crop=None, sample_fps=3.0, out_dir="out",
     cursor = 0
     locked = False
     local_misses = 0
+    pending = None  # (t, s, e, score, heard_text) awaiting a second
+                     # sample's corroboration -- see JUMP_CONFIRM_WORDS.
     ocr_cache_sig, ocr_cache_words = None, None
     frame_idx = 0
     while True:
@@ -409,34 +449,73 @@ def process_video(path, refs, crop=None, sample_fps=3.0, out_dir="out",
         hl = highlighted_words(box, words)
         if not hl:
             continue
+
         m = match_phrase(canon, hl, cursor) if locked else None
-        if m is None:
-            if locked:
-                local_misses += 1
-                if local_misses < RELOCALIZE_AFTER:
-                    continue
-            m = match_phrase(canon, hl, cursor, global_search=True)
-            if m is None:
+        heard_text = " ".join(w.text for w in hl)
+        committed = False
+
+        if m is not None:
+            s, e, score = m
+            pending_s = pending[1] if pending is not None else None
+            verdict = _classify_jump(s, cursor, pending_s)
+            if verdict == "commit":
+                # Trust the match position outright rather than clamping to
+                # a never-decreasing cursor. A hard forward-only floor means
+                # a single bad match (OCR misread, an ambiguous short
+                # phrase) permanently strands later matching: every
+                # subsequent local search window is anchored past where the
+                # true content actually is. Local search already biases
+                # toward staying near the cursor (see the distance penalty
+                # in match_phrase), and jumps beyond that are now gated by
+                # _classify_jump (see JUMP_CONFIRM_WORDS), so this only
+                # commits instantly when the evidence is either close to the
+                # cursor already or a corroborated jump (below).
+                cursor = s
+                events.append(WordEvent(round(t, 2), s, e, round(score, 1), heard_text))
+                pending = None
+                committed = True
+            elif verdict == "confirm":
+                # A second consecutive sample corroborates the jump `pending`
+                # was holding -- commit both, at their own real timestamps.
+                events.append(WordEvent(*pending))
+                events.append(WordEvent(round(t, 2), s, e, round(score, 1), heard_text))
+                cursor = s
+                pending = None
+                committed = True
+            else:  # "hold"
+                pending = (round(t, 2), s, e, round(score, 1), heard_text)
+                if debug:
+                    print(f"  t={t:6.2f}  [{s}-{e}] {score:5.1f}  holding "
+                          f"(jump of {abs(s - cursor)} words) pending confirmation")
+        else:
+            pending = None
+
+        if committed:
+            local_misses = 0
+            if debug:
+                print(f"  t={t:6.2f}  [{s}-{e}] {score:5.1f}  "
+                      f"{' '.join(c.text for c in canon[s:e+1])}")
+            continue
+
+        # No confirmed local position this frame -- an outright miss, or an
+        # unconfirmed jump candidate held above -- counts toward
+        # relocalization exactly like a plain local-search miss always has.
+        if locked:
+            local_misses += 1
+            if local_misses < RELOCALIZE_AFTER:
                 continue
-            locked = True
+        m = match_phrase(canon, hl, cursor, global_search=True)
+        if m is None:
+            continue
+        locked = True
         local_misses = 0
+        pending = None
         s, e, score = m
-        # Trust the match position outright rather than clamping to a
-        # never-decreasing cursor. A hard forward-only floor means a single
-        # bad match (OCR misread, an ambiguous short phrase) permanently
-        # strands later matching: every subsequent local search window is
-        # anchored past where the true content actually is, and even a
-        # confident global relocalization gets silently discarded if it
-        # points earlier than the stuck cursor. Local search already biases
-        # toward staying near the cursor (see the distance penalty in
-        # match_phrase), so this only actually jumps far when the evidence
-        # — a high-scoring global re-match — says the cursor was wrong.
         cursor = s
-        events.append(WordEvent(round(t, 2), s, e, round(score, 1),
-                                " ".join(w.text for w in hl)))
+        events.append(WordEvent(round(t, 2), s, e, round(score, 1), heard_text))
         if debug:
             print(f"  t={t:6.2f}  [{s}-{e}] {score:5.1f}  "
-                  f"{' '.join(c.text for c in canon[s:e+1])}")
+                  f"{' '.join(c.text for c in canon[s:e+1])}  (relocalized)")
 
     cap.release()
     print(f"Matched {len(events)} highlight samples")

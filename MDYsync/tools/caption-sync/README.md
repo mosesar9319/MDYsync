@@ -27,7 +27,12 @@ the exact words being spoken on the daf, not just the active segment.
    fuzzy-matched (rapidfuzz) against the Sefaria text of the given refs.
    Matching is monotonic-biased with a small back-window for re-reads. The
    first confident multi-word match localizes the position globally, and the
-   matcher re-localizes if it loses track for several seconds.
+   matcher re-localizes if it loses track for several seconds. A local match
+   landing far from the running position is held for one extra sample rather
+   than trusted outright, so a single ambiguous/short highlighted phrase
+   fuzzy-matching a repeated formula elsewhere on the page can't yank the
+   position there and back on its own — it only commits once the next sample
+   corroborates it (see `JUMP_CONFIRM_WORDS` in `caption_ocr_align.py`).
 6. **Output** — consecutive samples collapse into a word-span timeline;
    segment start/end times are derived from it.
 
