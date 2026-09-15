@@ -41,6 +41,102 @@
 [functions."scan-daf-header"]
   included_files = ["node_modules/tesseract.js-core/*.wasm", "node_modules/tesseract.js-core/*.wasm.js"]
 
+# --- Source directories that are not part of the website -------------------
+#
+# `publish = "."` above serves the whole repository directory, which is what
+# the site's own pages, /vendor/, /assets/, /shared/ and /talmud_index.json
+# rely on. It also, unintentionally, served everything else in that folder:
+# confirmed live on production, https://dafsync.netlify.app/supabase/baseline/
+# 00_current_production_schema.sql returned the complete schema -- every
+# table, every RLS policy and every SECURITY DEFINER function body -- as did
+# the migrations, the authorization tests, and docs/ (which includes a
+# security audit).
+#
+# None of it is secret: this repository is public, and none of these files
+# contain credentials. But serving them from the product's own domain hands
+# anyone a precise map of the authorization rules, and there is no reason for
+# the website to answer for its own source tree.
+#
+# force = true is LOAD-BEARING, not decoration. Netlify serves an existing
+# static file in preference to a matching redirect rule; without force these
+# rules would match nothing that actually exists, which is precisely the set
+# of paths they are meant to stop. Verified against the deploy preview rather
+# than assumed.
+#
+# Deliberately NOT blocked, because the browser really does load them:
+#   /shared/*          player-chrome.js does import('/shared/daf-header-
+#                      vocabulary.mjs') at runtime
+#   /talmud_index.json fetched by the daf picker
+#   /vendor/*          supabase-js and pdf.js
+#   /scan-detect-worker.js, /heb.traineddata  the client-side scan path
+#
+# test-results/ needs no rule: it is gitignored, so it is never deployed.
+
+[[redirects]]
+  from = "/supabase/*"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/tests/*"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/tools/*"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/docs/*"
+  to = "/404.html"
+  status = 404
+  force = true
+
+# Dependency manifests and the test-runner config: they pin exact versions,
+# which is free reconnaissance for anyone looking for a known CVE to try.
+[[redirects]]
+  from = "/package.json"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/package-lock.json"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/playwright.config.mjs"
+  to = "/404.html"
+  status = 404
+  force = true
+
+# Repository documentation. Listed one by one rather than as a /*.md glob:
+# Netlify's splat matches across path segments, so a suffix pattern is not a
+# reliable way to say "markdown at the root".
+[[redirects]]
+  from = "/README.md"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/PRODUCTION_ARCHITECTURE.md"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/CHULLIN_81_PILOT.md"
+  to = "/404.html"
+  status = 404
+  force = true
+
 [[redirects]]
   from = "/studio"
   to = "/studio/"
