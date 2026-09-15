@@ -78,7 +78,8 @@
       client().from('kuntrasim').select(KUNTRAS_LIST_COLUMNS).eq('id', kuntrasId).maybeSingle(),
       client().from('kuntras_sections').select('id, parent_section_id, title, position')
         .eq('kuntras_id', kuntrasId).order('position', { ascending: true }),
-      client().from('kuntras_entries').select('id, section_id, kind, title, body, position, source_note_id, source_document_id')
+      client().from('kuntras_entries')
+        .select('id, section_id, kind, title, body, position, source_note_id, source_document_id, source_chaburah_note_id')
         .eq('kuntras_id', kuntrasId).order('position', { ascending: true }),
     ]);
     if (kuntras.error) throw kuntras.error;
@@ -141,30 +142,36 @@
 
   async function createEntry(kuntrasId, {
     sectionId = null, title = null, body, position,
-    kind = 'freeform', sourceNoteId = null, sourceDocumentId = null,
+    kind = 'freeform', sourceNoteId = null, sourceDocumentId = null, sourceChaburahNoteId = null,
   }) {
     const { data, error } = await client()
       .from('kuntras_entries')
       .insert({
         kuntras_id: kuntrasId, section_id: sectionId, kind, title, body, position,
         source_note_id: sourceNoteId, source_document_id: sourceDocumentId,
+        source_chaburah_note_id: sourceChaburahNoteId,
       })
-      .select('id, section_id, kind, title, body, position, source_note_id, source_document_id')
+      .select('id, section_id, kind, title, body, position, source_note_id, source_document_id, source_chaburah_note_id')
       .single();
     if (error) throw error;
     return data;
   }
 
-  // kind/sourceNoteId/sourceDocumentId are always sent together, even when
-  // editing a plain freeform entry's text (where they are simply 'freeform'
-  // and null): the database's own CHECK constraint requires the three to
-  // agree, and this file has no partial-update path that could leave kind
-  // stale against a source column an earlier write already changed.
-  async function updateEntry(id, { title, body, kind = 'freeform', sourceNoteId = null, sourceDocumentId = null }) {
+  // kind/sourceNoteId/sourceDocumentId/sourceChaburahNoteId are always sent
+  // together, even when editing a plain freeform entry's text (where they
+  // are simply 'freeform' and null): the database's own CHECK constraint
+  // requires the four to agree, and this file has no partial-update path
+  // that could leave kind stale against a source column an earlier write
+  // already changed.
+  async function updateEntry(id, {
+    title, body, kind = 'freeform', sourceNoteId = null, sourceDocumentId = null, sourceChaburahNoteId = null,
+  }) {
     const { error } = await client()
       .from('kuntras_entries')
       .update({
-        title, body, kind, source_note_id: sourceNoteId, source_document_id: sourceDocumentId,
+        title, body, kind,
+        source_note_id: sourceNoteId, source_document_id: sourceDocumentId,
+        source_chaburah_note_id: sourceChaburahNoteId,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id);
@@ -273,7 +280,51 @@
       if (error || !data) return null;
       return data.title;
     }
+    if (kind === 'chaburah') {
+      // Not scoped to the current user -- see fetchQuotableChaburahThreads's
+      // own header on why: a chaburah citation is never the reader's own
+      // content. Scoped instead to the same public predicate the trigger
+      // itself checks, so a discussion since made private or hidden
+      // resolves to null here too rather than leaking its author's name.
+      const { data, error } = await client()
+        .from('line_notes').select('daf_ref_key, author_display_name')
+        .eq('id', id).eq('is_private', false).eq('hidden', false).maybeSingle();
+      if (error || !data) return null;
+      return `${data.author_display_name}'s discussion on ${String(data.daf_ref_key || '').replace(/-/g, ' ')}`;
+    }
     return null;
+  }
+
+  // --- Quoting a public Cloud Chaburah discussion -------------------------
+  //
+  // Slice 3: an entry can also be built by quoting the ROOT note of any
+  // PUBLIC discussion, written by anyone -- unlike fetchQuotableNotes/
+  // fetchQuotableDocuments above, this is deliberately NOT scoped to the
+  // current user. It mirrors chabura-data.js's own base feed query
+  // (is_private = false, hidden = false, deleted_at is null) rather than
+  // sharing it outright, for the same reason kuntras-data.js as a whole
+  // does not import from chabura-data.js: this is a different question
+  // (what may be QUOTED) asked from a different, signed-in-only page, and
+  // the two should stay free to diverge.
+
+  const QUOTE_CHABURAH_COLUMNS = [
+    'id', 'author_display_name', 'daf_ref_key', 'title', 'body', 'category', 'created_at',
+  ].join(', ');
+
+  async function fetchQuotableChaburahThreads({ search = '' } = {}) {
+    if (!currentUser()) return [];
+    let query = client()
+      .from('line_notes')
+      .select(QUOTE_CHABURAH_COLUMNS)
+      .eq('is_private', false)
+      .eq('hidden', false)
+      .is('deleted_at', null);
+    if (search) {
+      query = query.textSearch('body_tsv', search, { type: 'websearch', config: 'simple' });
+    }
+    const { data, error } = await query.order('created_at', { ascending: false }).limit(30);
+    if (error) throw error;
+    return data || [];
   }
 
   window.DafSyncKuntras = window.DafSyncKuntras || {};
@@ -292,6 +343,7 @@
     fetchQuotableNotes,
     fetchQuotableDocuments,
     fetchQuotableDocument,
+    fetchQuotableChaburahThreads,
     fetchCitationLabel,
     updateEntry,
     deleteEntry,

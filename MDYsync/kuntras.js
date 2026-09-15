@@ -11,7 +11,7 @@
 // tracking for a first pass whose job is to prove the data model.
 
 (function () {
-  const { el, chip, emptyState, errorState, loadingState } = window.DafSyncChabura.components;
+  const { el, chip, emptyState, errorState, loadingState, dafLabel, displayTitle, bodyPreview } = window.DafSyncChabura.components;
   const fmt = () => window.DafNotesFormat;
 
   const state = {
@@ -46,11 +46,12 @@
       'knEntryDialog', 'knEntryClose', 'knEntryDialogTitle', 'knEntryForm',
       'knEntryTitle', 'knEntryBody', 'knEntrySize', 'knEntryError', 'knEntrySubmit',
       'knCiteRow', 'knCiteButton', 'knCiteCurrent', 'knCiteCurrentLabel', 'knCiteClear',
-      'knQuoteDialog', 'knQuoteClose', 'knQuoteTabNotes', 'knQuoteTabDocuments',
+      'knQuoteDialog', 'knQuoteClose', 'knQuoteTabNotes', 'knQuoteTabDocuments', 'knQuoteTabChaburah',
       'knQuoteNotesPane', 'knQuoteNotesSearch', 'knQuoteNotesList',
       'knQuoteDocumentsPane', 'knQuoteDocBrowse', 'knQuoteDocSearch', 'knQuoteDocList',
       'knQuoteDocPassage', 'knQuoteDocBack', 'knQuoteDocTitle', 'knQuoteDocText',
       'knQuoteDocHint', 'knQuoteDocUse',
+      'knQuoteChaburahPane', 'knQuoteChaburahSearch', 'knQuoteChaburahList',
     ].forEach((id) => { els[id] = document.getElementById(id); });
   }
 
@@ -427,13 +428,14 @@
     els.knEntryBody.focus();
 
     if (entry && entry.kind !== 'freeform') {
-      const label = await data().fetchCitationLabel(entry.kind, entry.source_note_id || entry.source_document_id);
+      const sourceId = entry.source_note_id || entry.source_document_id || entry.source_chaburah_note_id;
+      const label = await data().fetchCitationLabel(entry.kind, sourceId);
       // The dialog may have been closed (or reopened for a different entry)
       // while that lookup was in flight -- only apply it if this is still
       // the entry being edited.
       if (state.editingEntryId !== entry.id) return;
       state.citeKind = entry.kind;
-      state.citeSourceId = entry.source_note_id || entry.source_document_id;
+      state.citeSourceId = sourceId;
       state.citeLabel = label;
       renderCiteChip();
     }
@@ -464,13 +466,17 @@
     const kind = state.citeKind;
     const sourceNoteId = kind === 'note' ? state.citeSourceId : null;
     const sourceDocumentId = kind === 'document' ? state.citeSourceId : null;
+    const sourceChaburahNoteId = kind === 'chaburah' ? state.citeSourceId : null;
     try {
       if (state.editingEntryId) {
-        await data().updateEntry(state.editingEntryId, { title, body, kind, sourceNoteId, sourceDocumentId });
+        await data().updateEntry(state.editingEntryId, {
+          title, body, kind, sourceNoteId, sourceDocumentId, sourceChaburahNoteId,
+        });
       } else {
         const position = data().nextPosition(state.entries, 'section_id', state.pendingSectionId);
         await data().createEntry(state.openKuntras.id, {
-          sectionId: state.pendingSectionId, title, body, position, kind, sourceNoteId, sourceDocumentId,
+          sectionId: state.pendingSectionId, title, body, position, kind,
+          sourceNoteId, sourceDocumentId, sourceChaburahNoteId,
         });
       }
       els.knEntryDialog.close();
@@ -547,18 +553,21 @@
   }
 
   function switchQuoteTab(tab) {
-    const isNotes = tab === 'notes';
-    els.knQuoteTabNotes.classList.toggle('active', isNotes);
-    els.knQuoteTabNotes.setAttribute('aria-selected', String(isNotes));
-    els.knQuoteTabDocuments.classList.toggle('active', !isNotes);
-    els.knQuoteTabDocuments.setAttribute('aria-selected', String(!isNotes));
-    els.knQuoteNotesPane.hidden = !isNotes;
-    els.knQuoteDocumentsPane.hidden = isNotes;
-    if (isNotes) {
+    const setTab = (button, pane, active) => {
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-selected', String(active));
+      pane.hidden = !active;
+    };
+    setTab(els.knQuoteTabNotes, els.knQuoteNotesPane, tab === 'notes');
+    setTab(els.knQuoteTabDocuments, els.knQuoteDocumentsPane, tab === 'documents');
+    setTab(els.knQuoteTabChaburah, els.knQuoteChaburahPane, tab === 'chaburah');
+    if (tab === 'notes') {
       loadQuoteNotes();
-    } else {
+    } else if (tab === 'documents') {
       backToQuoteDocList();
       loadQuoteDocuments();
+    } else {
+      loadQuoteChaburah();
     }
   }
 
@@ -731,9 +740,80 @@
     els.knQuoteDialog.close();
   }
 
+  // --- Public discussions (Cloud Chaburah) --------------------------------
+  //
+  // A whole-note quote, same shape as the "My notes" tab -- a line_notes
+  // body is capped at 2000 characters, the entry's own cap, so there is no
+  // document-sized excerpt to select a passage out of the way "My
+  // documents" needs to. Unscoped to the reader's own content: see
+  // fetchQuotableChaburahThreads's own header in kuntras-data.js.
+
+  async function loadQuoteChaburah() {
+    els.knQuoteChaburahList.innerHTML = '';
+    els.knQuoteChaburahList.appendChild(quoteMessage('Loading public discussions…'));
+    const search = els.knQuoteChaburahSearch.value.trim();
+    try {
+      const rows = await data().fetchQuotableChaburahThreads({ search });
+      renderQuoteChaburah(rows, Boolean(search));
+    } catch (error) {
+      els.knQuoteChaburahList.innerHTML = '';
+      els.knQuoteChaburahList.appendChild(quoteMessage(data().describeError(error)));
+    }
+  }
+
+  function renderQuoteChaburah(rows, isSearch) {
+    els.knQuoteChaburahList.innerHTML = '';
+    if (!rows.length) {
+      els.knQuoteChaburahList.appendChild(quoteMessage(isSearch
+        ? 'No public discussion matches that.'
+        : 'No public discussions yet. Start one on a daf, or check back later.'));
+      return;
+    }
+    rows.forEach((row) => {
+      const item = el('button', 'note-cite-doc');
+      item.type = 'button';
+
+      item.appendChild(el('span', 'note-cite-doc-title', displayTitle(row)));
+
+      const meta = el('span', 'note-cite-doc-meta',
+        `${row.author_display_name} · ${dafLabel(row.daf_ref_key)}`);
+      item.appendChild(meta);
+
+      // bodyPreview, not the raw body: a legacy note with no title borrows
+      // its FIRST line as the title above (displayTitle), and repeating the
+      // whole body underneath would print that same sentence twice -- the
+      // exact defect the Cloud Chaburah feed's own card already had to
+      // avoid (see chabura-components.js's own bodyPreview). A note with a
+      // real title keeps its whole body here, since nothing was borrowed.
+      const preview = bodyPreview(row);
+      if (preview) {
+        const text = preview.length > 140 ? `${preview.slice(0, 140)}…` : preview;
+        item.appendChild(el('span', 'note-cite-doc-preview', text));
+      }
+
+      item.addEventListener('click', () => useQuoteChaburah(row));
+      els.knQuoteChaburahList.appendChild(item);
+    });
+  }
+
+  function useQuoteChaburah(row) {
+    const text = row.body;
+    if (text.length > entryBudget()) {
+      window.alert(`That discussion is ${text.length} characters; only ${entryBudget()} will fit here. Shorten the entry first.`);
+      return;
+    }
+    insertIntoEntryBody(text);
+    state.citeKind = 'chaburah';
+    state.citeSourceId = row.id;
+    state.citeLabel = `${row.author_display_name}'s discussion on ${dafLabel(row.daf_ref_key)}`;
+    renderCiteChip();
+    els.knQuoteDialog.close();
+  }
+
   function openQuoteDialog() {
     els.knQuoteNotesSearch.value = '';
     els.knQuoteDocSearch.value = '';
+    els.knQuoteChaburahSearch.value = '';
     switchQuoteTab('notes');
     els.knQuoteDialog.showModal();
   }
@@ -787,6 +867,7 @@
       els.knQuoteClose.addEventListener('click', () => els.knQuoteDialog.close());
       els.knQuoteTabNotes.addEventListener('click', () => switchQuoteTab('notes'));
       els.knQuoteTabDocuments.addEventListener('click', () => switchQuoteTab('documents'));
+      els.knQuoteTabChaburah.addEventListener('click', () => switchQuoteTab('chaburah'));
       els.knQuoteDocBack.addEventListener('click', backToQuoteDocList);
       // mousedown on the button collapses the pane's selection before the
       // click ever arrives -- preventing the default keeps it in place. See
@@ -803,6 +884,11 @@
       els.knQuoteDocSearch.addEventListener('input', () => {
         clearTimeout(docsSearchTimer);
         docsSearchTimer = setTimeout(loadQuoteDocuments, 250);
+      });
+      let chaburahSearchTimer = null;
+      els.knQuoteChaburahSearch.addEventListener('input', () => {
+        clearTimeout(chaburahSearchTimer);
+        chaburahSearchTimer = setTimeout(loadQuoteChaburah, 250);
       });
 
       document.addEventListener('selectionchange', () => {
