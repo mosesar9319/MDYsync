@@ -164,11 +164,132 @@
       .sort((a, b) => a.tractate.localeCompare(b.tractate));
   }
 
+  // --- Imported documents --------------------------------------------------
+  //
+  // A document is NOT a note: line_notes.daf_ref_key and segment_ref are both
+  // NOT NULL, so a note is by construction a note ON a passage, and an import
+  // has no passage until the reader attaches it to one. Hence its own table.
+  // See supabase/migrations/20260915150000_note_documents.sql.
+
+  // Must match the octet_length ceiling on note_documents.full_text. Checked
+  // here as well as there so an over-size import is refused with a sentence
+  // the reader can act on, rather than surfacing as a raw 23514 constraint
+  // violation.
+  const MAX_DOCUMENT_BYTES = 512000;
+
+  // Bytes, not characters: a Hebrew character costs two bytes in UTF-8, and
+  // the database constraint counts bytes. Measuring characters here would
+  // pass an import the server then rejects.
+  function documentByteLength(text) {
+    return new TextEncoder().encode(String(text || '')).length;
+  }
+
+  // Deliberately omits full_text: a list of twenty documents would otherwise
+  // pull up to 10MB to render twenty excerpts. `preview` is a generated
+  // column for exactly this. The reader fetches full_text for one document
+  // only, on demand (see fetchDocument).
+  const DOCUMENT_LIST_COLUMNS = [
+    'id', 'title', 'source_kind', 'original_filename', 'preview',
+    'created_at', 'updated_at',
+  ].join(', ');
+
+  async function fetchMyDocuments({ search = '', cursor = null } = {}) {
+    const user = currentUser();
+    if (!user) return { rows: [], hasMore: false, cursor: null, requiresSignIn: true };
+
+    let query = client()
+      .from('note_documents')
+      .select(DOCUMENT_LIST_COLUMNS)
+      .eq('owner_id', user.id)
+      .is('deleted_at', null);
+    if (search) {
+      query = query.textSearch('full_text_tsv', search, { type: 'websearch', config: 'simple' });
+    }
+    if (cursor) {
+      query = query.or(
+        `created_at.lt.${cursor.created_at},` +
+        `and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`
+      );
+    }
+    const { data, error } = await query
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(PAGE_SIZE + 1);
+    if (error) throw error;
+    return toPage(data);
+  }
+
+  async function fetchDocument(id) {
+    const user = currentUser();
+    if (!user) return null;
+    const { data, error } = await client()
+      .from('note_documents')
+      .select('id, title, source_kind, original_filename, full_text, created_at, updated_at')
+      .eq('id', id)
+      .eq('owner_id', user.id)
+      .is('deleted_at', null)
+      .maybeSingle();
+    if (error) throw error;
+    return data || null;
+  }
+
+  async function createDocument({ title, sourceKind, originalFilename = null, fullText }) {
+    const user = currentUser();
+    if (!user) throw new Error('Sign in to import a document.');
+    const { data, error } = await client()
+      .from('note_documents')
+      .insert({
+        owner_id: user.id,
+        title,
+        source_kind: sourceKind,
+        original_filename: originalFilename,
+        full_text: fullText,
+      })
+      .select('id')
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  async function renameDocument(id, title) {
+    const user = currentUser();
+    if (!user) throw new Error('Sign in to rename a document.');
+    // updated_at is set here rather than by a trigger: this schema has no
+    // updated_at trigger convention, and line_notes' own writers set it the
+    // same way.
+    const { error } = await client()
+      .from('note_documents')
+      .update({ title, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('owner_id', user.id);
+    if (error) throw error;
+  }
+
+  // Soft delete, matching how a note is removed: the row stays so that a note
+  // citing this document later cannot end up pointing at nothing.
+  async function deleteDocument(id) {
+    const user = currentUser();
+    if (!user) throw new Error('Sign in to delete a document.');
+    const { error } = await client()
+      .from('note_documents')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('owner_id', user.id);
+    if (error) throw error;
+  }
+
   window.DafSyncMyNotes = window.DafSyncMyNotes || {};
   window.DafSyncMyNotes.data = {
     PAGE_SIZE,
+    MAX_DOCUMENT_BYTES,
+    documentByteLength,
     fetchMyNotes,
     fetchMyDafIndex,
+    fetchMyDocuments,
+    fetchDocument,
+    createDocument,
+    renameDocument,
+    deleteDocument,
     parseDafRefKey,
     dafRefFromKey,
     dafLabelFromKey,

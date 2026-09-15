@@ -174,10 +174,17 @@
           if (filter.type === 'or') return evaluate(row, filter.node);
           if (filter.type === 'cmp') return evaluate(row, { kind: 'leaf', column: filter.column, operator: filter.operator, value: filter.value });
           if (filter.type === 'textSearch') {
-            // body_tsv is a generated column over body (+ selected_text on
-            // line_notes); the stub searches those source columns directly
-            // rather than pretending to be a real tsvector.
-            const haystack = ((row.body || '') + ' ' + (row.selected_text || '')).toLowerCase();
+            // Each *_tsv is a generated column over specific source columns;
+            // the stub searches those sources directly rather than pretending
+            // to be a real tsvector. Which sources depends on WHICH tsv column
+            // was asked for -- line_notes.body_tsv covers body + selected_text,
+            // note_documents.full_text_tsv covers title + full_text. Ignoring
+            // the column name (as this did until documents arrived) silently
+            // returns nothing for any table but line_notes.
+            const haystack = (filter.column === 'full_text_tsv'
+              ? (row.title || '') + ' ' + (row.full_text || '')
+              : (row.body || '') + ' ' + (row.selected_text || '')
+            ).toLowerCase();
             return String(filter.value)
               .toLowerCase()
               .split(/\s+/)
@@ -247,6 +254,16 @@
           if (record.deleted_at === undefined) record.deleted_at = null;
           if (record.edited_at === undefined) record.edited_at = null;
           if (record.hidden === undefined) record.hidden = false;
+        }
+        // note_documents.preview is a GENERATED column (left(full_text, 300)),
+        // so Postgres fills it the moment a document is inserted. Modelled
+        // here because the Documents list renders `preview` and never fetches
+        // full_text -- without this a freshly imported document would render
+        // blank in a test and pass anyway, hiding a real regression.
+        if (tableName === 'note_documents') {
+          record.preview = String(record.full_text || '').slice(0, 300);
+          if (record.deleted_at === undefined) record.deleted_at = null;
+          if (record.updated_at === undefined) record.updated_at = record.created_at;
         }
         return record;
       }

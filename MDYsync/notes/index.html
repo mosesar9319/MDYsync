@@ -89,13 +89,18 @@
           <label class="cc-visually-hidden" for="mnSearch">Search your notes</label>
           <input id="mnSearch" type="search" placeholder="Search your notes…" autocomplete="off" />
         </div>
+        <button class="cc-btn" id="mnImportButton" type="button">Import notes</button>
         <a class="cc-btn" href="/chaburah/">Cloud Chabura</a>
         <a class="cc-btn cc-btn-primary" href="/browse/">Open a daf</a>
       </div>
     </div>
 
     <div class="cc-shell">
-      <aside class="cc-rail cc-rail-left" aria-label="Filter your notes">
+      <!-- These filters describe notes (which daf, which category, shared or
+           not). None of them mean anything for an imported document, so the
+           whole rail is hidden on the Documents tab rather than shown with
+           dead controls. -->
+      <aside class="cc-rail cc-rail-left" aria-label="Filter your notes" id="mnFilterRail">
         <div class="cc-panel">
           <h3>Masechta</h3>
           <div class="cc-rail-nav" id="mnTractateNav"></div>
@@ -118,7 +123,9 @@
       </aside>
 
       <main class="cc-main">
-        <div class="cc-mobile-filter-bar">
+        <div class="cc-tabs" id="mnTabs" role="tablist" aria-label="Library views"></div>
+
+        <div class="cc-mobile-filter-bar" id="mnMobileFilterBar">
           <button class="cc-btn cc-btn-sm" id="mnOpenFilters" type="button">Filters</button>
         </div>
 
@@ -154,6 +161,50 @@
         <button class="cc-btn cc-btn-primary" id="mnCloseFilters" type="button">Done</button>
       </div>
     </div>
+  </dialog>
+
+  <!-- Import. Plain text only for now (paste, .txt, .md): those parse in the
+       browser with no library, no upload endpoint and no file storage, so the
+       whole tier ships without any of that machinery. .docx and PDF need a
+       parser and somewhere to keep the original, and come later. -->
+  <dialog id="mnImportDialog" aria-label="Import notes">
+    <button class="dialog-close" id="mnImportClose" aria-label="Close">×</button>
+    <div class="eyebrow">My Notes</div>
+    <h2>Import notes</h2>
+    <p class="dialog-note">Paste your notes, or choose a plain-text (.txt) or Markdown (.md) file. Imported notes are private to your account.</p>
+    <form class="auth-form" id="mnImportForm">
+      <label class="sync-field">
+        <span>Title</span>
+        <input id="mnImportTitle" type="text" maxlength="200" required placeholder="e.g. Chullin notes 5785" />
+      </label>
+      <label class="sync-field">
+        <span>Choose a file (optional)</span>
+        <input id="mnImportFile" type="file" accept=".txt,.md,.markdown,text/plain,text/markdown" />
+      </label>
+      <label class="sync-field">
+        <span>Or paste the text</span>
+        <textarea id="mnImportText" rows="10" placeholder="Paste your notes here…"></textarea>
+      </label>
+      <p class="cc-import-size" id="mnImportSize"></p>
+      <p class="auth-error" id="mnImportError" hidden></p>
+      <div class="auth-form-actions">
+        <button class="button primary" id="mnImportSubmit" type="submit">Import</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Reader. A dialog rather than its own route: a document has no shareable
+       public address (nothing here is ever public), so a URL for one would
+       only ever be openable by its owner anyway. -->
+  <dialog id="mnDocDialog" aria-label="Document">
+    <button class="dialog-close" id="mnDocClose" aria-label="Close">×</button>
+    <div class="eyebrow" id="mnDocMeta"></div>
+    <h2 id="mnDocTitle"></h2>
+    <div class="cc-doc-actions">
+      <button class="cc-btn cc-btn-sm" id="mnDocRename" type="button">Rename</button>
+      <button class="cc-btn cc-btn-sm" id="mnDocDelete" type="button">Delete</button>
+    </div>
+    <pre class="cc-doc-text" id="mnDocText"></pre>
   </dialog>
 
   <dialog id="authDialog">
