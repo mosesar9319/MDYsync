@@ -1,8 +1,12 @@
 -- Citing an imported document from a note on the daf.
 --
--- Depends on 20260915150000_note_documents.sql. NOT YET APPLIED TO
--- PRODUCTION. Rollback:
+-- Depends on 20260915150000_note_documents.sql.
+-- APPLIED TO PRODUCTION 2026-09-15. Rollback:
 --   supabase/migrations/20260915170000_note_source_document.down.sql
+--
+-- The `revoke execute ... from public` below is not sufficient on the real
+-- database, where the default privileges also grant EXECUTE to `anon` and
+-- `authenticated` by name; 20260915180000 revokes those too.
 --
 -- WHAT THIS DOES, AND WHAT IT DELIBERATELY DOES NOT
 --
