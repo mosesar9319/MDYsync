@@ -19,6 +19,37 @@ name: Server-side caption OCR job
 on:
   repository_dispatch:
     types: [run-ocr-job]
+  # Lets a repo collaborator (or this session, via the Actions API) fire a
+  # job by hand -- e.g. to re-sync a video whose already-published alignment
+  # needs regenerating after a matching-engine fix, without going through
+  # the website's dialog one video at a time. Same job body either way (see
+  # the "Normalize job input" step below): every later step reads
+  # steps.job_input.outputs.* rather than github.event.client_payload.*
+  # directly, so it doesn't care which trigger fired it.
+  workflow_dispatch:
+    inputs:
+      driveUrl:
+        description: 'Google Drive share link (leave blank if using youtubeUrl)'
+        required: false
+        type: string
+      youtubeUrl:
+        description: 'YouTube video URL (leave blank if using driveUrl)'
+        required: false
+        type: string
+      refs:
+        description: 'JSON array of Sefaria refs this recording covers, in reading order, e.g. ["Chullin 137b","Chullin 138a","Chullin 138b"]'
+        required: true
+        type: string
+      variant:
+        required: false
+        type: choice
+        options: [regular, chazarah]
+        default: regular
+      language:
+        required: false
+        type: choice
+        options: [en, he]
+        default: en
 
 permissions:
   contents: write
@@ -29,6 +60,49 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+
+      # See the workflow_dispatch trigger's own comment: this is the one
+      # place that knows which event fired the job, so every step after it
+      # can read steps.job_input.outputs.* unconditionally. All values pass
+      # through env: (never interpolated straight into the shell script) so
+      # a URL/ref containing shell-special characters can't inject into this
+      # step -- same discipline the Drive/YouTube download steps below
+      # already use for the same reason.
+      - name: Normalize job input
+        id: job_input
+        env:
+          WD_DRIVE_URL: ${{ github.event.inputs.driveUrl }}
+          WD_YOUTUBE_URL: ${{ github.event.inputs.youtubeUrl }}
+          WD_VARIANT: ${{ github.event.inputs.variant }}
+          WD_LANGUAGE: ${{ github.event.inputs.language }}
+          WD_REFS_JSON: ${{ github.event.inputs.refs }}
+          RD_DRIVE_URL: ${{ github.event.client_payload.driveUrl }}
+          RD_YOUTUBE_URL: ${{ github.event.client_payload.youtubeUrl }}
+          RD_VARIANT: ${{ github.event.client_payload.variant }}
+          RD_LANGUAGE: ${{ github.event.client_payload.language }}
+          RD_JOB_ID: ${{ github.event.client_payload.jobId }}
+          RD_REFS_JSON: ${{ toJSON(github.event.client_payload.refs) }}
+        run: |
+          set -e
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            {
+              echo "driveUrl=$WD_DRIVE_URL"
+              echo "youtubeUrl=$WD_YOUTUBE_URL"
+              echo "variant=${WD_VARIANT:-regular}"
+              echo "language=${WD_LANGUAGE:-en}"
+              echo "jobId=manual-${{ github.run_id }}"
+            } >> "$GITHUB_OUTPUT"
+            { echo "refsJson<<JOBINPUT_EOF"; echo "$WD_REFS_JSON"; echo "JOBINPUT_EOF"; } >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "driveUrl=$RD_DRIVE_URL"
+              echo "youtubeUrl=$RD_YOUTUBE_URL"
+              echo "variant=$RD_VARIANT"
+              echo "language=$RD_LANGUAGE"
+              echo "jobId=$RD_JOB_ID"
+            } >> "$GITHUB_OUTPUT"
+            { echo "refsJson<<JOBINPUT_EOF"; echo "$RD_REFS_JSON"; echo "JOBINPUT_EOF"; } >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/setup-python@v5
         with:
@@ -49,7 +123,7 @@ jobs:
       # below -- that one only backs off for an authenticated session,
       # which is what YOUTUBE_COOKIES supplies.)
       - uses: denoland/setup-deno@v2
-        if: ${{ github.event.client_payload.youtubeUrl }}
+        if: ${{ steps.job_input.outputs.youtubeUrl }}
         with:
           deno-version: v2.x
 
@@ -62,7 +136,7 @@ jobs:
       # project and released in lockstep (hence unpinned -- a plugin newer
       # than its provider is the usual mismatch failure).
       - name: Start the PO token provider
-        if: ${{ github.event.client_payload.youtubeUrl }}
+        if: ${{ steps.job_input.outputs.youtubeUrl }}
         run: |
           pip install bgutil-ytdlp-pot-provider
           docker run --name bgutil-provider -d -p 4416:4416 \
@@ -82,10 +156,10 @@ jobs:
           exit 1
 
       - name: Download the video from Google Drive
-        if: ${{ github.event.client_payload.driveUrl }}
+        if: ${{ steps.job_input.outputs.driveUrl }}
         working-directory: MDYsync/tools/caption-sync
         env:
-          DRIVE_URL: ${{ github.event.client_payload.driveUrl }}
+          DRIVE_URL: ${{ steps.job_input.outputs.driveUrl }}
         run: |
           python3 -c "
           import gdown, os, sys
@@ -103,10 +177,10 @@ jobs:
           ls -la job-video.mp4
 
       - name: Download the video from YouTube
-        if: ${{ github.event.client_payload.youtubeUrl }}
+        if: ${{ steps.job_input.outputs.youtubeUrl }}
         working-directory: MDYsync/tools/caption-sync
         env:
-          YOUTUBE_URL: ${{ github.event.client_payload.youtubeUrl }}
+          YOUTUBE_URL: ${{ steps.job_input.outputs.youtubeUrl }}
           YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
         run: |
           set -e
@@ -164,7 +238,7 @@ jobs:
       - name: Run the OCR alignment engine
         working-directory: MDYsync/tools/caption-sync
         env:
-          REFS_JSON: ${{ toJSON(github.event.client_payload.refs) }}
+          REFS_JSON: ${{ steps.job_input.outputs.refsJson }}
         run: |
           python3 caption_ocr_align.py job-video.mp4 \
             --refs-json "$REFS_JSON" \
@@ -172,15 +246,15 @@ jobs:
 
       - name: Publish the result to the results branch
         env:
-          JOB_ID: ${{ github.event.client_payload.jobId }}
-          REFS_JSON: ${{ toJSON(github.event.client_payload.refs) }}
-          VARIANT: ${{ github.event.client_payload.variant }}
-          LANGUAGE: ${{ github.event.client_payload.language }}
+          JOB_ID: ${{ steps.job_input.outputs.jobId }}
+          REFS_JSON: ${{ steps.job_input.outputs.refsJson }}
+          VARIANT: ${{ steps.job_input.outputs.variant }}
+          LANGUAGE: ${{ steps.job_input.outputs.language }}
           # Which recording this alignment's timestamps were actually measured
           # against -- stamped into the published file so the reader can check
           # it instead of assuming whatever video-links happens to point at.
           # Exactly one of the two is set (see this workflow's own comment).
-          VIDEO_URL: ${{ github.event.client_payload.youtubeUrl || github.event.client_payload.driveUrl }}
+          VIDEO_URL: ${{ steps.job_input.outputs.youtubeUrl || steps.job_input.outputs.driveUrl }}
         run: |
           set -e
           mkdir -p /tmp/results-checkout
