@@ -3,15 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Cloud Chabura: questions, insights and sources attached to the daf." />
-  <title>DafSync — Cloud Chabura</title>
+  <meta name="description" content="My Notes: your own Torah notes across every daf you've learned." />
+  <title>DafSync — My Notes</title>
   <script>
-    // Surfaces any otherwise-silent failure (a script that fails to load,
-    // an uncaught exception, a rejected promise nobody caught) as a plain,
-    // dependency-free banner at the top of the page -- deliberately inline
-    // and placed before every other <script>, with its own inline styles,
-    // so it still works even if a stylesheet or another script is the very
-    // thing that failed to load. Same as watch/index.html and player/index.html.
+    // Same dependency-free failure banner every other page carries, inline and
+    // ahead of every other <script> so it still works when a stylesheet or
+    // another script is the thing that failed. See chaburah/index.html.
     (function () {
       var shown = false;
       function showBanner(message) {
@@ -44,36 +41,28 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Frank+Ruhl+Libre:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <!-- styles.css + watch-theme.css are loaded only for the shared site chrome
-       (sidebar, bottom nav, the auth dialog). chaburah.css comes last and
-       scopes the Editorial Blue palette to .cloud-chabura, so nothing here
-       reskins the player or the Interactive Daf. -->
+  <!-- Same three stylesheets, in the same order, as /chaburah/: the shared site
+       chrome, then chaburah.css last, whose Editorial Blue palette is scoped to
+       .cloud-chabura. This page wears that same palette (it is the private half
+       of the same notes system), so it reuses the cc-* components rather than
+       introducing a second visual language for the same cards. -->
   <link rel="stylesheet" href="../styles.css" />
   <link rel="stylesheet" href="../watch-theme.css" />
   <link rel="stylesheet" href="../chaburah.css" />
 </head>
-<body data-page="chaburah" class="cloud-chabura">
+<body data-page="my-notes" class="cloud-chabura">
   <aside class="sidebar">
     <a class="brand" href="/" aria-label="DafSync home"><span class="brand-mark"><img src="/assets/dafsync-lockup.png" alt="" /></span></a>
     <nav class="desktop-navigation" aria-label="Primary navigation"></nav>
   </aside>
 
   <div class="app-shell">
-    <!-- Trimmed to exactly what auth.js wires up. The old page carried Notes
-         search, the notification bell, favorites and highlights buttons here,
-         all of which are wired by notes.js / account-features.js / highlights.js
-         -- scripts this page deliberately no longer loads. Leaving the buttons
-         would have left dead controls in the header. -->
+    <!-- Trimmed to exactly what auth.js wires up, same as /chaburah/: this page
+         loads neither notes.js nor account-features.js, so a notifications bell
+         or favorites button here would be a dead control. -->
     <header class="topbar">
       <div class="mobile-brand"><a class="brand" href="/"><span class="brand-mark"><img src="/assets/dafsync-mark.png" alt="" /></span><span class="brand-name">DafSync</span></a></div>
       <div class="top-actions">
-        <div class="cc-notify" >
-          <button class="cc-notify-button" id="ccNotifyButton" type="button" aria-expanded="false" aria-label="Notifications" hidden>
-            <span aria-hidden="true">🔔</span>
-            <span class="cc-notify-badge" id="ccNotifyBadge" hidden>0</span>
-          </button>
-          <div class="cc-notify-panel" id="ccNotifyPanel" role="dialog" aria-label="Notifications" hidden></div>
-        </div>
         <div class="auth-widget" id="authWidget">
           <button class="button secondary small" id="signInButton" type="button">Sign in</button>
           <div class="account-menu" id="accountMenu" hidden>
@@ -91,87 +80,78 @@
 
     <div class="cc-header">
       <div class="cc-header-titles">
-        <h1>Cloud Chabura</h1>
-        <p class="cc-tagline">Questions, insights, and sources attached to the daf.</p>
+        <h1>My Notes</h1>
+        <p class="cc-tagline">Everything you've written, across every daf — private by default.</p>
       </div>
       <div class="cc-header-actions">
         <div class="cc-search">
           <span aria-hidden="true">🔍</span>
-          <label class="cc-visually-hidden" for="ccSearch">Search discussions</label>
-          <input id="ccSearch" type="search" placeholder="Search discussions…" autocomplete="off" />
+          <label class="cc-visually-hidden" for="mnSearch">Search your notes</label>
+          <input id="mnSearch" type="search" placeholder="Search your notes…" autocomplete="off" />
         </div>
-        <!-- The private half of the same notes system. Deliberately not a sixth
-             sitewide nav tab: the bottom bar is already five across on a phone,
-             and this belongs next to the public feed it is the counterpart to. -->
-        <a class="cc-btn" href="/notes/">My Notes</a>
-        <a class="cc-btn cc-btn-primary" href="/browse/">Start from a daf</a>
+        <a class="cc-btn" href="/chaburah/">Cloud Chabura</a>
+        <a class="cc-btn cc-btn-primary" href="/browse/">Open a daf</a>
       </div>
     </div>
 
     <div class="cc-shell">
-      <!-- Left rail: browse and filter (desktop only; mobile gets the sheet) -->
-      <aside class="cc-rail cc-rail-left" aria-label="Browse and filter">
+      <aside class="cc-rail cc-rail-left" aria-label="Filter your notes">
         <div class="cc-panel">
-          <h3>Browse</h3>
-          <div class="cc-rail-nav" id="ccRailNav"></div>
+          <h3>Masechta</h3>
+          <div class="cc-rail-nav" id="mnTractateNav"></div>
+        </div>
+        <div class="cc-panel">
+          <h3>Filter</h3>
           <div class="cc-filter-group">
-            <label for="ccCategory">Category</label>
-            <select class="cc-select" id="ccCategory"></select>
+            <label for="mnCategory">Category</label>
+            <select class="cc-select" id="mnCategory"></select>
+          </div>
+          <div class="cc-filter-group">
+            <label for="mnVisibility">Visibility</label>
+            <select class="cc-select" id="mnVisibility">
+              <option value="">All notes</option>
+              <option value="private">Private only</option>
+              <option value="public">Shared publicly</option>
+            </select>
           </div>
         </div>
       </aside>
 
       <main class="cc-main">
-        <!-- Today's Daf: the defining addition from the Daf-first concept.
-             Prominent, but deliberately not tall enough to push the feed
-             below the fold. -->
-        <section class="cc-today" id="ccToday" aria-label="Today's daf"></section>
-
         <div class="cc-mobile-filter-bar">
-          <button class="cc-btn cc-btn-sm" id="ccOpenFilters" type="button">Filters</button>
+          <button class="cc-btn cc-btn-sm" id="mnOpenFilters" type="button">Filters</button>
         </div>
-
-        <div class="cc-tabs" id="ccTabs" role="tablist" aria-label="Discussion views"></div>
 
         <!-- Screen-reader announcements for load results and failures. -->
-        <p class="cc-visually-hidden" id="ccStatus" role="status" aria-live="polite"></p>
+        <p class="cc-visually-hidden" id="mnStatus" role="status" aria-live="polite"></p>
 
-        <div class="cc-feed" id="ccFeed"></div>
+        <div class="cc-feed" id="mnFeed"></div>
 
-        <div class="cc-feed-footer" id="ccFeedFooter" hidden>
-          <button class="cc-btn" id="ccLoadMore" type="button">Load more discussions</button>
+        <div class="cc-feed-footer" id="mnFeedFooter" hidden>
+          <button class="cc-btn" id="mnLoadMore" type="button">Load more notes</button>
         </div>
       </main>
-
-      <!-- Right rail: personal orientation and curated discovery -->
-      <aside class="cc-rail cc-rail-right" aria-label="Your activity">
-        <div class="cc-panel" id="ccActivity">
-          <h3>Your activity</h3>
-          <p style="margin:0;color:var(--cc-muted);font-size:13.5px;">
-            Sign in to follow discussions, save them for later, and pick up where you left off.
-          </p>
-        </div>
-        <div class="cc-panel">
-          <h3>Community guidelines</h3>
-          <p style="margin:0;color:var(--cc-muted);font-size:13.5px;">
-            Every discussion is anchored to an exact passage. Keep replies tied to the text,
-            and mark an answer when a question is settled.
-          </p>
-        </div>
-      </aside>
     </div>
   </div>
 
-  <!-- Mobile filter sheet -->
-  <dialog class="cc-sheet" id="ccFilterSheet" aria-label="Filter discussions">
+  <!-- Mobile filter sheet, mirroring /chaburah/'s own. -->
+  <dialog class="cc-sheet" id="mnFilterSheet" aria-label="Filter your notes">
     <div class="cc-sheet-panel">
       <div class="cc-sheet-handle" aria-hidden="true"></div>
       <div class="cc-filter-group">
-        <label for="ccCategorySheet">Category</label>
-        <select class="cc-select" id="ccCategorySheet"></select>
+        <label for="mnCategorySheet">Category</label>
+        <select class="cc-select" id="mnCategorySheet"></select>
+      </div>
+      <div class="cc-filter-group">
+        <label for="mnVisibilitySheet">Visibility</label>
+        <select class="cc-select" id="mnVisibilitySheet">
+          <option value="">All notes</option>
+          <option value="private">Private only</option>
+          <option value="public">Shared publicly</option>
+        </select>
       </div>
       <div style="margin-top:16px;display:flex;justify-content:flex-end;">
-        <button class="cc-btn cc-btn-primary" id="ccCloseFilters" type="button">Done</button>
+        <button class="cc-btn cc-btn-primary" id="mnCloseFilters" type="button">Done</button>
       </div>
     </div>
   </dialog>
@@ -180,7 +160,7 @@
     <button class="dialog-close" id="closeAuthDialog" aria-label="Close">×</button>
     <div class="eyebrow" id="authDialogEyebrow">Account</div>
     <h2 id="authDialogTitle">Sign in</h2>
-    <p class="dialog-note" id="authDialogNote">Sign in to follow discussions, save them for later, and keep your place across devices.</p>
+    <p class="dialog-note" id="authDialogNote">Sign in to see your own notes from every daf in one place.</p>
     <button class="button secondary google-auth-button" id="googleAuthButton" type="button">
       <svg viewBox="0 0 18 18" aria-hidden="true" width="18" height="18">
         <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.84 2.09-1.79 2.73v2.27h2.9c1.7-1.56 2.68-3.87 2.68-6.64z"/>
@@ -208,21 +188,18 @@
     </form>
   </dialog>
 
-  <!-- Script order is load-bearing (no build step, no modules): the data and
-       component modules must define window.DafSyncChabura before the home
-       controller reads it. Notably ABSENT compared with the old page: app.js
-       (409KB), player-chrome.js, daf-context-menu.js, highlights.js,
-       account-features.js and notes.js -- the old /chaburah/ shipped all of
-       them, plus an entire hidden Interactive Daf workspace, to render a list
-       of discussions (Phase 1 audit F-13). -->
+  <!-- Script order is load-bearing (no build step, no modules): chabura-core.js
+       defines window.DafSyncChabura.core, which my-notes-data.js reads at
+       definition time, and my-notes.js reads both. notes-format.js supplies the
+       category vocabulary and the body renderer. app.js is deliberately ABSENT
+       for the same reason /chaburah/ drops it (Phase 1 audit F-13). -->
   <script src="../vendor/supabase-js.min.js"></script>
   <script src="../auth.js"></script>
   <script src="../notes-format.js" defer></script>
   <script src="../chabura-core.js" defer></script>
-  <script src="../chabura-notifications.js" defer></script>
-  <script src="../chabura-data.js" defer></script>
   <script src="../chabura-components.js" defer></script>
-  <script src="../chabura-home.js" defer></script>
+  <script src="../my-notes-data.js" defer></script>
+  <script src="../my-notes.js" defer></script>
   <script src="../nav.js" defer></script>
   <script src="../collapse.js" defer></script>
 </body>

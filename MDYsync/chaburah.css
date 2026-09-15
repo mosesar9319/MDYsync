@@ -336,6 +336,19 @@
 .cc-chip-demo { background: rgba(101, 116, 138, 0.14); color: var(--cc-muted); }
 .cc-chip-video { background: rgba(176, 135, 47, 0.14); color: var(--cc-source-accent); }
 
+/* My Notes (/notes/) only: every card there is the reader's own, so the one
+   thing worth reading at a glance is whether a note is still private or has
+   been shared. Deliberately quiet -- private is the default state and should
+   not look like a warning. */
+.cc-chip-private { background: var(--cc-surface-subtle); color: var(--cc-muted); border-color: var(--cc-border); }
+.cc-chip-shared { background: var(--cc-primary-soft); color: var(--cc-primary-hover); }
+
+/* A plain text link inside .cc-card-meta ("Open on the daf" / "Open
+   discussion"), sitting alongside the timestamp rather than as a button row --
+   the whole card title is already the primary link. */
+.cc-card-action { color: var(--cc-primary); font-weight: 600; text-decoration: none; }
+.cc-card-action:hover { text-decoration: underline; }
+
 /* --- States -------------------------------------------------------------- */
 .cc-empty, .cc-error {
   background: var(--cc-surface); border: 1px solid var(--cc-border);

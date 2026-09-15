@@ -82,10 +82,13 @@
     return wrap;
   }
 
-  function errorState({ message, onRetry }) {
+  // `title` defaults to the feed's own wording so every existing caller is
+  // unchanged; My Notes passes its own, since "Could not load discussions" is
+  // simply the wrong noun on a page that lists a reader's private notes.
+  function errorState({ message, onRetry, title }) {
     const wrap = el('div', 'cc-error');
     wrap.setAttribute('role', 'alert');
-    wrap.appendChild(el('h3', null, 'Could not load discussions'));
+    wrap.appendChild(el('h3', null, title || 'Could not load discussions'));
     wrap.appendChild(el('p', null, message));
     if (onRetry) {
       const button = el('button', 'cc-btn', 'Try again');
