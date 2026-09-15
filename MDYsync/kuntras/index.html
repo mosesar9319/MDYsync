@@ -3,15 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Cloud Chabura: questions, insights and sources attached to the daf." />
-  <title>DafSync — Cloud Chabura</title>
+  <meta name="description" content="Kuntras Builder: assemble your notes into your own pamphlet." />
+  <title>DafSync — Kuntras Builder</title>
   <script>
-    // Surfaces any otherwise-silent failure (a script that fails to load,
-    // an uncaught exception, a rejected promise nobody caught) as a plain,
-    // dependency-free banner at the top of the page -- deliberately inline
-    // and placed before every other <script>, with its own inline styles,
-    // so it still works even if a stylesheet or another script is the very
-    // thing that failed to load. Same as watch/index.html and player/index.html.
+    // Same dependency-free failure banner every other page carries, inline and
+    // ahead of every other <script> so it still works when a stylesheet or
+    // another script is the thing that failed. See chaburah/index.html.
     (function () {
       var shown = false;
       function showBanner(message) {
@@ -44,36 +41,29 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Frank+Ruhl+Libre:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <!-- styles.css + watch-theme.css are loaded only for the shared site chrome
-       (sidebar, bottom nav, the auth dialog). chaburah.css comes last and
-       scopes the Editorial Blue palette to .cloud-chabura, so nothing here
-       reskins the player or the Interactive Daf. -->
+  <!-- Same three stylesheets, in the same order, as /notes/ and /chaburah/: the
+       shared site chrome, then chaburah.css last for its Editorial Blue
+       palette and cc-* components. A kuntras is a private, signed-in-only
+       page like /notes/, so it wears the same visual language rather than
+       inventing a third one. -->
   <link rel="stylesheet" href="../styles.css" />
   <link rel="stylesheet" href="../watch-theme.css" />
   <link rel="stylesheet" href="../chaburah.css" />
 </head>
-<body data-page="chaburah" class="cloud-chabura">
+<body data-page="kuntras" class="cloud-chabura">
   <aside class="sidebar">
     <a class="brand" href="/" aria-label="DafSync home"><span class="brand-mark"><img src="/assets/dafsync-lockup.png" alt="" /></span></a>
     <nav class="desktop-navigation" aria-label="Primary navigation"></nav>
   </aside>
 
   <div class="app-shell">
-    <!-- Trimmed to exactly what auth.js wires up. The old page carried Notes
-         search, the notification bell, favorites and highlights buttons here,
-         all of which are wired by notes.js / account-features.js / highlights.js
-         -- scripts this page deliberately no longer loads. Leaving the buttons
-         would have left dead controls in the header. -->
+    <!-- Trimmed to exactly what auth.js wires up, same as /notes/ and
+         /chaburah/: this page loads neither notes.js nor account-features.js,
+         so a notifications bell or favorites button here would be a dead
+         control. -->
     <header class="topbar">
       <div class="mobile-brand"><a class="brand" href="/"><span class="brand-mark"><img src="/assets/dafsync-mark.png" alt="" /></span><span class="brand-name">DafSync</span></a></div>
       <div class="top-actions">
-        <div class="cc-notify" >
-          <button class="cc-notify-button" id="ccNotifyButton" type="button" aria-expanded="false" aria-label="Notifications" hidden>
-            <span aria-hidden="true">🔔</span>
-            <span class="cc-notify-badge" id="ccNotifyBadge" hidden>0</span>
-          </button>
-          <div class="cc-notify-panel" id="ccNotifyPanel" role="dialog" aria-label="Notifications" hidden></div>
-        </div>
         <div class="auth-widget" id="authWidget">
           <button class="button secondary small" id="signInButton" type="button">Sign in</button>
           <div class="account-menu" id="accountMenu" hidden>
@@ -91,97 +81,57 @@
 
     <div class="cc-header">
       <div class="cc-header-titles">
-        <h1>Cloud Chabura</h1>
-        <p class="cc-tagline">Questions, insights, and sources attached to the daf.</p>
+        <h1>Kuntras Builder</h1>
+        <p class="cc-tagline">Assemble your notes and writing into your own pamphlet — private, for now.</p>
       </div>
       <div class="cc-header-actions">
-        <div class="cc-search">
-          <span aria-hidden="true">🔍</span>
-          <label class="cc-visually-hidden" for="ccSearch">Search discussions</label>
-          <input id="ccSearch" type="search" placeholder="Search discussions…" autocomplete="off" />
-        </div>
-        <!-- The private half of the same notes system. Deliberately not a sixth
-             sitewide nav tab: the bottom bar is already five across on a phone,
-             and this belongs next to the public feed it is the counterpart to. -->
         <a class="cc-btn" href="/notes/">My Notes</a>
-        <a class="cc-btn" href="/kuntras/">Kuntras Builder</a>
-        <a class="cc-btn cc-btn-primary" href="/browse/">Start from a daf</a>
+        <a class="cc-btn" href="/chaburah/">Cloud Chaburah</a>
+        <a class="cc-btn cc-btn-primary" href="/browse/">Open a daf</a>
       </div>
     </div>
 
     <div class="cc-shell">
-      <!-- Left rail: browse and filter (desktop only; mobile gets the sheet) -->
-      <aside class="cc-rail cc-rail-left" aria-label="Browse and filter">
-        <div class="cc-panel">
-          <h3>Browse</h3>
-          <div class="cc-rail-nav" id="ccRailNav"></div>
-          <div class="cc-filter-group">
-            <label for="ccCategory">Category</label>
-            <select class="cc-select" id="ccCategory"></select>
-          </div>
-        </div>
-      </aside>
-
       <main class="cc-main">
-        <!-- Today's Daf: the defining addition from the Daf-first concept.
-             Prominent, but deliberately not tall enough to push the feed
-             below the fold. -->
-        <section class="cc-today" id="ccToday" aria-label="Today's daf"></section>
-
-        <div class="cc-mobile-filter-bar">
-          <button class="cc-btn cc-btn-sm" id="ccOpenFilters" type="button">Filters</button>
-        </div>
-
-        <div class="cc-tabs" id="ccTabs" role="tablist" aria-label="Discussion views"></div>
-
         <!-- Screen-reader announcements for load results and failures. -->
-        <p class="cc-visually-hidden" id="ccStatus" role="status" aria-live="polite"></p>
+        <p class="cc-visually-hidden" id="knStatus" role="status" aria-live="polite"></p>
 
-        <div class="cc-feed" id="ccFeed"></div>
+        <!-- The library: every kuntras this reader has started. Hidden once
+             one is open -- see the builder section below -- so the two views
+             never fight for the same space. -->
+        <section id="knLibrary">
+          <div class="kn-library-actions">
+            <button class="cc-btn cc-btn-primary" id="knNewButton" type="button">New kuntras</button>
+          </div>
+          <div class="cc-feed" id="knFeed"></div>
+        </section>
 
-        <div class="cc-feed-footer" id="ccFeedFooter" hidden>
-          <button class="cc-btn" id="ccLoadMore" type="button">Load more discussions</button>
-        </div>
+        <!-- The builder: one kuntras' tree, open for editing. A full-width
+             view rather than a dialog -- a tree editor with nested sections
+             needs the room a modal would not give it. -->
+        <section id="knBuilder" hidden>
+          <button class="cc-btn cc-btn-sm" id="knBackButton" type="button">← My kuntrasim</button>
+          <div class="kn-builder-head">
+            <h2 id="knBuilderTitle"></h2>
+            <button class="cc-btn cc-btn-sm" id="knRenameButton" type="button">Rename</button>
+            <button class="cc-btn cc-btn-sm cc-btn-danger" id="knDeleteButton" type="button">Delete</button>
+          </div>
+          <p class="field-note">Sections can be nested. Move an item up or down among its siblings with the arrows — there is no drag-and-drop yet.</p>
+          <div class="kn-tree" id="knTree"></div>
+          <div class="kn-root-actions">
+            <button class="cc-btn cc-btn-sm" id="knAddRootSection" type="button">+ Add section</button>
+            <button class="cc-btn cc-btn-sm" id="knAddRootEntry" type="button">+ Add entry</button>
+          </div>
+        </section>
       </main>
-
-      <!-- Right rail: personal orientation and curated discovery -->
-      <aside class="cc-rail cc-rail-right" aria-label="Your activity">
-        <div class="cc-panel" id="ccActivity">
-          <h3>Your activity</h3>
-          <p style="margin:0;color:var(--cc-muted);font-size:13.5px;">
-            Sign in to follow discussions, save them for later, and pick up where you left off.
-          </p>
-        </div>
-        <div class="cc-panel">
-          <h3>Community guidelines</h3>
-          <p style="margin:0;color:var(--cc-muted);font-size:13.5px;">
-            Every discussion is anchored to an exact passage. Keep replies tied to the text,
-            and mark an answer when a question is settled.
-          </p>
-        </div>
-      </aside>
     </div>
   </div>
-
-  <!-- Mobile filter sheet -->
-  <dialog class="cc-sheet" id="ccFilterSheet" aria-label="Filter discussions">
-    <div class="cc-sheet-panel">
-      <div class="cc-sheet-handle" aria-hidden="true"></div>
-      <div class="cc-filter-group">
-        <label for="ccCategorySheet">Category</label>
-        <select class="cc-select" id="ccCategorySheet"></select>
-      </div>
-      <div style="margin-top:16px;display:flex;justify-content:flex-end;">
-        <button class="cc-btn cc-btn-primary" id="ccCloseFilters" type="button">Done</button>
-      </div>
-    </div>
-  </dialog>
 
   <dialog id="authDialog">
     <button class="dialog-close" id="closeAuthDialog" aria-label="Close">×</button>
     <div class="eyebrow" id="authDialogEyebrow">Account</div>
     <h2 id="authDialogTitle">Sign in</h2>
-    <p class="dialog-note" id="authDialogNote">Sign in to follow discussions, save them for later, and keep your place across devices.</p>
+    <p class="dialog-note" id="authDialogNote">Sign in to build your own kuntras.</p>
     <button class="button secondary google-auth-button" id="googleAuthButton" type="button">
       <svg viewBox="0 0 18 18" aria-hidden="true" width="18" height="18">
         <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.84 2.09-1.79 2.73v2.27h2.9c1.7-1.56 2.68-3.87 2.68-6.64z"/>
@@ -209,21 +159,42 @@
     </form>
   </dialog>
 
-  <!-- Script order is load-bearing (no build step, no modules): the data and
-       component modules must define window.DafSyncChabura before the home
-       controller reads it. Notably ABSENT compared with the old page: app.js
-       (409KB), player-chrome.js, daf-context-menu.js, highlights.js,
-       account-features.js and notes.js -- the old /chaburah/ shipped all of
-       them, plus an entire hidden Interactive Daf workspace, to render a list
-       of discussions (Phase 1 audit F-13). -->
+  <!-- Entry composer: add or edit one freeform entry. A dialog, not inline,
+       so writing a longer passage does not have to fight the tree's own
+       layout for width. -->
+  <dialog id="knEntryDialog">
+    <button class="dialog-close" id="knEntryClose" aria-label="Close">×</button>
+    <div class="eyebrow">Kuntras</div>
+    <h2 id="knEntryDialogTitle">Add entry</h2>
+    <form id="knEntryForm">
+      <label class="sync-field">
+        <span>Heading <span class="field-note">(optional)</span></span>
+        <input id="knEntryTitle" type="text" maxlength="200" />
+      </label>
+      <label class="sync-field">
+        <span>Text</span>
+        <textarea id="knEntryBody" rows="8" maxlength="2000" required></textarea>
+      </label>
+      <p class="cc-import-size" id="knEntrySize"></p>
+      <p class="auth-error" id="knEntryError" hidden></p>
+      <div class="auth-form-actions">
+        <button class="button primary" id="knEntrySubmit" type="submit">Save entry</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Script order is load-bearing (no build step, no modules): chabura-core.js
+       defines window.DafSyncChabura.core, which kuntras-data.js reads at
+       definition time, and kuntras.js reads both. notes-format.js supplies
+       formatNoteTime. app.js is deliberately ABSENT, same reason /notes/ and
+       /chaburah/ drop it (Phase 1 audit F-13). -->
   <script src="../vendor/supabase-js.min.js"></script>
   <script src="../auth.js"></script>
   <script src="../notes-format.js" defer></script>
   <script src="../chabura-core.js" defer></script>
-  <script src="../chabura-notifications.js" defer></script>
-  <script src="../chabura-data.js" defer></script>
   <script src="../chabura-components.js" defer></script>
-  <script src="../chabura-home.js" defer></script>
+  <script src="../kuntras-data.js" defer></script>
+  <script src="../kuntras.js" defer></script>
   <script src="../nav.js" defer></script>
   <script src="../collapse.js" defer></script>
 </body>

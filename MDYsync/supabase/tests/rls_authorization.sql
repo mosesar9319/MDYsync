@@ -1457,4 +1457,200 @@ select dafsync_test.check(
   'ERROR:42501');
 
 -- ===========================================================================
+-- kuntrasim / kuntras_sections / kuntras_entries -- Kuntras Builder slice 1.
+--
+-- Nothing here is ever public in this slice. What matters is: an owner has
+-- full read/write over their own tree; nobody else -- another reader, an
+-- admin, anon -- can read or write any part of it; a section or entry
+-- cannot be attached to a kuntras its caller does not own; and the
+-- cross-kuntras parentage guard actually fires.
+-- ===========================================================================
+
+\set kun_reader  '''f1000000-0000-4000-8000-000000000001'''
+\set kun_author  '''f1000000-0000-4000-8000-000000000002'''
+\set sec_top     '''f2000000-0000-4000-8000-000000000001'''
+\set sec_nested  '''f2000000-0000-4000-8000-000000000002'''
+\set sec_author  '''f2000000-0000-4000-8000-000000000003'''
+\set entry_top   '''f3000000-0000-4000-8000-000000000001'''
+
+insert into public.kuntrasim (id, owner_id, title) values
+  (:kun_reader, '11111111-1111-4111-8111-111111111111', 'Reader One''s kuntras'),
+  (:kun_author, '22222222-2222-4222-8222-222222222222', 'Author Two''s kuntras');
+
+insert into public.kuntras_sections (id, kuntras_id, title, position) values
+  (:sec_top, :kun_reader, 'Perek Alef', 0),
+  (:sec_author, :kun_author, 'Author''s section', 0);
+insert into public.kuntras_sections (id, kuntras_id, parent_section_id, title, position) values
+  (:sec_nested, :kun_reader, :sec_top, 'A sub-topic', 0);
+
+insert into public.kuntras_entries (id, kuntras_id, section_id, body, position) values
+  (:entry_top, :kun_reader, :sec_top, 'A freeform thought on the sugya.', 0);
+
+-- --- Reading -----------------------------------------------------------
+
+select dafsync_test.check(
+  'the owner reads their own kuntras',
+  dafsync_test.read_as('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('select title from public.kuntrasim where id = %L', :kun_reader)),
+  'Reader One''s kuntras');
+
+select dafsync_test.check(
+  'the owner reads their own sections, nested included',
+  dafsync_test.read_as('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('select count(*)::text from public.kuntras_sections where kuntras_id = %L', :kun_reader)),
+  '2');
+
+select dafsync_test.check(
+  'the owner reads their own entries',
+  dafsync_test.read_as('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('select body from public.kuntras_entries where id = %L', :entry_top)),
+  'A freeform thought on the sugya.');
+
+select dafsync_test.check(
+  'another reader cannot see the kuntras at all',
+  dafsync_test.read_as('authenticated', '22222222-2222-4222-8222-222222222222',
+    format('select count(*)::text from public.kuntrasim where id = %L', :kun_reader)),
+  '0');
+
+select dafsync_test.check(
+  'another reader cannot see its sections',
+  dafsync_test.read_as('authenticated', '22222222-2222-4222-8222-222222222222',
+    format('select count(*)::text from public.kuntras_sections where kuntras_id = %L', :kun_reader)),
+  '0');
+
+select dafsync_test.check(
+  'another reader cannot see its entries',
+  dafsync_test.read_as('authenticated', '22222222-2222-4222-8222-222222222222',
+    format('select count(*)::text from public.kuntras_entries where kuntras_id = %L', :kun_reader)),
+  '0');
+
+select dafsync_test.check(
+  'an admin cannot see it either -- nothing here is public in this slice',
+  dafsync_test.read_as('authenticated', '44444444-4444-4444-8444-444444444444',
+    format('select count(*)::text from public.kuntrasim where id = %L', :kun_reader)),
+  '0');
+
+select dafsync_test.check(
+  'anon is refused at the table, not merely filtered by RLS',
+  dafsync_test.read_as('anon', null, 'select count(*)::text from public.kuntrasim'),
+  'ERROR:42501');
+
+select dafsync_test.check(
+  'anon is refused on sections too',
+  dafsync_test.read_as('anon', null, 'select count(*)::text from public.kuntras_sections'),
+  'ERROR:42501');
+
+select dafsync_test.check(
+  'anon is refused on entries too',
+  dafsync_test.read_as('anon', null, 'select count(*)::text from public.kuntras_entries'),
+  'ERROR:42501');
+
+-- --- Writing -------------------------------------------------------------
+
+select dafsync_test.check(
+  'a reader cannot create a kuntras in someone else''s name',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    'insert into public.kuntrasim (owner_id, title)
+     values (''22222222-2222-4222-8222-222222222222'', ''Forged'')'),
+  '42501');
+
+-- visibility is pinned to 'private' by the policy itself in this slice, not
+-- merely by the client choosing not to send anything else.
+select dafsync_test.check(
+  'visibility cannot be set to anything but private in this slice',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    'insert into public.kuntrasim (owner_id, title, visibility)
+     values (''11111111-1111-4111-8111-111111111111'', ''Trying to publish'', ''public'')'),
+  '42501');
+
+select dafsync_test.check(
+  'nor can an existing kuntras be updated to a wider visibility',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('update public.kuntrasim set visibility = ''unlisted'' where id = %L', :kun_reader)),
+  '42501');
+
+select dafsync_test.check(
+  'a reader cannot add a section to someone else''s kuntras',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('insert into public.kuntras_sections (kuntras_id, title) values (%L, ''Intruding'')', :kun_author)),
+  '42501');
+
+select dafsync_test.check(
+  'a reader cannot add an entry to someone else''s kuntras',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('insert into public.kuntras_entries (kuntras_id, body) values (%L, ''Intruding text.'')', :kun_author)),
+  '42501');
+
+select dafsync_test.check(
+  'a reader cannot rename someone else''s section',
+  dafsync_test.attempt_rows('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('update public.kuntras_sections set title = ''Seized'' where id = %L', :sec_author)),
+  '0');
+
+select dafsync_test.check(
+  'a reader cannot delete someone else''s kuntras',
+  dafsync_test.attempt_rows('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('delete from public.kuntrasim where id = %L', :kun_author)),
+  '0');
+
+-- --- Cross-tree integrity --------------------------------------------------
+--
+-- Both target and attacker own their respective rows -- RLS alone would
+-- allow this write. The trigger is what stops a section or entry ending up
+-- attached to a DIFFERENT kuntras than the one it claims, even when both
+-- belong to the very same account.
+
+select dafsync_test.check(
+  'a section cannot be attached to a kuntras it does not belong to, even the same owner''s other one',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('insert into public.kuntras_sections (kuntras_id, parent_section_id, title)
+            values (%L, %L, ''Cross-tree'')', :kun_reader, :sec_author)),
+  'P0001');
+
+select dafsync_test.check(
+  'an entry cannot be attached to a section outside its own kuntras',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('insert into public.kuntras_entries (kuntras_id, section_id, body)
+            values (%L, %L, ''Cross-tree entry.'')', :kun_reader, :sec_author)),
+  'P0001');
+
+select dafsync_test.check(
+  'a section cannot be its own parent',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('update public.kuntras_sections set parent_section_id = id where id = %L', :sec_top)),
+  '23514');
+
+-- --- Cascade ---------------------------------------------------------------
+
+select dafsync_test.check(
+  'deleting a section removes what was nested under it',
+  dafsync_test.attempt_rows('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('delete from public.kuntras_sections where id = %L', :sec_top)),
+  '1');
+
+select dafsync_test.check(
+  'the nested child section is gone with it',
+  dafsync_test.read_as('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('select count(*)::text from public.kuntras_sections where id = %L', :sec_nested)),
+  '0');
+
+select dafsync_test.check(
+  'and so is the entry that lived in the deleted section',
+  dafsync_test.read_as('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('select count(*)::text from public.kuntras_entries where id = %L', :entry_top)),
+  '0');
+
+select dafsync_test.check(
+  'deleting the kuntras itself takes its remaining rows with it',
+  dafsync_test.attempt_rows('authenticated', '22222222-2222-4222-8222-222222222222',
+    format('delete from public.kuntrasim where id = %L', :kun_author)),
+  '1');
+
+select dafsync_test.check(
+  'its section is gone too',
+  dafsync_test.read_as('authenticated', '22222222-2222-4222-8222-222222222222',
+    format('select count(*)::text from public.kuntras_sections where id = %L', :sec_author)),
+  '0');
+
+-- ===========================================================================
 do $$ begin raise notice 'ALL AUTHORIZATION TESTS PASSED'; end $$;

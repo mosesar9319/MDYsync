@@ -104,6 +104,23 @@ body[data-page="my-notes"] .cc-shell.no-rail { grid-template-columns: minmax(0, 
   body[data-page="my-notes"] .cc-shell.no-rail { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* Kuntras Builder has no rail at all, at any width -- there is nothing here
+   to filter (a kuntras has no daf, category or visibility to narrow by, the
+   same reasoning /notes/'s own no-rail class rests on for its Documents
+   tab). One column always, so .cc-main never falls into a rail slot no
+   element is occupying. */
+body[data-page="kuntras"] .cc-shell { grid-template-columns: minmax(0, 1fr); }
+
+/* Same fix as #mnImportDialog's own .field-note override: styles.css's
+   global .field-note is nowrap + ellipsis, sized for a short inline hint,
+   and silently truncates a full sentence. The tree-editing hint under the
+   builder title has to read in full. */
+#knBuilder .field-note {
+  white-space: normal; overflow: visible; text-overflow: clip;
+  margin: 6px 0 14px; font-size: 13px; line-height: 1.5;
+}
+
+
 /* --- Header -------------------------------------------------------------- */
 .cc-header {
   display: flex;
@@ -256,6 +273,8 @@ body[data-page="my-notes"] .cc-shell.no-rail { grid-template-columns: minmax(0, 
 .cc-btn-quiet { border-color: transparent; background: transparent; color: var(--cc-muted); font-weight: 500; }
 .cc-btn-quiet:hover { background: var(--cc-surface-subtle); color: var(--cc-primary-hover); }
 .cc-btn-sm { min-height: 34px; padding: 6px 11px; font-size: 13px; }
+.cc-btn-danger { color: var(--cc-danger); }
+.cc-btn-danger:hover { background: rgba(220, 90, 90, .12); }
 .cc-btn[disabled] { opacity: 0.55; cursor: not-allowed; }
 .cc-btn[disabled]:hover { border-color: var(--cc-border); color: var(--cc-text); background: var(--cc-surface); }
 
@@ -435,6 +454,60 @@ a.cc-doc-citation:hover { border-color: var(--cc-accent); }
   flex: 1 1 140px; min-width: 0; font-size: 12.5px; color: var(--cc-text-muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+
+/* --- Kuntras Builder --------------------------------------------------- */
+/* Slice 1: the shell -- a library of kuntrasim, and a tree editor of
+   sections and freeform entries. Reordering is up/down buttons (see
+   .kn-move-buttons), not drag-and-drop -- the position column supports
+   either, so drag-and-drop is a later addition, not a schema change. */
+
+.kn-library-actions { margin-bottom: 14px; }
+
+.kn-builder-head { display: flex; align-items: center; gap: 10px; margin: 10px 0 4px; flex-wrap: wrap; }
+.kn-builder-head h2 { margin: 0; flex: 1 1 auto; min-width: 0; }
+
+.kn-tree { margin-top: 14px; }
+/* Nested .kn-level blocks are what actually draws the tree: each section's
+   own body contains another .kn-level for its children, indented once. The
+   border gives a nested group a visible spine without needing to draw
+   connector lines by hand. */
+.kn-level { display: flex; flex-direction: column; gap: 10px; }
+.kn-level .kn-level { margin-top: 10px; margin-left: 22px; padding-left: 14px; border-left: 2px solid var(--cc-border); }
+
+.kn-section {
+  border: 1px solid var(--cc-border); border-radius: var(--cc-radius-sm);
+  background: var(--cc-surface); padding: 12px 14px;
+}
+.kn-section-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.kn-section-title { margin: 0; font-size: 15px; flex: 1 1 auto; min-width: 0; }
+.kn-section-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+.kn-section-body { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+
+.kn-entry {
+  border: 1px solid var(--cc-border); border-radius: var(--cc-radius-sm);
+  background: var(--cc-surface-subtle); padding: 10px 12px;
+}
+.kn-entry-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.kn-entry-title { margin: 0; font-size: 14px; flex: 1 1 auto; min-width: 0; }
+.kn-entry-actions { display: flex; gap: 4px; margin-left: auto; }
+.kn-entry-body { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.6; }
+
+.kn-move-buttons { display: flex; gap: 2px; }
+.kn-icon-button {
+  border: 1px solid var(--cc-border); background: var(--cc-surface); color: var(--cc-text);
+  border-radius: 7px; width: 26px; height: 26px; line-height: 1; cursor: pointer; font-size: 13px;
+}
+.kn-icon-button:hover:not(:disabled) { border-color: var(--cc-primary); color: var(--cc-primary); }
+.kn-icon-button:disabled { opacity: .35; cursor: default; }
+
+.kn-root-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+
+#knEntryDialog textarea {
+  width: 100%; resize: vertical; font: inherit; font-size: 14px;
+  border: 1px solid var(--cc-border); border-radius: var(--cc-radius-sm);
+  background: var(--cc-surface-subtle); color: var(--cc-text); padding: 10px 12px;
+}
+#knEntryDialog textarea:focus { border-color: var(--cc-primary); outline: none; }
 
 /* --- States -------------------------------------------------------------- */
 .cc-empty, .cc-error {
