@@ -220,16 +220,29 @@
           });
         }
         if (query.limitCount !== null) rows = rows.slice(0, query.limitCount);
+        return shapeRows(clone(rows));
+      }
+
+      // .single()/.maybeSingle() unwrap to one object rather than an array --
+      // real PostgREST does this via Prefer: return=representation plus
+      // Accept: application/vnd.pgrst.object+json regardless of whether the
+      // request is a GET, POST, PATCH or DELETE, so `.insert(...).select('id')
+      // .single()` (used to read back a generated id) unwraps exactly like a
+      // plain `.select().single()` does. Shared by runSelect and every branch
+      // of runMutation for that reason -- a version that only handled select
+      // shipped first and went unnoticed only because no caller of an insert's
+      // .single() happened to read the id back until Kuntras Builder did.
+      function shapeRows(rows) {
         if (query.rowMode === 'single') {
           if (rows.length !== 1) {
             return { data: null, error: { message: 'JSON object requested, multiple (or no) rows returned', code: 'PGRST116' } };
           }
-          return { data: clone(rows[0]), error: null };
+          return { data: rows[0], error: null };
         }
         if (query.rowMode === 'maybeSingle') {
-          return { data: rows.length ? clone(rows[0]) : null, error: null };
+          return { data: rows.length ? rows[0] : null, error: null };
         }
-        return { data: clone(rows), error: null };
+        return { data: rows, error: null };
       }
 
       // The database derives several columns with triggers, and the thread
@@ -265,6 +278,21 @@
           if (record.deleted_at === undefined) record.deleted_at = null;
           if (record.updated_at === undefined) record.updated_at = record.created_at;
         }
+        // kuntrasim/kuntras_sections/kuntras_entries all carry
+        // `updated_at timestamptz not null default now()` and (kuntrasim
+        // only) `visibility text not null default 'private'` in the real
+        // schema. The stub's insert path only fills id/created_at by
+        // default (see runMutation), so any column left out of the payload
+        // -- which every caller in this repo does for these two, the same
+        // way note_documents' writers never send preview -- would otherwise
+        // land here undefined. That surfaced for real: a freshly created
+        // kuntras rendered its card as "Edited" with nothing after it,
+        // because formatNoteTime(undefined) is '' rather than a thrown
+        // error, so nothing failed loudly.
+        if (tableName === 'kuntrasim' || tableName === 'kuntras_sections' || tableName === 'kuntras_entries') {
+          if (record.updated_at === undefined) record.updated_at = record.created_at;
+        }
+        if (tableName === 'kuntrasim' && record.visibility === undefined) record.visibility = 'private';
         return record;
       }
 
@@ -319,7 +347,7 @@
             return record;
           });
           recordCall({ table: tableName, operation: query.operation, rows: clone(inserted) });
-          return { data: clone(inserted), error: null };
+          return shapeRows(clone(inserted));
         }
 
         if (query.operation === 'update') {
@@ -330,14 +358,14 @@
             updated.push(rows[index]);
           });
           recordCall({ table: tableName, operation: 'update', rows: clone(updated) });
-          return { data: clone(updated), error: null };
+          return shapeRows(clone(updated));
         }
 
         if (query.operation === 'delete') {
           const removed = rows.filter(matches);
           for (let i = rows.length - 1; i >= 0; i -= 1) if (matches(rows[i])) rows.splice(i, 1);
           recordCall({ table: tableName, operation: 'delete', rows: clone(removed) });
-          return { data: clone(removed), error: null };
+          return shapeRows(clone(removed));
         }
 
         return { data: null, error: { message: 'Unsupported operation ' + query.operation } };
