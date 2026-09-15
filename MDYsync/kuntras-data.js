@@ -78,7 +78,7 @@
       client().from('kuntrasim').select(KUNTRAS_LIST_COLUMNS).eq('id', kuntrasId).maybeSingle(),
       client().from('kuntras_sections').select('id, parent_section_id, title, position')
         .eq('kuntras_id', kuntrasId).order('position', { ascending: true }),
-      client().from('kuntras_entries').select('id, section_id, kind, title, body, position')
+      client().from('kuntras_entries').select('id, section_id, kind, title, body, position, source_note_id, source_document_id')
         .eq('kuntras_id', kuntrasId).order('position', { ascending: true }),
     ]);
     if (kuntras.error) throw kuntras.error;
@@ -139,20 +139,34 @@
     if (failed) throw failed.error;
   }
 
-  async function createEntry(kuntrasId, { sectionId = null, title = null, body, position }) {
+  async function createEntry(kuntrasId, {
+    sectionId = null, title = null, body, position,
+    kind = 'freeform', sourceNoteId = null, sourceDocumentId = null,
+  }) {
     const { data, error } = await client()
       .from('kuntras_entries')
-      .insert({ kuntras_id: kuntrasId, section_id: sectionId, kind: 'freeform', title, body, position })
-      .select('id, section_id, kind, title, body, position')
+      .insert({
+        kuntras_id: kuntrasId, section_id: sectionId, kind, title, body, position,
+        source_note_id: sourceNoteId, source_document_id: sourceDocumentId,
+      })
+      .select('id, section_id, kind, title, body, position, source_note_id, source_document_id')
       .single();
     if (error) throw error;
     return data;
   }
 
-  async function updateEntry(id, { title, body }) {
+  // kind/sourceNoteId/sourceDocumentId are always sent together, even when
+  // editing a plain freeform entry's text (where they are simply 'freeform'
+  // and null): the database's own CHECK constraint requires the three to
+  // agree, and this file has no partial-update path that could leave kind
+  // stale against a source column an earlier write already changed.
+  async function updateEntry(id, { title, body, kind = 'freeform', sourceNoteId = null, sourceDocumentId = null }) {
     const { error } = await client()
       .from('kuntras_entries')
-      .update({ title, body, updated_at: new Date().toISOString() })
+      .update({
+        title, body, kind, source_note_id: sourceNoteId, source_document_id: sourceDocumentId,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', id);
     if (error) throw error;
   }
@@ -170,6 +184,98 @@
     if (failed) throw failed.error;
   }
 
+  // --- Quoting your own notes and documents ------------------------------
+  //
+  // Slice 2: an entry can be built by quoting the reader's OWN line_notes
+  // row or note_documents row, copied into the entry's body at the moment
+  // it is chosen -- see 20260915210000's own header for why this is
+  // provenance only, never a live reference. Both queries are scoped to
+  // owner_id/author_id = the current user explicitly, matching every other
+  // "my own" query in this file, even though the database's own trigger
+  // (kuntras_entries_validate_source) would refuse a foreign id anyway --
+  // the point of asking the narrower question here is that the PICKER never
+  // shows something it could not legally quote in the first place, rather
+  // than showing it and failing only once the reader has already chosen it.
+
+  const QUOTE_NOTE_COLUMNS = ['id', 'daf_ref_key', 'segment_ref', 'title', 'body', 'category', 'created_at'].join(', ');
+  const QUOTE_DOCUMENT_LIST_COLUMNS = ['id', 'title', 'source_kind', 'preview', 'created_at'].join(', ');
+
+  async function fetchQuotableNotes({ search = '' } = {}) {
+    const user = currentUser();
+    if (!user) return [];
+    let query = client()
+      .from('line_notes')
+      .select(QUOTE_NOTE_COLUMNS)
+      .eq('author_id', user.id)
+      .is('deleted_at', null);
+    if (search) {
+      query = query.textSearch('body_tsv', search, { type: 'websearch', config: 'simple' });
+    }
+    const { data, error } = await query.order('created_at', { ascending: false }).limit(30);
+    if (error) throw error;
+    return data || [];
+  }
+
+  async function fetchQuotableDocuments({ search = '' } = {}) {
+    const user = currentUser();
+    if (!user) return [];
+    let query = client()
+      .from('note_documents')
+      .select(QUOTE_DOCUMENT_LIST_COLUMNS)
+      .eq('owner_id', user.id)
+      .is('deleted_at', null);
+    if (search) {
+      query = query.textSearch('full_text_tsv', search, { type: 'websearch', config: 'simple' });
+    }
+    const { data, error } = await query.order('created_at', { ascending: false }).limit(30);
+    if (error) throw error;
+    return data || [];
+  }
+
+  async function fetchQuotableDocument(id) {
+    const user = currentUser();
+    if (!user) return null;
+    const { data, error } = await client()
+      .from('note_documents')
+      .select('id, title, full_text')
+      .eq('id', id)
+      .eq('owner_id', user.id)
+      .is('deleted_at', null)
+      .maybeSingle();
+    if (error) throw error;
+    return data || null;
+  }
+
+  // A short label for an entry that ALREADY cites a note or document --
+  // reopening it to edit needs something to show in the "From <label>" chip,
+  // and neither source id is cached on the entry row itself (deliberately;
+  // see 20260915210000's header on why this is provenance-only). A note has
+  // no reliable title (most have none), so it is labelled by where it lives
+  // instead -- the same daf_ref_key display notes.js's own moderation queue
+  // already uses. A deleted source (the citation would then already have
+  // been cleared back to freeform by the trigger -- see its own comment on
+  // why an entry can never actually be reached in this state) resolves to
+  // null defensively rather than throwing.
+  async function fetchCitationLabel(kind, id) {
+    const user = currentUser();
+    if (!user || !id) return null;
+    if (kind === 'note') {
+      const { data, error } = await client()
+        .from('line_notes').select('daf_ref_key')
+        .eq('id', id).eq('author_id', user.id).maybeSingle();
+      if (error || !data) return null;
+      return `your note on ${String(data.daf_ref_key || '').replace(/-/g, ' ')}`;
+    }
+    if (kind === 'document') {
+      const { data, error } = await client()
+        .from('note_documents').select('title')
+        .eq('id', id).eq('owner_id', user.id).is('deleted_at', null).maybeSingle();
+      if (error || !data) return null;
+      return data.title;
+    }
+    return null;
+  }
+
   window.DafSyncKuntras = window.DafSyncKuntras || {};
   window.DafSyncKuntras.data = {
     fetchMyKuntrasim,
@@ -183,6 +289,10 @@
     deleteSection,
     reorderSections,
     createEntry,
+    fetchQuotableNotes,
+    fetchQuotableDocuments,
+    fetchQuotableDocument,
+    fetchCitationLabel,
     updateEntry,
     deleteEntry,
     reorderEntries,

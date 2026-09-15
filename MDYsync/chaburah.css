@@ -509,6 +509,43 @@ a.cc-doc-citation:hover { border-color: var(--cc-accent); }
 }
 #knEntryDialog textarea:focus { border-color: var(--cc-primary); outline: none; }
 
+/* The quote picker reuses styles.css's .note-cite-* classes (title, meta,
+   preview, layout, hover state) rather than duplicating that CSS -- a note
+   card and a document card are the identical visual pattern. Two of its
+   rules are the exception: .note-cite-doc's own base background
+   (rgba(255,255,255,.03), a near-invisible tint meant to sit on that page's
+   dark navy canvas) and .note-cite-text's (rgba(4,14,27,.7), a dark overlay
+   that would put this page's dark text on a near-black box). Neither is a
+   var(), so neither adapts through watch-theme.css's light overrides the
+   way every OTHER color in those rules already does -- scoped here to swap
+   just those two for this page's own cc-* surface tokens. */
+#knQuoteDialog .note-cite-doc { background: var(--cc-surface); border-color: var(--cc-border); }
+#knQuoteDialog .note-cite-text { background: var(--cc-surface-subtle); border-color: var(--cc-border); }
+
+/* Same truncation risk .field-note already caused twice elsewhere on this
+   page (the import dialog's own explanation, the builder's tree-editing
+   hint) -- guarded here too before a long selection-size message hits it. */
+#knQuoteDialog .field-note {
+  white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.5;
+}
+
+.kn-quote-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--cc-border); margin: 4px 0 14px; }
+.kn-quote-tab {
+  border: 0; background: transparent; color: var(--cc-muted); font: inherit; font-weight: 600;
+  padding: 9px 4px; margin-bottom: -1px; border-bottom: 2px solid transparent; cursor: pointer;
+}
+.kn-quote-tab:hover { color: var(--cc-text); }
+.kn-quote-tab.active { color: var(--cc-primary); border-bottom-color: var(--cc-primary); }
+
+/* input[type="search"] is not covered by any generic field rule on this
+   page either -- same reason #noteCiteSearch and #mnImportDialog's own
+   fields each carry their own. */
+#knQuoteNotesSearch, #knQuoteDocSearch {
+  width: 100%; border: 1px solid var(--cc-border); color: var(--cc-text); background: var(--cc-surface-subtle);
+  border-radius: 11px; padding: 10px 12px; font-family: inherit; font-size: 14px; outline: none;
+}
+#knQuoteNotesSearch:focus, #knQuoteDocSearch:focus { border-color: var(--cc-primary); box-shadow: 0 0 0 3px var(--cc-focus); }
+
 /* --- States -------------------------------------------------------------- */
 .cc-empty, .cc-error {
   background: var(--cc-surface); border: 1px solid var(--cc-border);

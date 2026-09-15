@@ -27,6 +27,14 @@
     // set by whichever button opened the dialog / ran the action, read back
     // when the form is submitted.
     pendingSectionId: null,
+    // What the entry dialog's citation chip currently holds -- 'freeform'
+    // with both ids null unless the reader has quoted a note or document
+    // (or is editing an entry that already does). Read back into
+    // createEntry/updateEntry when the form is submitted; see 20260915210000
+    // for why kind and the source ids must always agree.
+    citeKind: 'freeform',
+    citeSourceId: null,
+    citeLabel: null,
   };
 
   const els = {};
@@ -37,6 +45,12 @@
       'knTree', 'knAddRootSection', 'knAddRootEntry',
       'knEntryDialog', 'knEntryClose', 'knEntryDialogTitle', 'knEntryForm',
       'knEntryTitle', 'knEntryBody', 'knEntrySize', 'knEntryError', 'knEntrySubmit',
+      'knCiteRow', 'knCiteButton', 'knCiteCurrent', 'knCiteCurrentLabel', 'knCiteClear',
+      'knQuoteDialog', 'knQuoteClose', 'knQuoteTabNotes', 'knQuoteTabDocuments',
+      'knQuoteNotesPane', 'knQuoteNotesSearch', 'knQuoteNotesList',
+      'knQuoteDocumentsPane', 'knQuoteDocBrowse', 'knQuoteDocSearch', 'knQuoteDocList',
+      'knQuoteDocPassage', 'knQuoteDocBack', 'knQuoteDocTitle', 'knQuoteDocText',
+      'knQuoteDocHint', 'knQuoteDocUse',
     ].forEach((id) => { els[id] = document.getElementById(id); });
   }
 
@@ -45,6 +59,24 @@
   }
 
   const data = () => window.DafSyncKuntras.data;
+
+  const QUOTE_SOURCE_LABELS = { paste: 'Pasted', txt: 'Text file', md: 'Markdown', docx: 'Word', pdf: 'PDF' };
+  const ENTRY_BODY_MAX = 2000;
+
+  // The document currently open in the quote dialog's passage step, { id,
+  // title, full_text } -- held rather than re-fetched so switching between
+  // selecting and reconsidering doesn't re-download the text. Notes have no
+  // such step: clicking one quotes its whole body directly (see
+  // useQuoteNote), so there is no equivalent "open note" state.
+  let quoteOpenDocument = null;
+
+  // The last non-empty passage selected inside the document pane. Held
+  // rather than read fresh at the moment of the click for the same reason
+  // notes.js's own citeSelectedPassage is: pressing a button collapses the
+  // selection before the click handler runs. Reset whenever the pane's
+  // contents change. See notes.js's citeSelectedPassage for the full
+  // rationale -- this mirrors it exactly.
+  let quoteSelectedPassage = '';
 
   // --- Library ---------------------------------------------------------
 
@@ -372,7 +404,7 @@
 
   // --- Entries ---------------------------------------------------------
 
-  function openEntryDialog({ sectionId, entry }) {
+  async function openEntryDialog({ sectionId, entry }) {
     state.pendingSectionId = sectionId;
     state.editingEntryId = entry ? entry.id : null;
     els.knEntryDialogTitle.textContent = entry ? 'Edit entry' : 'Add entry';
@@ -380,8 +412,31 @@
     els.knEntryBody.value = entry?.body || '';
     els.knEntryError.hidden = true;
     refreshEntrySize();
+
+    // Reset to freeform first so the dialog never shows a stale chip from
+    // whatever entry it last had open, then fill in the real citation (if
+    // any) once it's known -- an existing entry's kind/source ids aren't on
+    // the row this function is called with in every caller (add-entry
+    // callers never pass them at all), so they're looked up fresh.
+    state.citeKind = 'freeform';
+    state.citeSourceId = null;
+    state.citeLabel = null;
+    renderCiteChip();
+
     els.knEntryDialog.showModal();
     els.knEntryBody.focus();
+
+    if (entry && entry.kind !== 'freeform') {
+      const label = await data().fetchCitationLabel(entry.kind, entry.source_note_id || entry.source_document_id);
+      // The dialog may have been closed (or reopened for a different entry)
+      // while that lookup was in flight -- only apply it if this is still
+      // the entry being edited.
+      if (state.editingEntryId !== entry.id) return;
+      state.citeKind = entry.kind;
+      state.citeSourceId = entry.source_note_id || entry.source_document_id;
+      state.citeLabel = label;
+      renderCiteChip();
+    }
   }
 
   function refreshEntrySize() {
@@ -406,12 +461,17 @@
       return;
     }
     els.knEntrySubmit.disabled = true;
+    const kind = state.citeKind;
+    const sourceNoteId = kind === 'note' ? state.citeSourceId : null;
+    const sourceDocumentId = kind === 'document' ? state.citeSourceId : null;
     try {
       if (state.editingEntryId) {
-        await data().updateEntry(state.editingEntryId, { title, body });
+        await data().updateEntry(state.editingEntryId, { title, body, kind, sourceNoteId, sourceDocumentId });
       } else {
         const position = data().nextPosition(state.entries, 'section_id', state.pendingSectionId);
-        await data().createEntry(state.openKuntras.id, { sectionId: state.pendingSectionId, title, body, position });
+        await data().createEntry(state.openKuntras.id, {
+          sectionId: state.pendingSectionId, title, body, position, kind, sourceNoteId, sourceDocumentId,
+        });
       }
       els.knEntryDialog.close();
       await refreshOpenKuntras();
@@ -431,6 +491,251 @@
     } catch (error) {
       window.alert(data().describeError(error));
     }
+  }
+
+  // --- Quoting a note or document into an entry ---------------------------
+  //
+  // "Quote from my notes" opens a picker over the reader's OWN line_notes
+  // and note_documents rows (kuntras-data.js's fetchQuotableNotes/
+  // fetchQuotableDocuments already scope both to the signed-in user, and the
+  // database's own trigger would refuse anything else regardless -- see
+  // that file's own header). Choosing a note copies its whole body into the
+  // entry text immediately; choosing a document opens the same select-a-
+  // passage step notes.js's own citation picker uses, since a document can
+  // run to 500KB and quoting all of it would rarely be what's wanted. Either
+  // way this is provenance only: the words become the entry's own text right
+  // away, and source_note_id/source_document_id record where they came from
+  // without the entry ever reading that source live again.
+
+  function renderCiteChip() {
+    if (!els.knCiteRow) return;
+    if (state.citeKind === 'freeform' || !state.citeLabel) {
+      els.knCiteCurrent.hidden = true;
+      return;
+    }
+    els.knCiteCurrentLabel.textContent = state.citeLabel;
+    els.knCiteCurrent.hidden = false;
+  }
+
+  // Drops the link back to freeform without touching the text already
+  // copied into the body -- the words are the entry's own now, same split
+  // notes.js's own clearCitation makes.
+  function clearCitation() {
+    state.citeKind = 'freeform';
+    state.citeSourceId = null;
+    state.citeLabel = null;
+    renderCiteChip();
+  }
+
+  function entryBudget() {
+    const existing = els.knEntryBody.value.length;
+    const separator = existing ? 2 : 0;
+    return Math.max(0, ENTRY_BODY_MAX - existing - separator);
+  }
+
+  function insertIntoEntryBody(text) {
+    const existing = els.knEntryBody.value;
+    els.knEntryBody.value = existing ? `${existing}\n\n${text}` : text;
+    els.knEntryBody.dispatchEvent(new Event('input', { bubbles: true }));
+    els.knEntryBody.focus();
+    els.knEntryBody.setSelectionRange(els.knEntryBody.value.length, els.knEntryBody.value.length);
+  }
+
+  function quoteMessage(text) {
+    const p = el('p', 'field-note', text);
+    return p;
+  }
+
+  function switchQuoteTab(tab) {
+    const isNotes = tab === 'notes';
+    els.knQuoteTabNotes.classList.toggle('active', isNotes);
+    els.knQuoteTabNotes.setAttribute('aria-selected', String(isNotes));
+    els.knQuoteTabDocuments.classList.toggle('active', !isNotes);
+    els.knQuoteTabDocuments.setAttribute('aria-selected', String(!isNotes));
+    els.knQuoteNotesPane.hidden = !isNotes;
+    els.knQuoteDocumentsPane.hidden = isNotes;
+    if (isNotes) {
+      loadQuoteNotes();
+    } else {
+      backToQuoteDocList();
+      loadQuoteDocuments();
+    }
+  }
+
+  async function loadQuoteNotes() {
+    els.knQuoteNotesList.innerHTML = '';
+    els.knQuoteNotesList.appendChild(quoteMessage('Loading your notes…'));
+    const search = els.knQuoteNotesSearch.value.trim();
+    try {
+      const rows = await data().fetchQuotableNotes({ search });
+      renderQuoteNotes(rows, Boolean(search));
+    } catch (error) {
+      els.knQuoteNotesList.innerHTML = '';
+      els.knQuoteNotesList.appendChild(quoteMessage(data().describeError(error)));
+    }
+  }
+
+  function renderQuoteNotes(rows, isSearch) {
+    els.knQuoteNotesList.innerHTML = '';
+    if (!rows.length) {
+      els.knQuoteNotesList.appendChild(quoteMessage(isSearch
+        ? 'No note of yours matches that.'
+        : 'You have not written any notes yet. Add some on a daf, then quote them here.'));
+      return;
+    }
+    rows.forEach((row) => {
+      const item = el('button', 'note-cite-doc');
+      item.type = 'button';
+
+      const title = el('span', 'note-cite-doc-title', `your note on ${String(row.daf_ref_key || '').replace(/-/g, ' ')}`);
+      item.appendChild(title);
+
+      if (row.category) {
+        const meta = el('span', 'note-cite-doc-meta', fmt().categoryByKey?.(row.category)?.en || row.category);
+        item.appendChild(meta);
+      }
+
+      const preview = el('span', 'note-cite-doc-preview', row.body.length > 140 ? `${row.body.slice(0, 140)}…` : row.body);
+      item.appendChild(preview);
+
+      item.addEventListener('click', () => useQuoteNote(row));
+      els.knQuoteNotesList.appendChild(item);
+    });
+  }
+
+  function useQuoteNote(row) {
+    const text = row.body;
+    if (text.length > entryBudget()) {
+      window.alert(`That note is ${text.length} characters; only ${entryBudget()} will fit here. Shorten the entry first.`);
+      return;
+    }
+    insertIntoEntryBody(text);
+    state.citeKind = 'note';
+    state.citeSourceId = row.id;
+    state.citeLabel = `your note on ${String(row.daf_ref_key || '').replace(/-/g, ' ')}`;
+    renderCiteChip();
+    els.knQuoteDialog.close();
+  }
+
+  async function loadQuoteDocuments() {
+    els.knQuoteDocList.innerHTML = '';
+    els.knQuoteDocList.appendChild(quoteMessage('Loading your documents…'));
+    const search = els.knQuoteDocSearch.value.trim();
+    try {
+      const rows = await data().fetchQuotableDocuments({ search });
+      renderQuoteDocuments(rows, Boolean(search));
+    } catch (error) {
+      els.knQuoteDocList.innerHTML = '';
+      els.knQuoteDocList.appendChild(quoteMessage(data().describeError(error)));
+    }
+  }
+
+  function renderQuoteDocuments(rows, isSearch) {
+    els.knQuoteDocList.innerHTML = '';
+    if (!rows.length) {
+      els.knQuoteDocList.appendChild(quoteMessage(isSearch
+        ? 'No document of yours matches that.'
+        : 'You have not imported any documents yet. Import them from My Notes, then quote them here.'));
+      if (!isSearch) {
+        const link = el('a', 'button secondary small', 'Go to My Notes');
+        link.href = '/notes/?tab=documents';
+        els.knQuoteDocList.appendChild(link);
+      }
+      return;
+    }
+    rows.forEach((row) => {
+      const item = el('button', 'note-cite-doc');
+      item.type = 'button';
+
+      const title = el('span', 'note-cite-doc-title', row.title);
+      item.appendChild(title);
+
+      const meta = el('span', 'note-cite-doc-meta', QUOTE_SOURCE_LABELS[row.source_kind] || row.source_kind);
+      item.appendChild(meta);
+
+      if (row.preview) item.appendChild(el('span', 'note-cite-doc-preview', row.preview));
+
+      item.addEventListener('click', () => openQuoteDocument(row.id));
+      els.knQuoteDocList.appendChild(item);
+    });
+  }
+
+  async function openQuoteDocument(id) {
+    const doc = await data().fetchQuotableDocument(id);
+    if (!doc) {
+      window.alert('That document is no longer available.');
+      return;
+    }
+    quoteOpenDocument = doc;
+    quoteSelectedPassage = '';
+    els.knQuoteDocTitle.textContent = doc.title;
+    // textContent into a <pre>, same as notes.js's own citation picker: an
+    // imported document is arbitrary text, kept as-is with no markup.
+    els.knQuoteDocText.textContent = doc.full_text;
+    els.knQuoteDocBrowse.hidden = true;
+    els.knQuoteDocPassage.hidden = false;
+    updateQuoteSelection();
+    els.knQuoteDocText.focus();
+  }
+
+  function backToQuoteDocList() {
+    quoteOpenDocument = null;
+    quoteSelectedPassage = '';
+    els.knQuoteDocPassage.hidden = true;
+    els.knQuoteDocBrowse.hidden = false;
+  }
+
+  // What the reader has selected INSIDE the document pane, and nothing else
+  // -- mirrors notes.js's own citeSelectedText exactly.
+  function quoteSelectedText() {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) return '';
+    const range = selection.getRangeAt(0);
+    if (!els.knQuoteDocText.contains(range.commonAncestorContainer)) return '';
+    return selection.toString();
+  }
+
+  function updateQuoteSelection() {
+    const live = quoteSelectedText();
+    if (live) quoteSelectedPassage = live;
+    const selected = quoteSelectedPassage;
+    const budget = entryBudget();
+
+    if (!selected) {
+      els.knQuoteDocUse.disabled = true;
+      els.knQuoteDocHint.textContent = 'Select the words you want to quote.';
+      return;
+    }
+    if (selected.length > budget) {
+      els.knQuoteDocUse.disabled = true;
+      els.knQuoteDocHint.textContent = budget === 0
+        ? 'This entry is already full. Shorten it before quoting more.'
+        : `That selection is ${selected.length} characters; ${budget} will fit in this entry. Select less.`;
+      return;
+    }
+    els.knQuoteDocUse.disabled = false;
+    els.knQuoteDocHint.textContent = `${selected.length} characters of ${budget} that will fit.`;
+  }
+
+  function useQuoteSelection() {
+    const selected = quoteSelectedPassage;
+    if (!selected || !quoteOpenDocument) return;
+    if (selected.length > entryBudget()) return; // updateQuoteSelection already said why
+
+    insertIntoEntryBody(selected);
+    state.citeKind = 'document';
+    state.citeSourceId = quoteOpenDocument.id;
+    state.citeLabel = quoteOpenDocument.title;
+    renderCiteChip();
+    quoteSelectedPassage = '';
+    els.knQuoteDialog.close();
+  }
+
+  function openQuoteDialog() {
+    els.knQuoteNotesSearch.value = '';
+    els.knQuoteDocSearch.value = '';
+    switchQuoteTab('notes');
+    els.knQuoteDialog.showModal();
   }
 
   // --- Kuntras-level actions ---------------------------------------------
@@ -475,6 +780,35 @@
     els.knEntryClose.addEventListener('click', () => els.knEntryDialog.close());
     els.knEntryForm.addEventListener('submit', onEntrySubmit);
     els.knEntryBody.addEventListener('input', refreshEntrySize);
+
+    if (els.knCiteButton) {
+      els.knCiteButton.addEventListener('click', openQuoteDialog);
+      els.knCiteClear.addEventListener('click', clearCitation);
+      els.knQuoteClose.addEventListener('click', () => els.knQuoteDialog.close());
+      els.knQuoteTabNotes.addEventListener('click', () => switchQuoteTab('notes'));
+      els.knQuoteTabDocuments.addEventListener('click', () => switchQuoteTab('documents'));
+      els.knQuoteDocBack.addEventListener('click', backToQuoteDocList);
+      // mousedown on the button collapses the pane's selection before the
+      // click ever arrives -- preventing the default keeps it in place. See
+      // notes.js's own initCiteDialog for the full rationale.
+      els.knQuoteDocUse.addEventListener('mousedown', (event) => event.preventDefault());
+      els.knQuoteDocUse.addEventListener('click', useQuoteSelection);
+
+      let notesSearchTimer = null;
+      els.knQuoteNotesSearch.addEventListener('input', () => {
+        clearTimeout(notesSearchTimer);
+        notesSearchTimer = setTimeout(loadQuoteNotes, 250);
+      });
+      let docsSearchTimer = null;
+      els.knQuoteDocSearch.addEventListener('input', () => {
+        clearTimeout(docsSearchTimer);
+        docsSearchTimer = setTimeout(loadQuoteDocuments, 250);
+      });
+
+      document.addEventListener('selectionchange', () => {
+        if (!els.knQuoteDocPassage.hidden) updateQuoteSelection();
+      });
+    }
 
     window.DafSyncAuth?.onChange(() => {
       if (state.view === 'library') loadLibrary();
