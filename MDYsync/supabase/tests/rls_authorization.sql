@@ -1255,4 +1255,160 @@ select dafsync_test.check(
   '1');
 
 -- ===========================================================================
+-- line_notes.source_document_id -- citing an imported document from a note.
+--
+-- The column is provenance only: the excerpt itself is copied into
+-- line_notes.body when the note is written, and note_documents stays as
+-- unreadable to everyone but its owner as it was before. What needs proving
+-- here is that the link cannot be forged (a note citing a document its
+-- author does not own), and that it cannot be used as a side channel into a
+-- table the reader has no other way into.
+-- ===========================================================================
+
+\set doc_cited  '''d0000000-0000-4000-8000-000000000003'''
+\set note_cited '''a0000000-0000-4000-8000-00000000000a'''
+\set note_open  '''a0000000-0000-4000-8000-00000000000b'''
+
+-- A fresh document rather than one of the two above: those have been renamed
+-- and hard-deleted by the tests preceding this section, and a test that
+-- depends on the mutations of an earlier test breaks the moment either is
+-- reordered.
+insert into public.note_documents (id, owner_id, title, source_kind, full_text)
+values (:doc_cited, '11111111-1111-4111-8111-111111111111',
+        'Reader One''s cited notebook', 'paste', 'a passage worth quoting on the daf');
+
+-- --- Forging the link -----------------------------------------------------
+
+select dafsync_test.check(
+  'an author can cite a document they imported themselves',
+  dafsync_test.attempt_rows('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('insert into public.line_notes
+              (id, author_id, author_display_name, daf_ref_key, segment_ref, body, is_private, source_document_id)
+            values (%L, ''11111111-1111-4111-8111-111111111111'', ''Reader One'',
+                    ''Chullin-89a'', ''Chullin 89a.1'', ''An excerpt from my notebook.'', true, %L)',
+           :note_cited, :doc_cited)),
+  '1');
+
+-- P0001, the trigger's own raise, NOT 23503: the foreign key alone would
+-- happily accept another account's document, since it only asks whether the
+-- row exists. This is the check that makes the column mean what it says.
+select dafsync_test.check(
+  'a note cannot cite a document belonging to someone else',
+  dafsync_test.attempt('authenticated', '22222222-2222-4222-8222-222222222222',
+    format('insert into public.line_notes
+              (author_id, author_display_name, daf_ref_key, segment_ref, body, is_private, source_document_id)
+            values (''22222222-2222-4222-8222-222222222222'', ''Author Two'',
+                    ''Chullin-89a'', ''Chullin 89a.1'', ''Quoting a file I cannot read.'', true, %L)',
+           :doc_cited)),
+  'P0001');
+
+-- The trigger runs BEFORE the foreign key is checked, so a made-up id is
+-- stopped by ownership rather than by referential integrity. Asserted so the
+-- order stays deliberate: the ownership rule is the one that must never be
+-- reachable around.
+select dafsync_test.check(
+  'a note cannot cite a document that does not exist',
+  dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
+    'insert into public.line_notes
+       (author_id, author_display_name, daf_ref_key, segment_ref, body, is_private, source_document_id)
+     values (''11111111-1111-4111-8111-111111111111'', ''Reader One'',
+             ''Chullin-89a'', ''Chullin 89a.1'', ''Citing nothing.'', true,
+             ''d0000000-0000-4000-8000-0000000000ff'')'),
+  'P0001');
+
+-- The trigger is BEFORE INSERT OR UPDATE, not INSERT alone: an update is the
+-- obvious way to retarget an already-accepted note at a document its author
+-- does not own.
+select dafsync_test.check(
+  'an existing note cannot be retargeted at someone else''s document',
+  dafsync_test.attempt('authenticated', '22222222-2222-4222-8222-222222222222',
+    format('update public.line_notes set source_document_id = %L where id = %L',
+           :doc_cited, :open_note)),
+  'P0001');
+
+-- The column is nullable and almost every note leaves it so; the trigger has
+-- to let an uncited note through untouched rather than treating null as a
+-- failed lookup.
+select dafsync_test.check(
+  'a note citing nothing is unaffected by the check',
+  dafsync_test.attempt_rows('authenticated', '11111111-1111-4111-8111-111111111111',
+    'insert into public.line_notes
+       (author_id, author_display_name, daf_ref_key, segment_ref, body, is_private)
+     values (''11111111-1111-4111-8111-111111111111'', ''Reader One'',
+             ''Chullin-89a'', ''Chullin 89a.1'', ''An ordinary note.'', true)'),
+  '1');
+
+-- --- The link is not a way into the document ------------------------------
+
+select dafsync_test.check(
+  'an author can share a note that was excerpted from a private document',
+  dafsync_test.attempt_rows('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('insert into public.line_notes
+              (id, author_id, author_display_name, daf_ref_key, segment_ref, body, is_private, source_document_id)
+            values (%L, ''11111111-1111-4111-8111-111111111111'', ''Reader One'',
+                    ''Chullin-89a'', ''Chullin 89a.1'', ''SHARED-EXCERPT from my notebook.'', false, %L)',
+           :note_open, :doc_cited)),
+  '1');
+
+-- The point of the previous insert. Another reader gets the note -- which is
+-- what sharing means -- and the id of its source, and that is the end of the
+-- road: note_documents has no policy that admits them.
+select dafsync_test.check(
+  'another reader can read the shared note itself',
+  dafsync_test.read_as('authenticated', '22222222-2222-4222-8222-222222222222',
+    format('select body from public.line_notes where id = %L', :note_open)),
+  'SHARED-EXCERPT from my notebook.');
+
+select dafsync_test.check(
+  'but cannot follow its citation into the document',
+  dafsync_test.read_as('authenticated', '22222222-2222-4222-8222-222222222222',
+    format('select count(*)::text from public.note_documents d
+            join public.line_notes n on n.source_document_id = d.id
+            where n.id = %L', :note_open)),
+  '0');
+
+select dafsync_test.check(
+  'and neither can an admin',
+  dafsync_test.read_as('authenticated', '44444444-4444-4444-8444-444444444444',
+    format('select count(*)::text from public.note_documents d
+            join public.line_notes n on n.source_document_id = d.id
+            where n.id = %L', :note_open)),
+  '0');
+
+-- anon is refused by table privileges before RLS is consulted (the migration
+-- grants it nothing), so this is an error rather than an empty result.
+select dafsync_test.check(
+  'anon is refused at the table when following a citation',
+  dafsync_test.read_as('anon', null,
+    format('select count(*)::text from public.note_documents d
+            join public.line_notes n on n.source_document_id = d.id
+            where n.id = %L', :note_open)),
+  'ERROR:42501');
+
+-- --- Losing the document keeps the note -----------------------------------
+--
+-- The app soft-deletes, so this path is close to unreachable in normal use;
+-- it matters for an account erasure or a hand-run DELETE. The note is the
+-- reader's own published writing and must survive -- ON DELETE SET NULL, not
+-- CASCADE. Getting this backwards would silently delete notes, possibly
+-- public ones with discussions under them, when a private file was removed.
+select dafsync_test.check(
+  'the owner can hard-delete a document that notes cite',
+  dafsync_test.attempt_rows('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('delete from public.note_documents where id = %L', :doc_cited)),
+  '1');
+
+select dafsync_test.check(
+  'the note survives its document being deleted',
+  dafsync_test.read_as('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('select body from public.line_notes where id = %L', :note_cited)),
+  'An excerpt from my notebook.');
+
+select dafsync_test.check(
+  'and its citation is cleared rather than left dangling',
+  dafsync_test.read_as('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('select (source_document_id is null)::text from public.line_notes where id = %L', :note_cited)),
+  'true');
+
+-- ===========================================================================
 do $$ begin raise notice 'ALL AUTHORIZATION TESTS PASSED'; end $$;

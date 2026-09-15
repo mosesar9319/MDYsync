@@ -40,6 +40,19 @@ export const NOTE_IDS = {
   largeThread: 'a0000000-0000-4000-8000-000000000007',
   privateNote: 'a0000000-0000-4000-8000-000000000008',
   otherMasechta: 'a0000000-0000-4000-8000-000000000009',
+  // Quoted out of an imported document (DOCUMENT_IDS.chullin), so the
+  // "From <document>" provenance and the reader's own "Quoted on" reverse
+  // lookup both have something real to render.
+  citesDocument: 'a0000000-0000-4000-8000-00000000000a',
+  citesDocumentShared: 'a0000000-0000-4000-8000-00000000000b',
+};
+
+// The imported documents seeded below. Named so a spec can refer to one
+// without repeating a UUID it would then have to keep in sync by hand.
+export const DOCUMENT_IDS = {
+  chullin: 'f0000000-0000-4000-8000-000000000001',
+  berachos: 'f0000000-0000-4000-8000-000000000002',
+  someoneElses: 'f0000000-0000-4000-8000-000000000003',
 };
 
 function note(overrides) {
@@ -73,6 +86,10 @@ function note(overrides) {
     // bump_note_last_activity() keeps this at or after created_at; the backfill
     // set it to created_at for every pre-existing row.
     last_activity_at: overrides.last_activity_at || overrides.created_at,
+    // Provenance for a note quoted out of an imported document, null for
+    // every other note -- which is every pre-existing row, and almost every
+    // new one.
+    source_document_id: overrides.source_document_id ?? null,
   };
 }
 
@@ -202,6 +219,25 @@ export function buildDatabase() {
       created_at: isoMinutesAgo(5),
     }),
     note({ id: NOTE_IDS.otherMasechta, daf_ref_key: 'Berakhot-2a', segment_ref: 'Berakhot 2a.1', body: 'Note on a different masechta.', created_at: isoMinutesAgo(80) }),
+    // Private, and quoted out of the author's own imported document.
+    note({
+      id: NOTE_IDS.citesDocument,
+      body: 'CITED-EXCERPT Shechita requires five things.',
+      is_private: true,
+      source_document_id: DOCUMENT_IDS.chullin,
+      created_at: isoMinutesAgo(12),
+    }),
+    // The same document quoted onto a DIFFERENT daf, and shared rather than
+    // private -- so the "Quoted on" list has more than one entry to order,
+    // and one of them carries the Shared chip.
+    note({
+      id: NOTE_IDS.citesDocumentShared,
+      daf_ref_key: 'Berakhot-2a',
+      segment_ref: 'Berakhot 2a.1',
+      body: 'SHARED-EXCERPT My notes on the sugya of derasa.',
+      source_document_id: DOCUMENT_IDS.chullin,
+      created_at: isoMinutesAgo(14),
+    }),
   ];
 
   const comments = [];
@@ -301,7 +337,7 @@ export function buildDatabase() {
     // so a fixture row and a freshly imported one look the same to the UI.
     note_documents: [
       {
-        id: 'f0000000-0000-4000-8000-000000000001',
+        id: DOCUMENT_IDS.chullin,
         owner_id: USERS.author.id,
         title: 'Chullin notes 5785',
         source_kind: 'paste',
@@ -313,7 +349,7 @@ export function buildDatabase() {
         deleted_at: null,
       },
       {
-        id: 'f0000000-0000-4000-8000-000000000002',
+        id: DOCUMENT_IDS.berachos,
         owner_id: USERS.author.id,
         title: 'Berachos notebook',
         source_kind: 'txt',
@@ -328,7 +364,7 @@ export function buildDatabase() {
       // RLS is what really enforces that (see supabase/tests), but a spec
       // proving the client asks only for its own rows is still worth having.
       {
-        id: 'f0000000-0000-4000-8000-000000000003',
+        id: DOCUMENT_IDS.someoneElses,
         owner_id: USERS.ordinary.id,
         title: 'Someone else’s notebook',
         source_kind: 'paste',

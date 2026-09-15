@@ -26,7 +26,7 @@
   // column added later (or one that should never reach the browser) is then
   // an opt-in, not an automatic shipment.
   const NOTE_COLUMNS = [
-    'id', 'daf_ref_key', 'segment_ref', 'title', 'body', 'category',
+    'id', 'daf_ref_key', 'segment_ref', 'title', 'body', 'category', 'source_document_id',
     'is_private', 'hidden', 'status', 'selected_text', 'start_word', 'end_word',
     'word_ranges', 'video_timestamp_seconds', 'created_at', 'edited_at',
     'last_activity_at',
@@ -278,6 +278,30 @@
     if (error) throw error;
   }
 
+  // Every note this reader wrote out of one document -- the reverse of
+  // line_notes.source_document_id, and what its partial index exists for.
+  // This is the question the citation makes answerable and nothing else
+  // does: "which dafs have I used this notebook on."
+  //
+  // Scoped to author_id as well as source_document_id. RLS would already
+  // hold (a reader can only own documents whose citations are their own
+  // notes), but stating it means the query says what it means rather than
+  // relying on a policy elsewhere to be the thing that makes it true.
+  async function fetchDocumentCitations(documentId) {
+    const user = currentUser();
+    if (!user) return [];
+    const { data, error } = await client()
+      .from('line_notes')
+      .select('id, daf_ref_key, segment_ref, body, is_private, created_at')
+      .eq('source_document_id', documentId)
+      .eq('author_id', user.id)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    return data || [];
+  }
+
   window.DafSyncMyNotes = window.DafSyncMyNotes || {};
   window.DafSyncMyNotes.data = {
     PAGE_SIZE,
@@ -287,6 +311,7 @@
     fetchMyDafIndex,
     fetchMyDocuments,
     fetchDocument,
+    fetchDocumentCitations,
     createDocument,
     renameDocument,
     deleteDocument,

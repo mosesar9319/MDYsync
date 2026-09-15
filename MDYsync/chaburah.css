@@ -399,6 +399,26 @@ body[data-page="my-notes"] .cc-shell.no-rail { grid-template-columns: minmax(0, 
   border-radius: var(--cc-radius-sm); padding: 14px;
 }
 
+/* "Quoted on": the dafs this document has been excerpted onto, from
+   line_notes.source_document_id. Hidden entirely when there are none. */
+.cc-doc-citations { margin-top: 16px; border-top: 1px solid var(--cc-border); padding-top: 14px; }
+.cc-doc-citations-title { font-size: 13px; margin: 0 0 10px; }
+.cc-doc-citations-list { display: flex; flex-direction: column; gap: 8px; max-height: 30vh; overflow: auto; }
+.cc-doc-citation {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;
+  border: 1px solid var(--cc-border); border-radius: var(--cc-radius-sm);
+  background: var(--cc-surface-subtle); padding: 9px 11px;
+  color: inherit; text-decoration: none;
+}
+a.cc-doc-citation:hover { border-color: var(--cc-accent); }
+.cc-doc-citation-daf { font-weight: 700; font-size: 13px; white-space: nowrap; }
+/* The note's opening words. Takes the remaining width and truncates, so a
+   long note cannot push the Shared chip onto its own line. */
+.cc-doc-citation-body {
+  flex: 1 1 140px; min-width: 0; font-size: 12.5px; color: var(--cc-text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
 /* --- States -------------------------------------------------------------- */
 .cc-empty, .cc-error {
   background: var(--cc-surface); border: 1px solid var(--cc-border);

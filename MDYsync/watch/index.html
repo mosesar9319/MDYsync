@@ -648,6 +648,13 @@
         <button type="button" class="note-format-button" data-format="large" title="Large text" aria-label="Large text">A+</button>
         <button type="button" class="note-format-button" data-format="list" title="Bullet list" aria-label="Bullet list">≡</button>
       </div>
+      <div class="note-cite-row" id="noteCiteRow" hidden>
+        <button type="button" class="note-cite-button" id="noteCiteButton">Quote from my notes</button>
+        <span class="note-cite-current" id="noteCiteCurrent" hidden>
+          From <strong id="noteCiteCurrentTitle"></strong>
+          <button type="button" class="note-cite-clear" id="noteCiteClear" aria-label="Remove this source">×</button>
+        </span>
+      </div>
       <textarea id="noteBodyInput" maxlength="2000" rows="3" placeholder="Write a note on this line…"></textarea>
       <label class="note-timestamp-toggle" id="noteTimestampToggle" hidden>
         <input type="checkbox" id="noteTimestampCheckbox">
@@ -661,6 +668,29 @@
     <p class="dialog-note" id="noteSignInPrompt" hidden>
       <button class="button secondary small" id="noteSignInButton" type="button">Sign in to add a note</button>
     </p>
+  </dialog>
+
+  <dialog id="noteCiteDialog">
+    <button class="dialog-close" id="closeNoteCiteDialog" aria-label="Close">×</button>
+    <div class="eyebrow">My notes</div>
+    <h2>Quote from a document</h2>
+    <div id="noteCiteBrowse">
+      <div class="search-notes-field">
+        <input type="search" id="noteCiteSearch" placeholder="Search your imported documents…" maxlength="200">
+      </div>
+      <div class="note-cite-list" id="noteCiteList">
+        <p class="field-note">Loading your documents…</p>
+      </div>
+    </div>
+    <div id="noteCitePassage" hidden>
+      <button type="button" class="button secondary small" id="noteCiteBack">← All documents</button>
+      <h3 class="note-cite-doc-heading" id="noteCiteDocTitle"></h3>
+      <pre class="note-cite-text" id="noteCiteText" tabindex="0"></pre>
+      <div class="note-compose-actions">
+        <span class="field-note" id="noteCiteHint">Select the words you want to quote.</span>
+        <button class="button primary small" id="noteCiteUse" type="button" disabled>Use selection</button>
+      </div>
+    </div>
   </dialog>
 
   <dialog id="searchNotesDialog">

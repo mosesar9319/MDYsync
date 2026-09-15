@@ -51,7 +51,7 @@
       'mnImportTitle', 'mnImportFile', 'mnImportText', 'mnImportSize', 'mnImportError',
       'mnImportSubmit',
       'mnDocDialog', 'mnDocClose', 'mnDocMeta', 'mnDocTitle', 'mnDocText',
-      'mnDocRename', 'mnDocDelete',
+      'mnDocRename', 'mnDocDelete', 'mnDocCitations', 'mnDocCitationsList',
     ].forEach((id) => { els[id] = document.getElementById(id); });
   }
 
@@ -329,9 +329,55 @@
       // own line breaks. Nothing here is ever interpreted as markup.
       els.mnDocText.textContent = doc.full_text;
       els.mnDocDialog.showModal();
+      // After showModal, not before: the document itself is the point of
+      // opening the reader, and it should not wait on a second round trip
+      // for a list that is empty for most documents.
+      renderCitations(doc.id);
     } catch (error) {
       announce(data.describeError(error));
     }
+  }
+
+  // "Quoted on": every daf this document has been excerpted onto. The reverse
+  // of line_notes.source_document_id, and the one question the citation makes
+  // answerable -- without it a document is a file you can read, with it it is
+  // a file you can see the use of.
+  async function renderCitations(documentId) {
+    const section = els.mnDocCitations;
+    const list = els.mnDocCitationsList;
+    if (!section || !list) return;
+    section.hidden = true;
+    list.innerHTML = '';
+    let rows = [];
+    try {
+      rows = await data.fetchDocumentCitations(documentId);
+    } catch (error) {
+      // A failure here must not take the document down with it: the reader
+      // came to read the text, and it is already on screen.
+      announce(data.describeError(error));
+      return;
+    }
+    // The dialog may have been closed, or another document opened, while
+    // this was in flight.
+    if (state.openDocumentId !== documentId) return;
+    if (!rows.length) return;
+
+    rows.forEach((row) => {
+      const href = dafHref(row);
+      // A key that will not parse gets a plain list entry rather than a link
+      // to nowhere -- dafHref returns null for exactly that case.
+      const item = ui.el(href ? 'a' : 'div', 'cc-doc-citation');
+      if (href) item.href = href;
+      const where = ui.el('span', 'cc-doc-citation-daf', data.dafLabelFromKey(row.daf_ref_key));
+      item.appendChild(where);
+      // The note's own opening words, so a document quoted onto the same daf
+      // twice gives the reader something to tell the two apart by.
+      const excerpt = ui.el('span', 'cc-doc-citation-body', row.body.slice(0, 120));
+      item.appendChild(excerpt);
+      if (!row.is_private) item.appendChild(ui.chip('Shared', 'cc-chip-shared'));
+      list.appendChild(item);
+    });
+    section.hidden = false;
   }
 
   async function renameOpenDocument() {

@@ -46,8 +46,8 @@ test.describe('Cloud Chabura home — shell', () => {
     await page.goto('/chaburah/');
 
     await waitForFeed(page);
-    // 8 public notes in the fixture; the 9th is private.
-    await expect(page.locator(CARD)).toHaveCount(8);
+    // 9 public notes in the fixture; the other two are private.
+    await expect(page.locator(CARD)).toHaveCount(9);
     expect(errors).toEqual([]);
   });
 
@@ -333,7 +333,7 @@ test.describe('Cloud Chabura home — filters, URL state and errors', () => {
     await expect(page.locator(CARD)).toHaveCount(1);
 
     await page.goBack();
-    await expect(page.locator(CARD)).toHaveCount(8);
+    await expect(page.locator(CARD)).toHaveCount(9);
     await expect(page.locator('#cc-tab-latest')).toHaveAttribute('aria-selected', 'true');
   });
 
@@ -362,7 +362,7 @@ test.describe('Cloud Chabura home — filters, URL state and errors', () => {
 
     await page.click(`${FEED} button:has-text("Clear filters")`);
     await waitForFeed(page);
-    await expect(page.locator(CARD)).toHaveCount(8);
+    await expect(page.locator(CARD)).toHaveCount(9);
   });
 
   test('surfaces the server message on a failed load, with a working retry (audit F-8)', async ({ page }) => {
@@ -393,16 +393,16 @@ test.describe('Cloud Chabura home — filters, URL state and errors', () => {
 
     await page.click(`${FEED} button:has-text("Try again")`);
     await waitForFeed(page);
-    await expect(page.locator(CARD)).toHaveCount(8);
+    await expect(page.locator(CARD)).toHaveCount(9);
   });
 });
 
 test.describe('Cloud Chabura home — pagination', () => {
-  // 17 filler notes on top of the 8 public fixtures = 25, so page one is full
+  // 16 filler notes on top of the 9 public fixtures = 25, so page one is full
   // at 20 and page two holds the remaining 5.
   function databaseWith25PublicNotes() {
     const db = buildDatabase();
-    for (let i = 0; i < 17; i += 1) {
+    for (let i = 0; i < 16; i += 1) {
       const createdAt = new Date(Date.parse('2026-09-02T00:00:00.000Z') + i * 1000).toISOString();
       db.line_notes.push({
         id: `f${String(i).padStart(7, '0')}-0000-4000-8000-000000000000`,
@@ -494,7 +494,7 @@ test.describe("Cloud Chabura home — Today's daf", () => {
 
     await expect(page.locator('#ccToday')).toContainText("Today's Daf");
     await expect(page.locator('#ccToday')).toContainText('Chullin 89a');
-    // 7 of the 8 public fixture notes sit on Chullin 89a.
+    // 7 of the 9 public fixture notes sit on Chullin 89a.
     await expect(page.locator('#ccToday')).toContainText('7 discussions');
   });
 
@@ -506,7 +506,7 @@ test.describe("Cloud Chabura home — Today's daf", () => {
     await expect(page.locator('#ccToday')).toContainText('Unavailable right now');
     // The rest of the page is unaffected: a calendar outage is not a feed outage.
     await waitForFeed(page);
-    await expect(page.locator(CARD)).toHaveCount(8);
+    await expect(page.locator(CARD)).toHaveCount(9);
   });
 });
 
