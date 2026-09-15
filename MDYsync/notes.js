@@ -29,6 +29,15 @@ let activeNoteCategory = null;
 // the same as every row this table already had before the word-range
 // anchor migration.
 let activeNoteSelection = null;
+// { id, title } of the imported document (note_documents) the note being
+// composed was excerpted from, or null -- which is what almost every note
+// is. Set by the "Quote from my notes" flow (openCiteDialog) and saved as
+// line_notes.source_document_id, which is PROVENANCE ONLY: the quoted words
+// themselves are copied into the body at the moment they are chosen, so
+// editing the document afterwards never rewrites a note already taken from
+// it. A note records at most one source, so quoting a second document
+// replaces the first (the picker says so before it happens).
+let activeNoteSourceDocument = null;
 // note id -> array of comments rows visible to the current viewer. Only
 // fetched/rendered for notes that are public and not hidden -- comments
 // only ever attach to such notes (see comments_insert's own note-visibility
@@ -386,6 +395,25 @@ function renderReplySection(row) {
 // notes, not a single line's handful).
 const CATEGORY_SORT_INDEX = new Map(CATEGORY_TYPES.map((c, i) => [c.key, i]));
 
+// "From <document>" on a note the viewer wrote out of their own imported
+// notes. Shown to its AUTHOR only: the title lives in note_documents, which
+// nobody else -- moderators included -- can read, so there is nothing to
+// render for anyone else, and inventing a generic "quoted from a document"
+// badge for other readers would advertise a private file without saying
+// anything useful about the note.
+//
+// Falls back to the plain badge if the title has not loaded (or the document
+// row is gone entirely, which a hard delete would do), rather than dropping
+// the provenance on the floor.
+function sourceDocumentPillHtml(row, mine) {
+  if (!row.source_document_id || !mine) return '';
+  const doc = citedDocumentsById.get(row.source_document_id);
+  if (!doc) return '<span class="note-pill note-pill-source">From my notes</span>';
+  const label = doc.deleted_at ? `${doc.title} (deleted)` : doc.title;
+  return '<span class="note-pill note-pill-source" title="Quoted from an imported document of yours">'
+    + `From ${escapeHtml(label)}</span>`;
+}
+
 function renderNoteList(rows) {
   const { list } = noteDialogEls();
   const user = window.DafSyncAuth?.getUser();
@@ -403,6 +431,7 @@ function renderNoteList(rows) {
     const categoryPill = categoryInfo
       ? `<span class="note-pill note-category-pill" title="${escapeHtml(categoryInfo.en)} — ${escapeHtml(categoryInfo.meaning)}"><span dir="rtl" lang="he">${escapeHtml(categoryInfo.he)}</span></span>`
       : '';
+    const sourcePill = sourceDocumentPillHtml(row, mine);
     const hiddenPill = row.hidden ? '<span class="note-pill note-pill-hidden">Hidden by moderators</span>' : '';
     const driftPill = noteAnchorMayHaveShifted(row)
       ? '<span class="note-pill note-pill-drift" title="This daf\'s word positions were rebuilt since this note was written -- the highlighted passage may not exactly match anymore.">⚠ May have shifted</span>'
@@ -428,6 +457,7 @@ function renderNoteList(rows) {
           <span class="note-item-author">${who}</span>
           ${privacyPill}
           ${categoryPill}
+          ${sourcePill}
           ${timestampPill}
           ${demoPill}
           ${hiddenPill}
@@ -565,6 +595,35 @@ async function loadCommentsForNotes(rows) {
   }
 }
 
+// document id -> { title } for every imported document cited by a note the
+// CURRENT VIEWER wrote. Only their own, because only its owner can read a
+// document's title at all -- note_documents has no public-read policy, so a
+// query for someone else's returns nothing rather than failing. Asking only
+// for the viewer's own makes that explicit instead of relying on RLS to
+// quietly drop rows.
+const citedDocumentsById = new Map();
+
+async function loadCitedDocuments(rows) {
+  const auth = window.DafSyncAuth;
+  const user = auth?.getUser();
+  if (!user) return;
+  const ids = [...new Set(rows
+    .filter((row) => row.source_document_id && row.author_id === user.id)
+    .map((row) => row.source_document_id))]
+    .filter((id) => !citedDocumentsById.has(id));
+  if (!ids.length) return;
+  // deleted_at is fetched, not filtered on: a note citing a document the
+  // reader has since deleted should still say where it came from. Filtering
+  // would silently drop the attribution and leave the note looking as though
+  // it was written from nothing.
+  const { data, error } = await auth.client
+    .from('note_documents').select('id, title, deleted_at')
+    .eq('owner_id', user.id)
+    .in('id', ids);
+  if (error || !data) return;
+  for (const row of data) citedDocumentsById.set(row.id, row);
+}
+
 // Two passes (note targets, then comment targets) rather than one query --
 // Supabase's client doesn't have a clean way to express "(target_type,
 // target_id) in (...)" as a single filter over a list of tuples.
@@ -625,6 +684,8 @@ async function refreshNoteList(ref) {
   if (activeNoteRef !== ref) return; // dialog moved on while reactions loaded
   await loadFollowsForNotes(publicNoteIds);
   if (activeNoteRef !== ref) return; // dialog moved on while follow state loaded
+  await loadCitedDocuments(rows);
+  if (activeNoteRef !== ref) return; // dialog moved on while sources loaded
   renderNoteList(rows);
 }
 
@@ -761,6 +822,12 @@ async function saveNote() {
     is_private: activeNotePrivacy === 'private',
     category: activeNoteCategory,
     video_timestamp_seconds: videoTimestamp,
+    // Provenance for a note quoted out of the reader's own imported
+    // document, null for every other note -- which is almost all of them.
+    // The database refuses a citation of a document the author does not own
+    // (line_notes_validate_source_document), so a forged id here fails the
+    // insert rather than producing a false attribution.
+    source_document_id: activeNoteSourceDocument ? activeNoteSourceDocument.id : null,
     // Whole-segment notes (the original 🗒 flow, no selection active) leave
     // all four columns unset -- the same "the whole segment" meaning every
     // pre-existing row already had, per the migration's own check
@@ -784,6 +851,7 @@ async function saveNote() {
   }
   bodyInput.value = '';
   timestampCheckbox.checked = false;
+  clearCitation();
   refreshNoteList(activeNoteRef);
   // A word-range save came from Select text's own selection (see
   // openNoteComposerForSelection) -- clear it now that it's been saved, so
@@ -815,6 +883,10 @@ function openNoteDialog(ref, text) {
   bodyInput.value = '';
   setNotePrivacy('private');
   setNoteCategory(null);
+  // A citation belongs to the note being written, not to the composer: a
+  // fresh note starts with none, however the last one ended.
+  clearCitation();
+  updateCiteRow();
   updateTimestampToggle();
   compose.hidden = !user;
   signInPrompt.hidden = Boolean(user);
@@ -917,6 +989,10 @@ async function openNoteComposerForSelection(runs) {
   bodyInput.value = '';
   setNotePrivacy('private');
   setNoteCategory(null);
+  // A citation belongs to the note being written, not to the composer: a
+  // fresh note starts with none, however the last one ended.
+  clearCitation();
+  updateCiteRow();
   updateTimestampToggle();
   compose.hidden = !user;
   signInPrompt.hidden = Boolean(user);
@@ -925,6 +1001,360 @@ async function openNoteComposerForSelection(runs) {
 }
 
 window.DafNotesComposer = { openForSelection: openNoteComposerForSelection };
+
+// --- Quote from my notes: citing an imported document ----------------------
+//
+// A reader who imported their own notebook (/notes/, Documents tab) can pull
+// a passage out of it while reading the daf. What that produces is an
+// ORDINARY note: a normal line_notes row, same 2000-character body, same
+// privacy toggle, same categories, same moderation path. The only extra is
+// line_notes.source_document_id, recording which document the words came
+// from.
+//
+// The quoted text is COPIED into the body at the moment it is chosen, never
+// referenced live. Editing the document later does not rewrite notes already
+// taken from it -- a note posted to a public discussion must not change
+// under the people reading it because its author edited a private file.
+//
+// This page does not load my-notes-data.js: that file is built on
+// window.DafSyncChabura.core, which only /notes/ and /chaburah/ ship. The
+// two queries needed here are small enough to state directly rather than
+// pull a whole module tree onto the daf pages for.
+
+const CITE_PAGE_SIZE = 20;
+
+// Deliberately omits full_text, exactly as my-notes-data.js's
+// DOCUMENT_LIST_COLUMNS does: twenty rows could be 10MB of text fetched to
+// render twenty two-line excerpts. `preview` is a generated column for this.
+const CITE_LIST_COLUMNS = 'id, title, source_kind, preview, created_at';
+
+const CITE_SOURCE_LABELS = { paste: 'Pasted', txt: 'Text file', md: 'Markdown' };
+
+// The document currently open in the picker's second step, { id, title,
+// full_text }. Held rather than re-fetched so that selecting, changing your
+// mind and selecting again does not re-download the text each time.
+let citeOpenDocument = null;
+
+// The last non-empty passage selected inside the document pane.
+//
+// Held rather than read fresh at the moment of the click because pressing a
+// button COLLAPSES the document's selection -- mousedown outside a selection
+// clears it, and on touch, tapping anywhere does. Reading window.getSelection()
+// from inside the click handler therefore finds nothing, and "Use selection"
+// would do nothing at all, which is exactly what it did before this was
+// added. preventDefault on the button's mousedown fixes the mouse case (it
+// stops the collapse happening in the first place); this covers touch, where
+// there is no such guarantee. Reset whenever the pane's contents change --
+// opening a document, going back to the list, reopening the picker, and after
+// a passage is used -- so a stale selection can never be inserted from a
+// document the reader has since navigated away from.
+let citeSelectedPassage = '';
+
+function citeDialogEls() {
+  return {
+    dialog: $('noteCiteDialog'),
+    search: $('noteCiteSearch'),
+    list: $('noteCiteList'),
+    browse: $('noteCiteBrowse'),
+    passage: $('noteCitePassage'),
+    back: $('noteCiteBack'),
+    docTitle: $('noteCiteDocTitle'),
+    text: $('noteCiteText'),
+    hint: $('noteCiteHint'),
+    use: $('noteCiteUse'),
+    row: $('noteCiteRow'),
+    button: $('noteCiteButton'),
+    current: $('noteCiteCurrent'),
+    currentTitle: $('noteCiteCurrentTitle'),
+    clear: $('noteCiteClear'),
+  };
+}
+
+// The composer's own "From <title>" chip. Shown only while a citation is
+// actually set; the × next to it drops the link without touching the text
+// already pasted into the body, which is the right split -- the words are
+// the reader's note now, the citation is a claim about where they came from,
+// and someone who has rewritten the passage in their own words may well want
+// to keep the first and drop the second.
+function renderCiteChip() {
+  const { current, currentTitle } = citeDialogEls();
+  if (!current) return;
+  if (!activeNoteSourceDocument) {
+    current.hidden = true;
+    return;
+  }
+  currentTitle.textContent = activeNoteSourceDocument.title;
+  current.hidden = false;
+}
+
+function clearCitation() {
+  activeNoteSourceDocument = null;
+  renderCiteChip();
+}
+
+// Only offered to a signed-in reader, since it reads that reader's own
+// documents. Hidden rather than disabled when signed out -- the whole
+// composer is already hidden in that case (see openNoteDialog).
+function updateCiteRow() {
+  const { row } = citeDialogEls();
+  if (!row) return;
+  row.hidden = !window.DafSyncAuth?.getUser();
+}
+
+async function loadCiteDocuments() {
+  const { list, search } = citeDialogEls();
+  const auth = window.DafSyncAuth;
+  const user = auth?.getUser();
+  if (!user) return;
+  list.innerHTML = '<p class="field-note">Loading your documents…</p>';
+
+  const term = search.value.trim();
+  let query = auth.client
+    .from('note_documents')
+    .select(CITE_LIST_COLUMNS)
+    .eq('owner_id', user.id)
+    .is('deleted_at', null);
+  if (term) {
+    query = query.textSearch('full_text_tsv', term, { type: 'websearch', config: 'simple' });
+  }
+  const { data, error } = await query
+    .order('created_at', { ascending: false })
+    .limit(CITE_PAGE_SIZE);
+
+  if (error) {
+    list.innerHTML = '';
+    list.appendChild(citeMessage(error.message || 'Could not load your documents.'));
+    return;
+  }
+  renderCiteDocuments(data || [], Boolean(term));
+}
+
+function citeMessage(text) {
+  const p = document.createElement('p');
+  p.className = 'field-note';
+  p.textContent = text;
+  return p;
+}
+
+function renderCiteDocuments(rows, isSearch) {
+  const { list } = citeDialogEls();
+  list.innerHTML = '';
+  if (!rows.length) {
+    list.appendChild(citeMessage(isSearch
+      ? 'No document of yours matches that.'
+      : 'You have not imported any notes yet. Import them from My Notes, then quote them here.'));
+    if (!isSearch) {
+      const link = document.createElement('a');
+      link.className = 'button secondary small';
+      link.href = '/notes/?tab=documents';
+      link.textContent = 'Go to My Notes';
+      list.appendChild(link);
+    }
+    return;
+  }
+  // textContent throughout: a document's title and preview are text the
+  // reader supplied, and nothing here is ever interpreted as markup.
+  rows.forEach((row) => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'note-cite-doc';
+    item.dataset.id = row.id;
+
+    const title = document.createElement('span');
+    title.className = 'note-cite-doc-title';
+    title.textContent = row.title;
+    item.appendChild(title);
+
+    const meta = document.createElement('span');
+    meta.className = 'note-cite-doc-meta';
+    meta.textContent = CITE_SOURCE_LABELS[row.source_kind] || row.source_kind;
+    item.appendChild(meta);
+
+    if (row.preview) {
+      const preview = document.createElement('span');
+      preview.className = 'note-cite-doc-preview';
+      preview.textContent = row.preview;
+      item.appendChild(preview);
+    }
+
+    item.addEventListener('click', () => openCiteDocument(row.id));
+    list.appendChild(item);
+  });
+}
+
+async function openCiteDocument(id) {
+  const { browse, passage, docTitle, text } = citeDialogEls();
+  const auth = window.DafSyncAuth;
+  const user = auth?.getUser();
+  if (!user) return;
+
+  const { data, error } = await auth.client
+    .from('note_documents')
+    .select('id, title, full_text')
+    .eq('id', id)
+    .eq('owner_id', user.id)
+    .is('deleted_at', null)
+    .maybeSingle();
+
+  if (error || !data) {
+    showToast(error?.message || 'That document is no longer available.', 'error');
+    return;
+  }
+
+  citeOpenDocument = data;
+  citeSelectedPassage = '';
+  docTitle.textContent = data.title;
+  // textContent into a <pre>: an imported document is arbitrary text, and it
+  // keeps its own line breaks without any of it becoming markup. The same
+  // choice the My Notes reader makes.
+  text.textContent = data.full_text;
+  browse.hidden = true;
+  passage.hidden = false;
+  updateCiteSelection();
+  text.focus();
+}
+
+function backToCiteList() {
+  const { browse, passage } = citeDialogEls();
+  citeOpenDocument = null;
+  citeSelectedPassage = '';
+  passage.hidden = true;
+  browse.hidden = false;
+}
+
+// What the reader has selected INSIDE the document pane, and nothing else --
+// a selection made elsewhere on the page (or one that merely starts in the
+// pane and runs out of it) is not a passage from this document and must not
+// be treated as one.
+function citeSelectedText() {
+  const { text } = citeDialogEls();
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed || selection.rangeCount === 0) return '';
+  const range = selection.getRangeAt(0);
+  if (!text.contains(range.commonAncestorContainer)) return '';
+  return selection.toString();
+}
+
+const NOTE_BODY_MAX = 2000;
+
+// The one place the composer's own limit is enforced against an insertion.
+// The textarea's maxlength stops TYPING past 2000 characters but says
+// nothing about text set programmatically, and the database's own check
+// constraint would reject the save with a raw 23514 long after the reader
+// had lost the thread of what they were doing. So the arithmetic happens
+// here, before the button is even enabled, and the shortfall is stated in
+// characters the reader can count.
+function citeBudget() {
+  const { bodyInput } = noteDialogEls();
+  const existing = bodyInput ? bodyInput.value.length : 0;
+  // +2 for the blank line that separates an inserted passage from whatever
+  // was already written, counted here so the estimate cannot promise room
+  // the insertion then does not have.
+  const separator = existing ? 2 : 0;
+  return Math.max(0, NOTE_BODY_MAX - existing - separator);
+}
+
+function updateCiteSelection() {
+  const { use, hint } = citeDialogEls();
+  if (!use) return;
+  const live = citeSelectedText();
+  if (live) citeSelectedPassage = live;
+  const selected = citeSelectedPassage;
+  const budget = citeBudget();
+
+  if (!selected) {
+    use.disabled = true;
+    hint.textContent = 'Select the words you want to quote.';
+    return;
+  }
+  if (selected.length > budget) {
+    use.disabled = true;
+    hint.textContent = budget === 0
+      ? 'This note is already full. Shorten it before quoting more.'
+      : `That selection is ${selected.length} characters; ${budget} will fit in this note. Select less.`;
+    return;
+  }
+  use.disabled = false;
+  // Said before the action rather than after it: a note records one source,
+  // so quoting a second document is a replacement, and the reader should
+  // know that while they can still change their mind.
+  if (activeNoteSourceDocument && activeNoteSourceDocument.id !== citeOpenDocument?.id) {
+    hint.textContent = `${selected.length} characters. This note currently cites `
+      + `"${activeNoteSourceDocument.title}" — using this will change its source to `
+      + `"${citeOpenDocument.title}".`;
+    return;
+  }
+  hint.textContent = `${selected.length} characters of ${budget} that will fit.`;
+}
+
+function useCiteSelection() {
+  const { dialog } = citeDialogEls();
+  const { bodyInput } = noteDialogEls();
+  const selected = citeSelectedPassage;
+  if (!selected || !citeOpenDocument) return;
+  if (selected.length > citeBudget()) return; // updateCiteSelection already said why
+
+  const existing = bodyInput.value;
+  bodyInput.value = existing ? `${existing}\n\n${selected}` : selected;
+  bodyInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+  activeNoteSourceDocument = { id: citeOpenDocument.id, title: citeOpenDocument.title };
+  citeSelectedPassage = '';
+  renderCiteChip();
+  dialog.close();
+  bodyInput.focus();
+  // Cursor at the end, so the reader carries straight on writing their own
+  // comment under the passage rather than landing in front of it.
+  bodyInput.setSelectionRange(bodyInput.value.length, bodyInput.value.length);
+}
+
+function openCiteDialog() {
+  const { dialog, search, browse, passage } = citeDialogEls();
+  if (!dialog || !window.DafSyncAuth?.getUser()) return;
+  search.value = '';
+  citeOpenDocument = null;
+  citeSelectedPassage = '';
+  passage.hidden = true;
+  browse.hidden = false;
+  // showModal, unlike the note panel behind it: this one IS a focused,
+  // one-decision step, and the daf underneath does not need to stay
+  // interactive while a passage is being picked out of a document.
+  dialog.showModal();
+  loadCiteDocuments();
+}
+
+function initCiteDialog() {
+  const els = citeDialogEls();
+  if (!els.dialog) return; // page doesn't ship the citation UI
+
+  els.button.addEventListener('click', openCiteDialog);
+  els.clear.addEventListener('click', clearCitation);
+  $('closeNoteCiteDialog').addEventListener('click', () => els.dialog.close());
+  els.back.addEventListener('click', backToCiteList);
+  // The selection in the pane IS the input to this button, and a plain
+  // mousedown on a button collapses it before the click ever arrives.
+  // Preventing the default keeps the selection (and the focus) exactly where
+  // the reader put it; the click still fires.
+  els.use.addEventListener('mousedown', (event) => event.preventDefault());
+  els.use.addEventListener('click', useCiteSelection);
+
+  let searchTimer = null;
+  els.search.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(loadCiteDocuments, 250);
+  });
+
+  // selectionchange on the document is the only event that catches every way
+  // a selection can be made or lost -- mouse, keyboard, touch handle drag,
+  // and the click that collapses it again. Scoped to when the pane is
+  // actually showing so it costs nothing the rest of the time.
+  document.addEventListener('selectionchange', () => {
+    if (!els.passage.hidden) updateCiteSelection();
+  });
+
+  window.DafSyncAuth?.onChange(updateCiteRow);
+  updateCiteRow();
+}
 
 function initNoteDialog() {
   const dialog = $('noteDialog');
@@ -977,6 +1407,8 @@ function initNoteDialog() {
   window.DafSyncAuth?.onChange(() => {
     if (currentDafInfo()) loadNotesForCurrentDaf();
   });
+
+  initCiteDialog();
 }
 
 if (document.readyState === 'loading') {

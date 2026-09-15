@@ -205,6 +205,13 @@
       <button class="cc-btn cc-btn-sm" id="mnDocDelete" type="button">Delete</button>
     </div>
     <pre class="cc-doc-text" id="mnDocText"></pre>
+    <!-- The reverse of line_notes.source_document_id: every daf this
+         document has been quoted on. Hidden until there is at least one,
+         since an empty "Quoted on" heading says nothing. -->
+    <section class="cc-doc-citations" id="mnDocCitations" hidden>
+      <h3 class="cc-doc-citations-title">Quoted on</h3>
+      <div class="cc-doc-citations-list" id="mnDocCitationsList"></div>
+    </section>
   </dialog>
 
   <dialog id="authDialog">

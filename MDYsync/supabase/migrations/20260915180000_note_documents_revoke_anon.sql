@@ -1,0 +1,53 @@
+-- Take anon's table privileges on note_documents away again, and keep
+-- line_notes_validate_source_document() off the REST surface.
+--
+-- APPLIED TO PRODUCTION 2026-09-15. Rollback:
+--   supabase/migrations/20260915180000_note_documents_revoke_anon.down.sql
+--
+-- WHY THIS EXISTS: the committed baseline and the real database disagree
+-- about what a NEW table starts out granting, and this migration is the
+-- difference.
+--
+-- 20260915150000 granted note_documents to `authenticated` and
+-- `service_role` and deliberately said nothing about `anon`, on the
+-- understanding that a table nobody grants to is a table anon cannot touch.
+-- That is true of baseline/00_current_production_schema.sql, whose one-time
+-- `grant all on all tables in schema public` covers only the tables that
+-- existed when it ran -- which is exactly why the authorization suite's
+-- "anon is refused at the table, not merely filtered by RLS" check passes
+-- there. It is NOT true of the real database, where Supabase's
+-- ALTER DEFAULT PRIVILEGES hands every newly created table in `public` to
+-- anon automatically. Verified directly after applying that migration to
+-- production: anon held DELETE, INSERT, REFERENCES, SELECT, TRIGGER,
+-- TRUNCATE and UPDATE on note_documents.
+--
+-- NOTHING WAS EXPOSED BY THIS. All four policies require
+-- auth.uid() = owner_id, which an anonymous session can never satisfy, and
+-- RLS was enabled in the same migration -- so anon got an empty result, not
+-- a row. What was lost was depth: the intent was for a signed-out caller to
+-- be stopped by table privileges BEFORE RLS is consulted, so that a future
+-- policy mistake has a second thing to get past rather than one.
+--
+-- The same gap applies to the trigger function. 20260915170000 revoked
+-- EXECUTE from PUBLIC, and the default privileges still grant it to `anon`
+-- and `authenticated` BY NAME, leaving it answering at
+-- /rest/v1/rpc/line_notes_validate_source_document (database linter 0028 /
+-- 0029). Calling a trigger function outside a trigger context raises
+-- "trigger functions can only be called as triggers" before it does
+-- anything, so this was not exploitable -- but it has no reason to answer,
+-- and revoking EXECUTE does not affect trigger execution (see
+-- 20260902180000's own note).
+--
+-- Both halves follow 20260902180000's direction of travel: grant to the role
+-- that needs it, revoke from everyone else, rather than trusting a default.
+--
+-- NOTE FOR THE TEST SUITE: because the baseline does not model Supabase's
+-- default privileges, these revokes are no-ops against a local test database
+-- and the suite cannot fail if they are removed. That gap is real and is
+-- tracked separately; do not read a green local run as proof this migration
+-- is unnecessary.
+
+revoke all on public.note_documents from anon;
+
+revoke execute on function public.line_notes_validate_source_document() from anon;
+revoke execute on function public.line_notes_validate_source_document() from authenticated;

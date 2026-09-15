@@ -2,10 +2,14 @@
 -- outside DafSync (pasted text, a .txt or .md file) and kept as a private,
 -- searchable document.
 --
--- NOT YET APPLIED TO PRODUCTION. Rollback:
+-- APPLIED TO PRODUCTION 2026-09-15. Rollback:
 --   supabase/migrations/20260915150000_note_documents.down.sql
--- Validate against supabase/baseline/ on a local Postgres 16 first
--- (supabase/README.md).
+--
+-- See 20260915180000, which had to take back table privileges this migration
+-- never granted: the real database's ALTER DEFAULT PRIVILEGES hands a new
+-- table to `anon` automatically, which the committed baseline does not model.
+-- The "anon is granted NOTHING" note further down describes the INTENT, and
+-- is only actually true once that later migration has run.
 --
 -- WHY A NEW TABLE RATHER THAN A BIGGER line_notes.body:
 --
