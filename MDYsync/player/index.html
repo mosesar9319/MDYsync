@@ -709,6 +709,11 @@
     }
     body.reading-mode-active .reading-video-float.is-dragging .reading-video-pinch-surface { cursor: grabbing; }
     body.reading-mode-active .reading-video-resize {
+      /* See browse/index.html's own copy of this rule for why display:block
+         is needed here -- the base ".reading-video-resize { display: none }"
+         rule above was never overridden, leaving the handle invisible and
+         unclickable even with Reading Mode on. */
+      display: block;
       position: absolute;
       right: 0;
       bottom: 0;

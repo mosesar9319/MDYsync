@@ -405,6 +405,16 @@
     }
     body.reading-mode-active .reading-video-float.is-dragging .reading-video-pinch-surface { cursor: grabbing; }
     body.reading-mode-active .reading-video-resize {
+      /* The base rule two blocks up (".reading-video-resize,
+         .reading-video-pinch-surface { display: none; }") hides both by
+         default when Reading Mode is off. The pinch surface's own
+         reading-mode-active rule below un-hides it (display: block); this
+         one never did, so the handle stayed display:none -- invisible,
+         unfocusable and unclickable -- even with Reading Mode on. That left
+         a mouse user with no way to resize the mini player at all: the
+         pinch/wheel/gesture paths beside it only answer to touch and
+         trackpad input. */
+      display: block;
       position: absolute;
       right: 0;
       bottom: 0;

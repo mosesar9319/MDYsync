@@ -5466,13 +5466,25 @@ function setReadingMode(enabled) {
   }, { passive: true });
 })();
 
+// Mirrors toggleVilnaFullscreen's own WebKit-prefixed fallback below --
+// unlike that one, this used to check/request only the unprefixed Fullscreen
+// API. Safari versions before 16.4 (still current on older macOS/iOS
+// installs) expose fullscreen only under the webkit-prefixed names, so on
+// those this button's own document.fullscreenElement check never matched
+// and requestFullscreen was undefined -- frame.requestFullscreen?.() then
+// short-circuits the whole chained .catch() too, so the click did nothing
+// at all, not even an error toast.
 function toggleVideoFullscreen() {
   const frame = $('videoFrame');
-  if (document.fullscreenElement === frame) {
-    document.exitFullscreen();
-  } else {
-    frame.requestFullscreen?.().catch((error) => showToast(`Fullscreen not available: ${error.message}`, 'error'));
+  const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
+  if (fullscreenElement === frame) {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen;
+    if (exit) Promise.resolve(exit.call(document)).catch((error) => showToast(`Could not exit fullscreen: ${error.message}`, 'error'));
+    return;
   }
+  const request = frame.requestFullscreen || frame.webkitRequestFullscreen;
+  if (!request) return showToast('Fullscreen is not available in this browser.', 'error');
+  Promise.resolve(request.call(frame)).catch((error) => showToast(`Fullscreen not available: ${error.message}`, 'error'));
 }
 
 // The daf text itself needs no per-tick work any more -- .daf-segment.active
@@ -5904,16 +5916,36 @@ function setMuted(muted) {
 // caption track without having to guess which language code this
 // particular video actually has captions in (a hardcoded 'en' would just
 // silently fail to show anything on a Hebrew-language shiur); unloadModule
-// is the corresponding way to fully turn them back off. Best-effort: the
-// IFrame API's captions module is thinly documented and this couldn't be
-// verified against a live video in this environment.
+// is the corresponding way to fully turn them back off.
+//
+// loadModule() is asynchronous -- it starts fetching the captions module
+// rather than making it available immediately -- so a setOption() call
+// issued in the very same tick can silently miss its own module before it
+// has actually finished loading (the API neither throws nor reports this;
+// the button flips to "on" and nothing else happens, which is exactly what
+// "the caption toggle is broken" looks like from the outside). The player's
+// own onApiChange event fires once a module genuinely becomes available, so
+// requestCaptionsTrack below is also called from there -- see
+// ensureYouTubePlayer's onApiChange handler. Calling it here too still
+// matters: once the module has already loaded from an earlier toggle this
+// session, onApiChange never fires again on a later one (nothing actually
+// changed), and this immediate call is what turns captions back on then.
+function requestCaptionsTrack() {
+  if (!state.captionsEnabled || state.playerType !== 'youtube' || !state.youtubeReady) return;
+  try {
+    state.youtubePlayer.setOption('captions', 'track', {});
+  } catch (error) {
+    console.error('Could not enable captions.', error);
+  }
+}
+
 function setCaptionsEnabled(enabled) {
   state.captionsEnabled = enabled;
   if (state.playerType === 'youtube' && state.youtubeReady) {
     try {
       if (enabled) {
         state.youtubePlayer.loadModule('captions');
-        state.youtubePlayer.setOption('captions', 'track', {});
+        requestCaptionsTrack();
       } else {
         state.youtubePlayer.unloadModule('captions');
       }
@@ -6622,6 +6654,12 @@ async function ensureYouTubePlayer(videoId) {
             if (event.data === 3 || event.data === 1) refreshQualityOptions();
           },
           onPlaybackQualityChange: () => refreshQualityOptions(),
+          // Fires once a module (e.g. 'captions', just requested by
+          // setCaptionsEnabled's own loadModule call) has actually finished
+          // loading and is ready to accept options -- see
+          // requestCaptionsTrack's own header for why setOption can't just
+          // be called in the same tick as loadModule.
+          onApiChange: () => requestCaptionsTrack(),
           onError: (event) => {
             const message = youtubeErrorMessage(event.data);
             showToast(message, 'error');
