@@ -172,3 +172,12 @@ update, delete and rpc the page issued.
 `update` / `delete` mutations. `upsert` keys on whichever of `user_id`,
 `ref_key`, `variant`, `note_id`, `target_type`, `target_id` the payload carries. Anything else is unimplemented — add it rather than working around it,
 and make it throw on input it cannot represent.
+
+`client.storage.from(bucket).upload(path, file, options)` /
+`.getPublicUrl(path)` are also stubbed, minimally: `upload` records the call
+and returns success without actually storing bytes anywhere; `getPublicUrl`
+returns a deterministic fake URL. Enough to prove the CLIENT calls Storage
+correctly and writes the resulting URL to `avatar_path` — not enough to prove
+anything renders, since nothing serves the uploaded bytes back (an `<img>`
+pointed at the fake URL fails to load in a real browser, same as any other
+authorization/behavior this stub cannot model — see its own header).

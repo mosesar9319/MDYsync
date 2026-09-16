@@ -27,6 +27,7 @@ directly the way a caller bypassing the UI would.
 | Path | What it is |
 |---|---|
 | `baseline/00_current_production_schema.sql` | Runnable replica of production's `public` schema as of 2026-09-02: tables, constraints, RLS, functions, triggers, indexes, grants. A test fixture, not a dump — see its header for the two deliberate differences. |
+| `baseline/02_storage_shim.sql` | A minimal local stand-in for Supabase's platform-managed `storage` schema (buckets/objects + `storage.foldername()`), applied only when a real `storage` schema isn't already present. Exists so Storage RLS policies (e.g. the avatars bucket) are provable locally the same as everything else — see its own header. |
 | `baseline/01_seed_representative_data.sql` | Personas and the awkward shapes (deep chain, hidden-with-visible-descendant, private canary) the migrations must handle. Mirrors `../tests/fixtures/dataset.mjs`. |
 | `migrations/*.sql` | Forward migrations, applied in filename order. |
 | `migrations/*.down.sql` | Rollbacks, where one exists. |

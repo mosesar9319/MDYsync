@@ -67,6 +67,17 @@
     getUser: () => currentUser,
     getProfile: () => currentProfile,
     isAdmin: () => Boolean(currentProfile?.is_admin),
+    // Re-fetches the signed-in user's own profiles row and notifies
+    // listeners -- needed because applySession only reloads it on sign-in/
+    // sign-out/token refresh, never after a write. profile-data.js calls
+    // this itself after every successful self-update, so the account
+    // widget's name/avatar and currentDisplayName() (chabura-core.js) never
+    // show stale data for the rest of the same session.
+    async refreshProfile() {
+      if (!currentUser) return;
+      currentProfile = await loadProfile(currentUser.id);
+      notify();
+    },
     // Registers a callback for auth/profile changes. Fires immediately with
     // the current state once the initial session check has resolved, so a
     // listener attached after the page loads still sees the right state

@@ -1293,3 +1293,55 @@ test.describe('Saved replies and orientation', () => {
     await expect(page.locator(`${reply(DEEP.l2)} button:has-text("Save")`)).toHaveCount(0);
   });
 });
+
+test.describe('Thread reader — avatars', () => {
+  // Slice: avatar_path renders as a real <img>, not just initials -- see
+  // chabura-thread-view.js's own avatar(). Root author is USERS.author by
+  // the note() fixture helper's own default.
+  test('a poster with an avatar_path shows the image, not initials', async ({ page }) => {
+    failOnPageError(page);
+    const db = buildDatabase();
+    const profile = db.public_profiles.find((p) => p.id === USERS.author.id);
+    // A data: URI, not an https:// one -- it loads with no network request
+    // at all, so there is nothing here for the sandbox's own proxy to
+    // refuse (unlike the deliberately-unreachable URL the next test uses,
+    // where that refusal IS the point).
+    const AVATAR_DATA_URI = 'data:image/png;base64,'
+      + 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+    profile.avatar_path = AVATAR_DATA_URI;
+    await preparePage(page, { user: null, db });
+    await openThread(page, NOTE_IDS.deepThread);
+
+    const rootAvatar = page.locator(`${ROOT} .ct-avatar`).first();
+    await expect(rootAvatar.locator('img')).toHaveAttribute('src', AVATAR_DATA_URI);
+    // And it actually rendered, rather than firing an error and falling
+    // back -- naturalWidth is 0 until (and unless) an <img> finishes loading.
+    await expect(async () => {
+      const width = await rootAvatar.locator('img').evaluate((img) => img.naturalWidth);
+      expect(width).toBeGreaterThan(0);
+    }).toPass();
+  });
+
+  test('a broken avatar image falls back to initials instead of a broken-image icon', async ({ page }) => {
+    failOnPageError(page);
+    const db = buildDatabase();
+    const profile = db.public_profiles.find((p) => p.id === USERS.author.id);
+    profile.avatar_path = 'https://example.test/does-not-exist.webp';
+    await preparePage(page, { user: null, db });
+    await page.route('https://example.test/**', (route) => route.fulfill({ status: 404, body: '' }));
+    await openThread(page, NOTE_IDS.deepThread);
+
+    const rootAvatar = page.locator(`${ROOT} .ct-avatar`).first();
+    await expect(rootAvatar.locator('img')).toHaveCount(0);
+    await expect(rootAvatar).toHaveText('AT');
+  });
+
+  test('a poster with no avatar_path shows initials, unaffected by this change', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.deepThread);
+    const rootAvatar = page.locator(`${ROOT} .ct-avatar`).first();
+    await expect(rootAvatar.locator('img')).toHaveCount(0);
+    await expect(rootAvatar).toHaveText('AT');
+  });
+});
