@@ -557,6 +557,22 @@
           <p class="field-note">Search for a user to label.</p>
         </div>
       </section>
+
+      <section class="card admin-only" id="newAccountsSection">
+        <div class="editor-heading">
+          <div>
+            <div class="eyebrow">Moderation</div>
+            <h2>New accounts</h2>
+            <p>The most recently registered accounts, newest first.</p>
+          </div>
+          <div class="editor-actions">
+            <button class="button ghost small" id="refreshNewAccountsButton" type="button">Refresh</button>
+          </div>
+        </div>
+        <div class="note-list" id="newAccountsList">
+          <p class="field-note">Loading…</p>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -742,6 +758,7 @@
   <script src="../notes-format.js" defer></script>
   <script src="../notes.js" defer></script>
   <script src="../studio-profiles.js" defer></script>
+  <script src="../studio-new-accounts.js" defer></script>
   <script src="../player-chrome.js" defer></script>
   <script src="../nav.js" defer></script>
   <script src="../collapse.js" defer></script>

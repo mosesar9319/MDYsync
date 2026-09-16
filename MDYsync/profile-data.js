@@ -113,6 +113,18 @@
     if (error) throw error;
   }
 
+  // Newest-registered accounts, for the Studio "New accounts" panel. Reuses
+  // profiles_admin_read (the same policy adminSearchProfiles relies on) --
+  // an admin can already select any row/column of profiles, so listing by
+  // created_at needs no new policy or RPC.
+  async function adminListRecentSignups(limit) {
+    const { data, error } = await client()
+      .from('profiles').select('id, email, display_name, created_at')
+      .order('created_at', { ascending: false }).limit(limit);
+    if (error) throw error;
+    return data || [];
+  }
+
   window.DafSyncProfile = {
     DISPLAY_NAME_MAX,
     fetchOwnProfile,
@@ -121,6 +133,7 @@
     fetchPublicProfile,
     adminSearchProfiles,
     adminSetRoleLabel,
+    adminListRecentSignups,
     describeError,
   };
 })();
