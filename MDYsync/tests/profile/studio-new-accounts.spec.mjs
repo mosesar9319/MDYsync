@@ -29,6 +29,16 @@ test.describe('Studio — new accounts', () => {
     await expect(items.first()).toContainText('newbie@example.com');
   });
 
+  test('lists every account, not just admins', async ({ page }) => {
+    failOnPageError(page);
+    await openStudioAsAdmin(page);
+
+    const list = page.locator('#newAccountsList');
+    await expect(list).toContainText('Reader One'); // an ordinary, non-admin user
+    await expect(list).toContainText('Author Two'); // also not an admin
+    await expect(list).toContainText('Admin Four');
+  });
+
   test('shows each account\'s email and its formatted signup time', async ({ page }) => {
     failOnPageError(page);
     await openStudioAsAdmin(page);

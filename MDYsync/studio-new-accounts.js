@@ -19,7 +19,11 @@
 // shapes get their own file.
 
 (function () {
-  const RECENT_SIGNUPS_LIMIT = 30;
+  // Matches the cap the other admin queues in this file's neighborhood use
+  // (loadModerationQueue/loadCommentModerationQueue/loadReportQueue in
+  // notes.js all limit(200)) -- a generous "effectively everyone" cap with
+  // no pagination UI, rather than a true unbounded query.
+  const RECENT_SIGNUPS_LIMIT = 200;
 
   function renderNewAccountsList(rows) {
     const list = $('newAccountsList');
