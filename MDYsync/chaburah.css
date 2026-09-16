@@ -678,3 +678,34 @@ a.cc-doc-citation:hover { border-color: var(--cc-accent); }
   .cc-notify-button { width: 40px; height: 40px; }
   .cc-notify-panel { position: fixed; top: auto; bottom: 64px; right: 12px; left: 12px; width: auto; }
 }
+
+/* ===========================================================================
+   /profile/ -- avatar preview, the crop dialog, and the "how this appears"
+   preview card. New classes only; nothing above this point is touched.
+   ========================================================================= */
+
+.pf-avatar-row { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+.pf-avatar-preview {
+  flex: none; width: 84px; height: 84px; border-radius: 50%; overflow: hidden;
+  display: grid; place-items: center; background: var(--cc-primary-soft); color: var(--cc-primary);
+  font-size: 26px; font-weight: 700;
+}
+.pf-avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
+.pf-avatar-preview-sm { width: 36px; height: 36px; font-size: 13px; }
+.pf-avatar-controls .field-note { margin-top: 6px; }
+
+.pf-preview-card {
+  margin-top: 24px; padding: 16px; border: 1px solid var(--cc-border);
+  border-radius: 14px; background: var(--cc-surface);
+}
+.pf-preview-post { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.pf-preview-post strong { font-size: 14px; }
+.pf-preview-post .field-note { display: block; margin-top: 2px; }
+
+.pf-crop-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 12px 0; }
+#pfCropCanvas {
+  width: 100%; max-width: 320px; aspect-ratio: 1 / 1; border-radius: 50%;
+  background: var(--cc-primary-soft); cursor: grab; touch-action: none;
+}
+#pfCropCanvas:active { cursor: grabbing; }
+.pf-crop-wrap .sync-field { width: 100%; max-width: 320px; }

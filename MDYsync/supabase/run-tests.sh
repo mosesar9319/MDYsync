@@ -8,6 +8,7 @@ DB="${DB:-dafsync_test}"
 P=(psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -X -v ON_ERROR_STOP=1 -q)
 "${P[@]}" -d postgres -c "drop database if exists $DB;" -c "create database $DB;" >/dev/null
 "${P[@]}" -d "$DB" -f supabase/baseline/00_current_production_schema.sql >/dev/null 2>&1
+"${P[@]}" -d "$DB" -f supabase/baseline/02_storage_shim.sql >/dev/null 2>&1
 "${P[@]}" -d "$DB" -f supabase/baseline/01_seed_representative_data.sql >/dev/null 2>&1
 for f in supabase/migrations/*.sql; do
   case "$f" in *.down.sql) continue;; esac

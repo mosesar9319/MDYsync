@@ -423,8 +423,31 @@
       });
     }
 
+    // Minimal Storage stub -- just enough surface for profile-data.js's own
+    // uploadAvatar: an in-memory "did this path get written" record (so a
+    // spec can assert an upload happened) and a deterministic fake public
+    // URL. It does not serve the uploaded bytes back -- an <img> pointed at
+    // the returned URL will fail to load in a real browser, which is fine:
+    // specs assert on the URL string and the avatar_path write, not on the
+    // image actually rendering (see chabura-thread-view.js's own fallback
+    // to initials on a load error, which this exercises for free).
+    function storageFrom(bucket) {
+      return {
+        upload(path, _file, _options) {
+          const key = bucket + '/' + path;
+          (window.__DAFSYNC_TEST_STORAGE__ = window.__DAFSYNC_TEST_STORAGE__ || {})[key] = true;
+          recordCall({ storage: { bucket, action: 'upload', path } });
+          return Promise.resolve({ data: { path }, error: null });
+        },
+        getPublicUrl(path) {
+          return { data: { publicUrl: 'https://stub.local/storage/v1/object/public/' + bucket + '/' + path } };
+        },
+      };
+    }
+
     const client = {
       from: builder,
+      storage: { from: storageFrom },
       rpc(name, params) {
         recordCall({ rpc: name, params: clone(params) });
         const handlers = (window.__DAFSYNC_TEST_CONTROL__ || {}).rpc || {};

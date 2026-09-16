@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Edit your DafSync profile: display name and avatar." />
+  <title>DafSync — Your Profile</title>
+  <script>
+    // Same dependency-free failure banner every other page carries, inline and
+    // ahead of every other <script> so it still works when a stylesheet or
+    // another script is the thing that failed. See chaburah/index.html.
+    (function () {
+      var shown = false;
+      function showBanner(message) {
+        if (shown) return;
+        shown = true;
+        var bar = document.createElement('div');
+        bar.textContent = 'Something on this page failed to load: ' + message + ' -- try reloading the page.';
+        bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#7c1d1d;color:#fff;'
+          + 'font:14px/1.4 -apple-system,system-ui,sans-serif;padding:10px 40px 10px 14px;text-align:left;';
+        var close = document.createElement('button');
+        close.textContent = '×';
+        close.setAttribute('aria-label', 'Dismiss');
+        close.style.cssText = 'position:absolute;right:8px;top:6px;background:transparent;border:0;color:#fff;'
+          + 'font-size:20px;line-height:1;cursor:pointer;padding:4px 8px;';
+        close.onclick = function () { bar.remove(); };
+        bar.appendChild(close);
+        document.body ? document.body.prepend(bar) : document.addEventListener('DOMContentLoaded', function () { document.body.prepend(bar); });
+      }
+      window.addEventListener('error', function (event) {
+        if (event.target && event.target.tagName !== 'SCRIPT') return;
+        var src = event.target && event.target.src;
+        var message = event.message || src || 'unknown error';
+        showBanner(String(message));
+      }, true);
+      window.addEventListener('unhandledrejection', function (event) {
+        showBanner(String(event.reason && event.reason.message || event.reason || 'unknown error'));
+      });
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Frank+Ruhl+Libre:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Same three stylesheets, in the same order, as /notes/ and /kuntras/: a
+       signed-in-only personal page wears the same visual language rather
+       than inventing a third one. -->
+  <link rel="stylesheet" href="../styles.css" />
+  <link rel="stylesheet" href="../watch-theme.css" />
+  <link rel="stylesheet" href="../chaburah.css" />
+</head>
+<body data-page="profile" class="cloud-chabura">
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="DafSync home"><span class="brand-mark"><img src="/assets/dafsync-lockup.png" alt="" /></span></a>
+    <nav class="desktop-navigation" aria-label="Primary navigation"></nav>
+  </aside>
+
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="mobile-brand"><a class="brand" href="/"><span class="brand-mark"><img src="/assets/dafsync-mark.png" alt="" /></span><span class="brand-name">DafSync</span></a></div>
+      <div class="top-actions">
+        <div class="auth-widget" id="authWidget">
+          <button class="button secondary small" id="signInButton" type="button">Sign in</button>
+          <div class="account-menu" id="accountMenu" hidden>
+            <button class="button secondary small account-trigger" id="accountMenuButton" type="button">
+              <span id="accountEmailLabel">Account</span>
+              <span class="admin-badge admin-only" id="adminBadge">Admin</span>
+            </button>
+            <div class="account-dropdown" id="accountDropdown" hidden>
+              <a class="account-dropdown-item admin-only" id="studioLink" href="/studio/">Open studio</a>
+              <button class="account-dropdown-item" id="signOutButton" type="button">Sign out</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="cc-header">
+      <div class="cc-header-titles">
+        <h1>Your Profile</h1>
+        <p class="cc-tagline">How you appear across DafSync and Cloud Chaburah.</p>
+      </div>
+      <div class="cc-header-actions">
+        <a class="cc-btn" href="/notes/">My Notes</a>
+        <a class="cc-btn" href="/kuntras/">Kuntras Builder</a>
+        <a class="cc-btn cc-btn-primary" href="/browse/">Open a daf</a>
+      </div>
+    </div>
+
+    <div class="cc-shell">
+      <main class="cc-main">
+        <p class="cc-visually-hidden" id="pfStatus" role="status" aria-live="polite"></p>
+
+        <!-- Signed out: nothing else on this page makes sense without an
+             owner to edit -- same "gate the whole thing" shape as /notes/'s
+             own requiresSignIn branch, just simpler since there is no public
+             half to show alongside it (unlike /kuntras/'s library). -->
+        <section id="pfSignedOut">
+          <div class="cc-empty">
+            <h3>Sign in to edit your profile</h3>
+            <p>Your display name and avatar are how you appear to other readers in Cloud Chaburah.</p>
+          </div>
+        </section>
+
+        <section id="pfProfile" hidden>
+          <div class="pf-avatar-row">
+            <div class="pf-avatar-preview" id="pfAvatarPreview" aria-hidden="true"></div>
+            <div class="pf-avatar-controls">
+              <button class="cc-btn" id="pfChangeAvatarButton" type="button">Change avatar</button>
+              <p class="field-note">JPG or PNG. Cropped to a square.</p>
+            </div>
+          </div>
+
+          <form id="pfForm">
+            <label class="sync-field">
+              <span>Display name</span>
+              <input type="text" id="pfDisplayName" maxlength="80" required />
+            </label>
+            <!-- role_label is admin-assigned only (Studio) -- see this
+                 migration's own header on why there is no input for it
+                 here, only a read-only line when one has been set. -->
+            <p class="field-note" id="pfRoleLabelNote" hidden></p>
+            <p class="auth-error" id="pfError" hidden></p>
+            <div class="auth-form-actions">
+              <button class="button primary" id="pfSaveButton" type="submit">Save</button>
+              <span class="field-note" id="pfSaveStatus" aria-live="polite"></span>
+            </div>
+          </form>
+
+          <div class="pf-preview-card">
+            <div class="eyebrow">How this appears in Cloud Chaburah</div>
+            <div class="pf-preview-post">
+              <div class="pf-avatar-preview pf-avatar-preview-sm" id="pfPreviewAvatar" aria-hidden="true"></div>
+              <div>
+                <strong id="pfPreviewName"></strong>
+                <span class="field-note" id="pfPreviewRole" hidden></span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog id="authDialog">
+    <button class="dialog-close" id="closeAuthDialog" aria-label="Close">×</button>
+    <div class="eyebrow" id="authDialogEyebrow">Account</div>
+    <h2 id="authDialogTitle">Sign in</h2>
+    <p class="dialog-note" id="authDialogNote">Sign in to edit your profile.</p>
+    <button class="button secondary google-auth-button" id="googleAuthButton" type="button">
+      <svg viewBox="0 0 18 18" aria-hidden="true" width="18" height="18">
+        <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.84 2.09-1.79 2.73v2.27h2.9c1.7-1.56 2.68-3.87 2.68-6.64z"/>
+        <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.17l-2.9-2.27c-.8.54-1.83.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.34C2.44 15.98 5.48 18 9 18z"/>
+        <path fill="#FBBC05" d="M3.95 10.7c-.18-.54-.28-1.11-.28-1.7s.1-1.16.28-1.7V4.96H.96A8.996 8.996 0 0 0 0 9c0 1.45.35 2.83.96 4.04l2.99-2.34z"/>
+        <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0 5.48 0 2.44 2.02.96 4.96l2.99 2.34C4.66 5.17 6.65 3.58 9 3.58z"/>
+      </svg>
+      Continue with Google
+    </button>
+    <div class="auth-divider"><span>or</span></div>
+    <form class="auth-form" id="authForm">
+      <label class="sync-field">
+        <span>Email</span>
+        <input id="authEmail" type="email" autocomplete="email" required />
+      </label>
+      <label class="sync-field">
+        <span>Password</span>
+        <input id="authPassword" type="password" autocomplete="current-password" required minlength="6" />
+      </label>
+      <p class="auth-error" id="authError" hidden></p>
+      <div class="auth-form-actions">
+        <button class="button primary" id="authSubmitButton" type="submit">Sign in</button>
+        <button class="button ghost small" id="authSwitchModeButton" type="button">Need an account? Sign up</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Avatar crop: pick a photo, pan/zoom it within a fixed square, save a
+       fixed-size crop. Deliberately its own small widget rather than reusing
+       player/scan-live.js's reposition UI -- that one is a state machine
+       built around OCR daf-matching (see its own header); this needs none of
+       that, just "give me back a square crop of whatever photo you picked". -->
+  <dialog id="pfAvatarDialog">
+    <button class="dialog-close" id="pfAvatarClose" aria-label="Close">×</button>
+    <div class="eyebrow">Profile</div>
+    <h2>Choose a photo</h2>
+    <input type="file" id="pfAvatarFile" accept="image/*" />
+    <div class="pf-crop-wrap" id="pfCropWrap" hidden>
+      <canvas id="pfCropCanvas" width="320" height="320"></canvas>
+      <label class="sync-field">
+        <span>Zoom</span>
+        <input type="range" id="pfCropZoom" min="1" max="3" step="0.01" value="1" disabled />
+      </label>
+      <p class="field-note">Drag the photo to reposition it.</p>
+    </div>
+    <p class="auth-error" id="pfAvatarError" hidden></p>
+    <div class="auth-form-actions">
+      <button class="button ghost small" id="pfAvatarCancel" type="button">Cancel</button>
+      <button class="button primary" id="pfAvatarSave" type="button" disabled>Save avatar</button>
+    </div>
+  </dialog>
+
+  <!-- Script order is load-bearing (no build step, no modules): chabura-core.js
+       defines window.DafSyncChabura.core, which profile-data.js reads at
+       definition time, and profile.js reads both. app.js is deliberately
+       ABSENT, same reason /notes/ and /kuntras/ drop it (Phase 1 audit F-13). -->
+  <script src="../vendor/supabase-js.min.js"></script>
+  <script src="../auth.js"></script>
+  <script src="../chabura-core.js" defer></script>
+  <script src="../profile-data.js" defer></script>
+  <script src="../profile.js" defer></script>
+  <script src="../nav.js" defer></script>
+  <script src="../collapse.js" defer></script>
+</body>
+</html>

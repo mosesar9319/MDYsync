@@ -329,6 +329,12 @@ export function buildDatabase() {
       // persona is younger. The stub does not enforce this (that is a server
       // rule) -- specs assert the CLIENT's handling of the server's rejection.
       created_at: user.id === USERS.brandNew.id ? isoMinutesAgo(30) : isoMinutesAgo(60 * 24 * 30),
+      // 20260916140000 added these two columns to the real `profiles` table
+      // itself (not just the public_profiles view) -- mirrored here so
+      // fetchOwnProfile/adminSearchProfiles, which read `profiles` directly,
+      // see the same admin-labeled persona public_profiles below does.
+      avatar_path: null,
+      role_label: user.id === USERS.admin.id ? 'Moderator' : null,
     })),
     line_notes,
     comments,

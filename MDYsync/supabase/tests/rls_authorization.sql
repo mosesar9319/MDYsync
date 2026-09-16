@@ -1989,4 +1989,184 @@ select dafsync_test.check(
   '0');
 
 -- ===========================================================================
+-- 11. Profile self-service (20260916140000)
+-- ===========================================================================
+-- profiles has carried only profiles_select_own since it was created --
+-- there was never an UPDATE policy on it at all, so nobody could change
+-- even their own display_name. This is that write path, split by column
+-- rather than just by row: see the migration's own header for why RLS alone
+-- (which only governs which ROWS an UPDATE reaches) can't express "the
+-- owner may change display_name/avatar_path but never role_label/email/
+-- is_admin, and only an admin may change role_label" -- that split is a
+-- BEFORE UPDATE trigger, profiles_guard_update, layered under the RLS.
+
+-- --- The owner can update their own display_name and avatar_path ---------
+
+select dafsync_test.check(
+  'the owner can change their own display_name',
+  dafsync_test.attempt_rows('authenticated', :reader,
+    format('update public.profiles set display_name = ''Reader Renamed'' where id = %L', :reader)),
+  '1');
+
+select dafsync_test.check(
+  'that change actually stuck',
+  dafsync_test.read_as('authenticated', :reader,
+    format('select display_name from public.profiles where id = %L', :reader)),
+  'Reader Renamed');
+
+select dafsync_test.check(
+  'the owner can set their own avatar_path',
+  dafsync_test.attempt_rows('authenticated', :reader,
+    format('update public.profiles set avatar_path = ''%s/avatar.webp'' where id = %L', :reader, :reader)),
+  '1');
+
+-- Put the display_name back so later sections of this file (and any test
+-- re-run against the same database) see the seeded value, not a name this
+-- section happened to leave behind.
+select set_config('request.jwt.claim.sub', :admin, false);
+update public.profiles set display_name = 'Reader One' where id = :reader;
+
+-- --- A stranger cannot touch someone else's profile at all -----------------
+
+select dafsync_test.check(
+  'a stranger''s attempt to rename someone else''s profile matches nothing',
+  dafsync_test.attempt_rows('authenticated', :reader,
+    format('update public.profiles set display_name = ''Hijacked'' where id = %L', :author)),
+  '0');
+
+-- --- email and is_admin are frozen, even on your own row -------------------
+-- Both raise a real error (42501) rather than silently matching zero rows --
+-- the guard trigger fires on every UPDATE that reaches the row at all,
+-- which the owner's own row always does.
+
+select dafsync_test.check(
+  'the owner cannot change their own email through this path',
+  dafsync_test.attempt('authenticated', :reader,
+    format('update public.profiles set email = ''new@example.test'' where id = %L', :reader)),
+  '42501');
+
+select dafsync_test.check(
+  'the owner cannot grant themselves admin',
+  dafsync_test.attempt('authenticated', :reader,
+    format('update public.profiles set is_admin = true where id = %L', :reader)),
+  '42501');
+
+-- --- role_label is admin-only, even for your own row ------------------------
+
+select dafsync_test.check(
+  'an ordinary user cannot set their own role_label directly',
+  dafsync_test.attempt('authenticated', :reader,
+    format('update public.profiles set role_label = ''Moderator'' where id = %L', :reader)),
+  '42501');
+
+-- --- profiles_admin_read: an admin can find a user to label ----------------
+-- There was no way to do this at all before this migration -- profiles_
+-- select_own is owner-only, and public_profiles never exposes email.
+
+select dafsync_test.check(
+  'an admin can read every seeded profile, not just their own',
+  dafsync_test.read_as('authenticated', :admin,
+    format('select count(*)::text from public.profiles where id in (%L, %L, %L, %L)',
+      :reader, :author, :newbie, :admin)),
+  '4');
+
+select dafsync_test.check(
+  'an ordinary user still sees only their own row',
+  dafsync_test.read_as('authenticated', :reader,
+    format('select count(*)::text from public.profiles where id in (%L, %L, %L, %L)',
+      :reader, :author, :newbie, :admin)),
+  '1');
+
+-- --- set_profile_role_label: the admin RPC that actually sets it -----------
+
+select dafsync_test.check(
+  'a non-admin cannot call the role-label RPC at all',
+  dafsync_test.attempt('authenticated', :reader,
+    format('select public.set_profile_role_label(%L, ''Moderator'')', :author)),
+  '42501');
+
+select dafsync_test.check(
+  'an admin can label any profile through the RPC',
+  dafsync_test.attempt('authenticated', :admin,
+    format('select public.set_profile_role_label(%L, ''Moderator'')', :author)),
+  'OK');
+
+select dafsync_test.check(
+  'the label actually stuck',
+  dafsync_test.read_as('authenticated', :author,
+    format('select role_label from public.profiles where id = %L', :author)),
+  'Moderator');
+
+select dafsync_test.check(
+  'the newly labeled user still cannot change their own label directly',
+  dafsync_test.attempt('authenticated', :author,
+    format('update public.profiles set role_label = ''Self-Appointed'' where id = %L', :author)),
+  '42501');
+
+-- An admin passing null clears a label -- same RPC, no separate "unset"
+-- action, matching updateVisibility's own "the value IS the whole action"
+-- shape elsewhere in this codebase.
+select dafsync_test.check(
+  'an admin can clear a label by passing null',
+  dafsync_test.attempt('authenticated', :admin,
+    format('select public.set_profile_role_label(%L, null)', :author)),
+  'OK');
+
+select dafsync_test.check(
+  'the label is actually gone',
+  dafsync_test.read_as('authenticated', :author,
+    format('select coalesce(role_label, ''(null)'') from public.profiles where id = %L', :author)),
+  '(null)');
+
+-- ===========================================================================
+-- 12. Avatars Storage bucket (20260916140000)
+-- ===========================================================================
+-- storage.objects RLS, proved against the local shim in
+-- baseline/02_storage_shim.sql (see that file's own header) rather than a
+-- real Supabase project -- it reproduces the same predicate real Storage
+-- would evaluate, not Storage's other behavior (size/mime validation, CDN).
+
+select dafsync_test.check(
+  'an owner can upload into their own folder',
+  dafsync_test.attempt('authenticated', :reader,
+    format('insert into storage.objects (bucket_id, name, owner) values (''avatars'', %L || ''/avatar.webp'', %L)', :reader, :reader)),
+  'OK');
+
+select dafsync_test.check(
+  'a stranger cannot upload into someone else''s folder',
+  dafsync_test.attempt('authenticated', :author,
+    format('insert into storage.objects (bucket_id, name, owner) values (''avatars'', %L || ''/avatar.webp'', %L)', :reader, :author)),
+  '42501');
+
+select dafsync_test.check(
+  'anyone, including anon, can read an avatar once uploaded',
+  dafsync_test.read_as('anon', null,
+    format('select count(*)::text from storage.objects where bucket_id = ''avatars'' and name = %L || ''/avatar.webp''', :reader)),
+  '1');
+
+select dafsync_test.check(
+  'a stranger''s attempt to overwrite someone else''s avatar matches nothing',
+  dafsync_test.attempt_rows('authenticated', :author,
+    format('update storage.objects set name = name where bucket_id = ''avatars'' and name = %L || ''/avatar.webp''', :reader)),
+  '0');
+
+select dafsync_test.check(
+  'a stranger''s attempt to delete someone else''s avatar matches nothing',
+  dafsync_test.attempt_rows('authenticated', :author,
+    format('delete from storage.objects where bucket_id = ''avatars'' and name = %L || ''/avatar.webp''', :reader)),
+  '0');
+
+select dafsync_test.check(
+  'the owner can replace their own avatar',
+  dafsync_test.attempt_rows('authenticated', :reader,
+    format('update storage.objects set name = %L || ''/avatar.png'' where bucket_id = ''avatars'' and name = %L || ''/avatar.webp''', :reader, :reader)),
+  '1');
+
+select dafsync_test.check(
+  'the owner can delete their own avatar',
+  dafsync_test.attempt_rows('authenticated', :reader,
+    format('delete from storage.objects where bucket_id = ''avatars'' and name = %L || ''/avatar.png''', :reader)),
+  '1');
+
+-- ===========================================================================
 do $$ begin raise notice 'ALL AUTHORIZATION TESTS PASSED'; end $$;

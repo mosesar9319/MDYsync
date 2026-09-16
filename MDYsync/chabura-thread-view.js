@@ -60,9 +60,25 @@
   }
 
   function avatar(name, profile) {
-    const node = el('span', 'ct-avatar', initials(name));
+    const node = el('span', 'ct-avatar');
     node.setAttribute('aria-hidden', 'true');
     if (profile?.role_label) node.classList.add('ct-avatar-role');
+    // An <img> when the profile actually has one, falling back to initials
+    // on a missing avatar_path OR a broken/deleted image -- a poster who
+    // never set an avatar, and one whose avatar failed to load, should look
+    // identical rather than one of them showing a broken-image icon.
+    if (profile?.avatar_path) {
+      const img = el('img');
+      img.src = profile.avatar_path;
+      img.alt = '';
+      img.addEventListener('error', () => {
+        img.remove();
+        node.textContent = initials(name);
+      });
+      node.appendChild(img);
+    } else {
+      node.textContent = initials(name);
+    }
     return node;
   }
 

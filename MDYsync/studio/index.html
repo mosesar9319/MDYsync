@@ -111,6 +111,7 @@
             </button>
             <div class="account-dropdown" id="accountDropdown" hidden>
               <button class="account-dropdown-item" id="myFavoritesButton" type="button">My favorites</button>
+              <a class="account-dropdown-item" href="/profile/">Edit profile</a>
               <button class="account-dropdown-item" id="signOutButton" type="button">Sign out</button>
             </div>
           </div>
@@ -536,6 +537,26 @@
           <p class="field-note">Loading…</p>
         </div>
       </section>
+
+      <!-- role_label is deliberately admin-only, assigned here rather than
+           self-service on /profile/ -- see 20260916140000's own header on
+           why (an unearned-looking badge like "Moderator" is exactly the
+           kind of thing a reader should not be able to grant themselves). -->
+      <section class="card admin-only" id="profilesSection">
+        <div class="editor-heading">
+          <div>
+            <div class="eyebrow">Moderation</div>
+            <h2>User role labels</h2>
+            <p>The badge shown next to a poster's name in Cloud Chaburah (e.g. "Moderator"). Leave the field blank and save to clear it.</p>
+          </div>
+        </div>
+        <div class="search-notes-field">
+          <input type="search" id="profilesSearch" placeholder="Search by display name…" maxlength="200">
+        </div>
+        <div class="note-list" id="profilesList">
+          <p class="field-note">Search for a user to label.</p>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -713,11 +734,14 @@
       document.getElementById('signInButton').click();
     });
   </script>
+  <script src="../chabura-core.js" defer></script>
+  <script src="../profile-data.js" defer></script>
   <script src="../app.js" defer></script>
   <script src="../catalog.js" defer></script>
   <script src="../account-features.js" defer></script>
   <script src="../notes-format.js" defer></script>
   <script src="../notes.js" defer></script>
+  <script src="../studio-profiles.js" defer></script>
   <script src="../player-chrome.js" defer></script>
   <script src="../nav.js" defer></script>
   <script src="../collapse.js" defer></script>
