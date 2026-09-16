@@ -227,7 +227,10 @@ test.describe('My Notes — searching documents', () => {
     await expect(page.locator(CARD).first()).toBeVisible();
 
     await page.fill('#mnSearch', 'zzzznotarealwordanywhere');
-    await expect(page.locator('.cc-empty h3')).toHaveText('No documents match that search');
+    // Scoped to #mnFeed -- the Documents tab's own public-browse section
+    // (#mnPublicDocsFeed) renders its own, unrelated ".cc-empty" when
+    // nothing is public yet, which would otherwise make this ambiguous.
+    await expect(page.locator('#mnFeed .cc-empty h3')).toHaveText('No documents match that search');
   });
 });
 
@@ -237,7 +240,7 @@ test.describe('My Notes — signed out', () => {
     await preparePage(page, { user: null });
     await page.goto('/notes/?tab=documents');
 
-    await expect(page.locator('.cc-empty h3')).toHaveText('Sign in to see your notes');
+    await expect(page.locator('#mnFeed .cc-empty h3')).toHaveText('Sign in to see your notes');
     await expect(page.locator('#mnImportButton')).toBeHidden();
   });
 });

@@ -1124,15 +1124,16 @@ select dafsync_test.check(
     format('select count(*)::text from public.note_documents where id = %L', :doc_reader)),
   '0');
 
--- 42501, not an empty result: anon holds no table privilege here at all
--- (see the migration's grant block), so it is stopped before RLS is even
--- consulted. Every other table in this schema grants anon SELECT and lets
--- RLS filter; this one deliberately does not.
+-- Was refused at the table entirely (anon held no privilege at all) before
+-- 20260916160000 gave documents a public-read policy -- now anon is filtered
+-- by RLS instead, the same distinction every other table in this schema
+-- already draws (see that migration's own header for why the old premise
+-- no longer holds).
 select dafsync_test.check(
-  'anon is refused at the table, not merely filtered by RLS',
+  'anon is filtered by RLS, not refused at the table -- a private document is still invisible',
   dafsync_test.read_as('anon', null,
     format('select count(*)::text from public.note_documents where id = %L', :doc_reader)),
-  'ERROR:42501');
+  '0');
 
 -- The rule this table exists to hold: privacy here is not moderator-visible.
 select dafsync_test.check(
@@ -1375,15 +1376,17 @@ select dafsync_test.check(
             where n.id = %L', :note_open)),
   '0');
 
--- anon is refused by table privileges before RLS is consulted (the migration
--- grants it nothing), so this is an error rather than an empty result.
+-- Filtered by RLS, not refused at the table, now that documents can be
+-- public (see 20260916160000) -- but this particular one still isn't, so
+-- the join still comes back empty. The public case gets its own coverage
+-- in that migration's own test section below.
 select dafsync_test.check(
-  'anon is refused at the table when following a citation',
+  'anon cannot follow the citation either, while the document stays private',
   dafsync_test.read_as('anon', null,
     format('select count(*)::text from public.note_documents d
             join public.line_notes n on n.source_document_id = d.id
             where n.id = %L', :note_open)),
-  'ERROR:42501');
+  '0');
 
 -- --- Losing the document keeps the note -----------------------------------
 --
@@ -1451,10 +1454,10 @@ select dafsync_test.check(
   '0');
 
 select dafsync_test.check(
-  'anon is still refused at the table for file-backed imports',
+  'anon still cannot see a private file-backed import (filtered by RLS, not refused at the table -- see 20260916160000)',
   dafsync_test.read_as('anon', null,
     'select count(*)::text from public.note_documents where source_kind in (''docx'', ''pdf'')'),
-  'ERROR:42501');
+  '0');
 
 -- ===========================================================================
 -- kuntrasim / kuntras_sections / kuntras_entries -- Kuntras Builder slice 1.
@@ -2169,4 +2172,234 @@ select dafsync_test.check(
   '1');
 
 -- ===========================================================================
+-- 13. Avatars bucket limits (20260916150000)
+-- ===========================================================================
+-- NOT a proof that an oversized or wrong-typed upload is refused -- that
+-- enforcement happens in Supabase's own Storage API layer, outside this
+-- database entirely (see that migration's own header). This proves only
+-- that the bucket ROW itself carries the configured values.
+
+select dafsync_test.check(
+  'the avatars bucket has a 5 MiB size limit configured',
+  dafsync_test.read_as('authenticated', :reader,
+    'select file_size_limit::text from storage.buckets where id = ''avatars'''),
+  '5242880');
+
+select dafsync_test.check(
+  'the avatars bucket only allows png/jpeg/webp',
+  dafsync_test.read_as('authenticated', :reader,
+    format('select (allowed_mime_types = array[%L,%L,%L])::text from storage.buckets where id = ''avatars''',
+      'image/png', 'image/jpeg', 'image/webp')),
+  'true');
+
+-- ===========================================================================
+-- 14. Publishing a document, and its Storage-kept original (20260916160000)
+-- ===========================================================================
+
+\set doc_share '''f6000000-0000-4000-8000-000000000001'''
+\set note_share_doc '''f6000000-0000-4000-8000-000000000002'''
+\set doc_path '''11111111-1111-4111-8111-111111111111/f6000000-0000-4000-8000-000000000001.docx'''
+
+-- --- INSERT is always private, whatever the client asks for -----------------
+
+select dafsync_test.check(
+  'a freshly imported document cannot start out anything but private',
+  dafsync_test.attempt('authenticated', :reader,
+    format('insert into public.note_documents (id, owner_id, title, source_kind, full_text, visibility)
+            values (%L, %L, ''Attempted public from the start'', ''paste'', ''x'', ''public'')',
+      :doc_share, :reader)),
+  '42501');
+
+select dafsync_test.check(
+  'the reader imports it the ordinary (private) way instead',
+  dafsync_test.attempt_rows('authenticated', :reader,
+    format('insert into public.note_documents (id, owner_id, title, source_kind, full_text)
+            values (%L, %L, ''A document worth sharing'', ''docx'', ''The original text.'')',
+      :doc_share, :reader)),
+  '1');
+
+-- --- A stranger cannot publish someone else's document ----------------------
+
+select dafsync_test.check(
+  'a stranger''s attempt to publish someone else''s document matches nothing',
+  dafsync_test.attempt_rows('authenticated', :author,
+    format('update public.note_documents set visibility = ''public'' where id = %L', :doc_share)),
+  '0');
+
+-- --- While private: not readable, and its citation is not followable -------
+
+select dafsync_test.check(
+  'the owner can cite their own private document in a note, same as always',
+  dafsync_test.attempt_rows('authenticated', :reader,
+    format('insert into public.line_notes
+              (id, author_id, author_display_name, daf_ref_key, segment_ref, body, is_private, source_document_id)
+            values (%L, %L, ''Reader One'', ''Chullin-89a'', ''Chullin 89a.2'',
+                    ''An excerpt, shared while the source stays private.'', false, %L)',
+           :note_share_doc, :reader, :doc_share)),
+  '1');
+
+select dafsync_test.check(
+  'a stranger cannot read the private document directly',
+  dafsync_test.read_as('authenticated', :author,
+    format('select count(*)::text from public.note_documents where id = %L', :doc_share)),
+  '0');
+
+select dafsync_test.check(
+  'nor can a stranger follow the note''s citation into it while it stays private',
+  dafsync_test.read_as('authenticated', :author,
+    format('select count(*)::text from public.note_documents d
+            join public.line_notes n on n.source_document_id = d.id
+            where n.id = %L', :note_share_doc)),
+  '0');
+
+-- --- Publishing it (unlisted) makes it -- and the citation -- followable ---
+
+select dafsync_test.check(
+  'the owner can make their document unlisted',
+  dafsync_test.attempt_rows('authenticated', :reader,
+    format('update public.note_documents set visibility = ''unlisted'' where id = %L', :doc_share)),
+  '1');
+
+select dafsync_test.check(
+  'a stranger can now read it directly, title and full text both',
+  dafsync_test.read_as('authenticated', :author,
+    format('select title from public.note_documents where id = %L', :doc_share)),
+  'A document worth sharing');
+
+select dafsync_test.check(
+  'and can now follow the note''s citation into it',
+  dafsync_test.read_as('authenticated', :author,
+    format('select d.title from public.note_documents d
+            join public.line_notes n on n.source_document_id = d.id
+            where n.id = %L', :note_share_doc)),
+  'A document worth sharing');
+
+select dafsync_test.check(
+  'anon can read it too, once unlisted',
+  dafsync_test.read_as('anon', null,
+    format('select count(*)::text from public.note_documents where id = %L', :doc_share)),
+  '1');
+
+-- --- Unlisted is not the same as listed --------------------------------------
+
+select dafsync_test.check(
+  'an unlisted document never matches a public-only listing filter',
+  dafsync_test.read_as('anon', null,
+    format('select count(*)::text from public.note_documents where visibility = ''public'' and id = %L', :doc_share)),
+  '0');
+
+select dafsync_test.check(
+  'the owner can widen it further, to public',
+  dafsync_test.attempt_rows('authenticated', :reader,
+    format('update public.note_documents set visibility = ''public'' where id = %L', :doc_share)),
+  '1');
+
+select dafsync_test.check(
+  'now it DOES match the public-only listing filter',
+  dafsync_test.read_as('anon', null,
+    format('select count(*)::text from public.note_documents where visibility = ''public'' and id = %L', :doc_share)),
+  '1');
+
+-- --- Unpublishing takes it all back ------------------------------------------
+
+select dafsync_test.check(
+  'the owner can take it back to private',
+  dafsync_test.attempt_rows('authenticated', :reader,
+    format('update public.note_documents set visibility = ''private'' where id = %L', :doc_share)),
+  '1');
+
+select dafsync_test.check(
+  'anon loses access the moment it is unpublished',
+  dafsync_test.read_as('anon', null,
+    format('select count(*)::text from public.note_documents where id = %L', :doc_share)),
+  '0');
+
+-- --- The Storage-kept original: same visibility, joined by file_path -------
+--
+-- Published back to public first -- these checks are about the STORAGE
+-- object, not a repeat of the note_documents checks above.
+
+select dafsync_test.check(
+  'republished to public for the storage checks below',
+  dafsync_test.attempt_rows('authenticated', :reader,
+    format('update public.note_documents set visibility = ''public'' where id = %L', :doc_share)),
+  '1');
+
+select dafsync_test.check(
+  'the owner can upload the original file into their own folder',
+  dafsync_test.attempt('authenticated', :reader,
+    format('insert into storage.objects (bucket_id, name, owner) values (''documents'', %L, %L)', :doc_path, :reader)),
+  'OK');
+
+select dafsync_test.check(
+  'a stranger cannot upload into someone else''s documents folder',
+  dafsync_test.attempt('authenticated', :author,
+    format('insert into storage.objects (bucket_id, name, owner) values (''documents'', %L, %L)',
+      '11111111-1111-4111-8111-111111111111/intruder.docx', :author)),
+  '42501');
+
+-- file_path has to be set on the row for the read policy's join to find it --
+-- inserting the object alone (above) does not publish it, same as the real
+-- upload-then-update sequence in my-notes-data.js's own createDocument.
+select dafsync_test.check(
+  'the owner records the uploaded file''s path on the document row',
+  dafsync_test.attempt_rows('authenticated', :reader,
+    format('update public.note_documents set file_path = %L where id = %L', :doc_path, :doc_share)),
+  '1');
+
+select dafsync_test.check(
+  'anyone, including anon, can now read the original file of a public document',
+  dafsync_test.read_as('anon', null,
+    format('select count(*)::text from storage.objects where bucket_id = ''documents'' and name = %L', :doc_path)),
+  '1');
+
+select dafsync_test.check(
+  'unpublishing the document also cuts off its stored original',
+  dafsync_test.attempt_rows('authenticated', :reader,
+    format('update public.note_documents set visibility = ''private'' where id = %L', :doc_share)),
+  '1');
+
+select dafsync_test.check(
+  'a stranger can no longer read the original file once the document is private again',
+  dafsync_test.read_as('authenticated', :author,
+    format('select count(*)::text from storage.objects where bucket_id = ''documents'' and name = %L', :doc_path)),
+  '0');
+
+select dafsync_test.check(
+  'the owner can still read their own original file regardless of visibility',
+  dafsync_test.read_as('authenticated', :reader,
+    format('select count(*)::text from storage.objects where bucket_id = ''documents'' and name = %L', :doc_path)),
+  '1');
+
+select dafsync_test.check(
+  'a stranger''s attempt to delete someone else''s stored original matches nothing',
+  dafsync_test.attempt_rows('authenticated', :author,
+    format('delete from storage.objects where bucket_id = ''documents'' and name = %L', :doc_path)),
+  '0');
+
+select dafsync_test.check(
+  'the owner can delete their own stored original',
+  dafsync_test.attempt_rows('authenticated', :reader,
+    format('delete from storage.objects where bucket_id = ''documents'' and name = %L', :doc_path)),
+  '1');
+
+-- --- The bucket itself is capped, same discipline as avatars ---------------
+-- NOT a proof that an oversized or wrong-typed upload is refused -- see
+-- 20260916150000's own header on why that enforcement is outside this
+-- database entirely. This proves only that the bucket row carries the
+-- configured values.
+
+select dafsync_test.check(
+  'the documents bucket has a 25 MiB size limit configured',
+  dafsync_test.read_as('authenticated', :reader,
+    'select file_size_limit::text from storage.buckets where id = ''documents'''),
+  '26214400');
+
+select dafsync_test.check(
+  'the documents bucket only allows docx/pdf',
+  dafsync_test.read_as('authenticated', :reader,
+    format('select (allowed_mime_types = array[%L,%L])::text from storage.buckets where id = ''documents''',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/pdf')),
+  'true');
+
 do $$ begin raise notice 'ALL AUTHORIZATION TESTS PASSED'; end $$;

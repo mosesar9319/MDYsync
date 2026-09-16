@@ -415,6 +415,36 @@
     return card;
   }
 
+  // "From <document>" on the root post, mirroring notes.js's own
+  // sourceDocumentPillHtml -- only the root post can carry this at all
+  // (comments have no source_document_id, see chabura-thread-data.js's
+  // NOTE_COLUMNS). ctx.documents is populated by an RLS-scoped query
+  // (fetchDocuments): a private document belonging to someone else than the
+  // viewer is simply absent from it, so this renders nothing for that case
+  // with no ownership check of its own needed here. Reuses styles.css's
+  // .note-pill classes rather than inventing chabura-thread.css ones -- this
+  // page already loads styles.css for its shared header chrome, and the
+  // daf-page pill this is mirroring lives there.
+  function sourceDocumentPill(note, ctx) {
+    if (!note.source_document_id) return null;
+    const doc = ctx.documents.get(note.source_document_id);
+    const mine = ctx.viewerId && note.author_id === ctx.viewerId;
+    if (!doc) return mine ? el('span', 'note-pill note-pill-source', 'From my notes') : null;
+
+    const wrap = el('span', 'ct-source-pill');
+    const label = doc.deleted_at ? `${doc.title} (deleted)` : doc.title;
+    const pill = el('span', 'note-pill note-pill-source', `From ${label}`);
+    pill.title = mine ? 'Quoted from an imported document of yours' : 'Quoted from a published document';
+    wrap.appendChild(pill);
+    if (!doc.deleted_at && doc.file_path) {
+      wrap.appendChild(button('note-pill-download', '⬇', () => ctx.handlers.onDownloadDocument(doc.id), {
+        title: 'Download the original file',
+        ariaLabel: 'Download the original file',
+      }));
+    }
+    return wrap;
+  }
+
   function rootPost(note, ctx) {
     const article = el('article', 'ct-root');
     article.id = 'root-post';
@@ -430,6 +460,9 @@
     who.appendChild(timeNode(note.created_at, note.edited_at));
     head.appendChild(who);
     article.appendChild(head);
+
+    const sourcePill = sourceDocumentPill(note, ctx);
+    if (sourcePill) article.appendChild(sourcePill);
 
     article.appendChild(bodyNode(note));
     article.appendChild(actionRow(note, 'note', ctx));

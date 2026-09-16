@@ -395,23 +395,34 @@ function renderReplySection(row) {
 // notes, not a single line's handful).
 const CATEGORY_SORT_INDEX = new Map(CATEGORY_TYPES.map((c, i) => [c.key, i]));
 
-// "From <document>" on a note the viewer wrote out of their own imported
-// notes. Shown to its AUTHOR only: the title lives in note_documents, which
-// nobody else -- moderators included -- can read, so there is nothing to
-// render for anyone else, and inventing a generic "quoted from a document"
-// badge for other readers would advertise a private file without saying
-// anything useful about the note.
+// "From <document>" -- shown for every note whose cited document the
+// CURRENT VIEWER can actually see, not just the note's own author.
+// citedDocumentsById is populated by an RLS-scoped query (see
+// loadCitedDocuments): a private document belonging to someone else is
+// simply absent from the map, so this renders nothing for it with no
+// ownership check of its own needed here at all. A download link is added
+// when the document kept its original .docx/PDF (file_path) -- the same
+// visibility that got the row into the map at all is what note_documents
+// public_read/owner policies also gate storage.objects reads on, so nothing
+// extra needs checking before offering it.
 //
-// Falls back to the plain badge if the title has not loaded (or the document
-// row is gone entirely, which a hard delete would do), rather than dropping
-// the provenance on the floor.
+// mine still matters for exactly one thing: the fallback text shown when
+// the document failed to load into the map (a hard delete, or a citation of
+// the author's own still-private document that has not loaded yet) --
+// "From my notes" only makes sense in the author's own voice, so a
+// non-owner viewing an unloaded citation of a document they cannot see gets
+// no pill at all rather than a fallback that assumes authorship that isn't
+// theirs.
 function sourceDocumentPillHtml(row, mine) {
-  if (!row.source_document_id || !mine) return '';
+  if (!row.source_document_id) return '';
   const doc = citedDocumentsById.get(row.source_document_id);
-  if (!doc) return '<span class="note-pill note-pill-source">From my notes</span>';
+  if (!doc) return mine ? '<span class="note-pill note-pill-source">From my notes</span>' : '';
   const label = doc.deleted_at ? `${doc.title} (deleted)` : doc.title;
-  return '<span class="note-pill note-pill-source" title="Quoted from an imported document of yours">'
-    + `From ${escapeHtml(label)}</span>`;
+  const title = mine ? 'Quoted from an imported document of yours' : 'Quoted from a published document';
+  const download = (!doc.deleted_at && doc.file_path)
+    ? `<button type="button" class="note-pill-download" data-document-id="${escapeHtml(doc.id)}" title="Download the original file" aria-label="Download the original file">⬇</button>`
+    : '';
+  return `<span class="note-pill note-pill-source" title="${escapeHtml(title)}">From ${escapeHtml(label)}</span>${download}`;
 }
 
 function renderNoteList(rows) {
@@ -513,6 +524,30 @@ function renderNoteList(rows) {
       if (typeof seek === 'function') seek(Number(button.dataset.seconds));
     });
   });
+  list.querySelectorAll('.note-pill-download').forEach((button) => {
+    button.addEventListener('click', () => downloadCitedDocument(button.dataset.documentId));
+  });
+}
+
+// The "documents" Storage bucket is private (public: false -- see
+// 20260916160000's own header), so the original file is only ever reached
+// through a short-lived signed URL, re-checked against storage.objects RLS
+// at the moment it is issued. sourceDocumentPillHtml only ever renders this
+// button when the document is already in citedDocumentsById with a
+// file_path, which itself means this viewer passed that same RLS once
+// already to see the row -- so no extra permission check is needed here,
+// only handing the click off to Storage.
+async function downloadCitedDocument(documentId) {
+  const doc = citedDocumentsById.get(documentId);
+  if (!doc || !doc.file_path) return;
+  const auth = window.DafSyncAuth;
+  try {
+    const { data, error } = await auth.client.storage.from('documents').createSignedUrl(doc.file_path, 60);
+    if (error) throw error;
+    window.open(data.signedUrl, '_blank', 'noopener');
+  } catch (error) {
+    showToast(error?.message || 'Could not download this file.', 'error');
+  }
 }
 
 async function toggleFollow(noteId) {
@@ -595,30 +630,29 @@ async function loadCommentsForNotes(rows) {
   }
 }
 
-// document id -> { title } for every imported document cited by a note the
-// CURRENT VIEWER wrote. Only their own, because only its owner can read a
-// document's title at all -- note_documents has no public-read policy, so a
-// query for someone else's returns nothing rather than failing. Asking only
-// for the viewer's own makes that explicit instead of relying on RLS to
-// quietly drop rows.
+// document id -> { id, title, deleted_at, visibility, file_path } for every
+// imported document cited by a note the CURRENT VIEWER can actually see --
+// their own (any visibility), or anyone else's once it is unlisted/public
+// (see note_documents_public_read, 20260916160000). No owner filter of its
+// own: this is a straight RLS-scoped read, so a private document belonging
+// to someone else simply never lands in the response, and the map is
+// already exactly "what this viewer may see" without any caller needing to
+// re-derive that.
 const citedDocumentsById = new Map();
 
 async function loadCitedDocuments(rows) {
   const auth = window.DafSyncAuth;
-  const user = auth?.getUser();
-  if (!user) return;
   const ids = [...new Set(rows
-    .filter((row) => row.source_document_id && row.author_id === user.id)
+    .filter((row) => row.source_document_id)
     .map((row) => row.source_document_id))]
     .filter((id) => !citedDocumentsById.has(id));
   if (!ids.length) return;
-  // deleted_at is fetched, not filtered on: a note citing a document the
-  // reader has since deleted should still say where it came from. Filtering
-  // would silently drop the attribution and leave the note looking as though
-  // it was written from nothing.
+  // deleted_at is fetched, not filtered on: a note citing a document its
+  // author has since deleted should still say where it came from, for the
+  // author at least. Filtering would silently drop the attribution and
+  // leave the note looking as though it was written from nothing.
   const { data, error } = await auth.client
-    .from('note_documents').select('id, title, deleted_at')
-    .eq('owner_id', user.id)
+    .from('note_documents').select('id, title, deleted_at, visibility, file_path')
     .in('id', ids);
   if (error || !data) return;
   for (const row of data) citedDocumentsById.set(row.id, row);

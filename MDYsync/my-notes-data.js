@@ -190,8 +190,10 @@
   // only, on demand (see fetchDocument).
   const DOCUMENT_LIST_COLUMNS = [
     'id', 'title', 'source_kind', 'original_filename', 'preview',
-    'created_at', 'updated_at',
+    'visibility', 'file_path', 'created_at', 'updated_at',
   ].join(', ');
+
+  const DOCUMENTS_BUCKET = 'documents';
 
   async function fetchMyDocuments({ search = '', cursor = null } = {}) {
     const user = currentUser();
@@ -224,7 +226,7 @@
     if (!user) return null;
     const { data, error } = await client()
       .from('note_documents')
-      .select('id, title, source_kind, original_filename, full_text, created_at, updated_at')
+      .select('id, title, source_kind, original_filename, full_text, visibility, file_path, created_at, updated_at')
       .eq('id', id)
       .eq('owner_id', user.id)
       .is('deleted_at', null)
@@ -233,7 +235,20 @@
     return data || null;
   }
 
-  async function createDocument({ title, sourceKind, originalFilename = null, fullText }) {
+  // file, when given, is the ORIGINAL .docx/PDF the text was extracted from
+  // (never for paste/.txt/.md -- see 20260916160000's own header on why
+  // those have no "original" beyond the text itself). Uploaded in a SEPARATE
+  // step after the row exists, because the Storage path embeds the row's own
+  // id (see that migration's own header on the {owner_id}/{document_id}.ext
+  // convention) -- it cannot be known before the insert.
+  //
+  // Best-effort: if the upload or the follow-up file_path write fails, the
+  // document import has still succeeded (the text is safely stored) and the
+  // error is swallowed rather than thrown -- losing the ORIGINAL file is a
+  // much smaller problem than losing the reader's work because a network
+  // blip happened one step later. describeError still runs so a console
+  // trace exists, but the caller never sees a rejected promise for this.
+  async function createDocument({ title, sourceKind, originalFilename = null, fullText, file = null, fileExtension = null }) {
     const user = currentUser();
     if (!user) throw new Error('Sign in to import a document.');
     const { data, error } = await client()
@@ -248,7 +263,80 @@
       .select('id')
       .single();
     if (error) throw error;
+
+    if (file && fileExtension) {
+      try {
+        const path = `${user.id}/${data.id}.${fileExtension}`;
+        const { error: uploadError } = await client().storage
+          .from(DOCUMENTS_BUCKET)
+          .upload(path, file, { contentType: file.type });
+        if (uploadError) throw uploadError;
+        const { error: pathError } = await client()
+          .from('note_documents').update({ file_path: path }).eq('id', data.id);
+        if (pathError) throw pathError;
+      } catch (uploadFailure) {
+        console.error('Could not keep the original file for this import.', uploadFailure);
+      }
+    }
     return data;
+  }
+
+  async function updateDocumentVisibility(id, visibility) {
+    const user = currentUser();
+    if (!user) throw new Error('Sign in to change who can see this document.');
+    const { error } = await client()
+      .from('note_documents')
+      .update({ visibility, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('owner_id', user.id);
+    if (error) throw error;
+  }
+
+  // A public identity by id -- for the read-only ?doc=<id> shared view,
+  // reachable by anyone once the document is unlisted or public (see
+  // note_documents_public_read). Unlike fetchDocument, this is NOT scoped to
+  // the current user -- that is the entire point of a shared link.
+  async function fetchPublicDocument(id) {
+    const { data, error } = await client()
+      .from('note_documents')
+      .select('id, owner_id, title, source_kind, original_filename, full_text, visibility, file_path, created_at, updated_at')
+      .eq('id', id)
+      .is('deleted_at', null)
+      .maybeSingle();
+    if (error) throw error;
+    return data || null;
+  }
+
+  // The "fully public" half of document sharing -- mirrors
+  // fetchPublicKuntrasim exactly: visibility = 'public' is the entire scope
+  // (unlisted is deliberately excluded, same reason as there), no
+  // currentUser() gate since a signed-out visitor is meant to run this too.
+  async function fetchPublicDocuments({ search = '' } = {}) {
+    let query = client()
+      .from('note_documents')
+      .select('id, title, source_kind, preview, created_at, updated_at')
+      .eq('visibility', 'public')
+      .is('deleted_at', null);
+    if (search) {
+      query = query.ilike('title', `%${search}%`);
+    }
+    const { data, error } = await query.order('updated_at', { ascending: false }).limit(30);
+    if (error) throw error;
+    return data || [];
+  }
+
+  // A short-lived URL to download the ORIGINAL file -- generated on demand,
+  // never cached or rendered as a persistent <a href>, since documents (bucket
+  // public: false, unlike avatars) only serve through Supabase's signed-URL
+  // path, which itself re-checks storage.objects RLS before issuing one (see
+  // 20260916160000's own header). 60 seconds is enough for a browser to start
+  // the download; there is nothing here worth a longer-lived link.
+  async function getDocumentDownloadUrl(filePath) {
+    const { data, error } = await client().storage
+      .from(DOCUMENTS_BUCKET)
+      .createSignedUrl(filePath, 60);
+    if (error) throw error;
+    return data.signedUrl;
   }
 
   async function renameDocument(id, title) {
@@ -313,6 +401,10 @@
     fetchDocument,
     fetchDocumentCitations,
     createDocument,
+    updateDocumentVisibility,
+    fetchPublicDocument,
+    fetchPublicDocuments,
+    getDocumentDownloadUrl,
     renameDocument,
     deleteDocument,
     parseDafRefKey,

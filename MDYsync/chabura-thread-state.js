@@ -31,6 +31,7 @@
       commentsById: new Map(),
       childrenByParent: new Map(), // parentId ('' for top level) -> [ids] chronological
       profiles: new Map(),
+      documents: new Map(),      // id -> the root post's cited note_documents row, if any
       reactions: new Map(),      // targetId -> { counts: Map, mine: Set }
       collapsed: new Set(),      // root branch ids the viewer collapsed
       branchCursor: null,

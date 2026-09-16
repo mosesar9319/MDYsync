@@ -37,6 +37,17 @@
     loading: false,
     loadedOnce: false,
     openDocumentId: null,
+    // The full last-opened document row ({ id, title, visibility, file_path,
+    // ... }) -- kept for the share dialog and the download button, which need
+    // more than the bare id above already tracks.
+    openDocument: null,
+    // True only for a document opened via openSharedDocument (a ?doc= link),
+    // mirroring kuntras.js's own readOnly flag exactly: suppresses Share/
+    // Rename/Delete, whatever the viewer's relationship to the document.
+    // Never true for a document reached via openDocument, even a published
+    // one -- opening your OWN document from your own list always goes
+    // through that path.
+    readOnly: false,
   };
 
   const els = {};
@@ -50,8 +61,11 @@
       'mnImportButton', 'mnImportDialog', 'mnImportClose', 'mnImportForm',
       'mnImportTitle', 'mnImportFile', 'mnImportText', 'mnImportSize', 'mnImportError',
       'mnImportSubmit',
-      'mnDocDialog', 'mnDocClose', 'mnDocMeta', 'mnDocTitle', 'mnDocText',
-      'mnDocRename', 'mnDocDelete', 'mnDocCitations', 'mnDocCitationsList',
+      'mnDocDialog', 'mnDocClose', 'mnDocMeta', 'mnDocTitle', 'mnDocVisibility', 'mnDocText',
+      'mnDocDownload', 'mnDocShare', 'mnDocRename', 'mnDocDelete', 'mnDocCitations', 'mnDocCitationsList',
+      'mnDocShareDialog', 'mnDocShareClose', 'mnDocShareError',
+      'mnDocShareLinkRow', 'mnDocShareLinkInput', 'mnDocShareCopyButton', 'mnDocShareCopyStatus',
+      'mnPublicDocsSection', 'mnPublicDocsSearch', 'mnPublicDocsFeed',
     ].forEach((id) => { els[id] = document.getElementById(id); });
   }
 
@@ -180,6 +194,13 @@
     if (els.mnLoadMore) {
       els.mnLoadMore.textContent = onNotes ? 'Load more notes' : 'Load more documents';
     }
+    // Public documents sit alongside the reader's own, on the Documents tab
+    // only -- and works signed out too, unlike mnFeed above it (see "Public
+    // documents" below).
+    if (els.mnPublicDocsSection) {
+      els.mnPublicDocsSection.hidden = onNotes;
+      if (!onNotes) loadPublicDocuments();
+    }
   }
 
   // --- Cards --------------------------------------------------------------
@@ -270,6 +291,15 @@
 
   const SOURCE_LABELS = { paste: 'Pasted', txt: 'Text file', md: 'Markdown', docx: 'Word', pdf: 'PDF' };
 
+  // Mirrors kuntras.js's own VISIBILITY_LABELS/visibilityChip exactly -- the
+  // same three-state model, now shared by documents too (see
+  // 20260916160000_document_sharing.sql).
+  const VISIBILITY_LABELS = { private: ['Private', 'cc-chip-private'], unlisted: ['Unlisted', 'cc-chip-shared'], public: ['Public', 'cc-chip-answered'] };
+  function visibilityChip(visibility) {
+    const [label, variant] = VISIBILITY_LABELS[visibility] || VISIBILITY_LABELS.private;
+    return ui.chip(label, variant);
+  }
+
   function documentCard(row) {
     const card = ui.el('article', 'cc-card');
     card.dataset.id = row.id;
@@ -277,10 +307,7 @@
 
     const top = ui.el('div', 'cc-card-top');
     top.appendChild(ui.chip(SOURCE_LABELS[row.source_kind] || row.source_kind, 'cc-chip-daf'));
-    // Every document is private -- there is no way to make one public (see
-    // the migration). Saying so on the card is the same reassurance the
-    // Private chip gives a note.
-    top.appendChild(ui.chip('Private', 'cc-chip-private'));
+    top.appendChild(visibilityChip(row.visibility));
     card.appendChild(top);
 
     const title = ui.el('h3', 'cc-card-title');
@@ -316,23 +343,83 @@
 
   // --- Document reader ----------------------------------------------------
 
+  // Shared by openDocument (the owner's own path) and openSharedDocument (a
+  // ?doc= link to someone else's published document) -- every action button
+  // here exists only to CHANGE the document, so a read-only visitor gets
+  // none of them, and the owner gets them all back the moment they open
+  // their own document the normal way, however it was left after a
+  // previous read-only visit earlier in the same page session.
+  function applyDocChrome() {
+    const editable = !state.readOnly;
+    els.mnDocShare.hidden = !editable;
+    els.mnDocRename.hidden = !editable;
+    els.mnDocDelete.hidden = !editable;
+  }
+
+  function renderOpenDocument(doc) {
+    state.openDocumentId = doc.id;
+    state.openDocument = doc;
+    els.mnDocTitle.textContent = doc.title;
+    els.mnDocMeta.textContent = `${SOURCE_LABELS[doc.source_kind] || doc.source_kind}`
+      + (doc.original_filename ? ` · ${doc.original_filename}` : '');
+    els.mnDocVisibility.innerHTML = '';
+    els.mnDocVisibility.appendChild(visibilityChip(doc.visibility));
+    els.mnDocDownload.hidden = !doc.file_path;
+    // textContent, not innerHTML: an imported document is arbitrary text
+    // the reader supplied, and it is rendered in a <pre> that preserves its
+    // own line breaks. Nothing here is ever interpreted as markup.
+    els.mnDocText.textContent = doc.full_text;
+    applyDocChrome();
+    els.mnDocDialog.showModal();
+    // After showModal, not before: the document itself is the point of
+    // opening the reader, and it should not wait on a second round trip
+    // for a list that is empty for most documents. Skipped entirely in
+    // read-only mode: fetchDocumentCitations is scoped to the CURRENT
+    // VIEWER's own notes, so it would naturally come back empty for anyone
+    // but the owner, but the "Quoted on" section is gated explicitly here
+    // rather than relying on that.
+    if (state.readOnly) {
+      els.mnDocCitations.hidden = true;
+    } else {
+      renderCitations(doc.id);
+    }
+  }
+
   async function openDocument(id) {
+    state.readOnly = false;
     try {
       const doc = await data.fetchDocument(id);
       if (!doc) { announce('That document is no longer available.'); return; }
-      state.openDocumentId = doc.id;
-      els.mnDocTitle.textContent = doc.title;
-      els.mnDocMeta.textContent = `${SOURCE_LABELS[doc.source_kind] || doc.source_kind}`
-        + (doc.original_filename ? ` · ${doc.original_filename}` : '');
-      // textContent, not innerHTML: an imported document is arbitrary text
-      // the reader supplied, and it is rendered in a <pre> that preserves its
-      // own line breaks. Nothing here is ever interpreted as markup.
-      els.mnDocText.textContent = doc.full_text;
-      els.mnDocDialog.showModal();
-      // After showModal, not before: the document itself is the point of
-      // opening the reader, and it should not wait on a second round trip
-      // for a list that is empty for most documents.
-      renderCitations(doc.id);
+      renderOpenDocument(doc);
+    } catch (error) {
+      announce(data.describeError(error));
+    }
+  }
+
+  // A ?doc=<id> link: read-only, and not scoped to the signed-in reader's
+  // own documents at all -- fetchPublicDocument carries no owner filter,
+  // mirroring kuntras.js's own openSharedKuntras. Anyone (including signed
+  // out) may land here; the database's own note_documents_public_read
+  // policy is what actually decides whether anything comes back.
+  async function openSharedDocument(id) {
+    state.readOnly = true;
+    try {
+      const doc = await data.fetchPublicDocument(id);
+      if (!doc) {
+        announce('This document is not available. It may be private, or the link may no longer be valid.');
+        return;
+      }
+      renderOpenDocument(doc);
+    } catch (error) {
+      announce(data.describeError(error));
+    }
+  }
+
+  async function onDownloadDocument() {
+    if (!state.openDocument || !state.openDocument.file_path) return;
+    try {
+      const url = await data.getDocumentDownloadUrl(state.openDocument.file_path);
+      window.open(url, '_blank', 'noopener');
     } catch (error) {
       announce(data.describeError(error));
     }
@@ -403,6 +490,148 @@
       load();
     } catch (error) {
       announce(data.describeError(error));
+    }
+  }
+
+  // --- Sharing --------------------------------------------------------------
+  //
+  // private/unlisted/public IS the whole sharing model here too -- there is
+  // no separate "publish" step distinct from picking one of the three (see
+  // 20260916160000's own header). The link shown for unlisted/public is just
+  // this page's own URL with ?doc=<id> -- the same query param
+  // openSharedDocument reads on load, so copying it and opening it in
+  // another browser (or signed out) is the entire "share" feature. Mirrors
+  // kuntras.js's own knShareDialog wiring exactly.
+
+  function shareLinkFor(id) {
+    const url = new URL(location.href);
+    url.search = '';
+    url.hash = '';
+    url.searchParams.set('doc', id);
+    return url.toString();
+  }
+
+  function updateShareDialog() {
+    if (!state.openDocument) return;
+    const visibility = state.openDocument.visibility;
+    els.mnDocShareDialog.querySelectorAll('input[name="mnDocShareVisibility"]').forEach((input) => {
+      input.checked = input.value === visibility;
+    });
+    const shared = visibility !== 'private';
+    els.mnDocShareLinkRow.hidden = !shared;
+    if (shared) {
+      els.mnDocShareLinkInput.value = shareLinkFor(state.openDocument.id);
+      els.mnDocShareCopyStatus.textContent = '';
+    }
+  }
+
+  function openShareDialog() {
+    els.mnDocShareError.hidden = true;
+    updateShareDialog();
+    els.mnDocShareDialog.showModal();
+  }
+
+  async function onShareVisibilityChange(event) {
+    const visibility = event.target.value;
+    els.mnDocShareError.hidden = true;
+    try {
+      await data.updateDocumentVisibility(state.openDocument.id, visibility);
+      state.openDocument.visibility = visibility;
+      els.mnDocVisibility.innerHTML = '';
+      els.mnDocVisibility.appendChild(visibilityChip(visibility));
+      updateShareDialog();
+      // Keeps the card underneath in sync, same as renameOpenDocument and
+      // deleteOpenDocument already do for their own mutations -- without
+      // this the list would still show the visibility the document had
+      // when it was first loaded, until some unrelated action reloaded it.
+      load();
+    } catch (error) {
+      els.mnDocShareError.textContent = data.describeError(error);
+      els.mnDocShareError.hidden = false;
+      updateShareDialog(); // revert the radio selection to what actually saved
+    }
+  }
+
+  async function onCopyShareLink() {
+    els.mnDocShareCopyStatus.textContent = '';
+    try {
+      await navigator.clipboard.writeText(els.mnDocShareLinkInput.value);
+      els.mnDocShareCopyStatus.textContent = 'Copied.';
+    } catch {
+      // Clipboard access can be refused (permissions, insecure context, an
+      // older browser with no navigator.clipboard at all) -- the link is
+      // already selected and visible in a plain text input either way, so a
+      // manual copy still works without this button.
+      els.mnDocShareLinkInput.select();
+      els.mnDocShareCopyStatus.textContent = 'Could not copy automatically -- the link is selected, so Ctrl/Cmd+C will still work.';
+    }
+  }
+
+  // --- Public documents -------------------------------------------------
+  //
+  // Offered on the SAME Documents tab as "my documents", not a separate view
+  // -- unlike the reader's own list, this one works signed out too
+  // (fetchPublicDocuments carries no currentUser() gate). Mirrors
+  // kuntras.js's own publicKuntrasCard/loadPublicKuntrasim, including the
+  // lack of a loading-generation guard: a stale response landing after a
+  // newer one is a self-correcting glitch fixed by the next keystroke, not a
+  // race worth a token for.
+
+  function publicDocumentCard(row) {
+    const card = ui.el('article', 'cc-card');
+    card.dataset.id = row.id;
+
+    const top = ui.el('div', 'cc-card-top');
+    top.appendChild(ui.chip(SOURCE_LABELS[row.source_kind] || row.source_kind, 'cc-chip-daf'));
+    card.appendChild(top);
+
+    const title = ui.el('h3', 'cc-card-title');
+    const open = ui.el('a', null, row.title);
+    open.href = `?doc=${encodeURIComponent(row.id)}`;
+    title.appendChild(open);
+    card.appendChild(title);
+
+    if (row.preview) {
+      const body = ui.el('p', 'cc-card-body', row.preview);
+      card.appendChild(body);
+    }
+
+    const meta = ui.el('div', 'cc-card-meta');
+    const time = ui.el('time', null, `Edited ${fmt().formatNoteTime(row.updated_at)}`);
+    const exact = new Date(row.updated_at);
+    if (!Number.isNaN(exact.getTime())) {
+      time.dateTime = exact.toISOString();
+      time.title = exact.toLocaleString();
+    }
+    meta.appendChild(time);
+    card.appendChild(meta);
+
+    return card;
+  }
+
+  async function loadPublicDocuments() {
+    if (!els.mnPublicDocsFeed) return;
+    els.mnPublicDocsFeed.innerHTML = '';
+    els.mnPublicDocsFeed.appendChild(ui.loadingState(3));
+    const search = (els.mnPublicDocsSearch?.value || '').trim();
+    try {
+      const rows = await data.fetchPublicDocuments({ search });
+      els.mnPublicDocsFeed.innerHTML = '';
+      if (!rows.length) {
+        els.mnPublicDocsFeed.appendChild(ui.emptyState({
+          title: search ? 'No public document matches that.' : 'No public documents yet',
+          body: search ? '' : 'When a reader publishes one, it appears here for anyone to browse.',
+        }));
+        return;
+      }
+      rows.forEach((row) => els.mnPublicDocsFeed.appendChild(publicDocumentCard(row)));
+    } catch (error) {
+      els.mnPublicDocsFeed.innerHTML = '';
+      els.mnPublicDocsFeed.appendChild(ui.errorState({
+        title: 'Could not load public documents',
+        message: data.describeError(error),
+        onRetry: loadPublicDocuments,
+      }));
     }
   }
 
@@ -535,13 +764,21 @@
     // submitted -- if the reader picked a file and then replaced the text by
     // hand, this is a paste.
     const fromFile = els.mnImportFile.dataset.kind && els.mnImportFile.dataset.loadedText === fullText;
+    const kind = fromFile ? els.mnImportFile.dataset.kind : 'paste';
+    // Only docx/pdf have an ORIGINAL worth keeping beyond their extracted
+    // text -- a pasted, .txt or .md "original" would just be the same text
+    // again, so there is nothing to upload for those (see
+    // 20260916160000_document_sharing.sql's own header).
+    const keepOriginal = fromFile && (kind === 'docx' || kind === 'pdf');
     els.mnImportSubmit.disabled = true;
     try {
       await data.createDocument({
         title,
-        sourceKind: fromFile ? els.mnImportFile.dataset.kind : 'paste',
+        sourceKind: kind,
         originalFilename: fromFile ? els.mnImportFile.dataset.filename : null,
         fullText,
+        file: keepOriginal ? els.mnImportFile.files[0] : null,
+        fileExtension: keepOriginal ? kind : null,
       });
       els.mnImportDialog.close();
       els.mnImportForm.reset();
@@ -733,8 +970,22 @@
     els.mnImportForm?.addEventListener('submit', onImportSubmit);
 
     els.mnDocClose?.addEventListener('click', () => els.mnDocDialog.close());
+    els.mnDocDownload?.addEventListener('click', onDownloadDocument);
+    els.mnDocShare?.addEventListener('click', openShareDialog);
     els.mnDocRename?.addEventListener('click', renameOpenDocument);
     els.mnDocDelete?.addEventListener('click', deleteOpenDocument);
+
+    els.mnDocShareClose?.addEventListener('click', () => els.mnDocShareDialog.close());
+    els.mnDocShareDialog?.querySelectorAll('input[name="mnDocShareVisibility"]').forEach((input) => {
+      input.addEventListener('change', onShareVisibilityChange);
+    });
+    els.mnDocShareCopyButton?.addEventListener('click', onCopyShareLink);
+
+    let publicDocsSearchTimer = null;
+    els.mnPublicDocsSearch?.addEventListener('input', () => {
+      clearTimeout(publicDocsSearchTimer);
+      publicDocsSearchTimer = setTimeout(loadPublicDocuments, 250);
+    });
 
     window.addEventListener('popstate', () => {
       readUrl();
@@ -748,6 +999,11 @@
   function init() {
     cacheEls();
     if (!els.mnFeed) return; // not the My Notes page
+    // Read BEFORE writeUrl(true) below: that call rewrites location.search
+    // from state's own filter fields (tab/tractate/category/visibility/q)
+    // only, which do not include `doc` -- so reading it any later would see
+    // the already-stripped URL and silently never open the shared dialog.
+    const sharedDocId = new URLSearchParams(location.search).get('doc');
     readUrl();
     populateCategorySelects();
     syncControls();
@@ -765,6 +1021,12 @@
       loadTractateIndex();
       load();
     });
+
+    // ?doc=<id> opens that document read-only over whatever the page
+    // underneath is showing, regardless of who is signed in or whether they
+    // own it -- see openSharedDocument's own header. Every other way of
+    // reaching /notes/ leaves the dialog closed until a card is clicked.
+    if (sharedDocId) openSharedDocument(sharedDocId);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

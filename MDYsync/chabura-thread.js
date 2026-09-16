@@ -175,15 +175,19 @@
   async function hydrate(token) {
     const commentIds = [...state.commentsById.keys()];
     const authorIds = [state.note.author_id].concat([...state.commentsById.values()].map((row) => row.author_id));
-    const [profiles, reactions, savedComments] = await Promise.all([
+    const [profiles, reactions, savedComments, documents] = await Promise.all([
       data.fetchProfiles(authorIds),
       data.fetchReactions(state.note.id, commentIds),
       data.fetchSavedCommentIds(commentIds),
+      // Only the root post ever cites a document -- comments have no
+      // source_document_id of their own (see NOTE_COLUMNS' own comment).
+      data.fetchDocuments(state.note.source_document_id ? [state.note.source_document_id] : []),
     ]);
     if (!data.isCurrent(token)) return;
     state.profiles = profiles;
     state.reactions = reactions;
     state.savedComments = savedComments;
+    state.documents = documents;
   }
 
   // The drift heuristic needs this daf's word boxes. Fetched once, only when
@@ -309,6 +313,7 @@
       state,
       note,
       profiles: state.profiles,
+      documents: state.documents,
       reactions: state.reactions,
       savedComments: state.savedComments,
       currentBranchId: state.currentBranchId,
@@ -1163,6 +1168,22 @@
     onReply(parentId) {
       if (!signedIn()) { document.getElementById('signInButton')?.click(); return; }
       openInlineComposer(parentId, null);
+    },
+
+    // The "documents" Storage bucket is private, so this is the only path
+    // to a cited document's original file -- see getDocumentDownloadUrl's
+    // own header. state.documents only ever holds what fetchDocuments'
+    // RLS-scoped query actually returned, so reaching this point already
+    // means the viewer is allowed to see the row it came from.
+    async onDownloadDocument(documentId) {
+      const doc = state.documents.get(documentId);
+      if (!doc || !doc.file_path) return;
+      try {
+        const url = await data.getDocumentDownloadUrl(doc.file_path);
+        window.open(url, '_blank', 'noopener');
+      } catch (error) {
+        toast(data.describeError(error));
+      }
     },
 
     onQuote(commentId) {
