@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-16T15:00:53.502Z",
+  "generatedAt": "2026-09-16T16:00:54.239Z",
   "tractates": {
     "Chullin": [
       {
@@ -3057,7 +3057,7 @@
           "amud": "a"
         },
         "regularHe": {
-          "videoId": "IomAjOOSTFQ",
+          "videoId": "cO6iIG3Cim0",
           "label": "מרכז דף יומי - חולין דף קלו. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         },
@@ -3128,6 +3128,11 @@
         "regularEn": {
           "videoId": "f2uYMEejB3U",
           "label": "Daf Yomi Chullin Daf 139 by R' Eli Stefansky",
+          "amud": "a"
+        },
+        "chazarahEn": {
+          "videoId": "JTesccAFWj8",
+          "label": "CHAZARAH - Chullin Daf 139 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         }
       }
