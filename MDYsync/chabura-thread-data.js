@@ -56,9 +56,16 @@
     'id', 'author_id', 'author_display_name', 'daf_ref_key', 'segment_ref',
     'title', 'body', 'category', 'status', 'highlighted_comment_id',
     'selected_text', 'word_ranges', 'start_word', 'end_word',
+    'source_document_id',
     'video_timestamp_seconds', 'is_demo', 'is_private', 'hidden',
     'created_at', 'edited_at', 'deleted_at', 'last_activity_at',
   ].join(', ');
+
+  // comments carries no source_document_id of its own -- only line_notes
+  // does (see 20260915170000_note_source_document.sql). A reply can quote a
+  // comment or the root post (quoted_comment_id/quoted_excerpt), but never
+  // cite an imported document directly, so COMMENT_COLUMNS has nothing to
+  // add here.
 
   const COMMENT_COLUMNS = [
     'id', 'note_id', 'author_id', 'author_display_name', 'body',
@@ -218,6 +225,35 @@
     if (error) throw error;
     (data || []).forEach((row) => profiles.set(row.id, row));
     return profiles;
+  }
+
+  // Provenance for a root post's cited document, mirroring fetchProfiles'
+  // own shape and RLS-scoped the same way notes.js's citedDocumentsById is:
+  // no owner filter of its own, so a private document belonging to someone
+  // else than the current viewer is simply absent from the result rather
+  // than erroring (see note_documents_public_read, 20260916160000).
+  async function fetchDocuments(ids) {
+    const documents = new Map();
+    const unique = [...new Set(ids.filter(Boolean))];
+    if (!unique.length) return documents;
+    const { data, error } = await client()
+      .from('note_documents').select('id, title, deleted_at, visibility, file_path')
+      .in('id', unique);
+    if (error) throw error;
+    (data || []).forEach((row) => documents.set(row.id, row));
+    return documents;
+  }
+
+  // A short-lived URL to the document's original .docx/PDF -- the
+  // "documents" Storage bucket is private (public: false), so this is the
+  // only path to it, and it re-checks storage.objects RLS at the moment it
+  // is issued. Mirrors my-notes-data.js's own getDocumentDownloadUrl.
+  async function getDocumentDownloadUrl(filePath) {
+    const { data, error } = await client().storage
+      .from('documents')
+      .createSignedUrl(filePath, 60);
+    if (error) throw error;
+    return data.signedUrl;
   }
 
   // Reactions for the root note and every loaded reply, in one query per
@@ -503,6 +539,8 @@
     fetchBranchesFor,
     fetchLinkPreview,
     fetchProfiles,
+    fetchDocuments,
+    getDocumentDownloadUrl,
     fetchReactions,
     fetchViewerState,
     newCommentId,

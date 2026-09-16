@@ -123,7 +123,16 @@ function comment(overrides) {
 // in every buildDatabase() call -- 1,000 extra rows in every test would slow the
 // whole suite to measure something only two specs care about.
 export function withHugeThread(db, replies = 1000) {
-  const rootId = 'a0000000-0000-4000-8000-00000000000a';
+  // A fresh prefix, deliberately NOT reusing any id from NOTE_IDS above --
+  // 'a0000000-...-00000000000a' collided with NOTE_IDS.citesDocument for a
+  // long time without anything noticing, because nothing in these two specs
+  // rendered a field that differed between the two rows. Once the document
+  // citation pill started querying note_documents for whatever note
+  // fetchThread's `.eq('id', rootId)` actually returned, that silent
+  // collision became a real extra query and failed the query-count bound
+  // below -- fixed at the root by giving this fixture its own id space
+  // rather than by special-casing the count.
+  const rootId = 'd0000000-0000-4000-8000-000000000001';
   db.line_notes.push({
     id: rootId,
     author_id: USERS.author.id,
@@ -350,6 +359,12 @@ export function buildDatabase() {
         original_filename: null,
         full_text: 'Shechita requires five things. My notes on the sugya of derasa.',
         preview: 'Shechita requires five things. My notes on the sugya of derasa.',
+        // private with no kept file -- a paste has nothing to keep (see
+        // 20260916160000's own header), and sharing/publishing is exercised
+        // by document-sharing.spec.mjs against its own locally-mutated copies
+        // rather than this shared fixture.
+        visibility: 'private',
+        file_path: null,
         created_at: isoMinutesAgo(30),
         updated_at: isoMinutesAgo(30),
         deleted_at: null,
@@ -362,6 +377,8 @@ export function buildDatabase() {
         original_filename: 'berachos.txt',
         full_text: 'Notes on tefillah and the order of the berachos.',
         preview: 'Notes on tefillah and the order of the berachos.',
+        visibility: 'private',
+        file_path: null,
         created_at: isoMinutesAgo(60),
         updated_at: isoMinutesAgo(60),
         deleted_at: null,
@@ -377,6 +394,8 @@ export function buildDatabase() {
         original_filename: null,
         full_text: 'Private to Reader One.',
         preview: 'Private to Reader One.',
+        visibility: 'private',
+        file_path: null,
         created_at: isoMinutesAgo(45),
         updated_at: isoMinutesAgo(45),
         deleted_at: null,

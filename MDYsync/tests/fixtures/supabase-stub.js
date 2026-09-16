@@ -277,6 +277,12 @@
           record.preview = String(record.full_text || '').slice(0, 300);
           if (record.deleted_at === undefined) record.deleted_at = null;
           if (record.updated_at === undefined) record.updated_at = record.created_at;
+          // `visibility text not null default 'private'` and a nullable
+          // file_path, same as kuntrasim's own visibility default just
+          // below -- createDocument's own insert sends neither (see
+          // 20260916160000_document_sharing.sql).
+          if (record.visibility === undefined) record.visibility = 'private';
+          if (record.file_path === undefined) record.file_path = null;
         }
         // kuntrasim/kuntras_sections/kuntras_entries all carry
         // `updated_at timestamptz not null default now()` and (kuntrasim
@@ -441,6 +447,18 @@
         },
         getPublicUrl(path) {
           return { data: { publicUrl: 'https://stub.local/storage/v1/object/public/' + bucket + '/' + path } };
+        },
+        // Documents (unlike avatars) live in a PRIVATE bucket, so the client
+        // never calls getPublicUrl for one -- see my-notes-data.js's own
+        // getDocumentDownloadUrl. A deterministic fake signed URL is enough
+        // for a spec to assert the download button reaches it; nothing here
+        // serves the bytes back.
+        createSignedUrl(path, _expiresIn) {
+          recordCall({ storage: { bucket, action: 'createSignedUrl', path } });
+          return Promise.resolve({
+            data: { signedUrl: 'https://stub.local/storage/v1/object/sign/' + bucket + '/' + path + '?token=stub' },
+            error: null,
+          });
         },
       };
     }

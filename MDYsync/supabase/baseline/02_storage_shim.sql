@@ -36,6 +36,13 @@ begin
     id text primary key,
     name text not null,
     public boolean not null default false,
+    -- Real Supabase Storage reads both of these at its own API layer, in
+    -- front of Postgres -- neither is enforced here or by any RLS policy.
+    -- Present so a migration setting them (e.g. 20260916150000) is provable
+    -- to have configured the right VALUES; see that migration's own header
+    -- for why that is all this shim can prove.
+    file_size_limit bigint,
+    allowed_mime_types text[],
     created_at timestamptz not null default now()
   );
 

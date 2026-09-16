@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { preparePage, failOnPageError, readTestCalls } from '../support/harness.mjs';
-import { buildDatabase, sessionFor, USERS, NOTE_IDS } from '../fixtures/dataset.mjs';
+import { buildDatabase, sessionFor, USERS, NOTE_IDS, DOCUMENT_IDS } from '../fixtures/dataset.mjs';
 
 // The dedicated Cloud Chabura thread reader (Prompt 4):
 // /chaburah/thread/?thread=<uuid>&comment=<optional uuid>
@@ -166,6 +166,61 @@ test.describe('Thread reader — source context', () => {
     await preparePage(page, { user: null });
     await openThread(page, NOTE_IDS.multiRefWordRange);
     await expect(page.locator('.ct-source-text')).toHaveText('תנו רבנן ארבעה');
+  });
+});
+
+test.describe('Thread reader — document citation on the root post', () => {
+  // Only the root post can carry this at all -- comments have no
+  // source_document_id of their own (see chabura-thread-data.js's own
+  // NOTE_COLUMNS comment). fetchDocuments (chabura-thread-data.js) asks for
+  // the cited document with no owner filter of its own, trusting
+  // note_documents_public_read the same way notes.js's own
+  // loadCitedDocuments does -- see that file's note-citation.spec.mjs for
+  // the same point made about the daf page. This stub has no RLS, so it
+  // cannot prove a stranger is denied a PRIVATE document (that is
+  // rls_authorization.sql's job); what these specs prove is that the client
+  // renders whatever the query returns.
+
+  test('shows "From <document>" when the root post cites one', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.citesDocumentShared);
+    await expect(page.locator(ROOT).locator('.note-pill-source')).toHaveText('From Chullin notes 5785');
+    // DOCUMENT_IDS.chullin was imported by paste, so nothing was ever kept
+    // to download.
+    await expect(page.locator(ROOT).locator('.note-pill-download')).toHaveCount(0);
+  });
+
+  test('shows no pill at all when the root post cites nothing', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await openThread(page, NOTE_IDS.deepThread);
+    await expect(page.locator(ROOT).locator('.note-pill-source')).toHaveCount(0);
+  });
+
+  test('a download link appears once the document kept its original file, and fetches a signed URL', async ({ page }) => {
+    const db = buildDatabase();
+    const doc = db.note_documents.find((d) => d.id === DOCUMENT_IDS.chullin);
+    doc.visibility = 'public';
+    doc.file_path = `${USERS.author.id}/${DOCUMENT_IDS.chullin}.docx`;
+    await preparePage(page, { user: null, db });
+    // The stub's fake signed URL points at a domain that does not resolve;
+    // stubbing the response lets the popup actually load it instead of
+    // landing on chrome's own network-error page.
+    await page.context().route('https://stub.local/**', (route) => route.fulfill({ status: 200, contentType: 'text/plain', body: 'ok' }));
+    await openThread(page, NOTE_IDS.citesDocumentShared);
+
+    const download = page.locator(ROOT).locator('.note-pill-download');
+    await expect(download).toBeVisible();
+    const [popup] = await Promise.all([
+      page.waitForEvent('popup'),
+      download.click(),
+    ]);
+    await popup.waitForLoadState();
+    expect(popup.url()).toContain('documents');
+    expect(popup.url()).toContain(DOCUMENT_IDS.chullin);
+
+    const calls = await readTestCalls(page);
+    const signed = calls.filter((c) => c.storage && c.storage.action === 'createSignedUrl');
+    expect(signed).toHaveLength(1);
   });
 });
 

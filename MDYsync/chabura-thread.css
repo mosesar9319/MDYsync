@@ -130,6 +130,13 @@
 .ct-body { margin: 0 0 10px; font-size: 15px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ct-body-removed { color: var(--cc-muted); font-style: italic; }
 
+/* "From <document>" on the root post -- reuses styles.css's own .note-pill
+   classes (see sourceDocumentPill in chabura-thread-view.js), just given a
+   block of its own between the head and the body instead of sitting in the
+   head row alongside the author/time, which this page's root post has no
+   pill row in to begin with. */
+.ct-source-pill { display: block; margin: 0 0 8px; }
+
 /* --- Quotes -------------------------------------------------------------- */
 .ct-quote {
   margin: 0 0 10px; padding: 8px 12px;

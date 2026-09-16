@@ -305,6 +305,9 @@ test.describe('Quote from my notes — provenance on the note itself', () => {
 
     const cited = page.locator(`.note-item[data-id="${NOTE_IDS.citesDocument}"]`);
     await expect(cited.locator('.note-pill-source')).toHaveText(`From ${DOC_TITLE}`);
+    // No file was ever kept for a pasted document (see the fixture's own
+    // comment), so there is nothing to download.
+    await expect(cited.locator('.note-pill-download')).toHaveCount(0);
   });
 
   test('a note with no source carries no such pill', async ({ page }) => {
@@ -318,17 +321,57 @@ test.describe('Quote from my notes — provenance on the note itself', () => {
     await expect(plain.locator('.note-pill-source')).toHaveCount(0);
   });
 
-  test('another reader sees the shared note but never its source', async ({ page }) => {
+  // loadCitedDocuments (notes.js) asks for a cited document with NO owner
+  // filter of its own any more -- it trusts note_documents_public_read to
+  // decide what comes back (see 20260916160000_document_sharing.sql and
+  // that function's own header). This stub has no RLS at all, so it cannot
+  // prove a PRIVATE document is withheld from a stranger -- that is
+  // rls_authorization.sql's job (its "Publishing a document" section proves
+  // exactly this against the real policies). What IS provable here, and
+  // what these two specs cover, is what the client does with whatever the
+  // query returns: render the pill (and a download link, if a file was
+  // kept) once a document row comes back, whoever is asking.
+  test('a stranger sees the pill and a download link once the document is public', async ({ page }) => {
     failOnPageError(page);
-    // Reader One did not write these notes and cannot read the author's
-    // documents, so there is no title to show and no pill to show it in.
-    await preparePage(page, { session: sessionFor(USERS.ordinary) });
+    // Reader One did not write NOTE_IDS.citesDocumentShared, but it is a
+    // shared note, and DOCUMENT_IDS.chullin -- the document it quotes -- is
+    // made public below, so both are things a stranger may legitimately see.
+    const db = buildDatabase();
+    const doc = db.note_documents.find((d) => d.id === DOCUMENT_IDS.chullin);
+    doc.visibility = 'public';
+    doc.file_path = `${USERS.author.id}/${DOCUMENT_IDS.chullin}.docx`;
+    await preparePage(page, { session: sessionFor(USERS.ordinary), db });
     await page.goto('/browse/');
     await page.evaluate(() => window.DafNotes.open('Berakhot 2a.1', ''));
 
     const shared = page.locator(`.note-item[data-id="${NOTE_IDS.citesDocumentShared}"]`);
     await expect(shared).toContainText('SHARED-EXCERPT');
-    await expect(shared.locator('.note-pill-source')).toHaveCount(0);
+    await expect(shared.locator('.note-pill-source')).toHaveText(`From ${DOC_TITLE}`);
+    await expect(shared.locator('.note-pill-download')).toBeVisible();
+  });
+
+  test('clicking the download link fetches a signed URL for the kept file', async ({ page }) => {
+    failOnPageError(page);
+    const db = buildDatabase();
+    const doc = db.note_documents.find((d) => d.id === DOCUMENT_IDS.chullin);
+    doc.visibility = 'public';
+    doc.file_path = `${USERS.author.id}/${DOCUMENT_IDS.chullin}.docx`;
+    await preparePage(page, { session: sessionFor(USERS.ordinary), db });
+    // The stub's fake signed URL points at a domain that does not resolve;
+    // stubbing the response lets the popup actually load it instead of
+    // landing on chrome's own network-error page.
+    await page.context().route('https://stub.local/**', (route) => route.fulfill({ status: 200, contentType: 'text/plain', body: 'ok' }));
+    await page.goto('/browse/');
+    await page.evaluate(() => window.DafNotes.open('Berakhot 2a.1', ''));
+
+    const shared = page.locator(`.note-item[data-id="${NOTE_IDS.citesDocumentShared}"]`);
+    const [popup] = await Promise.all([
+      page.waitForEvent('popup'),
+      shared.locator('.note-pill-download').click(),
+    ]);
+    await popup.waitForLoadState();
+    expect(popup.url()).toContain('documents');
+    expect(popup.url()).toContain(DOCUMENT_IDS.chullin);
   });
 });
 

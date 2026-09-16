@@ -139,6 +139,19 @@
         <div class="cc-feed-footer" id="mnFeedFooter" hidden>
           <button class="cc-btn" id="mnLoadMore" type="button">Load more notes</button>
         </div>
+
+        <!-- Public documents (slice: document sharing). Shown only on the
+             Documents tab, the same way /kuntras/'s own "Public kuntrasim"
+             section sits alongside "my kuntrasim" rather than in a separate
+             view -- and works signed out too, unlike mnFeed above it. -->
+        <section id="mnPublicDocsSection" hidden>
+          <h2 class="kn-public-heading">Public documents</h2>
+          <p class="field-note">Documents other readers have made fully public.</p>
+          <div class="search-notes-field">
+            <input type="search" id="mnPublicDocsSearch" placeholder="Search public documents…" maxlength="200">
+          </div>
+          <div class="cc-feed" id="mnPublicDocsFeed"></div>
+        </section>
       </main>
     </div>
   </div>
@@ -173,7 +186,7 @@
     <button class="dialog-close" id="mnImportClose" aria-label="Close">×</button>
     <div class="eyebrow">My Notes</div>
     <h2>Import notes</h2>
-    <p class="dialog-note">Paste your notes, or choose a file: plain text (.txt), Markdown (.md), Word (.docx) or PDF. Word and PDF files are read in your browser — the file itself is never uploaded, only the text you see below. Imported notes are private to your account.</p>
+    <p class="dialog-note">Paste your notes, or choose a file: plain text (.txt), Markdown (.md), Word (.docx) or PDF. Word and PDF files are read in your browser, and the original file is kept alongside the extracted text so you can download it again later. Imported notes are private to your account unless you choose to share them.</p>
     <form class="auth-form" id="mnImportForm">
       <label class="sync-field">
         <span>Title</span>
@@ -196,25 +209,66 @@
     </form>
   </dialog>
 
-  <!-- Reader. A dialog rather than its own route: a document has no shareable
-       public address (nothing here is ever public), so a URL for one would
-       only ever be openable by its owner anyway. -->
+  <!-- Reader. A dialog rather than its own route: opening a shared link
+       (?doc=<id>) shows this SAME dialog directly over the page underneath,
+       the way /kuntras/'s ?k=<id> does over its own builder view -- see
+       openSharedDocument's own header on why that path is always read-only,
+       whatever the viewer's relationship to the document. -->
   <dialog id="mnDocDialog" aria-label="Document">
     <button class="dialog-close" id="mnDocClose" aria-label="Close">×</button>
     <div class="eyebrow" id="mnDocMeta"></div>
     <h2 id="mnDocTitle"></h2>
+    <span id="mnDocVisibility"></span>
     <div class="cc-doc-actions">
+      <button class="cc-btn cc-btn-sm" id="mnDocDownload" type="button" hidden>Download original</button>
+      <button class="cc-btn cc-btn-sm" id="mnDocShare" type="button">Share</button>
       <button class="cc-btn cc-btn-sm" id="mnDocRename" type="button">Rename</button>
       <button class="cc-btn cc-btn-sm" id="mnDocDelete" type="button">Delete</button>
     </div>
     <pre class="cc-doc-text" id="mnDocText"></pre>
     <!-- The reverse of line_notes.source_document_id: every daf this
          document has been quoted on. Hidden until there is at least one,
-         since an empty "Quoted on" heading says nothing. -->
+         since an empty "Quoted on" heading says nothing. Owner-only --
+         fetchDocumentCitations is scoped to the CURRENT VIEWER's own notes,
+         so it is naturally empty for anyone else, but the section is still
+         gated explicitly rather than relying on that. -->
     <section class="cc-doc-citations" id="mnDocCitations" hidden>
       <h3 class="cc-doc-citations-title">Quoted on</h3>
       <div class="cc-doc-citations-list" id="mnDocCitationsList"></div>
     </section>
+  </dialog>
+
+  <!-- Sharing: private/unlisted/public is the whole model, same as
+       /kuntras/'s own knShareDialog. -->
+  <dialog id="mnDocShareDialog">
+    <button class="dialog-close" id="mnDocShareClose" aria-label="Close">×</button>
+    <div class="eyebrow">My Notes</div>
+    <h2>Sharing</h2>
+    <div class="kn-share-options" role="radiogroup" aria-label="Who can see this document">
+      <label class="kn-share-option">
+        <input type="radio" name="mnDocShareVisibility" value="private">
+        <span><strong>Private</strong> <span class="field-note">Only you can see it.</span></span>
+      </label>
+      <label class="kn-share-option">
+        <input type="radio" name="mnDocShareVisibility" value="unlisted">
+        <span><strong>Unlisted</strong> <span class="field-note">Anyone with the link can read it. Never listed anywhere.</span></span>
+      </label>
+      <label class="kn-share-option">
+        <input type="radio" name="mnDocShareVisibility" value="public">
+        <span><strong>Public</strong> <span class="field-note">Anyone with the link, and listed for anyone to browse.</span></span>
+      </label>
+    </div>
+    <div id="mnDocShareLinkRow" hidden>
+      <label class="sync-field">
+        <span>Share link</span>
+        <input type="text" id="mnDocShareLinkInput" readonly>
+      </label>
+      <div class="auth-form-actions">
+        <button class="button secondary small" id="mnDocShareCopyButton" type="button">Copy link</button>
+        <span class="field-note" id="mnDocShareCopyStatus" aria-live="polite"></span>
+      </div>
+    </div>
+    <p class="auth-error" id="mnDocShareError" hidden></p>
   </dialog>
 
   <dialog id="authDialog">
