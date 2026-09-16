@@ -35,14 +35,25 @@
     citeKind: 'freeform',
     citeSourceId: null,
     citeLabel: null,
+    // True only for a kuntras opened via openSharedKuntras (a ?k= link to
+    // someone's published pamphlet) -- suppresses every editing control in
+    // the builder view, which openKuntras (the owner's own path) and
+    // openSharedKuntras otherwise share unchanged. Never true for a
+    // kuntras the viewer owns, even a published one: opening your OWN
+    // kuntras always goes through openKuntras, whatever its visibility.
+    readOnly: false,
   };
 
   const els = {};
   function cacheEls() {
     [
       'knStatus', 'knLibrary', 'knFeed', 'knNewButton',
-      'knBuilder', 'knBackButton', 'knBuilderTitle', 'knRenameButton', 'knDeleteButton',
+      'knPublicSearch', 'knPublicFeed',
+      'knBuilder', 'knBackButton', 'knBuilderTitle', 'knBuilderVisibility', 'knRenameButton', 'knDeleteButton',
+      'knShareButton', 'knBuilderHint',
       'knTree', 'knAddRootSection', 'knAddRootEntry',
+      'knShareDialog', 'knShareClose', 'knShareError',
+      'knShareLinkRow', 'knShareLinkInput', 'knShareCopyButton', 'knShareCopyStatus',
       'knEntryDialog', 'knEntryClose', 'knEntryDialogTitle', 'knEntryForm',
       'knEntryTitle', 'knEntryBody', 'knEntrySize', 'knEntryError', 'knEntrySubmit',
       'knCiteRow', 'knCiteButton', 'knCiteCurrent', 'knCiteCurrentLabel', 'knCiteClear',
@@ -81,14 +92,23 @@
 
   // --- Library ---------------------------------------------------------
 
+  // Reused on: a card in "my kuntrasim" (any of the three states, now that
+  // slice 4 lets an owner publish one), the builder's own head (the owner
+  // checking what they currently have it set to), and nowhere in the public
+  // browse list below -- everything there is public by construction, so a
+  // chip repeating that on every card would say nothing.
+  const VISIBILITY_LABELS = { private: ['Private', 'cc-chip-private'], unlisted: ['Unlisted', 'cc-chip-shared'], public: ['Public', 'cc-chip-answered'] };
+  function visibilityChip(visibility) {
+    const [label, variant] = VISIBILITY_LABELS[visibility] || VISIBILITY_LABELS.private;
+    return chip(label, variant);
+  }
+
   function kuntrasCard(row) {
     const card = el('article', 'cc-card');
     card.dataset.id = row.id;
 
     const top = el('div', 'cc-card-top');
-    // Every kuntras is private in this slice -- see the migration's own
-    // comment on why visibility is pinned there, not merely defaulted here.
-    top.appendChild(chip('Private', 'cc-chip-private'));
+    top.appendChild(visibilityChip(row.visibility));
     card.appendChild(top);
 
     const title = el('h3', 'cc-card-title');
@@ -165,6 +185,66 @@
     }
   }
 
+  // --- Public kuntrasim (slice 4) -----------------------------------------
+  //
+  // Offered on the SAME library screen as "my kuntrasim", not a separate
+  // view -- unlike the owner's own list, this one works signed out too
+  // (fetchPublicKuntrasim carries no currentUser() gate), so it has to
+  // render regardless of which branch loadLibrary's own signed-in check
+  // takes. No loading-generation guard here, matching this file's other
+  // search-driven lists (loadQuoteNotes and friends) -- a stale response
+  // landing after a newer one is a self-correcting glitch fixed by the next
+  // keystroke, not a race worth a token for.
+
+  function publicKuntrasCard(row) {
+    const card = el('article', 'cc-card');
+    card.dataset.id = row.id;
+
+    const title = el('h3', 'cc-card-title');
+    const open = el('a', null, row.title);
+    open.href = `?k=${encodeURIComponent(row.id)}`;
+    title.appendChild(open);
+    card.appendChild(title);
+
+    const meta = el('div', 'cc-card-meta');
+    const time = el('time', null, `Edited ${fmt().formatNoteTime(row.updated_at)}`);
+    const exact = new Date(row.updated_at);
+    if (!Number.isNaN(exact.getTime())) {
+      time.dateTime = exact.toISOString();
+      time.title = exact.toLocaleString();
+    }
+    meta.appendChild(time);
+    card.appendChild(meta);
+
+    return card;
+  }
+
+  async function loadPublicKuntrasim() {
+    if (!els.knPublicFeed) return;
+    els.knPublicFeed.innerHTML = '';
+    els.knPublicFeed.appendChild(loadingState(3));
+    const search = els.knPublicSearch.value.trim();
+    try {
+      const rows = await data().fetchPublicKuntrasim({ search });
+      els.knPublicFeed.innerHTML = '';
+      if (!rows.length) {
+        els.knPublicFeed.appendChild(emptyState({
+          title: search ? 'No public kuntras matches that.' : 'No public kuntrasim yet',
+          body: search ? '' : 'When a reader publishes one, it appears here for anyone to browse.',
+        }));
+        return;
+      }
+      rows.forEach((row) => els.knPublicFeed.appendChild(publicKuntrasCard(row)));
+    } catch (error) {
+      els.knPublicFeed.innerHTML = '';
+      els.knPublicFeed.appendChild(errorState({
+        title: 'Could not load public kuntrasim',
+        message: data().describeError(error),
+        onRetry: loadPublicKuntrasim,
+      }));
+    }
+  }
+
   // --- Switching views ---------------------------------------------------
 
   function showLibrary() {
@@ -173,9 +253,31 @@
     els.knLibrary.hidden = false;
     els.knBuilder.hidden = true;
     loadLibrary();
+    loadPublicKuntrasim();
+  }
+
+  // Shared by openKuntras (the owner's own path) and openSharedKuntras (a
+  // ?k= link to someone else's published pamphlet) -- every element here
+  // exists only to CHANGE the tree, so a read-only visitor gets none of
+  // them, and the owner gets all of them back the moment they open their
+  // own kuntras the normal way, however it was left after a previous
+  // read-only visit earlier in the same page session.
+  function applyBuilderChrome() {
+    const editable = !state.readOnly;
+    els.knRenameButton.hidden = !editable;
+    els.knDeleteButton.hidden = !editable;
+    els.knShareButton.hidden = !editable;
+    els.knAddRootSection.hidden = !editable;
+    els.knAddRootEntry.hidden = !editable;
+    if (els.knBuilderHint) els.knBuilderHint.hidden = !editable;
+    if (els.knBuilderVisibility) {
+      els.knBuilderVisibility.innerHTML = '';
+      if (state.openKuntras) els.knBuilderVisibility.appendChild(visibilityChip(state.openKuntras.visibility));
+    }
   }
 
   async function openKuntras(id) {
+    state.readOnly = false;
     try {
       const tree = await data().fetchKuntrasTree(id);
       if (!tree) { announce('That kuntras is no longer available.'); showLibrary(); return; }
@@ -186,6 +288,42 @@
       els.knLibrary.hidden = true;
       els.knBuilder.hidden = false;
       els.knBuilderTitle.textContent = tree.kuntras.title;
+      applyBuilderChrome();
+      renderTree();
+    } catch (error) {
+      announce(data().describeError(error));
+    }
+  }
+
+  // A ?k=<id> link: read-only, and not scoped to the signed-in reader's own
+  // kuntrasim at all -- fetchKuntrasTree never was (see its own header),
+  // it simply hasn't had a caller that wasn't the owner until this one.
+  // Anyone (including signed out) may land here; the database's own
+  // kuntrasim_public_read policy is what actually decides whether anything
+  // comes back.
+  async function openSharedKuntras(id) {
+    state.readOnly = true;
+    state.view = 'builder';
+    els.knLibrary.hidden = true;
+    els.knBuilder.hidden = false;
+    try {
+      const tree = await data().fetchKuntrasTree(id);
+      if (!tree) {
+        state.openKuntras = null;
+        els.knBuilderTitle.textContent = 'Not available';
+        applyBuilderChrome();
+        els.knTree.innerHTML = '';
+        els.knTree.appendChild(emptyState({
+          title: 'This kuntras is not available',
+          body: 'It may be private, or the link may no longer be valid.',
+        }));
+        return;
+      }
+      state.openKuntras = tree.kuntras;
+      state.sections = tree.sections;
+      state.entries = tree.entries;
+      els.knBuilderTitle.textContent = tree.kuntras.title;
+      applyBuilderChrome();
       renderTree();
     } catch (error) {
       announce(data().describeError(error));
@@ -287,26 +425,30 @@
     const node = el('div', 'kn-section');
 
     const head = el('div', 'kn-section-head');
-    head.appendChild(moveButtons(siblings, index, (from, to) => moveSectionSiblings(siblings, from, to)));
+    if (!state.readOnly) {
+      head.appendChild(moveButtons(siblings, index, (from, to) => moveSectionSiblings(siblings, from, to)));
+    }
 
     const title = el('h3', 'kn-section-title', section.title);
     head.appendChild(title);
 
-    const actions = el('div', 'kn-section-actions');
-    const renameBtn = el('button', 'cc-btn cc-btn-sm cc-btn-quiet', 'Rename');
-    renameBtn.type = 'button';
-    renameBtn.addEventListener('click', () => onRenameSection(section));
-    const addSubBtn = el('button', 'cc-btn cc-btn-sm cc-btn-quiet', '+ Subsection');
-    addSubBtn.type = 'button';
-    addSubBtn.addEventListener('click', () => onAddSection(section.id));
-    const addEntryBtn = el('button', 'cc-btn cc-btn-sm cc-btn-quiet', '+ Entry');
-    addEntryBtn.type = 'button';
-    addEntryBtn.addEventListener('click', () => openEntryDialog({ sectionId: section.id }));
-    const deleteBtn = el('button', 'cc-btn cc-btn-sm cc-btn-quiet cc-btn-danger', 'Delete');
-    deleteBtn.type = 'button';
-    deleteBtn.addEventListener('click', () => onDeleteSection(section));
-    actions.append(renameBtn, addSubBtn, addEntryBtn, deleteBtn);
-    head.appendChild(actions);
+    if (!state.readOnly) {
+      const actions = el('div', 'kn-section-actions');
+      const renameBtn = el('button', 'cc-btn cc-btn-sm cc-btn-quiet', 'Rename');
+      renameBtn.type = 'button';
+      renameBtn.addEventListener('click', () => onRenameSection(section));
+      const addSubBtn = el('button', 'cc-btn cc-btn-sm cc-btn-quiet', '+ Subsection');
+      addSubBtn.type = 'button';
+      addSubBtn.addEventListener('click', () => onAddSection(section.id));
+      const addEntryBtn = el('button', 'cc-btn cc-btn-sm cc-btn-quiet', '+ Entry');
+      addEntryBtn.type = 'button';
+      addEntryBtn.addEventListener('click', () => openEntryDialog({ sectionId: section.id }));
+      const deleteBtn = el('button', 'cc-btn cc-btn-sm cc-btn-quiet cc-btn-danger', 'Delete');
+      deleteBtn.type = 'button';
+      deleteBtn.addEventListener('click', () => onDeleteSection(section));
+      actions.append(renameBtn, addSubBtn, addEntryBtn, deleteBtn);
+      head.appendChild(actions);
+    }
 
     node.appendChild(head);
 
@@ -320,18 +462,22 @@
   function renderEntryNode(entry, siblings, index) {
     const node = el('div', 'kn-entry');
     const head = el('div', 'kn-entry-head');
-    head.appendChild(moveButtons(siblings, index, (from, to) => moveEntrySiblings(siblings, from, to)));
+    if (!state.readOnly) {
+      head.appendChild(moveButtons(siblings, index, (from, to) => moveEntrySiblings(siblings, from, to)));
+    }
     if (entry.title) head.appendChild(el('h4', 'kn-entry-title', entry.title));
 
-    const actions = el('div', 'kn-entry-actions');
-    const editBtn = el('button', 'cc-btn cc-btn-sm cc-btn-quiet', 'Edit');
-    editBtn.type = 'button';
-    editBtn.addEventListener('click', () => openEntryDialog({ sectionId: entry.section_id, entry }));
-    const deleteBtn = el('button', 'cc-btn cc-btn-sm cc-btn-quiet cc-btn-danger', 'Delete');
-    deleteBtn.type = 'button';
-    deleteBtn.addEventListener('click', () => onDeleteEntry(entry));
-    actions.append(editBtn, deleteBtn);
-    head.appendChild(actions);
+    if (!state.readOnly) {
+      const actions = el('div', 'kn-entry-actions');
+      const editBtn = el('button', 'cc-btn cc-btn-sm cc-btn-quiet', 'Edit');
+      editBtn.type = 'button';
+      editBtn.addEventListener('click', () => openEntryDialog({ sectionId: entry.section_id, entry }));
+      const deleteBtn = el('button', 'cc-btn cc-btn-sm cc-btn-quiet cc-btn-danger', 'Delete');
+      deleteBtn.type = 'button';
+      deleteBtn.addEventListener('click', () => onDeleteEntry(entry));
+      actions.append(editBtn, deleteBtn);
+      head.appendChild(actions);
+    }
     node.appendChild(head);
 
     // Plain textContent: slice 1 offers no formatting toolbar for an entry's
@@ -844,6 +990,73 @@
     }
   }
 
+  // --- Sharing (slice 4) ---------------------------------------------------
+  //
+  // private/unlisted/public IS the whole sharing model -- there is no
+  // separate "publish" step distinct from picking one of the three (see
+  // 20260916100000's own header). The link shown for unlisted/public is
+  // just this page's own URL with ?k=<id> -- the same query param
+  // openSharedKuntras reads on load, so copying it and opening it in
+  // another browser (or signed out) is the entire "share" feature.
+
+  function shareLinkFor(id) {
+    const url = new URL(location.href);
+    url.search = '';
+    url.hash = '';
+    url.searchParams.set('k', id);
+    return url.toString();
+  }
+
+  function updateShareDialog() {
+    if (!state.openKuntras) return;
+    const visibility = state.openKuntras.visibility;
+    els.knShareDialog.querySelectorAll('input[name="knShareVisibility"]').forEach((input) => {
+      input.checked = input.value === visibility;
+    });
+    const shared = visibility !== 'private';
+    els.knShareLinkRow.hidden = !shared;
+    if (shared) {
+      els.knShareLinkInput.value = shareLinkFor(state.openKuntras.id);
+      els.knShareCopyStatus.textContent = '';
+    }
+  }
+
+  function openShareDialog() {
+    els.knShareError.hidden = true;
+    updateShareDialog();
+    els.knShareDialog.showModal();
+  }
+
+  async function onShareVisibilityChange(event) {
+    const visibility = event.target.value;
+    els.knShareError.hidden = true;
+    try {
+      await data().updateVisibility(state.openKuntras.id, visibility);
+      state.openKuntras.visibility = visibility;
+      updateShareDialog();
+      applyBuilderChrome();
+    } catch (error) {
+      els.knShareError.textContent = data().describeError(error);
+      els.knShareError.hidden = false;
+      updateShareDialog(); // revert the radio selection to what actually saved
+    }
+  }
+
+  async function onCopyShareLink() {
+    els.knShareCopyStatus.textContent = '';
+    try {
+      await navigator.clipboard.writeText(els.knShareLinkInput.value);
+      els.knShareCopyStatus.textContent = 'Copied.';
+    } catch {
+      // Clipboard access can be refused (permissions, insecure context, an
+      // older browser with no navigator.clipboard at all) -- the link is
+      // already selected and visible in a plain text input either way, so
+      // a manual copy still works without this button.
+      els.knShareLinkInput.select();
+      els.knShareCopyStatus.textContent = 'Could not copy automatically -- the link is selected, so Ctrl/Cmd+C will still work.';
+    }
+  }
+
   // --- Init ----------------------------------------------------------------
 
   function init() {
@@ -856,6 +1069,19 @@
     els.knDeleteButton.addEventListener('click', onDeleteKuntras);
     els.knAddRootSection.addEventListener('click', () => onAddSection(null));
     els.knAddRootEntry.addEventListener('click', () => openEntryDialog({ sectionId: null }));
+
+    els.knShareButton.addEventListener('click', openShareDialog);
+    els.knShareClose.addEventListener('click', () => els.knShareDialog.close());
+    els.knShareDialog.querySelectorAll('input[name="knShareVisibility"]').forEach((input) => {
+      input.addEventListener('change', onShareVisibilityChange);
+    });
+    els.knShareCopyButton.addEventListener('click', onCopyShareLink);
+
+    let publicSearchTimer = null;
+    els.knPublicSearch.addEventListener('input', () => {
+      clearTimeout(publicSearchTimer);
+      publicSearchTimer = setTimeout(loadPublicKuntrasim, 250);
+    });
 
     els.knEntryClose.addEventListener('click', () => els.knEntryDialog.close());
     els.knEntryForm.addEventListener('submit', onEntrySubmit);
@@ -900,7 +1126,15 @@
       if (state.view === 'library') loadLibrary();
     });
 
-    showLibrary();
+    // ?k=<id> opens that kuntras read-only, regardless of who is signed in
+    // or whether they own it -- see openSharedKuntras's own header. Every
+    // other way of reaching /kuntras/ lands on the library.
+    const sharedId = new URLSearchParams(location.search).get('k');
+    if (sharedId) {
+      openSharedKuntras(sharedId);
+    } else {
+      showLibrary();
+    }
   }
 
   if (document.readyState === 'loading') {

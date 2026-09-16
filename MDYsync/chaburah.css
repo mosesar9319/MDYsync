@@ -119,6 +119,13 @@ body[data-page="kuntras"] .cc-shell { grid-template-columns: minmax(0, 1fr); }
   white-space: normal; overflow: visible; text-overflow: clip;
   margin: 6px 0 14px; font-size: 13px; line-height: 1.5;
 }
+/* Same fix again for the library's own public-browse blurb and each
+   Sharing-dialog option's description -- the recurring pattern by now:
+   styles.css's global .field-note is nowrap + ellipsis, and every one of
+   these is a full sentence. */
+#knLibrary .field-note, .kn-share-option .field-note {
+  white-space: normal; overflow: visible; text-overflow: clip;
+}
 
 
 /* --- Header -------------------------------------------------------------- */
@@ -463,6 +470,11 @@ a.cc-doc-citation:hover { border-color: var(--cc-accent); }
 
 .kn-library-actions { margin-bottom: 14px; }
 
+/* Slice 4: the public browse section sits below the reader's own library on
+   the same screen (see kn-library-actions above it) -- a visible heading of
+   its own is what actually separates the two, since both use .cc-feed. */
+.kn-public-heading { margin: 28px 0 2px; font-size: 17px; }
+
 .kn-builder-head { display: flex; align-items: center; gap: 10px; margin: 10px 0 4px; flex-wrap: wrap; }
 .kn-builder-head h2 { margin: 0; flex: 1 1 auto; min-width: 0; }
 
@@ -502,6 +514,25 @@ a.cc-doc-citation:hover { border-color: var(--cc-accent); }
 
 .kn-root-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
 
+/* Sharing dialog (slice 4). One .kn-share-option per radio, styled as a
+   clickable card rather than a bare input+label pair -- the same "the whole
+   row is the hit target" pattern .note-cite-doc already uses elsewhere on
+   this page. */
+.kn-share-options { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 14px; }
+.kn-share-option {
+  display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px;
+  border: 1px solid var(--cc-border); border-radius: var(--cc-radius-sm);
+  background: var(--cc-surface); cursor: pointer;
+}
+.kn-share-option:has(input:checked) { border-color: var(--cc-primary); background: var(--cc-primary-soft); }
+.kn-share-option input { margin-top: 3px; }
+.kn-share-option .field-note { display: block; margin-top: 2px; }
+
+#knShareLinkInput {
+  width: 100%; border: 1px solid var(--cc-border); color: var(--cc-text); background: var(--cc-surface-subtle);
+  border-radius: 11px; padding: 10px 12px; font-family: inherit; font-size: 13px;
+}
+
 #knEntryDialog textarea {
   width: 100%; resize: vertical; font: inherit; font-size: 14px;
   border: 1px solid var(--cc-border); border-radius: var(--cc-radius-sm);
@@ -540,11 +571,11 @@ a.cc-doc-citation:hover { border-color: var(--cc-accent); }
 /* input[type="search"] is not covered by any generic field rule on this
    page either -- same reason #noteCiteSearch and #mnImportDialog's own
    fields each carry their own. */
-#knQuoteNotesSearch, #knQuoteDocSearch, #knQuoteChaburahSearch {
+#knQuoteNotesSearch, #knQuoteDocSearch, #knQuoteChaburahSearch, #knPublicSearch {
   width: 100%; border: 1px solid var(--cc-border); color: var(--cc-text); background: var(--cc-surface-subtle);
   border-radius: 11px; padding: 10px 12px; font-family: inherit; font-size: 14px; outline: none;
 }
-#knQuoteNotesSearch:focus, #knQuoteDocSearch:focus, #knQuoteChaburahSearch:focus {
+#knQuoteNotesSearch:focus, #knQuoteDocSearch:focus, #knQuoteChaburahSearch:focus, #knPublicSearch:focus {
   border-color: var(--cc-primary); box-shadow: 0 0 0 3px var(--cc-focus);
 }
 

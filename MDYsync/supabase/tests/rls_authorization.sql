@@ -1525,25 +1525,33 @@ select dafsync_test.check(
   '0');
 
 select dafsync_test.check(
-  'an admin cannot see it either -- nothing here is public in this slice',
+  'an admin cannot see it either -- a private kuntras has no admin-read policy at all',
   dafsync_test.read_as('authenticated', '44444444-4444-4444-8444-444444444444',
     format('select count(*)::text from public.kuntrasim where id = %L', :kun_reader)),
   '0');
 
+-- This kuntras is still private at this point in the suite, so anon sees
+-- nothing -- but NOT because anon is refused at the table the way
+-- note_documents refuses it above. Slice 4 (20260916100000) grants anon
+-- SELECT on all three of these tables so a PUBLISHED kuntras can be read by
+-- anyone with the link; see that migration's own tests, further down, for
+-- anon actually reading a public/unlisted one. This is RLS filtering to
+-- zero rows, not a table-level refusal -- the two are easy to conflate and
+-- this suite already fixed that conflation once for note_documents.
 select dafsync_test.check(
-  'anon is refused at the table, not merely filtered by RLS',
-  dafsync_test.read_as('anon', null, 'select count(*)::text from public.kuntrasim'),
-  'ERROR:42501');
+  'anon is filtered by RLS, not refused at the table -- a private kuntras is still invisible',
+  dafsync_test.read_as('anon', null, format('select count(*)::text from public.kuntrasim where id = %L', :kun_reader)),
+  '0');
 
 select dafsync_test.check(
-  'anon is refused on sections too',
-  dafsync_test.read_as('anon', null, 'select count(*)::text from public.kuntras_sections'),
-  'ERROR:42501');
+  'nor its sections',
+  dafsync_test.read_as('anon', null, format('select count(*)::text from public.kuntras_sections where kuntras_id = %L', :kun_reader)),
+  '0');
 
 select dafsync_test.check(
-  'anon is refused on entries too',
-  dafsync_test.read_as('anon', null, 'select count(*)::text from public.kuntras_entries'),
-  'ERROR:42501');
+  'nor its entries',
+  dafsync_test.read_as('anon', null, format('select count(*)::text from public.kuntras_entries where kuntras_id = %L', :kun_reader)),
+  '0');
 
 -- --- Writing -------------------------------------------------------------
 
@@ -1554,20 +1562,34 @@ select dafsync_test.check(
      values (''22222222-2222-4222-8222-222222222222'', ''Forged'')'),
   '42501');
 
--- visibility is pinned to 'private' by the policy itself in this slice, not
--- merely by the client choosing not to send anything else.
+-- A newly CREATED kuntras is still pinned to 'private' by the insert
+-- policy itself, not merely by the client choosing not to send anything
+-- else -- unchanged since slice 1 (20260916100000 only widened the UPDATE
+-- policy, deliberately leaving INSERT alone; see that migration's own
+-- header for why).
 select dafsync_test.check(
-  'visibility cannot be set to anything but private in this slice',
+  'a freshly created kuntras cannot start out anything but private',
   dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
     'insert into public.kuntrasim (owner_id, title, visibility)
      values (''11111111-1111-4111-8111-111111111111'', ''Trying to publish'', ''public'')'),
   '42501');
 
+-- An EXISTING kuntras, unlike a freshly created one, can be published --
+-- this is the mechanic slice 4 (20260916100000) adds. Reset back to
+-- private immediately after: everything below this point in the suite
+-- still assumes kun_reader is private, and the full publish/unpublish/
+-- cross-account-read story gets its own dedicated section further down.
 select dafsync_test.check(
-  'nor can an existing kuntras be updated to a wider visibility',
+  'the owner CAN widen an existing kuntras to unlisted -- this is slice 4''s whole point',
   dafsync_test.attempt('authenticated', '11111111-1111-4111-8111-111111111111',
     format('update public.kuntrasim set visibility = ''unlisted'' where id = %L', :kun_reader)),
-  '42501');
+  'OK');
+
+select dafsync_test.check(
+  'reset back to private for the rest of this suite',
+  dafsync_test.attempt_rows('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('update public.kuntrasim set visibility = ''private'' where id = %L', :kun_reader)),
+  '1');
 
 select dafsync_test.check(
   'a reader cannot add a section to someone else''s kuntras',
@@ -1875,6 +1897,96 @@ select dafsync_test.check(
   dafsync_test.read_as('authenticated', '11111111-1111-4111-8111-111111111111',
     format('select (source_chaburah_note_id is null)::text from public.kuntras_entries where id = %L', :entry_chaburah)),
   'true');
+
+-- ===========================================================================
+-- ===========================================================================
+-- kuntrasim.visibility -- Kuntras Builder slice 4 (20260916100000): sharing.
+-- kun_reader2 is still around from the slice 2/3 sections above, with real
+-- entries already attached (including one that quotes a public Cloud
+-- Chaburah discussion) -- reused here rather than a fresh kuntras, so
+-- publishing it is a real end-to-end proof that a non-empty tree becomes
+-- readable, not just an empty shell.
+-- ===========================================================================
+
+-- attempt_rows, not attempt: RLS makes a forbidden UPDATE match zero rows
+-- and report OK, not fail -- attempt() alone would call that success.
+select dafsync_test.check(
+  'a stranger''s attempt to publish someone else''s kuntras matches nothing',
+  dafsync_test.attempt_rows('authenticated', '22222222-2222-4222-8222-222222222222',
+    format('update public.kuntrasim set visibility = ''public'' where id = %L', :kun_reader2)),
+  '0');
+
+select dafsync_test.check(
+  'it is still private after that attempt',
+  dafsync_test.read_as('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('select visibility from public.kuntrasim where id = %L', :kun_reader2)),
+  'private');
+
+select dafsync_test.check(
+  'anon cannot read it while it is private',
+  dafsync_test.read_as('anon', null,
+    format('select count(*)::text from public.kuntrasim where id = %L', :kun_reader2)),
+  '0');
+
+-- --- Publishing it unlisted --------------------------------------------
+
+select dafsync_test.check(
+  'the owner can make their own kuntras unlisted',
+  dafsync_test.attempt_rows('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('update public.kuntrasim set visibility = ''unlisted'' where id = %L', :kun_reader2)),
+  '1');
+
+select dafsync_test.check(
+  'anon can now read the kuntras itself, by id',
+  dafsync_test.read_as('anon', null,
+    format('select title from public.kuntrasim where id = %L', :kun_reader2)),
+  'Reader One''s second kuntras');
+
+select dafsync_test.check(
+  'and its entries, including one that quotes a public discussion',
+  dafsync_test.read_as('anon', null,
+    format('select body from public.kuntras_entries where id = %L', :entry_chaburah)),
+  'Quoted from Cloud Chaburah.');
+
+select dafsync_test.check(
+  'an unlisted kuntras never appears in the public listing query',
+  dafsync_test.read_as('anon', null,
+    format('select count(*)::text from public.kuntrasim where visibility = ''public'' and id = %L', :kun_reader2)),
+  '0');
+
+-- --- Publishing it fully public ------------------------------------------
+
+select dafsync_test.check(
+  'the owner can widen it further, to public',
+  dafsync_test.attempt_rows('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('update public.kuntrasim set visibility = ''public'' where id = %L', :kun_reader2)),
+  '1');
+
+select dafsync_test.check(
+  'now it DOES appear in the public listing query',
+  dafsync_test.read_as('anon', null,
+    format('select count(*)::text from public.kuntrasim where visibility = ''public'' and id = %L', :kun_reader2)),
+  '1');
+
+select dafsync_test.check(
+  'a signed-in stranger can read it too, not just anon',
+  dafsync_test.read_as('authenticated', '22222222-2222-4222-8222-222222222222',
+    format('select title from public.kuntrasim where id = %L', :kun_reader2)),
+  'Reader One''s second kuntras');
+
+-- --- Unpublishing takes it all back ---------------------------------------
+
+select dafsync_test.check(
+  'the owner can take it back to private',
+  dafsync_test.attempt_rows('authenticated', '11111111-1111-4111-8111-111111111111',
+    format('update public.kuntrasim set visibility = ''private'' where id = %L', :kun_reader2)),
+  '1');
+
+select dafsync_test.check(
+  'anon loses access the moment it is unpublished',
+  dafsync_test.read_as('anon', null,
+    format('select count(*)::text from public.kuntrasim where id = %L', :kun_reader2)),
+  '0');
 
 -- ===========================================================================
 do $$ begin raise notice 'ALL AUTHORIZATION TESTS PASSED'; end $$;

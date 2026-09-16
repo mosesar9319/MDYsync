@@ -82,7 +82,7 @@
     <div class="cc-header">
       <div class="cc-header-titles">
         <h1>Kuntras Builder</h1>
-        <p class="cc-tagline">Assemble your notes and writing into your own pamphlet — private, for now.</p>
+        <p class="cc-tagline">Assemble your notes and writing into your own pamphlet — private, unlisted, or fully public.</p>
       </div>
       <div class="cc-header-actions">
         <a class="cc-btn" href="/notes/">My Notes</a>
@@ -104,19 +104,38 @@
             <button class="cc-btn cc-btn-primary" id="knNewButton" type="button">New kuntras</button>
           </div>
           <div class="cc-feed" id="knFeed"></div>
+
+          <!-- Slice 4: the "fully public" half of sharing. Shown on the SAME
+               screen as "my kuntrasim" rather than a separate view -- and
+               unlike that list above, this one renders for a signed-out
+               visitor too (fetchPublicKuntrasim has no sign-in requirement),
+               so it cannot live inside knFeed's own signed-out branch. -->
+          <h2 class="kn-public-heading">Public kuntrasim</h2>
+          <p class="field-note">Pamphlets other readers have made fully public.</p>
+          <div class="search-notes-field">
+            <input type="search" id="knPublicSearch" placeholder="Search public kuntrasim…" maxlength="200">
+          </div>
+          <div class="cc-feed" id="knPublicFeed"></div>
         </section>
 
-        <!-- The builder: one kuntras' tree, open for editing. A full-width
-             view rather than a dialog -- a tree editor with nested sections
-             needs the room a modal would not give it. -->
+        <!-- The builder: one kuntras' tree. A full-width view rather than a
+             dialog -- a tree editor with nested sections needs the room a
+             modal would not give it. Doubles as the READ-ONLY view of
+             someone else's shared kuntras (opened via ?k=<id>, see
+             openSharedKuntras) -- every editing control below is hidden by
+             applyBuilderChrome in that case, not omitted from the markup,
+             since the owner opening the same kuntras the normal way needs
+             them back. -->
         <section id="knBuilder" hidden>
           <button class="cc-btn cc-btn-sm" id="knBackButton" type="button">← My kuntrasim</button>
           <div class="kn-builder-head">
             <h2 id="knBuilderTitle"></h2>
+            <span id="knBuilderVisibility"></span>
             <button class="cc-btn cc-btn-sm" id="knRenameButton" type="button">Rename</button>
+            <button class="cc-btn cc-btn-sm" id="knShareButton" type="button">Share</button>
             <button class="cc-btn cc-btn-sm cc-btn-danger" id="knDeleteButton" type="button">Delete</button>
           </div>
-          <p class="field-note">Sections can be nested. Move an item up or down among its siblings with the arrows — there is no drag-and-drop yet.</p>
+          <p class="field-note" id="knBuilderHint">Sections can be nested. Move an item up or down among its siblings with the arrows — there is no drag-and-drop yet.</p>
           <div class="kn-tree" id="knTree"></div>
           <div class="kn-root-actions">
             <button class="cc-btn cc-btn-sm" id="knAddRootSection" type="button">+ Add section</button>
@@ -265,6 +284,40 @@
         <p class="field-note">Loading public discussions…</p>
       </div>
     </div>
+  </dialog>
+
+  <!-- Sharing (slice 4): private/unlisted/public is the whole model -- see
+       kuntras.js's own updateShareDialog/onShareVisibilityChange. The link
+       row only appears once something other than Private is picked. -->
+  <dialog id="knShareDialog">
+    <button class="dialog-close" id="knShareClose" aria-label="Close">×</button>
+    <div class="eyebrow">Kuntras</div>
+    <h2>Sharing</h2>
+    <div class="kn-share-options" role="radiogroup" aria-label="Who can see this kuntras">
+      <label class="kn-share-option">
+        <input type="radio" name="knShareVisibility" value="private">
+        <span><strong>Private</strong> <span class="field-note">Only you can see it.</span></span>
+      </label>
+      <label class="kn-share-option">
+        <input type="radio" name="knShareVisibility" value="unlisted">
+        <span><strong>Unlisted</strong> <span class="field-note">Anyone with the link can read it. Never listed anywhere.</span></span>
+      </label>
+      <label class="kn-share-option">
+        <input type="radio" name="knShareVisibility" value="public">
+        <span><strong>Public</strong> <span class="field-note">Anyone with the link, and listed for anyone to browse.</span></span>
+      </label>
+    </div>
+    <div id="knShareLinkRow" hidden>
+      <label class="sync-field">
+        <span>Share link</span>
+        <input type="text" id="knShareLinkInput" readonly>
+      </label>
+      <div class="auth-form-actions">
+        <button class="button secondary small" id="knShareCopyButton" type="button">Copy link</button>
+        <span class="field-note" id="knShareCopyStatus" aria-live="polite"></span>
+      </div>
+    </div>
+    <p class="auth-error" id="knShareError" hidden></p>
   </dialog>
 
   <!-- Script order is load-bearing (no build step, no modules): chabura-core.js

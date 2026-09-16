@@ -2,19 +2,20 @@
 
 // Kuntras Builder data layer -- every Supabase read/write the builder makes.
 //
-// Slice 1 only: kuntrasim, kuntras_sections and kuntras_entries with
-// kind='freeform'. Nothing here reads from line_notes, note_documents or
-// comments -- pulling in existing content is a later slice, once this shell
-// has been proven the same way My Notes was (library, then import, then
-// citation). Nothing here is ever public either: visibility is pinned to
-// 'private' by the database's own insert/update policies, not merely by
-// this file choosing not to send anything else, so a bug here cannot
-// publish a kuntras before publishing exists.
+// Slice 4 added sharing: a kuntras may be private (owner only), unlisted
+// (anyone with the link, via fetchKuntrasTree -- it was never scoped to the
+// owner in the first place, since RLS alone decided visibility even in
+// slice 1), or public (also listed, via fetchPublicKuntrasim below). See
+// 20260916100000's own header for why unlisted and public are identical for
+// READ access and differ only in whether a listing query returns them.
 //
 // Built on window.DafSyncChabura.core exactly as my-notes-data.js is, for
-// the same reason: /kuntras/ is a signed-in-only personal page, not the
-// public feed, and sharing a base query with chaburah-data.js would risk
-// the public feed inheriting a filter meant only for this one.
+// the same reason: /kuntras/ is mostly a signed-in-only personal page (the
+// library, the builder), and sharing a base query with chaburah-data.js
+// would risk the public feed inheriting a filter meant only for this one --
+// fetchPublicKuntrasim mirrors chabura-data.js's own base-feed predicate
+// rather than importing it, for the same reason kuntras-data.js's own
+// fetchQuotableChaburahThreads (slice 3) does.
 
 (function () {
   const { client, currentUser, describeError } = window.DafSyncChabura.core;
@@ -61,6 +62,20 @@
     const { error } = await client()
       .from('kuntrasim')
       .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw error;
+  }
+
+  // Publish/unpublish. The three values are the entire sharing model --
+  // there is no separate "publish" action distinct from setting visibility
+  // directly, since the two mean the same thing (see 20260916100000's own
+  // header on why unlisted/public differ only in listing, not read access).
+  // RLS confines this to the owner's own kuntras regardless (the UPDATE
+  // policy's USING clause), matching every other write in this file.
+  async function updateVisibility(id, visibility) {
+    const { error } = await client()
+      .from('kuntrasim')
+      .update({ visibility, updated_at: new Date().toISOString() })
       .eq('id', id);
     if (error) throw error;
   }
@@ -327,13 +342,44 @@
     return data || [];
   }
 
+  // --- Browsing what others have published --------------------------------
+  //
+  // Slice 4: the "public" half of sharing. Unlike everything above this
+  // point in the file, this query asks for NOBODY's kuntrasim in
+  // particular -- visibility = 'public' is the entire scope, matching
+  // exactly what the database's own kuntrasim_public_read policy allows
+  // (see 20260916100000). Deliberately excludes 'unlisted': a listing
+  // query is the one place the two states actually differ (see that
+  // migration's own header) -- everything else in this file treats them
+  // identically because it never LISTS anything, it only reads one row by
+  // an id the caller already has.
+  //
+  // No currentUser() gate, unlike every "my own" query above: this is the
+  // one kuntras-data.js query a signed-out visitor is meant to run.
+
+  async function fetchPublicKuntrasim({ search = '' } = {}) {
+    let query = client()
+      .from('kuntrasim')
+      .select(KUNTRAS_LIST_COLUMNS)
+      .eq('visibility', 'public')
+      .is('deleted_at', null);
+    if (search) {
+      query = query.ilike('title', `%${search}%`);
+    }
+    const { data, error } = await query.order('updated_at', { ascending: false }).limit(30);
+    if (error) throw error;
+    return data || [];
+  }
+
   window.DafSyncKuntras = window.DafSyncKuntras || {};
   window.DafSyncKuntras.data = {
     fetchMyKuntrasim,
     createKuntras,
     renameKuntras,
     deleteKuntras,
+    updateVisibility,
     fetchKuntrasTree,
+    fetchPublicKuntrasim,
     nextPosition,
     createSection,
     renameSection,
