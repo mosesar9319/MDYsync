@@ -131,11 +131,13 @@
           <div class="kn-builder-head">
             <h2 id="knBuilderTitle"></h2>
             <span id="knBuilderVisibility"></span>
+            <button class="cc-btn cc-btn-sm" id="knExportButton" type="button">Export PDF</button>
             <button class="cc-btn cc-btn-sm" id="knRenameButton" type="button">Rename</button>
             <button class="cc-btn cc-btn-sm" id="knShareButton" type="button">Share</button>
             <button class="cc-btn cc-btn-sm cc-btn-danger" id="knDeleteButton" type="button">Delete</button>
           </div>
           <p class="field-note" id="knBuilderHint">Sections can be nested. Move an item up or down among its siblings with the arrows — there is no drag-and-drop yet.</p>
+          <p class="field-note" id="knExportStatus" role="status" hidden></p>
           <div class="kn-tree" id="knTree"></div>
           <div class="kn-root-actions">
             <button class="cc-btn cc-btn-sm" id="knAddRootSection" type="button">+ Add section</button>
@@ -331,6 +333,7 @@
   <script src="../chabura-core.js" defer></script>
   <script src="../chabura-components.js" defer></script>
   <script src="../kuntras-data.js" defer></script>
+  <script src="../kuntras-pdf.js" defer></script>
   <script src="../kuntras.js" defer></script>
   <script src="../nav.js" defer></script>
   <script src="../collapse.js" defer></script>

@@ -52,6 +52,7 @@
       'knBuilder', 'knBackButton', 'knBuilderTitle', 'knBuilderVisibility', 'knRenameButton', 'knDeleteButton',
       'knShareButton', 'knBuilderHint',
       'knTree', 'knAddRootSection', 'knAddRootEntry',
+      'knExportButton', 'knExportStatus',
       'knShareDialog', 'knShareClose', 'knShareError',
       'knShareLinkRow', 'knShareLinkInput', 'knShareCopyButton', 'knShareCopyStatus',
       'knEntryDialog', 'knEntryClose', 'knEntryDialogTitle', 'knEntryForm',
@@ -1057,6 +1058,34 @@
     }
   }
 
+  // --- Exporting to PDF (slice 5) -----------------------------------------
+  //
+  // knExportButton sits outside applyBuilderChrome's editable-only set on
+  // purpose -- unlike every other builder-head button, this one stays
+  // visible for a read-only visitor too (see that function's own header):
+  // someone reading a shared kuntras has just as much reason to save a copy
+  // as its owner does. Runs entirely client-side, with no server involved
+  // in generating the file -- see kuntras-pdf.js's own header on why
+  // pdf-lib/fontkit are loaded lazily rather than up front.
+
+  async function onExportPdf() {
+    if (!state.openKuntras) return;
+    els.knExportButton.disabled = true;
+    els.knExportStatus.hidden = false;
+    els.knExportStatus.textContent = 'Preparing PDF…';
+    try {
+      await window.DafSyncKuntras.pdf.downloadKuntrasPdf({
+        kuntras: state.openKuntras, sections: state.sections, entries: state.entries,
+      });
+      els.knExportStatus.hidden = true;
+      els.knExportStatus.textContent = '';
+    } catch (error) {
+      els.knExportStatus.textContent = `Could not build the PDF: ${data().describeError(error)}`;
+    } finally {
+      els.knExportButton.disabled = false;
+    }
+  }
+
   // --- Init ----------------------------------------------------------------
 
   function init() {
@@ -1069,6 +1098,7 @@
     els.knDeleteButton.addEventListener('click', onDeleteKuntras);
     els.knAddRootSection.addEventListener('click', () => onAddSection(null));
     els.knAddRootEntry.addEventListener('click', () => openEntryDialog({ sectionId: null }));
+    els.knExportButton.addEventListener('click', onExportPdf);
 
     els.knShareButton.addEventListener('click', openShareDialog);
     els.knShareClose.addEventListener('click', () => els.knShareDialog.close());
