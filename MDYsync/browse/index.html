@@ -447,6 +447,19 @@
       backdrop-filter: blur(10px);
       font-size: 11px;
       white-space: nowrap;
+      /* max-width caps the box, but nowrap text alone doesn't respect that
+         cap -- without clipping, the unbroken sentence keeps rendering past
+         it at its full intrinsic width (overflow: visible is the default).
+         That's invisible at rest (opacity: 0 below) but still real ink
+         overflow, and on narrow phone widths it was enough wider than the
+         viewport to make Chromium's mobile layout-viewport sizing treat the
+         page as needing more room than the device actually has -- which is
+         what was pushing every OTHER dialog on the page off-centre relative
+         to what a reader can actually see, this tip's own opacity never
+         being the point. text-overflow needs the overflow:hidden anyway to
+         do anything, and reads better than a bare mid-word cutoff. */
+      overflow: hidden;
+      text-overflow: ellipsis;
       pointer-events: none;
       opacity: 0;
       transition: opacity .2s ease;
