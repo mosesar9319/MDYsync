@@ -231,14 +231,7 @@ test.describe("Quote from my notes — the note's 2000-character cap", () => {
 
   test('the budget shrinks by what the reader has already written', async ({ page }) => {
     await page.click('#noteCiteBack');
-    // Escape rather than clicking the × : at mobile widths Playwright's own
-    // hit test refuses every .dialog-close on this site (the eyebrow's box
-    // overlaps the button's, though the button is what actually paints on
-    // top and what a real tap reaches -- elementsFromPoint puts it first).
-    // Pre-existing and site-wide, reproduced on #searchNotesDialog, which
-    // predates this feature; not worked around here beyond not depending on
-    // it.
-    await page.keyboard.press('Escape');
+    await page.click('#closeNoteCiteDialog');
     await expect(page.locator('#noteCiteDialog')).toBeHidden();
     await page.fill('#noteBodyInput', 'y'.repeat(500));
 

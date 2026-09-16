@@ -276,15 +276,7 @@ test.describe('Note thread — reactions, follows, reports', () => {
     expect(calls.find((c) => c.table === 'thread_follows' && c.operation === 'insert')).toBeTruthy();
   });
 
-  test('reports a note with a reason', async ({ page }, testInfo) => {
-    // Skipped on mobile, not worked around: audit F-15. /browse/ lays out
-    // 472px wide on a 412px phone, and #noteDialog is right-anchored to that
-    // wider layout, so its rightmost ~60px -- exactly where 🚩 and × sit -- is
-    // off the physical screen. The click genuinely cannot land. The mobile
-    // guard test below fails the moment that overflow is fixed, which is the
-    // signal to delete this skip.
-    test.skip(testInfo.project.name === 'mobile', 'Audit F-15: note sidebar controls are off-screen at 412px');
-
+  test('reports a note with a reason', async ({ page }) => {
     await preparePage(page, { user: USERS.ordinary });
     await page.goto('/browse/?ref=Chullin%2089a');
     page.on('dialog', (dialog) => dialog.accept('Off topic and unsourced.'));
@@ -303,15 +295,7 @@ test.describe('Note thread — reactions, follows, reports', () => {
     expect(insert.rows[0].target_type).toBe('note');
   });
 
-  test('a cancelled report prompt files nothing', async ({ page }, testInfo) => {
-    // Skipped on mobile, not worked around: audit F-15. /browse/ lays out
-    // 472px wide on a 412px phone, and #noteDialog is right-anchored to that
-    // wider layout, so its rightmost ~60px -- exactly where 🚩 and × sit -- is
-    // off the physical screen. The click genuinely cannot land. The mobile
-    // guard test below fails the moment that overflow is fixed, which is the
-    // signal to delete this skip.
-    test.skip(testInfo.project.name === 'mobile', 'Audit F-15: note sidebar controls are off-screen at 412px');
-
+  test('a cancelled report prompt files nothing', async ({ page }) => {
     await preparePage(page, { user: USERS.ordinary });
     await page.goto('/browse/?ref=Chullin%2089a');
     page.on('dialog', (dialog) => dialog.dismiss());
@@ -342,21 +326,22 @@ test.describe('Interactive Daf — mobile layout (audit F-15)', () => {
     await page.goto('/browse/?ref=Chullin%2089a');
     await openThread(page);
 
-    // Measured, not assumed: /browse/ lays out 472px wide inside a 412px
-    // visual viewport, while /, /watch/ and /chaburah/ all lay out at 412.
-    // Hiding .mobile-nav does not narrow it, so the bottom nav is a symptom --
-    // the overflow is upstream, in the RTL daf layout itself.
+    // /browse/ used to lay out 472px wide inside a 412px visual viewport --
+    // .reading-mode-tip (white-space: nowrap, capped by max-width but never
+    // clipped) rendered its full sentence past that cap at full intrinsic
+    // width, invisibly (opacity: 0 at rest) but as real ink overflow, which
+    // Chromium's mobile layout-viewport sizing counted anyway. #noteDialog is
+    // right-anchored to that layout viewport, so its rightmost ~60px --
+    // exactly where 🚩 and × sit -- used to sit off the physical screen.
+    // Fixed by giving .reading-mode-tip overflow: hidden (see its own comment
+    // in browse/index.html and player/index.html).
     const layout = await page.evaluate(() => ({
       visual: Math.round(window.visualViewport.width),
       document: document.documentElement.scrollWidth,
       dialogRight: Math.round(document.getElementById('noteDialog').getBoundingClientRect().right),
     }));
 
-    // This assertion DOCUMENTS the defect so it cannot regress silently and so
-    // fixing it fails loudly here. When it does: replace these with
-    // `expect(layout.document).toBe(layout.visual)` and drop the two mobile
-    // skips above.
-    expect(layout.document).toBeGreaterThan(layout.visual);
-    expect(layout.dialogRight).toBeGreaterThan(layout.visual);
+    expect(layout.document).toBe(layout.visual);
+    expect(layout.dialogRight).toBeLessThanOrEqual(layout.visual);
   });
 });
