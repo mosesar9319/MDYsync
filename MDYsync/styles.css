@@ -2406,22 +2406,27 @@ body.split-view-active .viewer-mode-select {
   flex-wrap: nowrap;
   max-width: calc(100vw - 20px);
 }
-/* Icon-only in this specific overlay placement, regardless of viewport width
-   (not the general <380px rule further down, which also applies to the
-   normal in-flow selector on every other mode) -- three full labels do not
-   reliably fit above a Split View video pane that can itself be narrower
-   than the viewport (stacked layout, or a swapped/resized pane), and
-   flex-wrap turning this into a 3-row block was confirmed directly to grow
-   tall enough to cover the whole top of the video and the Split View
-   toolbar's own controls beneath it. */
-body.split-view-active .viewer-mode-select .viewer-mode-button span:not(.sr-only) {
-  position: absolute;
-  width: 1px; height: 1px;
-  padding: 0; margin: -1px;
-  overflow: hidden;
-  clip: rect(0,0,0,0);
-  white-space: nowrap;
-  border: 0;
+/* Icon-only in this specific overlay placement BELOW 680px (not the general
+   <380px rule further down, which also applies to the normal in-flow
+   selector on every other mode, and stays icon+label above that) -- three
+   full labels do not reliably fit above a Split View video pane that can
+   itself be narrower than the viewport (stacked layout, or a swapped/
+   resized pane, or a phone screen), and flex-wrap turning this into a 3-row
+   block was confirmed directly to grow tall enough to cover the whole top
+   of the video and the Split View toolbar's own controls beneath it. Full
+   desktop widths keep the labels -- the spec's own "icon+label, feels like
+   a primary control" is otherwise lost for the one case (Split View,
+   already the default mode) that matters most. */
+@media (max-width: 680px) {
+  body.split-view-active .viewer-mode-select .viewer-mode-button span:not(.sr-only) {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+  }
 }
 body.split-view-active .viewer-mode-select .viewer-mode-button {
   padding: 0 12px;
