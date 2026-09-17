@@ -100,6 +100,15 @@ test.describe('Unified viewing modes — the prominent selector', () => {
     await expect(page.locator('#viewerModeVideoOnDafButton')).toHaveCount(0);
     await expect(page.locator('#readingModeButton')).toHaveCount(0);
     await enterSplitView(page);
+
+    // watch/index.html has no Reading Mode, so .video-frame is never wrapped
+    // in .reading-video-float the way player/browse wrap it -- it sits as a
+    // direct child of .player-card instead. The flush-video rule that hides
+    // every OTHER direct child of .player-card once exempted only
+    // .reading-video-float, which on this page's different DOM shape hid
+    // .video-frame itself along with everything else: a blank video pane,
+    // no player controls, nothing. Guards that specifically.
+    await expect(page.locator('.video-frame')).toBeVisible();
   });
 
   test('the toolbar pill mirrors the prominent selector and stays in sync', async ({ page }) => {
@@ -141,6 +150,32 @@ test.describe('Split View — the video pane is flush, not a crop of the player 
     const playerCardPadding = await page.locator('.player-card').evaluate((el) => getComputedStyle(el).paddingLeft);
     expect(playerCardPadding).toBe('0px');
   });
+
+  // player-chrome.js reparents the page's real .setup-field.ref-field (the
+  // ONLY tractate/daf picker on these pages) into #playerDafButton's own
+  // dropdown, inside .player-topbar -- and Split View's focus mode hides
+  // every other place that picker could otherwise be reached from (.topbar,
+  // .breadcrumb, .setup-strip). .split-video-pinch-surface (the pinch-zoom
+  // gesture layer added over the video picture) sits at a higher z-index
+  // than .player-topbar across that whole upper region regardless of where
+  // the topbar itself is positioned, so without its own z-index bump the
+  // topbar's buttons -- daf picker included -- silently eat nothing: every
+  // click goes to the pinch surface instead. Regression coverage for
+  // "none of the buttons work" once reported against Split View.
+  for (const path of ['/player/', '/browse/', '/watch/']) {
+    test(`the video's own daf picker (in .player-topbar) stays clickable in Split View on ${path}`, async ({ page }) => {
+      failOnPageError(page);
+      await preparePage(page, { user: null });
+      await page.goto(`${path}?ref=Chullin%2089a`);
+      await enterSplitView(page);
+
+      const dafButton = page.locator('#playerDafButton');
+      await expect(dafButton).toBeVisible();
+      await dafButton.click();
+      await expect(page.locator('#playerDafMenu')).toBeVisible();
+      await expect(page.locator('#playerDafMenu #dafTractateSelect')).toBeAttached();
+    });
+  }
 });
 
 test.describe('Split View — divider and layout', () => {
