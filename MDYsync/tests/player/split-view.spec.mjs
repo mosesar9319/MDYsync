@@ -208,6 +208,7 @@ test.describe('Split View — divider and layout', () => {
     await page.click('#viewerModeSplitButton');
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
     await expect(page.locator('#splitExitButton')).toBeVisible();
+    await dismissErrorBanner(page);
     await page.click('#splitExitButton');
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
   });

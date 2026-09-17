@@ -2401,6 +2401,18 @@ body.split-view-active .watch-layout.split-active > .player-card .reading-video-
 }
 body.split-view-active .watch-layout.split-active > .player-card .reading-video-slot { height: 100%; }
 body.split-view-active .watch-layout.split-active > .player-card .video-frame { flex: 1; height: 100%; aspect-ratio: auto; border-radius: 0; }
+/* The video's own floating title bar (.player-topbar -- logo, "which daf is
+   loaded" dropdown, notes/more menu) is absolutely positioned inside
+   .video-frame, which the rule above just stretched flush to the top of the
+   screen -- so on narrow viewports it now sits directly under the combined
+   Split View bar (.viewer-mode-select, fixed and centered) and the two
+   overlap. Reading Mode already hides this same element for the same
+   reason (see player/index.html and browse/index.html's own
+   .reading-mode-active rules): its whole job is saying which daf is loaded,
+   which the daf pane right next to it already shows at full size. */
+body.split-view-active .watch-layout.split-active .player-topbar {
+  display: none;
+}
 /* Vaater's alignment editor (admin-only, see .watch-layout.editing in
    player/index.html's own page-local CSS) is a different, unrelated use of
    this same container -- Split View is not expected to be entered while it's
