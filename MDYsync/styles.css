@@ -2345,7 +2345,14 @@ body.split-view-active .watch-layout.split-active.split-stacked {
   grid-template-columns: 1fr;
   grid-template-rows: calc((100% - var(--split-divider-size)) * var(--split-video-ratio, .4)) var(--split-divider-size) 1fr;
 }
-body.split-view-active .watch-layout.split-active > .player-card { grid-column: 1; grid-row: 1; margin: 0; min-width: 0; min-height: 0; height: 100%; display: flex; flex-direction: column; }
+body.split-view-active .watch-layout.split-active > .player-card {
+  grid-column: 1; grid-row: 1; margin: 0; min-width: 0; min-height: 0; height: 100%;
+  display: flex; flex-direction: column;
+  /* Flush with the daf pane, and showing nothing but the video itself (see
+     the child rule below) -- no card padding/background/border/shadow left
+     to draw a frame around it. */
+  padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none;
+}
 body.split-view-active .watch-layout.split-active > .daf-card { grid-column: 3; grid-row: 1; margin: 0; min-width: 0; min-height: 0; height: 100%; overflow: auto; }
 body.split-view-active .watch-layout.split-active .split-divider { grid-column: 2; grid-row: 1; }
 body.split-view-active .watch-layout.split-active.split-stacked > .player-card { grid-column: 1; grid-row: 1; }
@@ -2355,6 +2362,20 @@ body.split-view-active .watch-layout.split-active.split-video-end > .player-card
 body.split-view-active .watch-layout.split-active.split-video-end > .daf-card { grid-column: 1; }
 body.split-view-active .watch-layout.split-active.split-stacked.split-video-end > .player-card { grid-row: 3; }
 body.split-view-active .watch-layout.split-active.split-stacked.split-video-end > .daf-card { grid-row: 1; }
+/* .player-card carries page-specific chrome around the video that differs
+   by page (player/index.html's own small .daf-header.video-header vs.
+   browse/watch's larger .card-heading, plus .now-learning and
+   .overlay-controls-page on the pages that have them) -- rather than listing
+   every one of those page-local class names here, hide every direct child
+   EXCEPT the video's own wrapper. What's left is the video player by
+   itself, edge to edge, never "a crop of the player page" around it. */
+body.split-view-active .watch-layout.split-active > .player-card > *:not(.reading-video-float) {
+  display: none;
+}
+body.split-view-active .watch-layout.split-active > .player-card .reading-video-float {
+  flex: 1; height: 100%; min-height: 0;
+}
+body.split-view-active .watch-layout.split-active > .player-card .reading-video-slot { height: 100%; }
 body.split-view-active .watch-layout.split-active > .player-card .video-frame { flex: 1; height: 100%; aspect-ratio: auto; border-radius: 0; }
 /* Vaater's alignment editor (admin-only, see .watch-layout.editing in
    player/index.html's own page-local CSS) is a different, unrelated use of
@@ -2578,16 +2599,20 @@ body.split-view-active .watch-layout.split-active .video-frame #youtubePlayerHos
   transition: opacity .2s ease;
 }
 .split-video-zoom-indicator.show { opacity: 1; }
-/* top-anchored, not bottom-anchored -- Reset Zoom only appears once zoomed
-   past 1x, and a bottom anchor with an unconstrained top would grow the
-   whole group UPWARD as that third button joins (confirmed directly: it
-   crept up far enough to overlap the prominent selector pinned to the top of
-   the viewport). Anchored from the top instead, a taller group only grows
-   further away from the top chrome, never toward it. */
+/* Bottom-anchored, near the control bar -- but with a FIXED height reserved
+   for all three possible buttons (Reset Zoom only joins once zoomed past
+   1x), not an auto height that grows with its own content. A bottom anchor
+   with an unconstrained (auto) height was confirmed directly to grow the
+   whole group UPWARD as that third button appeared -- far enough, on a
+   short video pane, to reach the prominent selector or the Split View
+   toolbar pinned near the top of the viewport. Reserving the space up
+   front instead means this group's own top edge never moves regardless of
+   which children are visible. */
 .split-video-zoom-controls {
   display: none;
   position: absolute;
-  top: 64px;
+  bottom: calc(var(--pc-bar-h, 68px) + 10px);
+  height: 116px;
   inset-inline-end: 10px;
   z-index: 12;
   flex-direction: column;

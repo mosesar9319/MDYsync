@@ -5736,12 +5736,11 @@ function announceViewerMode(mode) {
   const container = splitViewContainer();
   const divider = $('splitDivider');
   loadSplitViewPreferences();
-  // Every page that ships a video+daf pair starts in Split View by default
-  // (see this feature's own product decision: it's the first of the three
-  // options and the mode every page opens in) -- 'standard' stays a real,
-  // distinct value (never removed) so a future change can make it reachable
-  // again without redesigning viewerMode itself.
-  if (container) setViewerMode('split');
+  // Every page loads into 'standard' -- the same plain .watch-layout grid
+  // shown before this feature existed -- exactly as it always did. Split
+  // View (like the other two modes) is reached only by an explicit reader
+  // choice, never activated automatically on load.
+  if (container) updateViewerModeUi();
   if (!container || !divider) return;
 
   function ratioFromPoint(clientX, clientY) {

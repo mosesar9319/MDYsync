@@ -12,6 +12,12 @@ import { preparePage, failOnPageError } from '../support/harness.mjs';
 // markup (a missing id, a button that doesn't call through) would actually
 // fail here.
 //
+// Every page loads into 'standard' -- the exact plain .watch-layout grid
+// shown before this feature existed -- never Split View automatically; a
+// reader reaches Split View (like the other two modes) only by clicking the
+// prominent selector. enterSplitView() below is that click, done once per
+// test that actually needs Split View active.
+//
 // Navigating straight to `?ref=Chullin 89a` with this suite's fixture stub
 // (no real synced alignment data behind that exact ref) makes loadAlignmentData
 // throw "No segments found" on load -- a pre-existing, harmless-in-fixtures
@@ -28,28 +34,37 @@ async function dismissErrorBanner(page) {
   if (await dismiss.count()) await dismiss.first().click({ timeout: 1000 }).catch(() => {});
 }
 
+async function enterSplitView(page) {
+  await dismissErrorBanner(page);
+  await page.click('#viewerModeSplitButton');
+  await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+}
+
 test.describe('Unified viewing modes — the prominent selector', () => {
-  test('Split View is the default mode on load, and the selector reflects it', async ({ page }) => {
+  test('the page loads into standard mode, not Split View, exactly as before this feature existed', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
     await page.goto('/browse/?ref=Chullin%2089a');
     await expect(page.locator('#viewerModeSplitButton')).toBeAttached();
-
-    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
     await dismissErrorBanner(page);
-    await expect(page.locator('#viewerModeSplitButton')).toHaveAttribute('aria-pressed', 'true');
+
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
+    await expect(page.locator('#viewerModeSplitButton')).toHaveAttribute('aria-pressed', 'false');
     await expect(page.locator('#viewerModeDafOnVideoButton')).toHaveAttribute('aria-pressed', 'false');
     await expect(page.locator('#viewerModeVideoOnDafButton')).toHaveAttribute('aria-pressed', 'false');
-    await expect(page.locator('.watch-layout')).toHaveClass(/split-active/);
-    await expect(page.locator('body')).toHaveClass(/split-view-active/);
+    await expect(page.locator('.watch-layout')).not.toHaveClass(/split-active/);
+    await expect(page.locator('body')).not.toHaveClass(/split-view-active/);
   });
 
-  test('switching to Daf on video and Video on daf is mutually exclusive with Split View', async ({ page }) => {
+  test('clicking Split view enters it, and it stays reachable across a switch to the other two modes', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
     await page.goto('/player/?ref=Chullin%2089a');
-    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
-    await dismissErrorBanner(page);
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
+    await enterSplitView(page);
+    await expect(page.locator('#viewerModeSplitButton')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.watch-layout')).toHaveClass(/split-active/);
+    await expect(page.locator('body')).toHaveClass(/split-view-active/);
 
     await page.click('#viewerModeDafOnVideoButton');
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('daf-on-video');
@@ -71,7 +86,6 @@ test.describe('Unified viewing modes — the prominent selector', () => {
     const videoFrameHandle = await page.evaluateHandle(() => document.getElementById('videoFrame'));
     await page.click('#viewerModeSplitButton');
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
-    await dismissErrorBanner(page);
     await expect.poll(() => page.evaluate(() => state.readingModeEnabled)).toBe(false);
     const stillSameNode = await page.evaluate((el) => el === document.getElementById('videoFrame'), videoFrameHandle);
     expect(stillSameNode).toBe(true);
@@ -85,8 +99,7 @@ test.describe('Unified viewing modes — the prominent selector', () => {
     await expect(page.locator('#viewerModeDafOnVideoButton')).toBeAttached();
     await expect(page.locator('#viewerModeVideoOnDafButton')).toHaveCount(0);
     await expect(page.locator('#readingModeButton')).toHaveCount(0);
-    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
-    await dismissErrorBanner(page);
+    await enterSplitView(page);
   });
 
   test('the toolbar pill mirrors the prominent selector and stays in sync', async ({ page }) => {
@@ -94,7 +107,7 @@ test.describe('Unified viewing modes — the prominent selector', () => {
     await preparePage(page, { user: null });
     await page.goto('/player/?ref=Chullin%2089a');
     await expect(page.locator('#splitViewButton')).toBeAttached();
-    await expect(page.locator('#splitViewButton')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#splitViewButton')).toHaveAttribute('aria-pressed', 'false');
     await dismissErrorBanner(page);
 
     await page.click('#viewerModeDafOnVideoButton');
@@ -103,8 +116,30 @@ test.describe('Unified viewing modes — the prominent selector', () => {
 
     await page.click('#splitViewButton');
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
-    await dismissErrorBanner(page);
     await expect(page.locator('#viewerModeSplitButton')).toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
+test.describe('Split View — the video pane is flush, not a crop of the player card', () => {
+  test('only the video wrapper renders in the video pane -- the card heading and "now learning" panel are hidden', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+
+    // Whichever of these a given page actually has (player/index.html uses
+    // .daf-header.video-header, browse/watch use .card-heading; all three
+    // that have it use .now-learning) -- none of player-card's OWN
+    // surrounding chrome may be visible once Split View replaces it with
+    // just the video.
+    for (const selector of ['.player-card > .daf-header', '.player-card > .card-heading', '.player-card > .now-learning', '.player-card > .overlay-controls-page']) {
+      const el = page.locator(selector);
+      if (await el.count()) await expect(el).toBeHidden();
+    }
+    await expect(page.locator('.player-card .reading-video-float')).toBeVisible();
+
+    const playerCardPadding = await page.locator('.player-card').evaluate((el) => getComputedStyle(el).paddingLeft);
+    expect(playerCardPadding).toBe('0px');
   });
 });
 
@@ -113,8 +148,7 @@ test.describe('Split View — divider and layout', () => {
     failOnPageError(page);
     await preparePage(page, { user: null });
     await page.goto('/player/?ref=Chullin%2089a');
-    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
-    await dismissErrorBanner(page);
+    await enterSplitView(page);
 
     const divider = page.locator('#splitDivider');
     await expect(divider).toBeVisible();
@@ -137,8 +171,7 @@ test.describe('Split View — divider and layout', () => {
     failOnPageError(page);
     await preparePage(page, { user: null });
     await page.goto('/browse/?ref=Chullin%2089a');
-    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
-    await dismissErrorBanner(page);
+    await enterSplitView(page);
 
     const videoFrameHandle = await page.evaluateHandle(() => document.getElementById('videoFrame'));
     const before = await page.evaluate(() => state.splitViewLayout);
@@ -153,8 +186,7 @@ test.describe('Split View — divider and layout', () => {
     failOnPageError(page);
     await preparePage(page, { user: null });
     await page.goto('/player/?ref=Chullin%2089a');
-    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
-    await dismissErrorBanner(page);
+    await enterSplitView(page);
     await expect.poll(() => page.evaluate(() => state.splitViewVideoPosition)).toBe('start');
 
     await page.click('#splitSwapButton');
@@ -166,8 +198,7 @@ test.describe('Split View — divider and layout', () => {
     failOnPageError(page);
     await preparePage(page, { user: null });
     await page.goto('/player/?ref=Chullin%2089a');
-    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
-    await dismissErrorBanner(page);
+    await enterSplitView(page);
 
     await page.keyboard.press('Escape');
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
@@ -175,7 +206,6 @@ test.describe('Split View — divider and layout', () => {
 
     await page.click('#viewerModeSplitButton');
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
-    await dismissErrorBanner(page);
     await expect(page.locator('#splitExitButton')).toBeVisible();
     await page.click('#splitExitButton');
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
@@ -187,8 +217,7 @@ test.describe('Split View — video zoom controls', () => {
     failOnPageError(page);
     await preparePage(page, { user: null });
     await page.goto('/browse/?ref=Chullin%2089a');
-    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
-    await dismissErrorBanner(page);
+    await enterSplitView(page);
     await expect(page.locator('#splitVideoZoomInButton')).toBeAttached();
 
     for (let i = 0; i < 10; i += 1) await page.click('#splitVideoZoomInButton');
