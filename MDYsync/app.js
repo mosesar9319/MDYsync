@@ -7899,16 +7899,43 @@ vilnaScroll?.addEventListener('touchstart', (event) => {
   event.preventDefault();
 }, { passive: false });
 
+// touchmove can fire far more often than the display can repaint (many
+// mobile browsers dispatch it every few milliseconds during a real
+// two-finger drag) -- and each one here forces a synchronous layout read
+// (getBoundingClientRect) plus a scroll-position write, the textbook
+// layout-thrashing pattern. Reported as the whole page locking up while
+// pinch-zooming the daf specifically inside Split View, whose daf pane is
+// the full viewport rather than the small embedded card this same
+// pre-existing handler had only ever run against before -- the identical
+// per-event cost now repaints and re-composites a much larger surface, on
+// mobile hardware, however many times a millisecond touchmove fires.
+// Coalescing to at most once per animation frame (only the latest touch
+// positions matter -- an intermediate frame's positions are never seen
+// once a newer one has landed) bounds that cost to the display's own
+// refresh rate regardless of how fast raw touch events arrive.
+let vilnaPinchRafPending = false;
+let vilnaPinchLatestTouches = null;
 vilnaScroll?.addEventListener('touchmove', (event) => {
   if (!vilnaPinchGesture || event.touches.length !== 2) return;
   event.preventDefault();
-  const rect = vilnaScroll.getBoundingClientRect();
-  const midpoint = vilnaTouchMidpoint(event.touches, rect);
-  const ratio = vilnaTouchDistance(event.touches) / vilnaPinchGesture.distance;
-  const nextZoom = Math.max(VILNA_ZOOM_MIN, Math.min(VILNA_ZOOM_MAX, vilnaPinchGesture.zoom * ratio));
-  setVilnaPageZoom(nextZoom);
-  vilnaScroll.scrollLeft = vilnaPinchGesture.contentX * nextZoom - midpoint.x;
-  vilnaScroll.scrollTop = vilnaPinchGesture.contentY * nextZoom - midpoint.y;
+  vilnaPinchLatestTouches = [
+    { clientX: event.touches[0].clientX, clientY: event.touches[0].clientY },
+    { clientX: event.touches[1].clientX, clientY: event.touches[1].clientY },
+  ];
+  if (vilnaPinchRafPending) return;
+  vilnaPinchRafPending = true;
+  requestAnimationFrame(() => {
+    vilnaPinchRafPending = false;
+    if (!vilnaPinchGesture || !vilnaPinchLatestTouches) return;
+    const touches = vilnaPinchLatestTouches;
+    const rect = vilnaScroll.getBoundingClientRect();
+    const midpoint = vilnaTouchMidpoint(touches, rect);
+    const ratio = vilnaTouchDistance(touches) / vilnaPinchGesture.distance;
+    const nextZoom = Math.max(VILNA_ZOOM_MIN, Math.min(VILNA_ZOOM_MAX, vilnaPinchGesture.zoom * ratio));
+    setVilnaPageZoom(nextZoom);
+    vilnaScroll.scrollLeft = vilnaPinchGesture.contentX * nextZoom - midpoint.x;
+    vilnaScroll.scrollTop = vilnaPinchGesture.contentY * nextZoom - midpoint.y;
+  });
 }, { passive: false });
 
 function finishVilnaPinch(event) {

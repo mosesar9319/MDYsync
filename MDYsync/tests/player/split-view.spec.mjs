@@ -230,6 +230,59 @@ test.describe('Split View — video zoom controls', () => {
   });
 });
 
+// Reported as "the whole page freezes" after pinch-zooming/scrolling the daf
+// inside Split View, on a real phone, over a YouTube video -- none of which
+// this suite can reproduce directly (no real touch hardware, and this
+// sandbox's network policy cannot reliably stream real YouTube video). What
+// IS directly testable and fixable: the daf-page pinch-zoom handler
+// (vilnaScroll's own touchmove listener, unrelated to Split View's own video
+// pinch surface) forced a synchronous layout read (getBoundingClientRect)
+// plus a scroll-position write on EVERY raw touchmove event, a textbook
+// layout-thrashing pattern that predates Split View entirely -- but Split
+// View's daf pane is the full viewport rather than the small embedded card
+// this handler had only ever run against before, so the identical per-event
+// cost now repaints and re-composites a much larger surface on every one of
+// however many touchmove events a real two-finger drag fires per second.
+// Coalescing to at most once per animation frame (app.js) bounds that cost
+// to the display's own refresh rate regardless of raw event rate.
+test.describe('Split View — daf pinch-zoom does not layout-thrash on rapid touchmove', () => {
+  test('20 rapid touchmove events coalesce to at most one or two real layout reads', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+
+    await page.evaluate(() => {
+      const scroll = document.getElementById('dafScroll');
+      document.getElementById('vilnaPlaceholder').hidden = false;
+      window.__rectCalls = 0;
+      window.__origRect = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = function (...args) {
+        if (this === scroll) window.__rectCalls++;
+        return window.__origRect.apply(this, args);
+      };
+      const fire = (type, x1, y1, x2, y2) => {
+        const t1 = new Touch({ identifier: 1, target: scroll, clientX: x1, clientY: y1 });
+        const t2 = new Touch({ identifier: 2, target: scroll, clientX: x2, clientY: y2 });
+        scroll.dispatchEvent(new TouchEvent(type, { touches: [t1, t2], bubbles: true, cancelable: true }));
+      };
+      fire('touchstart', 100, 100, 200, 200);
+      for (let i = 0; i < 20; i++) fire('touchmove', 100 - i, 100 - i, 200 + i, 200 + i);
+    });
+
+    await page.waitForTimeout(300);
+    const result = await page.evaluate(() => {
+      Element.prototype.getBoundingClientRect = window.__origRect;
+      return { rectCalls: window.__rectCalls, finalZoom: state.vilnaPageZoom };
+    });
+
+    expect(result.rectCalls).toBeLessThanOrEqual(2);
+    // Correctness alongside the throttling: the LAST touch event's ratio is
+    // still what wins, not some earlier, already-stale intermediate frame.
+    expect(result.finalZoom).toBeGreaterThan(1);
+  });
+});
+
 test.describe('Split View — no duplicate ids or broken markup', () => {
   for (const [path, label] of [['/player/?ref=Chullin%2089a', 'player'], ['/browse/?ref=Chullin%2089a', 'browse'], ['/watch/', 'watch']]) {
     test(`${label}: every id introduced by this feature is unique on the page`, async ({ page }) => {
