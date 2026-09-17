@@ -320,6 +320,86 @@ test.describe('Split View — daf pinch-zoom does not layout-thrash on rapid tou
   });
 });
 
+// The video pane stacks four absolutely-positioned layers inside
+// .video-frame: the picture, the pinch-zoom surface (z-index 11), this
+// pane's zoom buttons (12), and the player's own docked chrome -- the
+// timeline (.scrubber-wrap, z-index 7) sitting directly on top of the
+// control bar (z-index 6). Both of the Split View layers reserve room for
+// that chrome by subtracting its height from their own bottom edge, and
+// both originally subtracted only --pc-bar-h (the control bar) while the
+// timeline lives ABOVE it, in its own --pc-timeline-h band. The timeline
+// was therefore buried under the pinch surface: seeking did nothing at
+// all, and because that surface reads a drag as a pan and a tap as
+// tap-to-toggle-play, scrubbing made the video play or pause instead.
+// Reported as the player freezing after pressing things on the control bar.
+test.describe('Split View — its overlays never cover the player chrome', () => {
+  test('neither the pinch surface nor the zoom buttons overlap the timeline or the control bar', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+
+    const bands = await page.evaluate(() => {
+      const box = (sel) => {
+        const el = document.querySelector(sel);
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { top: r.top, bottom: r.bottom };
+      };
+      return {
+        pinch: box('#splitVideoPinchSurface'),
+        zoom: box('#splitVideoZoomControls'),
+        scrubber: box('.scrubber-wrap'),
+        controls: box('.player-controls'),
+      };
+    });
+
+    const overlaps = (a, b) => a.top < b.bottom && b.top < a.bottom;
+    for (const [overlayName, overlay] of [['pinch surface', bands.pinch], ['zoom buttons', bands.zoom]]) {
+      for (const [chromeName, chrome] of [['the timeline', bands.scrubber], ['the control bar', bands.controls]]) {
+        expect(overlaps(overlay, chrome), `${overlayName} overlaps ${chromeName}`).toBe(false);
+      }
+    }
+  });
+
+  // An identity transform still promotes the element to its own composited
+  // layer, and on a YouTube shiur that element is a cross-origin iframe
+  // whose video the browser composites itself -- a known way for that video
+  // to stop updating on mobile while the rest of the page keeps working.
+  // Nothing needs the transform until a reader actually zooms.
+  test('no transform is applied to the video until it is actually zoomed', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+
+    const atRest = await page.evaluate(() => getComputedStyle(document.getElementById('video')).transform);
+    expect(atRest).toBe('none');
+
+    await page.click('#splitVideoZoomInButton');
+    await expect.poll(() => page.evaluate(() => state.splitVideoZoom)).toBeGreaterThan(1);
+    const zoomed = await page.evaluate(() => getComputedStyle(document.getElementById('video')).transform);
+    expect(zoomed).not.toBe('none');
+
+    await page.click('#splitVideoZoomResetButton');
+    await expect.poll(() => page.evaluate(() => state.splitVideoZoom)).toBe(1);
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.getElementById('video')).transform)).toBe('none');
+  });
+
+  // With the row shifted off the frame's top edge and its own gradient
+  // dropped, the span between its two pill groups is empty -- and it sits
+  // above the pinch surface, so it must not intercept presses there.
+  test('the video topbar only takes presses on its own controls, not the gap between them', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+
+    expect(await page.evaluate(() => getComputedStyle(document.querySelector('.player-topbar')).pointerEvents)).toBe('none');
+    expect(await page.evaluate(() => getComputedStyle(document.getElementById('playerDafButton').parentElement).pointerEvents)).toBe('auto');
+  });
+});
+
 test.describe('Split View — no duplicate ids or broken markup', () => {
   for (const [path, label] of [['/player/?ref=Chullin%2089a', 'player'], ['/browse/?ref=Chullin%2089a', 'browse'], ['/watch/', 'watch']]) {
     test(`${label}: every id introduced by this feature is unique on the page`, async ({ page }) => {

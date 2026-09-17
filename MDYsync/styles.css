@@ -2441,6 +2441,31 @@ body.split-view-active .watch-layout.split-active > .player-card .video-frame { 
 body.split-view-active .watch-layout.split-active .player-topbar {
   top: calc(max(10px, env(safe-area-inset-top, 0px)) + 74px);
   z-index: 12;
+  /* Shifted off the frame's own top edge, this stops being "the bar across
+     the top of the video" and becomes a strip across the MIDDLE of the
+     picture -- full-width dark gradient and all. Dropping the gradient and
+     giving each end its own pill instead (the visual language this pane's
+     zoom buttons already use) leaves small floating controls over the video
+     rather than a line through it. The brand goes entirely: the combined
+     Split View bar sitting directly above it already says DafSync. */
+  background: none;
+  /* ...and with no bar left to speak of, the empty span between the two
+     ends must stop intercepting presses meant for the video underneath it
+     (this sits above the pinch surface's z-index 11 by design, so without
+     this it would eat a stripe of every pinch, pan and tap-to-play). */
+  pointer-events: none;
+}
+body.split-view-active .watch-layout.split-active .player-topbar > * { pointer-events: auto; }
+body.split-view-active .watch-layout.split-active .player-brand,
+body.split-view-active .watch-layout.split-active .player-topbar-rule:not(.player-topbar-rule-he) {
+  display: none;
+}
+body.split-view-active .watch-layout.split-active .player-topbar-group {
+  padding: 2px 5px;
+  border-radius: 12px;
+  background: rgba(8,17,28,.82);
+  border: 1px solid rgba(255,255,255,.14);
+  backdrop-filter: blur(6px);
 }
 /* Vaater's alignment editor (admin-only, see .watch-layout.editing in
    player/index.html's own page-local CSS) is a different, unrelated use of
@@ -2632,10 +2657,19 @@ body.split-view-active.split-chrome-hidden .viewer-mode-select {
 
 /* --- Split View's own video pinch-zoom/pan gesture surface --------------- */
 
+/* The bottom inset has to clear BOTH docked strips, not just the control
+   bar: .scrubber-wrap (the timeline, --pc-timeline-h tall) sits directly on
+   top of .player-controls at bottom: var(--pc-bar-h), and reserving only
+   --pc-bar-h left this surface covering the timeline outright at z-index 11
+   against its 7. Seeking then did nothing at all in Split View -- worse, a
+   drag along the timeline read as a pan and a tap on it as this surface's
+   own tap-to-toggle-play, so the video reacted to a scrub by playing or
+   pausing instead. Reported as the player freezing after pressing things on
+   the control bar. */
 .split-video-pinch-surface {
   display: none;
   position: absolute;
-  inset: 0 0 var(--pc-bar-h, 68px);
+  inset: 0 0 calc(var(--pc-bar-h, 68px) + var(--pc-timeline-h, 74px));
   z-index: 11;
   touch-action: none;
   cursor: zoom-in;
@@ -2649,17 +2683,31 @@ body.split-view-active .watch-layout.split-active .video-frame .split-video-pinc
    the whole frame would scale and reposition all of THOSE too (confirmed
    directly: the zoom buttons drifted toward the top of the viewport as zoom
    increased and started intercepting clicks meant for the prominent selector
-   above). Clipped by .video-frame's own existing overflow:hidden either way. */
-body.split-view-active .watch-layout.split-active .video-frame #video,
-body.split-view-active .watch-layout.split-active .video-frame #youtubePlayerHost {
+   above). Clipped by .video-frame's own existing overflow:hidden either way.
+
+   Gated on .split-video-zoomed (applySplitVideoTransform toggles it at the
+   same moment it writes the variables) rather than applied unconditionally:
+   at 1x the declaration still resolves to scale(1) translate(0,0), and even
+   that identity transform promotes the element to its own composited layer
+   for as long as it is set. On a YouTube shiur the element in question is a
+   cross-origin IFRAME, whose video is composited by the browser itself --
+   and a promoted layer around it is a known way for that video to stop
+   updating on mobile while the rest of the page (the daf pane included)
+   keeps working perfectly. Nothing needs the transform until a reader
+   actually zooms, so nothing pays for it until then. */
+body.split-view-active .watch-layout.split-active .video-frame.split-video-zoomed #video,
+body.split-view-active .watch-layout.split-active .video-frame.split-video-zoomed #youtubePlayerHost {
   transform: scale(var(--split-video-zoom, 1)) translate(var(--split-video-pan-x, 0px), var(--split-video-pan-y, 0px));
   transform-origin: center center;
+}
+body.split-view-active .watch-layout.split-active .video-frame #video,
+body.split-view-active .watch-layout.split-active .video-frame #youtubePlayerHost {
   width: 100%;
   height: 100%;
 }
 @media (prefers-reduced-motion: no-preference) {
-  body.split-view-active .watch-layout.split-active .video-frame #video,
-  body.split-view-active .watch-layout.split-active .video-frame #youtubePlayerHost {
+  body.split-view-active .watch-layout.split-active .video-frame.split-video-zoomed #video,
+  body.split-view-active .watch-layout.split-active .video-frame.split-video-zoomed #youtubePlayerHost {
     transition: transform .12s ease-out;
   }
 }
@@ -2687,11 +2735,15 @@ body.split-view-active .watch-layout.split-active .video-frame #youtubePlayerHos
    short video pane, to reach the prominent selector or the Split View
    toolbar pinned near the top of the viewport. Reserving the space up
    front instead means this group's own top edge never moves regardless of
-   which children are visible. */
+   which children are visible. Clears the timeline as well as the control
+   bar, for the same reason the pinch surface above does: these buttons sit
+   at z-index 12 against .scrubber-wrap's 7, so anything of theirs hanging
+   into that band eats presses meant for the right-hand end of the seek
+   bar. */
 .split-video-zoom-controls {
   display: none;
   position: absolute;
-  bottom: calc(var(--pc-bar-h, 68px) + 10px);
+  bottom: calc(var(--pc-bar-h, 68px) + var(--pc-timeline-h, 74px) + 10px);
   height: 116px;
   inset-inline-end: 10px;
   z-index: 12;
