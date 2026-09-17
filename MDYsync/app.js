@@ -5622,6 +5622,7 @@ function setSplitView(enabled) {
     container.classList.add('split-active');
     applySplitViewLayoutToDom();
     applySplitVideoTransform();
+    showSplitChrome();
     // Double rAF, matching restoreReadingVideoPlacement's own reasoning: one
     // frame for the class change to take effect, a second so the resulting
     // layout is what gets measured.
@@ -5630,11 +5631,39 @@ function setSplitView(enabled) {
   }
 
   state.splitViewEnabled = false;
-  document.body.classList.remove('split-view-active');
+  document.body.classList.remove('split-view-active', 'split-chrome-hidden');
+  clearTimeout(splitChromeHideTimer);
+  pointerRestingOnSplitChrome = false;
   container.classList.remove('split-active', 'split-stacked', 'split-video-end');
   container.style.removeProperty('--split-video-ratio');
   resetSplitVideoZoom({ announce: false });
   scheduleVilnaPageLayoutRefresh(0);
+}
+
+// Only appears on cursor movement or a tap, then fades -- mirroring
+// showVideoControls' own .controls-hidden idea (further down in this file)
+// for the same reason: a bar that's always on screen is more chrome than a
+// reader watching a shiur actually wants up there. A plain top-level
+// function (not nested in initSplitView's own IIFE below) so setSplitView
+// above can call it directly the moment Split View is entered, not just the
+// event listeners that otherwise drive it.
+const SPLIT_CHROME_AUTO_HIDE_MS = 2400;
+let splitChromeHideTimer = null;
+let pointerRestingOnSplitChrome = false;
+function splitChromeShouldStayVisible() {
+  if (pointerRestingOnSplitChrome || splitDividerDrag) return true;
+  const active = document.activeElement;
+  return !!(active && active.closest?.('#viewerModeSelect') && active.matches(':focus-visible'));
+}
+function showSplitChrome() {
+  if (!state.splitViewEnabled) return;
+  document.body.classList.remove('split-chrome-hidden');
+  clearTimeout(splitChromeHideTimer);
+  const tick = () => {
+    if (splitChromeShouldStayVisible()) { splitChromeHideTimer = setTimeout(tick, SPLIT_CHROME_AUTO_HIDE_MS); return; }
+    document.body.classList.add('split-chrome-hidden');
+  };
+  splitChromeHideTimer = setTimeout(tick, SPLIT_CHROME_AUTO_HIDE_MS);
 }
 
 // --- Split View's own video pinch-zoom/pan --------------------------------
@@ -5736,6 +5765,22 @@ function announceViewerMode(mode) {
   const container = splitViewContainer();
   const divider = $('splitDivider');
   loadSplitViewPreferences();
+  // Combine the prominent selector and Split View's own toolbar into ONE
+  // bar -- reader-requested, in place of two separate floating bars. Moved
+  // once here, not per mode-transition: these are plain buttons with no
+  // fragile state tied to their DOM position (unlike the video/daf, which
+  // are never reparented -- see this feature's own opening comment), so a
+  // one-time move at init is all this needs. #splitToolbar becomes a
+  // trailing child of #viewerModeSelect, a visually-merged continuation of
+  // its own row, separated by a thin divider.
+  const viewerModeSelect = $('viewerModeSelect');
+  const splitToolbar = $('splitToolbar');
+  if (viewerModeSelect && splitToolbar) {
+    const barDivider = document.createElement('span');
+    barDivider.className = 'viewer-mode-bar-divider';
+    barDivider.setAttribute('aria-hidden', 'true');
+    viewerModeSelect.append(barDivider, splitToolbar);
+  }
   // Every page loads into 'standard' -- the same plain .watch-layout grid
   // shown before this feature existed -- exactly as it always did. Split
   // View (like the other two modes) is reached only by an explicit reader
@@ -5923,6 +5968,28 @@ function announceViewerMode(mode) {
       setViewerMode('standard');
     }
   });
+
+  // --- Auto-hiding the combined bar -----------------------------------
+  // showSplitChrome() itself (and the state it depends on) lives at the top
+  // level, alongside setSplitView -- see its own comment there for why.
+  document.addEventListener('mousemove', showSplitChrome);
+  document.addEventListener('pointerdown', showSplitChrome);
+  document.addEventListener('touchstart', showSplitChrome, { passive: true });
+  document.addEventListener('keydown', showSplitChrome);
+  document.addEventListener('focusin', showSplitChrome);
+  // Mouse only, matching CONTROLS_HOVER_SELECTOR's own reasoning below: a
+  // stationary mouse resting on the bar generates no further mousemove, so
+  // without this the bar could still fade out from directly underneath it.
+  if (viewerModeSelect) {
+    viewerModeSelect.addEventListener('pointerover', (event) => {
+      if (event.pointerType !== 'mouse') return;
+      pointerRestingOnSplitChrome = true;
+    });
+    viewerModeSelect.addEventListener('pointerout', (event) => {
+      if (event.pointerType !== 'mouse') return;
+      pointerRestingOnSplitChrome = false;
+    });
+  }
 })();
 
 // Mirrors toggleVilnaFullscreen's own WebKit-prefixed fallback below --

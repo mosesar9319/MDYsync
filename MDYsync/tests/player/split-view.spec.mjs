@@ -188,6 +188,7 @@ test.describe('Split View — divider and layout', () => {
     await page.goto('/player/?ref=Chullin%2089a');
     await enterSplitView(page);
     await expect.poll(() => page.evaluate(() => state.splitViewVideoPosition)).toBe('start');
+    await dismissErrorBanner(page);
 
     await page.click('#splitSwapButton');
     await expect.poll(() => page.evaluate(() => state.splitViewVideoPosition)).toBe('end');
