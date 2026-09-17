@@ -48,6 +48,9 @@
     // Matches #readingModeButton's own glyph (a page with a small video
     // inset) -- same feature, so the same picture.
     videoOnDaf: svg(`<rect x="3" y="4" width="18" height="16" rx="2" ${STROKE}/><rect x="5.5" y="12" width="8.5" height="5.5" rx="1" fill="currentColor" opacity=".25"/><path d="m9 13.4 3.2 1.85L9 17.1v-3.7Z" fill="currentColor"/><path d="M7 8h10" ${STROKE}/>`),
+    // Two side-by-side panes -- matches the prominent selector's own Split
+    // View glyph above the player (see viewer-mode-select's markup).
+    splitView: svg(`<rect x="2.5" y="4.5" width="8.5" height="15" rx="2" ${STROKE}/><rect x="13" y="4.5" width="8.5" height="15" rx="2" ${STROKE}/>`),
     pip: svg(`<rect x="2.5" y="4.5" width="19" height="15" rx="2.2" ${STROKE}/><rect x="12" y="11.5" width="8" height="6.5" rx="1.4" fill="currentColor"/>`),
   };
 
@@ -442,13 +445,27 @@
     button.innerHTML = `${icon}<span>${label}</span>`;
     return button;
   };
+  // Split View is the third and, per its own product decision, the FIRST
+  // listed of the three -- unlike the other two pills it has no pre-existing
+  // checkbox/button to proxy to (there was nothing to toggle before this
+  // feature existed), so its click goes straight to setViewerMode (app.js,
+  // loaded before this script -- see this file's own opening comment on load
+  // order). Only offered on pages that actually have a Split View container
+  // (.watch-layout) to switch into -- studio/index.html's own .workspace
+  // never carries that class, matching this feature's own page scope
+  // (browse/player/watch only).
+  const splitViewButton = pill('splitViewButton', 'Split view', ICONS.splitView);
   const dafOnVideoButton = pill('dafOnVideoButton', 'Daf on video', ICONS.dafOnVideo);
   const videoOnDafButton = pill('videoOnDafButton', 'Video on daf', ICONS.videoOnDaf);
+  const hasSplitView = Boolean(document.querySelector('.watch-layout'));
+  if (hasSplitView) tools.appendChild(splitViewButton);
   tools.appendChild(dafOnVideoButton);
   // Reading mode only exists on the pages that ship a daf column to float the
   // video over (player/ and browse/); watch/ and studio/ have no
   // #readingModeButton to proxy to, so there's nothing to offer there.
   if ($('readingModeButton')) tools.appendChild(videoOnDafButton);
+  splitViewButton.addEventListener('click', () => window.setViewerMode?.('split'));
+  if (!hasSplitView) splitViewButton.hidden = true;
 
   const pipButton = document.createElement('button');
   pipButton.type = 'button';
@@ -549,15 +566,19 @@
   // so a resize that frees up room brings a control back to exactly where
   // it started rather than leaving it stranded in the menu from a previous,
   // narrower pass.
-  const TOOLS_ORDER = [speedStack, captionsStack, settingsStack, dafOnVideoButton, hasReadingMode && videoOnDafButton, pipStack, toolsMoreStack, fullscreenStack].filter(Boolean);
+  const TOOLS_ORDER = [speedStack, captionsStack, settingsStack, hasSplitView && splitViewButton, dafOnVideoButton, hasReadingMode && videoOnDafButton, pipStack, toolsMoreStack, fullscreenStack].filter(Boolean);
   // Overflow priority, most disposable first -- the mirror image of
-  // TOOLS_ORDER's own tail: PiP is a pure convenience, the two pills exist
-  // because reading mode has its own separate, always-visible entry point
-  // (the daf card's own header), so those three go before Settings and
-  // Captions, the least disposable of the bunch. Speed and Fullscreen are
-  // never in this list at all -- see their own comments above and on
+  // TOOLS_ORDER's own tail: PiP is a pure convenience, the two older pills
+  // exist because reading mode/the overlay each have their own separate,
+  // always-visible entry point (the daf card's own header, the overlay
+  // settings toggle), so those three go before Settings and Captions, the
+  // least disposable of the bunch. Split View's pill goes LAST of the three
+  // mode pills -- it's the mode every page now opens in by default (see
+  // setViewerMode's own initSplitView in app.js), so it stays visible longer
+  // than the other two before the bar has to hide it. Speed and Fullscreen
+  // are never in this list at all -- see their own comments above and on
   // fitChrome below.
-  const OVERFLOW_PRIORITY = [pipStack, hasReadingMode && videoOnDafButton, dafOnVideoButton, settingsStack, captionsStack].filter(Boolean);
+  const OVERFLOW_PRIORITY = [pipStack, hasReadingMode && videoOnDafButton, dafOnVideoButton, hasSplitView && splitViewButton, settingsStack, captionsStack].filter(Boolean);
 
   // The old bar's hand-placed spacers/dividers did the job .pc-group's own
   // space-between layout now does.
@@ -594,6 +615,7 @@
   function syncToggleStates() {
     dafOnVideoButton.setAttribute('aria-pressed', String(frame.classList.contains('overlay-on')));
     videoOnDafButton.setAttribute('aria-pressed', String(document.body.classList.contains('reading-mode-active')));
+    if (hasSplitView) splitViewButton.setAttribute('aria-pressed', String(document.body.classList.contains('split-view-active')));
     const favorite = $('favoriteButton');
     if (favorite) {
       $('playerBookmarkButton').hidden = favorite.hidden;

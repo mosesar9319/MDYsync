@@ -175,7 +175,39 @@
         </div>
       </section>
 
-      <section class="workspace">
+      <div class="viewer-mode-select" id="viewerModeSelect" role="group" aria-label="Viewing mode">
+        <button type="button" class="viewer-mode-button" id="viewerModeSplitButton" aria-pressed="false" title="Split view: video and daf side by side">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="8.5" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="13" y="4.5" width="8.5" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+          <span>Split view</span>
+        </button>
+        <button type="button" class="viewer-mode-button" id="viewerModeDafOnVideoButton" aria-pressed="false" title="Daf on video: the printed daf drawn over the video">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M6.5 9h11M6.5 12h11M6.5 15h7" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+          <span>Daf on video</span>
+        </button>
+        <!-- No "Video on daf" button here -- watch/index.html intentionally
+             has no Reading Mode (no #readingModeButton/#readingVideoFloat on
+             this page), and this feature does not add one. -->
+      </div>
+      <div id="viewerModeAnnouncer" class="sr-only" role="status" aria-live="polite"></div>
+
+      <section class="workspace watch-layout">
+        <div class="split-toolbar" id="splitToolbar">
+          <button type="button" class="icon-button" id="splitLayoutToggleButton" aria-pressed="false" title="Switch to stacked" aria-label="Switch to stacked">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="8.5" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="13" y="4.5" width="8.5" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+          </button>
+          <button type="button" class="icon-button" id="splitSwapButton" title="Swap panel positions" aria-label="Swap panel positions">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11M18 7l-4-4M18 7l-4 4M17 17H6M6 17l4 4M6 17l4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button type="button" class="icon-button" id="splitResetButton" title="Reset panel sizes" aria-label="Reset panel sizes">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 1 2.6 5.9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 17v-5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button type="button" class="icon-button" id="splitFullscreenButton" title="Fullscreen" aria-label="Fullscreen">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button type="button" class="icon-button" id="splitExitButton" title="Exit split view (Esc)" aria-label="Exit split view" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+          </button>
+        </div>
         <article class="player-card card">
           <div class="card-heading">
             <div>
@@ -204,6 +236,20 @@
             </button>
             <div class="video-vilna-overlay" id="videoVilnaOverlay" hidden>
               <canvas id="videoVilnaCanvas"></canvas>
+            </div>
+
+            <div class="split-video-pinch-surface" id="splitVideoPinchSurface" role="button" tabindex="0" aria-label="Pinch or Ctrl/Cmd+scroll to zoom the video, drag to pan when zoomed, double-tap to reset"></div>
+            <div class="split-video-zoom-indicator" id="splitVideoZoomIndicator"></div>
+            <div class="split-video-zoom-controls" id="splitVideoZoomControls">
+              <button type="button" id="splitVideoZoomInButton" aria-label="Zoom in">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M11 8v6M8 11h6M20 20l-4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              </button>
+              <button type="button" id="splitVideoZoomOutButton" aria-label="Zoom out">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 11h6M20 20l-4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              </button>
+              <button type="button" id="splitVideoZoomResetButton" aria-label="Reset zoom" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 1 2.6 5.9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 17v-5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
             </div>
 
             <!-- Playback controls, docked directly onto the bottom of the
@@ -335,7 +381,8 @@
           </div>
         </article>
 
-        <article class="daf-card card">
+        <div class="split-divider" id="splitDivider" role="separator" tabindex="0" aria-orientation="vertical" aria-valuemin="22" aria-valuemax="78" aria-valuenow="50" aria-label="Resize video and daf panels"></div>
+        <article class="daf-card card" id="dafCard" data-daf-view="page">
           <div class="card-heading daf-heading">
             <div>
               <div class="eyebrow">Digital daf</div>
