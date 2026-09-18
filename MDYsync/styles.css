@@ -2700,27 +2700,10 @@ body.split-view-active .watch-layout.split-active .video-frame.split-video-zoome
   transform: scale(var(--split-video-zoom, 1)) translate(var(--split-video-pan-x, 0px), var(--split-video-pan-y, 0px));
   transform-origin: center center;
 }
-/* The picture stops ABOVE the docked chrome instead of running the full
-   height of the frame behind it. On a YouTube shiur the picture is a
-   cross-origin iframe, and an iframe that extends under the control bar and
-   timeline is a different kind of surface from the HTML drawn over it: the
-   page's own hit-testing puts the bar on top (z-index 6 against the host's
-   auto, confirmed directly), but touch on a phone is routed by the
-   compositor, which hands the touch to the embedded frame's own process and
-   never delivers it to the bar above. That is exactly the split reported --
-   the bar BELOW the seek bar takes no touches at all, while the Split View
-   bar at the top of the screen, which is fixed OUTSIDE .video-frame and so
-   never overlaps the iframe, keeps working normally. Reserving the strip
-   removes the overlap itself rather than relying on a compositor hint to
-   win the race over it; what the bar sits on is .video-frame's own
-   background, and the picture (letterboxed in this pane either way) simply
-   uses the room that is left. */
-body.split-view-active .watch-layout.split-active .video-frame #video {
-  width: 100%;
-  height: calc(100% - var(--pc-bar-h, 68px) - var(--pc-timeline-h, 74px));
-}
+body.split-view-active .watch-layout.split-active .video-frame #video,
 body.split-view-active .watch-layout.split-active .video-frame #youtubePlayerHost {
-  inset: 0 0 calc(var(--pc-bar-h, 68px) + var(--pc-timeline-h, 74px));
+  width: 100%;
+  height: 100%;
 }
 @media (prefers-reduced-motion: no-preference) {
   body.split-view-active .watch-layout.split-active .video-frame.split-video-zoomed #video,

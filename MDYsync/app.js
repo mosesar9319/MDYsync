@@ -9542,3 +9542,63 @@ document.querySelectorAll('.sync-tab').forEach((tab) => {
     if (tab.dataset.syncPanel === 'syncYoutubePanel' || tab.dataset.syncPanel === 'syncVoicePanel') prefillYoutubeSyncTab();
   });
 });
+
+// --- TEMPORARY: on-screen touch diagnostic ---------------------------------
+// Added solely to chase down a real-device report ("mute/speed/Vaater take
+// no touches in Split View on a real phone with a YouTube shiur loaded")
+// that this repo's own test suite cannot reproduce -- Playwright's touch
+// emulation and a same-origin about:blank iframe stand-in both behave
+// differently from a real phone compositing a real cross-origin YouTube
+// iframe. Rather than guess at a fifth fix blind, this surfaces exactly
+// what element real touches on the real device actually land on. Gated
+// behind a URL param so it is completely inert unless deliberately asked
+// for; safe to delete outright once the real cause is confirmed.
+if (new URLSearchParams(location.search).get('debugtouch') === '1') {
+  const panel = document.createElement('div');
+  panel.style.cssText = [
+    'position:fixed', 'left:6px', 'top:6px', 'z-index:2147483647',
+    'width:min(94vw,420px)', 'max-height:46vh', 'overflow:auto',
+    'background:rgba(0,0,0,.88)', 'color:#7CFC7C', 'font:11px/1.35 ui-monospace,monospace',
+    'padding:6px 8px', 'border-radius:8px', 'border:1px solid rgba(255,255,255,.25)',
+    'pointer-events:none', 'white-space:pre-wrap', 'word-break:break-all',
+  ].join(';');
+  document.documentElement.appendChild(panel);
+  let seq = 0;
+  const describe = (el) => {
+    if (!el || el === document || el === window) return String(el);
+    const id = el.id ? '#' + el.id : '';
+    const cls = typeof el.className === 'string' && el.className ? '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.') : '';
+    return (el.tagName || '?') + id + cls;
+  };
+  const log = (line) => {
+    seq += 1;
+    const row = document.createElement('div');
+    row.textContent = `${seq}. ${line}`;
+    panel.appendChild(row);
+    panel.scrollTop = panel.scrollHeight;
+    while (panel.children.length > 60) panel.removeChild(panel.firstChild);
+  };
+  log('debug touch log ready -- tap the buttons below the seek bar');
+  for (const type of ['touchstart', 'touchend', 'touchcancel', 'pointerdown', 'pointerup', 'mousedown', 'click']) {
+    document.addEventListener(type, (event) => {
+      const target = event.target;
+      const point = event.touches?.[0] || event.changedTouches?.[0] || event;
+      const x = Math.round(point.clientX ?? -1);
+      const y = Math.round(point.clientY ?? -1);
+      log(`${type.padEnd(11)} -> ${describe(target)} @ ${x},${y}`);
+    }, { capture: true, passive: true });
+  }
+  // Specifically confirms whether a real click ever actually reaches each
+  // control-bar button, independent of whatever the raw touch/pointer
+  // events above show landing on along the way.
+  document.addEventListener('DOMContentLoaded', () => {}, { once: true });
+  const armButtons = () => {
+    document.querySelectorAll('.player-controls button').forEach((button) => {
+      if (button.dataset.__debugArmed) return;
+      button.dataset.__debugArmed = '1';
+      button.addEventListener('click', () => log(`CLICK FIRED on ${describe(button)}`), true);
+    });
+  };
+  armButtons();
+  new MutationObserver(armButtons).observe(document.body, { childList: true, subtree: true });
+}
