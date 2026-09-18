@@ -726,8 +726,10 @@
       settingsBody.style.bottom = `${Math.max(8, window.innerHeight - r.top + 8)}px`;
     }
     settingsDetails.addEventListener('toggle', () => {
+      window.__debugLog?.(`videoSettings toggle START (open=${settingsDetails.open})`);
       settingsBody.hidden = !settingsDetails.open;
       if (settingsDetails.open) positionSettingsPanel();
+      window.__debugLog?.('videoSettings toggle END');
     });
     // Keeps the panel anchored to the gear through a window resize (the
     // reading-mode mini player itself doesn't fire one when just dragged/
@@ -922,7 +924,20 @@
   // settles after one extra call), but disconnecting for the run is simpler
   // than relying on that self-correction.
   const controlsObserver = new MutationObserver(fitChrome);
+  // TEMPORARY, gated on the same ?debugtouch=1 diagnostic as app.js's
+  // on-screen log (see app.js's window.__debugLog) -- reports whether this
+  // ever-rerunning callback (a MutationObserver AND a ResizeObserver both
+  // point at it) is the thing that never returns on a real-device freeze.
   function fitChrome() {
+    window.__debugLog?.('fitChrome() START');
+    const __fitChromeStartedAt = performance.now();
+    try {
+      fitChromeInner();
+    } finally {
+      window.__debugLog?.(`fitChrome() END, ${Math.round(performance.now() - __fitChromeStartedAt)}ms`);
+    }
+  }
+  function fitChromeInner() {
     controlsObserver.disconnect();
 
     // tools.append(...TOOLS_ORDER) two lines down always re-inserts every

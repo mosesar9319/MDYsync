@@ -5656,7 +5656,8 @@ function splitChromeShouldStayVisible() {
   return !!(active && active.closest?.('#viewerModeSelect') && active.matches(':focus-visible'));
 }
 function showSplitChrome() {
-  if (!state.splitViewEnabled) return;
+  window.__debugLog?.('showSplitChrome() START');
+  if (!state.splitViewEnabled) { window.__debugLog?.('showSplitChrome() END (not enabled)'); return; }
   document.body.classList.remove('split-chrome-hidden');
   clearTimeout(splitChromeHideTimer);
   const tick = () => {
@@ -5664,6 +5665,7 @@ function showSplitChrome() {
     document.body.classList.add('split-chrome-hidden');
   };
   splitChromeHideTimer = setTimeout(tick, SPLIT_CHROME_AUTO_HIDE_MS);
+  window.__debugLog?.('showSplitChrome() END');
 }
 
 // --- Split View's own video pinch-zoom/pan --------------------------------
@@ -8168,8 +8170,9 @@ function controlsShouldStayVisible() {
 }
 
 function showVideoControls() {
+  window.__debugLog?.('showVideoControls() START');
   const frame = $('videoFrame');
-  if (!frame) return;
+  if (!frame) { window.__debugLog?.('showVideoControls() END (no frame)'); return; }
   frame.classList.remove('controls-hidden');
   if (controlsHideTimer) clearTimeout(controlsHideTimer);
   // Re-arm rather than abandon the timer while something is holding the bar
@@ -8184,6 +8187,7 @@ function showVideoControls() {
     frame.classList.add('controls-hidden');
   };
   controlsHideTimer = setTimeout(tick, CONTROLS_AUTO_HIDE_MS);
+  window.__debugLog?.('showVideoControls() END');
 }
 
 (() => {
@@ -9586,6 +9590,10 @@ if (new URLSearchParams(location.search).get('debugtouch') === '1') {
     logBox.scrollTop = logBox.scrollHeight;
     while (logBox.children.length > 60) logBox.removeChild(logBox.firstChild);
   };
+  // Exposed so player-chrome.js (a separate deferred script, running after
+  // this one -- see the <script> order in each page) can report into the
+  // same on-screen log without duplicating the panel/log-box setup.
+  window.__debugLog = log;
   log('debug touch log ready -- tap the buttons below the seek bar');
   for (const type of ['touchstart', 'touchend', 'touchcancel', 'pointerdown', 'pointerup', 'mousedown', 'click']) {
     document.addEventListener(type, (event) => {
