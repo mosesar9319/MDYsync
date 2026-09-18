@@ -120,4 +120,46 @@ test.describe('player-chrome.js — fitChrome() does not reparent controls needl
     const callsAfter = await page.evaluate(() => window.__appendCalls);
     expect(callsAfter).toBe(callsBefore);
   });
+
+  // The already-fixed "skip when nothing needs to move" logic wasn't
+  // enough on its own: a real device report showed fitChrome() genuinely
+  // reordering -- an ACTUAL move, not the no-op case above -- three times
+  // over the course of ONE touch gesture, because something (this bar's
+  // own class churn from other event handlers, not the already-filtered
+  // timer text) can shift its available width by a pixel or two on a real
+  // page with real content, tipping is-tiny's fit/no-fit boundary each way
+  // in turn. A reorder that's genuinely needed is just as dangerous mid-
+  // touch as a needless one -- both reparent a node the reader's finger
+  // may still be on. fitChrome now defers ANY reorder while a pointer is
+  // down anywhere on the page, and catches up the moment it's released.
+  test('a genuinely-needed reorder is deferred while a pointer is down, and catches up on release', async ({ page }) => {
+    failOnPageError(page);
+    await page.addInitScript(() => {
+      window.__appendCalls = 0;
+      const original = Element.prototype.append;
+      Element.prototype.append = function (...args) {
+        if (this.classList?.contains('pc-tools')) window.__appendCalls += 1;
+        return original.apply(this, args);
+      };
+    });
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await page.setViewportSize({ width: 340, height: 800 });
+    await page.waitForTimeout(300);
+
+    const speedBox = await page.locator('#speedSelect').boundingBox();
+    await page.mouse.move(speedBox.x + speedBox.width / 2, speedBox.y + speedBox.height / 2);
+    await page.mouse.down();
+    const callsWhileDown = await page.evaluate(() => window.__appendCalls);
+
+    // A real width change while the pointer is still down -- exactly the
+    // circumstance that triggered a genuine mid-gesture reorder on device.
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => window.__appendCalls)).toBe(callsWhileDown);
+
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => window.__appendCalls)).toBeGreaterThan(callsWhileDown);
+  });
 });
