@@ -398,6 +398,29 @@ test.describe('Split View — its overlays never cover the player chrome', () =>
     expect(await page.evaluate(() => getComputedStyle(document.querySelector('.player-topbar')).pointerEvents)).toBe('none');
     expect(await page.evaluate(() => getComputedStyle(document.getElementById('playerDafButton').parentElement).pointerEvents)).toBe('auto');
   });
+
+  // Reported directly on a real device: tapping ANY control-bar button
+  // (speed, captions, settings) also toggled play/pause, because a YouTube
+  // shiur's cross-origin iframe fills this exact box, full bleed under the
+  // opaque control bar -- and can receive a touch on its own, independent
+  // of the DOM's own stacking, something no headless/synthetic-touch test
+  // reproduces. The pinch surface above it is the one deliberate tap
+  // handler for this picture in Split View; the video underneath must not
+  // also be reachable by a real touch.
+  test('the video itself takes no pointer input in Split View -- only the pinch surface above it does', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+
+    // Standard mode first: this must be untouched there, since the report
+    // was specific to Split View and nothing here should change how a
+    // direct tap on the video works outside it.
+    expect(await page.evaluate(() => getComputedStyle(document.getElementById('video')).pointerEvents)).not.toBe('none');
+
+    await enterSplitView(page);
+    expect(await page.evaluate(() => getComputedStyle(document.getElementById('video')).pointerEvents)).toBe('none');
+    expect(await page.evaluate(() => getComputedStyle(document.getElementById('youtubePlayerHost')).pointerEvents)).toBe('none');
+  });
 });
 
 test.describe('Split View — no duplicate ids or broken markup', () => {

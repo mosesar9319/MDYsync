@@ -929,12 +929,21 @@
   // ever-rerunning callback (a MutationObserver AND a ResizeObserver both
   // point at it) is the thing that never returns on a real-device freeze.
   function fitChrome() {
-    window.__debugLog?.('fitChrome() START');
+    // Logging every call was drowning the on-screen log during ordinary
+    // playback -- this reruns on every #currentTime/#duration text update
+    // too (a childList mutation controlsObserver reacts to like any other),
+    // easily several times a second, scrolling the one row worth screenshotting
+    // out of view before it could be read. Only the reorder actually doing
+    // something is worth a line; a run that's unexpectedly slow even with
+    // nothing to do still gets logged, since that's the one case a silent
+    // skip could hide a real hang in.
     const __fitChromeStartedAt = performance.now();
+    let __didReorder = false;
     try {
-      fitChromeInner();
+      __didReorder = fitChromeInner();
     } finally {
-      window.__debugLog?.(`fitChrome() END, ${Math.round(performance.now() - __fitChromeStartedAt)}ms`);
+      const elapsed = Math.round(performance.now() - __fitChromeStartedAt);
+      if (__didReorder || elapsed > 20) window.__debugLog?.(`fitChrome() ${__didReorder ? 'reordered' : 'no-op'}, ${elapsed}ms`);
     }
   }
   function fitChromeInner() {
@@ -986,6 +995,7 @@
       tools.append(...TOOLS_ORDER);
       toolsMoreMenu.replaceChildren();
     }
+    let didReorder = !alreadyInPlace;
 
     const width = frame.clientWidth;
     let depth = width < TINY_WIDTH ? 3 : width < COMPACT_WIDTH ? 2 : width < SNUG_WIDTH ? 1 : 0;
@@ -1006,6 +1016,7 @@
       const next = OVERFLOW_PRIORITY.find((el) => el.parentElement === tools && el.offsetWidth > 0);
       if (!next) break;
       toolsMoreMenu.appendChild(next);
+      didReorder = true;
     }
     toolsMoreStack.hidden = !toolsMoreMenu.children.length;
     // Fullscreen is never itself an overflow candidate (see
@@ -1016,13 +1027,14 @@
     // same reason the reorder above is: reparenting a node mid-touch (this
     // whole function can run on the very touchstart that reveals the bar)
     // is what was confirmed to leave the page unresponsive on a real device.
-    if (fullscreenStack && tools.lastElementChild !== fullscreenStack) tools.appendChild(fullscreenStack);
+    if (fullscreenStack && tools.lastElementChild !== fullscreenStack) { tools.appendChild(fullscreenStack); didReorder = true; }
 
     if (shouldRestoreFocus && document.activeElement !== focusedBefore) focusedBefore.focus({ preventScroll: true });
 
     controlsObserver.observe(controls, {
       subtree: true, childList: true, attributes: true, attributeFilter: ['hidden', 'style', 'class'],
     });
+    return didReorder;
   }
   // Class changes from applyTier land on the frame, never on .player-controls
   // itself, so the ResizeObserver below can't retrigger fitChrome a second

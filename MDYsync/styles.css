@@ -2704,6 +2704,24 @@ body.split-view-active .watch-layout.split-active .video-frame #video,
 body.split-view-active .watch-layout.split-active .video-frame #youtubePlayerHost {
   width: 100%;
   height: 100%;
+  /* The pinch surface above is the ONE deliberate tap-to-play/pinch/pan
+     handler for this picture in Split View, precisely because (per its own
+     comment) it would otherwise "silently swallow" a tap meant for the
+     video underneath it -- a design that assumes the video itself doesn't
+     also need to see that tap. It never got cut off from actually
+     receiving one, though: reported directly, tapping ANY of the control
+     bar's own buttons (speed, captions, settings) also toggled play/pause,
+     even though each button's own click still fired correctly. A YouTube
+     shiur here is a cross-origin IFRAME occupying this exact box, full
+     bleed under the opaque control bar included; on a real device its own
+     compositor layer can receive a touch directly, independent of the
+     DOM's own z-order/opacity, in a way no headless/synthetic-touch test
+     reproduces -- and YouTube's player treats a tap anywhere on the video
+     as play/pause on its own, controls:0 or not. Cutting it off from
+     pointer input entirely forces every tap through the layers actually
+     built to interpret it (the pinch surface, the topbar, the control
+     bar), exactly as already intended. */
+  pointer-events: none;
 }
 @media (prefers-reduced-motion: no-preference) {
   body.split-view-active .watch-layout.split-active .video-frame.split-video-zoomed #video,
