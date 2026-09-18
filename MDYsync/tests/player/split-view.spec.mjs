@@ -362,6 +362,42 @@ test.describe('Split View — its overlays never cover the player chrome', () =>
     }
   });
 
+  // On a YouTube shiur the picture is a cross-origin iframe, and an iframe
+  // that reaches under the docked chrome is a different kind of surface from
+  // the HTML drawn over it: the page's own hit-testing puts the bar on top,
+  // but touch on a phone is routed by the compositor, which hands it to the
+  // embedded frame's process instead. Reported as the bar below the seek bar
+  // taking no touches at all while the Split View bar at the top of the
+  // screen -- fixed OUTSIDE .video-frame, so never over the iframe -- kept
+  // working. The overlap itself is what has to go.
+  test('the video picture stops above the timeline and control bar, never under them', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+
+    const bands = await page.evaluate(() => {
+      // Stand the YouTube host up the way a real shiur does -- it is hidden
+      // whenever the page has no YouTube video, which is exactly the state
+      // that hid this bug from every earlier check.
+      document.getElementById('youtubePlayerHost').hidden = false;
+      const box = (sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return { top: r.top, bottom: r.bottom }; };
+      return {
+        video: box('#video'),
+        host: box('#youtubePlayerHost'),
+        scrubber: box('.scrubber-wrap'),
+        controls: box('.player-controls'),
+      };
+    });
+
+    const overlaps = (a, b) => a.top < b.bottom && b.top < a.bottom;
+    for (const [pictureName, picture] of [['the <video>', bands.video], ['the YouTube host', bands.host]]) {
+      for (const [chromeName, chrome] of [['the timeline', bands.scrubber], ['the control bar', bands.controls]]) {
+        expect(overlaps(picture, chrome), `${pictureName} reaches under ${chromeName}`).toBe(false);
+      }
+    }
+  });
+
   // An identity transform still promotes the element to its own composited
   // layer, and on a YouTube shiur that element is a cross-origin iframe
   // whose video the browser composites itself -- a known way for that video
