@@ -9557,12 +9557,15 @@ if (new URLSearchParams(location.search).get('debugtouch') === '1') {
   const panel = document.createElement('div');
   panel.style.cssText = [
     'position:fixed', 'left:6px', 'top:6px', 'z-index:2147483647',
-    'width:min(94vw,420px)', 'max-height:46vh', 'overflow:auto',
+    'width:min(94vw,420px)',
     'background:rgba(0,0,0,.88)', 'color:#7CFC7C', 'font:11px/1.35 ui-monospace,monospace',
     'padding:6px 8px', 'border-radius:8px', 'border:1px solid rgba(255,255,255,.25)',
     'pointer-events:none', 'white-space:pre-wrap', 'word-break:break-all',
   ].join(';');
   document.documentElement.appendChild(panel);
+  const logBox = document.createElement('div');
+  logBox.style.cssText = 'max-height:36vh;overflow:auto;';
+  panel.appendChild(logBox);
   let seq = 0;
   const describe = (el) => {
     if (!el || el === document || el === window) return String(el);
@@ -9570,13 +9573,18 @@ if (new URLSearchParams(location.search).get('debugtouch') === '1') {
     const cls = typeof el.className === 'string' && el.className ? '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.') : '';
     return (el.tagName || '?') + id + cls;
   };
+  // Rows live in their own scrolling box, separate from the status line
+  // appended below -- otherwise pruning old rows off the front eventually
+  // prunes the status line too (it sits right after the first row), which
+  // is exactly what happened: 87 events logged, no heartbeat visible,
+  // because this deleted it, not because the page froze.
   const log = (line) => {
     seq += 1;
     const row = document.createElement('div');
     row.textContent = `${seq}. ${line}`;
-    panel.appendChild(row);
-    panel.scrollTop = panel.scrollHeight;
-    while (panel.children.length > 60) panel.removeChild(panel.firstChild);
+    logBox.appendChild(row);
+    logBox.scrollTop = logBox.scrollHeight;
+    while (logBox.children.length > 60) logBox.removeChild(logBox.firstChild);
   };
   log('debug touch log ready -- tap the buttons below the seek bar');
   for (const type of ['touchstart', 'touchend', 'touchcancel', 'pointerdown', 'pointerup', 'mousedown', 'click']) {
