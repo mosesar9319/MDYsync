@@ -939,8 +939,43 @@
     if (records.every((record) => timeDisplay.contains(record.target))) return;
     fitChrome();
   });
+  // A real device report showed fitChrome() genuinely reordering -- not the
+  // already-fixed no-op case, an ACTUAL move -- three times over the course
+  // of ONE touch gesture on #speedSelect, the exact pattern already
+  // confirmed to corrupt that gesture's own click synthesis and leave the
+  // page unresponsive: something (showVideoControls' own class churn, which
+  // runs on every touchstart) can genuinely shift the bar's available width
+  // by a pixel or two on a real page with real content, tipping is-tiny's
+  // fit/no-fit boundary each way in turn -- unlike the already-filtered
+  // timer text, there's no single mutation source to exclude here. Tracked
+  // at the document level (not just this bar) since a pointer can start on
+  // any control and a resize/mutation can still land while it's down.
+  let pointersDownOnPage = 0;
+  const onPointerSettle = () => {
+    pointersDownOnPage = Math.max(0, pointersDownOnPage - 1);
+    if (pointersDownOnPage === 0) fitChrome();
+  };
+  document.addEventListener('pointerdown', () => { pointersDownOnPage += 1; }, { capture: true });
+  document.addEventListener('pointerup', onPointerSettle, { capture: true });
+  document.addEventListener('pointercancel', onPointerSettle, { capture: true });
   function fitChrome() {
     controlsObserver.disconnect();
+
+    // Every branch below this point can reparent a TOOLS_ORDER control --
+    // the recovery reorder, moving one into/out of the overflow menu,
+    // re-pinning fullscreen -- and doing that while the reader's finger is
+    // still down on one of them is exactly what real-device evidence
+    // confirmed corrupts that gesture's own click synthesis, leaving the
+    // whole page unresponsive to further input. Deferred rather than
+    // skipped: the pointerup/pointercancel listener above re-runs this the
+    // instant the gesture ends, so the bar is never permanently stale,
+    // only briefly late while something is actually being pressed.
+    if (pointersDownOnPage > 0) {
+      controlsObserver.observe(controls, {
+        subtree: true, childList: true, attributes: true, attributeFilter: ['hidden', 'style', 'class'],
+      });
+      return false;
+    }
 
     // tools.append(...TOOLS_ORDER) two lines down always re-inserts every
     // candidate, even ones already exactly where they belong -- that's how
