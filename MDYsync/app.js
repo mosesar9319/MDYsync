@@ -9654,8 +9654,22 @@ if (new URLSearchParams(location.search).get('debugtouch') === '1') {
     renderStatus();
   }, 250);
   window.addEventListener('resize', () => { resizeCount += 1; renderStatus(); }, { capture: true });
-  window.addEventListener('error', (event) => log(`JS ERROR: ${event.message} @ ${event.filename}:${event.lineno}`));
-  window.addEventListener('unhandledrejection', (event) => log(`UNHANDLED REJECTION: ${event.reason}`));
+  // Round 4: reported directly -- after a few taps, a large red strip
+  // appeared pinned across the very top of the screen and every control
+  // stopped responding. That's index.html's own sitewide "Something on
+  // this page failed to load" banner (position:fixed, top:0, z-index
+  // 99999) -- it shows on ANY uncaught error or unhandled rejection
+  // ANYWHERE on the page, stays until manually dismissed, and (confirmed
+  // directly) intercepts every pointer event underneath it, not just in
+  // its own strip. Its own listener is registered inline, before this
+  // script even loads, so it always runs first and the banner already
+  // exists by the time these listeners fire -- dismissing it here doesn't
+  // stop it showing, just keeps it from stacking up and blocking taps
+  // while ?debugtouch=1 is deliberately trying to surface exactly the
+  // error it's reacting to (which stays visible in this log either way).
+  const dismissErrorBanner = () => document.querySelector('[aria-label="Dismiss"]')?.click();
+  window.addEventListener('error', (event) => { log(`JS ERROR: ${event.message} @ ${event.filename}:${event.lineno}`); dismissErrorBanner(); });
+  window.addEventListener('unhandledrejection', (event) => { log(`UNHANDLED REJECTION: ${event.reason}`); dismissErrorBanner(); });
   // Round 3: speed/captions/settings/skip-rewind all register their taps
   // (confirmed) but don't visibly do anything IN SPLIT VIEW specifically --
   // and every one of them reaches the actual YouTube player through a
