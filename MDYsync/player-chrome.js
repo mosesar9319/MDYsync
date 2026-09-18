@@ -949,10 +949,28 @@
 
     // Put every candidate back in its normal spot before re-measuring, so a
     // resize that FREES UP room brings a control back rather than leaving it
-    // stranded in the menu from a previous, narrower pass.
-    toolsMoreStack.hidden = false;
-    tools.append(...TOOLS_ORDER);
-    toolsMoreMenu.replaceChildren();
+    // stranded in the menu from a previous, narrower pass. Skipped entirely
+    // when nothing is actually out of place (the common case: nothing
+    // previously overflowed, and every control already sits exactly where
+    // TOOLS_ORDER says it belongs) -- reparenting a node the reader's finger
+    // is still down on mid-gesture (this callback fires on the very
+    // touchstart that reveals the bar again, via the ResizeObserver above
+    // reacting to .controls-hidden coming off) was confirmed, with the
+    // ?debugtouch=1 diagnostic against a real device, to be followed by that
+    // exact gesture's touchend firing but no click ever following it, and
+    // the whole page then going permanently unresponsive to all input --
+    // consistent with a real mobile browser's own touch/pointer-capture
+    // bookkeeping getting confused by its live touch target being removed
+    // and reinserted out from under it, which no headless/synthetic-touch
+    // test can reproduce.
+    const alreadyInPlace = toolsMoreMenu.children.length === 0
+      && TOOLS_ORDER.length === tools.children.length
+      && TOOLS_ORDER.every((el, i) => tools.children[i] === el);
+    if (!alreadyInPlace) {
+      toolsMoreStack.hidden = false;
+      tools.append(...TOOLS_ORDER);
+      toolsMoreMenu.replaceChildren();
+    }
 
     const width = frame.clientWidth;
     let depth = width < TINY_WIDTH ? 3 : width < COMPACT_WIDTH ? 2 : width < SNUG_WIDTH ? 1 : 0;
@@ -979,8 +997,11 @@
     // OVERFLOW_PRIORITY above) and is re-pinned here as the very last child
     // of .pc-tools on every single pass, so it's always the rightmost
     // control in the bar -- whether or not the "More" button beside it is
-    // currently showing anything.
-    if (fullscreenStack) tools.appendChild(fullscreenStack);
+    // currently showing anything. Skipped when it's already last, for the
+    // same reason the reorder above is: reparenting a node mid-touch (this
+    // whole function can run on the very touchstart that reveals the bar)
+    // is what was confirmed to leave the page unresponsive on a real device.
+    if (fullscreenStack && tools.lastElementChild !== fullscreenStack) tools.appendChild(fullscreenStack);
 
     if (shouldRestoreFocus && document.activeElement !== focusedBefore) focusedBefore.focus({ preventScroll: true });
 

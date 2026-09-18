@@ -1,0 +1,86 @@
+import { test, expect } from '@playwright/test';
+import { preparePage, failOnPageError } from '../support/harness.mjs';
+
+// player-chrome.js's fitChrome() re-runs on essentially every interaction
+// (it's both a MutationObserver callback watching .player-controls, and a
+// ResizeObserver callback watching .video-frame -- see its own comments).
+// It used to unconditionally tools.append(...TOOLS_ORDER) every single
+// control on every run, even when every control already sat exactly where
+// it belonged and nothing had overflowed. That's a real "remove, then
+// re-insert" of every node in the bar -- including whichever one the reader
+// might be actively touching, since this callback can fire mid-gesture (a
+// tap reveals the bar again via showVideoControls, which is exactly the
+// kind of class change the ResizeObserver reacts to).
+//
+// A real-device diagnostic (?debugtouch=1 in app.js) confirmed the actual
+// failure this caused: a tap on the speed control logged a clean
+// touchstart -> touchend, but the browser's own synthesized click never
+// followed, and the whole page then stopped responding to ANY input,
+// including a heartbeat timer with no relation to this code at all -- a
+// real mobile browser's touch/pointer-capture bookkeeping getting
+// confused by its live touch target being reparented out from under it.
+// No headless/synthetic-touch environment reproduces the freeze itself,
+// but the DOM churn that triggers it is directly observable: this asserts
+// fitChrome's reorder step now leaves an already-correct bar completely
+// untouched.
+test.describe('player-chrome.js — fitChrome() does not reparent controls needlessly', () => {
+  test('re-running fitChrome with nothing out of place does not touch the DOM', async ({ page }) => {
+    failOnPageError(page);
+    // A no-op tools.append(...TOOLS_ORDER) (every node already exactly
+    // where it belongs) doesn't necessarily produce an observable
+    // MutationRecord -- browsers can skip firing one when a node is
+    // appended back to the position it already occupies. What's NOT
+    // skipped, because it's a JS-level call regardless of its DOM effect,
+    // is Element.prototype.append itself -- so this counts calls, not
+    // their (possibly optimized-away) mutation records.
+    await page.addInitScript(() => {
+      window.__appendCalls = 0;
+      const original = Element.prototype.append;
+      Element.prototype.append = function (...args) {
+        if (this.classList?.contains('pc-tools')) window.__appendCalls += 1;
+        return original.apply(this, args);
+      };
+    });
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await expect(page.locator('#speedSelect')).toBeAttached();
+    await page.waitForTimeout(200);
+    const callsBefore = await page.evaluate(() => window.__appendCalls);
+
+    // Re-trigger fitChrome the same way a real control-bar change does --
+    // controlsObserver (a MutationObserver on .player-controls) reacts to
+    // exactly this class churn on any descendant. Nothing about the bar's
+    // own contents or width has actually changed, so fitChrome (however
+    // it gets triggered) has nothing left to reorder.
+    await page.evaluate(() => {
+      document.getElementById('speedSelect').classList.add('zzz-test-probe');
+      document.getElementById('speedSelect').classList.remove('zzz-test-probe');
+    });
+    // Give the MutationObserver microtask a chance to run.
+    await page.waitForTimeout(300);
+
+    const callsAfter = await page.evaluate(() => window.__appendCalls);
+    expect(callsAfter).toBe(callsBefore);
+  });
+
+  test('fitChrome still recovers a control that was actually stranded in the overflow menu', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await expect(page.locator('#speedSelect')).toBeAttached();
+
+    // Force is-tiny by shrinking the viewport, which should strand at least
+    // one control in the "More" overflow menu.
+    await page.setViewportSize({ width: 340, height: 800 });
+    await page.waitForTimeout(300);
+    const strandedBefore = await page.evaluate(() => document.getElementById('toolsMoreMenu')?.children.length ?? 0);
+    expect(strandedBefore).toBeGreaterThan(0);
+
+    // Widen back out -- the stranded control should come back to .pc-tools,
+    // proving the skip-when-already-in-place fix didn't also break recovery.
+    await page.setViewportSize({ width: 1100, height: 800 });
+    await page.waitForTimeout(300);
+    const strandedAfter = await page.evaluate(() => document.getElementById('toolsMoreMenu')?.children.length ?? 0);
+    expect(strandedAfter).toBe(0);
+  });
+});
