@@ -921,7 +921,24 @@
   // pass just confirms the same layout and makes no further changes, so it
   // settles after one extra call), but disconnecting for the run is simpler
   // than relying on that self-correction.
-  const controlsObserver = new MutationObserver(fitChrome);
+  //
+  // timeDisplay's own #currentTime/#duration text is the one thing in this
+  // subtree that legitimately changes on its own, continuously, the whole
+  // time a video plays (updateTimeline polls every 100ms -- see app.js).
+  // Confirmed directly, with a real-device touch diagnostic, to retrigger a
+  // full measure-and-reorder pass on very nearly every one of those ticks:
+  // not a false alarm from stale logging, but this callback's own width
+  // check landing right at is-tiny's fit/no-fit boundary, where a timer
+  // string a pixel or two narrower or wider than the last one is enough to
+  // flip it. Nothing about a clock ticking should be moving controls
+  // in and out of the overflow menu ten times a second, so mutations
+  // confined entirely to the time display are filtered out before they
+  // ever reach fitChrome, the same way disconnecting for its own run stops
+  // it from reacting to its own writes.
+  const controlsObserver = new MutationObserver((records) => {
+    if (records.every((record) => timeDisplay.contains(record.target))) return;
+    fitChrome();
+  });
   function fitChrome() {
     controlsObserver.disconnect();
 

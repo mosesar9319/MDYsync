@@ -83,4 +83,41 @@ test.describe('player-chrome.js — fitChrome() does not reparent controls needl
     const strandedAfter = await page.evaluate(() => document.getElementById('toolsMoreMenu')?.children.length ?? 0);
     expect(strandedAfter).toBe(0);
   });
+
+  // The timer (#currentTime/#duration, .pc-time) is the one thing in
+  // .player-controls that legitimately changes on its own, continuously,
+  // for as long as a video plays (updateTimeline polls every 100ms -- see
+  // app.js). Confirmed directly against a real device (?debugtouch=1) to
+  // retrigger a full fitChrome measure-and-reorder pass on very nearly
+  // every one of those ticks -- not a logging artifact, but genuine,
+  // repeated DOM work with nothing behind it but a clock ticking, fast
+  // enough to scroll any other diagnostic output out of view before it
+  // could be read. A real resize (the next test) must still go through.
+  test('the playback timer ticking does not retrigger fitChrome at all', async ({ page }) => {
+    failOnPageError(page);
+    await page.addInitScript(() => {
+      window.__appendCalls = 0;
+      const original = Element.prototype.append;
+      Element.prototype.append = function (...args) {
+        if (this.classList?.contains('pc-tools')) window.__appendCalls += 1;
+        return original.apply(this, args);
+      };
+    });
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await expect(page.locator('#speedSelect')).toBeAttached();
+    await page.waitForTimeout(200);
+    const callsBefore = await page.evaluate(() => window.__appendCalls);
+
+    for (let i = 0; i < 8; i++) {
+      await page.evaluate((i) => {
+        document.getElementById('currentTime').textContent = `0:0${i}`;
+        document.getElementById('duration').textContent = '5:00';
+      }, i);
+      await page.waitForTimeout(60);
+    }
+
+    const callsAfter = await page.evaluate(() => window.__appendCalls);
+    expect(callsAfter).toBe(callsBefore);
+  });
 });
