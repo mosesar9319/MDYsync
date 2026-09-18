@@ -9612,7 +9612,16 @@ if (new URLSearchParams(location.search).get('debugtouch') === '1') {
     document.querySelectorAll('.player-controls button').forEach((button) => {
       if (button.dataset.__debugArmed) return;
       button.dataset.__debugArmed = '1';
-      button.addEventListener('click', () => log(`CLICK FIRED on ${describe(button)}`), true);
+      button.addEventListener('click', () => {
+        // playerType/youtubeReady/youtubePlayer: whether the button's own
+        // click fired tells us nothing about whether the YouTube player
+        // object it's about to call into is actually ready -- several of
+        // these calls (setPlaybackRate, captions, seek) are wrapped in a
+        // try/catch that can silently no-op if state.youtubeReady is false,
+        // with nothing thrown for console.error above to catch either.
+        const ready = typeof state !== 'undefined' ? `type=${state.playerType} ready=${state.youtubeReady} player=${!!state.youtubePlayer}` : 'state?';
+        log(`CLICK FIRED on ${describe(button)} (${ready})`);
+      }, true);
     });
   };
   armButtons();
@@ -9647,6 +9656,19 @@ if (new URLSearchParams(location.search).get('debugtouch') === '1') {
   window.addEventListener('resize', () => { resizeCount += 1; renderStatus(); }, { capture: true });
   window.addEventListener('error', (event) => log(`JS ERROR: ${event.message} @ ${event.filename}:${event.lineno}`));
   window.addEventListener('unhandledrejection', (event) => log(`UNHANDLED REJECTION: ${event.reason}`));
+  // Round 3: speed/captions/settings/skip-rewind all register their taps
+  // (confirmed) but don't visibly do anything IN SPLIT VIEW specifically --
+  // and every one of them reaches the actual YouTube player through a
+  // try/catch that only ever does console.error(), which 'error' above
+  // (uncaught exceptions only) never sees. Mirroring console.error into
+  // this same log is what would surface a real, already-happening failure
+  // (a stale/null player reference, a rejected API call) that's otherwise
+  // invisible without opening devtools on the phone itself.
+  const originalConsoleError = console.error.bind(console);
+  console.error = (...args) => {
+    originalConsoleError(...args);
+    log(`console.error: ${args.map((a) => (a && a.message) || String(a)).join(' ')}`);
+  };
 
   // Times entry vs. exit of the one function every mode switch (including
   // entering Split View) goes through -- if it is what hangs, this is the
