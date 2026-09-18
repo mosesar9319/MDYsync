@@ -9601,4 +9601,50 @@ if (new URLSearchParams(location.search).get('debugtouch') === '1') {
   };
   armButtons();
   new MutationObserver(armButtons).observe(document.body, { childList: true, subtree: true });
+
+  // Round 2: the report changed from "these specific buttons take no
+  // touches" to "the moment Split View is entered, EVERYTHING freezes --
+  // including this very log." A log that stops appending rows could mean
+  // touches genuinely stop arriving, but it could just as easily mean the
+  // main thread is busy (or stuck) and never gets back to the event loop to
+  // process them or paint the new rows. These three signals tell those
+  // apart: a heartbeat that free-runs on a browser timer independent of any
+  // single call stack, a count of how many times window 'resize' fires
+  // (entering Split View swaps .watch-layout to position:fixed, exactly the
+  // kind of change that can retrigger itself if a handler's own work
+  // changes layout enough to move the mobile toolbar), and every error the
+  // page throws while this is gated on.
+  const statusLine = document.createElement('div');
+  statusLine.style.cssText = 'border-top:1px solid rgba(255,255,255,.25);margin-top:4px;padding-top:4px;color:#ffd97a;';
+  panel.appendChild(statusLine);
+  let heartbeat = 0;
+  let resizeCount = 0;
+  let lastHeartbeatAt = performance.now();
+  const renderStatus = () => {
+    statusLine.textContent = `heartbeat=${heartbeat} (every ${Math.round(performance.now() - lastHeartbeatAt)}ms) resize=${resizeCount}`;
+  };
+  setInterval(() => {
+    heartbeat += 1;
+    lastHeartbeatAt = performance.now();
+    renderStatus();
+  }, 250);
+  window.addEventListener('resize', () => { resizeCount += 1; renderStatus(); }, { capture: true });
+  window.addEventListener('error', (event) => log(`JS ERROR: ${event.message} @ ${event.filename}:${event.lineno}`));
+  window.addEventListener('unhandledrejection', (event) => log(`UNHANDLED REJECTION: ${event.reason}`));
+
+  // Times entry vs. exit of the one function every mode switch (including
+  // entering Split View) goes through -- if it is what hangs, this is the
+  // one call whose own "END" line would never show up.
+  if (typeof window.setViewerMode === 'function') {
+    const originalSetViewerMode = window.setViewerMode;
+    window.setViewerMode = function debugWrappedSetViewerMode(...args) {
+      log(`setViewerMode(${args[0]}) START`);
+      const startedAt = performance.now();
+      try {
+        return originalSetViewerMode.apply(this, args);
+      } finally {
+        log(`setViewerMode(${args[0]}) END, ${Math.round(performance.now() - startedAt)}ms`);
+      }
+    };
+  }
 }
