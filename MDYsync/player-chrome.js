@@ -953,12 +953,36 @@
   // there's no single mutation source to exclude here. Tracked at the
   // document level (not just this bar) since a pointer can start on any
   // control and a resize/mutation can still land while it's down.
+  //
+  // pointerup is not the end of a gesture, though -- real-device evidence
+  // (?debugtouch=1) showed fitChrome() reordering in the narrow window
+  // AFTER pointerup but BEFORE touchend, right where the very first fix
+  // for this looked safe to run its catch-up pass. touchend, and whatever
+  // click the browser synthesizes from it, still have to be dispatched
+  // after pointerup fires, and reparenting the pressed control in that gap
+  // is just as capable of corrupting them as reparenting it while the
+  // finger is still down. unsafeUntil extends the deferral window a little
+  // past release rather than ending it exactly at pointerup, and a pending
+  // timer keeps retrying at the boundary rather than only on the next
+  // unrelated trigger, so a bar that fell out of place during the grace
+  // window doesn't stay stale indefinitely.
+  const POST_RELEASE_GRACE_MS = 120;
   let pointersDownOnPage = 0;
+  let unsafeUntil = 0;
+  let settleTimer = null;
+  const scheduleSettleCheck = () => {
+    clearTimeout(settleTimer);
+    const delay = Math.max(0, unsafeUntil - performance.now());
+    settleTimer = setTimeout(fitChrome, delay + 1);
+  };
+  document.addEventListener('pointerdown', () => { pointersDownOnPage += 1; unsafeUntil = Infinity; }, { capture: true });
   const onPointerSettle = () => {
     pointersDownOnPage = Math.max(0, pointersDownOnPage - 1);
-    if (pointersDownOnPage === 0) fitChrome();
+    if (pointersDownOnPage === 0) {
+      unsafeUntil = performance.now() + POST_RELEASE_GRACE_MS;
+      scheduleSettleCheck();
+    }
   };
-  document.addEventListener('pointerdown', () => { pointersDownOnPage += 1; }, { capture: true });
   document.addEventListener('pointerup', onPointerSettle, { capture: true });
   document.addEventListener('pointercancel', onPointerSettle, { capture: true });
   // TEMPORARY, gated on the same ?debugtouch=1 diagnostic as app.js's
@@ -989,13 +1013,16 @@
     // Every branch below this point can reparent a TOOLS_ORDER control --
     // the recovery reorder, moving one into/out of the overflow menu,
     // re-pinning fullscreen -- and doing that while the reader's finger is
-    // still down on one of them is exactly what real-device evidence
-    // confirmed corrupts that gesture's own click synthesis, leaving the
+    // still down on one of them, OR shortly after it lifts (real-device
+    // evidence caught a reorder landing between pointerup and touchend --
+    // see unsafeUntil's own comment above), is exactly what's been
+    // confirmed to corrupt that gesture's own click synthesis, leaving the
     // whole page unresponsive to further input. Deferred rather than
-    // skipped: the pointerup/pointercancel listener above re-runs this the
-    // instant the gesture ends, so the bar is never permanently stale,
-    // only briefly late while something is actually being pressed.
-    if (pointersDownOnPage > 0) {
+    // skipped: the pointerup/pointercancel listener above schedules a
+    // retry right at the end of the grace window, so the bar is never
+    // permanently stale, only briefly late while a gesture is still
+    // settling.
+    if (pointersDownOnPage > 0 || performance.now() < unsafeUntil) {
       controlsObserver.observe(controls, {
         subtree: true, childList: true, attributes: true, attributeFilter: ['hidden', 'style', 'class'],
       });
