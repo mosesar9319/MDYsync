@@ -961,7 +961,7 @@
   // it from reacting to its own writes.
   const controlsObserver = new MutationObserver((records) => {
     if (records.every((record) => timeDisplay.contains(record.target))) return;
-    fitChrome();
+    fitChrome('mutation');
   });
   // A real device report (?debugtouch=1) showed fitChrome() genuinely
   // reordering -- not the already-fixed no-op case, an ACTUAL move -- three
@@ -995,7 +995,7 @@
   const scheduleSettleCheck = () => {
     clearTimeout(settleTimer);
     const delay = Math.max(0, unsafeUntil - performance.now());
-    settleTimer = setTimeout(fitChrome, delay + 1);
+    settleTimer = setTimeout(() => fitChrome('settle'), delay + 1);
   };
   document.addEventListener('pointerdown', () => { pointersDownOnPage += 1; unsafeUntil = Infinity; }, { capture: true });
   const onPointerSettle = () => {
@@ -1011,22 +1011,23 @@
   // on-screen log (see app.js's window.__debugLog) -- reports whether this
   // ever-rerunning callback (a MutationObserver AND a ResizeObserver both
   // point at it) is the thing that never returns on a real-device freeze.
-  function fitChrome() {
-    // Logging every call was drowning the on-screen log during ordinary
-    // playback -- this reruns on every #currentTime/#duration text update
-    // too (a childList mutation controlsObserver reacts to like any other),
-    // easily several times a second, scrolling the one row worth screenshotting
-    // out of view before it could be read. Only the reorder actually doing
-    // something is worth a line; a run that's unexpectedly slow even with
-    // nothing to do still gets logged, since that's the one case a silent
-    // skip could hide a real hang in.
+  //
+  // The previous version of this log only wrote a line once fitChromeInner()
+  // returned, skipping the write entirely for a fast no-op. That made a
+  // genuine hang indistinguishable from "never called at all" -- the one
+  // case this diagnostic exists to catch would produce zero output. Logging
+  // an unconditional START (plus which of the four call sites triggered it)
+  // means a real hang now shows up as a START line with no matching END,
+  // pinned to a specific trigger, instead of silence.
+  function fitChrome(reason = 'unknown') {
     const __fitChromeStartedAt = performance.now();
+    window.__debugLog?.(`fitChrome(${reason}) START`);
     let __didReorder = false;
     try {
       __didReorder = fitChromeInner();
     } finally {
       const elapsed = Math.round(performance.now() - __fitChromeStartedAt);
-      if (__didReorder || elapsed > 20) window.__debugLog?.(`fitChrome() ${__didReorder ? 'reordered' : 'no-op'}, ${elapsed}ms`);
+      window.__debugLog?.(`fitChrome(${reason}) END ${__didReorder ? 'reordered' : 'no-op'}, ${elapsed}ms`);
     }
   }
   function fitChromeInner() {
@@ -1141,8 +1142,8 @@
   // Class changes from applyTier land on the frame, never on .player-controls
   // itself, so the ResizeObserver below can't retrigger fitChrome a second
   // time the way the controlsObserver could (see its own comment).
-  new ResizeObserver(fitChrome).observe(frame);
-  fitChrome();
+  new ResizeObserver(() => fitChrome('resize')).observe(frame);
+  fitChrome('init');
 
   // --- Bringing the chrome back once it has faded out ----------------------
   // The controls auto-hide (see showVideoControls in app.js) and come back on
