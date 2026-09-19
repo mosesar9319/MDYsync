@@ -162,4 +162,42 @@ test.describe('player-chrome.js — fitChrome() does not reparent controls needl
     await page.waitForTimeout(300);
     expect(await page.evaluate(() => window.__appendCalls)).toBeGreaterThan(callsWhileDown);
   });
+
+  // pointerup is not the end of a gesture: real-device evidence caught a
+  // reorder landing in the narrow window AFTER pointerup but BEFORE
+  // touchend, exactly where the fix above looked safe to run its own
+  // catch-up pass. touchend, and whatever click the browser synthesizes
+  // from it, still have to be dispatched after pointerup fires, and
+  // reparenting the pressed control in that gap is just as capable of
+  // corrupting them as reparenting it mid-touch. The deferral now holds
+  // for a short grace period past release, not just until pointerup.
+  test('a reorder stays deferred through a grace period after release, then catches up', async ({ page }) => {
+    failOnPageError(page);
+    await page.addInitScript(() => {
+      window.__appendCalls = 0;
+      const original = Element.prototype.append;
+      Element.prototype.append = function (...args) {
+        if (this.classList?.contains('pc-tools')) window.__appendCalls += 1;
+        return original.apply(this, args);
+      };
+    });
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await page.setViewportSize({ width: 340, height: 800 });
+    await page.waitForTimeout(300);
+
+    const speedBox = await page.locator('#speedSelect').boundingBox();
+    await page.mouse.move(speedBox.x + speedBox.width / 2, speedBox.y + speedBox.height / 2);
+    await page.mouse.down();
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.waitForTimeout(100);
+    await page.mouse.up();
+
+    const callsRightAfterRelease = await page.evaluate(() => window.__appendCalls);
+    await page.waitForTimeout(30);
+    expect(await page.evaluate(() => window.__appendCalls)).toBe(callsRightAfterRelease);
+
+    await page.waitForTimeout(200);
+    expect(await page.evaluate(() => window.__appendCalls)).toBeGreaterThan(callsRightAfterRelease);
+  });
 });
