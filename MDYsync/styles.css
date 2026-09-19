@@ -2463,9 +2463,21 @@ body.split-view-active .watch-layout.split-active .player-topbar-rule:not(.playe
 body.split-view-active .watch-layout.split-active .player-topbar-group {
   padding: 2px 5px;
   border-radius: 12px;
-  background: rgba(8,17,28,.82);
+  /* No backdrop-filter here (nor on .viewer-mode-select below) -- both are
+     the only backdrop-filters unique to Split View, floating directly over
+     a live, hardware-decoded YouTube iframe that in this mode can fill the
+     entire viewport width, not just a framed player. Every real-device
+     freeze traced so far (?debugtouch=1) showed every one of this app's own
+     JS functions completing cleanly, then a hang with no JS ever running
+     again -- consistent with the browser's own compositor stalling on
+     something AFTER the script returns, not a script bug. backdrop-filter
+     sampling live video content is a well-documented case of exactly that
+     on mobile GPUs, and toggling these panels' visibility on nearly every
+     tap repeatedly re-triggers it. A flatter, more opaque solid background
+     keeps the same "floating pill over the video" look without asking the
+     compositor to blur the video itself behind it. */
+  background: rgba(6,13,24,.92);
   border: 1px solid rgba(255,255,255,.14);
-  backdrop-filter: blur(6px);
 }
 /* Vaater's alignment editor (admin-only, see .watch-layout.editing in
    player/index.html's own page-local CSS) is a different, unrelated use of
@@ -2511,9 +2523,11 @@ body.split-view-active .viewer-mode-select {
   margin: 0;
   padding: 8px;
   border-radius: 14px;
-  background: rgba(8,17,28,.82);
+  /* No backdrop-filter -- see .player-topbar-group's own comment above,
+     the other of the only two backdrop-filters unique to Split View,
+     floating over the same full-bleed live video. */
+  background: rgba(6,13,24,.92);
   border: 1px solid rgba(255,255,255,.14);
-  backdrop-filter: blur(6px);
   flex-wrap: nowrap;
   max-width: calc(100vw - 20px);
 }
