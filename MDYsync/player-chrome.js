@@ -364,37 +364,59 @@
       return id ? speedMenu.querySelector(`#${CSS.escape(id)}`) : null;
     }
     function setActiveOption(li) {
-      if (!li) return;
+      window.__debugLog?.('setActiveOption() START');
+      if (!li) { window.__debugLog?.('setActiveOption() END (no li)'); return; }
       speedMenu.setAttribute('aria-activedescendant', li.id);
+      window.__debugLog?.('setActiveOption() aria-activedescendant set, toggling classes');
       for (const opt of speedMenu.children) opt.classList.toggle('is-active', opt === li);
+      window.__debugLog?.('setActiveOption() END');
     }
     // Anchored from the button's own live screen position, opening UPWARD
     // (bottom-anchored) and left-aligned to it -- this bar sits at the very
     // bottom of the frame with nothing under it, the same placement
     // positionToolsMenu below uses for the same reason.
     function positionSpeedMenu() {
+      window.__debugLog?.('positionSpeedMenu() START');
       const r = speedButton.getBoundingClientRect();
+      window.__debugLog?.('positionSpeedMenu() got rect, writing styles');
       speedMenu.style.position = 'fixed';
       speedMenu.style.left = `${Math.max(8, r.left)}px`;
       speedMenu.style.bottom = `${Math.max(8, window.innerHeight - r.top + 8)}px`;
+      window.__debugLog?.('positionSpeedMenu() END');
     }
+    // TEMPORARY, gated on the same ?debugtouch=1 diagnostic as elsewhere in
+    // this file -- a real device froze (heartbeat included) right after this
+    // exact click handler's own "CLICK FIRED" logged, with no fitChrome
+    // activity anywhere nearby, pointing at something inside openSpeedMenu
+    // itself (or the focus() call it ends with) rather than the already-
+    // fixed reorder/reparent path. Each step logs separately so the next
+    // freeze shows exactly which one never returns.
     function openSpeedMenu() {
+      window.__debugLog?.('openSpeedMenu() START');
       positionSpeedMenu();
       speedMenu.hidden = false;
+      window.__debugLog?.('openSpeedMenu() hidden=false, setting aria-expanded');
       speedButton.setAttribute('aria-expanded', 'true');
+      window.__debugLog?.('openSpeedMenu() about to setActiveOption');
       setActiveOption(speedMenu.querySelector(`[data-value="${CSS.escape(speedButton.value)}"]`) || speedMenu.firstElementChild);
       // preventScroll: this is already on screen (a fixed-position element
       // inside the viewport) -- nothing here should cause the page itself to
       // jump just because a listbox took focus.
+      window.__debugLog?.('openSpeedMenu() about to focus the menu');
       speedMenu.focus({ preventScroll: true });
+      window.__debugLog?.('openSpeedMenu() END (focus returned)');
     }
     function closeSpeedMenu() {
+      window.__debugLog?.('closeSpeedMenu() START');
       speedMenu.hidden = true;
       speedButton.setAttribute('aria-expanded', 'false');
+      window.__debugLog?.('closeSpeedMenu() END');
     }
     speedButton.addEventListener('click', (event) => {
+      window.__debugLog?.(`speedButton click handler START (menu hidden=${speedMenu.hidden})`);
       event.stopPropagation();
       if (speedMenu.hidden) openSpeedMenu(); else closeSpeedMenu();
+      window.__debugLog?.('speedButton click handler END');
     });
     speedMenu.addEventListener('keydown', (event) => {
       const items = [...speedMenu.children];
