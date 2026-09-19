@@ -5660,9 +5660,23 @@ function showSplitChrome() {
   if (!state.splitViewEnabled) { window.__debugLog?.('showSplitChrome() END (not enabled)'); return; }
   document.body.classList.remove('split-chrome-hidden');
   clearTimeout(splitChromeHideTimer);
+  // TEMPORARY: every logged real-device freeze so far has every function
+  // this file's own diagnostic already tracks completing cleanly right up
+  // to the click, then going completely silent -- including an unrelated
+  // feature (the split divider) also freezing, which points away from
+  // anything specific to whatever was tapped and toward something that
+  // runs LATER, on its own. This closure is scheduled SPLIT_CHROME_AUTO_HIDE_MS
+  // (2.4s) after every single tap and was never itself instrumented --
+  // exactly the kind of deferred callback that would explain a log that
+  // looks perfectly clean right up until a freeze that only shows up
+  // seconds after the last visible tap.
   const tick = () => {
-    if (splitChromeShouldStayVisible()) { splitChromeHideTimer = setTimeout(tick, SPLIT_CHROME_AUTO_HIDE_MS); return; }
+    window.__debugLog?.('showSplitChrome() tick() START');
+    const stay = splitChromeShouldStayVisible();
+    window.__debugLog?.(`showSplitChrome() tick() shouldStayVisible=${stay}`);
+    if (stay) { splitChromeHideTimer = setTimeout(tick, SPLIT_CHROME_AUTO_HIDE_MS); window.__debugLog?.('showSplitChrome() tick() END (re-armed)'); return; }
     document.body.classList.add('split-chrome-hidden');
+    window.__debugLog?.('showSplitChrome() tick() END (hidden)');
   };
   splitChromeHideTimer = setTimeout(tick, SPLIT_CHROME_AUTO_HIDE_MS);
   window.__debugLog?.('showSplitChrome() END');
@@ -8182,9 +8196,18 @@ function showVideoControls() {
   // window -- and simply returning left the bar docked until one happened to
   // come along, which on a YouTube shiur (whose iframe swallows them) could
   // be never.
+  // TEMPORARY: see showSplitChrome's identical comment -- this closure is
+  // scheduled CONTROLS_AUTO_HIDE_MS (2.8s) after every single tap and was
+  // never itself instrumented, exactly the kind of deferred callback that
+  // would explain a log that looks perfectly clean right up until a freeze
+  // that only shows up seconds after the last visible tap.
   const tick = () => {
-    if (controlsShouldStayVisible()) { controlsHideTimer = setTimeout(tick, CONTROLS_AUTO_HIDE_MS); return; }
+    window.__debugLog?.('showVideoControls() tick() START');
+    const stay = controlsShouldStayVisible();
+    window.__debugLog?.(`showVideoControls() tick() shouldStayVisible=${stay}`);
+    if (stay) { controlsHideTimer = setTimeout(tick, CONTROLS_AUTO_HIDE_MS); window.__debugLog?.('showVideoControls() tick() END (re-armed)'); return; }
     frame.classList.add('controls-hidden');
+    window.__debugLog?.('showVideoControls() tick() END (hidden)');
   };
   controlsHideTimer = setTimeout(tick, CONTROLS_AUTO_HIDE_MS);
   window.__debugLog?.('showVideoControls() END');
