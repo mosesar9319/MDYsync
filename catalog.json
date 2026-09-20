@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-20T00:00:46.642Z",
+  "generatedAt": "2026-09-20T01:00:35.687Z",
   "tractates": {
     "Chullin": [
       {
@@ -3197,6 +3197,11 @@
         "regularEn": {
           "videoId": "qZzYA6spVH4",
           "label": "Daf Yomi Chullin Daf 142 by R’ Eli Stefansky (unedited)",
+          "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "4fjKPTxWbBY",
+          "label": "חזרה - חולין דף קמב | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
         }
       }
