@@ -9722,4 +9722,44 @@ if (new URLSearchParams(location.search).get('debugtouch') === '1') {
       }
     };
   }
+
+  // Round 5: a real-device log showed a tap on #captionsButton logging its
+  // own CLICK FIRED line, then closeSpeedMenu() (a shared "close whatever
+  // menu is open" cleanup that runs on every click, already fully
+  // instrumented and confirmed innocent) completing cleanly -- and then
+  // nothing else, ever. Nothing in this file's own code between there and
+  // the freeze was instrumented, because the only thing left on that path
+  // is setCaptionsEnabled calling straight into the YouTube IFrame API
+  // (loadModule/unloadModule/setOption -- see its own comments), exactly
+  // the call Round 3's comment already named as suspect for speed/
+  // captions/settings/skip-rewind alike, but never actually timed. Rather
+  // than instrument each call site by hand, every method called on
+  // state.youtubePlayer is wrapped here, once, at the point it's assigned
+  // -- so a genuine hang inside the IFrame API's own JS shows up as a
+  // START line with no matching END, naming the exact method, regardless
+  // of which control called it.
+  let __rawYoutubePlayer = state.youtubePlayer;
+  Object.defineProperty(state, 'youtubePlayer', {
+    configurable: true,
+    get() { return __rawYoutubePlayer; },
+    set(player) {
+      if (!player || typeof player !== 'object') { __rawYoutubePlayer = player; return; }
+      __rawYoutubePlayer = new Proxy(player, {
+        get(target, prop, receiver) {
+          const value = Reflect.get(target, prop, receiver);
+          if (typeof value !== 'function') return value;
+          return function debugWrappedYoutubePlayerMethod(...args) {
+            const label = `youtubePlayer.${String(prop)}()`;
+            log(`${label} START`);
+            const startedAt = performance.now();
+            try {
+              return value.apply(target, args);
+            } finally {
+              log(`${label} END, ${Math.round(performance.now() - startedAt)}ms`);
+            }
+          };
+        },
+      });
+    },
+  });
 }
