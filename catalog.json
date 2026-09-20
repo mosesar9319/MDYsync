@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-20T07:00:33.593Z",
+  "generatedAt": "2026-09-20T11:00:31.838Z",
   "tractates": {
     "Chullin": [
       {
@@ -3242,6 +3242,14 @@
         "regularHe": {
           "videoId": "PXjUf4aUXs0",
           "label": "מרכז דף יומי - בכורות דף ב. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        }
+      },
+      {
+        "daf": 3,
+        "regularHe": {
+          "videoId": "WwT2nBhqXTg",
+          "label": "מרכז דף יומי -  בכורות דף ג. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
           "amud": "a"
         }
       }
