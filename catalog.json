@@ -1,6 +1,42 @@
 {
-  "generatedAt": "2026-09-21T21:00:33.232Z",
+  "generatedAt": "2026-09-21T21:44:09.125Z",
   "tractates": {
+    "Bekhorot": [
+      {
+        "daf": 2,
+        "regularEn": {
+          "videoId": "CNu3Ba5XCao",
+          "label": "Daf Yomi Bechoros Daf 2 by R' Eli Stefansky",
+          "amud": "a"
+        },
+        "chazarahEn": {
+          "videoId": "vBp-MNWJjlo",
+          "label": "CHAZARAH - Bechoros Daf 2 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "PXjUf4aUXs0",
+          "label": "מרכז דף יומי - בכורות דף ב. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        }
+      },
+      {
+        "daf": 3,
+        "regularHe": {
+          "videoId": "WwT2nBhqXTg",
+          "label": "מרכז דף יומי -  בכורות דף ג. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
+          "amud": "a"
+        }
+      },
+      {
+        "daf": 4,
+        "regularHe": {
+          "videoId": "K8UMZgzwQNE",
+          "label": "מרכז דף יומי -  בכורות דף ד. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
+          "amud": "a"
+        }
+      }
+    ],
     "Chullin": [
       {
         "daf": 2,
@@ -2041,37 +2077,37 @@
       },
       {
         "daf": 91,
-        "chazarahHe": {
-          "videoId": "lmSVBE76h1Q",
-          "label": "חזרה - חולין דף צא | \"רק הדף\" עם ר' אלי סטפנסקי",
-          "amud": "a"
-        },
         "chazarahEn": {
           "videoId": "zSlc-TwZpCQ",
           "label": "CHAZARAH - Chullin Daf 91 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "lmSVBE76h1Q",
+          "label": "חזרה - חולין דף צא | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
         }
       },
       {
         "daf": 92,
-        "regularEn": {
-          "videoId": "s-PVjfa0Z2o",
-          "label": "Daf Yomi Chullin Daf 92 by R' Eli Stefansky",
-          "amud": "a"
-        },
-        "regularHe": {
-          "videoId": "J_aDvJAaut4",
-          "label": "מרכז דף יומי - חולין דף צב. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "chazarahEn": {
           "videoId": "lPZ5TDJFrGo",
           "label": "CHAZARAH - Chullin Daf 92 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularEn": {
+          "videoId": "s-PVjfa0Z2o",
+          "label": "Daf Yomi Chullin Daf 92 by R' Eli Stefansky",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "2miKJvXOpnc",
           "label": "חזרה - חולין דף צב | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "J_aDvJAaut4",
+          "label": "מרכז דף יומי - חולין דף צב. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
@@ -2082,6 +2118,11 @@
           "label": "CHAZARAH - Chullin Daf 93 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularEn": {
+          "videoId": "sn5OGfpiuso",
+          "label": "Daf Yomi Chullin Daf 94 by R' Eli Stefansky",
+          "amud": "b"
+        },
         "chazarahHe": {
           "videoId": "NLN9mqsOBik",
           "label": "חזרה - חולין דף צג | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -2091,11 +2132,6 @@
           "videoId": "4jhBCrmrOsE",
           "label": "מרכז דף יומי - חולין דף צג. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
-        },
-        "regularEn": {
-          "videoId": "sn5OGfpiuso",
-          "label": "Daf Yomi Chullin Daf 94 by R' Eli Stefansky",
-          "amud": "b"
         }
       },
       {
@@ -2103,6 +2139,11 @@
         "chazarahEn": {
           "videoId": "EA7iBV1Rq4Q",
           "label": "CHAZARAH - Chullin Daf 94 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a"
+        },
+        "regularEn": {
+          "videoId": "sn5OGfpiuso",
+          "label": "Daf Yomi Chullin Daf 94 by R' Eli Stefansky",
           "amud": "a"
         },
         "chazarahHe": {
@@ -2114,23 +2155,18 @@
           "videoId": "zv44rKCnBIE",
           "label": "מרכז דף יומי - חולין דף צד. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
-        },
-        "regularEn": {
-          "videoId": "sn5OGfpiuso",
-          "label": "Daf Yomi Chullin Daf 94 by R' Eli Stefansky",
-          "amud": "a"
         }
       },
       {
         "daf": 95,
-        "regularEn": {
-          "videoId": "BxdKmphtSCU",
-          "label": "Daf Yomi Chullin Daf 95 by R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahEn": {
           "videoId": "z1GXdu37UpE",
           "label": "CHAZARAH - Chullin Daf 95 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a"
+        },
+        "regularEn": {
+          "videoId": "BxdKmphtSCU",
+          "label": "YouTube",
           "amud": "a"
         },
         "chazarahHe": {
@@ -2141,11 +2177,6 @@
       },
       {
         "daf": 96,
-        "regularHe": {
-          "videoId": "6YqVjNwvBFA",
-          "label": "מרכז דף יומי - חולין דף צו. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "chazarahEn": {
           "videoId": "okxVJrekKvk",
           "label": "CHAZARAH - Chullin Daf 96 | \"Nothing but the Daf\" with R' Eli Stefansky",
@@ -2155,28 +2186,33 @@
           "videoId": "ddJ_ZPAekQQ",
           "label": "חזרה - חולין דף צז | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "b"
+        },
+        "regularHe": {
+          "videoId": "6YqVjNwvBFA",
+          "label": "מרכז דף יומי - חולין דף צו. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
         }
       },
       {
         "daf": 97,
-        "chazarahHe": {
-          "videoId": "ddJ_ZPAekQQ",
-          "label": "חזרה - חולין דף צז | \"רק הדף\" עם ר' אלי סטפנסקי",
-          "amud": "a"
-        },
         "chazarahEn": {
           "videoId": "JPe_-G-_K4E",
           "label": "CHAZARAH - Chullin Daf 98 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "b"
         },
-        "regularHe": {
-          "videoId": "RL55efWOYU0",
-          "label": "מרכז דף יומי - חולין דף צח. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "b"
-        },
         "regularEn": {
           "videoId": "SbP37UtvIgI",
           "label": "Daf Yomi Chullin Daf 98 by R' Eli Stefansky",
+          "amud": "b"
+        },
+        "chazarahHe": {
+          "videoId": "ddJ_ZPAekQQ",
+          "label": "חזרה - חולין דף צז | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "RL55efWOYU0",
+          "label": "מרכז דף יומי - חולין דף צח. - ר' אלי סטפנסקי שליט\"א",
           "amud": "b"
         }
       },
@@ -2187,14 +2223,14 @@
           "label": "CHAZARAH - Chullin Daf 98 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahHe": {
-          "videoId": "3vOJBthw64M",
-          "label": "חזרה - חולין דף צח | \"רק הדף\" עם ר' אלי סטפנסקי",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "SbP37UtvIgI",
           "label": "Daf Yomi Chullin Daf 98 by R' Eli Stefansky",
+          "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "3vOJBthw64M",
+          "label": "חזרה - חולין דף צח | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
         },
         "regularHe": {
@@ -2215,22 +2251,22 @@
           "label": "Daf Yomi Chullin Daf 99 by R' Eli Stefansky",
           "amud": "a"
         },
-        "regularHe": {
-          "videoId": "i2Ufk_j-hjY",
-          "label": "מרכז דף יומי - חולין דף צט. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "HoNE084zLIo",
           "label": "חזרה - חולין דף צט | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "i2Ufk_j-hjY",
+          "label": "מרכז דף יומי - חולין דף צט. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 100,
-        "regularHe": {
-          "videoId": "uUXswcRBeTo",
-          "label": "מרכז דף יומי - חולין דף ק. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "JZs3jcbb-Iw",
+          "label": "CHAZARAH - Chullin Daf 100 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2238,22 +2274,22 @@
           "label": "Daf Yomi Chullin Daf 100 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "JZs3jcbb-Iw",
-          "label": "CHAZARAH - Chullin Daf 100 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "v4YHYFufNlY",
           "label": "חזרה - חולין דף ק | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "uUXswcRBeTo",
+          "label": "מרכז דף יומי - חולין דף ק. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 101,
-        "regularHe": {
-          "videoId": "uykeaqFU5aI",
-          "label": "מרכז דף יומי - חולין דף קא. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "TNs7cs-lgxM",
+          "label": "CHAZARAH - Chullin Daf 101 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2261,45 +2297,45 @@
           "label": "Daf Yomi Chullin Daf 101 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "TNs7cs-lgxM",
-          "label": "CHAZARAH - Chullin Daf 101 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "xKb_i0eivgs",
           "label": "חזרה - חולין דף קא | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "uykeaqFU5aI",
+          "label": "מרכז דף יומי - חולין דף קא. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 102,
-        "regularEn": {
-          "videoId": "E4SDS0hScj4",
-          "label": "Daf Yomi Chullin Daf 102 by R' Eli Stefansky",
-          "amud": "a"
-        },
-        "regularHe": {
-          "videoId": "GU7vXzTZqaM",
-          "label": "מרכז דף יומי - חולין דף קב. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "chazarahEn": {
           "videoId": "2ekS0VLaQIQ",
           "label": "CHAZARAH - Chullin Daf 102 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a"
+        },
+        "regularEn": {
+          "videoId": "E4SDS0hScj4",
+          "label": "Daf Yomi Chullin Daf 102 by R' Eli Stefansky",
           "amud": "a"
         },
         "chazarahHe": {
           "videoId": "hSyLme5GBeg",
           "label": "חזרה - חולין דף קב | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "GU7vXzTZqaM",
+          "label": "מרכז דף יומי - חולין דף קב. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
         }
       },
       {
         "daf": 103,
-        "regularHe": {
-          "videoId": "Mk5gqMYmqUU",
-          "label": "מרכז דף יומי - חולין דף קג. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "RbPc-s8PzFM",
+          "label": "CHAZARAH - Chullin Daf 103 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2307,45 +2343,45 @@
           "label": "Daf Yomi Chullin Daf 103 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "RbPc-s8PzFM",
-          "label": "CHAZARAH - Chullin Daf 103 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "IlWxjJBzJbg",
           "label": "חזרה - חולין דף קג | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "Mk5gqMYmqUU",
+          "label": "מרכז דף יומי - חולין דף קג. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 104,
-        "regularEn": {
-          "videoId": "53JhLjGcZ_0",
-          "label": "Daf Yomi Chullin Daf 104 by R’ Eli Stefansky",
-          "amud": "a"
-        },
-        "regularHe": {
-          "videoId": "EOuVcnaQGso",
-          "label": "מרכז דף יומי - חולין דף קד. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "chazarahEn": {
           "videoId": "-AUd7v4MgkA",
           "label": "CHAZARAH - Chullin Daf 104 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a"
+        },
+        "regularEn": {
+          "videoId": "53JhLjGcZ_0",
+          "label": "Daf Yomi Chullin Daf 104 by R’ Eli Stefansky",
           "amud": "a"
         },
         "chazarahHe": {
           "videoId": "rA_oiTnuAQU",
           "label": "חזרה - חולין דף קד | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "EOuVcnaQGso",
+          "label": "מרכז דף יומי - חולין דף קד. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
         }
       },
       {
         "daf": 105,
-        "regularHe": {
-          "videoId": "ueypgkE0H1A",
-          "label": "מרכז דף יומי - חולין דף קה. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "4E_OiguwRsk",
+          "label": "CHAZARAH - Chullin Daf 105 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2353,27 +2389,27 @@
           "label": "Daf Yomi Chullin Daf 105 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "4E_OiguwRsk",
-          "label": "CHAZARAH - Chullin Daf 105 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "5tER2W3_s4w",
           "label": "חזרה - חולין דף קה | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "ueypgkE0H1A",
+          "label": "מרכז דף יומי - חולין דף קה. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 106,
+        "chazarahEn": {
+          "videoId": "xj8we_LJw6E",
+          "label": "CHAZARAH - Chullin Daf 106 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a"
+        },
         "regularEn": {
           "videoId": "46LCpi8fEtI",
           "label": "Daf Yomi Chullin Daf 106 by R' Eli Stefansky",
-          "amud": "a"
-        },
-        "regularHe": {
-          "videoId": "jSZNQXRZcZM",
-          "label": "מרכז דף יומי - חולין דף קו. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         },
         "chazarahHe": {
@@ -2381,17 +2417,17 @@
           "label": "חזרה - חולין דף קו | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "xj8we_LJw6E",
-          "label": "CHAZARAH - Chullin Daf 106 | \"Nothing but the Daf\" with R' Eli Stefansky",
+        "regularHe": {
+          "videoId": "jSZNQXRZcZM",
+          "label": "מרכז דף יומי - חולין דף קו. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 107,
-        "regularHe": {
-          "videoId": "WSzXISxQ_Ro",
-          "label": "מרכז דף יומי - חולין דף קז. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "B2OTiXQ4OiI",
+          "label": "CHAZARAH - Chullin Daf 107 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2404,40 +2440,40 @@
           "label": "חזרה - חולין דף קז | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "B2OTiXQ4OiI",
-          "label": "CHAZARAH - Chullin Daf 107 | \"Nothing but the Daf\" with R' Eli Stefansky",
+        "regularHe": {
+          "videoId": "WSzXISxQ_Ro",
+          "label": "מרכז דף יומי - חולין דף קז. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 108,
-        "regularEn": {
-          "videoId": "pbrMmSYYKEE",
-          "label": "Daf Yomi Chullin Daf 108 by R' Eli Stefansky",
-          "amud": "a"
-        },
-        "regularHe": {
-          "videoId": "DOJ7HYp2ADM",
-          "label": "מרכז דף יומי - חולין דף קח. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "chazarahEn": {
           "videoId": "1E1Wj3R6zTc",
           "label": "CHAZARAH - Chullin Daf 108 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a"
+        },
+        "regularEn": {
+          "videoId": "pbrMmSYYKEE",
+          "label": "Daf Yomi Chullin Daf 108 by R' Eli Stefansky",
           "amud": "a"
         },
         "chazarahHe": {
           "videoId": "BSeuOdR8BT4",
           "label": "חזרה - חולין דף קח | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "DOJ7HYp2ADM",
+          "label": "מרכז דף יומי - חולין דף קח. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
         }
       },
       {
         "daf": 109,
-        "regularHe": {
-          "videoId": "9AMQZU69db0",
-          "label": "מרכז דף יומי - חולין דף קט. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "VxxWd0gRRDg",
+          "label": "CHAZARAH - Chullin Daf 109 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2445,22 +2481,22 @@
           "label": "Daf Yomi Chullin Daf 109 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "VxxWd0gRRDg",
-          "label": "CHAZARAH - Chullin Daf 109 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "JCneu6b9He8",
           "label": "חזרה - חולין דף קט | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "9AMQZU69db0",
+          "label": "מרכז דף יומי - חולין דף קט. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 110,
-        "regularHe": {
-          "videoId": "zw4HibC75tI",
-          "label": "מרכז דף יומי - חולין דף קי. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "C-z3Ni96ul8",
+          "label": "YouTube",
           "amud": "a"
         },
         "regularEn": {
@@ -2468,22 +2504,22 @@
           "label": "Daf Yomi Chullin Daf 110 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "C-z3Ni96ul8",
-          "label": "CHAZARAH - Chullin Daf 110 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "h-YdDUP-FJk",
           "label": "חזרה - חולין דף קי | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "zw4HibC75tI",
+          "label": "מרכז דף יומי - חולין דף קי. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 111,
-        "regularHe": {
-          "videoId": "Cjmy-tldOOE",
-          "label": "מרכז דף יומי - חולין דף קיא. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "OLyAq2sedRI",
+          "label": "CHAZARAH - Chullin Daf 111 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2491,22 +2527,22 @@
           "label": "Daf Yomi Chullin Daf 111 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "OLyAq2sedRI",
-          "label": "CHAZARAH - Chullin Daf 111 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "PNItZnUpIZo",
           "label": "חזרה - חולין דף קיא | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "Cjmy-tldOOE",
+          "label": "מרכז דף יומי - חולין דף קיא. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 112,
-        "regularHe": {
-          "videoId": "IAolQmNfHEI",
-          "label": "מרכז דף יומי - חולין דף קיב. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "pnTvSUwIWAc",
+          "label": "CHAZARAH - Chullin Daf 112 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2514,22 +2550,22 @@
           "label": "Daf Yomi Chullin Daf 112 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "pnTvSUwIWAc",
-          "label": "CHAZARAH - Chullin Daf 112 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "SjhL9aR27so",
           "label": "חזרה - חולין דף קיב | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "IAolQmNfHEI",
+          "label": "מרכז דף יומי - חולין דף קיב. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 113,
-        "regularHe": {
-          "videoId": "LrDW-jBC6rQ",
-          "label": "מרכז דף יומי - חולין דף קיג. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "C8xxe054xFU",
+          "label": "CHAZARAH - Chullin Daf 113 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2537,22 +2573,22 @@
           "label": "Daf Yomi Chullin Daf 113 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "C8xxe054xFU",
-          "label": "CHAZARAH - Chullin Daf 113 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "pbbe8G0LAMk",
           "label": "חזרה - חולין דף קיג | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "LrDW-jBC6rQ",
+          "label": "מרכז דף יומי - חולין דף קיג. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 114,
-        "regularHe": {
-          "videoId": "fqSXIh5A9OY",
-          "label": "מרכז דף יומי - חולין דף קיד. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "6X430obnCyY",
+          "label": "CHAZARAH - Chullin Daf 114 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2565,17 +2601,17 @@
           "label": "חזרה - חולין דף קיד | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "6X430obnCyY",
-          "label": "CHAZARAH - Chullin Daf 114 | \"Nothing but the Daf\" with R' Eli Stefansky",
+        "regularHe": {
+          "videoId": "fqSXIh5A9OY",
+          "label": "מרכז דף יומי - חולין דף קיד. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 115,
-        "regularHe": {
-          "videoId": "UG_77TbdpMI",
-          "label": "מרכז דף יומי - חולין דף קטו. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "XJhX_s4vV5M",
+          "label": "CHAZARAH - Chullin Daf 115 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2588,17 +2624,17 @@
           "label": "חזרה - חולין דף קטו | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "XJhX_s4vV5M",
-          "label": "CHAZARAH - Chullin Daf 115 | \"Nothing but the Daf\" with R' Eli Stefansky",
+        "regularHe": {
+          "videoId": "UG_77TbdpMI",
+          "label": "מרכז דף יומי - חולין דף קטו. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 116,
-        "regularHe": {
-          "videoId": "kLZV9NmJRak",
-          "label": "מרכז דף יומי - חולין דף קטז. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "mzaiar38eng",
+          "label": "CHAZARAH - Chullin Daf 116 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2606,22 +2642,22 @@
           "label": "Daf Yomi Chullin Daf 116 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "mzaiar38eng",
-          "label": "CHAZARAH - Chullin Daf 116 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "D6feD1GJqws",
           "label": "חזרה - חולין דף קטז | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "kLZV9NmJRak",
+          "label": "מרכז דף יומי - חולין דף קטז. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 117,
-        "regularHe": {
-          "videoId": "Be_1RJRNHOA",
-          "label": "מרכז דף יומי - חולין דף קיז. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "tTYMwxuKKSo",
+          "label": "CHAZARAH - Chullin Daf 117 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2629,22 +2665,22 @@
           "label": "Daf Yomi Chullin Daf 117 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "tTYMwxuKKSo",
-          "label": "CHAZARAH - Chullin Daf 117 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "Mp9fiXzWTqM",
           "label": "חזרה - חולין דף קיז | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "Be_1RJRNHOA",
+          "label": "מרכז דף יומי - חולין דף קיז. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 118,
-        "regularHe": {
-          "videoId": "HbyyYp8PNwU",
-          "label": "מרכז דף יומי - חולין דף קיח. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "NPO3-6bJ5BY",
+          "label": "CHAZARAH - Chullin Daf 118 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2652,22 +2688,22 @@
           "label": "Daf Yomi Chullin Daf 118 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "NPO3-6bJ5BY",
-          "label": "CHAZARAH - Chullin Daf 118 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "iiKk8c7HxzQ",
           "label": "חזרה - חולין דף קיח | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "HbyyYp8PNwU",
+          "label": "מרכז דף יומי - חולין דף קיח. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 119,
-        "regularHe": {
-          "videoId": "raJyK_8jx9g",
-          "label": "מרכז דף יומי - חולין דף קיט. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "7fRcwBPiZs0",
+          "label": "CHAZARAH - Chullin Daf 119 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2675,22 +2711,22 @@
           "label": "Daf Yomi Chullin Daf 119 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "7fRcwBPiZs0",
-          "label": "CHAZARAH - Chullin Daf 119 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "jsbBaqpW3v4",
           "label": "חזרה - חולין דף קיט | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "raJyK_8jx9g",
+          "label": "מרכז דף יומי - חולין דף קיט. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 120,
-        "regularHe": {
-          "videoId": "70GwQ9nEDuE",
-          "label": "מרכז דף יומי - חולין דף קכ. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "_Ynl0H5SzfE",
+          "label": "CHAZARAH - Chullin Daf 120 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2698,22 +2734,22 @@
           "label": "Daf Yomi Chullin Daf 120 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "_Ynl0H5SzfE",
-          "label": "CHAZARAH - Chullin Daf 120 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "aNENzg2WPGM",
           "label": "חזרה - חולין דף קכ | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "70GwQ9nEDuE",
+          "label": "מרכז דף יומי - חולין דף קכ. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 121,
-        "regularHe": {
-          "videoId": "E0CNh3YnHhc",
-          "label": "מרכז דף יומי - חולין דף קכא. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "VcEXnvsxdl8",
+          "label": "CHAZARAH - Chullin Daf 121 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2721,22 +2757,22 @@
           "label": "Daf Yomi Chullin Daf 121 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "VcEXnvsxdl8",
-          "label": "CHAZARAH - Chullin Daf 121 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "v_wZP0_GVb0",
           "label": "חזרה - חולין דף קכא | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "E0CNh3YnHhc",
+          "label": "מרכז דף יומי - חולין דף קכא. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 122,
-        "regularHe": {
-          "videoId": "LV_ojnKjFe4",
-          "label": "מרכז דף יומי - חולין דף קכב. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "1sameiouhQI",
+          "label": "CHAZARAH - Chullin Daf 122 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2744,27 +2780,27 @@
           "label": "Daf Yomi Chullin Daf 122 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "1sameiouhQI",
-          "label": "CHAZARAH - Chullin Daf 122 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "qNU-IwS3pIA",
           "label": "חזרה - חולין דף קכב | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "LV_ojnKjFe4",
+          "label": "מרכז דף יומי - חולין דף קכב. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 123,
-        "regularEn": {
-          "videoId": "8nl8y1gO9mE",
-          "label": "Daf Yomi Chullin Daf 123 by R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahEn": {
           "videoId": "6ituVf5Rvrs",
           "label": "CHAZARAH - Chullin Daf 123 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a"
+        },
+        "regularEn": {
+          "videoId": "8nl8y1gO9mE",
+          "label": "Daf Yomi Chullin Daf 123 by R' Eli Stefansky",
           "amud": "a"
         },
         "chazarahHe": {
@@ -2775,9 +2811,9 @@
       },
       {
         "daf": 124,
-        "regularHe": {
-          "videoId": "eOIdL20JRb0",
-          "label": "מרכז דף יומי - חולין דף קכד. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "hVAqrvx6OYo",
+          "label": "CHAZARAH - Chullin Daf 124 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2785,22 +2821,22 @@
           "label": "Daf Yomi Chullin Daf 124 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "hVAqrvx6OYo",
-          "label": "CHAZARAH - Chullin Daf 124 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "2ZRD4sDobBo",
           "label": "חזרה - חולין דף קכד | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "eOIdL20JRb0",
+          "label": "מרכז דף יומי - חולין דף קכד. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 125,
-        "regularHe": {
-          "videoId": "cFUv8LgAAao",
-          "label": "מרכז דף יומי - חולין דף קכה. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "cNE7LVgH4io",
+          "label": "CHAZARAH - Chullin Daf 125 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2813,17 +2849,17 @@
           "label": "חזרה - חולין דף קכה | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "cNE7LVgH4io",
-          "label": "CHAZARAH - Chullin Daf 125 | \"Nothing but the Daf\" with R' Eli Stefansky",
+        "regularHe": {
+          "videoId": "cFUv8LgAAao",
+          "label": "מרכז דף יומי - חולין דף קכה. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 126,
-        "regularHe": {
-          "videoId": "Uy0rMKgqBFU",
-          "label": "מרכז דף יומי - חולין דף קכו. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "gKWLXFc2Y2I",
+          "label": "CHAZARAH - Chullin Daf 126 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2831,22 +2867,22 @@
           "label": "Daf Yomi Chullin Daf 126 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "gKWLXFc2Y2I",
-          "label": "CHAZARAH - Chullin Daf 126 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "2D31G5dR-_g",
           "label": "חזרה - חולין דף קכו | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "Uy0rMKgqBFU",
+          "label": "מרכז דף יומי - חולין דף קכו. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 127,
-        "regularHe": {
-          "videoId": "LM9pR72tk9Y",
-          "label": "מרכז דף יומי - חולין דף קכז. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "DvBDC0CZA-M",
+          "label": "CHAZARAH - Chullin Daf 127 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2854,22 +2890,22 @@
           "label": "Daf Yomi Chullin Daf 127 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "DvBDC0CZA-M",
-          "label": "CHAZARAH - Chullin Daf 127 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "V5aNjBELYXw",
           "label": "חזרה - חולין דף קכז | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "LM9pR72tk9Y",
+          "label": "מרכז דף יומי - חולין דף קכז. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 128,
-        "regularHe": {
-          "videoId": "Fjk121YxZAU",
-          "label": "מרכז דף יומי - חולין דף קכח. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "fsd3wZ9Zm4U",
+          "label": "CHAZARAH - Chullin Daf 128 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2877,22 +2913,22 @@
           "label": "Daf Yomi Chullin Daf 128 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "fsd3wZ9Zm4U",
-          "label": "CHAZARAH - Chullin Daf 128 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "xEY4GyfR-yI",
           "label": "חזרה - חולין דף קכח | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "Fjk121YxZAU",
+          "label": "מרכז דף יומי - חולין דף קכח. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 129,
-        "regularHe": {
-          "videoId": "fq5byblvXuA",
-          "label": "מרכז דף יומי - חולין דף קכט. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "89rWaxKhoHc",
+          "label": "CHAZARAH - Chullin Daf 129 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2900,22 +2936,22 @@
           "label": "Daf Yomi Chullin Daf 129 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "89rWaxKhoHc",
-          "label": "CHAZARAH - Chullin Daf 129 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "vmv2N6MI0jQ",
           "label": "חזרה - חולין דף קכט | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "fq5byblvXuA",
+          "label": "מרכז דף יומי - חולין דף קכט. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 130,
-        "regularHe": {
-          "videoId": "p9G1qkXGXFY",
-          "label": "מרכז דף יומי - חולין דף קל. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "7cD-DkYfOVE",
+          "label": "CHAZARAH - Chullin Daf 130 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2923,22 +2959,22 @@
           "label": "Daf Yomi Chullin Daf 130 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "7cD-DkYfOVE",
-          "label": "CHAZARAH - Chullin Daf 130 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "GzcUBpM-Ne4",
           "label": "חזרה - חולין דף קל | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "p9G1qkXGXFY",
+          "label": "מרכז דף יומי - חולין דף קל. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 131,
-        "regularHe": {
-          "videoId": "off7JHZtByc",
-          "label": "מרכז דף יומי - חולין דף קלא. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "pjOqVfh_5Cs",
+          "label": "CHAZARAH - Chullin Daf 131 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2946,22 +2982,22 @@
           "label": "Daf Yomi Chullin Daf 131 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "pjOqVfh_5Cs",
-          "label": "CHAZARAH - Chullin Daf 131 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "wH6iQPbBv60",
           "label": "חזרה - חולין דף קלא | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "off7JHZtByc",
+          "label": "מרכז דף יומי - חולין דף קלא. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 132,
-        "regularHe": {
-          "videoId": "UMbie4F3V84",
-          "label": "מרכז דף יומי - חולין דף קלב. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "fnAdBg6M3z8",
+          "label": "CHAZARAH - Chullin Daf 132 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2969,22 +3005,22 @@
           "label": "Daf Yomi Chullin Daf 132 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "fnAdBg6M3z8",
-          "label": "CHAZARAH - Chullin Daf 132 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "tBw6skniEwg",
           "label": "חזרה - חולין דף קלב | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "UMbie4F3V84",
+          "label": "מרכז דף יומי - חולין דף קלב. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 133,
-        "regularHe": {
-          "videoId": "E6w_DseDYmk",
-          "label": "מרכז דף יומי - חולין דף קלג. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "wbEAsXDAgro",
+          "label": "CHAZARAH - Chullin Daf 133 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -2992,22 +3028,22 @@
           "label": "Daf Yomi Chullin Daf 133 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "wbEAsXDAgro",
-          "label": "CHAZARAH - Chullin Daf 133 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "MzqegvbM8Ow",
           "label": "חזרה - חולין דף קלג | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "E6w_DseDYmk",
+          "label": "מרכז דף יומי - חולין דף קלג. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 134,
-        "regularHe": {
-          "videoId": "Pgmb3j_kOpY",
-          "label": "מרכז דף יומי - חולין דף קלד. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "6rzFS7iBYn4",
+          "label": "CHAZARAH - Chullin Daf 134 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -3015,22 +3051,22 @@
           "label": "Daf Yomi Chullin Daf 134 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "6rzFS7iBYn4",
-          "label": "CHAZARAH - Chullin Daf 134 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "a0HjiqLW0No",
           "label": "חזרה - חולין דף קלד | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "Pgmb3j_kOpY",
+          "label": "מרכז דף יומי - חולין דף קלד. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 135,
-        "regularHe": {
-          "videoId": "fDeUM9HzBEc",
-          "label": "מרכז דף יומי - חולין דף קלה. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "lgSOZj_gkss",
+          "label": "CHAZARAH - Chullin Daf 135 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -3043,63 +3079,63 @@
           "label": "חזרה - חולין דף קלה | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "lgSOZj_gkss",
-          "label": "CHAZARAH - Chullin Daf 135 | \"Nothing but the Daf\" with R' Eli Stefansky",
+        "regularHe": {
+          "videoId": "fDeUM9HzBEc",
+          "label": "מרכז דף יומי - חולין דף קלה. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 136,
-        "regularEn": {
-          "videoId": "NEc0YQufr5k",
-          "label": "Daf Yomi Chullin Daf 136 by R' Eli Stefansky",
-          "amud": "a"
-        },
-        "regularHe": {
-          "videoId": "cO6iIG3Cim0",
-          "label": "מרכז דף יומי - חולין דף קלו. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "chazarahEn": {
           "videoId": "K_jgS0czxl4",
           "label": "CHAZARAH - Chullin Daf 136 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a"
+        },
+        "regularEn": {
+          "videoId": "NEc0YQufr5k",
+          "label": "Daf Yomi Chullin Daf 136 by R' Eli Stefansky",
           "amud": "a"
         },
         "chazarahHe": {
           "videoId": "_KSEm7W1ySo",
           "label": "חזרה - חולין דף קלז | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "b"
+        },
+        "regularHe": {
+          "videoId": "cO6iIG3Cim0",
+          "label": "מרכז דף יומי - חולין דף קלו. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
         }
       },
       {
         "daf": 137,
-        "regularEn": {
-          "videoId": "YB3hLTJL8cs",
-          "label": "Daf Yomi Chullin Daf 137 by R' Eli Stefansky",
-          "amud": "a"
-        },
-        "regularHe": {
-          "videoId": "kVAIoQSpSZg",
-          "label": "מרכז דף יומי - חולין דף קלז. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "chazarahEn": {
           "videoId": "UobYLtD7xXI",
           "label": "CHAZARAH - Chullin Daf 137 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a"
+        },
+        "regularEn": {
+          "videoId": "YB3hLTJL8cs",
+          "label": "Daf Yomi Chullin Daf 137 by R' Eli Stefansky",
           "amud": "a"
         },
         "chazarahHe": {
           "videoId": "_KSEm7W1ySo",
           "label": "חזרה - חולין דף קלז | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "kVAIoQSpSZg",
+          "label": "מרכז דף יומי - חולין דף קלז. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
         }
       },
       {
         "daf": 138,
-        "regularHe": {
-          "videoId": "4nnjXLsoHZI",
-          "label": "מרכז דף יומי - חולין דף קלח. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "ijLOO2tKIYw",
+          "label": "CHAZARAH - Chullin Daf 138 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -3107,22 +3143,22 @@
           "label": "Daf Yomi Chullin Daf 138 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "ijLOO2tKIYw",
-          "label": "CHAZARAH - Chullin Daf 138 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "Vfb-nJkI09A",
           "label": "חזרה - חולין דף קלח | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "4nnjXLsoHZI",
+          "label": "מרכז דף יומי - חולין דף קלח. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 139,
-        "regularHe": {
-          "videoId": "Dl3eke8H8is",
-          "label": "מרכז דף יומי - חולין דף קלט. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "JTesccAFWj8",
+          "label": "CHAZARAH - Chullin Daf 139 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -3130,22 +3166,22 @@
           "label": "Daf Yomi Chullin Daf 139 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "JTesccAFWj8",
-          "label": "CHAZARAH - Chullin Daf 139 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "D_2CniwJs-8",
           "label": "חזרה - חולין דף קלט | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "Dl3eke8H8is",
+          "label": "מרכז דף יומי - חולין דף קלט. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 140,
-        "regularHe": {
-          "videoId": "yRO8ixpAIXk",
-          "label": "מרכז דף יומי - חולין דף קמ. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "EHwJuiD37mc",
+          "label": "CHAZARAH - Chullin Daf 140 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -3153,22 +3189,22 @@
           "label": "Daf Yomi Chullin Daf 140 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "EHwJuiD37mc",
-          "label": "CHAZARAH - Chullin Daf 140 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "shn9VdwjqZ0",
           "label": "חזרה - חולין דף קמ | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "yRO8ixpAIXk",
+          "label": "מרכז דף יומי - חולין דף קמ. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 141,
-        "regularHe": {
-          "videoId": "fQU469sT4DQ",
-          "label": "מרכז דף יומי - חולין דף קמא. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "HVMK22ROy0g",
+          "label": "CHAZARAH - Chullin Daf 141 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -3176,22 +3212,22 @@
           "label": "Daf Yomi Chullin Daf 141 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "HVMK22ROy0g",
-          "label": "CHAZARAH - Chullin Daf 141 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
         "chazarahHe": {
           "videoId": "XoeDtitr-Lk",
           "label": "חזרה - חולין דף קמא | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "fQU469sT4DQ",
+          "label": "מרכז דף יומי - חולין דף קמא. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       },
       {
         "daf": 142,
-        "regularHe": {
-          "videoId": "5K3ypDvuwU8",
-          "label": "מרכז דף יומי - חולין דף קמב. - ר' אלי סטפנסקי שליט\"א",
+        "chazarahEn": {
+          "videoId": "quIsdcpIyV0",
+          "label": "CHAZARAH - Chullin Daf 142 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularEn": {
@@ -3204,9 +3240,9 @@
           "label": "חזרה - חולין דף קמב | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
         },
-        "chazarahEn": {
-          "videoId": "quIsdcpIyV0",
-          "label": "CHAZARAH - Chullin Daf 142 | \"Nothing but the Daf\" with R' Eli Stefansky",
+        "regularHe": {
+          "videoId": "5K3ypDvuwU8",
+          "label": "מרכז דף יומי - חולין דף קמב. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       }
@@ -3232,32 +3268,6 @@
         "regularEn": {
           "videoId": "2s3d2_CEw58",
           "label": "Daf Yomi Chullin Daf 2 by R' Eli Stefansky",
-          "amud": "a"
-        }
-      }
-    ],
-    "Bekhorot": [
-      {
-        "daf": 2,
-        "regularHe": {
-          "videoId": "PXjUf4aUXs0",
-          "label": "מרכז דף יומי - בכורות דף ב. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        }
-      },
-      {
-        "daf": 3,
-        "regularHe": {
-          "videoId": "WwT2nBhqXTg",
-          "label": "מרכז דף יומי -  בכורות דף ג. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
-          "amud": "a"
-        }
-      },
-      {
-        "daf": 4,
-        "regularHe": {
-          "videoId": "K8UMZgzwQNE",
-          "label": "מרכז דף יומי -  בכורות דף ד. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
           "amud": "a"
         }
       }
