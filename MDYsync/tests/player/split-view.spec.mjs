@@ -453,6 +453,53 @@ test.describe('Split View — the daf pane is flush, and the combined bar auto-h
     expect(style.boxShadow).toBe('none');
   });
 
+  // .video-frame's border-radius was already zeroed for the flush edge,
+  // but the 1px solid border every .video-frame has by default was left in
+  // place -- reported directly as a thin line still framing the video on
+  // every side, at odds with the flush edges the daf pane (above) and the
+  // video pane are both meant to have.
+  test('the video pane has no border of its own in Split View either', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+
+    const border = await page.evaluate(() => getComputedStyle(document.querySelector('.video-frame')).borderWidth);
+    expect(border).toBe('0px');
+  });
+
+  // A real-device report: every control-bar button (speed, settings, the
+  // mode pills) did nothing at all when tapped, even the ones that never
+  // touch the YouTube API (the mode pills are pure state/class toggles) --
+  // ruling out a YouTube-readiness explanation and pointing at something
+  // swallowing the tap before it ever reaches the intended button. A
+  // YouTube shiur here is a cross-origin IFRAME filling the entire video
+  // box, full bleed under the opaque control bar; a real device's own
+  // compositor can route a touch straight to that iframe's own layer
+  // regardless of the DOM's z-order, a class of bug no synthetic click or
+  // elementFromPoint check here can ever reproduce -- confirmed once
+  // already earlier in this feature's history against the adjacent symptom
+  // (a tap toggling play/pause instead of reaching the tapped button).
+  // pointer-events: none on the iframe forces every tap through the layers
+  // actually built to interpret it instead.
+  test('the video itself takes no pointer input in Split View -- only the pinch surface above it does', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+
+    const pe = await page.evaluate(() => {
+      const video = document.getElementById('video');
+      const ytHost = document.getElementById('youtubePlayerHost');
+      return {
+        video: video ? getComputedStyle(video).pointerEvents : null,
+        ytHost: ytHost ? getComputedStyle(ytHost).pointerEvents : null,
+      };
+    });
+    if (pe.video !== null) expect(pe.video).toBe('none');
+    if (pe.ytHost !== null) expect(pe.ytHost).toBe('none');
+  });
+
   test('the standalone Split View toolbar is merged into the prominent mode selector, with a divider', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });

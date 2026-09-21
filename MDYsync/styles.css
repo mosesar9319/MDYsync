@@ -2400,7 +2400,10 @@ body.split-view-active .watch-layout.split-active > .player-card .reading-video-
   flex: 1; height: 100%; min-height: 0;
 }
 body.split-view-active .watch-layout.split-active > .player-card .reading-video-slot { height: 100%; }
-body.split-view-active .watch-layout.split-active > .player-card .video-frame { flex: 1; height: 100%; aspect-ratio: auto; border-radius: 0; }
+/* border-radius was already zeroed here for the flush edge, but the base
+   1px solid border .video-frame always has was left in place -- reported
+   directly as a thin white line still framing the video on every side. */
+body.split-view-active .watch-layout.split-active > .player-card .video-frame { flex: 1; height: 100%; aspect-ratio: auto; border-radius: 0; border: 0; }
 /* Vaater's alignment editor (admin-only, see .watch-layout.editing in
    player/index.html's own page-local CSS) is a different, unrelated use of
    this same container -- Split View is not expected to be entered while it's
@@ -2678,6 +2681,24 @@ body.split-view-active .watch-layout.split-active .video-frame #video,
 body.split-view-active .watch-layout.split-active .video-frame #youtubePlayerHost {
   width: 100%;
   height: 100%;
+  /* The pinch surface above is the ONE deliberate tap-to-play/pinch/pan
+     handler for this picture in Split View, precisely because (per its own
+     comment) it would otherwise "silently swallow" a tap meant for the
+     video underneath it -- a design that assumes the video itself doesn't
+     also need to see that tap. It was never actually cut off from
+     receiving one, though: a real-device report showed every control-bar
+     button (speed, settings, the mode pills) doing nothing at all when
+     tapped. A YouTube shiur here is a cross-origin IFRAME occupying this
+     exact box, full bleed under the opaque control bar included; on a real
+     device its own compositor layer can receive a touch directly,
+     independent of the DOM's own z-order/opacity, in a way no headless/
+     synthetic-touch test reproduces -- confirmed directly earlier in this
+     feature's history against the same symptom (a tap toggling play/pause
+     instead of reaching the tapped button), and the fix carries the same
+     way: cutting the iframe off from pointer input entirely forces every
+     tap through the layers actually built to interpret it (the pinch
+     surface, the topbar, the control bar). */
+  pointer-events: none;
 }
 @media (prefers-reduced-motion: no-preference) {
   body.split-view-active .watch-layout.split-active .video-frame #video,
