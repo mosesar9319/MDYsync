@@ -1772,13 +1772,23 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
           if (row[combo] && comboMatchesFilters(combo)) items.push({ row, combo });
         }
       }
-      // A higher daf number is later in the cycle, i.e. newer -- "newest
-      // first" is descending daf, matching the sort toggle's default. Combo
-      // order is the secondary key so a daf's own cards stay grouped
-      // together instead of interleaving with neighbouring dapim.
+      // A higher daf number is later *within a tractate*, but the site now
+      // has more than one tractate's worth of content (see SITE_TRACTATES),
+      // and daf numbers reset to a low number at the start of each one --
+      // sorting on daf alone used to work only because Chullin was ever the
+      // only tractate with anything synced, so nothing exposed that it
+      // wasn't really "newest first" globally. SITE_TRACTATES is already in
+      // real Daf Yomi cycle order, so a tractate's own index in it is what
+      // actually determines "later in the cycle" across tractate
+      // boundaries; daf number is still what orders dapim within the same
+      // tractate. Combo order is the last tiebreak so a daf's own cards
+      // stay grouped together instead of interleaving with neighbouring
+      // dapim.
       const direction = state.sortOrder === "old" ? 1 : -1;
       return items.sort((a, b) =>
-        direction * (a.row.daf - b.row.daf) || COMBO_KEYS.indexOf(a.combo) - COMBO_KEYS.indexOf(b.combo));
+        direction * (SITE_TRACTATES.indexOf(a.row.tractate) - SITE_TRACTATES.indexOf(b.row.tractate))
+        || direction * (a.row.daf - b.row.daf)
+        || COMBO_KEYS.indexOf(a.combo) - COMBO_KEYS.indexOf(b.combo));
     }
 
     // The modal still offers every combo the daf has (not just the one the
