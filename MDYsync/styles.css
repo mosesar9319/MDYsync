@@ -2632,6 +2632,27 @@ body.split-view-active .watch-layout.split-active .video-frame .player-topbar {
   top: calc(max(10px, env(safe-area-inset-top, 0px)) + 74px);
   z-index: 13;
 }
+/* Shifting the topbar down vacates the strip above it (0 to its new top),
+   which used to be covered by the topbar's own gradient background --
+   left bare, it showed a hard seam where that background now starts
+   abruptly mid-frame, and a YouTube shiur's own native title overlay
+   showing through underneath, which this app hides everywhere else. A
+   pseudo-element on the topbar itself (its nearest positioned ancestor is
+   the topbar, so this extends upward from its own top edge) fills exactly
+   that gap with the same starting color the gradient below it already
+   uses, so the two reads as one continuous surface. pointer-events: none
+   so the pinch-zoom surface underneath still receives gestures there --
+   this is decoration only, nothing here is interactive. */
+body.split-view-active .watch-layout.split-active .video-frame .player-topbar::before {
+  content: '';
+  position: absolute;
+  top: calc(-1 * (max(10px, env(safe-area-inset-top, 0px)) + 74px));
+  left: 0;
+  right: 0;
+  height: calc(max(10px, env(safe-area-inset-top, 0px)) + 74px);
+  background: rgba(4,12,22,.9);
+  pointer-events: none;
+}
 /* Applied to the video PICTURE only (#video / #youtubePlayerHost -- exactly
    one is visible at a time, see app.js's own source-switch code) -- NOT to
    #videoFrame itself. #videoFrame also contains the topbar, control bar and

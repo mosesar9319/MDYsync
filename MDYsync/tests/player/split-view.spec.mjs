@@ -370,6 +370,34 @@ test.describe('Split View — its overlays never cover the player chrome', () =>
     expect(elAtDafButton).toBe(true);
   });
 
+  // Shifting the topbar down to clear the combined bar (above) vacates the
+  // strip it used to cover with its own gradient background -- left bare,
+  // that showed as a hard seam where the topbar's background now starts
+  // abruptly mid-frame, and a YouTube shiur's own native title overlay
+  // showing through underneath, in the exact gap this app otherwise hides
+  // it in everywhere else. A pseudo-element on the topbar fills that gap.
+  test('the gap above the repositioned topbar is covered, not a bare seam', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+    await dismissErrorBanner(page);
+
+    const gap = await page.evaluate(() => {
+      const topbar = document.querySelector('.player-topbar');
+      const r = topbar.getBoundingClientRect();
+      const before = getComputedStyle(topbar, '::before');
+      return { topbarTop: r.top, beforeHeight: parseFloat(before.height), beforeBackground: before.backgroundColor };
+    });
+    // The pseudo-element's own height should span from the very top of the
+    // frame down to the (now repositioned) topbar's own top edge -- not a
+    // fixed guess, so it stays correct if that offset ever changes. A
+    // couple of pixels of slack absorbs calc()-vs-getBoundingClientRect
+    // subpixel rounding, not a meaningful gap.
+    expect(Math.abs(gap.beforeHeight - gap.topbarTop)).toBeLessThanOrEqual(2);
+    expect(gap.beforeBackground).toBe('rgba(4, 12, 22, 0.9)');
+  });
+
   // An identity transform still promotes the element to its own composited
   // layer, and on a YouTube shiur that element is a cross-origin iframe
   // whose video the browser composites itself -- a known way for that video
