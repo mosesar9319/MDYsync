@@ -206,6 +206,13 @@ test.describe('Split View — divider and layout', () => {
 
     await page.click('#viewerModeSplitButton');
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+    // The fixture's "No segments found" error (see this file's own header
+    // comment) re-throws on this second entry too, showing the sitewide
+    // banner again -- now sitting in the same top strip as the merged bar's
+    // exit button, where the standalone toolbar's own lower position used
+    // to keep it clear. Dismissed the same way enterSplitView() already
+    // does for the first entry.
+    await dismissErrorBanner(page);
     await expect(page.locator('#splitExitButton')).toBeVisible();
     await page.click('#splitExitButton');
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
@@ -280,6 +287,203 @@ test.describe('Split View — daf pinch-zoom does not layout-thrash on rapid tou
     // Correctness alongside the throttling: the LAST touch event's ratio is
     // still what wins, not some earlier, already-stale intermediate frame.
     expect(result.finalZoom).toBeGreaterThan(1);
+  });
+});
+
+// The video pane stacks several absolutely-positioned layers inside
+// .video-frame: the topbar (z-index 7), the picture, the pinch-zoom
+// surface (11), this pane's own zoom buttons (12), and the player's own
+// docked chrome -- the timeline (.scrubber-wrap, z-index 7) sitting
+// directly on top of the control bar (z-index 6). The pinch surface and
+// zoom buttons only carved room for the control bar out of their own
+// bottom edge, leaving the timeline (which lives ABOVE the control bar, in
+// its own --pc-timeline-h band) buried underneath: seeking did nothing at
+// all, and because the pinch surface reads a drag as a pan and a tap as
+// tap-to-toggle-play, a scrub attempt played or paused the video instead
+// of seeking -- reported as "the seek bar doesn't work" and "the video
+// pauses/plays when tapping anywhere". The pinch surface's top edge (0)
+// also sat above the topbar's own z-index, silently swallowing its daf
+// picker/bookmark/notes/more buttons the same way.
+test.describe('Split View — its overlays never cover the player chrome', () => {
+  test('neither the pinch surface nor the zoom buttons overlap the timeline or the control bar', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+
+    const bands = await page.evaluate(() => {
+      const box = (sel) => {
+        const el = document.querySelector(sel);
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { top: r.top, bottom: r.bottom };
+      };
+      return {
+        pinch: box('#splitVideoPinchSurface'),
+        zoom: box('#splitVideoZoomControls'),
+        scrubber: box('.scrubber-wrap'),
+        controls: box('.player-controls'),
+      };
+    });
+
+    const overlaps = (a, b) => a.top < b.bottom && b.top < a.bottom;
+    for (const [overlayName, overlay] of [['pinch surface', bands.pinch], ['zoom buttons', bands.zoom]]) {
+      for (const [chromeName, chrome] of [['the timeline', bands.scrubber], ['the control bar', bands.controls]]) {
+        expect(overlaps(overlay, chrome), `${overlayName} overlaps ${chromeName}`).toBe(false);
+      }
+    }
+  });
+
+  test('the seek bar actually receives clicks in Split View, instead of the pinch surface swallowing them', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+    // The fixture's own "No segments found" error (see this file's header
+    // comment) can throw asynchronously, after enterSplitView()'s own
+    // dismiss already ran -- defended against the same way a second entry
+    // elsewhere in this file is.
+    await dismissErrorBanner(page);
+
+    const elAtScrubberCenter = await page.evaluate(() => {
+      const scrubber = document.querySelector('.scrubber-wrap');
+      const r = scrubber.getBoundingClientRect();
+      const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return el?.closest('.scrubber-wrap') != null;
+    });
+    expect(elAtScrubberCenter).toBe(true);
+  });
+
+  test("the video topbar's own buttons receive clicks, instead of the pinch surface swallowing them", async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+    await dismissErrorBanner(page);
+
+    const elAtDafButton = await page.evaluate(() => {
+      const btn = document.getElementById('playerDafButton');
+      const r = btn.getBoundingClientRect();
+      const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return el?.closest('#playerDafButton') != null;
+    });
+    expect(elAtDafButton).toBe(true);
+  });
+
+  // An identity transform still promotes the element to its own composited
+  // layer, and on a YouTube shiur that element is a cross-origin iframe
+  // whose video the browser composites itself -- a known way for that video
+  // to stop updating on mobile while the rest of the page keeps working.
+  // Nothing needs the transform until a reader actually zooms.
+  test('no transform is applied to the video until it is actually zoomed', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+
+    const atRest = await page.evaluate(() => getComputedStyle(document.getElementById('video')).transform);
+    expect(atRest).toBe('none');
+
+    await page.click('#splitVideoZoomInButton');
+    await expect.poll(() => page.evaluate(() => state.splitVideoZoom)).toBeGreaterThan(1);
+    const zoomed = await page.evaluate(() => getComputedStyle(document.getElementById('video')).transform);
+    expect(zoomed).not.toBe('none');
+
+    await page.click('#splitVideoZoomResetButton');
+    await expect.poll(() => page.evaluate(() => state.splitVideoZoom)).toBe(1);
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.getElementById('video')).transform)).toBe('none');
+  });
+});
+
+// The daf pane sits flush against the video (no card padding/background/
+// border of its own), and the standalone Split View toolbar is merged into
+// the prominent mode selector as one combined bar that auto-hides on
+// inactivity and reappears on interaction -- the second attempt at the
+// feature this repo shipped, after the first one froze real devices. The
+// key architectural difference from the first attempt: the reveal
+// listeners are scoped to the daf pane and the bar itself, never the whole
+// document, and specifically never the video's own control bar, which
+// already has its own separate auto-hide system -- the first attempt's
+// listening globally meant every tap on THAT bar (speed, captions,
+// settings, ...) also retriggered this bar's own class churn, compounding
+// whatever was actually happening on a real device when those exact
+// buttons froze the page.
+test.describe('Split View — the daf pane is flush, and the combined bar auto-hides safely', () => {
+  test('the daf pane has no card padding/background/border of its own in Split View', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+
+    const style = await page.evaluate(() => {
+      const cs = getComputedStyle(document.querySelector('.daf-card'));
+      return { padding: cs.padding, background: cs.backgroundColor, border: cs.borderWidth, boxShadow: cs.boxShadow };
+    });
+    expect(style.padding).toBe('0px');
+    expect(style.background).toBe('rgba(0, 0, 0, 0)');
+    expect(style.border).toBe('0px');
+    expect(style.boxShadow).toBe('none');
+  });
+
+  test('the standalone Split View toolbar is merged into the prominent mode selector, with a divider', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+
+    const merged = await page.evaluate(() => {
+      const toolbar = document.getElementById('splitToolbar');
+      const select = document.getElementById('viewerModeSelect');
+      return {
+        toolbarParentIsSelect: toolbar?.parentElement === select,
+        hasDivider: !!select?.querySelector('.viewer-mode-bar-divider'),
+      };
+    });
+    expect(merged.toolbarParentIsSelect).toBe(true);
+    expect(merged.hasDivider).toBe(true);
+  });
+
+  test('the combined bar auto-hides after inactivity, and only the daf pane or the bar itself bring it back -- never the video control bar', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+
+    await expect.poll(() => page.evaluate(() => document.body.classList.contains('split-chrome-hidden')), {
+      timeout: 4000,
+    }).toBe(true);
+
+    // The video's own control bar must NOT bring it back -- that bar has
+    // its own, separate auto-hide/reveal system, and this one has nothing
+    // to do with it.
+    await page.evaluate(() => {
+      document.querySelector('.player-controls').dispatchEvent(new Event('touchstart', { bubbles: true }));
+    });
+    await page.waitForTimeout(100);
+    expect(await page.evaluate(() => document.body.classList.contains('split-chrome-hidden'))).toBe(true);
+
+    // The daf pane -- the one place in Split View this bar's absence isn't
+    // covered by anything else -- must bring it back.
+    await page.evaluate(() => {
+      document.querySelector('.daf-card').dispatchEvent(new Event('touchstart', { bubbles: true }));
+    });
+    await page.waitForTimeout(100);
+    expect(await page.evaluate(() => document.body.classList.contains('split-chrome-hidden'))).toBe(false);
+  });
+
+  test('a keyboard Tab into the page still brings the bar back, even from outside the player/daf area', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+
+    await expect.poll(() => page.evaluate(() => document.body.classList.contains('split-chrome-hidden')), {
+      timeout: 4000,
+    }).toBe(true);
+
+    await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true })));
+    await page.waitForTimeout(100);
+    expect(await page.evaluate(() => document.body.classList.contains('split-chrome-hidden'))).toBe(false);
   });
 });
 

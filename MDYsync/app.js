@@ -5622,6 +5622,7 @@ function setSplitView(enabled) {
     container.classList.add('split-active');
     applySplitViewLayoutToDom();
     applySplitVideoTransform();
+    showSplitChrome();
     // Double rAF, matching restoreReadingVideoPlacement's own reasoning: one
     // frame for the class change to take effect, a second so the resulting
     // layout is what gets measured.
@@ -5630,11 +5631,59 @@ function setSplitView(enabled) {
   }
 
   state.splitViewEnabled = false;
-  document.body.classList.remove('split-view-active');
+  document.body.classList.remove('split-view-active', 'split-chrome-hidden');
+  clearTimeout(splitChromeHideTimer);
+  pointerRestingOnSplitChrome = false;
   container.classList.remove('split-active', 'split-stacked', 'split-video-end');
   container.style.removeProperty('--split-video-ratio');
   resetSplitVideoZoom({ announce: false });
   scheduleVilnaPageLayoutRefresh(0);
+}
+
+// Only appears on cursor movement or a tap, then fades -- mirroring
+// showVideoControls' own .controls-hidden idea (further down in this file)
+// for the same reason: a bar that's always on screen is more chrome than a
+// reader watching a shiur actually wants up there. A plain top-level
+// function (not nested in initSplitView's own IIFE below) so setSplitView
+// above can call it directly the moment Split View is entered, not just the
+// event listeners that otherwise drive it.
+//
+// Two things are deliberately narrower here than showVideoControls' own
+// pattern, both informed by this feature's first attempt freezing real
+// devices: the reveal listeners (below, in initSplitView) are scoped to
+// just the daf pane and the bar itself, not every pointer/touch/focus event
+// on the whole document -- the bar has nothing to do with the video's own
+// control bar, which already has its own, separate auto-hide/reveal system,
+// and listening globally meant this bar's own class churn ran again on
+// every single tap on THAT bar too, for no reason. And the auto-HIDE half
+// below (never the reveal half, which must stay instant) defers while a
+// pointer is down anywhere, the same guard fitChrome() already relies on --
+// this bar's own churn is just a class toggle, never a reparent, so it was
+// never confirmed to be part of that corruption itself, but it costs
+// nothing to keep it out of a gesture's way regardless.
+const SPLIT_CHROME_AUTO_HIDE_MS = 2400;
+let splitChromeHideTimer = null;
+let pointerRestingOnSplitChrome = false;
+let splitChromePointersDown = 0;
+document.addEventListener('pointerdown', () => { splitChromePointersDown += 1; }, { capture: true });
+const onSplitChromePointerSettle = () => { splitChromePointersDown = Math.max(0, splitChromePointersDown - 1); };
+document.addEventListener('pointerup', onSplitChromePointerSettle, { capture: true });
+document.addEventListener('pointercancel', onSplitChromePointerSettle, { capture: true });
+function splitChromeShouldStayVisible() {
+  if (pointerRestingOnSplitChrome || splitDividerDrag) return true;
+  const active = document.activeElement;
+  return !!(active && active.closest?.('#viewerModeSelect') && active.matches(':focus-visible'));
+}
+function showSplitChrome() {
+  if (!state.splitViewEnabled) return;
+  document.body.classList.remove('split-chrome-hidden');
+  clearTimeout(splitChromeHideTimer);
+  const tick = () => {
+    if (splitChromePointersDown > 0) { splitChromeHideTimer = setTimeout(tick, 120); return; }
+    if (splitChromeShouldStayVisible()) { splitChromeHideTimer = setTimeout(tick, SPLIT_CHROME_AUTO_HIDE_MS); return; }
+    document.body.classList.add('split-chrome-hidden');
+  };
+  splitChromeHideTimer = setTimeout(tick, SPLIT_CHROME_AUTO_HIDE_MS);
 }
 
 // --- Split View's own video pinch-zoom/pan --------------------------------
@@ -5736,6 +5785,22 @@ function announceViewerMode(mode) {
   const container = splitViewContainer();
   const divider = $('splitDivider');
   loadSplitViewPreferences();
+  // Combine the prominent selector and Split View's own toolbar into ONE
+  // bar -- reader-requested, in place of two separate floating bars. Moved
+  // once here, not per mode-transition: these are plain buttons with no
+  // fragile state tied to their DOM position (unlike the video/daf, which
+  // are never reparented -- see this feature's own opening comment), so a
+  // one-time move at init is all this needs. #splitToolbar becomes a
+  // trailing child of #viewerModeSelect, a visually-merged continuation of
+  // its own row, separated by a thin divider.
+  const viewerModeSelect = $('viewerModeSelect');
+  const splitToolbar = $('splitToolbar');
+  if (viewerModeSelect && splitToolbar) {
+    const barDivider = document.createElement('span');
+    barDivider.className = 'viewer-mode-bar-divider';
+    barDivider.setAttribute('aria-hidden', 'true');
+    viewerModeSelect.append(barDivider, splitToolbar);
+  }
   // Every page loads into 'standard' -- the same plain .watch-layout grid
   // shown before this feature existed -- exactly as it always did. Split
   // View (like the other two modes) is reached only by an explicit reader
@@ -5923,6 +5988,43 @@ function announceViewerMode(mode) {
       setViewerMode('standard');
     }
   });
+
+  // --- Bringing the combined bar back once it has faded out --------------
+  // Scoped to the daf pane and the bar itself -- NOT the whole document,
+  // and deliberately NOT the video pane, which has its own, separate
+  // auto-hide/reveal system already (.controls-hidden/showVideoControls)
+  // with nothing to do with this bar. Listening on the whole document was
+  // this feature's first real-device freeze report: every single tap on
+  // the VIDEO's own control bar (speed, captions, settings, ...) also
+  // retriggered this bar's own class churn, for no reason connected to
+  // what was actually tapped, doubling the DOM churn already running on
+  // that tap alongside the video-controls system's own reveal. The daf
+  // pane still needs to trigger a reveal here (it's the one place in Split
+  // View this bar's absence isn't covered by anything else), and the bar
+  // itself needs to via pointerover/pointerout below, for a mouse resting
+  // on it without generating further mousemove.
+  const dafCard = container.querySelector('.daf-card');
+  for (const target of [dafCard, viewerModeSelect].filter(Boolean)) {
+    target.addEventListener('mousemove', showSplitChrome);
+    target.addEventListener('pointerdown', showSplitChrome);
+    target.addEventListener('touchstart', showSplitChrome, { passive: true });
+  }
+  // keydown stays document-wide, unlike the pointer/touch listeners above:
+  // it never fires as part of a touch gesture (nothing here is guarding
+  // against a keyboard event racing one), and scoping it would strand a
+  // reader tabbing in from elsewhere on the page on a bar that's still
+  // invisible right under their new focus.
+  document.addEventListener('keydown', showSplitChrome);
+  if (viewerModeSelect) {
+    viewerModeSelect.addEventListener('pointerover', (event) => {
+      if (event.pointerType !== 'mouse') return;
+      pointerRestingOnSplitChrome = true;
+    });
+    viewerModeSelect.addEventListener('pointerout', (event) => {
+      if (event.pointerType !== 'mouse') return;
+      pointerRestingOnSplitChrome = false;
+    });
+  }
 })();
 
 // Mirrors toggleVilnaFullscreen's own WebKit-prefixed fallback below --

@@ -2353,7 +2353,31 @@ body.split-view-active .watch-layout.split-active > .player-card {
      to draw a frame around it. */
   padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none;
 }
-body.split-view-active .watch-layout.split-active > .daf-card { grid-column: 3; grid-row: 1; margin: 0; min-width: 0; min-height: 0; height: 100%; overflow: auto; }
+body.split-view-active .watch-layout.split-active > .daf-card {
+  grid-column: 3; grid-row: 1; margin: 0; min-width: 0; min-height: 0; height: 100%; overflow: auto;
+  /* Flush with the video pane, the same way .player-card is -- no card
+     padding/background/border/shadow of its own left to hold the printed
+     page away from the shared edge. Unlike .player-card, nothing inside is
+     hidden: the daf stays fully interactive (header, zoom toolbar, the page
+     itself, the status bar), just flush to the pane instead of inset in it. */
+  padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none;
+}
+/* .daf-scroll already manages its own internal spacing independently of
+   .daf-card's own padding (see .vilna-zoom-controls' own negative-margin
+   trick, which cancels .vilna-placeholder's padding to span the full width
+   of whatever contains it) -- zeroing ITS rounding is the only follow-on
+   change flush needs there. The header (player/index.html's own
+   .daf-header, or browse/watch's .card-heading) has no padding of its own
+   at all normally, relying entirely on .daf-card's now-zeroed padding for
+   its breathing room -- given a little back directly so its title/tools row
+   isn't glued to the very edge. */
+body.split-view-active .watch-layout.split-active > .daf-card .daf-scroll {
+  border-radius: 0;
+}
+body.split-view-active .watch-layout.split-active > .daf-card > .daf-header,
+body.split-view-active .watch-layout.split-active > .daf-card > .card-heading {
+  padding: 14px 16px 0;
+}
 body.split-view-active .watch-layout.split-active .split-divider { grid-column: 2; grid-row: 1; }
 body.split-view-active .watch-layout.split-active.split-stacked > .player-card { grid-column: 1; grid-row: 1; }
 body.split-view-active .watch-layout.split-active.split-stacked > .daf-card { grid-column: 1; grid-row: 3; }
@@ -2512,29 +2536,25 @@ body.split-view-active .watch-layout.split-active.split-stacked .split-divider::
 body:not(.split-view-active) .split-divider,
 .watch-layout:not(.split-active) .split-divider { display: none; }
 
-/* Split View's own small, unobtrusive toolbar (layout toggle, swap, reset,
-   fullscreen, exit) -- fades on inactivity, returns on any pointer/touch/
-   focus/keyboard activity, same idle behavior .player-controls already has
-   via .controls-hidden (see showVideoControls in app.js), just a separate,
-   simpler always-there-on-interaction strip since it sits outside the video
-   frame itself. */
-/* top offset clears the prominent selector's own fixed overlay bar above it
-   (see body.split-view-active .viewer-mode-select) -- both sit at the top of
-   the very same fixed-position .watch-layout, so an equal top would put them
-   in the same strip; confirmed directly that they then compete for clicks. */
+/* Split View's own small toolbar (layout toggle, swap, reset, fullscreen,
+   exit) -- merged into ONE combined bar with the prominent selector rather
+   than floating as a second bar of its own (reader-requested: two separate
+   floating bars read as more chrome than one, and one narrower bar reads as
+   less). initSplitView() (app.js) moves #splitToolbar to become a trailing
+   child of #viewerModeSelect once, at page init, with a thin divider
+   (.viewer-mode-bar-divider) between the three mode buttons and these
+   utility icons -- so it contributes only its own row of buttons here, no
+   separate position/background/border/blur of its own; the one shared
+   background lives on #viewerModeSelect (see body.split-view-active
+   .viewer-mode-select above). See showSplitChrome() in app.js for the
+   auto-hide behavior applied to the combined bar as a whole -- fades on
+   inactivity, returns on pointer/touch/keyboard activity within the player
+   or daf pane, the same idea .player-controls already has via
+   .controls-hidden. */
 .split-toolbar {
   display: none;
   align-items: center;
   gap: 6px;
-  position: absolute;
-  top: calc(max(10px, env(safe-area-inset-top, 0px)) + 66px);
-  inset-inline-end: max(10px, env(safe-area-inset-right, 0px));
-  z-index: 501;
-  padding: 6px;
-  border-radius: 12px;
-  background: rgba(8,17,28,.82);
-  border: 1px solid rgba(255,255,255,.14);
-  backdrop-filter: blur(6px);
 }
 body.split-view-active .split-toolbar { display: flex; }
 .split-toolbar .icon-button {
@@ -2549,19 +2569,69 @@ body.split-view-active .split-toolbar { display: flex; }
 .split-toolbar .icon-button:hover { background: rgba(255,255,255,.12); color: #fff; }
 .split-toolbar .icon-button[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
 .split-toolbar .icon-button svg { width: 19px; height: 19px; }
+.viewer-mode-bar-divider {
+  display: none;
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 2px;
+  background: rgba(255,255,255,.2);
+}
+body.split-view-active .viewer-mode-bar-divider { display: block; }
+/* Auto-hide: opacity/pointer-events only (never display:none, which would
+   drop focus if a reader tabbed into the bar right as it faded) -- and only
+   while the bar is actually the floating Split View overlay; in the other
+   two modes #viewerModeSelect sits in normal document flow and is never
+   hidden this way. */
+@media (prefers-reduced-motion: no-preference) {
+  body.split-view-active .viewer-mode-select { transition: opacity .2s ease; }
+}
+body.split-view-active.split-chrome-hidden .viewer-mode-select {
+  opacity: 0;
+  pointer-events: none;
+}
 
 /* --- Split View's own video pinch-zoom/pan gesture surface --------------- */
 
 .split-video-pinch-surface {
   display: none;
   position: absolute;
-  inset: 0 0 var(--pc-bar-h, 68px);
+  /* The bottom inset has to clear BOTH docked strips, not just the control
+     bar: .scrubber-wrap (the timeline) sits directly on top of
+     .player-controls at bottom: var(--pc-bar-h), and reserving only
+     --pc-bar-h left this surface covering the timeline outright at z-index
+     11 against its 7. Seeking then did nothing at all -- worse, a drag
+     along the timeline read as a pan and a tap on it as this surface's own
+     tap-to-toggle-play, so the video reacted to a scrub attempt by playing
+     or pausing instead of seeking. */
+  inset: 0 0 calc(var(--pc-bar-h, 68px) + var(--pc-timeline-h, 74px));
   z-index: 11;
   touch-action: none;
   cursor: zoom-in;
 }
 body.split-view-active .watch-layout.split-active .video-frame .split-video-pinch-surface { display: block; }
 .video-frame .split-video-pinch-surface.is-zoomed { cursor: grab; }
+/* Same bug as the timeline above, at the other end of the frame: the pinch
+   surface's inset starts at the very top (0), same as .player-topbar, but
+   sits above it at z-index 11 against the topbar's 7 -- so the daf picker,
+   bookmark, notes and "more" buttons up there were all unreachable in
+   Split View, silently swallowed by the gesture surface the same way the
+   seek bar was.
+
+   Raising the topbar's own z-index only fixes that half of it, though:
+   #viewerModeSelect (the combined mode-selector/toolbar bar) is a
+   position:fixed SIBLING of .watch-layout, not a descendant of it, so it
+   paints in a stacking context above .watch-layout's ENTIRE subtree
+   regardless of any z-index used inside .watch-layout -- confirmed
+   directly, elementFromPoint at the daf picker's own coordinates returned
+   #viewerModeSelect itself, sitting fixed at the top of the viewport right
+   over it. No z-index fixes a stacking-context boundary; only moving the
+   topbar out of the combined bar's own screen-space footprint does, so it
+   is shifted down to clear it (matching the combined bar's own height)
+   as well as raised above the pinch surface. */
+body.split-view-active .watch-layout.split-active .video-frame .player-topbar {
+  top: calc(max(10px, env(safe-area-inset-top, 0px)) + 74px);
+  z-index: 13;
+}
 /* Applied to the video PICTURE only (#video / #youtubePlayerHost -- exactly
    one is visible at a time, see app.js's own source-switch code) -- NOT to
    #videoFrame itself. #videoFrame also contains the topbar, control bar and
@@ -2570,10 +2640,21 @@ body.split-view-active .watch-layout.split-active .video-frame .split-video-pinc
    directly: the zoom buttons drifted toward the top of the viewport as zoom
    increased and started intercepting clicks meant for the prominent selector
    above). Clipped by .video-frame's own existing overflow:hidden either way. */
-body.split-view-active .watch-layout.split-active .video-frame #video,
-body.split-view-active .watch-layout.split-active .video-frame #youtubePlayerHost {
+/* The transform itself is gated on .split-video-zoomed (toggled by
+   setSplitVideoZoom below the 1.001 threshold), not applied unconditionally
+   at scale(1) translate(0,0) -- even an identity transform promotes an
+   element to its own composited layer, and on a YouTube shiur that element
+   is a cross-origin iframe whose video the browser composites itself, a
+   known way for the picture alone to stop updating on mobile while the
+   rest of the page carries on. Nothing needs the transform until a reader
+   actually zooms. */
+body.split-view-active .watch-layout.split-active .video-frame.split-video-zoomed #video,
+body.split-view-active .watch-layout.split-active .video-frame.split-video-zoomed #youtubePlayerHost {
   transform: scale(var(--split-video-zoom, 1)) translate(var(--split-video-pan-x, 0px), var(--split-video-pan-y, 0px));
   transform-origin: center center;
+}
+body.split-view-active .watch-layout.split-active .video-frame #video,
+body.split-view-active .watch-layout.split-active .video-frame #youtubePlayerHost {
   width: 100%;
   height: 100%;
 }
@@ -2611,7 +2692,12 @@ body.split-view-active .watch-layout.split-active .video-frame #youtubePlayerHos
 .split-video-zoom-controls {
   display: none;
   position: absolute;
-  bottom: calc(var(--pc-bar-h, 68px) + 10px);
+  /* Anchored above BOTH docked strips, not just the control bar -- the
+     timeline sits directly on top of the control bar too (see
+     .split-video-pinch-surface's own comment above), and this group's
+     z-index 12 against the timeline's 7 was eating the right-hand end of
+     the seek bar otherwise. */
+  bottom: calc(var(--pc-bar-h, 68px) + var(--pc-timeline-h, 74px) + 10px);
   height: 116px;
   inset-inline-end: 10px;
   z-index: 12;
@@ -2639,7 +2725,7 @@ body.split-view-active .watch-layout.split-active .split-video-zoom-controls { d
 @media (max-width: 600px) {
   body.split-view-active .watch-layout.split-active:not(.split-stacked) { --split-divider-size: 14px; }
   body.split-view-active .watch-layout.split-active.split-stacked { --split-divider-size: 14px; }
-  .split-toolbar { padding: 5px; gap: 4px; }
+  .split-toolbar { gap: 4px; }
   .split-toolbar .icon-button { width: 34px; height: 34px; }
 }
 
