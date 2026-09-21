@@ -364,59 +364,37 @@
       return id ? speedMenu.querySelector(`#${CSS.escape(id)}`) : null;
     }
     function setActiveOption(li) {
-      window.__debugLog?.('setActiveOption() START');
-      if (!li) { window.__debugLog?.('setActiveOption() END (no li)'); return; }
+      if (!li) return;
       speedMenu.setAttribute('aria-activedescendant', li.id);
-      window.__debugLog?.('setActiveOption() aria-activedescendant set, toggling classes');
       for (const opt of speedMenu.children) opt.classList.toggle('is-active', opt === li);
-      window.__debugLog?.('setActiveOption() END');
     }
     // Anchored from the button's own live screen position, opening UPWARD
     // (bottom-anchored) and left-aligned to it -- this bar sits at the very
     // bottom of the frame with nothing under it, the same placement
     // positionToolsMenu below uses for the same reason.
     function positionSpeedMenu() {
-      window.__debugLog?.('positionSpeedMenu() START');
       const r = speedButton.getBoundingClientRect();
-      window.__debugLog?.('positionSpeedMenu() got rect, writing styles');
       speedMenu.style.position = 'fixed';
       speedMenu.style.left = `${Math.max(8, r.left)}px`;
       speedMenu.style.bottom = `${Math.max(8, window.innerHeight - r.top + 8)}px`;
-      window.__debugLog?.('positionSpeedMenu() END');
     }
-    // TEMPORARY, gated on the same ?debugtouch=1 diagnostic as elsewhere in
-    // this file -- a real device froze (heartbeat included) right after this
-    // exact click handler's own "CLICK FIRED" logged, with no fitChrome
-    // activity anywhere nearby, pointing at something inside openSpeedMenu
-    // itself (or the focus() call it ends with) rather than the already-
-    // fixed reorder/reparent path. Each step logs separately so the next
-    // freeze shows exactly which one never returns.
     function openSpeedMenu() {
-      window.__debugLog?.('openSpeedMenu() START');
       positionSpeedMenu();
       speedMenu.hidden = false;
-      window.__debugLog?.('openSpeedMenu() hidden=false, setting aria-expanded');
       speedButton.setAttribute('aria-expanded', 'true');
-      window.__debugLog?.('openSpeedMenu() about to setActiveOption');
       setActiveOption(speedMenu.querySelector(`[data-value="${CSS.escape(speedButton.value)}"]`) || speedMenu.firstElementChild);
       // preventScroll: this is already on screen (a fixed-position element
       // inside the viewport) -- nothing here should cause the page itself to
       // jump just because a listbox took focus.
-      window.__debugLog?.('openSpeedMenu() about to focus the menu');
       speedMenu.focus({ preventScroll: true });
-      window.__debugLog?.('openSpeedMenu() END (focus returned)');
     }
     function closeSpeedMenu() {
-      window.__debugLog?.('closeSpeedMenu() START');
       speedMenu.hidden = true;
       speedButton.setAttribute('aria-expanded', 'false');
-      window.__debugLog?.('closeSpeedMenu() END');
     }
     speedButton.addEventListener('click', (event) => {
-      window.__debugLog?.(`speedButton click handler START (menu hidden=${speedMenu.hidden})`);
       event.stopPropagation();
       if (speedMenu.hidden) openSpeedMenu(); else closeSpeedMenu();
-      window.__debugLog?.('speedButton click handler END');
     });
     speedMenu.addEventListener('keydown', (event) => {
       const items = [...speedMenu.children];
@@ -748,10 +726,8 @@
       settingsBody.style.bottom = `${Math.max(8, window.innerHeight - r.top + 8)}px`;
     }
     settingsDetails.addEventListener('toggle', () => {
-      window.__debugLog?.(`videoSettings toggle START (open=${settingsDetails.open})`);
       settingsBody.hidden = !settingsDetails.open;
       if (settingsDetails.open) positionSettingsPanel();
-      window.__debugLog?.('videoSettings toggle END');
     });
     // Keeps the panel anchored to the gear through a window resize (the
     // reading-mode mini player itself doesn't fire one when just dragged/
@@ -945,112 +921,9 @@
   // pass just confirms the same layout and makes no further changes, so it
   // settles after one extra call), but disconnecting for the run is simpler
   // than relying on that self-correction.
-  //
-  // timeDisplay's own #currentTime/#duration text is the one thing in this
-  // subtree that legitimately changes on its own, continuously, the whole
-  // time a video plays (updateTimeline polls every 100ms -- see app.js).
-  // Confirmed directly, with the ?debugtouch=1 diagnostic, to retrigger a
-  // full measure-and-reorder pass on very nearly every one of those ticks:
-  // not a false alarm from stale logging, but this callback's own width
-  // check landing right at is-tiny's fit/no-fit boundary, where a timer
-  // string a pixel or two narrower or wider than the last one is enough to
-  // flip it. Nothing about a clock ticking should be moving controls
-  // in and out of the overflow menu ten times a second, so mutations
-  // confined entirely to the time display are filtered out before they
-  // ever reach fitChrome, the same way disconnecting for its own run stops
-  // it from reacting to its own writes.
-  const controlsObserver = new MutationObserver((records) => {
-    if (records.every((record) => timeDisplay.contains(record.target))) return;
-    fitChrome('mutation');
-  });
-  // A real device report (?debugtouch=1) showed fitChrome() genuinely
-  // reordering -- not the already-fixed no-op case, an ACTUAL move -- three
-  // times over the course of ONE touch gesture on #speedSelect, the exact
-  // pattern already confirmed to corrupt that gesture's own click synthesis
-  // and leave the page unresponsive: something (showVideoControls'/
-  // showSplitChrome's own class churn, both of which run on every
-  // touchstart) can genuinely shift the bar's available width by a pixel
-  // or two on a real page with real content, tipping is-tiny's fit/no-fit
-  // boundary each way in turn -- unlike the already-filtered timer text,
-  // there's no single mutation source to exclude here. Tracked at the
-  // document level (not just this bar) since a pointer can start on any
-  // control and a resize/mutation can still land while it's down.
-  //
-  // pointerup is not the end of a gesture, though -- real-device evidence
-  // (?debugtouch=1) showed fitChrome() reordering in the narrow window
-  // AFTER pointerup but BEFORE touchend, right where the very first fix
-  // for this looked safe to run its catch-up pass. touchend, and whatever
-  // click the browser synthesizes from it, still have to be dispatched
-  // after pointerup fires, and reparenting the pressed control in that gap
-  // is just as capable of corrupting them as reparenting it while the
-  // finger is still down. unsafeUntil extends the deferral window a little
-  // past release rather than ending it exactly at pointerup, and a pending
-  // timer keeps retrying at the boundary rather than only on the next
-  // unrelated trigger, so a bar that fell out of place during the grace
-  // window doesn't stay stale indefinitely.
-  const POST_RELEASE_GRACE_MS = 120;
-  let pointersDownOnPage = 0;
-  let unsafeUntil = 0;
-  let settleTimer = null;
-  const scheduleSettleCheck = () => {
-    clearTimeout(settleTimer);
-    const delay = Math.max(0, unsafeUntil - performance.now());
-    settleTimer = setTimeout(() => fitChrome('settle'), delay + 1);
-  };
-  document.addEventListener('pointerdown', () => { pointersDownOnPage += 1; unsafeUntil = Infinity; }, { capture: true });
-  const onPointerSettle = () => {
-    pointersDownOnPage = Math.max(0, pointersDownOnPage - 1);
-    if (pointersDownOnPage === 0) {
-      unsafeUntil = performance.now() + POST_RELEASE_GRACE_MS;
-      scheduleSettleCheck();
-    }
-  };
-  document.addEventListener('pointerup', onPointerSettle, { capture: true });
-  document.addEventListener('pointercancel', onPointerSettle, { capture: true });
-  // TEMPORARY, gated on the same ?debugtouch=1 diagnostic as app.js's
-  // on-screen log (see app.js's window.__debugLog) -- reports whether this
-  // ever-rerunning callback (a MutationObserver AND a ResizeObserver both
-  // point at it) is the thing that never returns on a real-device freeze.
-  //
-  // The previous version of this log only wrote a line once fitChromeInner()
-  // returned, skipping the write entirely for a fast no-op. That made a
-  // genuine hang indistinguishable from "never called at all" -- the one
-  // case this diagnostic exists to catch would produce zero output. Logging
-  // an unconditional START (plus which of the four call sites triggered it)
-  // means a real hang now shows up as a START line with no matching END,
-  // pinned to a specific trigger, instead of silence.
-  function fitChrome(reason = 'unknown') {
-    const __fitChromeStartedAt = performance.now();
-    window.__debugLog?.(`fitChrome(${reason}) START`);
-    let __didReorder = false;
-    try {
-      __didReorder = fitChromeInner();
-    } finally {
-      const elapsed = Math.round(performance.now() - __fitChromeStartedAt);
-      window.__debugLog?.(`fitChrome(${reason}) END ${__didReorder ? 'reordered' : 'no-op'}, ${elapsed}ms`);
-    }
-  }
-  function fitChromeInner() {
+  const controlsObserver = new MutationObserver(fitChrome);
+  function fitChrome() {
     controlsObserver.disconnect();
-
-    // Every branch below this point can reparent a TOOLS_ORDER control --
-    // the recovery reorder, moving one into/out of the overflow menu,
-    // re-pinning fullscreen -- and doing that while the reader's finger is
-    // still down on one of them, OR shortly after it lifts (real-device
-    // evidence caught a reorder landing between pointerup and touchend --
-    // see unsafeUntil's own comment above), is exactly what's been
-    // confirmed to corrupt that gesture's own click synthesis, leaving the
-    // whole page unresponsive to further input. Deferred rather than
-    // skipped: the pointerup/pointercancel listener above schedules a
-    // retry right at the end of the grace window, so the bar is never
-    // permanently stale, only briefly late while a gesture is still
-    // settling.
-    if (pointersDownOnPage > 0 || performance.now() < unsafeUntil) {
-      controlsObserver.observe(controls, {
-        subtree: true, childList: true, attributes: true, attributeFilter: ['hidden', 'style', 'class'],
-      });
-      return false;
-    }
 
     // tools.append(...TOOLS_ORDER) two lines down always re-inserts every
     // candidate, even ones already exactly where they belong -- that's how
@@ -1076,29 +949,10 @@
 
     // Put every candidate back in its normal spot before re-measuring, so a
     // resize that FREES UP room brings a control back rather than leaving it
-    // stranded in the menu from a previous, narrower pass. Skipped entirely
-    // when nothing is actually out of place (the common case: nothing
-    // previously overflowed, and every control already sits exactly where
-    // TOOLS_ORDER says it belongs) -- reparenting a node the reader's finger
-    // is still down on mid-gesture (this callback fires on the very
-    // touchstart that reveals the bar again, via the ResizeObserver above
-    // reacting to .controls-hidden coming off) was confirmed, with the
-    // ?debugtouch=1 diagnostic against a real device, to be followed by that
-    // exact gesture's touchend firing but no click ever following it, and
-    // the whole page then going permanently unresponsive to all input --
-    // consistent with a real mobile browser's own touch/pointer-capture
-    // bookkeeping getting confused by its live touch target being removed
-    // and reinserted out from under it, which no headless/synthetic-touch
-    // test can reproduce.
-    const alreadyInPlace = toolsMoreMenu.children.length === 0
-      && TOOLS_ORDER.length === tools.children.length
-      && TOOLS_ORDER.every((el, i) => tools.children[i] === el);
-    if (!alreadyInPlace) {
-      toolsMoreStack.hidden = false;
-      tools.append(...TOOLS_ORDER);
-      toolsMoreMenu.replaceChildren();
-    }
-    let didReorder = !alreadyInPlace;
+    // stranded in the menu from a previous, narrower pass.
+    toolsMoreStack.hidden = false;
+    tools.append(...TOOLS_ORDER);
+    toolsMoreMenu.replaceChildren();
 
     const width = frame.clientWidth;
     let depth = width < TINY_WIDTH ? 3 : width < COMPACT_WIDTH ? 2 : width < SNUG_WIDTH ? 1 : 0;
@@ -1119,31 +973,26 @@
       const next = OVERFLOW_PRIORITY.find((el) => el.parentElement === tools && el.offsetWidth > 0);
       if (!next) break;
       toolsMoreMenu.appendChild(next);
-      didReorder = true;
     }
     toolsMoreStack.hidden = !toolsMoreMenu.children.length;
     // Fullscreen is never itself an overflow candidate (see
     // OVERFLOW_PRIORITY above) and is re-pinned here as the very last child
     // of .pc-tools on every single pass, so it's always the rightmost
     // control in the bar -- whether or not the "More" button beside it is
-    // currently showing anything. Skipped when it's already last, for the
-    // same reason the reorder above is: reparenting a node mid-touch (this
-    // whole function can run on the very touchstart that reveals the bar)
-    // is what was confirmed to leave the page unresponsive on a real device.
-    if (fullscreenStack && tools.lastElementChild !== fullscreenStack) { tools.appendChild(fullscreenStack); didReorder = true; }
+    // currently showing anything.
+    if (fullscreenStack) tools.appendChild(fullscreenStack);
 
     if (shouldRestoreFocus && document.activeElement !== focusedBefore) focusedBefore.focus({ preventScroll: true });
 
     controlsObserver.observe(controls, {
       subtree: true, childList: true, attributes: true, attributeFilter: ['hidden', 'style', 'class'],
     });
-    return didReorder;
   }
   // Class changes from applyTier land on the frame, never on .player-controls
   // itself, so the ResizeObserver below can't retrigger fitChrome a second
   // time the way the controlsObserver could (see its own comment).
-  new ResizeObserver(() => fitChrome('resize')).observe(frame);
-  fitChrome('init');
+  new ResizeObserver(fitChrome).observe(frame);
+  fitChrome();
 
   // --- Bringing the chrome back once it has faded out ----------------------
   // The controls auto-hide (see showVideoControls in app.js) and come back on

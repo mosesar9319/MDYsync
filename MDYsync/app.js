@@ -5622,7 +5622,6 @@ function setSplitView(enabled) {
     container.classList.add('split-active');
     applySplitViewLayoutToDom();
     applySplitVideoTransform();
-    showSplitChrome();
     // Double rAF, matching restoreReadingVideoPlacement's own reasoning: one
     // frame for the class change to take effect, a second so the resulting
     // layout is what gets measured.
@@ -5631,55 +5630,11 @@ function setSplitView(enabled) {
   }
 
   state.splitViewEnabled = false;
-  document.body.classList.remove('split-view-active', 'split-chrome-hidden');
-  clearTimeout(splitChromeHideTimer);
-  pointerRestingOnSplitChrome = false;
+  document.body.classList.remove('split-view-active');
   container.classList.remove('split-active', 'split-stacked', 'split-video-end');
   container.style.removeProperty('--split-video-ratio');
   resetSplitVideoZoom({ announce: false });
   scheduleVilnaPageLayoutRefresh(0);
-}
-
-// Only appears on cursor movement or a tap, then fades -- mirroring
-// showVideoControls' own .controls-hidden idea (further down in this file)
-// for the same reason: a bar that's always on screen is more chrome than a
-// reader watching a shiur actually wants up there. A plain top-level
-// function (not nested in initSplitView's own IIFE below) so setSplitView
-// above can call it directly the moment Split View is entered, not just the
-// event listeners that otherwise drive it.
-const SPLIT_CHROME_AUTO_HIDE_MS = 2400;
-let splitChromeHideTimer = null;
-let pointerRestingOnSplitChrome = false;
-function splitChromeShouldStayVisible() {
-  if (pointerRestingOnSplitChrome || splitDividerDrag) return true;
-  const active = document.activeElement;
-  return !!(active && active.closest?.('#viewerModeSelect') && active.matches(':focus-visible'));
-}
-function showSplitChrome() {
-  window.__debugLog?.('showSplitChrome() START');
-  if (!state.splitViewEnabled) { window.__debugLog?.('showSplitChrome() END (not enabled)'); return; }
-  document.body.classList.remove('split-chrome-hidden');
-  clearTimeout(splitChromeHideTimer);
-  // TEMPORARY: every logged real-device freeze so far has every function
-  // this file's own diagnostic already tracks completing cleanly right up
-  // to the click, then going completely silent -- including an unrelated
-  // feature (the split divider) also freezing, which points away from
-  // anything specific to whatever was tapped and toward something that
-  // runs LATER, on its own. This closure is scheduled SPLIT_CHROME_AUTO_HIDE_MS
-  // (2.4s) after every single tap and was never itself instrumented --
-  // exactly the kind of deferred callback that would explain a log that
-  // looks perfectly clean right up until a freeze that only shows up
-  // seconds after the last visible tap.
-  const tick = () => {
-    window.__debugLog?.('showSplitChrome() tick() START');
-    const stay = splitChromeShouldStayVisible();
-    window.__debugLog?.(`showSplitChrome() tick() shouldStayVisible=${stay}`);
-    if (stay) { splitChromeHideTimer = setTimeout(tick, SPLIT_CHROME_AUTO_HIDE_MS); window.__debugLog?.('showSplitChrome() tick() END (re-armed)'); return; }
-    document.body.classList.add('split-chrome-hidden');
-    window.__debugLog?.('showSplitChrome() tick() END (hidden)');
-  };
-  splitChromeHideTimer = setTimeout(tick, SPLIT_CHROME_AUTO_HIDE_MS);
-  window.__debugLog?.('showSplitChrome() END');
 }
 
 // --- Split View's own video pinch-zoom/pan --------------------------------
@@ -5781,22 +5736,6 @@ function announceViewerMode(mode) {
   const container = splitViewContainer();
   const divider = $('splitDivider');
   loadSplitViewPreferences();
-  // Combine the prominent selector and Split View's own toolbar into ONE
-  // bar -- reader-requested, in place of two separate floating bars. Moved
-  // once here, not per mode-transition: these are plain buttons with no
-  // fragile state tied to their DOM position (unlike the video/daf, which
-  // are never reparented -- see this feature's own opening comment), so a
-  // one-time move at init is all this needs. #splitToolbar becomes a
-  // trailing child of #viewerModeSelect, a visually-merged continuation of
-  // its own row, separated by a thin divider.
-  const viewerModeSelect = $('viewerModeSelect');
-  const splitToolbar = $('splitToolbar');
-  if (viewerModeSelect && splitToolbar) {
-    const barDivider = document.createElement('span');
-    barDivider.className = 'viewer-mode-bar-divider';
-    barDivider.setAttribute('aria-hidden', 'true');
-    viewerModeSelect.append(barDivider, splitToolbar);
-  }
   // Every page loads into 'standard' -- the same plain .watch-layout grid
   // shown before this feature existed -- exactly as it always did. Split
   // View (like the other two modes) is reached only by an explicit reader
@@ -5984,28 +5923,6 @@ function announceViewerMode(mode) {
       setViewerMode('standard');
     }
   });
-
-  // --- Auto-hiding the combined bar -----------------------------------
-  // showSplitChrome() itself (and the state it depends on) lives at the top
-  // level, alongside setSplitView -- see its own comment there for why.
-  document.addEventListener('mousemove', showSplitChrome);
-  document.addEventListener('pointerdown', showSplitChrome);
-  document.addEventListener('touchstart', showSplitChrome, { passive: true });
-  document.addEventListener('keydown', showSplitChrome);
-  document.addEventListener('focusin', showSplitChrome);
-  // Mouse only, matching CONTROLS_HOVER_SELECTOR's own reasoning below: a
-  // stationary mouse resting on the bar generates no further mousemove, so
-  // without this the bar could still fade out from directly underneath it.
-  if (viewerModeSelect) {
-    viewerModeSelect.addEventListener('pointerover', (event) => {
-      if (event.pointerType !== 'mouse') return;
-      pointerRestingOnSplitChrome = true;
-    });
-    viewerModeSelect.addEventListener('pointerout', (event) => {
-      if (event.pointerType !== 'mouse') return;
-      pointerRestingOnSplitChrome = false;
-    });
-  }
 })();
 
 // Mirrors toggleVilnaFullscreen's own WebKit-prefixed fallback below --
@@ -7982,43 +7899,16 @@ vilnaScroll?.addEventListener('touchstart', (event) => {
   event.preventDefault();
 }, { passive: false });
 
-// touchmove can fire far more often than the display can repaint (many
-// mobile browsers dispatch it every few milliseconds during a real
-// two-finger drag) -- and each one here forces a synchronous layout read
-// (getBoundingClientRect) plus a scroll-position write, the textbook
-// layout-thrashing pattern. Reported as the whole page locking up while
-// pinch-zooming the daf specifically inside Split View, whose daf pane is
-// the full viewport rather than the small embedded card this same
-// pre-existing handler had only ever run against before -- the identical
-// per-event cost now repaints and re-composites a much larger surface, on
-// mobile hardware, however many times a millisecond touchmove fires.
-// Coalescing to at most once per animation frame (only the latest touch
-// positions matter -- an intermediate frame's positions are never seen
-// once a newer one has landed) bounds that cost to the display's own
-// refresh rate regardless of how fast raw touch events arrive.
-let vilnaPinchRafPending = false;
-let vilnaPinchLatestTouches = null;
 vilnaScroll?.addEventListener('touchmove', (event) => {
   if (!vilnaPinchGesture || event.touches.length !== 2) return;
   event.preventDefault();
-  vilnaPinchLatestTouches = [
-    { clientX: event.touches[0].clientX, clientY: event.touches[0].clientY },
-    { clientX: event.touches[1].clientX, clientY: event.touches[1].clientY },
-  ];
-  if (vilnaPinchRafPending) return;
-  vilnaPinchRafPending = true;
-  requestAnimationFrame(() => {
-    vilnaPinchRafPending = false;
-    if (!vilnaPinchGesture || !vilnaPinchLatestTouches) return;
-    const touches = vilnaPinchLatestTouches;
-    const rect = vilnaScroll.getBoundingClientRect();
-    const midpoint = vilnaTouchMidpoint(touches, rect);
-    const ratio = vilnaTouchDistance(touches) / vilnaPinchGesture.distance;
-    const nextZoom = Math.max(VILNA_ZOOM_MIN, Math.min(VILNA_ZOOM_MAX, vilnaPinchGesture.zoom * ratio));
-    setVilnaPageZoom(nextZoom);
-    vilnaScroll.scrollLeft = vilnaPinchGesture.contentX * nextZoom - midpoint.x;
-    vilnaScroll.scrollTop = vilnaPinchGesture.contentY * nextZoom - midpoint.y;
-  });
+  const rect = vilnaScroll.getBoundingClientRect();
+  const midpoint = vilnaTouchMidpoint(event.touches, rect);
+  const ratio = vilnaTouchDistance(event.touches) / vilnaPinchGesture.distance;
+  const nextZoom = Math.max(VILNA_ZOOM_MIN, Math.min(VILNA_ZOOM_MAX, vilnaPinchGesture.zoom * ratio));
+  setVilnaPageZoom(nextZoom);
+  vilnaScroll.scrollLeft = vilnaPinchGesture.contentX * nextZoom - midpoint.x;
+  vilnaScroll.scrollTop = vilnaPinchGesture.contentY * nextZoom - midpoint.y;
 }, { passive: false });
 
 function finishVilnaPinch(event) {
@@ -8184,9 +8074,8 @@ function controlsShouldStayVisible() {
 }
 
 function showVideoControls() {
-  window.__debugLog?.('showVideoControls() START');
   const frame = $('videoFrame');
-  if (!frame) { window.__debugLog?.('showVideoControls() END (no frame)'); return; }
+  if (!frame) return;
   frame.classList.remove('controls-hidden');
   if (controlsHideTimer) clearTimeout(controlsHideTimer);
   // Re-arm rather than abandon the timer while something is holding the bar
@@ -8196,21 +8085,11 @@ function showVideoControls() {
   // window -- and simply returning left the bar docked until one happened to
   // come along, which on a YouTube shiur (whose iframe swallows them) could
   // be never.
-  // TEMPORARY: see showSplitChrome's identical comment -- this closure is
-  // scheduled CONTROLS_AUTO_HIDE_MS (2.8s) after every single tap and was
-  // never itself instrumented, exactly the kind of deferred callback that
-  // would explain a log that looks perfectly clean right up until a freeze
-  // that only shows up seconds after the last visible tap.
   const tick = () => {
-    window.__debugLog?.('showVideoControls() tick() START');
-    const stay = controlsShouldStayVisible();
-    window.__debugLog?.(`showVideoControls() tick() shouldStayVisible=${stay}`);
-    if (stay) { controlsHideTimer = setTimeout(tick, CONTROLS_AUTO_HIDE_MS); window.__debugLog?.('showVideoControls() tick() END (re-armed)'); return; }
+    if (controlsShouldStayVisible()) { controlsHideTimer = setTimeout(tick, CONTROLS_AUTO_HIDE_MS); return; }
     frame.classList.add('controls-hidden');
-    window.__debugLog?.('showVideoControls() tick() END (hidden)');
   };
   controlsHideTimer = setTimeout(tick, CONTROLS_AUTO_HIDE_MS);
-  window.__debugLog?.('showVideoControls() END');
 }
 
 (() => {
@@ -9569,197 +9448,3 @@ document.querySelectorAll('.sync-tab').forEach((tab) => {
     if (tab.dataset.syncPanel === 'syncYoutubePanel' || tab.dataset.syncPanel === 'syncVoicePanel') prefillYoutubeSyncTab();
   });
 });
-
-// --- TEMPORARY: on-screen touch diagnostic ---------------------------------
-// Added solely to chase down a real-device report ("mute/speed/Vaater take
-// no touches in Split View on a real phone with a YouTube shiur loaded")
-// that this repo's own test suite cannot reproduce -- Playwright's touch
-// emulation and a same-origin about:blank iframe stand-in both behave
-// differently from a real phone compositing a real cross-origin YouTube
-// iframe. Rather than guess at a fifth fix blind, this surfaces exactly
-// what element real touches on the real device actually land on. Gated
-// behind a URL param so it is completely inert unless deliberately asked
-// for; safe to delete outright once the real cause is confirmed.
-if (new URLSearchParams(location.search).get('debugtouch') === '1') {
-  const panel = document.createElement('div');
-  panel.style.cssText = [
-    'position:fixed', 'left:6px', 'top:6px', 'z-index:2147483647',
-    'width:min(94vw,420px)',
-    'background:rgba(0,0,0,.88)', 'color:#7CFC7C', 'font:11px/1.35 ui-monospace,monospace',
-    'padding:6px 8px', 'border-radius:8px', 'border:1px solid rgba(255,255,255,.25)',
-    'pointer-events:none', 'white-space:pre-wrap', 'word-break:break-all',
-  ].join(';');
-  document.documentElement.appendChild(panel);
-  const logBox = document.createElement('div');
-  logBox.style.cssText = 'max-height:36vh;overflow:auto;';
-  panel.appendChild(logBox);
-  let seq = 0;
-  const describe = (el) => {
-    if (!el || el === document || el === window) return String(el);
-    const id = el.id ? '#' + el.id : '';
-    const cls = typeof el.className === 'string' && el.className ? '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.') : '';
-    return (el.tagName || '?') + id + cls;
-  };
-  // Rows live in their own scrolling box, separate from the status line
-  // appended below -- otherwise pruning old rows off the front eventually
-  // prunes the status line too (it sits right after the first row), which
-  // is exactly what happened: 87 events logged, no heartbeat visible,
-  // because this deleted it, not because the page froze.
-  const log = (line) => {
-    seq += 1;
-    const row = document.createElement('div');
-    row.textContent = `${seq}. ${line}`;
-    logBox.appendChild(row);
-    logBox.scrollTop = logBox.scrollHeight;
-    while (logBox.children.length > 60) logBox.removeChild(logBox.firstChild);
-  };
-  // Exposed so player-chrome.js (a separate deferred script, running after
-  // this one -- see the <script> order in each page) can report into the
-  // same on-screen log without duplicating the panel/log-box setup.
-  window.__debugLog = log;
-  log('debug touch log ready -- tap the buttons below the seek bar');
-  for (const type of ['touchstart', 'touchend', 'touchcancel', 'pointerdown', 'pointerup', 'mousedown', 'click']) {
-    document.addEventListener(type, (event) => {
-      const target = event.target;
-      const point = event.touches?.[0] || event.changedTouches?.[0] || event;
-      const x = Math.round(point.clientX ?? -1);
-      const y = Math.round(point.clientY ?? -1);
-      log(`${type.padEnd(11)} -> ${describe(target)} @ ${x},${y}`);
-    }, { capture: true, passive: true });
-  }
-  // Specifically confirms whether a real click ever actually reaches each
-  // control-bar button, independent of whatever the raw touch/pointer
-  // events above show landing on along the way.
-  document.addEventListener('DOMContentLoaded', () => {}, { once: true });
-  const armButtons = () => {
-    document.querySelectorAll('.player-controls button').forEach((button) => {
-      if (button.dataset.__debugArmed) return;
-      button.dataset.__debugArmed = '1';
-      button.addEventListener('click', () => {
-        // playerType/youtubeReady/youtubePlayer: whether the button's own
-        // click fired tells us nothing about whether the YouTube player
-        // object it's about to call into is actually ready -- several of
-        // these calls (setPlaybackRate, captions, seek) are wrapped in a
-        // try/catch that can silently no-op if state.youtubeReady is false,
-        // with nothing thrown for console.error above to catch either.
-        const ready = typeof state !== 'undefined' ? `type=${state.playerType} ready=${state.youtubeReady} player=${!!state.youtubePlayer}` : 'state?';
-        log(`CLICK FIRED on ${describe(button)} (${ready})`);
-      }, true);
-    });
-  };
-  armButtons();
-  new MutationObserver(armButtons).observe(document.body, { childList: true, subtree: true });
-
-  // Round 2: the report changed from "these specific buttons take no
-  // touches" to "the moment Split View is entered, EVERYTHING freezes --
-  // including this very log." A log that stops appending rows could mean
-  // touches genuinely stop arriving, but it could just as easily mean the
-  // main thread is busy (or stuck) and never gets back to the event loop to
-  // process them or paint the new rows. These three signals tell those
-  // apart: a heartbeat that free-runs on a browser timer independent of any
-  // single call stack, a count of how many times window 'resize' fires
-  // (entering Split View swaps .watch-layout to position:fixed, exactly the
-  // kind of change that can retrigger itself if a handler's own work
-  // changes layout enough to move the mobile toolbar), and every error the
-  // page throws while this is gated on.
-  const statusLine = document.createElement('div');
-  statusLine.style.cssText = 'border-top:1px solid rgba(255,255,255,.25);margin-top:4px;padding-top:4px;color:#ffd97a;';
-  panel.appendChild(statusLine);
-  let heartbeat = 0;
-  let resizeCount = 0;
-  let lastHeartbeatAt = performance.now();
-  const renderStatus = () => {
-    statusLine.textContent = `heartbeat=${heartbeat} (every ${Math.round(performance.now() - lastHeartbeatAt)}ms) resize=${resizeCount}`;
-  };
-  setInterval(() => {
-    heartbeat += 1;
-    lastHeartbeatAt = performance.now();
-    renderStatus();
-  }, 250);
-  window.addEventListener('resize', () => { resizeCount += 1; renderStatus(); }, { capture: true });
-  // Round 4: reported directly -- after a few taps, a large red strip
-  // appeared pinned across the very top of the screen and every control
-  // stopped responding. That's index.html's own sitewide "Something on
-  // this page failed to load" banner (position:fixed, top:0, z-index
-  // 99999) -- it shows on ANY uncaught error or unhandled rejection
-  // ANYWHERE on the page, stays until manually dismissed, and (confirmed
-  // directly) intercepts every pointer event underneath it, not just in
-  // its own strip. Its own listener is registered inline, before this
-  // script even loads, so it always runs first and the banner already
-  // exists by the time these listeners fire -- dismissing it here doesn't
-  // stop it showing, just keeps it from stacking up and blocking taps
-  // while ?debugtouch=1 is deliberately trying to surface exactly the
-  // error it's reacting to (which stays visible in this log either way).
-  const dismissErrorBanner = () => document.querySelector('[aria-label="Dismiss"]')?.click();
-  window.addEventListener('error', (event) => { log(`JS ERROR: ${event.message} @ ${event.filename}:${event.lineno}`); dismissErrorBanner(); });
-  window.addEventListener('unhandledrejection', (event) => { log(`UNHANDLED REJECTION: ${event.reason}`); dismissErrorBanner(); });
-  // Round 3: speed/captions/settings/skip-rewind all register their taps
-  // (confirmed) but don't visibly do anything IN SPLIT VIEW specifically --
-  // and every one of them reaches the actual YouTube player through a
-  // try/catch that only ever does console.error(), which 'error' above
-  // (uncaught exceptions only) never sees. Mirroring console.error into
-  // this same log is what would surface a real, already-happening failure
-  // (a stale/null player reference, a rejected API call) that's otherwise
-  // invisible without opening devtools on the phone itself.
-  const originalConsoleError = console.error.bind(console);
-  console.error = (...args) => {
-    originalConsoleError(...args);
-    log(`console.error: ${args.map((a) => (a && a.message) || String(a)).join(' ')}`);
-  };
-
-  // Times entry vs. exit of the one function every mode switch (including
-  // entering Split View) goes through -- if it is what hangs, this is the
-  // one call whose own "END" line would never show up.
-  if (typeof window.setViewerMode === 'function') {
-    const originalSetViewerMode = window.setViewerMode;
-    window.setViewerMode = function debugWrappedSetViewerMode(...args) {
-      log(`setViewerMode(${args[0]}) START`);
-      const startedAt = performance.now();
-      try {
-        return originalSetViewerMode.apply(this, args);
-      } finally {
-        log(`setViewerMode(${args[0]}) END, ${Math.round(performance.now() - startedAt)}ms`);
-      }
-    };
-  }
-
-  // Round 5: a real-device log showed a tap on #captionsButton logging its
-  // own CLICK FIRED line, then closeSpeedMenu() (a shared "close whatever
-  // menu is open" cleanup that runs on every click, already fully
-  // instrumented and confirmed innocent) completing cleanly -- and then
-  // nothing else, ever. Nothing in this file's own code between there and
-  // the freeze was instrumented, because the only thing left on that path
-  // is setCaptionsEnabled calling straight into the YouTube IFrame API
-  // (loadModule/unloadModule/setOption -- see its own comments), exactly
-  // the call Round 3's comment already named as suspect for speed/
-  // captions/settings/skip-rewind alike, but never actually timed. Rather
-  // than instrument each call site by hand, every method called on
-  // state.youtubePlayer is wrapped here, once, at the point it's assigned
-  // -- so a genuine hang inside the IFrame API's own JS shows up as a
-  // START line with no matching END, naming the exact method, regardless
-  // of which control called it.
-  let __rawYoutubePlayer = state.youtubePlayer;
-  Object.defineProperty(state, 'youtubePlayer', {
-    configurable: true,
-    get() { return __rawYoutubePlayer; },
-    set(player) {
-      if (!player || typeof player !== 'object') { __rawYoutubePlayer = player; return; }
-      __rawYoutubePlayer = new Proxy(player, {
-        get(target, prop, receiver) {
-          const value = Reflect.get(target, prop, receiver);
-          if (typeof value !== 'function') return value;
-          return function debugWrappedYoutubePlayerMethod(...args) {
-            const label = `youtubePlayer.${String(prop)}()`;
-            log(`${label} START`);
-            const startedAt = performance.now();
-            try {
-              return value.apply(target, args);
-            } finally {
-              log(`${label} END, ${Math.round(performance.now() - startedAt)}ms`);
-            }
-          };
-        },
-      });
-    },
-  });
-}

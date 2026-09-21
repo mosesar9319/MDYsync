@@ -100,15 +100,6 @@ test.describe('Unified viewing modes — the prominent selector', () => {
     await expect(page.locator('#viewerModeVideoOnDafButton')).toHaveCount(0);
     await expect(page.locator('#readingModeButton')).toHaveCount(0);
     await enterSplitView(page);
-
-    // watch/index.html has no Reading Mode, so .video-frame is never wrapped
-    // in .reading-video-float the way player/browse wrap it -- it sits as a
-    // direct child of .player-card instead. The flush-video rule that hides
-    // every OTHER direct child of .player-card once exempted only
-    // .reading-video-float, which on this page's different DOM shape hid
-    // .video-frame itself along with everything else: a blank video pane,
-    // no player controls, nothing. Guards that specifically.
-    await expect(page.locator('.video-frame')).toBeVisible();
   });
 
   test('the toolbar pill mirrors the prominent selector and stays in sync', async ({ page }) => {
@@ -150,32 +141,6 @@ test.describe('Split View — the video pane is flush, not a crop of the player 
     const playerCardPadding = await page.locator('.player-card').evaluate((el) => getComputedStyle(el).paddingLeft);
     expect(playerCardPadding).toBe('0px');
   });
-
-  // player-chrome.js reparents the page's real .setup-field.ref-field (the
-  // ONLY tractate/daf picker on these pages) into #playerDafButton's own
-  // dropdown, inside .player-topbar -- and Split View's focus mode hides
-  // every other place that picker could otherwise be reached from (.topbar,
-  // .breadcrumb, .setup-strip). .split-video-pinch-surface (the pinch-zoom
-  // gesture layer added over the video picture) sits at a higher z-index
-  // than .player-topbar across that whole upper region regardless of where
-  // the topbar itself is positioned, so without its own z-index bump the
-  // topbar's buttons -- daf picker included -- silently eat nothing: every
-  // click goes to the pinch surface instead. Regression coverage for
-  // "none of the buttons work" once reported against Split View.
-  for (const path of ['/player/', '/browse/', '/watch/']) {
-    test(`the video's own daf picker (in .player-topbar) stays clickable in Split View on ${path}`, async ({ page }) => {
-      failOnPageError(page);
-      await preparePage(page, { user: null });
-      await page.goto(`${path}?ref=Chullin%2089a`);
-      await enterSplitView(page);
-
-      const dafButton = page.locator('#playerDafButton');
-      await expect(dafButton).toBeVisible();
-      await dafButton.click();
-      await expect(page.locator('#playerDafMenu')).toBeVisible();
-      await expect(page.locator('#playerDafMenu #dafTractateSelect')).toBeAttached();
-    });
-  }
 });
 
 test.describe('Split View — divider and layout', () => {
@@ -223,7 +188,6 @@ test.describe('Split View — divider and layout', () => {
     await page.goto('/player/?ref=Chullin%2089a');
     await enterSplitView(page);
     await expect.poll(() => page.evaluate(() => state.splitViewVideoPosition)).toBe('start');
-    await dismissErrorBanner(page);
 
     await page.click('#splitSwapButton');
     await expect.poll(() => page.evaluate(() => state.splitViewVideoPosition)).toBe('end');
@@ -243,7 +207,6 @@ test.describe('Split View — divider and layout', () => {
     await page.click('#viewerModeSplitButton');
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
     await expect(page.locator('#splitExitButton')).toBeVisible();
-    await dismissErrorBanner(page);
     await page.click('#splitExitButton');
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
   });
@@ -264,162 +227,6 @@ test.describe('Split View — video zoom controls', () => {
     await page.click('#splitVideoZoomResetButton');
     await expect.poll(() => page.evaluate(() => state.splitVideoZoom)).toBe(1);
     await expect(page.locator('#splitVideoZoomResetButton')).toBeHidden();
-  });
-});
-
-// Reported as "the whole page freezes" after pinch-zooming/scrolling the daf
-// inside Split View, on a real phone, over a YouTube video -- none of which
-// this suite can reproduce directly (no real touch hardware, and this
-// sandbox's network policy cannot reliably stream real YouTube video). What
-// IS directly testable and fixable: the daf-page pinch-zoom handler
-// (vilnaScroll's own touchmove listener, unrelated to Split View's own video
-// pinch surface) forced a synchronous layout read (getBoundingClientRect)
-// plus a scroll-position write on EVERY raw touchmove event, a textbook
-// layout-thrashing pattern that predates Split View entirely -- but Split
-// View's daf pane is the full viewport rather than the small embedded card
-// this handler had only ever run against before, so the identical per-event
-// cost now repaints and re-composites a much larger surface on every one of
-// however many touchmove events a real two-finger drag fires per second.
-// Coalescing to at most once per animation frame (app.js) bounds that cost
-// to the display's own refresh rate regardless of raw event rate.
-test.describe('Split View — daf pinch-zoom does not layout-thrash on rapid touchmove', () => {
-  test('20 rapid touchmove events coalesce to at most one or two real layout reads', async ({ page }) => {
-    failOnPageError(page);
-    await preparePage(page, { user: null });
-    await page.goto('/player/?ref=Chullin%2089a');
-    await enterSplitView(page);
-
-    await page.evaluate(() => {
-      const scroll = document.getElementById('dafScroll');
-      document.getElementById('vilnaPlaceholder').hidden = false;
-      window.__rectCalls = 0;
-      window.__origRect = Element.prototype.getBoundingClientRect;
-      Element.prototype.getBoundingClientRect = function (...args) {
-        if (this === scroll) window.__rectCalls++;
-        return window.__origRect.apply(this, args);
-      };
-      const fire = (type, x1, y1, x2, y2) => {
-        const t1 = new Touch({ identifier: 1, target: scroll, clientX: x1, clientY: y1 });
-        const t2 = new Touch({ identifier: 2, target: scroll, clientX: x2, clientY: y2 });
-        scroll.dispatchEvent(new TouchEvent(type, { touches: [t1, t2], bubbles: true, cancelable: true }));
-      };
-      fire('touchstart', 100, 100, 200, 200);
-      for (let i = 0; i < 20; i++) fire('touchmove', 100 - i, 100 - i, 200 + i, 200 + i);
-    });
-
-    await page.waitForTimeout(300);
-    const result = await page.evaluate(() => {
-      Element.prototype.getBoundingClientRect = window.__origRect;
-      return { rectCalls: window.__rectCalls, finalZoom: state.vilnaPageZoom };
-    });
-
-    expect(result.rectCalls).toBeLessThanOrEqual(2);
-    // Correctness alongside the throttling: the LAST touch event's ratio is
-    // still what wins, not some earlier, already-stale intermediate frame.
-    expect(result.finalZoom).toBeGreaterThan(1);
-  });
-});
-
-// The video pane stacks four absolutely-positioned layers inside
-// .video-frame: the picture, the pinch-zoom surface (z-index 11), this
-// pane's zoom buttons (12), and the player's own docked chrome -- the
-// timeline (.scrubber-wrap, z-index 7) sitting directly on top of the
-// control bar (z-index 6). Both of the Split View layers reserve room for
-// that chrome by subtracting its height from their own bottom edge, and
-// both originally subtracted only --pc-bar-h (the control bar) while the
-// timeline lives ABOVE it, in its own --pc-timeline-h band. The timeline
-// was therefore buried under the pinch surface: seeking did nothing at
-// all, and because that surface reads a drag as a pan and a tap as
-// tap-to-toggle-play, scrubbing made the video play or pause instead.
-// Reported as the player freezing after pressing things on the control bar.
-test.describe('Split View — its overlays never cover the player chrome', () => {
-  test('neither the pinch surface nor the zoom buttons overlap the timeline or the control bar', async ({ page }) => {
-    failOnPageError(page);
-    await preparePage(page, { user: null });
-    await page.goto('/player/?ref=Chullin%2089a');
-    await enterSplitView(page);
-
-    const bands = await page.evaluate(() => {
-      const box = (sel) => {
-        const el = document.querySelector(sel);
-        if (!el) return null;
-        const r = el.getBoundingClientRect();
-        return { top: r.top, bottom: r.bottom };
-      };
-      return {
-        pinch: box('#splitVideoPinchSurface'),
-        zoom: box('#splitVideoZoomControls'),
-        scrubber: box('.scrubber-wrap'),
-        controls: box('.player-controls'),
-      };
-    });
-
-    const overlaps = (a, b) => a.top < b.bottom && b.top < a.bottom;
-    for (const [overlayName, overlay] of [['pinch surface', bands.pinch], ['zoom buttons', bands.zoom]]) {
-      for (const [chromeName, chrome] of [['the timeline', bands.scrubber], ['the control bar', bands.controls]]) {
-        expect(overlaps(overlay, chrome), `${overlayName} overlaps ${chromeName}`).toBe(false);
-      }
-    }
-  });
-
-  // An identity transform still promotes the element to its own composited
-  // layer, and on a YouTube shiur that element is a cross-origin iframe
-  // whose video the browser composites itself -- a known way for that video
-  // to stop updating on mobile while the rest of the page keeps working.
-  // Nothing needs the transform until a reader actually zooms.
-  test('no transform is applied to the video until it is actually zoomed', async ({ page }) => {
-    failOnPageError(page);
-    await preparePage(page, { user: null });
-    await page.goto('/player/?ref=Chullin%2089a');
-    await enterSplitView(page);
-
-    const atRest = await page.evaluate(() => getComputedStyle(document.getElementById('video')).transform);
-    expect(atRest).toBe('none');
-
-    await page.click('#splitVideoZoomInButton');
-    await expect.poll(() => page.evaluate(() => state.splitVideoZoom)).toBeGreaterThan(1);
-    const zoomed = await page.evaluate(() => getComputedStyle(document.getElementById('video')).transform);
-    expect(zoomed).not.toBe('none');
-
-    await page.click('#splitVideoZoomResetButton');
-    await expect.poll(() => page.evaluate(() => state.splitVideoZoom)).toBe(1);
-    await expect.poll(() => page.evaluate(() => getComputedStyle(document.getElementById('video')).transform)).toBe('none');
-  });
-
-  // With the row shifted off the frame's top edge and its own gradient
-  // dropped, the span between its two pill groups is empty -- and it sits
-  // above the pinch surface, so it must not intercept presses there.
-  test('the video topbar only takes presses on its own controls, not the gap between them', async ({ page }) => {
-    failOnPageError(page);
-    await preparePage(page, { user: null });
-    await page.goto('/player/?ref=Chullin%2089a');
-    await enterSplitView(page);
-
-    expect(await page.evaluate(() => getComputedStyle(document.querySelector('.player-topbar')).pointerEvents)).toBe('none');
-    expect(await page.evaluate(() => getComputedStyle(document.getElementById('playerDafButton').parentElement).pointerEvents)).toBe('auto');
-  });
-
-  // Reported directly on a real device: tapping ANY control-bar button
-  // (speed, captions, settings) also toggled play/pause, because a YouTube
-  // shiur's cross-origin iframe fills this exact box, full bleed under the
-  // opaque control bar -- and can receive a touch on its own, independent
-  // of the DOM's own stacking, something no headless/synthetic-touch test
-  // reproduces. The pinch surface above it is the one deliberate tap
-  // handler for this picture in Split View; the video underneath must not
-  // also be reachable by a real touch.
-  test('the video itself takes no pointer input in Split View -- only the pinch surface above it does', async ({ page }) => {
-    failOnPageError(page);
-    await preparePage(page, { user: null });
-    await page.goto('/player/?ref=Chullin%2089a');
-
-    // Standard mode first: this must be untouched there, since the report
-    // was specific to Split View and nothing here should change how a
-    // direct tap on the video works outside it.
-    expect(await page.evaluate(() => getComputedStyle(document.getElementById('video')).pointerEvents)).not.toBe('none');
-
-    await enterSplitView(page);
-    expect(await page.evaluate(() => getComputedStyle(document.getElementById('video')).pointerEvents)).toBe('none');
-    expect(await page.evaluate(() => getComputedStyle(document.getElementById('youtubePlayerHost')).pointerEvents)).toBe('none');
   });
 });
 
