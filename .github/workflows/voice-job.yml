@@ -33,9 +33,15 @@ jobs:
     # standard 4-core runner (measured against a real 5:15 clip) -- a 40-min
     # shiur alone needs ~70 min just to transcribe, before download/setup
     # overhead, so 60 wasn't enough (copied from ocr-job.yml without
-    # checking it fit this much slower CPU-bound workload). 180 leaves
-    # headroom up to roughly a 90-100 min shiur at this same ratio.
-    timeout-minutes: 180
+    # checking it fit this much slower CPU-bound workload). 180 left
+    # headroom up to roughly a 90-100 min shiur at this same ratio -- but the
+    # YouTube-download step below now also blocks recording out however much
+    # of a live broadcast is still in progress when this job gets dispatched
+    # (see its own --live-from-start comment), which can itself take close
+    # to the shiur's full length. 300 keeps comfortable headroom for the
+    # worst case: a long shiur caught live from its very start, recorded in
+    # full, then transcribed in full.
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
 
@@ -106,8 +112,19 @@ jobs:
           # Audio only (bestaudio) -- this engine never looks at video
           # frames, unlike the OCR path, so there's no reason to fetch or
           # mux a video stream at all.
+          #
+          # --live-from-start: see ocr-job.yml's own copy of this comment --
+          # same channel, same live-then-VOD lifecycle, same risk of this
+          # job getting dispatched the instant a shiur goes live rather than
+          # once it's a finished upload. Without it yt-dlp joins at the live
+          # edge and stops whenever this job happens to run, so the
+          # transcribed audio (and therefore every timestamp voice_align.py
+          # produces) is measured against a truncated/offset slice of the
+          # real shiur instead of the finished VOD the player loads. A
+          # no-op for an already-finished upload.
           yt-dlp --cookies cookies.txt \
             --remote-components ejs:github \
+            --live-from-start \
             -f "bestaudio/best" \
             -x --audio-format mp3 --audio-quality 0 \
             -o job-audio.mp3 "$YOUTUBE_URL"
