@@ -73,6 +73,21 @@ export function plainRef({ tractate, daf, amud }) {
   return `${tractate} ${daf}${amud}`;
 }
 
+// Alternate English spellings the channel has actually been seen using in
+// place of a tractate's canonical Sefaria name in talmud_index.json --
+// confirmed against real channel titles, not guessed, since guessing wrong
+// here would silently misroute a video to the wrong tractate rather than
+// just leave it unmatched (see finish()'s own comment on why an
+// unrecognized name is left unhandled instead of guessed at). Add to this
+// only once a channel title actually uses the spelling.
+const ENGLISH_NAME_ALIASES = {
+  // "Daf Yomi Bechoros Daf 3 by R' Eli Stefansky" / "CHAZARAH - Bechoros
+  // Daf 2 | ..." -- the channel's English titles use the Ashkenazi
+  // transliteration "Bechoros", not Sefaria's "Bekhorot" (the Hebrew
+  // titles already match fine, since the Hebrew name itself is unambiguous).
+  'bechoros': 'bekhorot',
+};
+
 export function buildTalmudLookup(talmudIndex) {
   const byName = new Map();
   const byHebrewName = new Map();
@@ -81,6 +96,10 @@ export function buildTalmudLookup(talmudIndex) {
     byName.set(entry.name.toLowerCase(), entry);
     byHebrewName.set(entry.hebrewName, entry);
     order.push(entry.name);
+  }
+  for (const [alias, canonical] of Object.entries(ENGLISH_NAME_ALIASES)) {
+    const entry = byName.get(canonical);
+    if (entry) byName.set(alias, entry);
   }
   return { byName, byHebrewName, order };
 }
