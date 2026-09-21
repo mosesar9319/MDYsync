@@ -1339,6 +1339,12 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
           </div>
           <div class="subfilters" id="subfilters">
             <label class="subfilter-field">
+              <span>Masechta</span>
+              <select id="tractate-filter">
+                <option value="all">All</option>
+              </select>
+            </label>
+            <label class="subfilter-field">
               <span>Language</span>
               <select id="language-filter">
                 <option value="all">All</option>
@@ -1654,7 +1660,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     ];
     const state = {
       activeNav: "Home", filter: "All Shiurim", filters: ["All Shiurim"],
-      language: "all", variant: "all", sortOrder: "new", query: "", catalog: [], today: null,
+      tractate: "all", language: "all", variant: "all", sortOrder: "new", query: "", catalog: [], today: null,
       // catalogLoading distinguishes "haven't heard back yet" from a
       // genuinely empty result, and catalogFailed distinguishes a real fetch
       // failure from "this daf/search really has nothing" -- collapsing
@@ -1678,6 +1684,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     const filterBar = document.querySelector("#filters");
     const search = document.querySelector("#search");
     const clearSearch = document.querySelector("#clear-search");
+    const tractateFilter = document.querySelector("#tractate-filter");
     const languageFilter = document.querySelector("#language-filter");
     const variantFilter = document.querySelector("#variant-filter");
     const sortOrderFilter = document.querySelector("#sort-order");
@@ -1763,6 +1770,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       if (state.filter === "Today") {
         rows = state.today ? rows.filter((row) => row.tractate === state.today.tractate && row.daf === state.today.daf) : [];
       }
+      if (state.tractate !== "all") rows = rows.filter((row) => row.tractate === state.tractate);
       const needle = state.query.trim().toLowerCase();
       if (needle) rows = rows.filter((row) => dafLabel(row).toLowerCase().includes(needle));
 
@@ -1922,6 +1930,10 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       state.query = search.value;
       renderCards();
     });
+    tractateFilter.addEventListener("change", () => {
+      state.tractate = tractateFilter.value;
+      renderCards();
+    });
     languageFilter.addEventListener("change", () => {
       state.language = languageFilter.value;
       renderCards();
@@ -1980,6 +1992,20 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       state.catalogFailed = catalogResult.failed;
       state.catalogLoading = false;
       state.today = today;
+      // Only tractates the catalog actually has a row for -- listing all 36
+      // would mostly offer masechtot with nothing synced, the same problem
+      // SITE_TRACTATES itself exists to avoid (see its own comment). Built
+      // from the catalog rather than iterated fresh here so it can never
+      // list a tractate SITE_TRACTATES wouldn't already have surfaced.
+      // Ordered by real Daf Yomi cycle position (SITE_TRACTATES' own order),
+      // not alphabetically -- matches how the grid itself now sorts (see
+      // cardItems), so the newest tractate to get synced content is always
+      // the last, not somewhere the cycle's alphabet happens to drop it.
+      const tractatesWithContent = SITE_TRACTATES.filter(
+        (tractate) => state.catalog.some((row) => row.tractate === tractate)
+      );
+      tractateFilter.innerHTML = `<option value="all">All</option>` + tractatesWithContent
+        .map((tractate) => `<option value="${escapeHtml(tractate)}">${escapeHtml(tractate)}</option>`).join("");
       // Fixed, not built from the catalog's own tractate names -- a
       // per-tractate filter chip row is its own feature (see the
       // "Masechtos" tab note above) that hasn't been rebuilt; SITE_TRACTATES
