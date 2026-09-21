@@ -1501,10 +1501,19 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     const CATALOG_URL = "/api/get-catalog";
     const SEFARIA_CALENDAR_URL = "/api/sefaria-calendars";
     const SEFARIA_CALENDAR_DIRECT_URL = "https://www.sefaria.org/api/calendars";
-    // Only tractates the site actually has shiurim for are worth surfacing --
-    // catalog.json can carry stray entries from a title-matching misfire on
-    // a tractate nobody has linked on purpose yet.
-    const SITE_TRACTATES = ["Chullin"];
+    // The full Daf Yomi cycle (all 36 Bavli tractates with Gemara, same list
+    // as talmud_index.json) -- kept as an explicit allow-list rather than
+    // trusting catalog.json's own tractate keys directly, since catalog.json
+    // can carry stray entries from a title-matching misfire on a tractate
+    // nobody actually linked on purpose.
+    const SITE_TRACTATES = [
+      "Berakhot", "Shabbat", "Eruvin", "Pesachim", "Yoma", "Sukkah", "Beitzah",
+      "Rosh Hashanah", "Taanit", "Megillah", "Moed Katan", "Chagigah", "Yevamot",
+      "Ketubot", "Nedarim", "Nazir", "Sotah", "Gittin", "Kiddushin", "Bava Kamma",
+      "Bava Metzia", "Bava Batra", "Sanhedrin", "Makkot", "Shevuot", "Avodah Zarah",
+      "Horayot", "Zevachim", "Menachot", "Chullin", "Bekhorot", "Arakhin",
+      "Temurah", "Keritot", "Meilah", "Niddah",
+    ];
 
     // Display label only -- no amud. The a/b split is a syncing concern
     // (catalog.json already collapses each daf's own two amudim down to
@@ -1632,9 +1641,11 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       // a link entry from a filter entry below (see navMarkup/renderNavigation).
       { label: "Interactive Daf", icon: "bookOpen", href: "/browse/" },
       { label: "Cloud Chaburah", icon: "chaburah", href: "/chaburah/" },
-      // Replaces the old "Masechtos" tab -- the site only has one active
-      // tractate (see SITE_TRACTATES below), so a "choose a masechta" tab
-      // implied a breadth the site doesn't have. Maggidei Shiurim isn't a
+      // Replaces the old "Masechtos" tab -- a per-tractate browsing tab is
+      // its own feature (which masechtot to list, how to source them) that
+      // hasn't been rebuilt since SITE_TRACTATES stopped being a single
+      // fixed tractate; see loadVideoCatalog's own note below for what
+      // SITE_TRACTATES covers today. Maggidei Shiurim isn't a
       // filter of the video grid the way the other in-page tabs are -- see
       // renderCards' maggidimActive branch, which swaps in a dedicated
       // section instead.
@@ -1959,10 +1970,11 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       state.catalogFailed = catalogResult.failed;
       state.catalogLoading = false;
       state.today = today;
-      // Fixed, not built from the catalog's own tractate names -- the site
-      // only has one active tractate (see app.js's SITE_ACTIVE_TRACTATES),
-      // so a per-tractate filter chip would just be a "choose a masechta"
-      // control with a single option.
+      // Fixed, not built from the catalog's own tractate names -- a
+      // per-tractate filter chip row is its own feature (see the
+      // "Masechtos" tab note above) that hasn't been rebuilt; SITE_TRACTATES
+      // (below) now covers the full Daf Yomi cycle, but the homepage filter
+      // chips themselves are unrelated to that and still just Today/All.
       state.filters = ["Today", "All Shiurim"];
       render();
       renderHero();

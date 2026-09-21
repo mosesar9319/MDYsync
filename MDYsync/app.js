@@ -7926,14 +7926,6 @@ async function ensureSyncedDapimLoaded() {
   return state.syncedDapim;
 }
 
-// The site only has synced content for one tractate right now -- every
-// tractate picker (the reader-facing daf reference picker, the admin sync
-// dialog, the studio catalog grid) is locked to just this one instead of
-// offering all 36 tractates in talmud_index.json, most of which have
-// nothing synced and aren't even being worked on yet. Add to this list
-// once a second tractate is actually ready to publish.
-const SITE_ACTIVE_TRACTATES = ['Chullin'];
-
 async function loadTalmudIndex() {
   if (!syncState.tractateNames.length) {
     const response = await fetch('/talmud_index.json');
@@ -7949,7 +7941,13 @@ async function loadTalmudIndex() {
   // picker (which is for picking *any* daf, including ones still needing a
   // sync) is unaffected.
   if (state.browseMode) await ensureSyncedDapimLoaded();
-  const activeTractateNames = syncState.tractateNames.filter((name) => SITE_ACTIVE_TRACTATES.includes(name));
+  // Every tractate picker (the reader-facing daf reference picker, the
+  // admin sync dialog, the studio catalog grid) now offers the full Daf
+  // Yomi cycle -- all 36 tractates in talmud_index.json -- not just a
+  // single pilot tractate. A tractate with nothing synced yet just shows
+  // an empty picker/grid for that selection, same as any other unsynced
+  // daf.
+  const activeTractateNames = syncState.tractateNames;
   const optionsHtml = activeTractateNames
     .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
   $('syncTractateSelect').innerHTML = optionsHtml;
