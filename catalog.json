@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-21T23:00:50.868Z",
+  "generatedAt": "2026-09-22T00:01:13.165Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -18,13 +18,18 @@
           "videoId": "PXjUf4aUXs0",
           "label": "מרכז דף יומי - בכורות דף ב. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "dZDeCmxakJQ",
+          "label": "חזרה - בכורות דף ב | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
         }
       },
       {
         "daf": 3,
         "regularHe": {
-          "videoId": "WwT2nBhqXTg",
-          "label": "מרכז דף יומי -  בכורות דף ג. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
+          "videoId": "EpSIHpRWm7w",
+          "label": "מרכז דף יומי - בכורות דף ג. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         },
         "regularEn": {
