@@ -139,6 +139,39 @@ const state = {
   readingVideoX: null,
   readingVideoY: null,
   readingModePreviousOverlayEnabled: false,
+  // Unified viewing-mode system. 'standard' is the plain pre-Split-View
+  // .watch-layout/.workspace grid (still what a page shows before this
+  // feature's own init code runs); 'split' is the new upgraded version of
+  // that same side-by-side idea (draggable divider, focus mode, video
+  // pinch-zoom) and is the mode every page actually starts in once
+  // initSplitView() runs -- see loadSplitViewPreferences(). readingModeEnabled
+  // and videoOverlayEnabled above remain each existing mode's own real on/off
+  // flag, read everywhere they always were; viewerMode is a layer on top that
+  // setViewerMode() keeps pointed at whichever ONE of the three is active, so
+  // there is one authoritative answer to "which mode is this" instead of three
+  // booleans that could disagree.
+  viewerMode: 'standard',
+  splitViewEnabled: false,
+  // 'side-by-side' (video left, daf right) or 'stacked' (video above daf).
+  splitViewLayout: 'side-by-side',
+  // True once the reader has explicitly chosen a layout (via the Split View
+  // toolbar's own side-by-side/stacked toggle) -- see applySplitViewDefaultLayout,
+  // which only picks a viewport-based default while this stays false.
+  splitViewLayoutExplicit: false,
+  // Fraction (0-1) of the split container the VIDEO pane occupies along the
+  // split axis. Null means "use the mode's own default" (0.5 side-by-side,
+  // 0.4 stacked) -- see splitViewRatioOrDefault().
+  splitViewRatio: null,
+  // 'start' (video left/top, the default) or 'end' (swapped).
+  splitViewVideoPosition: 'start',
+  // Pinch/pan/wheel zoom on the video pane's own picture while in Split View
+  // -- a dedicated gesture surface over #videoFrame, the same general pattern
+  // Reading Mode's own pinch surface uses (see readingVideoPinchSurface), but
+  // deliberately a SEPARATE state/surface: Reading Mode's pinch keeps resizing
+  // the mini-player exactly as before, and is never repurposed here.
+  splitVideoZoom: 1,
+  splitVideoPanX: 0,
+  splitVideoPanY: 0,
   vilnaPageZoom: 1,
   vilnaPdfPage: null,
   vilnaPdfContainerWidth: 0,
@@ -1898,13 +1931,16 @@ async function rerenderVilnaPageForZoom() {
 function toggleVilnaFullscreen() {
   const card = document.querySelector('.daf-card');
   if (!card) return;
-  // In Reading Mode the live player is a sibling of the daf card. Browser
-  // fullscreen only paints the chosen element and its descendants, so
-  // fullscreen the shared watch surface to keep both the daf and mini-player
-  // visible without moving/reloading the YouTube iframe. Everywhere else the
-  // daf card remains the correct, smaller fullscreen target.
+  // In Reading Mode and in Split View, the live player is a SIBLING of the
+  // daf card (never a descendant -- see this feature's own opening comment
+  // on why neither mode ever reparents either one). Browser fullscreen only
+  // paints the chosen element and its descendants, so fullscreen the shared
+  // watch surface to keep both the daf and the video visible without moving/
+  // reloading the YouTube iframe. Everywhere else the daf card remains the
+  // correct, smaller fullscreen target.
   const watchSurface = card.closest('.watch-layout');
-  const target = state.readingModeEnabled && watchSurface ? watchSurface : card;
+  const wantsSharedSurface = state.readingModeEnabled || state.viewerMode === 'split';
+  const target = wantsSharedSurface && watchSurface ? watchSurface : card;
   const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
   if (fullscreenElement) {
     const exit = document.exitFullscreen || document.webkitExitFullscreen;
@@ -5187,7 +5223,7 @@ function setReadingMode(enabled) {
   loadReadingVideoPreferences();
   updateReadingVideoFollowUi();
 
-  toggle.addEventListener('click', () => setReadingMode(!state.readingModeEnabled));
+  toggle.addEventListener('click', () => setViewerMode(state.readingModeEnabled ? 'split' : 'video-on-daf'));
   follow?.addEventListener('click', () => setReadingVideoFollow(!state.readingVideoFollow, { announce: true }));
 
   // The YouTube iframe is cross-origin, so touch events inside it cannot
@@ -5456,7 +5492,7 @@ function setReadingMode(enabled) {
   document.addEventListener('webkitfullscreenchange', handleReadingModeFullscreenChange);
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && state.readingModeEnabled && !document.fullscreenElement && !document.querySelector('dialog[open]')) {
-      setReadingMode(false);
+      setViewerMode('split');
     }
   });
   $('dafScroll')?.addEventListener('scroll', () => {
@@ -5464,6 +5500,531 @@ function setReadingMode(enabled) {
       scheduleReadingVideoFollow(false, 100);
     }
   }, { passive: true });
+})();
+
+// --- Split View: video and daf in separate, non-overlapping panes ---------
+// The third viewing mode, alongside the overlay ("daf on video") above and
+// Reading Mode ("video on daf") just above that. Deliberately built the same
+// way Reading Mode actually is (see that section's own opening comment) and
+// NOT the way an earlier draft of this feature's spec first described it:
+// #videoFrame and the daf card are never detached or reparented, only laid
+// out differently -- CSS Grid on the very same .watch-layout/.workspace
+// element that already holds both of them as plain siblings on every page
+// that ships this. That is what keeps the YouTube iframe (playback, buffer,
+// captions, sync clock) and the daf's own live listeners (word taps,
+// highlighting, select-text, the right-click/long-press context menu --
+// daf-context-menu.js captures #vilnaPageWrap/#dafPage ONCE at page load and
+// never re-queries them, so recreating those nodes would silently break it)
+// completely undisturbed by switching modes.
+//
+// setViewerMode() is the one authoritative entry point every UI control below
+// goes through -- the prominent 3-button selector, its toolbar mirror in
+// player-chrome.js, and (after the small redirects added to their own click/
+// change handlers just above) the pre-existing #readingModeButton and
+// #overlayToggle too. It never manipulates readingModeEnabled/
+// videoOverlayEnabled/splitViewEnabled directly; it calls each mode's own
+// existing toggle function (setReadingMode/applyVideoOverlayEnabled/
+// setSplitView), so every side effect those already have keeps happening
+// exactly as before, and there is exactly one place that decides which mode
+// is active.
+const SPLIT_VIEW_PREFS_KEY = 'dafsync-immersive-split-v1';
+const SPLIT_VIEW_MIN_RATIO = 0.22;
+const SPLIT_VIEW_MAX_RATIO = 0.78;
+const SPLIT_VIDEO_MIN_ZOOM = 1;
+const SPLIT_VIDEO_MAX_ZOOM = 3;
+const VIEWER_MODES = ['standard', 'daf-on-video', 'video-on-daf', 'split'];
+let splitDividerDrag = null;
+let splitVideoZoomIndicatorTimer = null;
+let splitVideoLastTapAt = 0;
+const splitVideoPinchPointers = new Map();
+let splitVideoPinch = null;
+
+function loadSplitViewPreferences() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SPLIT_VIEW_PREFS_KEY) || 'null');
+    if (!saved || typeof saved !== 'object') return;
+    if (saved.layout === 'side-by-side' || saved.layout === 'stacked') state.splitViewLayout = saved.layout;
+    if (typeof saved.layoutExplicit === 'boolean') state.splitViewLayoutExplicit = saved.layoutExplicit;
+    if (Number.isFinite(saved.ratio)) state.splitViewRatio = clampReadingValue(saved.ratio, SPLIT_VIEW_MIN_RATIO, SPLIT_VIEW_MAX_RATIO);
+    if (saved.videoPosition === 'start' || saved.videoPosition === 'end') state.splitViewVideoPosition = saved.videoPosition;
+  } catch {
+    // A malformed preference should never keep the viewer from opening.
+  }
+}
+function saveSplitViewPreferences() {
+  try {
+    localStorage.setItem(SPLIT_VIEW_PREFS_KEY, JSON.stringify({
+      layout: state.splitViewLayout,
+      layoutExplicit: state.splitViewLayoutExplicit,
+      ratio: state.splitViewRatio,
+      videoPosition: state.splitViewVideoPosition,
+    }));
+  } catch {
+    // Private browsing/storage denial is harmless; the live controls work.
+  }
+}
+
+function splitViewContainer() {
+  return document.querySelector('.watch-layout');
+}
+// Recommended defaults from the spec: desktop and landscape tablet/phone get
+// side-by-side, portrait phone/tablet gets stacked -- landscape-vs-portrait
+// (rather than a fixed width breakpoint) is what actually distinguishes
+// those cases across device sizes.
+function preferredSplitViewLayoutForViewport() {
+  return window.innerWidth >= window.innerHeight ? 'side-by-side' : 'stacked';
+}
+// Only ever picks a default while the reader has never explicitly chosen a
+// layout themselves (see the toolbar's own layout-toggle handler below,
+// which is the only place splitViewLayoutExplicit is ever set true) -- once
+// they have, this never overrides that choice on resize/rotate again.
+function applySplitViewDefaultLayout() {
+  if (!state.splitViewLayoutExplicit) state.splitViewLayout = preferredSplitViewLayoutForViewport();
+}
+function splitViewRatioOrDefault() {
+  if (Number.isFinite(state.splitViewRatio)) return state.splitViewRatio;
+  return state.splitViewLayout === 'stacked' ? 0.4 : 0.5;
+}
+function applySplitViewLayoutToDom() {
+  const container = splitViewContainer();
+  if (!container) return;
+  container.classList.toggle('split-stacked', state.splitViewLayout === 'stacked');
+  container.classList.toggle('split-video-end', state.splitViewVideoPosition === 'end');
+  container.style.setProperty('--split-video-ratio', String(splitViewRatioOrDefault()));
+  updateSplitViewToolbarUi();
+}
+function updateSplitViewToolbarUi() {
+  const stacked = state.splitViewLayout === 'stacked';
+  for (const id of ['splitLayoutToggleButton']) {
+    const button = $(id);
+    if (!button) continue;
+    button.setAttribute('aria-pressed', String(stacked));
+    button.title = stacked ? 'Switch to side by side' : 'Switch to stacked';
+    button.setAttribute('aria-label', stacked ? 'Switch to side by side' : 'Switch to stacked');
+  }
+  const divider = $('splitDivider');
+  if (divider) {
+    divider.setAttribute('aria-orientation', stacked ? 'horizontal' : 'vertical');
+    divider.setAttribute('aria-valuenow', String(Math.round(splitViewRatioOrDefault() * 100)));
+  }
+}
+
+function setSplitView(enabled) {
+  const nextEnabled = Boolean(enabled);
+  if (nextEnabled === state.splitViewEnabled) return;
+  const container = splitViewContainer();
+  if (!container) { state.splitViewEnabled = false; return; }
+
+  if (nextEnabled) {
+    applySplitViewDefaultLayout();
+    state.splitViewEnabled = true;
+    document.body.classList.add('split-view-active');
+    container.classList.add('split-active');
+    applySplitViewLayoutToDom();
+    applySplitVideoTransform();
+    showSplitChrome();
+    // Double rAF, matching restoreReadingVideoPlacement's own reasoning: one
+    // frame for the class change to take effect, a second so the resulting
+    // layout is what gets measured.
+    requestAnimationFrame(() => requestAnimationFrame(() => scheduleVilnaPageLayoutRefresh(0)));
+    return;
+  }
+
+  state.splitViewEnabled = false;
+  document.body.classList.remove('split-view-active', 'split-chrome-hidden');
+  clearTimeout(splitChromeHideTimer);
+  pointerRestingOnSplitChrome = false;
+  container.classList.remove('split-active', 'split-stacked', 'split-video-end');
+  container.style.removeProperty('--split-video-ratio');
+  resetSplitVideoZoom({ announce: false });
+  scheduleVilnaPageLayoutRefresh(0);
+}
+
+// Only appears on cursor movement or a tap, then fades -- mirroring
+// showVideoControls' own .controls-hidden idea (further down in this file)
+// for the same reason: a bar that's always on screen is more chrome than a
+// reader watching a shiur actually wants up there. A plain top-level
+// function (not nested in initSplitView's own IIFE below) so setSplitView
+// above can call it directly the moment Split View is entered, not just the
+// event listeners that otherwise drive it.
+//
+// Two things are deliberately narrower here than showVideoControls' own
+// pattern, both informed by this feature's first attempt freezing real
+// devices: the reveal listeners (below, in initSplitView) are scoped to
+// just the daf pane and the bar itself, not every pointer/touch/focus event
+// on the whole document -- the bar has nothing to do with the video's own
+// control bar, which already has its own, separate auto-hide/reveal system,
+// and listening globally meant this bar's own class churn ran again on
+// every single tap on THAT bar too, for no reason. And the auto-HIDE half
+// below (never the reveal half, which must stay instant) defers while a
+// pointer is down anywhere, the same guard fitChrome() already relies on --
+// this bar's own churn is just a class toggle, never a reparent, so it was
+// never confirmed to be part of that corruption itself, but it costs
+// nothing to keep it out of a gesture's way regardless.
+const SPLIT_CHROME_AUTO_HIDE_MS = 2400;
+let splitChromeHideTimer = null;
+let pointerRestingOnSplitChrome = false;
+let splitChromePointersDown = 0;
+document.addEventListener('pointerdown', () => { splitChromePointersDown += 1; }, { capture: true });
+const onSplitChromePointerSettle = () => { splitChromePointersDown = Math.max(0, splitChromePointersDown - 1); };
+document.addEventListener('pointerup', onSplitChromePointerSettle, { capture: true });
+document.addEventListener('pointercancel', onSplitChromePointerSettle, { capture: true });
+function splitChromeShouldStayVisible() {
+  if (pointerRestingOnSplitChrome || splitDividerDrag) return true;
+  const active = document.activeElement;
+  return !!(active && active.closest?.('#viewerModeSelect') && active.matches(':focus-visible'));
+}
+function showSplitChrome() {
+  if (!state.splitViewEnabled) return;
+  document.body.classList.remove('split-chrome-hidden');
+  clearTimeout(splitChromeHideTimer);
+  const tick = () => {
+    if (splitChromePointersDown > 0) { splitChromeHideTimer = setTimeout(tick, 120); return; }
+    if (splitChromeShouldStayVisible()) { splitChromeHideTimer = setTimeout(tick, SPLIT_CHROME_AUTO_HIDE_MS); return; }
+    document.body.classList.add('split-chrome-hidden');
+  };
+  splitChromeHideTimer = setTimeout(tick, SPLIT_CHROME_AUTO_HIDE_MS);
+}
+
+// --- Split View's own video pinch-zoom/pan --------------------------------
+// A CSS transform on #videoFrame itself (never on .video-frame's children
+// individually, so the custom controls/chrome zoom and pan together with the
+// picture rather than drifting out of alignment with it), clipped by
+// #videoFrame's existing overflow:hidden. Deliberately a SEPARATE gesture
+// surface/state from Reading Mode's own pinch (which keeps resizing the
+// mini-player exactly as before) -- see splitVideoZoom's own comment in the
+// state object.
+function applySplitVideoTransform() {
+  const frame = $('videoFrame');
+  if (!frame) return;
+  frame.style.setProperty('--split-video-zoom', String(state.splitVideoZoom));
+  frame.style.setProperty('--split-video-pan-x', `${state.splitVideoPanX}px`);
+  frame.style.setProperty('--split-video-pan-y', `${state.splitVideoPanY}px`);
+  const zoomed = state.splitVideoZoom > 1.001;
+  frame.classList.toggle('split-video-zoomed', zoomed);
+  for (const id of ['splitVideoZoomResetButton']) { const el = $(id); if (el) el.hidden = !zoomed; }
+}
+function showSplitVideoZoomIndicator() {
+  const indicator = $('splitVideoZoomIndicator');
+  if (!indicator) return;
+  indicator.textContent = `${state.splitVideoZoom.toFixed(1)}×`;
+  indicator.classList.add('show');
+  clearTimeout(splitVideoZoomIndicatorTimer);
+  splitVideoZoomIndicatorTimer = setTimeout(() => indicator.classList.remove('show'), 1100);
+}
+function clampSplitVideoPan(zoom, panX, panY) {
+  const frame = $('videoFrame');
+  if (!frame) return { x: 0, y: 0 };
+  const maxX = (frame.clientWidth * (zoom - 1)) / 2;
+  const maxY = (frame.clientHeight * (zoom - 1)) / 2;
+  return { x: clampReadingValue(panX, -maxX, maxX), y: clampReadingValue(panY, -maxY, maxY) };
+}
+function setSplitVideoZoom(zoom, { panX = state.splitVideoPanX, panY = state.splitVideoPanY, announce = true } = {}) {
+  const nextZoom = clampReadingValue(zoom, SPLIT_VIDEO_MIN_ZOOM, SPLIT_VIDEO_MAX_ZOOM);
+  const pan = nextZoom > 1 ? clampSplitVideoPan(nextZoom, panX, panY) : { x: 0, y: 0 };
+  state.splitVideoZoom = nextZoom;
+  state.splitVideoPanX = pan.x;
+  state.splitVideoPanY = pan.y;
+  applySplitVideoTransform();
+  if (announce) showSplitVideoZoomIndicator();
+}
+function resetSplitVideoZoom({ announce = true } = {}) {
+  setSplitVideoZoom(1, { panX: 0, panY: 0, announce });
+}
+
+// --- The one authoritative mode switch -------------------------------------
+function setViewerMode(mode) {
+  const nextMode = VIEWER_MODES.includes(mode) ? mode : 'standard';
+  if (nextMode === state.viewerMode) return;
+  state.viewerMode = nextMode;
+  // Order matters only a little here (see each function's own early-return
+  // guard, which makes calling one already at its target value a no-op) --
+  // Split View settles the shared container's own layout first, then each
+  // pre-existing mode settles on top of that, so whichever one of THEM
+  // schedules a deferred layout read (Reading Mode's restoreReadingVideoPlacement,
+  // both via rAF) sees the container's final state.
+  setSplitView(nextMode === 'split');
+  setReadingMode(nextMode === 'video-on-daf');
+  applyVideoOverlayEnabled(nextMode === 'daf-on-video');
+  document.body.dataset.viewerMode = nextMode;
+  updateViewerModeUi();
+  announceViewerMode(nextMode);
+}
+
+function updateViewerModeUi() {
+  const mode = state.viewerMode;
+  const entries = [
+    ['viewerModeSplitButton', 'split'],
+    ['viewerModeDafOnVideoButton', 'daf-on-video'],
+    ['viewerModeVideoOnDafButton', 'video-on-daf'],
+  ];
+  for (const [id, value] of entries) {
+    const button = $(id);
+    if (!button) continue;
+    const active = mode === value;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  }
+  const exitButton = $('splitExitButton');
+  if (exitButton) exitButton.hidden = mode !== 'split';
+}
+
+function announceViewerMode(mode) {
+  const region = $('viewerModeAnnouncer');
+  if (!region) return;
+  const labels = {
+    split: state.splitViewLayout === 'stacked' ? 'Split view, stacked' : 'Split view, side by side',
+    'daf-on-video': 'Daf on video',
+    'video-on-daf': 'Video on daf',
+    standard: 'Standard view',
+  };
+  region.textContent = `Viewing mode: ${labels[mode] || mode}`;
+}
+
+(function initSplitView() {
+  const container = splitViewContainer();
+  const divider = $('splitDivider');
+  loadSplitViewPreferences();
+  // Combine the prominent selector and Split View's own toolbar into ONE
+  // bar -- reader-requested, in place of two separate floating bars. Moved
+  // once here, not per mode-transition: these are plain buttons with no
+  // fragile state tied to their DOM position (unlike the video/daf, which
+  // are never reparented -- see this feature's own opening comment), so a
+  // one-time move at init is all this needs. #splitToolbar becomes a
+  // trailing child of #viewerModeSelect, a visually-merged continuation of
+  // its own row, separated by a thin divider.
+  const viewerModeSelect = $('viewerModeSelect');
+  const splitToolbar = $('splitToolbar');
+  if (viewerModeSelect && splitToolbar) {
+    const barDivider = document.createElement('span');
+    barDivider.className = 'viewer-mode-bar-divider';
+    barDivider.setAttribute('aria-hidden', 'true');
+    viewerModeSelect.append(barDivider, splitToolbar);
+  }
+  // Every page loads into 'standard' -- the same plain .watch-layout grid
+  // shown before this feature existed -- exactly as it always did. Split
+  // View (like the other two modes) is reached only by an explicit reader
+  // choice, never activated automatically on load.
+  if (container) updateViewerModeUi();
+  if (!container || !divider) return;
+
+  function ratioFromPoint(clientX, clientY) {
+    const rect = container.getBoundingClientRect();
+    const stacked = state.splitViewLayout === 'stacked';
+    const size = stacked ? rect.height : rect.width;
+    if (!size) return splitViewRatioOrDefault();
+    const offset = stacked ? clientY - rect.top : clientX - rect.left;
+    let fraction = offset / size;
+    if (state.splitViewVideoPosition === 'end') fraction = 1 - fraction;
+    return clampReadingValue(fraction, SPLIT_VIEW_MIN_RATIO, SPLIT_VIEW_MAX_RATIO);
+  }
+  function setRatioLive(ratio) {
+    state.splitViewRatio = ratio;
+    container.style.setProperty('--split-video-ratio', String(ratio));
+    updateSplitViewToolbarUi();
+  }
+
+  divider.addEventListener('pointerdown', (event) => {
+    if (!state.splitViewEnabled || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    splitDividerDrag = { pointerId: event.pointerId };
+    divider.setPointerCapture?.(event.pointerId);
+    divider.classList.add('is-dragging');
+    event.preventDefault();
+  });
+  divider.addEventListener('pointermove', (event) => {
+    if (!splitDividerDrag || splitDividerDrag.pointerId !== event.pointerId) return;
+    setRatioLive(ratioFromPoint(event.clientX, event.clientY));
+    event.preventDefault();
+  });
+  function endDividerDrag(event) {
+    if (!splitDividerDrag || (event && splitDividerDrag.pointerId !== event.pointerId)) return;
+    splitDividerDrag = null;
+    divider.classList.remove('is-dragging');
+    saveSplitViewPreferences();
+  }
+  divider.addEventListener('pointerup', endDividerDrag);
+  divider.addEventListener('pointercancel', endDividerDrag);
+  divider.addEventListener('keydown', (event) => {
+    if (!state.splitViewEnabled) return;
+    const stacked = state.splitViewLayout === 'stacked';
+    const growKey = stacked ? 'ArrowDown' : 'ArrowRight';
+    const shrinkKey = stacked ? 'ArrowUp' : 'ArrowLeft';
+    if (![growKey, shrinkKey].includes(event.key)) return;
+    event.preventDefault();
+    const step = event.shiftKey ? 0.08 : 0.04;
+    const sign = event.key === growKey ? 1 : -1;
+    const directional = state.splitViewVideoPosition === 'end' ? -sign : sign;
+    setRatioLive(clampReadingValue(splitViewRatioOrDefault() + directional * step, SPLIT_VIEW_MIN_RATIO, SPLIT_VIEW_MAX_RATIO));
+    saveSplitViewPreferences();
+  });
+
+  // --- Prominent selector + Split View's own small toolbar ----------------
+  $('viewerModeSplitButton')?.addEventListener('click', () => setViewerMode('split'));
+  $('viewerModeDafOnVideoButton')?.addEventListener('click', () => setViewerMode(state.viewerMode === 'daf-on-video' ? 'split' : 'daf-on-video'));
+  $('viewerModeVideoOnDafButton')?.addEventListener('click', () => setViewerMode(state.viewerMode === 'video-on-daf' ? 'split' : 'video-on-daf'));
+  $('splitExitButton')?.addEventListener('click', () => setViewerMode('standard'));
+  $('splitLayoutToggleButton')?.addEventListener('click', () => {
+    state.splitViewLayout = state.splitViewLayout === 'stacked' ? 'side-by-side' : 'stacked';
+    state.splitViewLayoutExplicit = true;
+    state.splitViewRatio = null; // the new layout's own default, not the old one's
+    applySplitViewLayoutToDom();
+    saveSplitViewPreferences();
+    scheduleVilnaPageLayoutRefresh(0);
+    announceViewerMode('split');
+  });
+  $('splitSwapButton')?.addEventListener('click', () => {
+    state.splitViewVideoPosition = state.splitViewVideoPosition === 'end' ? 'start' : 'end';
+    applySplitViewLayoutToDom();
+    saveSplitViewPreferences();
+  });
+  $('splitResetButton')?.addEventListener('click', () => {
+    state.splitViewRatio = null;
+    state.splitViewVideoPosition = 'start';
+    applySplitViewLayoutToDom();
+    saveSplitViewPreferences();
+  });
+  $('splitFullscreenButton')?.addEventListener('click', toggleVilnaFullscreen);
+
+  // --- Video pinch-zoom/pan gesture surface --------------------------------
+  // The YouTube iframe is cross-origin and never bubbles touch events to this
+  // page, so (following the exact same reasoning Reading Mode's own pinch
+  // surface already uses -- see readingVideoPinchSurface above) a dedicated,
+  // transparent surface sits over the video picture ONLY, never over
+  // .player-controls, so ordinary play/pause/seek/captions/settings/
+  // fullscreen use is untouched.
+  const pinchSurface = $('splitVideoPinchSurface');
+  let splitVideoTap = null;
+  function pinchPair() { return [...splitVideoPinchPointers.values()].slice(0, 2); }
+  function pinchDistance(a, b) { return Math.hypot(b.x - a.x, b.y - a.y); }
+  if (pinchSurface) {
+    pinchSurface.addEventListener('pointerdown', (event) => {
+      if (!state.splitViewEnabled) return;
+      const point = { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY };
+      splitVideoPinchPointers.set(event.pointerId, point);
+      pinchSurface.setPointerCapture?.(event.pointerId);
+      if (splitVideoPinchPointers.size === 2) {
+        const [a, b] = pinchPair();
+        splitVideoPinch = { distance: Math.max(1, pinchDistance(a, b)), startZoom: state.splitVideoZoom, startPanX: state.splitVideoPanX, startPanY: state.splitVideoPanY };
+        splitVideoTap = null;
+      } else if (splitVideoPinchPointers.size === 1) {
+        // A second finger lifting mid-pinch leaves exactly one pointer down
+        // without a fresh pointerdown on it -- this branch only starts a NEW
+        // gesture, so it must not stomp a pinch this same pointerdown already
+        // continues as a pan.
+        splitVideoPinch = state.splitVideoZoom > 1.001
+          ? { pan: true, startX: event.clientX, startY: event.clientY, startPanX: state.splitVideoPanX, startPanY: state.splitVideoPanY }
+          : null;
+        splitVideoTap = { pointerId: event.pointerId, startedAt: performance.now() };
+      }
+    });
+    pinchSurface.addEventListener('pointermove', (event) => {
+      const point = splitVideoPinchPointers.get(event.pointerId);
+      if (!point) return;
+      point.x = event.clientX;
+      point.y = event.clientY;
+      if (splitVideoPinchPointers.size >= 2 && splitVideoPinch && !splitVideoPinch.pan) {
+        const [a, b] = pinchPair();
+        const ratio = pinchDistance(a, b) / splitVideoPinch.distance;
+        setSplitVideoZoom(splitVideoPinch.startZoom * ratio, { panX: splitVideoPinch.startPanX, panY: splitVideoPinch.startPanY, announce: true });
+        splitVideoTap = null;
+        event.preventDefault();
+      } else if (splitVideoPinch?.pan) {
+        if (Math.hypot(point.x - point.startX, point.y - point.startY) > 6) splitVideoTap = null;
+        setSplitVideoZoom(state.splitVideoZoom, {
+          panX: splitVideoPinch.startPanX + (event.clientX - splitVideoPinch.startX),
+          panY: splitVideoPinch.startPanY + (event.clientY - splitVideoPinch.startY),
+          announce: false,
+        });
+        event.preventDefault();
+      } else if (Math.hypot(point.x - point.startX, point.y - point.startY) > 6) {
+        splitVideoTap = null;
+      }
+    });
+    function releasePinchPointer(event, cancelled = false) {
+      const wasPinching = Boolean(splitVideoPinch) && splitVideoPinchPointers.size >= 2;
+      splitVideoPinchPointers.delete(event.pointerId);
+      if (splitVideoPinchPointers.size < 2) splitVideoPinch = null;
+      // A single, un-moved tap that never became a pinch or pan either
+      // double-taps to reset (when already zoomed) or acts exactly like
+      // tapping the video normally would -- toggling play/pause -- since
+      // this surface sits directly over the video picture and would
+      // otherwise silently swallow that tap. See readingVideoTap's own
+      // identical reasoning above.
+      if (!cancelled && !wasPinching && splitVideoTap?.pointerId === event.pointerId) {
+        const now = performance.now();
+        if (state.splitVideoZoom > 1.001 && now - splitVideoLastTapAt < 320) {
+          resetSplitVideoZoom();
+          splitVideoLastTapAt = 0;
+        } else {
+          splitVideoLastTapAt = now;
+          if (performance.now() - splitVideoTap.startedAt < 450) togglePlay();
+        }
+      }
+      splitVideoTap = null;
+    }
+    pinchSurface.addEventListener('pointerup', (event) => releasePinchPointer(event));
+    pinchSurface.addEventListener('pointercancel', (event) => releasePinchPointer(event, true));
+    // Desktop/non-multitouch accessibility: Ctrl/Cmd+wheel over the video.
+    pinchSurface.addEventListener('wheel', (event) => {
+      if (!state.splitViewEnabled || !(event.ctrlKey || event.metaKey)) return;
+      event.preventDefault();
+      setSplitVideoZoom(state.splitVideoZoom - event.deltaY * 0.01);
+    }, { passive: false });
+  }
+  for (const [id, delta] of [['splitVideoZoomInButton', 0.25], ['splitVideoZoomOutButton', -0.25]]) {
+    $(id)?.addEventListener('click', () => setSplitVideoZoom(state.splitVideoZoom + delta));
+  }
+  $('splitVideoZoomResetButton')?.addEventListener('click', () => resetSplitVideoZoom());
+
+  window.addEventListener('resize', () => {
+    if (!state.splitViewEnabled) return;
+    applySplitViewDefaultLayout();
+    applySplitViewLayoutToDom();
+    resetSplitVideoZoom({ announce: false });
+    scheduleVilnaPageLayoutRefresh(120);
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && state.viewerMode === 'split' && !document.fullscreenElement && !document.querySelector('dialog[open]')) {
+      setViewerMode('standard');
+    }
+  });
+
+  // --- Bringing the combined bar back once it has faded out --------------
+  // Scoped to the daf pane and the bar itself -- NOT the whole document,
+  // and deliberately NOT the video pane, which has its own, separate
+  // auto-hide/reveal system already (.controls-hidden/showVideoControls)
+  // with nothing to do with this bar. Listening on the whole document was
+  // this feature's first real-device freeze report: every single tap on
+  // the VIDEO's own control bar (speed, captions, settings, ...) also
+  // retriggered this bar's own class churn, for no reason connected to
+  // what was actually tapped, doubling the DOM churn already running on
+  // that tap alongside the video-controls system's own reveal. The daf
+  // pane still needs to trigger a reveal here (it's the one place in Split
+  // View this bar's absence isn't covered by anything else), and the bar
+  // itself needs to via pointerover/pointerout below, for a mouse resting
+  // on it without generating further mousemove.
+  const dafCard = container.querySelector('.daf-card');
+  for (const target of [dafCard, viewerModeSelect].filter(Boolean)) {
+    target.addEventListener('mousemove', showSplitChrome);
+    target.addEventListener('pointerdown', showSplitChrome);
+    target.addEventListener('touchstart', showSplitChrome, { passive: true });
+  }
+  // keydown stays document-wide, unlike the pointer/touch listeners above:
+  // it never fires as part of a touch gesture (nothing here is guarding
+  // against a keyboard event racing one), and scoping it would strand a
+  // reader tabbing in from elsewhere on the page on a bar that's still
+  // invisible right under their new focus.
+  document.addEventListener('keydown', showSplitChrome);
+  if (viewerModeSelect) {
+    viewerModeSelect.addEventListener('pointerover', (event) => {
+      if (event.pointerType !== 'mouse') return;
+      pointerRestingOnSplitChrome = true;
+    });
+    viewerModeSelect.addEventListener('pointerout', (event) => {
+      if (event.pointerType !== 'mouse') return;
+      pointerRestingOnSplitChrome = false;
+    });
+  }
 })();
 
 // Mirrors toggleVilnaFullscreen's own WebKit-prefixed fallback below --
@@ -7257,7 +7818,7 @@ const overlayResetPositionButtonEls = overlayControlGroup('overlayResetPositionB
 
 for (const el of overlayToggleEls) el.addEventListener('change', (event) => {
   syncGroupValue(overlayToggleEls, event, 'checked');
-  applyVideoOverlayEnabled(event.target.checked);
+  setViewerMode(event.target.checked ? 'daf-on-video' : 'split');
   // The rest of the overlay's own display settings (style/opacity/zoom/etc)
   // live tucked away in a <details> dropdown so they don't clutter the
   // video by default -- open (and close) the canonical, always-in-page-flow
@@ -7440,16 +8001,43 @@ vilnaScroll?.addEventListener('touchstart', (event) => {
   event.preventDefault();
 }, { passive: false });
 
+// touchmove can fire far more often than the display can repaint (many
+// mobile browsers dispatch it every few milliseconds during a real
+// two-finger drag) -- and each one here forces a synchronous layout read
+// (getBoundingClientRect) plus a scroll-position write, the textbook
+// layout-thrashing pattern. Reported as the whole page locking up while
+// pinch-zooming the daf specifically inside Split View, whose daf pane is
+// the full viewport rather than the small embedded card this same
+// pre-existing handler had only ever run against before -- the identical
+// per-event cost now repaints and re-composites a much larger surface, on
+// mobile hardware, however many times a millisecond touchmove fires.
+// Coalescing to at most once per animation frame (only the latest touch
+// positions matter -- an intermediate frame's positions are never seen
+// once a newer one has landed) bounds that cost to the display's own
+// refresh rate regardless of how fast raw touch events arrive.
+let vilnaPinchRafPending = false;
+let vilnaPinchLatestTouches = null;
 vilnaScroll?.addEventListener('touchmove', (event) => {
   if (!vilnaPinchGesture || event.touches.length !== 2) return;
   event.preventDefault();
-  const rect = vilnaScroll.getBoundingClientRect();
-  const midpoint = vilnaTouchMidpoint(event.touches, rect);
-  const ratio = vilnaTouchDistance(event.touches) / vilnaPinchGesture.distance;
-  const nextZoom = Math.max(VILNA_ZOOM_MIN, Math.min(VILNA_ZOOM_MAX, vilnaPinchGesture.zoom * ratio));
-  setVilnaPageZoom(nextZoom);
-  vilnaScroll.scrollLeft = vilnaPinchGesture.contentX * nextZoom - midpoint.x;
-  vilnaScroll.scrollTop = vilnaPinchGesture.contentY * nextZoom - midpoint.y;
+  vilnaPinchLatestTouches = [
+    { clientX: event.touches[0].clientX, clientY: event.touches[0].clientY },
+    { clientX: event.touches[1].clientX, clientY: event.touches[1].clientY },
+  ];
+  if (vilnaPinchRafPending) return;
+  vilnaPinchRafPending = true;
+  requestAnimationFrame(() => {
+    vilnaPinchRafPending = false;
+    if (!vilnaPinchGesture || !vilnaPinchLatestTouches) return;
+    const touches = vilnaPinchLatestTouches;
+    const rect = vilnaScroll.getBoundingClientRect();
+    const midpoint = vilnaTouchMidpoint(touches, rect);
+    const ratio = vilnaTouchDistance(touches) / vilnaPinchGesture.distance;
+    const nextZoom = Math.max(VILNA_ZOOM_MIN, Math.min(VILNA_ZOOM_MAX, vilnaPinchGesture.zoom * ratio));
+    setVilnaPageZoom(nextZoom);
+    vilnaScroll.scrollLeft = vilnaPinchGesture.contentX * nextZoom - midpoint.x;
+    vilnaScroll.scrollTop = vilnaPinchGesture.contentY * nextZoom - midpoint.y;
+  });
 }, { passive: false });
 
 function finishVilnaPinch(event) {

@@ -1011,7 +1011,40 @@
         </div>
       </section>
 
+      <div class="viewer-mode-select" id="viewerModeSelect" role="group" aria-label="Viewing mode">
+        <button type="button" class="viewer-mode-button" id="viewerModeSplitButton" aria-pressed="false" title="Split view: video and daf side by side">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="8.5" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="13" y="4.5" width="8.5" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+          <span>Split view</span>
+        </button>
+        <button type="button" class="viewer-mode-button" id="viewerModeDafOnVideoButton" aria-pressed="false" title="Daf on video: the printed daf drawn over the video">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M6.5 9h11M6.5 12h11M6.5 15h7" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+          <span>Daf on video</span>
+        </button>
+        <button type="button" class="viewer-mode-button" id="viewerModeVideoOnDafButton" aria-pressed="false" title="Video on daf: a movable video over the printed daf">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="5.5" y="12" width="8.5" height="5.5" rx="1" fill="currentColor" opacity=".25"/><path d="m9 13.4 3.2 1.85L9 17.1v-3.7Z" fill="currentColor"/><path d="M7 8h10" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+          <span>Video on daf</span>
+        </button>
+      </div>
+      <div id="viewerModeAnnouncer" class="sr-only" role="status" aria-live="polite"></div>
+
       <section class="watch-layout" aria-label="Shiur and synchronized daf">
+        <div class="split-toolbar" id="splitToolbar">
+          <button type="button" class="icon-button" id="splitLayoutToggleButton" aria-pressed="false" title="Switch to stacked" aria-label="Switch to stacked">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="8.5" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="13" y="4.5" width="8.5" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+          </button>
+          <button type="button" class="icon-button" id="splitSwapButton" title="Swap panel positions" aria-label="Swap panel positions">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11M18 7l-4-4M18 7l-4 4M17 17H6M6 17l4 4M6 17l4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button type="button" class="icon-button" id="splitResetButton" title="Reset panel sizes" aria-label="Reset panel sizes">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 1 2.6 5.9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 17v-5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button type="button" class="icon-button" id="splitFullscreenButton" title="Fullscreen" aria-label="Fullscreen">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button type="button" class="icon-button" id="splitExitButton" title="Exit split view (Esc)" aria-label="Exit split view" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+          </button>
+        </div>
         <article class="player-card card">
           <header class="daf-header video-header">
             <div><p class="eyebrow">Shiur video</p><h2>&nbsp;</h2></div>
@@ -1033,6 +1066,26 @@
             </button>
             <div class="video-vilna-overlay" id="videoVilnaOverlay" hidden>
               <canvas id="videoVilnaCanvas"></canvas>
+            </div>
+
+            <!-- Split View's own video pinch-zoom/pan gesture surface -- see
+                 app.js's Split View section for why a dedicated transparent
+                 surface (excluding the control bar below) is needed at all:
+                 the YouTube iframe is cross-origin and never bubbles touch
+                 events to this page. Hidden (display:none) outside Split
+                 View entirely -- see styles.css. -->
+            <div class="split-video-pinch-surface" id="splitVideoPinchSurface" role="button" tabindex="0" aria-label="Pinch or Ctrl/Cmd+scroll to zoom the video, drag to pan when zoomed, double-tap to reset"></div>
+            <div class="split-video-zoom-indicator" id="splitVideoZoomIndicator"></div>
+            <div class="split-video-zoom-controls" id="splitVideoZoomControls">
+              <button type="button" id="splitVideoZoomInButton" aria-label="Zoom in">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M11 8v6M8 11h6M20 20l-4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              </button>
+              <button type="button" id="splitVideoZoomOutButton" aria-label="Zoom out">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 11h6M20 20l-4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              </button>
+              <button type="button" id="splitVideoZoomResetButton" aria-label="Reset zoom" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 1 2.6 5.9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 17v-5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
             </div>
 
             <!-- A second, compact copy of the overlay controls (distinct
@@ -1253,6 +1306,7 @@
           </div>
         </article>
 
+        <div class="split-divider" id="splitDivider" role="separator" tabindex="0" aria-orientation="vertical" aria-valuemin="22" aria-valuemax="78" aria-valuenow="50" aria-label="Resize video and daf panels"></div>
         <aside class="daf-card card" id="dafCard" data-daf-view="page" aria-labelledby="dafTitle">
           <header class="daf-header">
             <div><p class="eyebrow">Following</p><h2 id="dafTitle">No daf loaded</h2></div>

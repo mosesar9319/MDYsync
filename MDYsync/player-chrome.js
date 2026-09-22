@@ -48,6 +48,9 @@
     // Matches #readingModeButton's own glyph (a page with a small video
     // inset) -- same feature, so the same picture.
     videoOnDaf: svg(`<rect x="3" y="4" width="18" height="16" rx="2" ${STROKE}/><rect x="5.5" y="12" width="8.5" height="5.5" rx="1" fill="currentColor" opacity=".25"/><path d="m9 13.4 3.2 1.85L9 17.1v-3.7Z" fill="currentColor"/><path d="M7 8h10" ${STROKE}/>`),
+    // Two side-by-side panes -- matches the prominent selector's own Split
+    // View glyph above the player (see viewer-mode-select's markup).
+    splitView: svg(`<rect x="2.5" y="4.5" width="8.5" height="15" rx="2" ${STROKE}/><rect x="13" y="4.5" width="8.5" height="15" rx="2" ${STROKE}/>`),
     pip: svg(`<rect x="2.5" y="4.5" width="19" height="15" rx="2.2" ${STROKE}/><rect x="12" y="11.5" width="8" height="6.5" rx="1.4" fill="currentColor"/>`),
   };
 
@@ -442,13 +445,27 @@
     button.innerHTML = `${icon}<span>${label}</span>`;
     return button;
   };
+  // Split View is the third and, per its own product decision, the FIRST
+  // listed of the three -- unlike the other two pills it has no pre-existing
+  // checkbox/button to proxy to (there was nothing to toggle before this
+  // feature existed), so its click goes straight to setViewerMode (app.js,
+  // loaded before this script -- see this file's own opening comment on load
+  // order). Only offered on pages that actually have a Split View container
+  // (.watch-layout) to switch into -- studio/index.html's own .workspace
+  // never carries that class, matching this feature's own page scope
+  // (browse/player/watch only).
+  const splitViewButton = pill('splitViewButton', 'Split view', ICONS.splitView);
   const dafOnVideoButton = pill('dafOnVideoButton', 'Daf on video', ICONS.dafOnVideo);
   const videoOnDafButton = pill('videoOnDafButton', 'Video on daf', ICONS.videoOnDaf);
+  const hasSplitView = Boolean(document.querySelector('.watch-layout'));
+  if (hasSplitView) tools.appendChild(splitViewButton);
   tools.appendChild(dafOnVideoButton);
   // Reading mode only exists on the pages that ship a daf column to float the
   // video over (player/ and browse/); watch/ and studio/ have no
   // #readingModeButton to proxy to, so there's nothing to offer there.
   if ($('readingModeButton')) tools.appendChild(videoOnDafButton);
+  splitViewButton.addEventListener('click', () => window.setViewerMode?.('split'));
+  if (!hasSplitView) splitViewButton.hidden = true;
 
   const pipButton = document.createElement('button');
   pipButton.type = 'button';
@@ -549,15 +566,19 @@
   // so a resize that frees up room brings a control back to exactly where
   // it started rather than leaving it stranded in the menu from a previous,
   // narrower pass.
-  const TOOLS_ORDER = [speedStack, captionsStack, settingsStack, dafOnVideoButton, hasReadingMode && videoOnDafButton, pipStack, toolsMoreStack, fullscreenStack].filter(Boolean);
+  const TOOLS_ORDER = [speedStack, captionsStack, settingsStack, hasSplitView && splitViewButton, dafOnVideoButton, hasReadingMode && videoOnDafButton, pipStack, toolsMoreStack, fullscreenStack].filter(Boolean);
   // Overflow priority, most disposable first -- the mirror image of
-  // TOOLS_ORDER's own tail: PiP is a pure convenience, the two pills exist
-  // because reading mode has its own separate, always-visible entry point
-  // (the daf card's own header), so those three go before Settings and
-  // Captions, the least disposable of the bunch. Speed and Fullscreen are
-  // never in this list at all -- see their own comments above and on
+  // TOOLS_ORDER's own tail: PiP is a pure convenience, the two older pills
+  // exist because reading mode/the overlay each have their own separate,
+  // always-visible entry point (the daf card's own header, the overlay
+  // settings toggle), so those three go before Settings and Captions, the
+  // least disposable of the bunch. Split View's pill goes LAST of the three
+  // mode pills -- it's the mode every page now opens in by default (see
+  // setViewerMode's own initSplitView in app.js), so it stays visible longer
+  // than the other two before the bar has to hide it. Speed and Fullscreen
+  // are never in this list at all -- see their own comments above and on
   // fitChrome below.
-  const OVERFLOW_PRIORITY = [pipStack, hasReadingMode && videoOnDafButton, dafOnVideoButton, settingsStack, captionsStack].filter(Boolean);
+  const OVERFLOW_PRIORITY = [pipStack, hasReadingMode && videoOnDafButton, dafOnVideoButton, hasSplitView && splitViewButton, settingsStack, captionsStack].filter(Boolean);
 
   // The old bar's hand-placed spacers/dividers did the job .pc-group's own
   // space-between layout now does.
@@ -594,6 +615,7 @@
   function syncToggleStates() {
     dafOnVideoButton.setAttribute('aria-pressed', String(frame.classList.contains('overlay-on')));
     videoOnDafButton.setAttribute('aria-pressed', String(document.body.classList.contains('reading-mode-active')));
+    if (hasSplitView) splitViewButton.setAttribute('aria-pressed', String(document.body.classList.contains('split-view-active')));
     const favorite = $('favoriteButton');
     if (favorite) {
       $('playerBookmarkButton').hidden = favorite.hidden;
@@ -899,9 +921,88 @@
   // pass just confirms the same layout and makes no further changes, so it
   // settles after one extra call), but disconnecting for the run is simpler
   // than relying on that self-correction.
-  const controlsObserver = new MutationObserver(fitChrome);
+  //
+  // timeDisplay's own #currentTime/#duration text is the one thing in this
+  // subtree that legitimately changes on its own, continuously, the whole
+  // time a video plays (updateTimeline polls every 100ms -- see app.js).
+  // Confirmed directly, with a real-device touch diagnostic, to retrigger a
+  // full measure-and-reorder pass on very nearly every one of those ticks:
+  // not a false alarm from stale logging, but this callback's own width
+  // check landing right at is-tiny's fit/no-fit boundary, where a timer
+  // string a pixel or two narrower or wider than the last one is enough to
+  // flip it. Nothing about a clock ticking should be moving controls
+  // in and out of the overflow menu ten times a second, so mutations
+  // confined entirely to the time display are filtered out before they
+  // ever reach fitChrome, the same way disconnecting for its own run stops
+  // it from reacting to its own writes.
+  const controlsObserver = new MutationObserver((records) => {
+    if (records.every((record) => timeDisplay.contains(record.target))) return;
+    fitChrome();
+  });
+  // A real device report showed fitChrome() genuinely reordering -- not the
+  // already-fixed no-op case, an ACTUAL move -- three times over the course
+  // of ONE touch gesture on #speedSelect, the exact pattern already
+  // confirmed to corrupt that gesture's own click synthesis and leave the
+  // page unresponsive: something (showVideoControls' own class churn, which
+  // runs on every touchstart) can genuinely shift the bar's available width
+  // by a pixel or two on a real page with real content, tipping is-tiny's
+  // fit/no-fit boundary each way in turn -- unlike the already-filtered
+  // timer text, there's no single mutation source to exclude here. Tracked
+  // at the document level (not just this bar) since a pointer can start on
+  // any control and a resize/mutation can still land while it's down.
+  //
+  // pointerup is not the end of a gesture, though -- real-device evidence
+  // showed fitChrome() reordering in the narrow window AFTER pointerup but
+  // BEFORE touchend, right where the very first fix for this looked safe to
+  // run its catch-up pass. touchend, and whatever click the browser
+  // synthesizes from it, still have to be dispatched after pointerup fires,
+  // and reparenting the pressed control in that gap is just as capable of
+  // corrupting them as reparenting it while the finger is still down.
+  // unsafeUntil extends the deferral window a little past release rather
+  // than ending it exactly at pointerup, and a pending timer keeps retrying
+  // at the boundary rather than only on the next unrelated trigger, so a
+  // bar that fell out of place during the grace window doesn't stay stale
+  // indefinitely.
+  const POST_RELEASE_GRACE_MS = 120;
+  let pointersDownOnPage = 0;
+  let unsafeUntil = 0;
+  let settleTimer = null;
+  const scheduleSettleCheck = () => {
+    clearTimeout(settleTimer);
+    const delay = Math.max(0, unsafeUntil - performance.now());
+    settleTimer = setTimeout(fitChrome, delay + 1);
+  };
+  document.addEventListener('pointerdown', () => { pointersDownOnPage += 1; unsafeUntil = Infinity; }, { capture: true });
+  const onPointerSettle = () => {
+    pointersDownOnPage = Math.max(0, pointersDownOnPage - 1);
+    if (pointersDownOnPage === 0) {
+      unsafeUntil = performance.now() + POST_RELEASE_GRACE_MS;
+      scheduleSettleCheck();
+    }
+  };
+  document.addEventListener('pointerup', onPointerSettle, { capture: true });
+  document.addEventListener('pointercancel', onPointerSettle, { capture: true });
   function fitChrome() {
     controlsObserver.disconnect();
+
+    // Every branch below this point can reparent a TOOLS_ORDER control --
+    // the recovery reorder, moving one into/out of the overflow menu,
+    // re-pinning fullscreen -- and doing that while the reader's finger is
+    // still down on one of them, OR shortly after it lifts (real-device
+    // evidence caught a reorder landing between pointerup and touchend --
+    // see unsafeUntil's own comment above), is exactly what's been
+    // confirmed to corrupt that gesture's own click synthesis, leaving the
+    // whole page unresponsive to further input. Deferred rather than
+    // skipped: the pointerup/pointercancel listener above schedules a
+    // retry right at the end of the grace window, so the bar is never
+    // permanently stale, only briefly late while a gesture is still
+    // settling.
+    if (pointersDownOnPage > 0 || performance.now() < unsafeUntil) {
+      controlsObserver.observe(controls, {
+        subtree: true, childList: true, attributes: true, attributeFilter: ['hidden', 'style', 'class'],
+      });
+      return false;
+    }
 
     // tools.append(...TOOLS_ORDER) two lines down always re-inserts every
     // candidate, even ones already exactly where they belong -- that's how
@@ -927,10 +1028,28 @@
 
     // Put every candidate back in its normal spot before re-measuring, so a
     // resize that FREES UP room brings a control back rather than leaving it
-    // stranded in the menu from a previous, narrower pass.
-    toolsMoreStack.hidden = false;
-    tools.append(...TOOLS_ORDER);
-    toolsMoreMenu.replaceChildren();
+    // stranded in the menu from a previous, narrower pass. Skipped entirely
+    // when nothing is actually out of place (the common case: nothing
+    // previously overflowed, and every control already sits exactly where
+    // TOOLS_ORDER says it belongs) -- reparenting a node the reader's finger
+    // is still down on mid-gesture (this callback fires on the very
+    // touchstart that reveals the bar again, via the ResizeObserver above
+    // reacting to .controls-hidden coming off) was confirmed, with the
+    // ?debugtouch=1 diagnostic against a real device, to be followed by that
+    // exact gesture's touchend firing but no click ever following it, and
+    // the whole page then going permanently unresponsive to all input --
+    // consistent with a real mobile browser's own touch/pointer-capture
+    // bookkeeping getting confused by its live touch target being removed
+    // and reinserted out from under it, which no headless/synthetic-touch
+    // test can reproduce.
+    const alreadyInPlace = toolsMoreMenu.children.length === 0
+      && TOOLS_ORDER.length === tools.children.length
+      && TOOLS_ORDER.every((el, i) => tools.children[i] === el);
+    if (!alreadyInPlace) {
+      toolsMoreStack.hidden = false;
+      tools.append(...TOOLS_ORDER);
+      toolsMoreMenu.replaceChildren();
+    }
 
     const width = frame.clientWidth;
     let depth = width < TINY_WIDTH ? 3 : width < COMPACT_WIDTH ? 2 : width < SNUG_WIDTH ? 1 : 0;
@@ -957,8 +1076,11 @@
     // OVERFLOW_PRIORITY above) and is re-pinned here as the very last child
     // of .pc-tools on every single pass, so it's always the rightmost
     // control in the bar -- whether or not the "More" button beside it is
-    // currently showing anything.
-    if (fullscreenStack) tools.appendChild(fullscreenStack);
+    // currently showing anything. Skipped when it's already last, for the
+    // same reason the reorder above is: reparenting a node mid-touch (this
+    // whole function can run on the very touchstart that reveals the bar)
+    // is what was confirmed to leave the page unresponsive on a real device.
+    if (fullscreenStack && tools.lastElementChild !== fullscreenStack) tools.appendChild(fullscreenStack);
 
     if (shouldRestoreFocus && document.activeElement !== focusedBefore) focusedBefore.focus({ preventScroll: true });
 
