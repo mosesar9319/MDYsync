@@ -2580,17 +2580,26 @@ body.split-view-active .split-toolbar { display: flex; }
   background: rgba(255,255,255,.2);
 }
 body.split-view-active .viewer-mode-bar-divider { display: block; }
-/* Auto-hide: opacity/pointer-events only (never display:none, which would
-   drop focus if a reader tabbed into the bar right as it faded) -- and only
-   while the bar is actually the floating Split View overlay; in the other
-   two modes #viewerModeSelect sits in normal document flow and is never
-   hidden this way. */
+/* Auto-hide: opacity only (never display:none, which would drop focus if a
+   reader tabbed into the bar right as it faded) -- and only while the bar is
+   actually the floating Split View overlay; in the other two modes
+   #viewerModeSelect sits in normal document flow and is never hidden this
+   way. Deliberately NOT pointer-events:none: this bar's own reveal listeners
+   (mousemove/pointerdown/touchstart -> showSplitChrome() in app.js) are
+   registered on the bar itself, so cutting its pointer input the moment it
+   fades cuts off the one thing meant to bring it back by tapping it directly
+   -- confirmed directly as the real cause behind "the buttons don't work"
+   reports: every tap landed on an already-faded, now pointer-events:none
+   bar and reached nothing at all, not even the reveal. Leaving pointer
+   events on means the very first tap after a fade both reveals the bar AND
+   fires the tapped button's own click in the same gesture -- pointer-events
+   only gates hit-testing, it never blocks the fade animation or the
+   underlying opacity. */
 @media (prefers-reduced-motion: no-preference) {
   body.split-view-active .viewer-mode-select { transition: opacity .2s ease; }
 }
 body.split-view-active.split-chrome-hidden .viewer-mode-select {
   opacity: 0;
-  pointer-events: none;
 }
 
 /* --- Split View's own video pinch-zoom/pan gesture surface --------------- */
@@ -2632,7 +2641,7 @@ body.split-view-active .watch-layout.split-active .video-frame .split-video-pinc
    is shifted down to clear it (matching the combined bar's own height)
    as well as raised above the pinch surface. */
 body.split-view-active .watch-layout.split-active .video-frame .player-topbar {
-  top: calc(max(10px, env(safe-area-inset-top, 0px)) + 74px);
+  top: calc(max(10px, env(safe-area-inset-top, 0px)) + var(--viewer-mode-bar-h, 74px));
   z-index: 13;
 }
 /* Shifting the topbar down vacates the strip above it (0 to its new top),
@@ -2649,10 +2658,10 @@ body.split-view-active .watch-layout.split-active .video-frame .player-topbar {
 body.split-view-active .watch-layout.split-active .video-frame .player-topbar::before {
   content: '';
   position: absolute;
-  top: calc(-1 * (max(10px, env(safe-area-inset-top, 0px)) + 74px));
+  top: calc(-1 * (max(10px, env(safe-area-inset-top, 0px)) + var(--viewer-mode-bar-h, 74px)));
   left: 0;
   right: 0;
-  height: calc(max(10px, env(safe-area-inset-top, 0px)) + 74px);
+  height: calc(max(10px, env(safe-area-inset-top, 0px)) + var(--viewer-mode-bar-h, 74px));
   background: rgba(4,12,22,.9);
   pointer-events: none;
 }

@@ -5801,6 +5801,36 @@ function announceViewerMode(mode) {
     barDivider.setAttribute('aria-hidden', 'true');
     viewerModeSelect.append(barDivider, splitToolbar);
   }
+  // The video's own topbar is pushed down in Split View to clear this bar
+  // (see body.split-view-active .video-frame .player-topbar in styles.css)
+  // -- but that offset used to be a flat guess (74px, carried over from an
+  // earlier, narrower version of this same combined bar), and #viewerModeSelect
+  // is a position:fixed SIBLING of .watch-layout, not a descendant, so no
+  // CSS on the .video-frame side can ever measure its actual rendered size
+  // on its own. Reported directly: the topbar hanging noticeably lower than
+  // the bar above it actually reaches, real-device evidence that guess was
+  // wrong for at least one viewport/content combination. A ResizeObserver
+  // keeps a CSS var in sync with this bar's REAL height instead -- correct
+  // for any viewport, any wrapping, any future content added to it -- and
+  // fires once immediately on observe() with the initial size, so no
+  // separate first-paint call is needed.
+  if (viewerModeSelect) {
+    // Always measured via getBoundingClientRect(), never a ResizeObserver
+    // entry's own contentRect -- confirmed directly, contentRect is the
+    // CONTENT box only (excludes this bar's own 8px padding + 1px border on
+    // every side), 18px short of the bar's real rendered height, which
+    // reintroduced a too-small gap under a different guise.
+    const updateViewerModeBarHeight = () => {
+      const height = viewerModeSelect.getBoundingClientRect().height;
+      document.documentElement.style.setProperty('--viewer-mode-bar-h', `${Math.ceil(height)}px`);
+    };
+    if (typeof ResizeObserver === 'function') {
+      new ResizeObserver(updateViewerModeBarHeight).observe(viewerModeSelect);
+    } else {
+      updateViewerModeBarHeight();
+      window.addEventListener('resize', () => updateViewerModeBarHeight());
+    }
+  }
   // Every page loads into 'standard' -- the same plain .watch-layout grid
   // shown before this feature existed -- exactly as it always did. Split
   // View (like the other two modes) is reached only by an explicit reader
