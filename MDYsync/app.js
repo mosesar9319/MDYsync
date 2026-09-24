@@ -8575,13 +8575,23 @@ async function ensureSyncedDapimLoaded() {
   return state.syncedDapim;
 }
 
-// The site only has synced content for one tractate right now -- every
-// tractate picker (the reader-facing daf reference picker, the admin sync
-// dialog, the studio catalog grid) is locked to just this one instead of
-// offering all 36 tractates in talmud_index.json, most of which have
-// nothing synced and aren't even being worked on yet. Add to this list
-// once a second tractate is actually ready to publish.
-const SITE_ACTIVE_TRACTATES = ['Chullin'];
+// Every tractate picker (the reader-facing daf reference picker, the admin
+// sync dialog, the studio catalog grid) is locked to just the tractates the
+// site actually has synced content for, instead of offering all 36
+// tractates in talmud_index.json, most of which have nothing synced and
+// aren't even being worked on yet. Add to this list once a tractate is
+// actually ready to publish -- keep this in sync with index.html's own
+// SITE_TRACTATES (the homepage's video-grid allowlist): reported directly,
+// leaving a tractate off THIS list after adding it to that one crashed
+// every page for that tractate outright ("Cannot read properties of
+// undefined (reading 'endDaf')") -- syncDafPickerFromRef (called from
+// loadAlignmentData on every daf load) sets #dafTractateSelect's value to
+// the loaded ref's tractate; a <select>'s value setter silently clears to
+// "" for a value with no matching <option>, which only THIS list controls,
+// and refreshDafPickerAmud() had no guard against the undefined entry that
+// produced -- unlike every other reader of syncState.talmudByName in this
+// file, all of which already check first.
+const SITE_ACTIVE_TRACTATES = ['Chullin', 'Bekhorot'];
 
 async function loadTalmudIndex() {
   if (!syncState.tractateNames.length) {
@@ -8700,6 +8710,16 @@ function refreshDafPickerOptions() {
 
 function refreshDafPickerAmud() {
   const entry = syncState.talmudByName[$('dafTractateSelect').value];
+  // Mirrors refreshDafPickerOptions' own guard just above -- #dafTractateSelect's
+  // value can legitimately have no matching entry here (a select's value
+  // setter silently clears to "" for a value with no matching <option>,
+  // which syncDafPickerFromRef can trigger for any ref whose tractate isn't
+  // in SITE_ACTIVE_TRACTATES), and this function is called unconditionally
+  // from syncDafPickerFromRef regardless of whether refreshDafPickerOptions
+  // itself just returned early for exactly that reason. Every other reader
+  // of syncState.talmudByName in this file already guards the same way;
+  // this one didn't, and crashed the whole page outright.
+  if (!entry) return;
   const daf = Number($('dafDafSelect').value);
   const sides = daf ? (browsableAmudim(entry, daf).length ? browsableAmudim(entry, daf) : ['a']) : ['a'];
   populateAmudToggle('dafAmudToggle', sides);
