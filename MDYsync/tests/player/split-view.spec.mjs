@@ -398,6 +398,35 @@ test.describe('Split View — its overlays never cover the player chrome', () =>
     expect(gap.beforeBackground).toBe('rgba(4, 12, 22, 0.9)');
   });
 
+  // The topbar's own offset is driven by --viewer-mode-bar-h, a CSS var kept
+  // in sync with #viewerModeSelect's REAL rendered height by a ResizeObserver
+  // in app.js -- not a hardcoded guess. This catches both the original bug
+  // (a flat 74px, wrong for this bar's actual size) and a regression found
+  // while fixing it (ResizeObserver's own contentRect excludes padding/
+  // border, so it under-measured by exactly that much) -- either one leaves
+  // the topbar sitting at the wrong offset relative to the bar actually
+  // rendered above it, which this test catches by comparing the topbar's
+  // real position against the bar's own real bounding box, not against
+  // another value derived the same possibly-wrong way.
+  test('the topbar sits at the combined bar\'s real rendered height, not a guessed constant', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+    await dismissErrorBanner(page);
+
+    const measurements = await page.evaluate(() => {
+      const bar = document.getElementById('viewerModeSelect');
+      const topbar = document.querySelector('.player-topbar');
+      const barRect = bar.getBoundingClientRect();
+      const topbarRect = topbar.getBoundingClientRect();
+      const cssVar = getComputedStyle(document.documentElement).getPropertyValue('--viewer-mode-bar-h').trim();
+      return { barBottom: barRect.bottom, topbarTop: topbarRect.top, cssVar: parseFloat(cssVar) };
+    });
+    expect(measurements.cssVar).toBeGreaterThan(0);
+    expect(Math.abs(measurements.topbarTop - measurements.barBottom)).toBeLessThanOrEqual(2);
+  });
+
   // An identity transform still promotes the element to its own composited
   // layer, and on a YouTube shiur that element is a cross-origin iframe
   // whose video the browser composites itself -- a known way for that video
@@ -544,6 +573,28 @@ test.describe('Split View — the daf pane is flush, and the combined bar auto-h
     });
     await page.waitForTimeout(100);
     expect(await page.evaluate(() => document.body.classList.contains('split-chrome-hidden'))).toBe(false);
+  });
+
+  // Regression test for a real bug found while investigating "the buttons
+  // don't work" reports: the faded bar used to also get pointer-events:none,
+  // which meant its own reveal listeners (registered on the bar itself,
+  // relying on a pointerdown/touchstart actually reaching it) could never
+  // fire once it had already faded -- a real .click() (real hit-testing,
+  // unlike dispatchEvent above which bypasses pointer-events entirely) is
+  // the only way this suite can actually catch that class of bug.
+  test('a real click on the bar still reaches its button after it has auto-hidden', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+    await dismissErrorBanner(page);
+
+    await expect.poll(() => page.evaluate(() => document.body.classList.contains('split-chrome-hidden')), {
+      timeout: 4000,
+    }).toBe(true);
+
+    await page.click('#viewerModeDafOnVideoButton');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('daf-on-video');
   });
 
   test('a keyboard Tab into the page still brings the bar back, even from outside the player/daf area', async ({ page }) => {

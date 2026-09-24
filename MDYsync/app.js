@@ -1249,10 +1249,18 @@ function renderDafWindow() {
   }
 }
 
-function renderDaf() {
+// forceActiveSegment: true (default) re-derives state.activeIndex from
+// getCurrentTime() via updateActiveSegment(true) -- correct for a genuine
+// load/reset, where there's no meaningful "current" segment yet. false skips
+// that recompute entirely, for a caller that already fixed up
+// state.activeIndex itself (see fillMissingDafText's own call site) and
+// doesn't want a fresh, potentially inaccurate time-based guess -- e.g. one
+// built from freshly-interpolated placeholder segments -- silently
+// overriding it mid-playback.
+function renderDaf({ forceActiveSegment = true } = {}) {
   $('segmentCount').textContent = `${state.segments.length} synchronized segment${state.segments.length === 1 ? '' : 's'}`;
   updateMarkTargetUi();
-  updateActiveSegment(true);
+  updateActiveSegment(forceActiveSegment);
   renderEditor();
   renderVilnaPage();
   // The player chrome's timeline markers are built from state.segments (see
@@ -5801,6 +5809,36 @@ function announceViewerMode(mode) {
     barDivider.setAttribute('aria-hidden', 'true');
     viewerModeSelect.append(barDivider, splitToolbar);
   }
+  // The video's own topbar is pushed down in Split View to clear this bar
+  // (see body.split-view-active .video-frame .player-topbar in styles.css)
+  // -- but that offset used to be a flat guess (74px, carried over from an
+  // earlier, narrower version of this same combined bar), and #viewerModeSelect
+  // is a position:fixed SIBLING of .watch-layout, not a descendant, so no
+  // CSS on the .video-frame side can ever measure its actual rendered size
+  // on its own. Reported directly: the topbar hanging noticeably lower than
+  // the bar above it actually reaches, real-device evidence that guess was
+  // wrong for at least one viewport/content combination. A ResizeObserver
+  // keeps a CSS var in sync with this bar's REAL height instead -- correct
+  // for any viewport, any wrapping, any future content added to it -- and
+  // fires once immediately on observe() with the initial size, so no
+  // separate first-paint call is needed.
+  if (viewerModeSelect) {
+    // Always measured via getBoundingClientRect(), never a ResizeObserver
+    // entry's own contentRect -- confirmed directly, contentRect is the
+    // CONTENT box only (excludes this bar's own 8px padding + 1px border on
+    // every side), 18px short of the bar's real rendered height, which
+    // reintroduced a too-small gap under a different guise.
+    const updateViewerModeBarHeight = () => {
+      const height = viewerModeSelect.getBoundingClientRect().height;
+      document.documentElement.style.setProperty('--viewer-mode-bar-h', `${Math.ceil(height)}px`);
+    };
+    if (typeof ResizeObserver === 'function') {
+      new ResizeObserver(updateViewerModeBarHeight).observe(viewerModeSelect);
+    } else {
+      updateViewerModeBarHeight();
+      window.addEventListener('resize', () => updateViewerModeBarHeight());
+    }
+  }
   // Every page loads into 'standard' -- the same plain .watch-layout grid
   // shown before this feature existed -- exactly as it always did. Split
   // View (like the other two modes) is reached only by an explicit reader
@@ -6907,8 +6945,31 @@ async function loadDaf(refOverride = null, options = {}) {
     // only ever locks onto part of the daf) can be missing whole
     // paragraphs of canonical text -- fill those in from Sefaria directly
     // rather than requiring a fresh sync job just to get the rest of the
-    // daf on screen for review.
-    if (await fillMissingDafText(realDafRef(ref))) renderDaf();
+    // daf on screen for review. This is a background fetch that can resolve
+    // well after loadAlignmentData's own renderDaf() already picked the
+    // right active segment and playback is already under way -- reported
+    // directly: the highlight visibly jumped back several lines the moment
+    // this resolved, then snapped back to the right spot a moment later.
+    // Root cause: fillMissingDafText inserts new placeholder rows and
+    // re-sorts state.segments by start, which shifts every existing
+    // segment's array index -- a plain renderDaf() here force-recomputes
+    // state.activeIndex from getCurrentTime() (see updateActiveSegment),
+    // and the newly-inserted placeholders carry only an INTERPOLATED guess
+    // at their own start time (paragraph-position based, not real
+    // alignment), close enough to the true current time on occasion to
+    // briefly outrank the segment that's actually playing. The very next
+    // ordinary playback tick corrects it (updateActiveSegment's own
+    // never-move-backward guard lets it move forward again), which is
+    // exactly the "jumps back, then returns" pattern reported. Fixed by
+    // tracking the already-correct active segment through the reindex by
+    // its own identity, rather than asking imprecise fresh data where
+    // "now" is all over again.
+    const activeSegmentBeforeFill = state.segments[state.activeIndex];
+    if (await fillMissingDafText(realDafRef(ref))) {
+      const preservedIndex = activeSegmentBeforeFill ? state.segments.indexOf(activeSegmentBeforeFill) : -1;
+      if (preservedIndex !== -1) state.activeIndex = preservedIndex;
+      renderDaf({ forceActiveSegment: preservedIndex === -1 });
+    }
     if (!options.silent) showToast(`Loaded the synced alignment for ${ref} from the server.`);
     return;
   }
