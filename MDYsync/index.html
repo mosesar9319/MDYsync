@@ -1503,8 +1503,10 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     const SEFARIA_CALENDAR_DIRECT_URL = "https://www.sefaria.org/api/calendars";
     // Only tractates the site actually has shiurim for are worth surfacing --
     // catalog.json can carry stray entries from a title-matching misfire on
-    // a tractate nobody has linked on purpose yet.
-    const SITE_TRACTATES = ["Chullin"];
+    // a tractate nobody has linked on purpose yet. Bekhorot confirmed
+    // directly against catalog.json: real, intentionally-linked entries
+    // (daf 2 onward), not a stray misfire.
+    const SITE_TRACTATES = ["Chullin", "Bekhorot"];
 
     // Display label only -- no amud. The a/b split is a syncing concern
     // (catalog.json already collapses each daf's own two amudim down to
