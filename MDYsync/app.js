@@ -1249,10 +1249,18 @@ function renderDafWindow() {
   }
 }
 
-function renderDaf() {
+// forceActiveSegment: true (default) re-derives state.activeIndex from
+// getCurrentTime() via updateActiveSegment(true) -- correct for a genuine
+// load/reset, where there's no meaningful "current" segment yet. false skips
+// that recompute entirely, for a caller that already fixed up
+// state.activeIndex itself (see fillMissingDafText's own call site) and
+// doesn't want a fresh, potentially inaccurate time-based guess -- e.g. one
+// built from freshly-interpolated placeholder segments -- silently
+// overriding it mid-playback.
+function renderDaf({ forceActiveSegment = true } = {}) {
   $('segmentCount').textContent = `${state.segments.length} synchronized segment${state.segments.length === 1 ? '' : 's'}`;
   updateMarkTargetUi();
-  updateActiveSegment(true);
+  updateActiveSegment(forceActiveSegment);
   renderEditor();
   renderVilnaPage();
   // The player chrome's timeline markers are built from state.segments (see
@@ -6937,8 +6945,31 @@ async function loadDaf(refOverride = null, options = {}) {
     // only ever locks onto part of the daf) can be missing whole
     // paragraphs of canonical text -- fill those in from Sefaria directly
     // rather than requiring a fresh sync job just to get the rest of the
-    // daf on screen for review.
-    if (await fillMissingDafText(realDafRef(ref))) renderDaf();
+    // daf on screen for review. This is a background fetch that can resolve
+    // well after loadAlignmentData's own renderDaf() already picked the
+    // right active segment and playback is already under way -- reported
+    // directly: the highlight visibly jumped back several lines the moment
+    // this resolved, then snapped back to the right spot a moment later.
+    // Root cause: fillMissingDafText inserts new placeholder rows and
+    // re-sorts state.segments by start, which shifts every existing
+    // segment's array index -- a plain renderDaf() here force-recomputes
+    // state.activeIndex from getCurrentTime() (see updateActiveSegment),
+    // and the newly-inserted placeholders carry only an INTERPOLATED guess
+    // at their own start time (paragraph-position based, not real
+    // alignment), close enough to the true current time on occasion to
+    // briefly outrank the segment that's actually playing. The very next
+    // ordinary playback tick corrects it (updateActiveSegment's own
+    // never-move-backward guard lets it move forward again), which is
+    // exactly the "jumps back, then returns" pattern reported. Fixed by
+    // tracking the already-correct active segment through the reindex by
+    // its own identity, rather than asking imprecise fresh data where
+    // "now" is all over again.
+    const activeSegmentBeforeFill = state.segments[state.activeIndex];
+    if (await fillMissingDafText(realDafRef(ref))) {
+      const preservedIndex = activeSegmentBeforeFill ? state.segments.indexOf(activeSegmentBeforeFill) : -1;
+      if (preservedIndex !== -1) state.activeIndex = preservedIndex;
+      renderDaf({ forceActiveSegment: preservedIndex === -1 });
+    }
     if (!options.silent) showToast(`Loaded the synced alignment for ${ref} from the server.`);
     return;
   }
