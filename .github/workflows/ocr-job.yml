@@ -57,7 +57,15 @@ permissions:
 jobs:
   ocr:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # 60 was fine when every job's video was already a finished upload. The
+    # channel airs each shiur live first (see the YouTube-download step's
+    # own --live-from-start comment) and this job can be dispatched the
+    # moment it goes live -- when that happens, yt-dlp now blocks recording
+    # for however much of the ~60-90 min broadcast is still left before it
+    # can even start the OCR pass. 180 leaves headroom for a live-wait
+    # anywhere up to a long shiur's full length plus the original
+    # download+OCR budget.
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
 
@@ -222,8 +230,26 @@ jobs:
           # runner can't decode AV1 -- every frame read fails and the OCR
           # pass silently matches 0 samples. Falls back to avc1 at any
           # resolution before it accepts a non-avc1 stream.
+          #
+          # --live-from-start: the channel streams each shiur live (a Zoom
+          # feed simulcast to YouTube) before it settles into a normal VOD,
+          # and the hourly auto-sync poll can dispatch this job the moment a
+          # video appears in the channel's feed -- which, for a live upload,
+          # is the instant the broadcast starts, not when it ends. Without
+          # this flag yt-dlp instead joins at the live edge and stops
+          # whenever the job happens to run, so the captured file is a
+          # truncated/offset slice of the real shiur; every OCR timestamp
+          # then gets measured against that wrong recording instead of the
+          # finished VOD the player actually loads, producing a duration/
+          # alignment mismatch once the stream finalizes. This flag makes
+          # yt-dlp instead record the complete broadcast from its true
+          # start and only finish once the stream ends -- a no-op for a
+          # video that's already a finished upload, so it's safe to pass
+          # unconditionally rather than needing a separate live-status check
+          # before deciding whether to download.
           yt-dlp --cookies cookies.txt \
             --remote-components ejs:github \
+            --live-from-start \
             -f "bv*[height<=720][vcodec^=avc1]+ba/b[height<=720][vcodec^=avc1]/bv*[vcodec^=avc1]+ba/b[vcodec^=avc1]/bv*[height<=720]+ba/b" \
             --merge-output-format mp4 -o job-video.mp4 "$YOUTUBE_URL"
           rm -f cookies.txt

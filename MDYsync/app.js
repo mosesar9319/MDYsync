@@ -8575,24 +8575,6 @@ async function ensureSyncedDapimLoaded() {
   return state.syncedDapim;
 }
 
-// Every tractate picker (the reader-facing daf reference picker, the admin
-// sync dialog, the studio catalog grid) is locked to just the tractates the
-// site actually has synced content for, instead of offering all 36
-// tractates in talmud_index.json, most of which have nothing synced and
-// aren't even being worked on yet. Add to this list once a tractate is
-// actually ready to publish -- keep this in sync with index.html's own
-// SITE_TRACTATES (the homepage's video-grid allowlist): reported directly,
-// leaving a tractate off THIS list after adding it to that one crashed
-// every page for that tractate outright ("Cannot read properties of
-// undefined (reading 'endDaf')") -- syncDafPickerFromRef (called from
-// loadAlignmentData on every daf load) sets #dafTractateSelect's value to
-// the loaded ref's tractate; a <select>'s value setter silently clears to
-// "" for a value with no matching <option>, which only THIS list controls,
-// and refreshDafPickerAmud() had no guard against the undefined entry that
-// produced -- unlike every other reader of syncState.talmudByName in this
-// file, all of which already check first.
-const SITE_ACTIVE_TRACTATES = ['Chullin', 'Bekhorot'];
-
 async function loadTalmudIndex() {
   if (!syncState.tractateNames.length) {
     const response = await fetch('/talmud_index.json');
@@ -8608,7 +8590,13 @@ async function loadTalmudIndex() {
   // picker (which is for picking *any* daf, including ones still needing a
   // sync) is unaffected.
   if (state.browseMode) await ensureSyncedDapimLoaded();
-  const activeTractateNames = syncState.tractateNames.filter((name) => SITE_ACTIVE_TRACTATES.includes(name));
+  // Every tractate picker (the reader-facing daf reference picker, the
+  // admin sync dialog, the studio catalog grid) now offers the full Daf
+  // Yomi cycle -- all 36 tractates in talmud_index.json -- not just a
+  // single pilot tractate. A tractate with nothing synced yet just shows
+  // an empty picker/grid for that selection, same as any other unsynced
+  // daf.
+  const activeTractateNames = syncState.tractateNames;
   const optionsHtml = activeTractateNames
     .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
   $('syncTractateSelect').innerHTML = optionsHtml;
@@ -8714,11 +8702,15 @@ function refreshDafPickerAmud() {
   // value can legitimately have no matching entry here (a select's value
   // setter silently clears to "" for a value with no matching <option>,
   // which syncDafPickerFromRef can trigger for any ref whose tractate isn't
-  // in SITE_ACTIVE_TRACTATES), and this function is called unconditionally
-  // from syncDafPickerFromRef regardless of whether refreshDafPickerOptions
-  // itself just returned early for exactly that reason. Every other reader
-  // of syncState.talmudByName in this file already guards the same way;
-  // this one didn't, and crashed the whole page outright.
+  // one of #dafTractateSelect's own options -- e.g. a stray/misspelled
+  // tractate name, or this function running before loadTalmudIndex's own
+  // fetch has populated the picker at all), and this function is called
+  // unconditionally from syncDafPickerFromRef regardless of whether
+  // refreshDafPickerOptions itself just returned early for exactly that
+  // reason. Every other reader of syncState.talmudByName in this file
+  // already guards the same way; this one didn't, and crashed the whole
+  // page outright (reported directly, "Cannot read properties of undefined
+  // (reading 'endDaf')" inside amudimForDaf).
   if (!entry) return;
   const daf = Number($('dafDafSelect').value);
   const sides = daf ? (browsableAmudim(entry, daf).length ? browsableAmudim(entry, daf) : ['a']) : ['a'];
