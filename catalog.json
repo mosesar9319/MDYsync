@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-26T19:00:34.879Z",
+  "generatedAt": "2026-09-26T21:00:51.813Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -145,6 +145,14 @@
         "regularEn": {
           "videoId": "snIb1Q2vtVc",
           "label": "Daf Yomi Bechoros Daf 8 by R’ Eli Stefansky (unedited)",
+          "amud": "a"
+        }
+      },
+      {
+        "daf": 9,
+        "regularHe": {
+          "videoId": "dXjAqDm85iI",
+          "label": "מרכז דף יומי -  בכורות דף ט. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
           "amud": "a"
         }
       }
