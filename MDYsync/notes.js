@@ -757,7 +757,11 @@ async function postComment(noteId, parentCommentId) {
   });
   if (button) button.disabled = false;
   if (error) {
-    showToast(error.message || 'Could not post the reply.', 'error');
+    // Every comment is public (there's no private-reply concept), so
+    // comments_insert's RLS check always runs can_post_publicly() -- the
+    // exact same guard/message translation line_notes' own public-post path
+    // needs (see publicPostErrorMessage's own comment).
+    showToast(publicPostErrorMessage(error, profile, { forcePublic: true, subject: 'comment' }) || error.message || 'Could not post the reply.', 'error');
     return;
   }
   if (activeNoteRef) refreshNoteList(activeNoteRef);
@@ -821,6 +825,40 @@ function setNotePrivacy(privacy) {
     : 'Visible to everyone once posted (subject to review).';
 }
 
+// line_notes_insert and comments_insert's RLS policies (see
+// 00_current_production_schema.sql) both gate a public write behind
+// can_post_publicly() -- for line_notes only when is_private is false
+// (private notes always pass), for comments unconditionally (there's no
+// private-reply concept). Either policy blocks for one of two anti-spam
+// guards: a fresh account can't post publicly until it's 24 hours old, and
+// every account is capped at 10 public notes/comments per rolling hour.
+// Postgres's own violation message ("new row violates row-level security
+// policy for table \"line_notes\"") says neither of those, and reported
+// directly: showing it verbatim left a reader with no idea their note
+// wasn't actually saved, let alone why. profile.created_at is already
+// fetched client-side (auth.js's own select('*')), which is enough to tell
+// the two guards apart without a second round trip: the 24-hour gate is
+// the overwhelmingly common case (a brand-new account posting for the
+// first time), so it's checked first; an account past that age hitting
+// this same policy almost certainly hit the rate limit instead, which is
+// the only other reason count(*) < 10 keeps the same row out.
+//
+// forcePublic: comments have no is_private field to check (every comment
+// is public), so the caller already knows this was a public attempt;
+// omitted for line_notes, where activeNotePrivacy is checked instead.
+function publicPostErrorMessage(error, profile, { forcePublic = false, subject = 'note' } = {}) {
+  if (!forcePublic && activeNotePrivacy === 'private') return null;
+  if (!/row-level security/i.test(error?.message || '')) return null;
+  const createdAt = profile?.created_at ? new Date(profile.created_at) : null;
+  const hoursOld = createdAt ? (Date.now() - createdAt.getTime()) / 3_600_000 : null;
+  if (hoursOld !== null && hoursOld < 24) {
+    return 'New accounts can only post publicly starting 24 hours after signup, to keep spam out.'
+      + (subject === 'note' ? ' Save this as Private for now -- you can post publicly once your account is a day old.' : ' Try again once your account is a day old.');
+  }
+  return "You're posting publicly a bit too fast (the limit is 10 an hour). Try again shortly"
+    + (subject === 'note' ? ', or save this as Private for now.' : '.');
+}
+
 async function saveNote() {
   const auth = window.DafSyncAuth;
   const user = auth?.getUser();
@@ -880,7 +918,7 @@ async function saveNote() {
   });
   saveButton.disabled = false;
   if (error) {
-    showToast(error.message || 'Could not save the note.', 'error');
+    showToast(publicPostErrorMessage(error, profile) || error.message || 'Could not save the note.', 'error');
     return;
   }
   bodyInput.value = '';
