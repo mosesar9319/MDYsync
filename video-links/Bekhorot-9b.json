@@ -1,1 +1,8 @@
-{"type":"youtube","url":"https://www.youtube.com/watch?v=Gt95OWsSlGc","videoId":"Gt95OWsSlGc","label":"Daf Yomi Bechoros Daf 9 by R' Eli Stefansky","coveredRefs":["Bekhorot 8b","Bekhorot 9a","Bekhorot 9b"],"source":"channel-auto"}
+{
+  "label": "Daf Yomi Bechoros Daf 9 by R' Eli Stefansky",
+  "locked": false,
+  "source": "manual",
+  "type": "youtube",
+  "url": "https://www.youtube.com/watch?v=Gt95OWsSlGc",
+  "videoId": "Gt95OWsSlGc"
+}
