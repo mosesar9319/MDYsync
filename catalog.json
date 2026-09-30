@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-29T23:00:39.284Z",
+  "generatedAt": "2026-09-30T00:00:55.356Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -224,6 +224,11 @@
         "chazarahEn": {
           "videoId": "W6Vqp7qW7ok",
           "label": "CHAZARAH - Bechoros Daf 11 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "MpjshV7RhK8",
+          "label": "חזרה - בכורות דף יא | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
         }
       },
