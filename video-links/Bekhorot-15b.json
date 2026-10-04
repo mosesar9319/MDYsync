@@ -1,1 +1,8 @@
-{"type":"youtube","url":"https://www.youtube.com/watch?v=bj5lTnr-5OE","videoId":"bj5lTnr-5OE","label":"Daf Yomi Bechoros Daf 15 by R' Eli Stefansky","coveredRefs":["Bekhorot 14b","Bekhorot 15a","Bekhorot 15b"],"source":"channel-auto"}
+{
+  "label": "Daf Yomi Bechoros Daf 15 by R' Eli Stefansky",
+  "locked": false,
+  "source": "manual",
+  "type": "youtube",
+  "url": "https://www.youtube.com/watch?v=bj5lTnr-5OE",
+  "videoId": "bj5lTnr-5OE"
+}
