@@ -1055,6 +1055,7 @@ function getDuration() {
   return Number.isFinite(htmlVideo.duration) ? htmlVideo.duration : 0;
 }
 
+let isPausedLastLogged = null;
 function isPaused() {
   if (state.playerType === 'youtube') {
     // Reads the player's own live state via getPlayerState() rather than
@@ -1066,7 +1067,16 @@ function isPaused() {
     // player what it's actually doing right now, so the icon can't go
     // stale even if a state-change event was missed. Falls back to the
     // mirrored value only if the player object itself isn't ready yet.
-    return (state.youtubePlayer?.getPlayerState?.() ?? state.youtubeState) !== 1;
+    const live = state.youtubePlayer?.getPlayerState?.();
+    const result = (live ?? state.youtubeState) !== 1;
+    // Logged only on change, not every call -- this runs on every 100ms
+    // poll tick, which would otherwise flood the debugplay panel and bury
+    // the togglePlay()/click events it actually needs to catch.
+    if (typeof debugPlayLog === 'function' && result !== isPausedLastLogged) {
+      isPausedLastLogged = result;
+      debugPlayLog(`isPaused() changed: live getPlayerState()=${live} state.youtubeState=${state.youtubeState} -> ${result}`);
+    }
+    return result;
   }
   return htmlVideo.paused;
 }
@@ -6244,6 +6254,7 @@ function updateScrubberFill() {
   }
 }
 
+let largePlayHiddenLastLogged = null;
 function updatePlayUi() {
   const paused = isPaused();
   // toggleAttribute, not `.hidden = `: reported directly (and confirmed
@@ -6275,21 +6286,65 @@ function updatePlayUi() {
   // during playback (see its caller's own comment), same as the small
   // button's own icon swap right below, so there's no staleness risk in
   // tracking `paused` alone the same way that one already does.
-  $('largePlay').hidden = !state.videoSource || !paused;
+  const largePlayHidden = !state.videoSource || !paused;
+  if (largePlayHidden !== largePlayHiddenLastLogged) {
+    largePlayHiddenLastLogged = largePlayHidden;
+    debugPlayLog(`updatePlayUi(): paused=${paused} videoSource=${Boolean(state.videoSource)} -> largePlay.hidden=${largePlayHidden}`);
+  }
+  $('largePlay').hidden = largePlayHidden;
   $('playButton').setAttribute('aria-label', paused ? 'Play' : 'Pause');
 }
 
+// TEMPORARY diagnostic for the big center play/pause button, reported as
+// broken on a real Android Chrome phone (100% reproducible there) but
+// working correctly in every scripted/mocked reproduction attempted so
+// far, including a faithful YouTube-player mock with the real 100ms poll
+// running, in both the normal and Split View layouts. The exact same
+// "works in no synthetic test, 100% fails on one real device" shape is
+// what the speed control's own three-rounds-of-fixes saga needed a real-
+// device diagnostic (then called ?debugtouch=1) to finally pin down -- see
+// that history in player-chrome.js/controls-autohide.spec.mjs. This is the
+// same idea, as a small on-screen log instead of requiring remote devtools
+// access: ?debugplay=1 on the URL shows the last several togglePlay/
+// updatePlayUi events directly on screen, so they can be read straight off
+// the phone and reported back. Remove once the real cause is found.
+const DEBUG_PLAY = new URLSearchParams(location.search).has('debugplay');
+function debugPlayLog(line) {
+  if (!DEBUG_PLAY) return;
+  console.log('[debugplay]', line);
+  let panel = document.getElementById('debugPlayPanel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'debugPlayPanel';
+    panel.style.cssText = 'position:fixed;left:4px;bottom:4px;z-index:99999;max-width:94vw;max-height:40vh;overflow:auto;background:rgba(0,0,0,.85);color:#9f9;font:10px/1.3 monospace;padding:6px;border-radius:6px;white-space:pre-wrap;pointer-events:none;';
+    document.body.appendChild(panel);
+  }
+  const row = document.createElement('div');
+  row.textContent = `${new Date().toISOString().slice(11, 23)} ${line}`;
+  panel.appendChild(row);
+  while (panel.children.length > 40) panel.removeChild(panel.firstChild);
+  panel.scrollTop = panel.scrollHeight;
+}
+
 async function togglePlay() {
+  debugPlayLog(`togglePlay() called -- playerType=${state.playerType} youtubeReady=${state.youtubeReady} isPaused()=${isPaused()}`);
   try {
     if (state.playerType === 'youtube') {
       if (!state.youtubeReady) throw new Error('The YouTube player is not ready yet.');
-      if (isPaused()) state.youtubePlayer.playVideo(); else state.youtubePlayer.pauseVideo();
+      if (isPaused()) {
+        debugPlayLog('calling youtubePlayer.playVideo()');
+        state.youtubePlayer.playVideo();
+      } else {
+        debugPlayLog('calling youtubePlayer.pauseVideo()');
+        state.youtubePlayer.pauseVideo();
+      }
     } else if (htmlVideo.paused) {
       await htmlVideo.play();
     } else {
       htmlVideo.pause();
     }
   } catch (error) {
+    debugPlayLog(`togglePlay() threw: ${error?.message || error}`);
     showToast(error.message || 'The browser could not play this video.', 'error');
   }
 }
