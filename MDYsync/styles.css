@@ -416,10 +416,18 @@ h2 { margin-bottom: 0; }
 /* Reparented to <body> by player-chrome.js (see there for why) -- position
    and right/bottom are then set inline per open, anchored to the gear's own
    screen coordinates; this covers everything that isn't per-instance
-   geometry. z-index above .toast's own 20 (a plain tie would still resolve
-   correctly by DOM order, since this is appended after it, but an explicit
-   margin here doesn't depend on staying last in the DOM). */
-.video-settings-body-portal { z-index: 30; }
+   geometry. z-index matches .daf-context-menu's own 600, the established
+   value for a menu portaled to <body> specifically to never be clipped or
+   outranked -- 30 was high enough to clear .toast (20) but not Split View's
+   own full-viewport .watch-layout.split-active (500, see styles.css) or
+   #noteDialog (also 500): reported directly as the gear's panel opening
+   with nothing visible or clickable at the spot it should have appeared,
+   only in Split View, where .watch-layout.split-active's own z-index:500
+   stacking context paints its ENTIRE descendant tree -- the real video, the
+   daf pane, everything -- above this panel's sibling-of-<body> position,
+   leaving a real, positioned, non-hidden panel completely invisible and
+   un-clickable underneath it. */
+.video-settings-body-portal { z-index: 600; }
 /* The Vilna overlay this section configures is unusable while reading mode
    is active (the two are mutually exclusive -- see setReadingMode in
    app.js), so its settings have nothing to do there either. Keyed off
@@ -575,8 +583,16 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
    (positionSpeedMenu in player-chrome.js), exactly like .pc-tools-menu below
    and for the identical reason -- a descendant of .player-controls can't
    out-rank .scrubber-wrap's z-index, and .video-frame's own overflow:hidden
-   would clip it outright in the reading-mode mini player specifically. */
-.speed-menu { position: fixed; z-index: 30; min-width: 92px; margin: 0; padding: 4px; list-style: none; border-radius: 10px; background: rgba(10,20,32,.96); border: 1px solid rgba(255,255,255,.15); box-shadow: 0 14px 38px rgba(0,0,0,.45); }
+   would clip it outright in the reading-mode mini player specifically.
+   z-index matches .daf-context-menu's own 600, not .video-settings-body-
+   portal's ORIGINAL 30 -- see that rule's own comment: 30 cleared .toast but
+   not Split View's full-viewport .watch-layout.split-active (z-index 500),
+   whose entire descendant tree paints above a sibling-of-<body> element at
+   30 regardless of this menu's own correct position/visibility, which is
+   exactly what made choosing a speed do nothing while Split View was
+   active -- the menu was genuinely there, just invisible and unclickable
+   underneath the real video and daf pane. */
+.speed-menu { position: fixed; z-index: 600; min-width: 92px; margin: 0; padding: 4px; list-style: none; border-radius: 10px; background: rgba(10,20,32,.96); border: 1px solid rgba(255,255,255,.15); box-shadow: 0 14px 38px rgba(0,0,0,.45); }
 .speed-menu:focus { outline: none; }
 .speed-menu li { padding: 8px 10px; border-radius: 7px; font-size: 13px; font-weight: 600; color: rgba(255,255,255,.85); cursor: pointer; }
 .speed-menu li:hover, .speed-menu li.is-active { background: rgba(255,255,255,.12); color: #fff; }
@@ -612,7 +628,10 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
   background: rgba(10,20,32,.96);
   border: 1px solid rgba(255,255,255,.15);
   box-shadow: 0 14px 38px rgba(0,0,0,.45);
-  z-index: 30;
+  /* Matches .speed-menu/.video-settings-body-portal's own 600, not the
+     original 30 -- see .video-settings-body-portal's comment on why that
+     was never enough to clear Split View's .watch-layout.split-active. */
+  z-index: 600;
 }
 /* Every row reuses the SAME control moved wholesale out of .pc-tools (not a
    copy -- see fitChrome), so it keeps its real listeners, pressed state and

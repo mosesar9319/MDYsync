@@ -627,3 +627,62 @@ test.describe('Split View — no duplicate ids or broken markup', () => {
     });
   }
 });
+
+// Reported directly: picking a playback speed did nothing, but ONLY while
+// Split View was active -- the exact same control worked fine in standard
+// mode. Root cause: .speed-menu/.pc-tools-menu/.video-settings-body-portal
+// (player-chrome.js portals each to <body> to escape .player-controls' own
+// clipping/stacking context -- see their own comments in styles.css) were
+// all z-index: 30. That clears .toast (20), but Split View's own
+// .watch-layout.split-active is position:fixed over the FULL viewport at
+// z-index: 500 (see styles.css) -- and a stacking context's z-index ranks
+// its ENTIRE descendant tree as one unit, not just its own background, so
+// the real video and daf pane (both inside .watch-layout) painted above
+// these menus regardless of their own correct position and visibility. The
+// menu was genuinely open, genuinely positioned at the right spot on
+// screen, and genuinely invisible and unclickable underneath the real UI --
+// confirmed directly: Playwright's own click-retry diagnostic reported
+// #chapterMarkers (a .watch-layout descendant) "intercepting pointer
+// events" at the exact coordinates of a #speedMenu list item.
+test.describe('Split View — the portaled menus stay usable, not hidden behind the full-viewport layout', () => {
+  test('choosing a playback speed actually works while Split View is active', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/browse/?ref=Chullin%2089a');
+    await enterSplitView(page);
+
+    await page.locator('#speedSelect').click();
+    await expect(page.locator('#speedMenu')).toBeVisible();
+    await page.locator('#speedMenu li[data-value="1.5"]').click();
+
+    expect(await page.locator('#speedSelect').getAttribute('value')).toBe('1.5');
+    expect(await page.evaluate(() => document.getElementById('video').playbackRate)).toBe(1.5);
+  });
+
+  test('a real control inside the settings panel is actually clickable, and the panel still closes on an outside click', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/browse/?ref=Chullin%2089a');
+    await enterSplitView(page);
+
+    await page.locator('#videoSettings summary').click();
+    await expect(page.locator('.video-settings-body')).toBeVisible();
+
+    // A plain <button> inside the panel (the "Daf on video" overlay group's
+    // own reset-position control) -- unlike selectOption() on a <select>,
+    // .click() here does real pixel-based hit-testing, which is exactly
+    // what the occlusion bug broke. Confirms the panel's CONTENTS are
+    // reachable, not just that the panel element itself reports visible.
+    await page.locator('#overlayResetPositionButton').click();
+
+    const panelBox = await page.locator('.video-settings-body').boundingBox();
+    const vw = await page.evaluate(() => window.innerWidth);
+    // A corner chosen to sit outside the (bottom-anchored) panel regardless
+    // of viewport size, rather than a fixed point that could land inside it
+    // on a narrow screen.
+    const outside = { x: vw - 5, y: Math.max(5, panelBox.y - 20) };
+    await page.mouse.click(outside.x, outside.y);
+
+    expect(await page.evaluate(() => document.getElementById('videoSettings').open)).toBe(false);
+  });
+});
