@@ -374,6 +374,37 @@ test.describe('Split View — its overlays never cover the player chrome', () =>
     expect(elAtDafButton).toBe(true);
   });
 
+  // Reported directly: the big center play/pause button stopped doing
+  // anything in Split View -- only the small one in the control bar still
+  // worked. #largePlay sits centered over the video picture (z-index 4),
+  // exactly where #splitVideoPinchSurface (z-index 11) also sits, so every
+  // tap on it landed on the pinch surface instead of the button's own click
+  // listener. It was never actually reachable here -- it only ever LOOKED
+  // like it worked because the pinch surface's own tap handler used to call
+  // togglePlay() unconditionally for any plain tap (a since-fixed bug of its
+  // own), which happened to produce the same visible effect as a real click
+  // on this button for as long as that bug lasted.
+  test('the big center play/pause button receives clicks, instead of the pinch surface swallowing them', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+    await dismissErrorBanner(page);
+    await page.evaluate(() => { document.getElementById('largePlay').hidden = false; });
+
+    const elAtLargePlay = await page.evaluate(() => {
+      const btn = document.getElementById('largePlay');
+      const r = btn.getBoundingClientRect();
+      const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return el?.closest('#largePlay') != null;
+    });
+    expect(elAtLargePlay).toBe(true);
+
+    const before = await page.evaluate(() => document.getElementById('video').paused);
+    await page.locator('#largePlay').click();
+    await expect.poll(() => page.evaluate(() => document.getElementById('video').paused)).not.toBe(before);
+  });
+
   // Shifting the topbar down to clear the combined bar (above) vacates the
   // strip it used to cover with its own gradient background -- left bare,
   // that showed as a hard seam where the topbar's background now starts

@@ -1657,7 +1657,22 @@ input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0
 .youtube-player-host { position: absolute; inset: 0; background: #000; }
 .youtube-player-host iframe, #youtubePlayer { width: 100%; height: 100%; display: block; border: 0; }
 .video-source-badge { position: absolute; left: 10px; top: 10px; z-index: 3; padding: 5px 8px; border: 1px solid rgba(255,255,255,.2); border-radius: 999px; background: rgba(2,8,18,.72); color: #d9e5ee; font-size: 11px; font-weight: 700; backdrop-filter: blur(8px); pointer-events: none; }
-.video-frame .large-play { z-index: 4; }
+/* z-index 13, not 4: in Split View, #splitVideoPinchSurface (z-index 11,
+   see its own construction in app.js) sits directly over the video picture
+   -- the exact same spot this button is centered in -- so every tap on it
+   landed on the pinch surface instead, never reaching this button's own
+   click listener at all. Reported directly: the big center play/pause
+   button stopped doing anything, while the small one in the control bar
+   kept working. It was never actually reachable here in Split View in the
+   first place -- it only ever LOOKED like it worked because the pinch
+   surface's own tap handler used to call togglePlay() unconditionally for
+   any plain tap, a since-fixed bug of its own (see splitVideoTap's comment
+   in app.js) that happened to produce the same visible effect as a real
+   click on this button, for exactly as long as that bug lasted. Matches
+   .player-topbar's own identical fix (z-index 13, see its Split View rule
+   further down) for the same reason -- the daf picker/bookmark/notes/More
+   buttons up there had the exact same problem. */
+.video-frame .large-play { z-index: 13; }
 .video-frame.youtube-active .video-source-badge { left: 12px; top: 12px; }
 
 @media (max-width: 700px) {
