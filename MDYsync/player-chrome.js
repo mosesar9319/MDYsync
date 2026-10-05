@@ -343,10 +343,10 @@
       // what $('videoSettings')?.querySelector('.speed-control')?.remove()
       // cleans up a few lines up, which would have left aria-labelledby
       // pointing at a dead id. Every other control in this bar (PiP,
-      // Captions, Settings, Fullscreen) already gives itself its own
-      // aria-label rather than relying on an external element for exactly
-      // this reason -- this one includes the current rate in it, the way a
-      // native <select> announces its own selected option.
+      // Settings, Fullscreen) already gives itself its own aria-label
+      // rather than relying on an external element for exactly this reason
+      // -- this one includes the current rate in it, the way a native
+      // <select> announces its own selected option.
       speedButton.setAttribute('aria-label', `Playback speed, ${rate.label}`);
       for (const li of speedMenu.children) li.setAttribute('aria-selected', String(li.dataset.value === rate.value));
       if (fireChange) speedButton.dispatchEvent(new Event('change', { bubbles: true }));
@@ -426,8 +426,6 @@
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !speedMenu.hidden) closeSpeedMenu(); });
     window.addEventListener('resize', () => { if (!speedMenu.hidden) positionSpeedMenu(); });
   }
-  const captionsStack = $('captionsButton') ? stack($('captionsButton'), 'Captions', 'captionsStack') : null;
-  if (captionsStack) tools.appendChild(captionsStack);
   const settingsStack = $('videoSettings') ? stack($('videoSettings'), 'Settings') : null;
   if (settingsStack) tools.appendChild(settingsStack);
   const fullscreenStack = $('fullscreenButton') ? stack($('fullscreenButton'), 'Fullscreen') : null;
@@ -566,19 +564,19 @@
   // so a resize that frees up room brings a control back to exactly where
   // it started rather than leaving it stranded in the menu from a previous,
   // narrower pass.
-  const TOOLS_ORDER = [speedStack, captionsStack, settingsStack, hasSplitView && splitViewButton, dafOnVideoButton, hasReadingMode && videoOnDafButton, pipStack, toolsMoreStack, fullscreenStack].filter(Boolean);
+  const TOOLS_ORDER = [speedStack, settingsStack, hasSplitView && splitViewButton, dafOnVideoButton, hasReadingMode && videoOnDafButton, pipStack, toolsMoreStack, fullscreenStack].filter(Boolean);
   // Overflow priority, most disposable first -- the mirror image of
   // TOOLS_ORDER's own tail: PiP is a pure convenience, the two older pills
   // exist because reading mode/the overlay each have their own separate,
   // always-visible entry point (the daf card's own header, the overlay
-  // settings toggle), so those three go before Settings and Captions, the
-  // least disposable of the bunch. Split View's pill goes LAST of the three
-  // mode pills -- it's the mode every page now opens in by default (see
+  // settings toggle), so those three go before Settings, the least
+  // disposable of the bunch. Split View's pill goes LAST of the three mode
+  // pills -- it's the mode every page now opens in by default (see
   // setViewerMode's own initSplitView in app.js), so it stays visible longer
   // than the other two before the bar has to hide it. Speed and Fullscreen
   // are never in this list at all -- see their own comments above and on
   // fitChrome below.
-  const OVERFLOW_PRIORITY = [pipStack, hasReadingMode && videoOnDafButton, dafOnVideoButton, hasSplitView && splitViewButton, settingsStack, captionsStack].filter(Boolean);
+  const OVERFLOW_PRIORITY = [pipStack, hasReadingMode && videoOnDafButton, dafOnVideoButton, hasSplitView && splitViewButton, settingsStack].filter(Boolean);
 
   // The old bar's hand-placed spacers/dividers did the job .pc-group's own
   // space-between layout now does.
@@ -736,6 +734,29 @@
     // only while actually open, since a closed (hidden) panel has nothing
     // worth repositioning.
     window.addEventListener('resize', () => { if (settingsDetails.open) positionSettingsPanel(); });
+
+    // Reported directly: the panel, once opened, never went away again
+    // except by tapping the tiny gear a second time -- every other menu in
+    // this bar (the daf picker, "More", the speed listbox, the tools
+    // overflow tray) closes on an outside click, but a native <details>'s
+    // own browser behaviour does NOT do that on its own; something has to
+    // ask for it explicitly, the same as those other menus already do, and
+    // nothing here ever did. Left open, position:fixed and z-index:30 (see
+    // .video-settings-body-portal), it sat on top of the video indefinitely
+    // -- and kept the control bar itself pinned visible too, since
+    // controlsShouldStayVisible (app.js) treats #videoSettings.open as a
+    // reason never to auto-hide. Setting .open = false queues the exact
+    // same native 'toggle' event a second click on the summary would have,
+    // so the listener above is still what actually hides the panel; this
+    // only ever asks for that toggle, the same division every other menu's
+    // own outside-click handler already keeps.
+    document.addEventListener('click', (event) => {
+      if (!settingsDetails.open || settingsDetails.contains(event.target) || settingsBody.contains(event.target)) return;
+      settingsDetails.open = false;
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && settingsDetails.open) settingsDetails.open = false;
+    });
   }
 
   // --- Picture in picture --------------------------------------------------

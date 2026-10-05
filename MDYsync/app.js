@@ -28,10 +28,6 @@ const state = {
   youtubeReady: false,
   youtubeState: -1,
   youtubePollTimer: null,
-  // See setCaptionsEnabled -- always starts false, matching
-  // playerVars.cc_load_policy's own default for a freshly-constructed
-  // player.
-  captionsEnabled: false,
   usingDefaultAlignment: true,
   editingIndex: 0,
   phraseEditMode: false,
@@ -287,7 +283,6 @@ const scrubber = $('scrubber');
 const scrubberEls = [scrubber].filter(Boolean);
 const volumeSliderEls = [$('volumeSlider')].filter(Boolean);
 const muteButtonEls = [$('muteButton')].filter(Boolean);
-const captionsButtonEls = [$('captionsButton')].filter(Boolean);
 const vaaterButtonEls = [$('vaaterButton')].filter(Boolean);
 const dafPage = $('dafPage');
 const editor = $('editor');
@@ -1106,11 +1101,6 @@ function switchPlayerType(type) {
   if (!isYouTube) {
     const control = $('qualityControl');
     if (control) control.hidden = true;
-    // Captions are a YouTube-only concept (see setCaptionsEnabled) -- a
-    // direct video link has no track for this button to control.
-    for (const button of captionsButtonEls) button.hidden = true;
-  } else {
-    for (const button of captionsButtonEls) button.hidden = false;
   }
   updatePlayUi();
 }
@@ -6508,56 +6498,6 @@ function setMuted(muted) {
   updateMuteIcons();
 }
 
-// Captions are a YouTube-only concept here (a direct video link has no
-// equivalent track to toggle), and default OFF via playerVars.cc_load_policy
-// -- this is the only path that ever turns them on. loadModule + an empty
-// track selector is the documented way to enable YouTube's own default
-// caption track without having to guess which language code this
-// particular video actually has captions in (a hardcoded 'en' would just
-// silently fail to show anything on a Hebrew-language shiur); unloadModule
-// is the corresponding way to fully turn them back off.
-//
-// loadModule() is asynchronous -- it starts fetching the captions module
-// rather than making it available immediately -- so a setOption() call
-// issued in the very same tick can silently miss its own module before it
-// has actually finished loading (the API neither throws nor reports this;
-// the button flips to "on" and nothing else happens, which is exactly what
-// "the caption toggle is broken" looks like from the outside). The player's
-// own onApiChange event fires once a module genuinely becomes available, so
-// requestCaptionsTrack below is also called from there -- see
-// ensureYouTubePlayer's onApiChange handler. Calling it here too still
-// matters: once the module has already loaded from an earlier toggle this
-// session, onApiChange never fires again on a later one (nothing actually
-// changed), and this immediate call is what turns captions back on then.
-function requestCaptionsTrack() {
-  if (!state.captionsEnabled || state.playerType !== 'youtube' || !state.youtubeReady) return;
-  try {
-    state.youtubePlayer.setOption('captions', 'track', {});
-  } catch (error) {
-    console.error('Could not enable captions.', error);
-  }
-}
-
-function setCaptionsEnabled(enabled) {
-  state.captionsEnabled = enabled;
-  if (state.playerType === 'youtube' && state.youtubeReady) {
-    try {
-      if (enabled) {
-        state.youtubePlayer.loadModule('captions');
-        requestCaptionsTrack();
-      } else {
-        state.youtubePlayer.unloadModule('captions');
-      }
-    } catch (error) {
-      console.error('Could not toggle captions.', error);
-    }
-  }
-  for (const button of captionsButtonEls) {
-    button.setAttribute('aria-pressed', String(enabled));
-    button.setAttribute('title', enabled ? 'Turn off YouTube captions' : 'Turn on YouTube captions');
-  }
-}
-
 function setVolume(volume) {
   const clamped = Math.max(0, Math.min(100, Math.round(volume)));
   if (state.playerType === 'youtube') {
@@ -7232,11 +7172,10 @@ async function ensureYouTubePlayer(videoId) {
         // own fullscreen button (below) fullscreens the whole video-frame
         // container instead, so it covers both.
         fs: 0,
-        // Captions default OFF -- #captionsButton (see applyCaptionsEnabled)
-        // is the only way to turn them on, matching how a reader already
-        // has this daf's own text/translation on screen and doesn't need
-        // YouTube's own (frequently auto-generated, un-vetted) captions
-        // burned on by default.
+        // Captions are permanently off, with no UI to turn them on -- a
+        // reader already has this daf's own text/translation on screen and
+        // doesn't need YouTube's own (frequently auto-generated, un-vetted)
+        // captions burned on top of it.
         cc_load_policy: 0
       };
       if (location.protocol === 'http:' || location.protocol === 'https:') playerVars.origin = location.origin;
@@ -7259,7 +7198,6 @@ async function ensureYouTubePlayer(videoId) {
             state.youtubeState = 5;
             startYouTubePoll();
             syncVolumeUi();
-            setCaptionsEnabled(false);
             showVideoControls();
             resolve();
           },
@@ -7276,12 +7214,6 @@ async function ensureYouTubePlayer(videoId) {
             if (event.data === 3 || event.data === 1) refreshQualityOptions();
           },
           onPlaybackQualityChange: () => refreshQualityOptions(),
-          // Fires once a module (e.g. 'captions', just requested by
-          // setCaptionsEnabled's own loadModule call) has actually finished
-          // loading and is ready to accept options -- see
-          // requestCaptionsTrack's own header for why setOption can't just
-          // be called in the same tick as loadModule.
-          onApiChange: () => requestCaptionsTrack(),
           onError: (event) => {
             const message = youtubeErrorMessage(event.data);
             showToast(message, 'error');
@@ -7293,12 +7225,6 @@ async function ensureYouTubePlayer(videoId) {
   } else {
     state.youtubePlayer.cueVideoById(videoId);
     state.youtubeState = 5;
-    // Every new video defaults back to captions off, same as a fresh
-    // player's cc_load_policy -- otherwise a reader who turned captions on
-    // for one shiur would silently keep seeing them on the next, with no
-    // indication why (this player instance is reused across daf loads,
-    // unlike the fresh-construction branch above).
-    setCaptionsEnabled(false);
     showVideoControls();
   }
 
@@ -8336,7 +8262,6 @@ scrubber.addEventListener('pointerenter', handleScrubPointer);
 scrubber.addEventListener('pointerleave', () => { $('scrubPreview').hidden = true; });
 for (const el of volumeSliderEls) el.addEventListener('input', (event) => setVolume(Number(event.target.value)));
 for (const button of muteButtonEls) button.addEventListener('click', () => setMuted(!isMuted()));
-for (const button of captionsButtonEls) button.addEventListener('click', () => setCaptionsEnabled(!state.captionsEnabled));
 for (const button of vaaterButtonEls) button.addEventListener('click', skipToNextReading);
 
 function switchDafView(mode) {
