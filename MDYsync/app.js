@@ -6260,7 +6260,22 @@ function updatePlayUi() {
   // correctly on an <svg> the same as any other element.
   document.querySelectorAll('.play-icon').forEach((el) => { el.toggleAttribute('hidden', !paused); });
   document.querySelectorAll('.pause-icon').forEach((el) => { el.toggleAttribute('hidden', paused); });
-  $('largePlay').hidden = !state.videoSource || !paused || getCurrentTime() > 0.15;
+  // Reported directly: the big center button only ever worked once, right
+  // as a video first began playing -- after that it never came back, and
+  // on the rare occasion it did reappear (loading a new video resets it
+  // unconditionally, see loadVideoFromUrl/handleVideoFile), clicking it
+  // didn't pause anything either. Root cause was this same line's own
+  // `getCurrentTime() > 0.15` clause: once playback had moved even a
+  // fraction of a second past the very start, this button stayed hidden
+  // FOREVER regardless of paused state -- so pausing later never brought
+  // it back, and the only time it legitimately reappeared (a fresh video,
+  // paused at time 0) it could only ever mean "play", never "pause" (the
+  // one time a reader actually saw it, the video was already paused, so
+  // there was nothing left to pause). This poll already runs every 100ms
+  // during playback (see its caller's own comment), same as the small
+  // button's own icon swap right below, so there's no staleness risk in
+  // tracking `paused` alone the same way that one already does.
+  $('largePlay').hidden = !state.videoSource || !paused;
   $('playButton').setAttribute('aria-label', paused ? 'Play' : 'Pause');
 }
 
