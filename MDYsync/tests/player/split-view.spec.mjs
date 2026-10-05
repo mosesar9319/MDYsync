@@ -219,21 +219,27 @@ test.describe('Split View — divider and layout', () => {
   });
 });
 
-test.describe('Split View — video zoom controls', () => {
-  test('the zoom buttons adjust splitVideoZoom and stay clamped to 1x-3x', async ({ page }) => {
+// The explicit on-screen zoom-in/zoom-out/reset buttons were removed (the
+// reader can still pinch, Ctrl/Cmd+wheel, or double-tap to reset -- see
+// #splitVideoPinchSurface's own handlers in app.js): on a short, stacked
+// portrait phone layout they landed in the same screen space as the video's
+// own topbar (daf picker/bookmark/notes/More), so whichever one was
+// actually on top silently stole the other's taps. setSplitVideoZoom/
+// resetSplitVideoZoom themselves are unchanged and still worth covering
+// directly -- every real entry point into them (pinch, wheel, double-tap)
+// ultimately calls the same two functions these tests drive here.
+test.describe('Split View — video zoom', () => {
+  test('setSplitVideoZoom stays clamped to 1x-3x, and resetSplitVideoZoom returns to 1x', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
     await page.goto('/browse/?ref=Chullin%2089a');
     await enterSplitView(page);
-    await expect(page.locator('#splitVideoZoomInButton')).toBeAttached();
 
-    for (let i = 0; i < 10; i += 1) await page.click('#splitVideoZoomInButton');
+    await page.evaluate(() => { for (let i = 0; i < 10; i += 1) setSplitVideoZoom(state.splitVideoZoom + 0.25); });
     await expect.poll(() => page.evaluate(() => state.splitVideoZoom)).toBeLessThanOrEqual(3);
-    await expect(page.locator('#splitVideoZoomResetButton')).toBeVisible();
 
-    await page.click('#splitVideoZoomResetButton');
+    await page.evaluate(() => resetSplitVideoZoom());
     await expect.poll(() => page.evaluate(() => state.splitVideoZoom)).toBe(1);
-    await expect(page.locator('#splitVideoZoomResetButton')).toBeHidden();
   });
 });
 
@@ -292,20 +298,19 @@ test.describe('Split View — daf pinch-zoom does not layout-thrash on rapid tou
 
 // The video pane stacks several absolutely-positioned layers inside
 // .video-frame: the topbar (z-index 7), the picture, the pinch-zoom
-// surface (11), this pane's own zoom buttons (12), and the player's own
-// docked chrome -- the timeline (.scrubber-wrap, z-index 7) sitting
-// directly on top of the control bar (z-index 6). The pinch surface and
-// zoom buttons only carved room for the control bar out of their own
-// bottom edge, leaving the timeline (which lives ABOVE the control bar, in
-// its own --pc-timeline-h band) buried underneath: seeking did nothing at
-// all, and because the pinch surface reads a drag as a pan and a tap as
-// tap-to-toggle-play, a scrub attempt played or paused the video instead
-// of seeking -- reported as "the seek bar doesn't work" and "the video
-// pauses/plays when tapping anywhere". The pinch surface's top edge (0)
-// also sat above the topbar's own z-index, silently swallowing its daf
-// picker/bookmark/notes/more buttons the same way.
+// surface (11), and the player's own docked chrome -- the timeline
+// (.scrubber-wrap, z-index 7) sitting directly on top of the control bar
+// (z-index 6). The pinch surface only carved room for the control bar out
+// of its own bottom edge, leaving the timeline (which lives ABOVE the
+// control bar, in its own --pc-timeline-h band) buried underneath: seeking
+// did nothing at all, and because the pinch surface reads a drag as a pan
+// and a tap as tap-to-toggle-play, a scrub attempt played or paused the
+// video instead of seeking -- reported as "the seek bar doesn't work" and
+// "the video pauses/plays when tapping anywhere". The pinch surface's top
+// edge (0) also sat above the topbar's own z-index, silently swallowing
+// its daf picker/bookmark/notes/more buttons the same way.
 test.describe('Split View — its overlays never cover the player chrome', () => {
-  test('neither the pinch surface nor the zoom buttons overlap the timeline or the control bar', async ({ page }) => {
+  test('the pinch surface does not overlap the timeline or the control bar', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
     await page.goto('/player/?ref=Chullin%2089a');
@@ -320,14 +325,13 @@ test.describe('Split View — its overlays never cover the player chrome', () =>
       };
       return {
         pinch: box('#splitVideoPinchSurface'),
-        zoom: box('#splitVideoZoomControls'),
         scrubber: box('.scrubber-wrap'),
         controls: box('.player-controls'),
       };
     });
 
     const overlaps = (a, b) => a.top < b.bottom && b.top < a.bottom;
-    for (const [overlayName, overlay] of [['pinch surface', bands.pinch], ['zoom buttons', bands.zoom]]) {
+    for (const [overlayName, overlay] of [['pinch surface', bands.pinch]]) {
       for (const [chromeName, chrome] of [['the timeline', bands.scrubber], ['the control bar', bands.controls]]) {
         expect(overlaps(overlay, chrome), `${overlayName} overlaps ${chromeName}`).toBe(false);
       }
@@ -368,6 +372,37 @@ test.describe('Split View — its overlays never cover the player chrome', () =>
       return el?.closest('#playerDafButton') != null;
     });
     expect(elAtDafButton).toBe(true);
+  });
+
+  // Reported directly: the big center play/pause button stopped doing
+  // anything in Split View -- only the small one in the control bar still
+  // worked. #largePlay sits centered over the video picture (z-index 4),
+  // exactly where #splitVideoPinchSurface (z-index 11) also sits, so every
+  // tap on it landed on the pinch surface instead of the button's own click
+  // listener. It was never actually reachable here -- it only ever LOOKED
+  // like it worked because the pinch surface's own tap handler used to call
+  // togglePlay() unconditionally for any plain tap (a since-fixed bug of its
+  // own), which happened to produce the same visible effect as a real click
+  // on this button for as long as that bug lasted.
+  test('the big center play/pause button receives clicks, instead of the pinch surface swallowing them', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+    await dismissErrorBanner(page);
+    await page.evaluate(() => { document.getElementById('largePlay').hidden = false; });
+
+    const elAtLargePlay = await page.evaluate(() => {
+      const btn = document.getElementById('largePlay');
+      const r = btn.getBoundingClientRect();
+      const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return el?.closest('#largePlay') != null;
+    });
+    expect(elAtLargePlay).toBe(true);
+
+    const before = await page.evaluate(() => document.getElementById('video').paused);
+    await page.locator('#largePlay').click();
+    await expect.poll(() => page.evaluate(() => document.getElementById('video').paused)).not.toBe(before);
   });
 
   // Shifting the topbar down to clear the combined bar (above) vacates the
@@ -441,12 +476,12 @@ test.describe('Split View — its overlays never cover the player chrome', () =>
     const atRest = await page.evaluate(() => getComputedStyle(document.getElementById('video')).transform);
     expect(atRest).toBe('none');
 
-    await page.click('#splitVideoZoomInButton');
+    await page.evaluate(() => setSplitVideoZoom(state.splitVideoZoom + 0.25));
     await expect.poll(() => page.evaluate(() => state.splitVideoZoom)).toBeGreaterThan(1);
     const zoomed = await page.evaluate(() => getComputedStyle(document.getElementById('video')).transform);
     expect(zoomed).not.toBe('none');
 
-    await page.click('#splitVideoZoomResetButton');
+    await page.evaluate(() => resetSplitVideoZoom());
     await expect.poll(() => page.evaluate(() => state.splitVideoZoom)).toBe(1);
     await expect.poll(() => page.evaluate(() => getComputedStyle(document.getElementById('video')).transform)).toBe('none');
   });
@@ -619,7 +654,7 @@ test.describe('Split View — no duplicate ids or broken markup', () => {
       failOnPageError(page);
       await preparePage(page, { user: null });
       await page.goto(path);
-      const ids = ['viewerModeSelect', 'viewerModeSplitButton', 'viewerModeDafOnVideoButton', 'splitDivider', 'splitToolbar', 'splitVideoPinchSurface', 'splitVideoZoomIndicator', 'splitVideoZoomControls', 'splitViewButton'];
+      const ids = ['viewerModeSelect', 'viewerModeSplitButton', 'viewerModeDafOnVideoButton', 'splitDivider', 'splitToolbar', 'splitVideoPinchSurface', 'splitVideoZoomIndicator', 'splitViewButton'];
       for (const id of ids) {
         const count = await page.locator(`#${id}`).count();
         expect(count, `#${id} on ${label}`).toBeLessThanOrEqual(1);
@@ -684,5 +719,66 @@ test.describe('Split View — the portaled menus stay usable, not hidden behind 
     await page.mouse.click(outside.x, outside.y);
 
     expect(await page.evaluate(() => document.getElementById('videoSettings').open)).toBe(false);
+  });
+});
+
+// Reported directly: tapping anywhere on the video pauses it, only in Split
+// View. Root cause: #splitVideoPinchSurface (a transparent overlay covering
+// the video picture, needed so pinch/pan-zoom gestures reach this page even
+// though the YouTube iframe underneath is cross-origin and never bubbles
+// touch events) fell back to togglePlay() unconditionally for any plain tap
+// that wasn't a pinch or pan, on the premise that a tap would otherwise be
+// "silently swallowed" the way it is for a direct-link <video>. That premise
+// is wrong for YouTube: with this surface absent, a tap on a YouTube iframe
+// outside Split View does nothing this app's own JS can observe, let alone
+// toggle -- so calling togglePlay() unconditionally manufactured a "tap
+// anywhere pauses it" behavior plain, non-Split-View YouTube playback never
+// had. Reading Mode's own identical mini-player pinch surface had the exact
+// same bug -- see tests/player/reading-mode-mini-player.spec.mjs.
+test.describe('Split View — tapping the video does not manufacture a pause', () => {
+  async function tapPinchSurface(page) {
+    await page.evaluate(async () => {
+      const surface = document.getElementById('splitVideoPinchSurface');
+      const rect = surface.getBoundingClientRect();
+      const x = rect.left + rect.width / 2, y = rect.top + rect.height / 2;
+      surface.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, clientX: x, clientY: y, bubbles: true }));
+      await new Promise((r) => setTimeout(r, 30));
+      surface.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, clientX: x, clientY: y, bubbles: true }));
+      await new Promise((r) => setTimeout(r, 30));
+    });
+  }
+
+  test('a plain tap never pauses (or plays) a YouTube video', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/browse/?ref=Chullin%2089a');
+    await enterSplitView(page);
+
+    const result = await page.evaluate(async () => {
+      state.playerType = 'youtube';
+      state.youtubeReady = true;
+      window.__paused = 0; window.__played = 0;
+      state.youtubePlayer = {
+        getPlayerState: () => 1, // playing
+        pauseVideo: () => { window.__paused++; },
+        playVideo: () => { window.__played++; },
+      };
+    }).then(() => tapPinchSurface(page)).then(() => page.evaluate(() => ({ paused: window.__paused, played: window.__played })));
+
+    expect(result).toEqual({ paused: 0, played: 0 });
+  });
+
+  test('a plain tap still toggles play/pause for a direct-link <video>, exactly as before', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/browse/?ref=Chullin%2089a');
+    await enterSplitView(page);
+
+    const before = await page.evaluate(() => document.getElementById('video').paused);
+    await tapPinchSurface(page);
+    await page.waitForTimeout(100);
+    const after = await page.evaluate(() => document.getElementById('video').paused);
+
+    expect(after).not.toBe(before);
   });
 });

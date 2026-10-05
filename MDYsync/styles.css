@@ -1657,7 +1657,22 @@ input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0
 .youtube-player-host { position: absolute; inset: 0; background: #000; }
 .youtube-player-host iframe, #youtubePlayer { width: 100%; height: 100%; display: block; border: 0; }
 .video-source-badge { position: absolute; left: 10px; top: 10px; z-index: 3; padding: 5px 8px; border: 1px solid rgba(255,255,255,.2); border-radius: 999px; background: rgba(2,8,18,.72); color: #d9e5ee; font-size: 11px; font-weight: 700; backdrop-filter: blur(8px); pointer-events: none; }
-.video-frame .large-play { z-index: 4; }
+/* z-index 13, not 4: in Split View, #splitVideoPinchSurface (z-index 11,
+   see its own construction in app.js) sits directly over the video picture
+   -- the exact same spot this button is centered in -- so every tap on it
+   landed on the pinch surface instead, never reaching this button's own
+   click listener at all. Reported directly: the big center play/pause
+   button stopped doing anything, while the small one in the control bar
+   kept working. It was never actually reachable here in Split View in the
+   first place -- it only ever LOOKED like it worked because the pinch
+   surface's own tap handler used to call togglePlay() unconditionally for
+   any plain tap, a since-fixed bug of its own (see splitVideoTap's comment
+   in app.js) that happened to produce the same visible effect as a real
+   click on this button, for exactly as long as that bug lasted. Matches
+   .player-topbar's own identical fix (z-index 13, see its Split View rule
+   further down) for the same reason -- the daf picker/bookmark/notes/More
+   buttons up there had the exact same problem. */
+.video-frame .large-play { z-index: 13; }
 .video-frame.youtube-active .video-source-badge { left: 12px; top: 12px; }
 
 @media (max-width: 700px) {
@@ -2712,11 +2727,12 @@ body.split-view-active .watch-layout.split-active .video-frame .player-topbar::b
 /* Applied to the video PICTURE only (#video / #youtubePlayerHost -- exactly
    one is visible at a time, see app.js's own source-switch code) -- NOT to
    #videoFrame itself. #videoFrame also contains the topbar, control bar and
-   this pane's own zoom controls/pinch surface as ordinary children; scaling
+   this pane's own pinch surface/zoom indicator as ordinary children; scaling
    the whole frame would scale and reposition all of THOSE too (confirmed
-   directly: the zoom buttons drifted toward the top of the viewport as zoom
-   increased and started intercepting clicks meant for the prominent selector
-   above). Clipped by .video-frame's own existing overflow:hidden either way. */
+   directly: an earlier, since-removed on-screen zoom-button group drifted
+   toward the top of the viewport as zoom increased and started intercepting
+   clicks meant for the prominent selector above). Clipped by .video-frame's
+   own existing overflow:hidden either way. */
 /* The transform itself is gated on .split-video-zoomed (toggled by
    setSplitVideoZoom below the 1.001 threshold), not applied unconditionally
    at scale(1) translate(0,0) -- even an identity transform promotes an
@@ -2775,42 +2791,6 @@ body.split-view-active .watch-layout.split-active .video-frame #youtubePlayerHos
   transition: opacity .2s ease;
 }
 .split-video-zoom-indicator.show { opacity: 1; }
-/* Bottom-anchored, near the control bar -- but with a FIXED height reserved
-   for all three possible buttons (Reset Zoom only joins once zoomed past
-   1x), not an auto height that grows with its own content. A bottom anchor
-   with an unconstrained (auto) height was confirmed directly to grow the
-   whole group UPWARD as that third button appeared -- far enough, on a
-   short video pane, to reach the prominent selector or the Split View
-   toolbar pinned near the top of the viewport. Reserving the space up
-   front instead means this group's own top edge never moves regardless of
-   which children are visible. */
-.split-video-zoom-controls {
-  display: none;
-  position: absolute;
-  /* Anchored above BOTH docked strips, not just the control bar -- the
-     timeline sits directly on top of the control bar too (see
-     .split-video-pinch-surface's own comment above), and this group's
-     z-index 12 against the timeline's 7 was eating the right-hand end of
-     the seek bar otherwise. */
-  bottom: calc(var(--pc-bar-h, 68px) + var(--pc-timeline-h, 74px) + 10px);
-  height: 116px;
-  inset-inline-end: 10px;
-  z-index: 12;
-  flex-direction: column;
-  gap: 4px;
-}
-body.split-view-active .watch-layout.split-active .split-video-zoom-controls { display: flex; }
-.split-video-zoom-controls button {
-  width: 34px; height: 34px;
-  display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 9px;
-  border: 1px solid rgba(255,255,255,.2);
-  background: rgba(8,17,28,.72);
-  color: #fff;
-  cursor: pointer;
-}
-.split-video-zoom-controls button:hover { background: rgba(8,17,28,.92); }
-.split-video-zoom-controls button svg { width: 17px; height: 17px; }
 
 /* --- Responsive defaults -------------------------------------------------
    Landscape (desktop, landscape tablet/phone) defaults to side-by-side via

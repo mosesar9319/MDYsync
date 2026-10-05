@@ -5370,7 +5370,14 @@ function setReadingMode(enabled) {
     const tap = readingVideoTap;
     if (!cancelled && !drag?.moved && tap?.pointerId === event.pointerId && readingVideoPinchPointers.size === 0) {
       const travel = Math.hypot(point.x - point.startX, point.y - point.startY);
-      if (travel < 10 && performance.now() - tap.startedAt < 450) togglePlay();
+      // Same guard, same reason, as splitVideoTap's own identical check
+      // below -- a YouTube embed is a cross-origin iframe this page can
+      // never see clicks inside; without this surface, a tap on it outside
+      // Reading Mode does nothing this app's own JS can observe, let alone
+      // toggle. Calling togglePlay() unconditionally manufactured a "tap
+      // anywhere pauses it" behavior Reading Mode's floating mini player
+      // never had for a YouTube video outside this mode.
+      if (state.playerType !== 'youtube' && travel < 10 && performance.now() - tap.startedAt < 450) togglePlay();
     }
     if (readingVideoPinchPointers.size === 0) readingVideoTap = null;
   }
@@ -5700,7 +5707,6 @@ function applySplitVideoTransform() {
   frame.style.setProperty('--split-video-pan-y', `${state.splitVideoPanY}px`);
   const zoomed = state.splitVideoZoom > 1.001;
   frame.classList.toggle('split-video-zoomed', zoomed);
-  for (const id of ['splitVideoZoomResetButton']) { const el = $(id); if (el) el.hidden = !zoomed; }
 }
 function showSplitVideoZoomIndicator() {
   const indicator = $('splitVideoZoomIndicator');
@@ -5974,10 +5980,21 @@ function announceViewerMode(mode) {
       if (splitVideoPinchPointers.size < 2) splitVideoPinch = null;
       // A single, un-moved tap that never became a pinch or pan either
       // double-taps to reset (when already zoomed) or acts exactly like
-      // tapping the video normally would -- toggling play/pause -- since
-      // this surface sits directly over the video picture and would
-      // otherwise silently swallow that tap. See readingVideoTap's own
-      // identical reasoning above.
+      // tapping the video normally would -- since this surface sits
+      // directly over the video picture and would otherwise silently
+      // swallow that tap. See readingVideoTap's own identical reasoning
+      // above.
+      //
+      // "Acts like tapping the video normally would" is NOT "always
+      // toggles play/pause", though -- that's only true for the direct-
+      // link <video> path (htmlVideo's own 'click' listener below). A
+      // YouTube embed is a cross-origin iframe this page can never see
+      // clicks inside at all; with this surface absent, a tap on it
+      // outside Split View does nothing this app's own JS can observe, let
+      // alone toggle. Reported directly: every tap anywhere on the video
+      // paused it, in Split View ONLY -- this surface calling togglePlay()
+      // unconditionally is exactly what manufactured a "tap always pauses"
+      // behavior for YouTube that plain, non-Split-View playback never had.
       if (!cancelled && !wasPinching && splitVideoTap?.pointerId === event.pointerId) {
         const now = performance.now();
         if (state.splitVideoZoom > 1.001 && now - splitVideoLastTapAt < 320) {
@@ -5985,7 +6002,7 @@ function announceViewerMode(mode) {
           splitVideoLastTapAt = 0;
         } else {
           splitVideoLastTapAt = now;
-          if (performance.now() - splitVideoTap.startedAt < 450) togglePlay();
+          if (state.playerType !== 'youtube' && performance.now() - splitVideoTap.startedAt < 450) togglePlay();
         }
       }
       splitVideoTap = null;
@@ -5999,10 +6016,6 @@ function announceViewerMode(mode) {
       setSplitVideoZoom(state.splitVideoZoom - event.deltaY * 0.01);
     }, { passive: false });
   }
-  for (const [id, delta] of [['splitVideoZoomInButton', 0.25], ['splitVideoZoomOutButton', -0.25]]) {
-    $(id)?.addEventListener('click', () => setSplitVideoZoom(state.splitVideoZoom + delta));
-  }
-  $('splitVideoZoomResetButton')?.addEventListener('click', () => resetSplitVideoZoom());
 
   window.addEventListener('resize', () => {
     if (!state.splitViewEnabled) return;

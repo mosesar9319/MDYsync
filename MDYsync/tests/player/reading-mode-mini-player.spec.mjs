@@ -184,3 +184,65 @@ test.describe('Reading Mode mini player — fullscreen', () => {
     expect(usedFallback).toBe(true);
   });
 });
+
+// Reported directly, against Split View's own identical pinch surface
+// (splitVideoTap, see app.js): every tap anywhere on the video paused it.
+// Root cause: both readingVideoTap here and splitVideoTap sit on a
+// transparent surface over the video picture to catch pinch/pan gestures
+// the cross-origin YouTube iframe can't bubble, and both fell back to
+// togglePlay() unconditionally for a plain tap, on the premise that a tap
+// would otherwise be "silently swallowed" the way it is for the direct-
+// link <video> path. That premise is wrong for YouTube: with this surface
+// absent, a tap on a YouTube iframe outside Reading Mode/Split View does
+// nothing this app's own JS can observe, let alone toggle -- so calling
+// togglePlay() unconditionally manufactured a "tap always pauses it"
+// behavior neither mode ever had for YouTube before this surface existed.
+test.describe('Reading Mode mini player — tapping the video does not manufacture a pause', () => {
+  async function tapPinchSurface(page) {
+    await page.evaluate(async () => {
+      const surface = document.getElementById('readingVideoPinchSurface');
+      const rect = surface.getBoundingClientRect();
+      const x = rect.left + rect.width / 2, y = rect.top + rect.height / 2;
+      surface.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, clientX: x, clientY: y, bubbles: true }));
+      await new Promise((r) => setTimeout(r, 30));
+      surface.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, clientX: x, clientY: y, bubbles: true }));
+      await new Promise((r) => setTimeout(r, 30));
+    });
+  }
+
+  test('a plain tap never pauses (or plays) a YouTube video', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.click('#readingModeButton');
+    await expect(page.locator('#readingVideoFloat')).toBeVisible();
+
+    const result = await page.evaluate(async () => {
+      state.playerType = 'youtube';
+      state.youtubeReady = true;
+      window.__paused = 0; window.__played = 0;
+      state.youtubePlayer = {
+        getPlayerState: () => 1, // playing
+        pauseVideo: () => { window.__paused++; },
+        playVideo: () => { window.__played++; },
+      };
+    }).then(() => tapPinchSurface(page)).then(() => page.evaluate(() => ({ paused: window.__paused, played: window.__played })));
+
+    expect(result).toEqual({ paused: 0, played: 0 });
+  });
+
+  test('a plain tap still toggles play/pause for a direct-link <video>, exactly as before', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.click('#readingModeButton');
+    await expect(page.locator('#readingVideoFloat')).toBeVisible();
+
+    const before = await page.evaluate(() => document.getElementById('video').paused);
+    await tapPinchSurface(page);
+    await page.waitForTimeout(100);
+    const after = await page.evaluate(() => document.getElementById('video').paused);
+
+    expect(after).not.toBe(before);
+  });
+});
