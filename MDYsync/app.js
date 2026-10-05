@@ -5707,7 +5707,6 @@ function applySplitVideoTransform() {
   frame.style.setProperty('--split-video-pan-y', `${state.splitVideoPanY}px`);
   const zoomed = state.splitVideoZoom > 1.001;
   frame.classList.toggle('split-video-zoomed', zoomed);
-  for (const id of ['splitVideoZoomResetButton']) { const el = $(id); if (el) el.hidden = !zoomed; }
 }
 function showSplitVideoZoomIndicator() {
   const indicator = $('splitVideoZoomIndicator');
@@ -6017,10 +6016,6 @@ function announceViewerMode(mode) {
       setSplitVideoZoom(state.splitVideoZoom - event.deltaY * 0.01);
     }, { passive: false });
   }
-  for (const [id, delta] of [['splitVideoZoomInButton', 0.25], ['splitVideoZoomOutButton', -0.25]]) {
-    $(id)?.addEventListener('click', () => setSplitVideoZoom(state.splitVideoZoom + delta));
-  }
-  $('splitVideoZoomResetButton')?.addEventListener('click', () => resetSplitVideoZoom());
 
   window.addEventListener('resize', () => {
     if (!state.splitViewEnabled) return;

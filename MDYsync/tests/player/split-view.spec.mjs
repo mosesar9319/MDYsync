@@ -219,21 +219,27 @@ test.describe('Split View — divider and layout', () => {
   });
 });
 
-test.describe('Split View — video zoom controls', () => {
-  test('the zoom buttons adjust splitVideoZoom and stay clamped to 1x-3x', async ({ page }) => {
+// The explicit on-screen zoom-in/zoom-out/reset buttons were removed (the
+// reader can still pinch, Ctrl/Cmd+wheel, or double-tap to reset -- see
+// #splitVideoPinchSurface's own handlers in app.js): on a short, stacked
+// portrait phone layout they landed in the same screen space as the video's
+// own topbar (daf picker/bookmark/notes/More), so whichever one was
+// actually on top silently stole the other's taps. setSplitVideoZoom/
+// resetSplitVideoZoom themselves are unchanged and still worth covering
+// directly -- every real entry point into them (pinch, wheel, double-tap)
+// ultimately calls the same two functions these tests drive here.
+test.describe('Split View — video zoom', () => {
+  test('setSplitVideoZoom stays clamped to 1x-3x, and resetSplitVideoZoom returns to 1x', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
     await page.goto('/browse/?ref=Chullin%2089a');
     await enterSplitView(page);
-    await expect(page.locator('#splitVideoZoomInButton')).toBeAttached();
 
-    for (let i = 0; i < 10; i += 1) await page.click('#splitVideoZoomInButton');
+    await page.evaluate(() => { for (let i = 0; i < 10; i += 1) setSplitVideoZoom(state.splitVideoZoom + 0.25); });
     await expect.poll(() => page.evaluate(() => state.splitVideoZoom)).toBeLessThanOrEqual(3);
-    await expect(page.locator('#splitVideoZoomResetButton')).toBeVisible();
 
-    await page.click('#splitVideoZoomResetButton');
+    await page.evaluate(() => resetSplitVideoZoom());
     await expect.poll(() => page.evaluate(() => state.splitVideoZoom)).toBe(1);
-    await expect(page.locator('#splitVideoZoomResetButton')).toBeHidden();
   });
 });
 
@@ -292,20 +298,19 @@ test.describe('Split View — daf pinch-zoom does not layout-thrash on rapid tou
 
 // The video pane stacks several absolutely-positioned layers inside
 // .video-frame: the topbar (z-index 7), the picture, the pinch-zoom
-// surface (11), this pane's own zoom buttons (12), and the player's own
-// docked chrome -- the timeline (.scrubber-wrap, z-index 7) sitting
-// directly on top of the control bar (z-index 6). The pinch surface and
-// zoom buttons only carved room for the control bar out of their own
-// bottom edge, leaving the timeline (which lives ABOVE the control bar, in
-// its own --pc-timeline-h band) buried underneath: seeking did nothing at
-// all, and because the pinch surface reads a drag as a pan and a tap as
-// tap-to-toggle-play, a scrub attempt played or paused the video instead
-// of seeking -- reported as "the seek bar doesn't work" and "the video
-// pauses/plays when tapping anywhere". The pinch surface's top edge (0)
-// also sat above the topbar's own z-index, silently swallowing its daf
-// picker/bookmark/notes/more buttons the same way.
+// surface (11), and the player's own docked chrome -- the timeline
+// (.scrubber-wrap, z-index 7) sitting directly on top of the control bar
+// (z-index 6). The pinch surface only carved room for the control bar out
+// of its own bottom edge, leaving the timeline (which lives ABOVE the
+// control bar, in its own --pc-timeline-h band) buried underneath: seeking
+// did nothing at all, and because the pinch surface reads a drag as a pan
+// and a tap as tap-to-toggle-play, a scrub attempt played or paused the
+// video instead of seeking -- reported as "the seek bar doesn't work" and
+// "the video pauses/plays when tapping anywhere". The pinch surface's top
+// edge (0) also sat above the topbar's own z-index, silently swallowing
+// its daf picker/bookmark/notes/more buttons the same way.
 test.describe('Split View — its overlays never cover the player chrome', () => {
-  test('neither the pinch surface nor the zoom buttons overlap the timeline or the control bar', async ({ page }) => {
+  test('the pinch surface does not overlap the timeline or the control bar', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
     await page.goto('/player/?ref=Chullin%2089a');
@@ -320,14 +325,13 @@ test.describe('Split View — its overlays never cover the player chrome', () =>
       };
       return {
         pinch: box('#splitVideoPinchSurface'),
-        zoom: box('#splitVideoZoomControls'),
         scrubber: box('.scrubber-wrap'),
         controls: box('.player-controls'),
       };
     });
 
     const overlaps = (a, b) => a.top < b.bottom && b.top < a.bottom;
-    for (const [overlayName, overlay] of [['pinch surface', bands.pinch], ['zoom buttons', bands.zoom]]) {
+    for (const [overlayName, overlay] of [['pinch surface', bands.pinch]]) {
       for (const [chromeName, chrome] of [['the timeline', bands.scrubber], ['the control bar', bands.controls]]) {
         expect(overlaps(overlay, chrome), `${overlayName} overlaps ${chromeName}`).toBe(false);
       }
@@ -441,12 +445,12 @@ test.describe('Split View — its overlays never cover the player chrome', () =>
     const atRest = await page.evaluate(() => getComputedStyle(document.getElementById('video')).transform);
     expect(atRest).toBe('none');
 
-    await page.click('#splitVideoZoomInButton');
+    await page.evaluate(() => setSplitVideoZoom(state.splitVideoZoom + 0.25));
     await expect.poll(() => page.evaluate(() => state.splitVideoZoom)).toBeGreaterThan(1);
     const zoomed = await page.evaluate(() => getComputedStyle(document.getElementById('video')).transform);
     expect(zoomed).not.toBe('none');
 
-    await page.click('#splitVideoZoomResetButton');
+    await page.evaluate(() => resetSplitVideoZoom());
     await expect.poll(() => page.evaluate(() => state.splitVideoZoom)).toBe(1);
     await expect.poll(() => page.evaluate(() => getComputedStyle(document.getElementById('video')).transform)).toBe('none');
   });
@@ -619,7 +623,7 @@ test.describe('Split View — no duplicate ids or broken markup', () => {
       failOnPageError(page);
       await preparePage(page, { user: null });
       await page.goto(path);
-      const ids = ['viewerModeSelect', 'viewerModeSplitButton', 'viewerModeDafOnVideoButton', 'splitDivider', 'splitToolbar', 'splitVideoPinchSurface', 'splitVideoZoomIndicator', 'splitVideoZoomControls', 'splitViewButton'];
+      const ids = ['viewerModeSelect', 'viewerModeSplitButton', 'viewerModeDafOnVideoButton', 'splitDivider', 'splitToolbar', 'splitVideoPinchSurface', 'splitVideoZoomIndicator', 'splitViewButton'];
       for (const id of ids) {
         const count = await page.locator(`#${id}`).count();
         expect(count, `#${id} on ${label}`).toBeLessThanOrEqual(1);
