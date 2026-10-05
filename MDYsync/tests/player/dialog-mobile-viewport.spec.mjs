@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { preparePage, failOnPageError } from '../support/harness.mjs';
-import { sessionFor, USERS } from '../fixtures/dataset.mjs';
+import { buildDatabase, sessionFor, USERS } from '../fixtures/dataset.mjs';
 
 // Every modal <dialog> on the daf pages (browse/player/watch) was clipped at
 // phone widths, site-wide and pre-existing. Root cause: .reading-mode-tip
@@ -86,6 +86,60 @@ test.describe('Modal dialogs are not clipped at phone widths', () => {
 
     await page.click('#closeNoteCiteDialog');
     await expect(dialog).toBeHidden();
+  });
+
+  // Reported directly: on a short phone screen, #noteCompose's own content
+  // (privacy toggle, category picker, formatting toolbar, textarea,
+  // timestamp toggle, Save button) ran taller than what's left of the
+  // panel, and #noteDialog[open]'s overflow:hidden just clipped the bottom
+  // of it -- Save fell below the fold with nothing to scroll.
+  //
+  // locator.scrollIntoViewIfNeeded()/toBeInViewport() are deliberately NOT
+  // used here: overflow:hidden still makes an element a "scroll container"
+  // that JS (and Playwright's own scrollIntoView call) can move via
+  // scrollTop, even though a real touchscreen swipe can't trigger that --
+  // Chromium blocks wheel/touch-driven scrolling on overflow:hidden. An
+  // assertion built on scrollIntoViewIfNeeded would have passed against the
+  // ORIGINAL bug too (verified while writing this test), since it happily
+  // scrolls #noteDialog[open] itself instead of needing #noteCompose to be
+  // the one actually scrollable. The real fix makes #noteCompose itself an
+  // overflow-y:auto container, so the right assertion is on ITS scroll
+  // metrics -- and driving it by actually scrolling, not asserting a
+  // CSS property, catches a future regression that changes the selector
+  // but keeps overflow-y:auto sitting on the wrong element.
+  test('/browse/: a tall #noteCompose becomes genuinely scrollable on a short phone screen', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'mobile-only: the short-viewport case this bug needs');
+    failOnPageError(page);
+    await page.setViewportSize({ width: 390, height: 600 });
+    const db = buildDatabase();
+    await preparePage(page, { db, session: sessionFor(USERS.author) });
+    await page.goto('/browse/?ref=Chullin%2089a');
+
+    await page.evaluate(() => {
+      state.dafRef = 'Chullin 89a';
+      window.DafNotes.open('Chullin 89a.1', '');
+    });
+    await expect(page.locator('#noteCompose')).toBeVisible();
+    // Expand the secondary category chips so the form is at its tallest,
+    // the same way a reader picking a less-common category would see it.
+    await page.click('#noteCategoryMoreToggle');
+    await expect(page.locator('#noteCategorySecondaryOptions')).toBeVisible();
+
+    const saveButton = page.locator('#saveNoteButton');
+    const before = await saveButton.boundingBox();
+    expect(before.y + before.height).toBeGreaterThan(600); // below the fold to start
+
+    // The actual gesture a touchscreen swipe performs: scroll the compose
+    // form's own content, not any ancestor.
+    await page.locator('#noteCompose').evaluate((el) => { el.scrollTop = el.scrollHeight; });
+
+    const after = await saveButton.boundingBox();
+    expect(after.y).toBeGreaterThanOrEqual(0);
+    expect(after.y + after.height).toBeLessThanOrEqual(600);
+
+    await page.fill('#noteBodyInput', 'Written on a short phone screen.');
+    await saveButton.click();
+    await expect(page.locator('#noteBodyInput')).toHaveValue('');
   });
 
   test('desktop stays centred (no regression from the phone-width fix)', async ({ page }, testInfo) => {
