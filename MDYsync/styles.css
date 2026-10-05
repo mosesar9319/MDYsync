@@ -1545,9 +1545,34 @@ dialog ol { color: #d8e2eb; padding-left: 21px; line-height: 1.6; }
    this only applies once [open] is present, so it never fights that. */
 #noteDialog[open] { display: flex; flex-direction: column; overflow: hidden; }
 #noteDialog .note-list { flex: 1 1 auto; max-height: none; min-height: 0; overflow-y: auto; }
-#noteDialog .note-compose { flex: 0 0 auto; }
+/* Reported directly: on a short phone screen the compose form (privacy
+   toggle, category picker, formatting toolbar, textarea, timestamp toggle,
+   Save button) is taller than what's left of the 100vh panel once the
+   header and note list above it take their share. flex: 0 0 auto never let
+   it shrink, and it had no scroll of its own, so its own bottom -- the Save
+   button -- fell below the fold with no way to reach it (the panel's own
+   overflow:hidden on #noteDialog[open] just clips it rather than scrolling).
+   Giving it the same flex: 1 1 auto / min-height: 0 / overflow-y: auto shape
+   .note-list already uses makes it shrink to share space with the list
+   instead of forcing its full natural height, and scroll internally
+   whenever it still doesn't fit -- the Save button is always reachable
+   either way. */
+#noteDialog .note-compose { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 @media (max-width: 480px) {
   #noteDialog { width: 100vw; }
+  /* Same report: make the form itself more compact on a phone so there's
+     less to scroll through in the first place. Desktop keeps the roomier
+     spacing -- this is scoped to the narrow-screen case the report was
+     about. */
+  #noteDialog .note-list { max-height: 26vh; }
+  #noteDialog .note-compose { padding-top: 10px; }
+  #noteDialog .note-privacy-toggle { margin-bottom: 7px; }
+  #noteDialog .note-category-picker { margin: 2px 0 8px; padding: 8px 0; }
+  #noteDialog .note-format-toolbar { margin-bottom: 4px; }
+  #noteDialog .note-cite-row { margin-bottom: 5px; }
+  #noteDialog #noteBodyInput { height: 56px; }
+  #noteDialog .note-timestamp-toggle { margin-top: 6px; }
+  #noteDialog .note-compose-actions { margin-top: 7px; }
 }
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none; background: #17304b; border: 1px solid var(--line-strong); color: white; padding: 11px 15px; border-radius: 12px; box-shadow: 0 12px 35px rgba(0,0,0,.35); transition: .25s; z-index: 20; }
 .toast.show { transform: translate(-50%, 0); opacity: 1; }
