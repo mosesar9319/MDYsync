@@ -131,11 +131,16 @@ test.describe('Note thread — writing', () => {
     expect(insert.rows[0].parent_comment_id).toBe(parentId);
   });
 
-  test('a failed reply surfaces the server message and does not silently drop', async ({ page }) => {
+  test('a failed reply surfaces a friendly message and does not silently drop', async ({ page }) => {
     await preparePage(page, {
       user: USERS.ordinary,
       // What can_post_publicly() rejection looks like to the client for a
-      // brand-new or rate-limited account.
+      // brand-new or rate-limited account. publicPostErrorMessage() (notes.js)
+      // translates this raw Postgres text into an actionable toast instead of
+      // showing it verbatim -- see tests/notes/rls-post-error-messages.spec.mjs
+      // for the full set of that translation's branches. USERS.ordinary's
+      // fixture profile is long past the 24-hour gate (see dataset.mjs), so
+      // the branch this trips is the rate-limit one.
       control: { failures: { 'comments:insert': { message: 'new row violates row-level security policy' } } },
     });
     await page.goto('/browse/?ref=Chullin%2089a');
@@ -147,7 +152,7 @@ test.describe('Note thread — writing', () => {
     await composer.locator('.reply-body-input').fill('This should fail.');
     await composer.locator('.reply-post-button').click();
 
-    await expect(page.locator('.toast, #toast')).toContainText('row-level security');
+    await expect(page.locator('.toast, #toast')).toContainText('posting publicly a bit too fast');
     // The in-memory draft survives a rejected submit: postComment() returns
     // early on error without clearing the textarea or re-rendering the list.
     // (The gap Phase 5 addresses is persistence across a RELOAD, not this --
