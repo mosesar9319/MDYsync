@@ -1,0 +1,389 @@
+'use strict';
+
+// Live Follow's phrase matcher -- a JavaScript port of the deterministic
+// matching core of tools/caption-sync/voice_align.py (match_phrase_dual,
+// match_runs' lock/relocalize/confirm state machine, hebrew_script_runs,
+// build_keyterm_list) and the normalize_word/load_canonical pieces it
+// borrows from caption_ocr_align.py. Pure functions, no DOM: loaded as a
+// plain <script> by /live/ (exposed as window.LiveMatcher) and require()d
+// directly by tests/functions/live-matcher.test.mjs.
+//
+// Ported line-for-line rather than re-derived, so the two implementations
+// can't quietly disagree: tests/fixtures/live-matcher-parity.json holds
+// results computed by the real Python code (regenerate it with
+// tools/caption-sync/gen_live_matcher_parity.py whenever the Python matcher
+// changes), and the test suite also reads voice_align.py's constants
+// straight out of its source and fails if they drift from the copies here.
+//
+// Deliberately NOT ported: LLM rescue and refine_matches' retrospective
+// gap-filling (V1 measures how far deterministic matching alone gets live),
+// and the >2s word-gap run split (realtime transcripts arrive without
+// per-word timestamps; each VAD-committed utterance is treated as its own
+// run boundary instead -- see splitHebrewRuns).
+//
+// Live-only additions, both opt-in so matchRuns() keeps exact batch parity:
+//   - eagerRelocalize: batch only searches globally after RELOCALIZE_AFTER
+//     (12) consecutive local misses, fine offline but far too slow for a
+//     maggid shiur saying "let's go back four lines" live. With this on, a
+//     local miss while locked also tries a global search -- but a far match
+//     is only ever held as pending, and committed only when the next run
+//     corroborates it, the same two-agreeing-matches rule batch uses for
+//     any fresh lock. A one-off decoy elsewhere in the daf still can't move
+//     the highlight.
+//   - chunkRun: realtime has no gap-based run splitting, so one committed
+//     utterance can be a long stretch of continuous reading; splitting it
+//     into short consecutive chunks lets the highlight advance through it,
+//     and bounds the cost of each search.
+
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.LiveMatcher = api;
+})(typeof self !== 'undefined' ? self : this, function () {
+  // --- Constants mirrored from voice_align.py (checked by the test suite) --
+  const BACK_WINDOW = 15;
+  const FWD_WINDOW = 60;
+  const MIN_SCORE = 60;
+  const MIN_SCORE_GLOBAL = 72;
+  const MIN_SCORE_SINGLE = 85;
+  const CHAR_FLOOR = 55;
+  const RELOCALIZE_AFTER = 12;
+  const PHONETIC_CLASSES = [['A', 'אעה'], ['Y', 'וי'], ['K', 'כחק'], ['T', 'תט']];
+  const COMMON_GEMARA_TERMS = [
+    'תא שמע', 'איתמר', 'תניא', 'מתניתין', 'גמרא', 'אמר מר', 'מאי טעמא',
+    'והתניא', 'אמר רבא', 'אמר אביי', 'בעי מיניה', 'איבעיא להו',
+  ];
+  const KEYTERM_STOPWORDS = new Set([
+    'של', 'את', 'על', 'אל', 'כי', 'לא', 'הוא', 'היא', 'זה', 'מה',
+    'לו', 'בו', 'כן', 'עד', 'גם', 'רק', 'כל', 'יש', 'אין', 'אם',
+  ]);
+
+  // --- Live-only constants ---------------------------------------------------
+  // Short enough that a long utterance advances the highlight several times
+  // and a global search stays a few tens of milliseconds even on a full daf;
+  // long enough to stay well clear of the lone-word ambiguity
+  // MIN_SCORE_SINGLE exists for.
+  const LIVE_MAX_RUN_WORDS = 10;
+  const PROVISIONAL_TAIL_WORDS = 6;
+  // ElevenLabs' realtime limits (batch Scribe allows far more).
+  const REALTIME_MAX_KEYTERMS = 50;
+  const REALTIME_MAX_KEYTERM_CHARS = 20;
+
+  const phoneticTable = new Map();
+  for (const [symbol, letters] of PHONETIC_CLASSES) {
+    for (const ch of letters) phoneticTable.set(ch, symbol);
+  }
+
+  // caption_ocr_align.normalize_word: NFKD, strip nikud/taamim/maqaf
+  // (U+0591-U+05C7), then anything that isn't a Hebrew base letter.
+  function normalizeWord(word) {
+    return String(word || '')
+      .normalize('NFKD')
+      .replace(/[֑-ׇ]/g, '')
+      .replace(/[^א-ת]/g, '');
+  }
+
+  function phonetic(norm) {
+    let out = '';
+    for (const ch of norm) out += phoneticTable.get(ch) || ch;
+    return out;
+  }
+
+  // rapidfuzz's fuzz.ratio: Indel normalized similarity * 100, computed
+  // with the same floating-point operations so scores match bit-for-bit.
+  let lcsPrev = new Uint16Array(64);
+  let lcsCurr = new Uint16Array(64);
+  function lcsLength(a, b) {
+    if (a.length < b.length) { const t = a; a = b; b = t; }
+    const n = b.length;
+    if (!n) return 0;
+    if (lcsPrev.length < n + 1) {
+      lcsPrev = new Uint16Array(n + 1);
+      lcsCurr = new Uint16Array(n + 1);
+    }
+    let prev = lcsPrev;
+    let curr = lcsCurr;
+    prev.fill(0, 0, n + 1);
+    curr[0] = 0;
+    for (let i = 0; i < a.length; i += 1) {
+      const ca = a.charCodeAt(i);
+      for (let j = 1; j <= n; j += 1) {
+        if (ca === b.charCodeAt(j - 1)) curr[j] = prev[j - 1] + 1;
+        else curr[j] = prev[j] > curr[j - 1] ? prev[j] : curr[j - 1];
+      }
+      const t = prev; prev = curr; curr = t;
+    }
+    return prev[n];
+  }
+
+  function ratio(a, b) {
+    const lensum = a.length + b.length;
+    if (!lensum) return 100;
+    const dist = lensum - 2 * lcsLength(a, b);
+    return (1 - dist / lensum) * 100;
+  }
+
+  // match_phrase_dual iterates `for size in {k - 1, k, k + 1}` -- a Python
+  // set, so on an exact score tie between two window sizes the winner is
+  // whichever CPython's hash table yields first, not the smallest. For
+  // these (at most three, consecutive, small, non-negative) ints that is
+  // ascending order of (value & 7): no collisions are possible in the
+  // 8-slot initial table. e.g. k=8 iterates 8, 9, 7.
+  function pythonSizeOrder(k) {
+    const sizes = [...new Set([Math.max(1, k - 1), k, k + 1])];
+    return sizes.sort((x, y) => (x & 7) - (y & 7));
+  }
+
+  // One segment's whitespace tokens, exactly as load_canonical splits them.
+  // Exported so a page rendering the daf walks the very same tokens, and its
+  // Nth Hebrew-bearing token is always canon word N.
+  function segmentTokens(he) {
+    return String(he || '').replace(/<[^>]+>/g, '').split(/\s+/).filter(Boolean);
+  }
+
+  // caption_ocr_align.load_canonical's word-building half, over segments
+  // already fetched: [{ ref, he }]. Keeps every word with a non-empty
+  // normalized form, plus prefix offsets so any window's concatenated
+  // string is an O(1) slice instead of a fresh join per candidate.
+  function buildCanon(segments) {
+    const words = [];
+    segments.forEach((segment, segIndex) => {
+      segmentTokens(segment.he).forEach((text, wordIndex) => {
+        const norm = normalizeWord(text);
+        if (norm) words.push({ ref: segment.ref, segIndex, wordIndex, text, norm, phon: phonetic(norm) });
+      });
+    });
+    const normOffsets = new Int32Array(words.length + 1);
+    const phonOffsets = new Int32Array(words.length + 1);
+    words.forEach((w, i) => {
+      normOffsets[i + 1] = normOffsets[i] + w.norm.length;
+      phonOffsets[i + 1] = phonOffsets[i] + w.phon.length;
+    });
+    const normConcat = words.map((w) => w.norm).join('');
+    const phonConcat = words.map((w) => w.phon).join('');
+    return {
+      words,
+      length: words.length,
+      normSlice: (s, e) => normConcat.slice(normOffsets[s], normOffsets[e]),
+      phonSlice: (s, e) => phonConcat.slice(phonOffsets[s], phonOffsets[e]),
+    };
+  }
+
+  // voice_align.match_phrase_dual. Returns { s, e, phonScore, charScore }
+  // (inclusive word indices) or null.
+  function matchPhraseDual(canon, hlNorm, hlPhon, cursor, options = {}) {
+    const phonPhrase = hlPhon.join('');
+    if (!phonPhrase) return null;
+    const k = hlPhon.length;
+    const globalSearch = Boolean(options.global);
+    const window = options.window || null;
+    let lo;
+    let hi;
+    if (window) {
+      [lo, hi] = window;
+      if (hi <= lo) return null;
+    } else if (globalSearch) {
+      if (k < 2) return null;
+      lo = 0;
+      hi = canon.length;
+    } else {
+      lo = Math.max(0, cursor - BACK_WINDOW);
+      hi = Math.min(canon.length, cursor + FWD_WINDOW);
+    }
+    let best = null;
+    for (const size of pythonSizeOrder(k)) {
+      const end = Math.max(lo, hi - size + 1);
+      for (let s = lo; s < end; s += 1) {
+        let score = ratio(phonPhrase, canon.phonSlice(s, s + size));
+        if (!globalSearch && !window) score -= Math.abs(s - cursor) * 0.15;
+        if (best === null || score > best.score) best = { s, e: s + size - 1, score };
+      }
+    }
+    if (best === null) return null;
+    let floor;
+    if (window) floor = k === 1 ? MIN_SCORE_SINGLE : MIN_SCORE;
+    else floor = globalSearch ? MIN_SCORE_GLOBAL : (k === 1 ? MIN_SCORE_SINGLE : MIN_SCORE);
+    if (best.score < floor) return null;
+    const charScore = ratio(hlNorm.join(''), canon.normSlice(best.s, best.e + 1));
+    if (charScore < CHAR_FLOOR) return null;
+    return { s: best.s, e: best.e, phonScore: best.score, charScore };
+  }
+
+  // voice_align.hebrew_script_runs, minus the timestamp-gap split (see the
+  // header comment): a run breaks on any token with no Hebrew letters in it
+  // (English explanation, numbers, standalone punctuation).
+  function splitHebrewRuns(text) {
+    const runs = [];
+    let current = [];
+    for (const token of String(text || '').split(/\s+/).filter(Boolean)) {
+      const norm = normalizeWord(token);
+      if (!norm) {
+        if (current.length) { runs.push(current); current = []; }
+        continue;
+      }
+      current.push({ text: token, norm, phon: phonetic(norm) });
+    }
+    if (current.length) runs.push(current);
+    return runs;
+  }
+
+  // Evenly sized consecutive chunks of at most maxWords -- 13 words become
+  // 7 + 6, never 10 + a lone, unplaceable 3rd-class single word.
+  function chunkRun(run, maxWords = LIVE_MAX_RUN_WORDS) {
+    if (run.length <= maxWords) return [run];
+    const count = Math.ceil(run.length / maxWords);
+    const chunks = [];
+    let start = 0;
+    for (let i = 0; i < count; i += 1) {
+      const size = Math.floor(run.length / count) + (i < run.length % count ? 1 : 0);
+      chunks.push(run.slice(start, start + size));
+      start += size;
+    }
+    return chunks;
+  }
+
+  // voice_align.match_runs' per-run body as a reusable stepper. step()
+  // returns one of:
+  //   { kind: 'local', match }      -- placed near the cursor (locked)
+  //   { kind: 'confirmed', match, pending } -- a fresh lock (or, live, a
+  //                                    jump) corroborated by two agreeing
+  //                                    global matches; `pending` is the
+  //                                    earlier one, now trusted too
+  //   { kind: 'pending', match }    -- a first global candidate, held
+  //   { kind: 'miss', unlocked }    -- nothing placed (unlocked: true when
+  //                                    this miss is what lost the lock)
+  function createTracker(canon, options = {}) {
+    const eager = Boolean(options.eagerRelocalize);
+    const st = { cursor: 0, locked: false, localMisses: 0, pending: null };
+
+    function step(run, idx) {
+      const hlNorm = run.map((w) => w.norm);
+      const hlPhon = run.map((w) => w.phon);
+      let unlocked = false;
+      if (st.locked) {
+        const m = matchPhraseDual(canon, hlNorm, hlPhon, st.cursor);
+        if (m) {
+          st.cursor = m.s;
+          st.localMisses = 0;
+          st.pending = null; // always already null in batch mode; see eagerRelocalize
+          return { kind: 'local', match: { ...m, source: 'deterministic-local' } };
+        }
+        st.localMisses += 1;
+        if (st.localMisses >= RELOCALIZE_AFTER) {
+          st.locked = false;
+          unlocked = true;
+        } else if (!eager) {
+          return { kind: 'miss', unlocked: false };
+        }
+      }
+      const m = matchPhraseDual(canon, hlNorm, hlPhon, st.cursor, { global: true });
+      if (!m) {
+        st.pending = null; // an unmatched run in between breaks any pending candidate
+        return { kind: 'miss', unlocked };
+      }
+      const match = { ...m, source: 'deterministic-global' };
+      const pending = st.pending;
+      if (pending && m.s >= pending.match.s && m.s - pending.match.s <= FWD_WINDOW) {
+        st.cursor = m.s;
+        st.locked = true;
+        st.localMisses = 0;
+        st.pending = null;
+        return { kind: 'confirmed', match, pending };
+      }
+      st.pending = { match, idx };
+      return { kind: 'pending', match, unlocked };
+    }
+
+    // A side-effect-free local lookup for provisional (partial-transcript)
+    // highlighting: never moves the cursor, never touches the lock.
+    function peek(run) {
+      if (!st.locked || !run.length) return null;
+      return matchPhraseDual(canon, run.map((w) => w.norm), run.map((w) => w.phon), st.cursor);
+    }
+
+    return {
+      step,
+      peek,
+      get cursor() { return st.cursor; },
+      get locked() { return st.locked; },
+      get pending() { return st.pending; },
+    };
+  }
+
+  // voice_align.match_runs without LLM rescue: one forward sweep, one entry
+  // per run, { s, e, score, source } or null. Exists for batch parity
+  // testing; Live Follow itself drives createTracker() directly.
+  function matchRuns(canon, runs) {
+    const tracker = createTracker(canon);
+    const out = runs.map(() => null);
+    const record = (m) => ({ s: m.s, e: m.e, score: m.phonScore, source: m.source });
+    runs.forEach((run, idx) => {
+      const result = tracker.step(run, idx);
+      if (result.kind === 'local') out[idx] = record(result.match);
+      else if (result.kind === 'confirmed') {
+        out[result.pending.idx] = record(result.pending.match);
+        out[idx] = record(result.match);
+      }
+    });
+    return out;
+  }
+
+  // voice_align.build_keyterm_list.
+  function buildKeytermList(canon, maxTerms = 50) {
+    const seen = new Set();
+    const distinctive = [];
+    for (const w of canon.words) {
+      const n = w.norm;
+      if (n.length < 3 || KEYTERM_STOPWORDS.has(n) || seen.has(n)) continue;
+      seen.add(n);
+      distinctive.push(n);
+    }
+    let sample = [];
+    if (distinctive.length) {
+      const stepSize = Math.max(1, Math.floor(distinctive.length / maxTerms));
+      sample = distinctive.filter((_, i) => i % stepSize === 0).slice(0, maxTerms);
+    }
+    return COMMON_GEMARA_TERMS.concat(sample);
+  }
+
+  // build_keyterm_list sized for ElevenLabs realtime's hard 50-term /
+  // 20-character caps (batch passes max_terms=400). Deduplicated too, which
+  // batch doesn't bother with: a sampled single word repeating one of
+  // COMMON_GEMARA_TERMS wastes a slot that matters far more out of 50.
+  function buildRealtimeKeyterms(canon) {
+    const budget = REALTIME_MAX_KEYTERMS - COMMON_GEMARA_TERMS.length;
+    const terms = [];
+    for (const term of buildKeytermList(canon, budget)) {
+      if (term.length <= REALTIME_MAX_KEYTERM_CHARS && !terms.includes(term)) terms.push(term);
+    }
+    return terms.slice(0, REALTIME_MAX_KEYTERMS);
+  }
+
+  return {
+    BACK_WINDOW,
+    FWD_WINDOW,
+    MIN_SCORE,
+    MIN_SCORE_GLOBAL,
+    MIN_SCORE_SINGLE,
+    CHAR_FLOOR,
+    RELOCALIZE_AFTER,
+    PHONETIC_CLASSES,
+    COMMON_GEMARA_TERMS,
+    KEYTERM_STOPWORDS,
+    LIVE_MAX_RUN_WORDS,
+    PROVISIONAL_TAIL_WORDS,
+    REALTIME_MAX_KEYTERMS,
+    normalizeWord,
+    phonetic,
+    ratio,
+    segmentTokens,
+    buildCanon,
+    matchPhraseDual,
+    splitHebrewRuns,
+    chunkRun,
+    createTracker,
+    matchRuns,
+    buildKeytermList,
+    buildRealtimeKeyterms,
+  };
+});

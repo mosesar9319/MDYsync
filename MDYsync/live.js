@@ -6,25 +6,17 @@
 // none of that applies here. Live Follow has no video and no recording --
 // it streams this device's own microphone straight to ElevenLabs' realtime
 // speech-to-text over a browser-opened WebSocket (see live-token.mjs's own
-// comment for why the API key itself never reaches this file) and will,
-// once the next step lands, match what comes back against the daf's text
-// live. For now (see Task #5) it only gets the transcript pipeline itself
-// working end-to-end: mic -> resample -> ElevenLabs -> partial/committed
-// transcript, visible in the debug panel. There is deliberately no fuzzy
-// matcher or Vilna-page highlighting wired up yet.
+// comment for why the API key itself never reaches this file), and matches
+// what comes back against the daf's text with live-matcher.js -- a port of
+// the batch voice-sync pipeline's own deterministic matcher -- highlighting
+// the phrase being read.
+//
+// The daf is shown as Sefaria's text, not the Vilna page image: the page
+// image's word boxes and highlight overlay live inside app.js's player and
+// would have to be extracted first. That's a follow-up once this proves
+// it can actually track a live shiur.
 
 const ELEVENLABS_WS_BASE = 'wss://api.elevenlabs.io/v1/speech-to-text/realtime';
-// Same fixed, daf-independent discourse-marker list voice_align.py's own
-// COMMON_GEMARA_TERMS seeds every batch sync with (see that file) -- a
-// cheap, free starting point for realtime's much tighter 50-keyterm cap.
-// Per-daf keyterms (names, rare words actually appearing on THIS daf, the
-// bulk of what build_keyterm_list() picks for batch) need the daf's own
-// canonical word list, which Live Follow doesn't fetch yet -- that lands
-// together with the matcher in the next step, since both need the same data.
-const COMMON_GEMARA_TERMS = [
-  'תא שמע', 'איתמר', 'תניא', 'מתניתין', 'גמרא', 'אמר מר', 'מאי טעמא',
-  'והתניא', 'אמר רבא', 'אמר אביי', 'בעי מיניה', 'איבעיא להו',
-];
 // ElevenLabs recommends 16kHz mono for realtime STT as the right bandwidth/
 // quality tradeoff; pcm_16000 (the audio_format below) is 16-bit signed
 // little-endian PCM at that rate, which is what everything in this file's
@@ -33,6 +25,12 @@ const TARGET_SAMPLE_RATE = 16000;
 const CHUNK_SAMPLES = 1600; // 100ms at 16kHz -- small enough to feel live, large enough not to spam the socket
 const MAX_RECONNECT_DELAY_MS = 10000;
 const PREVIOUS_TEXT_CHARS = 300; // how much committed context survives a reconnect
+const PROVISIONAL_THROTTLE_MS = 120;
+const MANUAL_SCROLL_GRACE_MS = 5000;
+// Errors that a reconnect can't fix -- retrying would just loop.
+const FATAL_ERROR_TYPES = new Set(['quota_exceeded', 'unaccepted_terms']);
+
+const LM = window.LiveMatcher;
 
 function $(id) { return document.getElementById(id); }
 
@@ -142,7 +140,16 @@ const live = {
   reconnectTimer: null,
   firstChunkSentThisConnection: false,
   previousText: '', // rolling committed-transcript tail, carried across reconnects
-  ref: '',
+  // The daf being followed (see loadDaf) and the matcher's state over it.
+  daf: null, // { key, label, canon, keyterms }
+  tracker: null,
+  runCounter: 0,
+  spans: [], // canon word index -> its <span> in #liveDafText
+  confirmed: null, // { s, e } currently highlighted as confirmed
+  provisional: null, // { s, e } currently highlighted from a partial transcript
+  partialTimer: null,
+  latestPartial: '',
+  lastManualScrollAt: 0,
 };
 
 function setStatus(kind, text, detail) {
@@ -169,6 +176,205 @@ function appendPreviousText(text) {
   live.previousText = (live.previousText + ' ' + text).trim().slice(-PREVIOUS_TEXT_CHARS);
 }
 
+// ---- The daf ------------------------------------------------------------
+// "Chullin 91a", "chullin 91", "Bava Metzia 12b". English tractate names
+// only (Sefaria's own), matching what every other page here accepts.
+function parseDafInput(input) {
+  const match = /^\s*([A-Za-z][A-Za-z' -]*?)\s*(\d{1,3})\s*([abAB])?\s*$/.exec(input || '');
+  if (!match) return null;
+  const tractate = match[1].trim().split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+  const daf = Number(match[2]);
+  const amud = (match[3] || 'a').toLowerCase();
+  // The requested amud plus the one after it: a shiur that runs past the end
+  // of the amud keeps being followed instead of going quiet at the page break.
+  const refs = amud === 'a'
+    ? [`${tractate} ${daf}a`, `${tractate} ${daf}b`]
+    : [`${tractate} ${daf}b`, `${tractate} ${daf + 1}a`];
+  return { label: `${tractate} ${daf}${amud}`, key: refs.join('|'), refs };
+}
+
+function flattenText(value) {
+  if (typeof value === 'string') return [value];
+  if (!Array.isArray(value)) return [];
+  return value.flatMap(flattenText).filter(Boolean);
+}
+
+// Same request and response handling as app.js's fetchSefariaParagraphs:
+// this site's own proxy first, Sefaria directly if the proxy is down.
+async function fetchAmudSegments(ref) {
+  let response;
+  try {
+    response = await fetch(`/api/sefaria?ref=${encodeURIComponent(ref)}`);
+    if (!response.ok) throw new Error('Proxy unavailable');
+  } catch {
+    response = await fetch(`https://www.sefaria.org/api/v3/texts/${encodeURIComponent(ref)}?version=source&return_format=text_only`);
+  }
+  if (!response.ok) throw new Error(`Sefaria returned ${response.status} for ${ref}`);
+  const data = await response.json();
+  const versions = Array.isArray(data.versions) ? data.versions : [];
+  const source = versions.find((v) => String(v.language || '').toLowerCase().includes('hebrew')) || versions[0];
+  const he = flattenText(source?.text ?? data.he);
+  if (!he.length) throw new Error(`No Hebrew text came back for ${ref}.`);
+  return he.map((text, i) => ({ ref: `${ref}:${i + 1}`, he: text }));
+}
+
+async function loadDaf(parsed) {
+  if (live.daf?.key === parsed.key) return live.daf;
+  const [first, second] = await Promise.allSettled(parsed.refs.map(fetchAmudSegments));
+  if (first.status === 'rejected') throw first.reason;
+  // The following amud is a bonus -- the end of a tractate has none.
+  const segments = first.value.concat(second.status === 'fulfilled' ? second.value : []);
+  const canon = LM.buildCanon(segments);
+  live.daf = { key: parsed.key, label: parsed.label, refs: parsed.refs, segments, canon, keyterms: LM.buildRealtimeKeyterms(canon) };
+  renderDaf(live.daf);
+  return live.daf;
+}
+
+function renderDaf(daf) {
+  const container = $('liveDafText');
+  container.textContent = '';
+  container.classList.remove('dimmed');
+  live.spans = [];
+  live.confirmed = null;
+  live.provisional = null;
+  let canonIndex = 0;
+  for (const segment of daf.segments) {
+    const p = document.createElement('p');
+    p.dataset.ref = segment.ref;
+    LM.segmentTokens(segment.he).forEach((token, i) => {
+      if (i) p.append(' ');
+      const span = document.createElement('span');
+      span.textContent = token;
+      // Exactly buildCanon's rule, so span N is always canon word N.
+      if (LM.normalizeWord(token)) {
+        span.className = 'w';
+        live.spans[canonIndex] = span;
+        canonIndex += 1;
+      }
+      p.append(span);
+    });
+    container.append(p);
+  }
+  $('liveDafEmpty').hidden = true;
+  $('liveDafHeading').textContent = daf.refs[1] && daf.segments.some((s) => s.ref.startsWith(`${daf.refs[1]}:`))
+    ? `${daf.refs[0]} – ${daf.refs[1]}`
+    : daf.refs[0];
+}
+
+// ---- Highlighting ---------------------------------------------------------
+function paintRange(range, className, on) {
+  if (!range) return;
+  for (let i = range.s; i <= range.e; i += 1) live.spans[i]?.classList.toggle(className, on);
+}
+
+function scrollToWord(index) {
+  const span = live.spans[index];
+  const scroller = $('liveDafScroll');
+  if (!span || !scroller) return;
+  if (Date.now() - live.lastManualScrollAt < MANUAL_SCROLL_GRACE_MS) return;
+  // offsetTop is relative to #liveDafScroll (position: relative), so this
+  // scrolls only the daf box, never the page around it.
+  const top = span.offsetTop - scroller.clientHeight / 3;
+  scroller.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+}
+
+function showConfirmed(match) {
+  setProvisional(null);
+  paintRange(live.confirmed, 'hl', false);
+  live.confirmed = { s: match.s, e: match.e };
+  paintRange(live.confirmed, 'hl', true);
+  $('liveDafText').classList.remove('dimmed');
+  scrollToWord(match.s);
+  const words = live.daf.canon.words.slice(match.s, match.e + 1);
+  const phrase = words.map((w) => w.text).join(' ');
+  const phraseEl = $('livePhraseText');
+  phraseEl.textContent = phrase;
+  phraseEl.classList.remove('empty');
+  const confidence = `Sound match ${Math.round(match.phonScore)} · Letters ${Math.round(match.charScore)}`;
+  $('liveConfidenceText').textContent = `${confidence} · ${words[0].ref}`;
+  // Hebrew alone in the right-to-left row; the Latin details get their own
+  // left-to-right row, or the bidi algorithm scrambles them together.
+  setDebug('Match', phrase);
+  setDebug('Confidence', `phonetic ${match.phonScore.toFixed(1)} / character ${match.charScore.toFixed(1)} · words ${match.s}–${match.e} (${match.source})`);
+}
+
+function setProvisional(match) {
+  paintRange(live.provisional, 'hl-provisional', false);
+  live.provisional = match ? { s: match.s, e: match.e } : null;
+  paintRange(live.provisional, 'hl-provisional', true);
+  if (match) scrollToWord(match.s);
+}
+
+function updateSearchWindowDebug() {
+  const n = live.daf?.canon.length || 0;
+  if (!live.tracker || !n) return setDebug('Window', '—');
+  if (!live.tracker.locked) return setDebug('Window', `whole daf (all ${n} words) — not locked yet`);
+  const c = live.tracker.cursor;
+  setDebug('Window', `words ${Math.max(0, c - LM.BACK_WINDOW)}–${Math.min(n, c + LM.FWD_WINDOW)} of ${n} (cursor ${c})`);
+}
+
+// reading: the last utterance placed on the daf. explaining: locked, but
+// nothing in it matched (English, or Hebrew that isn't the daf's text) --
+// the last phrase stays up, dimmed. searching: no trusted position yet; a
+// first candidate is held until a second phrase agrees with it.
+function setFollowState(state, pending) {
+  $('liveDafText').classList.toggle('dimmed', state !== 'reading');
+  if (state === 'reading') {
+    setStatus('reading', 'Following', `Following ${live.daf.label}`);
+  } else if (state === 'explaining') {
+    setStatus('explaining', 'Explaining', 'Holding the last phrase until the reading resumes');
+  } else {
+    setStatus('searching', 'Searching…', pending
+      ? 'Found a possible spot — waiting for the next phrase to confirm it'
+      : `Listening for a phrase from ${live.daf.label}`);
+  }
+}
+
+function handleCommitted(text) {
+  clearTimeout(live.partialTimer);
+  live.partialTimer = null;
+  setDebug('Partial', '—');
+  setDebug('Committed', text);
+  appendPreviousText(text);
+  if (!live.tracker) return;
+  setProvisional(null);
+  const runs = LM.splitHebrewRuns(text).flatMap((run) => LM.chunkRun(run));
+  let placed = null;
+  let pending = null;
+  for (const run of runs) {
+    const result = live.tracker.step(run, live.runCounter);
+    live.runCounter += 1;
+    if (result.kind === 'local' || result.kind === 'confirmed') { placed = result.match; pending = null; }
+    else if (result.kind === 'pending') pending = result.match;
+  }
+  if (placed) showConfirmed(placed);
+  setDebug('Pending', pending ? `[${pending.s}–${pending.e}] phonetic ${pending.phonScore.toFixed(1)} — needs one more agreeing phrase` : '—');
+  updateSearchWindowDebug();
+  if (placed) setFollowState('reading');
+  else setFollowState(live.tracker.locked ? 'explaining' : 'searching', pending);
+}
+
+// A partial transcript is still being revised, so it never moves the
+// tracker -- it only previews where the latest few words sit near the
+// confirmed position (tracker.peek), in a lighter highlight.
+function runProvisional() {
+  live.partialTimer = null;
+  if (!live.tracker?.locked) return;
+  const runs = LM.splitHebrewRuns(live.latestPartial);
+  const last = runs[runs.length - 1];
+  if (!last) return;
+  const match = live.tracker.peek(last.slice(-LM.PROVISIONAL_TAIL_WORDS));
+  if (match) setProvisional(match);
+}
+
+function handlePartial(text) {
+  setDebug('Partial', text);
+  live.latestPartial = text;
+  if (!live.partialTimer) live.partialTimer = setTimeout(runProvisional, PROVISIONAL_THROTTLE_MS);
+}
+
+// ---- ElevenLabs connection --------------------------------------------
 async function fetchLiveToken() {
   const response = await fetch('/api/live-token', { method: 'POST' });
   const body = await response.json().catch(() => ({}));
@@ -176,7 +382,7 @@ async function fetchLiveToken() {
   return body.token;
 }
 
-function buildWsUrl(token) {
+function buildWsUrl(token, keyterms) {
   const params = new URLSearchParams();
   params.set('model_id', 'scribe_v2_realtime');
   params.set('audio_format', 'pcm_16000');
@@ -186,17 +392,18 @@ function buildWsUrl(token) {
   // its own commit signal. See input_audio_chunk's own 'commit' field below,
   // which this file always sends as false for exactly that reason.
   params.set('commit_strategy', 'vad');
-  // Talmudic Hebrew/Aramaic is the primary signal; English is the realistic
-  // secondary language for a maggid shiur's own explanation in between.
-  params.set('language_code', 'he');
-  params.append('secondary_languages', 'en');
-  params.set('include_language_detection', 'true');
+  // No language_code, on purpose -- the same choice voice_align.py's
+  // transcribe_elevenlabs makes for batch syncs: forcing one language makes
+  // the model render the other one in the wrong script, while auto-detection
+  // keeps English explanation in Latin letters, which is exactly what lets
+  // splitHebrewRuns tell explanation from reading.
   // NOTE: array query params are sent here as repeated keys
   // (keyterms=a&keyterms=b), the most common convention -- unconfirmed
   // against ElevenLabs' actual parser since this hasn't been exercised
-  // against a real API key yet. If keyterms turn out silently ignored,
-  // this is the first thing to check.
-  for (const term of COMMON_GEMARA_TERMS) params.append('keyterms', term);
+  // against a real API key yet (batch has the same open question for its
+  // multipart encoding). If keyterms turn out silently ignored, this is the
+  // first thing to check.
+  for (const term of keyterms) params.append('keyterms', term);
   params.set('token', token);
   return `${ELEVENLABS_WS_BASE}?${params.toString()}`;
 }
@@ -222,7 +429,7 @@ async function connectWebSocket() {
   if (live.manualStop) return; // Stop was clicked while the token request was in flight
 
   live.firstChunkSentThisConnection = true; // next chunk sent is this connection's first
-  const ws = new WebSocket(buildWsUrl(token));
+  const ws = new WebSocket(buildWsUrl(token, live.daf.keyterms));
   live.ws = ws;
 
   ws.addEventListener('open', () => {
@@ -239,24 +446,24 @@ async function connectWebSocket() {
     switch (msg.message_type) {
       case 'session_started':
         live.reconnectAttempt = 0;
-        setStatus('listening', 'Listening', `Following ${live.ref}`);
-        setDebug('Connection', `session ${msg.session_id || ''} started`);
+        setDebug('Connection', `session ${msg.session_id || ''} started (${live.daf.keyterms.length} keyterms)`);
+        if (live.tracker.locked) setFollowState('explaining');
+        else setFollowState('searching');
         break;
       case 'partial_transcript':
-        setDebug('Partial', msg.text);
+        handlePartial(msg.text || '');
         break;
       case 'committed_transcript':
-        setDebug('Partial', '—');
-        setDebug('Committed', msg.text);
-        appendPreviousText(msg.text);
+        handleCommitted(msg.text || '');
         break;
-      // Matcher isn't wired up yet (see this file's header comment and
-      // Task #5) -- committed_transcript_with_timestamps/_entities and
-      // edited_transcript aren't requested yet, so they're not handled.
       default:
-        if (String(msg.message_type || '').includes('error') || msg.error) {
+        if (String(msg.message_type || '').includes('error') || msg.error || FATAL_ERROR_TYPES.has(msg.message_type)) {
           console.error('[live] ElevenLabs error:', msg);
           showToast(msg.error || `Live Follow error: ${msg.message_type}`, 'error');
+          if (FATAL_ERROR_TYPES.has(msg.message_type)) {
+            stopLiveFollow();
+            setStatus('error', 'Stopped', msg.error || msg.message_type);
+          }
         }
         break;
     }
@@ -266,7 +473,7 @@ async function connectWebSocket() {
     if (live.ws !== ws) return; // a newer connection already replaced this one
     live.ws = null;
     if (live.manualStop) return;
-    setStatus('searching', 'Reconnecting…', `Lost the connection (code ${event.code}) -- retrying`);
+    setStatus('searching', 'Reconnecting…', `Lost the connection (code ${event.code}) — retrying`);
     scheduleReconnect();
   });
 
@@ -345,7 +552,7 @@ async function startMic() {
 }
 
 function stopMic() {
-  live.workletNode?.port && (live.workletNode.port.onmessage = null);
+  if (live.workletNode) live.workletNode.port.onmessage = null;
   live.workletNode?.disconnect();
   live.workletNode = null;
   live.audioContext?.close().catch(() => {});
@@ -357,17 +564,33 @@ function stopMic() {
 }
 
 async function startLiveFollow() {
-  const ref = $('liveRefInput').value.trim();
-  if (!ref) {
-    showToast('Enter a daf reference first.', 'error');
+  const parsed = parseDafInput($('liveRefInput').value);
+  if (!parsed) {
+    showToast('Enter a daf like "Chullin 91a" (English tractate name).', 'error');
     return;
   }
-  live.ref = ref;
+  const button = $('liveStartButton');
+  button.disabled = true;
+  // The daf first: an unknown daf should fail before asking for the mic,
+  // and the keyterms sent when connecting are built from its text.
+  setStatus('', 'Loading…', `Loading ${parsed.label}`);
+  try {
+    await loadDaf(parsed);
+  } catch (error) {
+    console.error('Could not load the daf for Live Follow:', error);
+    setStatus('error', 'Error', `Could not load ${parsed.label}.`);
+    showToast(`Could not load ${parsed.label}: ${error.message}`, 'error');
+    button.disabled = false;
+    return;
+  }
   live.manualStop = false;
   live.reconnectAttempt = 0;
   live.previousText = '';
-  const button = $('liveStartButton');
-  button.disabled = true;
+  live.tracker = LM.createTracker(live.daf.canon, { eagerRelocalize: true });
+  live.runCounter = 0;
+  paintRange(live.confirmed, 'hl', false);
+  setProvisional(null);
+  live.confirmed = null;
   setStatus('', 'Connecting…', 'Requesting microphone access');
   try {
     await startMic();
@@ -376,6 +599,7 @@ async function startLiveFollow() {
     const deniedLikely = error?.name === 'NotAllowedError' || error?.name === 'SecurityError';
     setStatus('error', 'Error', deniedLikely ? 'Microphone access was denied.' : error.message);
     showToast(deniedLikely ? 'Microphone access was denied.' : error.message, 'error');
+    stopMic();
     button.disabled = false;
     return;
   }
@@ -383,15 +607,21 @@ async function startLiveFollow() {
   button.textContent = 'Stop Live Follow';
   button.classList.add('stop');
   setStatus('searching', 'Connecting…', 'Opening the transcription connection');
+  updateSearchWindowDebug();
   await connectWebSocket();
 }
 
+// Leaves the daf and the last highlight on screen -- after stopping, where
+// it had got to is exactly what a reader wants to still see.
 function stopLiveFollow() {
   live.manualStop = true;
   clearReconnectTimer();
+  clearTimeout(live.partialTimer);
+  live.partialTimer = null;
   live.ws?.close();
   live.ws = null;
   stopMic();
+  setProvisional(null);
   const button = $('liveStartButton');
   button.textContent = 'Start Live Follow';
   button.classList.remove('stop');
@@ -401,9 +631,19 @@ function stopLiveFollow() {
 }
 
 $('liveStartButton')?.addEventListener('click', () => {
-  if (live.ws || live.micStream) stopLiveFollow();
+  if (live.ws || live.micStream || live.reconnectTimer) stopLiveFollow();
   else startLiveFollow();
 });
+
+$('liveRefInput')?.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && !live.ws && !live.micStream) startLiveFollow();
+});
+
+// Only genuine user scrolling pauses auto-scroll (wheel/touch/keys), never
+// the smooth programmatic scroll scrollToWord itself starts.
+for (const type of ['wheel', 'touchmove', 'keydown']) {
+  $('liveDafScroll')?.addEventListener(type, () => { live.lastManualScrollAt = Date.now(); }, { passive: true });
+}
 
 window.addEventListener('beforeunload', () => {
   if (live.ws || live.micStream) stopLiveFollow();
