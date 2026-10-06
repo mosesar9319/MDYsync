@@ -21,6 +21,11 @@ const ALLOWED_ORIGINS = new Set([
   'https://main--dafsync.netlify.app',
   'http://localhost:8080',
 ]);
+// Unlike the admin functions this list is copied from, Live Follow has to
+// work on a PR's deploy preview too -- that's the only place it can be tried
+// before merging, and the browser sends the preview's own origin with this
+// POST, which the fixed list above refused outright.
+const DEPLOY_PREVIEW_ORIGIN = /^https:\/\/deploy-preview-\d+--dafsync\.netlify\.app$/;
 
 export default async (request) => {
   if (request.method !== 'POST') {
@@ -28,7 +33,7 @@ export default async (request) => {
   }
 
   const origin = request.headers.get('Origin') || '';
-  if (!ALLOWED_ORIGINS.has(origin)) {
+  if (!ALLOWED_ORIGINS.has(origin) && !DEPLOY_PREVIEW_ORIGIN.test(origin)) {
     return Response.json({ error: 'Origin not permitted.' }, { status: 403 });
   }
 
