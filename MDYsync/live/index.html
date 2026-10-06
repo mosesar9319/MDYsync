@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="description" content="Live Follow (experimental): listen to a live shiur and highlight the daf as it's read, with no recording needed." />
+  <link rel="icon" href="/assets/dafsync-mark.png" type="image/png">
+  <title>DafSync — Live Follow (experimental)</title>
+  <script>
+    // Same dependency-free failure banner every other page ships (see
+    // browse/index.html's own copy's comment for why it's inline, before
+    // every other <script>).
+    (function () {
+      var shown = false;
+      function showBanner(message) {
+        if (shown) return;
+        shown = true;
+        var bar = document.createElement('div');
+        bar.textContent = 'Something on this page failed to load: ' + message + ' -- try reloading the page.';
+        bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#7c1d1d;color:#fff;'
+          + 'font:14px/1.4 -apple-system,system-ui,sans-serif;padding:10px 40px 10px 14px;text-align:left;';
+        var close = document.createElement('button');
+        close.textContent = '×';
+        close.setAttribute('aria-label', 'Dismiss');
+        close.style.cssText = 'position:absolute;right:8px;top:6px;background:transparent;border:0;color:#fff;'
+          + 'font-size:20px;line-height:1;cursor:pointer;padding:4px 8px;';
+        close.onclick = function () { bar.remove(); };
+        bar.appendChild(close);
+        document.body ? document.body.prepend(bar) : document.addEventListener('DOMContentLoaded', function () { document.body.prepend(bar); });
+      }
+      window.addEventListener('error', function (event) {
+        if (event.target && event.target.tagName !== 'SCRIPT') return;
+        showBanner(String(event.message || (event.target && event.target.src) || 'unknown error'));
+      }, true);
+      window.addEventListener('unhandledrejection', function (event) {
+        showBanner(String(event.reason && event.reason.message || event.reason || 'unknown error'));
+      });
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Frank+Ruhl+Libre:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* Fully standalone, same reasoning as index.html's own inline <style>:
+       this is an experimental page with its own small layout (no video, no
+       Vilna page yet -- see live.js's own header comment), so it isn't
+       worth pulling in styles.css's much larger, player-page-oriented rule
+       set just to borrow a handful of tokens. */
+    :root {
+      --ivory: #f4f7fb;
+      --paper: #ffffff;
+      --navy: #132238;
+      --navy-soft: #1c3350;
+      --accent: #2f6ea5;
+      --accent-light: #4a90c9;
+      --muted: #65748a;
+      --line: #d9e1eb;
+      --good: #1f8a56;
+      --warn: #b5801a;
+      --bad: #b23b3b;
+      --shadow: 0 12px 35px rgba(29, 57, 88, 0.09);
+    }
+    * { box-sizing: border-box; }
+    html { background: var(--ivory); }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--ivory);
+      color: var(--navy);
+      font: 15px/1.5 Assistant, -apple-system, system-ui, sans-serif;
+      padding: 24px 16px 64px;
+    }
+    .live-shell { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+    .live-header { text-align: center; margin-bottom: 4px; }
+    .live-header h1 { font-size: 22px; margin: 0 0 4px; }
+    .live-header p { margin: 0; color: var(--muted); font-size: 13px; }
+    .experiment-badge {
+      display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+      color: var(--accent); background: rgba(47,110,165,.1); border: 1px solid rgba(47,110,165,.25);
+      border-radius: 999px; padding: 3px 10px; margin-bottom: 8px;
+    }
+    .card {
+      background: var(--paper); border: 1px solid var(--line); border-radius: 16px;
+      box-shadow: var(--shadow); padding: 18px 20px;
+    }
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--navy-soft); }
+    input[type="text"] {
+      width: 100%; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+      background: var(--ivory); color: var(--navy);
+    }
+    input[type="text"]:focus { outline: 2px solid var(--accent-light); outline-offset: 1px; }
+    .field-gap { margin-bottom: 14px; }
+    .audio-source-options { display: flex; flex-direction: column; gap: 8px; }
+    .audio-source-options label { display: flex; align-items: center; gap: 8px; font-weight: 500; margin: 0; cursor: pointer; }
+    .audio-source-options label.disabled { color: var(--muted); cursor: not-allowed; }
+    .audio-source-options small { color: var(--muted); font-weight: 400; }
+    #liveStartButton {
+      width: 100%; font: inherit; font-weight: 700; font-size: 15px; padding: 12px 16px;
+      border: none; border-radius: 12px; cursor: pointer; background: var(--accent); color: #fff;
+    }
+    #liveStartButton:hover { background: var(--accent-light); }
+    #liveStartButton.stop { background: var(--bad); }
+    #liveStartButton:disabled { opacity: .5; cursor: not-allowed; }
+    .status-row { display: flex; align-items: center; gap: 10px; justify-content: center; }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line); flex: none; }
+    .status-dot.listening { background: var(--good); box-shadow: 0 0 0 4px rgba(31,138,86,.18); }
+    .status-dot.explaining { background: var(--warn); }
+    .status-dot.searching { background: var(--warn); animation: live-pulse 1s infinite; }
+    .status-dot.error { background: var(--bad); }
+    @keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+    #liveStatusText { font-weight: 700; }
+    #liveStatusDetail { color: var(--muted); font-size: 13px; text-align: center; margin-top: 2px; }
+    .mic-meter { height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; margin-top: 10px; }
+    .mic-meter > div { height: 100%; width: 0%; background: var(--good); transition: width .08s linear; }
+    .live-phrase-card { text-align: center; padding: 28px 20px; }
+    #livePhraseText { font-family: "Frank Ruhl Libre", serif; font-size: 22px; direction: rtl; min-height: 1.4em; }
+    #livePhraseText.empty { color: var(--muted); font-family: Assistant, sans-serif; font-size: 15px; direction: ltr; }
+    #liveConfidenceText { color: var(--muted); font-size: 13px; margin-top: 6px; }
+    details.debug-panel { font-size: 12px; }
+    details.debug-panel summary { cursor: pointer; font-weight: 700; color: var(--navy-soft); }
+    .debug-row { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+    .debug-row:last-child { border-bottom: none; }
+    .debug-row dt { flex: none; width: 110px; color: var(--muted); font-weight: 600; }
+    .debug-row dd { margin: 0; flex: 1; min-width: 0; word-break: break-word; direction: rtl; text-align: right; }
+    .debug-row dd.ltr { direction: ltr; text-align: left; }
+    .back-link { text-align: center; }
+    .back-link a { color: var(--muted); font-size: 13px; text-decoration: none; }
+    .back-link a:hover { text-decoration: underline; }
+    .toast.show { transform: translate(-50%, 0); opacity: 1; }
+    .toast.error { border-color: rgba(255,124,137,.5); color: #ffd5da; }
+  </style>
+</head>
+<body>
+  <div class="live-shell">
+    <div class="live-header">
+      <div class="experiment-badge">Experiment</div>
+      <h1>Live Follow</h1>
+      <p>Listen to a live shiur and highlight the daf as it's read -- no recording needed.</p>
+    </div>
+
+    <div class="card">
+      <div class="field-gap">
+        <label for="liveRefInput">Daf</label>
+        <input type="text" id="liveRefInput" placeholder="e.g. Chullin 91a" autocomplete="off" />
+      </div>
+      <div class="field-gap">
+        <label>Audio source</label>
+        <div class="audio-source-options">
+          <label><input type="radio" name="liveAudioSource" value="microphone" checked /> This device's microphone</label>
+          <label class="disabled"><input type="radio" name="liveAudioSource" value="shared" disabled /> Shared live shiur <small>(coming later)</small></label>
+        </div>
+      </div>
+      <button type="button" id="liveStartButton">Start Live Follow</button>
+    </div>
+
+    <div class="card">
+      <div class="status-row">
+        <span class="status-dot" id="liveStatusDot"></span>
+        <span id="liveStatusText">Idle</span>
+      </div>
+      <div id="liveStatusDetail">Choose a daf and tap Start.</div>
+      <div class="mic-meter"><div id="liveMicMeterFill"></div></div>
+    </div>
+
+    <div class="card live-phrase-card">
+      <div id="livePhraseText" class="empty">The matched phrase will appear here once the live matcher is wired up (next step).</div>
+      <div id="liveConfidenceText"></div>
+    </div>
+
+    <div class="card">
+      <details class="debug-panel" open>
+        <summary>Debug panel</summary>
+        <dl style="margin: 10px 0 0;">
+          <div class="debug-row"><dt>Partial</dt><dd id="liveDebugPartial">—</dd></div>
+          <div class="debug-row"><dt>Committed</dt><dd id="liveDebugCommitted">—</dd></div>
+          <div class="debug-row"><dt>Matched phrase</dt><dd id="liveDebugMatch">— (not wired up yet)</dd></div>
+          <div class="debug-row"><dt>Confidence</dt><dd class="ltr" id="liveDebugConfidence">—</dd></div>
+          <div class="debug-row"><dt>Search window</dt><dd class="ltr" id="liveDebugWindow">—</dd></div>
+          <div class="debug-row"><dt>Connection</dt><dd class="ltr" id="liveDebugConnection">—</dd></div>
+        </dl>
+      </details>
+    </div>
+
+    <div class="back-link"><a href="/">&larr; Back to DafSync</a></div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" style="position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);opacity:0;pointer-events:none;background:#17304b;border:1px solid #2a4a70;color:#fff;padding:11px 15px;border-radius:12px;box-shadow:0 12px 35px rgba(0,0,0,.35);transition:.25s;z-index:20;"></div>
+
+  <script src="../live.js" defer></script>
+</body>
+</html>
