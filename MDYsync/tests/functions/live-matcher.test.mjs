@@ -158,12 +158,71 @@ test('batch mode (matchRuns) does not relocalize early', () => {
   assert.equal(tracker.step(readRun(100, 6), 2).kind, 'miss');
 });
 
-test('peek never moves the cursor', () => {
+// --- The partial-transcript preview -------------------------------------------
+
+test('the preview follows a long reading far past the confirmed spot with no commit', () => {
   const tracker = lockedTracker(400);
-  const before = tracker.cursor;
-  assert.ok(tracker.peek(readRun(414, 4)));
-  assert.equal(tracker.cursor, before);
-  assert.equal(M.createTracker(canon).peek(readRun(0, 4)), null, 'nothing to peek from before a lock');
+  const preview = M.createPreview(canon, tracker);
+  // A 130-word reading with nothing committed: well beyond the tracker's own
+  // +60-word search window, which is what used to leave the highlight blind.
+  for (let i = 0; i < 26; i += 1) {
+    const start = 412 + i * 5;
+    const m = preview.update(readRun(start, 6), i);
+    assert.ok(m, `update ${i} (words ${start}+) found nothing`);
+    assert.equal(m.s, start);
+  }
+  assert.equal(tracker.cursor, 406, 'the confirmed position never moved');
+  assert.equal(preview.cursor, 412 + 25 * 5);
+});
+
+test('the preview finds the reading before any lock, once two partials agree', () => {
+  const tracker = M.createTracker(canon, { eagerRelocalize: true });
+  const preview = M.createPreview(canon, tracker);
+  assert.equal(preview.update(readRun(300, 5), 0), null, 'one global match is only a candidate');
+  const m = preview.update(readRun(303, 5), 1);
+  assert.ok(m);
+  assert.equal(m.s, 303);
+  assert.equal(tracker.locked, false, 'the preview never locks the tracker');
+});
+
+test('a short tail never starts a preview from nowhere', () => {
+  const preview = M.createPreview(canon, M.createTracker(canon, { eagerRelocalize: true }));
+  assert.equal(preview.update(readRun(300, 3), 0), null);
+  assert.equal(preview.update(readRun(300, 3), 1), null);
+});
+
+test('a decoy match elsewhere in the daf is not previewed on its own', () => {
+  const tracker = lockedTracker(400);
+  const preview = M.createPreview(canon, tracker);
+  preview.update(readRun(412, 6), 0);
+  for (let i = 0; i < 3; i += 1) preview.update(readRun(100, 6), i + 1); // 3 local misses: thread lost
+  assert.equal(preview.cursor, null);
+  assert.equal(preview.update(readRun(100, 6), 4), null, 'first global hit is only a candidate');
+  assert.ok(preview.update(readRun(106, 6), 5), 'a second agreeing partial confirms the jump');
+});
+
+test('reset hands the preview back to the confirmed position', () => {
+  const tracker = lockedTracker(400);
+  const preview = M.createPreview(canon, tracker);
+  preview.update(readRun(412, 6), 0);
+  preview.update(readRun(440, 6), 1);
+  assert.equal(preview.cursor, 440);
+  preview.reset();
+  assert.equal(preview.cursor, null);
+  assert.equal(preview.update(readRun(412, 6), 2).s, 412, 'anchored to the tracker (cursor 406) again');
+});
+
+test('the preview\'s look-ahead scales with reading pace, is capped, and restarts after a jump back', () => {
+  const lead = (preview, start, t) => preview.update(readRun(start, 6), t)?.lead;
+  const slow = M.createPreview(canon, lockedTracker(400));
+  assert.equal(lead(slow, 412, 0), 0, 'no pace can be measured from a single placement');
+  assert.equal(lead(slow, 415, 1), 2, '3 words/s -> 0.8s of reading = 2 words');
+  const fast = M.createPreview(canon, lockedTracker(400));
+  lead(fast, 412, 0);
+  assert.equal(lead(fast, 417, 1), 3, '5 words/s -> 4 words, capped at 3');
+  assert.equal(lead(fast, 412, 2), 0, 'a jump back starts the pace measurement over');
+  const noClock = M.createPreview(canon, lockedTracker(400));
+  assert.equal(noClock.update(readRun(412, 6)).lead, 0, 'no timestamps, no look-ahead');
 });
 
 test('splitHebrewRuns breaks runs on English and keeps Hebrew order', () => {

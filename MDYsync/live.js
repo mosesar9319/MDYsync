@@ -25,7 +25,13 @@ const TARGET_SAMPLE_RATE = 16000;
 const CHUNK_SAMPLES = 1600; // 100ms at 16kHz -- small enough to feel live, large enough not to spam the socket
 const MAX_RECONNECT_DELAY_MS = 10000;
 const PREVIOUS_TEXT_CHARS = 300; // how much committed context survives a reconnect
-const PROVISIONAL_THROTTLE_MS = 120;
+const PROVISIONAL_THROTTLE_MS = 50;
+// How long ElevenLabs waits in silence before committing an utterance (its
+// default is 1.5s). The daf highlight is only confirmed on a commit, and a
+// maggid shiur reading continuously barely pauses -- measured against the
+// real API with a long reading, the default left the highlight a median 9s
+// behind the voice; 0.5s brought that to about 2s.
+const VAD_SILENCE_SECS = 0.5;
 const MANUAL_SCROLL_GRACE_MS = 5000;
 // Errors that a reconnect can't fix -- retrying would just loop.
 const FATAL_ERROR_TYPES = new Set(['quota_exceeded', 'unaccepted_terms']);
@@ -143,6 +149,7 @@ const live = {
   // The daf being followed (see loadDaf) and the matcher's state over it.
   daf: null, // { key, label, canon, keyterms }
   tracker: null,
+  preview: null,
   runCounter: 0,
   spans: [], // canon word index -> its <span> in #liveDafText
   confirmed: null, // { s, e } currently highlighted as confirmed
@@ -339,6 +346,7 @@ function handleCommitted(text) {
   appendPreviousText(text);
   if (!live.tracker) return;
   setProvisional(null);
+  live.preview.reset(); // the preview's own position hands back to the confirmed one
   const runs = LM.splitHebrewRuns(text).flatMap((run) => LM.chunkRun(run));
   let placed = null;
   let pending = null;
@@ -356,21 +364,26 @@ function handleCommitted(text) {
 }
 
 // A partial transcript is still being revised, so it never moves the
-// tracker -- it only previews where the latest few words sit near the
-// confirmed position (tracker.peek), in a lighter highlight.
+// tracker -- the preview (see createPreview in live-matcher.js) only shows where the latest few
+// words sit, in a lighter highlight, and follows the reading with a cursor of
+// its own so it keeps pace through a long reading with no commit in sight.
 function runProvisional() {
   live.partialTimer = null;
-  if (!live.tracker?.locked) return;
+  if (!live.preview) return;
   const runs = LM.splitHebrewRuns(live.latestPartial);
   const last = runs[runs.length - 1];
   if (!last) return;
-  const match = live.tracker.peek(last.slice(-LM.PROVISIONAL_TAIL_WORDS));
+  const match = live.preview.update(last.slice(-LM.PROVISIONAL_TAIL_WORDS), performance.now() / 1000);
   if (!match) return;
-  setProvisional(match);
+  // Widened a few words forward (see PREVIEW_LEAD_SECONDS in live-matcher.js)
+  // to cover what is being said now, not just what has been transcribed.
+  const lastWord = live.daf.canon.length - 1;
+  setProvisional({ s: match.s, e: Math.min(lastWord, match.e + match.lead) });
   // Reading has visibly resumed near the confirmed spot -- don't keep saying
   // "Explaining" until the utterance commits (seen against the real API:
   // several seconds of "Explaining" under a highlight moving word by word).
-  setFollowState('reading');
+  if (live.tracker.locked) setFollowState('reading');
+  else setFollowState('searching', true);
 }
 
 function handlePartial(text) {
@@ -397,6 +410,7 @@ function buildWsUrl(token, keyterms) {
   // its own commit signal. See input_audio_chunk's own 'commit' field below,
   // which this file always sends as false for exactly that reason.
   params.set('commit_strategy', 'vad');
+  params.set('vad_silence_threshold_secs', String(VAD_SILENCE_SECS));
   // No language_code, on purpose -- the same choice voice_align.py's
   // transcribe_elevenlabs makes for batch syncs: forcing one language makes
   // the model render the other one in the wrong script, while auto-detection
@@ -588,6 +602,7 @@ async function startLiveFollow() {
   live.reconnectAttempt = 0;
   live.previousText = '';
   live.tracker = LM.createTracker(live.daf.canon, { eagerRelocalize: true });
+  live.preview = LM.createPreview(live.daf.canon, live.tracker);
   live.runCounter = 0;
   paintRange(live.confirmed, 'hl', false);
   setProvisional(null);

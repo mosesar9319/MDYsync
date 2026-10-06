@@ -43,6 +43,7 @@ async function openFollowing(page) {
   await page.evaluate(async () => {
     await loadDaf(parseDafInput('Chullin 91a'));
     live.tracker = LiveMatcher.createTracker(live.daf.canon, { eagerRelocalize: true });
+    live.preview = LiveMatcher.createPreview(live.daf.canon, live.tracker);
   });
 }
 const say = (page, text) => page.evaluate((t) => handleCommitted(t), text);
@@ -175,6 +176,23 @@ test.describe('Live Follow tracking', () => {
     await say(page, phrase(412, 6));
     await expect(page.locator('#liveDafText .w.hl-provisional')).toHaveCount(0);
     expect(await confirmed(page)).toEqual({ s: 412, e: 417 });
+  });
+
+  test('a long reading with no commit keeps the preview moving, widened a little ahead', async ({ page }) => {
+    await openFollowing(page);
+    await say(page, phrase(400, 6));
+    await say(page, phrase(406, 6)); // locked at 406; the tracker's window ends at ~466
+    // ~130 words of continuous reading as partials only -- the utterance never commits.
+    for (let start = 412; start <= 532; start += 6) {
+      await page.evaluate((t) => handlePartial(t), phrase(start, 6));
+      await page.waitForTimeout(90); // past the page's partial throttle
+    }
+    const preview = await page.evaluate(() => live.provisional);
+    expect(preview.s).toBe(532);
+    expect(preview.e).toBeGreaterThanOrEqual(537);
+    expect(preview.e).toBeLessThanOrEqual(540); // at most 3 words past the matched tail
+    expect(await confirmed(page)).toEqual({ s: 406, e: 411 });
+    expect(await page.evaluate(() => live.tracker.cursor)).toBe(406);
   });
 
   test('a jump back moves the highlight only once a second phrase confirms it', async ({ page }) => {

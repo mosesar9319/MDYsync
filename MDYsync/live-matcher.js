@@ -34,6 +34,12 @@
 //     utterance can be a long stretch of continuous reading; splitting it
 //     into short consecutive chunks lets the highlight advance through it,
 //     and bounds the cost of each search.
+//   - createPreview: follows the reading from PARTIAL transcripts with its
+//     own cursor, so the highlight keeps pace between (and through) commits
+//     instead of waiting for ElevenLabs to commit an utterance -- measured
+//     against the real API on a continuous reading, commit-driven
+//     highlighting trailed the voice by a median 9s; the preview brings it
+//     to under a second. Display-only: it never moves the tracker.
 
 (function (root, factory) {
   const api = factory();
@@ -294,19 +300,108 @@
       return { kind: 'pending', match, unlocked };
     }
 
-    // A side-effect-free local lookup for provisional (partial-transcript)
-    // highlighting: never moves the cursor, never touches the lock.
-    function peek(run) {
-      if (!st.locked || !run.length) return null;
-      return matchPhraseDual(canon, run.map((w) => w.norm), run.map((w) => w.phon), st.cursor);
-    }
-
     return {
       step,
-      peek,
       get cursor() { return st.cursor; },
       get locked() { return st.locked; },
       get pending() { return st.pending; },
+    };
+  }
+
+  // Live-only, no batch counterpart: follows a reading from PARTIAL
+  // transcripts, so the highlight keeps pace without waiting for the
+  // utterance to commit. It has a cursor of its own, deliberately separate
+  // from the tracker's: in a long continuous reading nothing commits until
+  // the next pause, and a preview anchored to the last confirmed spot would
+  // fall off the end of its +60-word search window and go blind. This
+  // cursor moves with every placed partial, and snaps back to the tracker's
+  // confirmed position (reset) whenever an utterance commits.
+  //
+  // Never touches the tracker; nothing it finds is trusted for the
+  // lock/confirm rules, only displayed. update() takes the Hebrew tail of
+  // the latest partial and returns a match to preview, or null.
+  const PREVIEW_MIN_GLOBAL_WORDS = 4;
+  const PREVIEW_LOST_AFTER = 3;
+  // The text for a word arrives ~0.75s after it is spoken and updates about
+  // once a second (measured against the real API), so even a perfectly
+  // placed preview sits roughly a second behind the voice. update() also
+  // returns a `lead`: how many words past the match to widen the highlight,
+  // so it covers what is being said NOW instead of only what has been
+  // transcribed. It scales with the measured reading pace (a fixed count
+  // would under-cover a fast reader and over-run a slow one): LEAD_SECONDS
+  // worth of words, capped, and zero until there is enough progress to
+  // measure a pace from. Deliberately short of the full delay -- a highlight
+  // that runs ahead of the voice is worse than one that trails it a little.
+  const PREVIEW_LEAD_SECONDS = 0.8;
+  const PREVIEW_MAX_LEAD = 3;
+  const PREVIEW_PACE_WINDOW = 5; // seconds of recent progress the pace is measured over
+  function createPreview(canon, tracker) {
+    const st = { cursor: null, candidate: null, misses: 0, progress: [] };
+
+    // Words per second over the recent window, from successive placements
+    // (nowSeconds is any monotonic clock, in seconds). A jump back, or a
+    // long gap, starts the measurement over.
+    function notePlacement(match, now) {
+      if (now === undefined) return 0;
+      const last = st.progress[st.progress.length - 1];
+      if (last && (match.e < last.e || now - last.t > PREVIEW_PACE_WINDOW)) st.progress = [];
+      st.progress.push({ t: now, e: match.e });
+      while (st.progress.length > 2 && now - st.progress[0].t > PREVIEW_PACE_WINDOW) st.progress.shift();
+      const first = st.progress[0];
+      const span = now - first.t;
+      if (span < 1 || match.e <= first.e) return 0;
+      return Math.min(PREVIEW_MAX_LEAD, Math.round(((match.e - first.e) / span) * PREVIEW_LEAD_SECONDS));
+    }
+    const withLead = (m, now) => ({ ...m, lead: notePlacement(m, now) });
+    const anchor = () => (st.cursor !== null ? st.cursor : (tracker.locked ? tracker.cursor : null));
+
+    function update(run, now) {
+      if (!run.length) return null;
+      const hlNorm = run.map((w) => w.norm);
+      const hlPhon = run.map((w) => w.phon);
+      const from = anchor();
+      if (from !== null) {
+        const m = matchPhraseDual(canon, hlNorm, hlPhon, from);
+        if (m) {
+          st.cursor = m.s;
+          st.misses = 0;
+          st.candidate = null;
+          return withLead(m, now);
+        }
+        st.misses += 1;
+        // Lost the thread (the speaker went back, or off into something that
+        // isn't the daf): stop leaning on a stale cursor and look afresh.
+        if (st.misses >= PREVIEW_LOST_AFTER) st.cursor = null;
+      }
+      // No usable anchor: a whole-daf search, trusted only once two partials
+      // in a row agree -- the same rule that guards a fresh lock. Needs a few
+      // words, since a short phrase matches somewhere in a repetitive sugya
+      // too easily.
+      if (run.length < PREVIEW_MIN_GLOBAL_WORDS) return null;
+      const g = matchPhraseDual(canon, hlNorm, hlPhon, from === null ? 0 : from, { global: true });
+      if (!g) {
+        st.candidate = null;
+        return null;
+      }
+      // Agreement needs NEW words to have arrived: the same tail re-sent
+      // while the speaker pauses is one observation, not two (in batch, the
+      // two matches are always different phrases).
+      const key = hlNorm.join(' ');
+      const previous = st.candidate;
+      st.candidate = { ...g, key };
+      if (previous && previous.key !== key && g.s >= previous.s && g.s - previous.s <= FWD_WINDOW) {
+        st.cursor = g.s;
+        st.misses = 0;
+        st.candidate = null;
+        return withLead(g, now);
+      }
+      return null;
+    }
+
+    return {
+      update,
+      reset() { st.cursor = null; st.candidate = null; st.misses = 0; st.progress = []; },
+      get cursor() { return st.cursor; },
     };
   }
 
@@ -382,6 +477,7 @@
     splitHebrewRuns,
     chunkRun,
     createTracker,
+    createPreview,
     matchRuns,
     buildKeytermList,
     buildRealtimeKeyterms,
