@@ -126,17 +126,34 @@
     .back-link { text-align: center; }
     .back-link a { color: var(--muted); font-size: 13px; text-decoration: none; }
     .back-link a:hover { text-decoration: underline; }
+    .ref-row { display: flex; gap: 8px; }
+    .ref-row input[type="text"] { flex: 1; min-width: 0; }
+    #liveShowDafButton {
+      flex: none; font: inherit; font-weight: 600; padding: 0 14px; border-radius: 10px; cursor: pointer;
+      border: 1px solid var(--line); background: var(--paper); color: var(--navy-soft);
+    }
+    #liveShowDafButton:hover:not(:disabled) { border-color: var(--accent-light); color: var(--accent); }
+    #liveShowDafButton:disabled { opacity: .5; cursor: not-allowed; }
+    input[type="text"]:disabled { opacity: .6; }
     .daf-text-card { padding: 0; overflow: hidden; }
+    .daf-hint { padding: 8px 20px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12.5px; }
     .daf-text-card .daf-text-heading { padding: 12px 20px; border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 700; color: var(--navy-soft); }
     #liveDafScroll { position: relative; max-height: 55vh; overflow-y: auto; padding: 14px 20px 18px; }
     #liveDafText { font-family: "Frank Ruhl Libre", serif; font-size: 20px; line-height: 1.9; direction: rtl; text-align: justify; }
     #liveDafText p { margin: 0 0 12px; }
-    #liveDafText .w { border-radius: 4px; transition: background-color .2s, box-shadow .2s; }
+    /* Words are tap targets (set where the reading is), so no text-selection
+       popup or callout competes with the tap. */
+    #liveDafText .w { border-radius: 4px; cursor: pointer; transition: background-color .2s, box-shadow .2s; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+    #liveDafText .w:hover { background: rgba(47,110,165,.08); }
+    #liveDafText .w.anchor { box-shadow: inset 0 -3px 0 var(--accent); background: rgba(47,110,165,.12); }
     #liveDafText .w.hl { background: rgba(47,110,165,.22); box-shadow: 0 0 0 2px rgba(47,110,165,.22); }
     #liveDafText .w.hl-provisional { background: rgba(47,110,165,.09); box-shadow: 0 0 0 2px rgba(47,110,165,.09); }
     /* Explaining/searching: keep the last confirmed phrase visible, just quieter. */
     #liveDafText.dimmed .w.hl { background: rgba(101,116,138,.16); box-shadow: 0 0 0 2px rgba(101,116,138,.16); }
     #liveDafEmpty { color: var(--muted); font-size: 14px; text-align: center; padding: 18px 0; }
+    .debug-actions { margin-top: 10px; }
+    #liveCopyLogButton { font: inherit; font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 8px; cursor: pointer; border: 1px solid var(--line); background: var(--paper); color: var(--navy-soft); }
+    #liveCopyLogButton:hover { border-color: var(--accent-light); color: var(--accent); }
     .toast.show { transform: translate(-50%, 0); opacity: 1; }
     .toast.error { border-color: rgba(255,124,137,.5); color: #ffd5da; }
   </style>
@@ -152,7 +169,10 @@
     <div class="card">
       <div class="field-gap">
         <label for="liveRefInput">Daf</label>
-        <input type="text" id="liveRefInput" placeholder="e.g. Chullin 91a" autocomplete="off" enterkeyhint="go" />
+        <div class="ref-row">
+          <input type="text" id="liveRefInput" placeholder="e.g. Chullin 91a" autocomplete="off" enterkeyhint="go" />
+          <button type="button" id="liveShowDafButton">Show daf</button>
+        </div>
       </div>
       <div class="field-gap">
         <label>Audio source</label>
@@ -180,8 +200,9 @@
 
     <div class="card daf-text-card">
       <div class="daf-text-heading" id="liveDafHeading">Daf</div>
+      <div class="daf-hint" id="liveDafHint">Tap the word being read to set your place — before you start, or any time to correct it. Without one, Live Follow finds the place by listening.</div>
       <div id="liveDafScroll">
-        <div id="liveDafEmpty">The daf's text loads when you tap Start.</div>
+        <div id="liveDafEmpty">Tap “Show daf” to load the text and pick where to start, or just tap Start.</div>
         <div id="liveDafText" lang="he"></div>
       </div>
     </div>
@@ -198,6 +219,7 @@
           <div class="debug-row"><dt>Search window</dt><dd class="ltr" id="liveDebugWindow">—</dd></div>
           <div class="debug-row"><dt>Connection</dt><dd class="ltr" id="liveDebugConnection">—</dd></div>
         </dl>
+        <div class="debug-actions"><button type="button" id="liveCopyLogButton">Copy session log</button></div>
       </details>
     </div>
 

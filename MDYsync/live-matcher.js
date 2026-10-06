@@ -40,6 +40,20 @@
 //     against the real API on a continuous reading, commit-driven
 //     highlighting trailed the voice by a median 9s; the preview brings it
 //     to under a second. Display-only: it never moves the tracker.
+//   - Decisive jumps: batch only trusts a far match once a second phrase
+//     agrees; live also trusts ONE phrase of 6+ words that matches well and
+//     is clearly the best place on the whole daf (a phrase that repeats on
+//     the daf is not). That is what lets a fresh session lock from its first
+//     phrase, and a reading that resumes beyond the +60-word window be
+//     followed at once instead of a whole utterance later.
+//   - tracker.anchor(): the reader points at the word being read.
+//   - cleanTranscript: strips what the speech service hallucinates when the
+//     audio goes quiet -- a recitation of the keyterm list it was given, or a
+//     word stuck on repeat -- before any matching sees it.
+//   - Lone words are never placed (PLACEABLE_RUN_MIN_WORDS) and previews need
+//     3+ words: ElevenLabs writes Hebrew terms spoken inside English
+//     ("Gemara") in Hebrew letters, and one word matches somewhere beside
+//     almost any cursor.
 
 (function (root, factory) {
   const api = factory();
@@ -70,6 +84,12 @@
   // long enough to stay well clear of the lone-word ambiguity
   // MIN_SCORE_SINGLE exists for.
   const LIVE_MAX_RUN_WORDS = 10;
+  // Live only: a committed run shorter than this is never placed. Batch will
+  // place a single word (MIN_SCORE_SINGLE), but live, a lone Hebrew word is
+  // usually a term inside English speech -- or a one-word fragment of a
+  // reading the voice detector split -- and placing it moves the tracker's
+  // position to wherever that word happens to occur next to the cursor.
+  const PLACEABLE_RUN_MIN_WORDS = 2;
   const PROVISIONAL_TAIL_WORDS = 6;
   // ElevenLabs' realtime limits (batch Scribe allows far more).
   const REALTIME_MAX_KEYTERMS = 50;
@@ -248,6 +268,99 @@
     return chunks;
   }
 
+  // Live-only. Speech-to-text told to expect a list of terms (keyterms) will,
+  // when the audio is silent or unclear, sometimes just recite that list --
+  // seen against the real API at the end of a reading: the whole 50-term list,
+  // in order, ~50 words long. Worse than noise: the daf-derived terms are
+  // sampled IN DAF ORDER, so consecutive chunks of the recitation land at
+  // increasing positions on the daf -- exactly the evidence that makes the
+  // tracker trust a placement -- and the highlight jumped to an unrelated
+  // spot. Two other hallucinations come with the same silence: a word
+  // stuck on repeat ("איננו, איננו, איננו, ..."). Both are stripped from the
+  // transcript, before any matching, by cleanTranscript.
+  //
+  // A stretch of speech that is consecutive entries of the keyterm list (in
+  // list order, LEAK_MIN_RUN words or more) is a recitation: genuine reading
+  // virtually never produces it, since the daf-derived terms are sampled
+  // far apart. (The fixed Gemara terms are adjacent in the list, so a short
+  // real "אמר רבא אמר אביי" is below the bar by design.)
+  const LEAK_MIN_RUN = 5;
+  const REPEAT_MIN_RUN = 3;
+
+  // The flattened, normalized words of the keyterm list, in the order they
+  // were sent to the service.
+  function keytermTokens(keyterms) {
+    return keyterms.flatMap((term) => String(term).split(/\s+/).map(normalizeWord).filter(Boolean));
+  }
+
+  // Replaces hallucinated tokens with '·' (no Hebrew letters, so
+  // splitHebrewRuns ends the run there instead of joining across the gap).
+  function cleanTranscript(text, listTokens) {
+    const tokens = String(text || '').split(/\s+/).filter(Boolean);
+    const norms = tokens.map(normalizeWord);
+    const drop = new Array(tokens.length).fill(false);
+    for (let i = 0; i < tokens.length; i += 1) {
+      if (!norms[i]) continue;
+      let run = 1; // the same word repeated
+      while (i + run < tokens.length && norms[i + run] === norms[i]) run += 1;
+      if (run >= REPEAT_MIN_RUN) for (let k = 0; k < run; k += 1) drop[i + k] = true;
+      for (let p = 0; p < listTokens.length; p += 1) { // a stretch of the keyterm list
+        if (listTokens[p] !== norms[i]) continue;
+        let n = 0;
+        while (i + n < tokens.length && p + n < listTokens.length && norms[i + n] === listTokens[p + n]) n += 1;
+        if (n >= LEAK_MIN_RUN) for (let k = 0; k < n; k += 1) drop[i + k] = true;
+      }
+    }
+    return tokens.map((token, i) => (drop[i] ? '·' : token)).join(' ');
+  }
+
+  // Live-only. In batch, a match far from the cursor is only trusted once a
+  // second, different phrase agrees with it -- the guard against a short
+  // phrase that happens to resemble some other spot on a repetitive daf. That
+  // costs a full extra utterance (seconds) every time the reading resumes
+  // beyond the +60-word window, during which the highlight sits still. The
+  // same evidence is available from ONE long phrase: if it matches one place
+  // well AND no other place on the daf comes close, there is nothing for a
+  // second phrase to rule out. matchGlobalWithMargin is the whole-daf search
+  // plus that "nothing else comes close" measurement (the phonetic score gap
+  // to the best window that doesn't overlap the winner).
+  //
+  // Thresholds calibrated on noisy simulations (letter confusions, dropped
+  // letters, dropped words at up to 45% of words corrupted) and on real
+  // ElevenLabs transcripts of a synthetic shiur: 94% of true phrases pass,
+  // while 0 of 300 random Hebrew-script phrases and 0 wrong-place matches did.
+  // A phrase that genuinely repeats elsewhere on the daf (margin ~0) fails
+  // and falls back to the two-match rule, as it should.
+  const DECISIVE_MIN_WORDS = 6;
+  const DECISIVE_MIN_PHON = 80;
+  const DECISIVE_MIN_CHAR = 65;
+  const DECISIVE_MIN_MARGIN = 10;
+
+  function matchGlobalWithMargin(canon, hlNorm, hlPhon) {
+    const best = matchPhraseDual(canon, hlNorm, hlPhon, 0, { global: true });
+    if (!best) return null;
+    const phonPhrase = hlPhon.join('');
+    const k = hlPhon.length;
+    let runnerUp = 0;
+    for (const size of pythonSizeOrder(k)) {
+      const end = canon.length - size + 1;
+      for (let s = 0; s < end; s += 1) {
+        if (s <= best.e && s + size - 1 >= best.s) continue; // overlaps the winner
+        const score = ratio(phonPhrase, canon.phonSlice(s, s + size));
+        if (score > runnerUp) runnerUp = score;
+      }
+    }
+    return { ...best, margin: best.phonScore - runnerUp };
+  }
+
+  function isDecisive(match, wordCount) {
+    return Boolean(match)
+      && wordCount >= DECISIVE_MIN_WORDS
+      && match.phonScore >= DECISIVE_MIN_PHON
+      && match.charScore >= DECISIVE_MIN_CHAR
+      && match.margin >= DECISIVE_MIN_MARGIN;
+  }
+
   // voice_align.match_runs' per-run body as a reusable stepper. step()
   // returns one of:
   //   { kind: 'local', match }      -- placed near the cursor (locked)
@@ -255,6 +368,11 @@
   //                                    jump) corroborated by two agreeing
   //                                    global matches; `pending` is the
   //                                    earlier one, now trusted too
+  //   { kind: 'jump', match }       -- (eagerRelocalize only) one long phrase
+  //                                    that is clearly the best match on the
+  //                                    whole daf, trusted without a second
+  //                                    phrase; also how a fresh session locks
+  //                                    from its very first phrase
   //   { kind: 'pending', match }    -- a first global candidate, held
   //   { kind: 'miss', unlocked }    -- nothing placed (unlocked: true when
   //                                    this miss is what lost the lock)
@@ -282,12 +400,21 @@
           return { kind: 'miss', unlocked: false };
         }
       }
-      const m = matchPhraseDual(canon, hlNorm, hlPhon, st.cursor, { global: true });
+      const m = eager
+        ? matchGlobalWithMargin(canon, hlNorm, hlPhon)
+        : matchPhraseDual(canon, hlNorm, hlPhon, st.cursor, { global: true });
       if (!m) {
         st.pending = null; // an unmatched run in between breaks any pending candidate
         return { kind: 'miss', unlocked };
       }
       const match = { ...m, source: 'deterministic-global' };
+      if (eager && isDecisive(m, run.length)) {
+        st.cursor = m.s;
+        st.locked = true;
+        st.localMisses = 0;
+        st.pending = null;
+        return { kind: 'jump', match };
+      }
       const pending = st.pending;
       if (pending && m.s >= pending.match.s && m.s - pending.match.s <= FWD_WINDOW) {
         st.cursor = m.s;
@@ -300,8 +427,21 @@
       return { kind: 'pending', match, unlocked };
     }
 
+    // The reader pointing at the word being read: take it as the position
+    // outright, locked, with nothing pending. Live Follow's whole job is
+    // working out where the reading is; a person who can see the daf and
+    // hear the room just knows. Whatever is said next is matched around it
+    // (BACK_WINDOW before, FWD_WINDOW after), so a tap a few words off is fine.
+    function anchor(index) {
+      st.cursor = Math.max(0, Math.min(canon.length - 1, index));
+      st.locked = true;
+      st.localMisses = 0;
+      st.pending = null;
+    }
+
     return {
       step,
+      anchor,
       get cursor() { return st.cursor; },
       get locked() { return st.locked; },
       get pending() { return st.pending; },
@@ -321,6 +461,13 @@
   // lock/confirm rules, only displayed. update() takes the Hebrew tail of
   // the latest partial and returns a match to preview, or null.
   const PREVIEW_MIN_GLOBAL_WORDS = 4;
+  // A preview needs at least this many words even right beside the cursor.
+  // ElevenLabs writes Hebrew terms spoken inside English ("Gemara", "Rashi")
+  // in Hebrew letters, and a lone word like that matches somewhere near
+  // almost any cursor -- which would flash the highlight (and, for the
+  // tracker's own matching, drag the position) in the middle of an English
+  // explanation. Measured: it did, 1.2s before any Hebrew was spoken.
+  const PREVIEW_MIN_WORDS = 3;
   const PREVIEW_LOST_AFTER = 3;
   // The text for a word arrives ~0.75s after it is spoken and updates about
   // once a second (measured against the real API), so even a perfectly
@@ -356,7 +503,7 @@
     const anchor = () => (st.cursor !== null ? st.cursor : (tracker.locked ? tracker.cursor : null));
 
     function update(run, now) {
-      if (!run.length) return null;
+      if (run.length < PREVIEW_MIN_WORDS) return null;
       const hlNorm = run.map((w) => w.norm);
       const hlPhon = run.map((w) => w.phon);
       const from = anchor();
@@ -378,10 +525,16 @@
       // words, since a short phrase matches somewhere in a repetitive sugya
       // too easily.
       if (run.length < PREVIEW_MIN_GLOBAL_WORDS) return null;
-      const g = matchPhraseDual(canon, hlNorm, hlPhon, from === null ? 0 : from, { global: true });
+      const g = matchGlobalWithMargin(canon, hlNorm, hlPhon);
       if (!g) {
         st.candidate = null;
         return null;
+      }
+      if (isDecisive(g, run.length)) {
+        st.cursor = g.s;
+        st.misses = 0;
+        st.candidate = null;
+        return withLead(g, now);
       }
       // Agreement needs NEW words to have arrived: the same tail re-sent
       // while the speaker pauses is one observation, not two (in batch, the
@@ -467,6 +620,7 @@
     KEYTERM_STOPWORDS,
     LIVE_MAX_RUN_WORDS,
     PROVISIONAL_TAIL_WORDS,
+    PLACEABLE_RUN_MIN_WORDS,
     REALTIME_MAX_KEYTERMS,
     normalizeWord,
     phonetic,
@@ -478,8 +632,12 @@
     chunkRun,
     createTracker,
     createPreview,
+    matchGlobalWithMargin,
+    isDecisive,
     matchRuns,
     buildKeytermList,
     buildRealtimeKeyterms,
+    keytermTokens,
+    cleanTranscript,
   };
 });

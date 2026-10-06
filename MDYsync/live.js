@@ -157,7 +157,17 @@ const live = {
   partialTimer: null,
   latestPartial: '',
   lastManualScrollAt: 0,
+  // Where the reader pointed (a canon word index), until the next Start
+  // consumes it; and the <span> carrying its marker, until the first phrase
+  // is actually placed from it.
+  anchorIndex: null,
+  anchorSpan: null,
+  unplacedHebrew: 0, // consecutive commits with Hebrew in them that placed nothing
+  followState: null, // what setFollowState last showed
+  log: [],
+  logStart: 0,
 };
+const LOG_MAX_ENTRIES = 400;
 
 function setStatus(kind, text, detail) {
   const dot = $('liveStatusDot');
@@ -181,6 +191,32 @@ function setDebug(field, value) {
 function appendPreviousText(text) {
   if (!text) return;
   live.previousText = (live.previousText + ' ' + text).trim().slice(-PREVIOUS_TEXT_CHARS);
+}
+
+// A rolling record of what the session heard and decided, copyable from the
+// debug panel. Whether the status flips or the highlight lags on a real
+// shiur can't be reproduced from here -- the transcript and what the matcher
+// did with each utterance can.
+function logEvent(kind, data) {
+  live.log.push({ t: +((performance.now() - live.logStart) / 1000).toFixed(2), kind, ...data });
+  if (live.log.length > LOG_MAX_ENTRIES) live.log.shift();
+}
+
+async function copySessionLog() {
+  const text = JSON.stringify({ daf: live.daf?.label || null, entries: live.log }, null, 1);
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const box = document.createElement('textarea');
+    box.value = text;
+    box.style.cssText = 'position:fixed;opacity:0;';
+    document.body.append(box);
+    box.select();
+    const ok = document.execCommand?.('copy');
+    box.remove();
+    if (!ok) return showToast('Could not copy the log on this browser.', 'error');
+  }
+  showToast(`Session log copied (${live.log.length} entries).`);
 }
 
 // ---- The daf ------------------------------------------------------------
@@ -233,9 +269,33 @@ async function loadDaf(parsed) {
   // The following amud is a bonus -- the end of a tractate has none.
   const segments = first.value.concat(second.status === 'fulfilled' ? second.value : []);
   const canon = LM.buildCanon(segments);
-  live.daf = { key: parsed.key, label: parsed.label, refs: parsed.refs, segments, canon, keyterms: LM.buildRealtimeKeyterms(canon) };
+  const keyterms = LM.buildRealtimeKeyterms(canon);
+  live.daf = { key: parsed.key, label: parsed.label, refs: parsed.refs, segments, canon, keyterms, keytermTokens: LM.keytermTokens(keyterms) };
   renderDaf(live.daf);
   return live.daf;
+}
+
+async function showDaf() {
+  const parsed = parseDafInput($('liveRefInput').value);
+  if (!parsed) {
+    showToast('Enter a daf like "Chullin 91a" (English tractate name).', 'error');
+    return false;
+  }
+  const button = $('liveShowDafButton');
+  button.disabled = true;
+  setStatus('', 'Loading…', `Loading ${parsed.label}`);
+  try {
+    await loadDaf(parsed);
+  } catch (error) {
+    console.error('Could not load the daf for Live Follow:', error);
+    setStatus('error', 'Error', `Could not load ${parsed.label}.`);
+    showToast(`Could not load ${parsed.label}: ${error.message}`, 'error');
+    return false;
+  } finally {
+    button.disabled = Boolean(live.tracker);
+  }
+  setStatus('', 'Ready', 'Tap the word where the reading starts, or just tap Start.');
+  return true;
 }
 
 function renderDaf(daf) {
@@ -245,6 +305,8 @@ function renderDaf(daf) {
   live.spans = [];
   live.confirmed = null;
   live.provisional = null;
+  live.anchorIndex = null;
+  live.anchorSpan = null;
   let canonIndex = 0;
   for (const segment of daf.segments) {
     const p = document.createElement('p');
@@ -256,6 +318,7 @@ function renderDaf(daf) {
       // Exactly buildCanon's rule, so span N is always canon word N.
       if (LM.normalizeWord(token)) {
         span.className = 'w';
+        span.dataset.i = String(canonIndex);
         live.spans[canonIndex] = span;
         canonIndex += 1;
       }
@@ -288,6 +351,7 @@ function scrollToWord(index) {
 
 function showConfirmed(match) {
   setProvisional(null);
+  clearAnchorMark();
   paintRange(live.confirmed, 'hl', false);
   live.confirmed = { s: match.s, e: match.e };
   paintRange(live.confirmed, 'hl', true);
@@ -313,6 +377,56 @@ function setProvisional(match) {
   if (match) scrollToWord(match.s);
 }
 
+// ---- Pointing at the daf ----------------------------------------------------
+// Working out where the reading is takes a few utterances (and is the
+// weakest part of a cold start); the person following along can see the daf
+// and hear the room. Tapping a word sets the position outright -- before
+// Start, so the very first phrase places immediately, or at any point
+// mid-session, to put right an alignment that has drifted. The automatic
+// search stays as the fallback when nothing is tapped, and as the safety net
+// when the reading moves on from a tapped word.
+function anchorDetail(span) {
+  const words = live.daf.canon.words.slice(Number(span.dataset.i), Number(span.dataset.i) + 4).map((w) => w.text).join(' ');
+  return `From “${words}…” — tap another word to correct`;
+}
+
+function clearAnchorMark() {
+  live.anchorSpan?.classList.remove('anchor');
+  live.anchorSpan = null;
+}
+
+function setAnchor(index) {
+  const span = live.spans[index];
+  if (!span || !live.daf) return;
+  clearAnchorMark();
+  live.anchorSpan = span;
+  span.classList.add('anchor');
+  paintRange(live.confirmed, 'hl', false);
+  live.confirmed = null;
+  setProvisional(null);
+  live.lastPreview = null;
+  const hint = $('livePhraseText');
+  hint.textContent = live.daf.canon.words.slice(index, index + 5).map((w) => w.text).join(' ');
+  hint.classList.add('empty');
+  $('liveConfidenceText').textContent = 'Position set by you';
+  $('liveDafText').classList.remove('dimmed');
+  if (live.tracker) {
+    // Mid-session: take it as the position now. The next phrase heard is
+    // matched around it.
+    live.tracker.anchor(index);
+    live.preview.reset();
+    live.unplacedHebrew = 0;
+    live.anchorIndex = null;
+    setFollowState('reading', { detail: anchorDetail(span) });
+    setDebug('Pending', '—');
+    updateSearchWindowDebug();
+  } else {
+    live.anchorIndex = index;
+    setStatus('', 'Ready', `${anchorDetail(span).replace(' — tap another word to correct', '')} — tap Start to listen.`);
+  }
+  logEvent('anchor', { index, word: live.daf.canon.words[index].text, midSession: Boolean(live.tracker) });
+}
+
 function updateSearchWindowDebug() {
   const n = live.daf?.canon.length || 0;
   if (!live.tracker || !n) return setDebug('Window', '—');
@@ -321,20 +435,35 @@ function updateSearchWindowDebug() {
   setDebug('Window', `words ${Math.max(0, c - LM.BACK_WINDOW)}–${Math.min(n, c + LM.FWD_WINDOW)} of ${n} (cursor ${c})`);
 }
 
-// reading: the last utterance placed on the daf. explaining: locked, but
-// nothing in it matched (English, or Hebrew that isn't the daf's text) --
-// the last phrase stays up, dimmed. searching: no trusted position yet; a
-// first candidate is held until a second phrase agrees with it.
-function setFollowState(state, pending) {
-  $('liveDafText').classList.toggle('dimmed', state !== 'reading');
+// What the status says, and why:
+//   reading   -- the latest utterance (or partial) was placed on the daf.
+//   explaining -- the latest utterance had NO Hebrew in it: English (or
+//                 another language) is being spoken. The only state that can
+//                 actually be told from the speech itself.
+//   listening -- Hebrew was heard but not placed. Not "explaining": it may be
+//                the reading with the position slightly off, a reading that
+//                skipped ahead and is waiting on confirmation, or Hebrew
+//                explanation. Doesn't dim the daf, and after a few in a row
+//                says what to do about it (tap the word).
+//   searching -- no position yet; nothing locked, nothing pointed at.
+// (Before this split, every unplaced utterance said "Explaining" -- including
+// Hebrew reading the matcher simply hadn't caught up with.)
+function setFollowState(state, options = {}) {
+  live.followState = state;
+  $('liveDafText').classList.toggle('dimmed', state === 'explaining' || state === 'searching');
+  const tapHint = live.unplacedHebrew >= 3 ? ' Not finding your place — tap the word being read to set it.' : '';
   if (state === 'reading') {
-    setStatus('reading', 'Following', `Following ${live.daf.label}`);
+    setStatus('reading', 'Following', options.detail || `Following ${live.daf.label}`);
   } else if (state === 'explaining') {
-    setStatus('explaining', 'Explaining', 'Holding the last phrase until the reading resumes');
+    setStatus('explaining', 'Explaining', 'No Hebrew heard — holding the last phrase until the reading resumes');
+  } else if (state === 'listening') {
+    setStatus('explaining', 'Listening…', (options.pending
+      ? 'Found a possible new spot — waiting for the next phrase to confirm it.'
+      : 'Heard Hebrew but couldn’t place it on the daf yet.') + tapHint);
   } else {
-    setStatus('searching', 'Searching…', pending
-      ? 'Found a possible spot — waiting for the next phrase to confirm it'
-      : `Listening for a phrase from ${live.daf.label}`);
+    setStatus('searching', 'Searching…', (options.pending
+      ? 'Found a possible spot — waiting for the next phrase to confirm it.'
+      : `Listening for a phrase from ${live.daf.label}.`) + tapHint);
   }
 }
 
@@ -347,20 +476,43 @@ function handleCommitted(text) {
   if (!live.tracker) return;
   setProvisional(null);
   live.preview.reset(); // the preview's own position hands back to the confirmed one
-  const runs = LM.splitHebrewRuns(text).flatMap((run) => LM.chunkRun(run));
+  // The service sometimes recites its keyterm list, or sticks on one word, when
+  // the audio goes quiet; neither is speech (see cleanTranscript).
+  const heard = LM.cleanTranscript(text, live.daf.keytermTokens);
+  const allRuns = LM.splitHebrewRuns(heard).flatMap((run) => LM.chunkRun(run));
+  const runs = allRuns.filter((run) => run.length >= LM.PLACEABLE_RUN_MIN_WORDS);
+  // A lone Hebrew word with nothing else around it is a fragment of the
+  // reading the voice detector split off, or one term inside English: not
+  // enough to say anything about the state either way. (With a few English
+  // words alongside it, it IS the English that tells us.)
+  const latinWords = heard.split(/\s+/).filter((token) => /[A-Za-z]/.test(token)).length;
+  const bareFragment = !runs.length && allRuns.length > 0 && latinWords < 2;
   let placed = null;
   let pending = null;
+  const outcomes = [];
   for (const run of runs) {
     const result = live.tracker.step(run, live.runCounter);
     live.runCounter += 1;
-    if (result.kind === 'local' || result.kind === 'confirmed') { placed = result.match; pending = null; }
+    const m = result.match;
+    outcomes.push({ words: run.length, kind: result.kind, ...(m ? { s: m.s, e: m.e, phon: +m.phonScore.toFixed(1), char: +m.charScore.toFixed(1), margin: m.margin === undefined ? undefined : +m.margin.toFixed(1) } : {}) });
+    if (result.kind === 'local' || result.kind === 'confirmed' || result.kind === 'jump') { placed = result.match; pending = null; }
     else if (result.kind === 'pending') pending = result.match;
   }
   if (placed) showConfirmed(placed);
   setDebug('Pending', pending ? `[${pending.s}–${pending.e}] phonetic ${pending.phonScore.toFixed(1)} — needs one more agreeing phrase` : '—');
   updateSearchWindowDebug();
-  if (placed) setFollowState('reading');
-  else setFollowState(live.tracker.locked ? 'explaining' : 'searching', pending);
+  if (placed) {
+    live.unplacedHebrew = 0;
+    setFollowState('reading');
+  } else if (bareFragment) {
+    // leave the status and the highlight exactly as they were
+  } else if (!runs.length) {
+    setFollowState(live.tracker.locked ? 'explaining' : 'searching');
+  } else {
+    live.unplacedHebrew += 1;
+    setFollowState(live.tracker.locked ? 'listening' : 'searching', { pending: Boolean(pending) });
+  }
+  logEvent('commit', { text, ...(heard !== text ? { cleaned: heard } : {}), outcomes, state: $('liveStatusText').textContent, locked: live.tracker.locked, cursor: live.tracker.cursor });
 }
 
 // A partial transcript is still being revised, so it never moves the
@@ -370,11 +522,17 @@ function handleCommitted(text) {
 function runProvisional() {
   live.partialTimer = null;
   if (!live.preview) return;
-  const runs = LM.splitHebrewRuns(live.latestPartial);
+  const runs = LM.splitHebrewRuns(LM.cleanTranscript(live.latestPartial, live.daf.keytermTokens));
   const last = runs[runs.length - 1];
   if (!last) return;
-  const match = live.preview.update(last.slice(-LM.PROVISIONAL_TAIL_WORDS), performance.now() / 1000);
-  if (!match) return;
+  const tail = last.slice(-LM.PROVISIONAL_TAIL_WORDS);
+  const match = live.preview.update(tail, performance.now() / 1000);
+  if (!match) {
+    // Hebrew is being spoken, so "Explaining" is wrong whether or not the
+    // preview has caught up with where on the daf it is.
+    if (live.followState === 'explaining' && tail.length >= LM.PLACEABLE_RUN_MIN_WORDS) setFollowState('listening');
+    return;
+  }
   // Widened a few words forward (see PREVIEW_LEAD_SECONDS in live-matcher.js)
   // to cover what is being said now, not just what has been transcribed.
   const lastWord = live.daf.canon.length - 1;
@@ -382,8 +540,14 @@ function runProvisional() {
   // Reading has visibly resumed near the confirmed spot -- don't keep saying
   // "Explaining" until the utterance commits (seen against the real API:
   // several seconds of "Explaining" under a highlight moving word by word).
-  if (live.tracker.locked) setFollowState('reading');
-  else setFollowState('searching', true);
+  // The preview only reports a place after the same evidence the tracker
+  // needs (one decisive phrase, or two agreeing partials) or while it is
+  // already following one -- so this is "Following" even before the tracker
+  // itself has locked on a commit (measured: it used to say "Searching…" for
+  // the whole of a first, unbroken reading while the highlight moved).
+  setFollowState('reading');
+  if (!live.lastPreview || live.lastPreview.s !== match.s) logEvent('preview', { s: match.s, e: match.e, lead: match.lead, phon: +match.phonScore.toFixed(1) });
+  live.lastPreview = { s: match.s, e: match.e };
 }
 
 function handlePartial(text) {
@@ -462,7 +626,8 @@ async function connectWebSocket() {
       case 'session_started':
         live.reconnectAttempt = 0;
         setDebug('Connection', `session ${msg.session_id || ''} started (${live.daf.keyterms.length} keyterms)`);
-        if (live.tracker.locked) setFollowState('explaining');
+        if (live.anchorSpan) setFollowState('reading', { detail: anchorDetail(live.anchorSpan) });
+        else if (live.tracker.locked) setFollowState('listening');
         else setFollowState('searching');
         break;
       case 'partial_transcript':
@@ -587,7 +752,8 @@ async function startLiveFollow() {
   const button = $('liveStartButton');
   button.disabled = true;
   // The daf first: an unknown daf should fail before asking for the mic,
-  // and the keyterms sent when connecting are built from its text.
+  // and the keyterms sent when connecting are built from its text. (Already
+  // shown by "Show daf"? loadDaf reuses it, along with any word tapped.)
   setStatus('', 'Loading…', `Loading ${parsed.label}`);
   try {
     await loadDaf(parsed);
@@ -604,9 +770,25 @@ async function startLiveFollow() {
   live.tracker = LM.createTracker(live.daf.canon, { eagerRelocalize: true });
   live.preview = LM.createPreview(live.daf.canon, live.tracker);
   live.runCounter = 0;
+  live.unplacedHebrew = 0;
+  live.lastPreview = null;
+  live.log = [];
+  live.logStart = performance.now();
   paintRange(live.confirmed, 'hl', false);
   setProvisional(null);
   live.confirmed = null;
+  if (live.anchorIndex !== null) {
+    // A word was tapped before Start: the session begins locked there. It is
+    // used once -- the next Start without a fresh tap goes back to searching.
+    live.tracker.anchor(live.anchorIndex);
+    logEvent('anchor', { index: live.anchorIndex, word: live.daf.canon.words[live.anchorIndex].text, midSession: false });
+    live.anchorIndex = null;
+  } else {
+    clearAnchorMark();
+  }
+  logEvent('start', { daf: live.daf.label, anchored: live.tracker.locked });
+  $('liveRefInput').disabled = true;
+  $('liveShowDafButton').disabled = true;
   setStatus('', 'Connecting…', 'Requesting microphone access');
   try {
     await startMic();
@@ -616,6 +798,10 @@ async function startLiveFollow() {
     setStatus('error', 'Error', deniedLikely ? 'Microphone access was denied.' : error.message);
     showToast(deniedLikely ? 'Microphone access was denied.' : error.message, 'error');
     stopMic();
+    live.tracker = null;
+    live.preview = null;
+    $('liveRefInput').disabled = false;
+    $('liveShowDafButton').disabled = false;
     button.disabled = false;
     return;
   }
@@ -638,6 +824,11 @@ function stopLiveFollow() {
   live.ws = null;
   stopMic();
   setProvisional(null);
+  clearAnchorMark();
+  live.tracker = null;
+  live.preview = null;
+  $('liveRefInput').disabled = false;
+  $('liveShowDafButton').disabled = false;
   const button = $('liveStartButton');
   button.textContent = 'Start Live Follow';
   button.classList.remove('stop');
@@ -652,7 +843,17 @@ $('liveStartButton')?.addEventListener('click', () => {
 });
 
 $('liveRefInput')?.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter' && !live.ws && !live.micStream) startLiveFollow();
+  if (event.key === 'Enter' && !live.tracker) showDaf();
+});
+$('liveShowDafButton')?.addEventListener('click', showDaf);
+$('liveCopyLogButton')?.addEventListener('click', copySessionLog);
+
+// A tap on a word sets the position. Skipped when the tap is the end of a text
+// selection drag, so selecting doesn't also move the highlight.
+$('liveDafText')?.addEventListener('click', (event) => {
+  const span = event.target.closest?.('.w');
+  if (!span || String(window.getSelection?.() || '')) return;
+  setAnchor(Number(span.dataset.i));
 });
 
 // Only genuine user scrolling pauses auto-scroll (wheel/touch/keys), never
