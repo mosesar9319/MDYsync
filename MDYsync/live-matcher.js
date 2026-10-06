@@ -314,6 +314,29 @@
     return tokens.map((token, i) => (drop[i] ? '·' : token)).join(' ');
   }
 
+  // Live-only. A match near the cursor can be trusted on little evidence --
+  // that's the whole idea of tracking -- but a match FAR from it moves the
+  // tracker, and a garbled phrase will match something somewhere. Found in a
+  // real session (phone microphone, Chullin 91a): the 2-word garble
+  // "שופך שמעון" (for "סופג שמונים") matched a single word 33 words ahead
+  // and dragged the cursor there; the next phrase then matched a verbatim
+  // repeat of that sentence beside the wrong cursor instead of the right one,
+  // and the reader had to tap to recover. Another, 3 words at +12, hid the
+  // correct next phrase for 8 seconds. Every legitimate large move in the
+  // same session was a longer phrase with decent scores (7 words, +14, after
+  // a garbled phrase was skipped). So: beyond LOCAL_JUMP_WORDS, a local match
+  // needs real evidence to be believed on its own (strongLocal), and
+  // otherwise is held until a later phrase carries on from it -- while a
+  // later phrase that lands back near the old cursor (the decoy case) drops it.
+  const LOCAL_JUMP_WORDS = 10;
+  const STRONG_LOCAL_MIN_WORDS = 5;
+  const STRONG_LOCAL_PHON = 75;
+  const STRONG_LOCAL_ANY_PHON = 88;
+  function strongLocal(match, wordCount) {
+    return (wordCount >= STRONG_LOCAL_MIN_WORDS && match.phonScore >= STRONG_LOCAL_PHON)
+      || match.phonScore >= STRONG_LOCAL_ANY_PHON;
+  }
+
   // Live-only. In batch, a match far from the cursor is only trusted once a
   // second, different phrase agrees with it -- the guard against a short
   // phrase that happens to resemble some other spot on a repetitive daf. That
@@ -378,14 +401,29 @@
   //                                    this miss is what lost the lock)
   function createTracker(canon, options = {}) {
     const eager = Boolean(options.eagerRelocalize);
-    const st = { cursor: 0, locked: false, localMisses: 0, pending: null };
+    const st = { cursor: 0, locked: false, localMisses: 0, pending: null, held: null };
 
     function step(run, idx) {
       const hlNorm = run.map((w) => w.norm);
       const hlPhon = run.map((w) => w.phon);
       let unlocked = false;
       if (st.locked) {
+        const held = st.held; // a weak far move held by the previous phrase, if any
+        st.held = null;
         const m = matchPhraseDual(canon, hlNorm, hlPhon, st.cursor);
+        if (m && eager && Math.abs(m.s - st.cursor) > LOCAL_JUMP_WORDS && !strongLocal(m, run.length)) {
+          const local = { ...m, source: 'deterministic-local' };
+          // Carrying on from the held spot (the next phrase starts about where
+          // it ended) is the corroboration.
+          if (held && m.s >= held.s - 3 && m.s <= held.e + 12) {
+            st.cursor = m.s;
+            st.localMisses = 0;
+            st.pending = null;
+            return { kind: 'confirmed', match: local, pending: { match: held, idx: held.idx } };
+          }
+          st.held = { ...m, source: 'deterministic-local', idx };
+          return { kind: 'pending', match: local, held: true };
+        }
         if (m) {
           st.cursor = m.s;
           st.localMisses = 0;
@@ -437,6 +475,7 @@
       st.locked = true;
       st.localMisses = 0;
       st.pending = null;
+      st.held = null;
     }
 
     return {
@@ -508,7 +547,9 @@
       const hlPhon = run.map((w) => w.phon);
       const from = anchor();
       if (from !== null) {
-        const m = matchPhraseDual(canon, hlNorm, hlPhon, from);
+        let m = matchPhraseDual(canon, hlNorm, hlPhon, from);
+        // The same rule as the tracker's: not on weak evidence, not far away.
+        if (m && Math.abs(m.s - from) > LOCAL_JUMP_WORDS && !strongLocal(m, run.length)) m = null;
         if (m) {
           st.cursor = m.s;
           st.misses = 0;
@@ -621,6 +662,7 @@
     LIVE_MAX_RUN_WORDS,
     PROVISIONAL_TAIL_WORDS,
     PLACEABLE_RUN_MIN_WORDS,
+    strongLocal,
     REALTIME_MAX_KEYTERMS,
     normalizeWord,
     phonetic,

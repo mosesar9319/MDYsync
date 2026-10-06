@@ -266,6 +266,82 @@ test('the preview does not take an ambiguous partial on its own, from a cold sta
   assert.equal(preview.update(readRun(REPEATED_PHRASE_AT, 6), 0), null);
 });
 
+// --- Weak far-away matches are held, not believed -------------------------------
+
+// Garbled speech matches SOMETHING somewhere. Near the cursor that costs little;
+// far from it, it moves the tracker. See LOCAL_JUMP_WORDS in live-matcher.js.
+// weakRun is the daf's words with each word's last letter wrong: it still
+// matches its true place, but at phonetic scores of ~72-76 -- the range the
+// garbled phrases in a real phone-microphone session scored.
+const garbleWord = (w) => [...w].map((c, i, all) => (i === all.length - 1 ? 'צ' : c)).join('');
+function weakRun(start, length) {
+  return toRun(canon.words.slice(start, start + length).map((w) => garbleWord(w.norm)));
+}
+
+test('the weak test phrases really are weak', () => {
+  for (const [start, length] of [[440, 2], [440, 3], [412, 2]]) {
+    const run = weakRun(start, length);
+    const found = M.matchPhraseDual(canon, run.map((w) => w.norm), run.map((w) => w.phon), 406);
+    assert.ok(found && found.s === start, `${start}/${length} should still match its true place`);
+    assert.ok(found.phonScore < 80 && found.phonScore >= 60, `phon ${found.phonScore}`);
+    assert.equal(M.strongLocal(found, length), false);
+  }
+});
+
+test('a weak far-away match is held, and does not move the cursor', () => {
+  const tracker = lockedTracker(400); // cursor 406
+  const result = tracker.step(weakRun(440, 2), 2); // 2 words, +34: far, and far too little evidence
+  assert.equal(result.kind, 'pending');
+  assert.equal(result.held, true);
+  assert.equal(tracker.cursor, 406);
+});
+
+test('a later phrase back near the cursor drops the held decoy', () => {
+  const tracker = lockedTracker(400);
+  tracker.step(weakRun(440, 2), 2);
+  const next = tracker.step(readRun(412, 6), 3);
+  assert.equal(next.kind, 'local');
+  assert.equal(tracker.cursor, 412);
+  assert.equal(tracker.step(weakRun(446, 3), 4).kind, 'pending', 'a new far weak match is held afresh, not confirmed against the dropped decoy');
+});
+
+test('a held move is believed once the next phrase carries on from it', () => {
+  const tracker = lockedTracker(400);
+  assert.equal(tracker.step(weakRun(440, 3), 2).kind, 'pending');
+  const next = tracker.step(weakRun(443, 3), 3);
+  assert.equal(next.kind, 'confirmed');
+  assert.equal(tracker.cursor, 443);
+});
+
+test('a far move on strong evidence is not held', () => {
+  const tracker = lockedTracker(400);
+  const result = tracker.step(readRun(420, 6), 2); // +14, 6 clean words
+  assert.equal(result.kind, 'local');
+  assert.equal(tracker.cursor, 420);
+});
+
+test('a near move is never held, however weak', () => {
+  const tracker = lockedTracker(400);
+  const result = tracker.step(weakRun(412, 2), 2);
+  assert.equal(result.kind, 'local');
+  assert.equal(tracker.cursor, 412);
+});
+
+test('a tap drops a held move', () => {
+  const tracker = lockedTracker(400);
+  tracker.step(weakRun(440, 2), 2);
+  tracker.anchor(500);
+  assert.equal(tracker.step(weakRun(503, 2), 3).kind, 'local', 'matched around the tap, not confirmed against the stale hold');
+  assert.equal(tracker.cursor, 503);
+});
+
+test('the preview ignores a weak far-away match too', () => {
+  const tracker = lockedTracker(400);
+  const preview = M.createPreview(canon, tracker);
+  assert.equal(preview.update(weakRun(440, 3), 0), null);
+  assert.ok(preview.update(readRun(412, 3), 1));
+});
+
 // --- The partial-transcript preview -------------------------------------------
 
 test('the preview follows a long reading far past the confirmed spot with no commit', () => {
@@ -385,19 +461,11 @@ test('a recitation of the keyterm list is stripped, leaving the real words befor
 test('the recitation no longer moves the tracker', () => {
   const tracker = M.createTracker(canon, { eagerRelocalize: true });
   tracker.anchor(224);
-  const before = tracker.cursor;
-  const cleaned = M.cleanTranscript(LEAKED_COMMIT.split(' אמר רבא')[0] + LEAKED_COMMIT.slice(LEAKED_COMMIT.indexOf(' אמר רבא')), listTokens);
+  const cleaned = M.cleanTranscript(LEAKED_COMMIT, listTokens);
   for (const run of M.splitHebrewRuns(cleaned).flatMap((r) => M.chunkRun(r))) {
     if (run.length >= M.PLACEABLE_RUN_MIN_WORDS) tracker.step(run, 0);
   }
-  assert.ok(Math.abs(tracker.cursor - before) < 20, `cursor jumped to ${tracker.cursor}`);
-  // And with the leak left in, it demonstrably did move: the failure being guarded against.
-  const naive = M.createTracker(canon, { eagerRelocalize: true });
-  naive.anchor(224);
-  for (const run of M.splitHebrewRuns(LEAKED_COMMIT).flatMap((r) => M.chunkRun(r))) {
-    if (run.length >= M.PLACEABLE_RUN_MIN_WORDS) naive.step(run, 0);
-  }
-  assert.ok(Math.abs(naive.cursor - 224) > 20, 'expected the unfiltered recitation to drag the cursor away');
+  assert.ok(Math.abs(tracker.cursor - 226) <= 2, `cursor jumped to ${tracker.cursor}`);
 });
 
 test('a word stuck on repeat is stripped', () => {

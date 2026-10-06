@@ -214,6 +214,50 @@ test.describe('Live Follow tracking', () => {
     await expect(page.locator('#liveStatusText')).toHaveText('Explaining');
   });
 
+  // The daf's words with each word's last letter wrong: still matches its true
+  // place, but weakly -- the way garbled speech in a real session scored.
+  const weakText = (start, length) => fixture.canonNorms.slice(start, start + length)
+    .map((w) => [...w].map((c, i, all) => (i === all.length - 1 ? 'צ' : c)).join('')).join(' ');
+
+  test('a weak match far from the highlight is held, not followed, and a phrase back near it carries on', async ({ page }) => {
+    await openFollowing(page);
+    await say(page, phrase(400, 7));
+    await say(page, weakText(440, 2)); // 2 garbled words that match somewhere 34 words ahead
+    expect(await confirmed(page)).toEqual({ s: 400, e: 406 });
+    expect(await page.evaluate(() => live.tracker.cursor)).toBe(400);
+    await expect(page.locator('#liveStatusText')).toHaveText('Listening…');
+    await expect(page.locator('#liveStatusDetail')).toContainText('possible new spot');
+    await say(page, phrase(407, 6));
+    expect(await confirmed(page)).toEqual({ s: 407, e: 412 });
+    await expect(page.locator('#liveStatusText')).toHaveText('Following');
+  });
+
+  test('a silent commit leaves the status and the highlight alone', async ({ page }) => {
+    await openFollowing(page);
+    await say(page, phrase(400, 7));
+    await say(page, '');
+    await expect(page.locator('#liveStatusText')).toHaveText('Following');
+    expect(await confirmed(page)).toEqual({ s: 400, e: 406 });
+    const entry = await page.evaluate(() => live.log.filter((e) => e.kind === 'commit').pop());
+    expect(entry.silent).toBe(true);
+  });
+
+  test('the speech-service settings are opt-in: nothing extra by default, language and filter when asked', async ({ page }) => {
+    await openFollowing(page);
+    const params = (url) => new URL(url).searchParams;
+    const plain = params(await page.evaluate(() => buildWsUrl('tok', ['a'])));
+    expect(plain.has('language_code')).toBe(false);
+    expect(plain.has('filter_background_audio')).toBe(false);
+    expect(plain.get('vad_silence_threshold_secs')).toBe('0.5');
+
+    await page.goto('/live/?lang=he&filter=1');
+    const tuned = params(await page.evaluate(() => buildWsUrl('tok', ['a'])));
+    expect(tuned.get('language_code')).toBe('he');
+    expect(tuned.getAll('secondary_languages')).toEqual(['en']);
+    expect(tuned.get('filter_background_audio')).toBe('true');
+    expect(tuned.get('token')).toBe('tok');
+  });
+
   test('a bare one-word fragment leaves the status and the highlight alone', async ({ page }) => {
     await openFollowing(page);
     await say(page, phrase(400, 7));

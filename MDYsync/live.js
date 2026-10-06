@@ -38,6 +38,21 @@ const FATAL_ERROR_TYPES = new Set(['quota_exceeded', 'unaccepted_terms']);
 
 const LM = window.LiveMatcher;
 
+// Opt-in switches for trying the speech service's own settings on real audio,
+// since most of what still goes wrong in a real session (garbled readings that
+// match nowhere) is the transcription, not the matching. Compare the session
+// logs (the phonetic scores and the number of unplaced commits) with and
+// without. Both are recorded in the log's first entry.
+//   /live/?lang=he     Hebrew as the primary language, English as secondary.
+//                      Default is auto-detect, which keeps English explanation
+//                      in Latin letters (so it can be told from the reading)
+//                      but may hear Hebrew/Aramaic reading less well.
+//   /live/?filter=1    ElevenLabs' background-audio filter.
+const PAGE_OPTIONS = {
+  lang: new URLSearchParams(location.search).get('lang'),
+  filter: new URLSearchParams(location.search).get('filter') === '1',
+};
+
 function $(id) { return document.getElementById(id); }
 
 let toastTimer = null;
@@ -474,6 +489,13 @@ function handleCommitted(text) {
   setDebug('Committed', text);
   appendPreviousText(text);
   if (!live.tracker) return;
+  if (!text.trim()) {
+    // The service committed nothing: silence. Not "Explaining" -- nobody was
+    // heard -- so the status, and the highlight, stay as they were. (A real
+    // session's log showed three of these, each flipping the status.)
+    logEvent('commit', { text: '', silent: true, outcomes: [], state: $('liveStatusText').textContent });
+    return;
+  }
   setProvisional(null);
   live.preview.reset(); // the preview's own position hands back to the confirmed one
   // The service sometimes recites its keyterm list, or sticks on one word, when
@@ -580,6 +602,11 @@ function buildWsUrl(token, keyterms) {
   // the model render the other one in the wrong script, while auto-detection
   // keeps English explanation in Latin letters, which is exactly what lets
   // splitHebrewRuns tell explanation from reading.
+  if (PAGE_OPTIONS.lang === 'he') {
+    params.set('language_code', 'he');
+    params.append('secondary_languages', 'en');
+  }
+  if (PAGE_OPTIONS.filter) params.set('filter_background_audio', 'true');
   // Repeated keys (keyterms=a&keyterms=b): confirmed against the real API --
   // session_started echoes all 50 back in its config.keyterms.
   for (const term of keyterms) params.append('keyterms', term);
@@ -786,7 +813,7 @@ async function startLiveFollow() {
   } else {
     clearAnchorMark();
   }
-  logEvent('start', { daf: live.daf.label, anchored: live.tracker.locked });
+  logEvent('start', { daf: live.daf.label, anchored: live.tracker.locked, lang: PAGE_OPTIONS.lang || 'auto', filter: PAGE_OPTIONS.filter });
   $('liveRefInput').disabled = true;
   $('liveShowDafButton').disabled = true;
   setStatus('', 'Connecting…', 'Requesting microphone access');
