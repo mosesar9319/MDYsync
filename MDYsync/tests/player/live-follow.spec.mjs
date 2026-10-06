@@ -164,8 +164,11 @@ test.describe('Live Follow tracking', () => {
     await openFollowing(page);
     await say(page, phrase(400, 6));
     await say(page, phrase(406, 6));
+    await say(page, 'so what does that mean');
+    await expect(page.locator('#liveStatusText')).toHaveText('Explaining');
     await page.evaluate((t) => handlePartial(t), phrase(412, 4));
     await expect(page.locator('#liveDafText .w.hl-provisional')).toHaveCount(4);
+    await expect(page.locator('#liveStatusText')).toHaveText('Following', { timeout: 1000 });
     expect(await page.evaluate(() => live.provisional)).toEqual({ s: 412, e: 415 });
     expect(await page.evaluate(() => live.tracker.cursor)).toBe(406);
 

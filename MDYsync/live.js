@@ -365,7 +365,12 @@ function runProvisional() {
   const last = runs[runs.length - 1];
   if (!last) return;
   const match = live.tracker.peek(last.slice(-LM.PROVISIONAL_TAIL_WORDS));
-  if (match) setProvisional(match);
+  if (!match) return;
+  setProvisional(match);
+  // Reading has visibly resumed near the confirmed spot -- don't keep saying
+  // "Explaining" until the utterance commits (seen against the real API:
+  // several seconds of "Explaining" under a highlight moving word by word).
+  setFollowState('reading');
 }
 
 function handlePartial(text) {
@@ -397,12 +402,8 @@ function buildWsUrl(token, keyterms) {
   // the model render the other one in the wrong script, while auto-detection
   // keeps English explanation in Latin letters, which is exactly what lets
   // splitHebrewRuns tell explanation from reading.
-  // NOTE: array query params are sent here as repeated keys
-  // (keyterms=a&keyterms=b), the most common convention -- unconfirmed
-  // against ElevenLabs' actual parser since this hasn't been exercised
-  // against a real API key yet (batch has the same open question for its
-  // multipart encoding). If keyterms turn out silently ignored, this is the
-  // first thing to check.
+  // Repeated keys (keyterms=a&keyterms=b): confirmed against the real API --
+  // session_started echoes all 50 back in its config.keyterms.
   for (const term of keyterms) params.append('keyterms', term);
   params.set('token', token);
   return `${ELEVENLABS_WS_BASE}?${params.toString()}`;
