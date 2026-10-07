@@ -135,6 +135,20 @@
     #liveShowDafButton:hover:not(:disabled) { border-color: var(--accent-light); color: var(--accent); }
     #liveShowDafButton:disabled { opacity: .5; cursor: not-allowed; }
     input[type="text"]:disabled { opacity: .6; }
+    #liveVideoLoadButton {
+      flex: none; font: inherit; font-weight: 600; padding: 0 14px; border-radius: 10px; cursor: pointer;
+      border: 1px solid var(--line); background: var(--paper); color: var(--navy-soft);
+    }
+    #liveVideoLoadButton:hover:not(:disabled) { border-color: var(--accent-light); color: var(--accent); }
+    #liveVideoLoadButton:disabled { opacity: .5; cursor: not-allowed; }
+    #liveVideoMessage { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+    #liveVideoMessage.error { color: var(--bad); }
+    #liveVideoWrap { margin-top: 12px; border-radius: 12px; overflow: hidden; background: #000; }
+    #liveVideoWrap[hidden] { display: none; }
+    #liveVideoWrap.youtube { aspect-ratio: 16 / 9; }
+    #liveVideoWrap.youtube iframe { width: 100%; height: 100%; display: block; }
+    #liveVideoWrap video { width: 100%; display: block; max-height: 50vh; }
+    .audio-source-options label.disabled small { opacity: .85; }
     .daf-text-card { padding: 0; overflow: hidden; }
     .daf-hint { padding: 8px 20px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12.5px; }
     .daf-text-card .daf-text-heading { padding: 12px 20px; border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 700; color: var(--navy-soft); }
@@ -175,9 +189,20 @@
         </div>
       </div>
       <div class="field-gap">
-        <label>Audio source</label>
-        <div class="audio-source-options">
-          <label><input type="radio" name="liveAudioSource" value="microphone" checked /> This device's microphone</label>
+        <label for="liveVideoInput">Video link <small style="font-weight:400;color:var(--muted)">(optional — a YouTube link, or a direct link to an .mp3 / .mp4 file)</small></label>
+        <div class="ref-row">
+          <input type="text" id="liveVideoInput" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off" inputmode="url" enterkeyhint="go" />
+          <button type="button" id="liveVideoLoadButton">Load video</button>
+        </div>
+        <div id="liveVideoMessage"></div>
+        <div id="liveVideoWrap" hidden></div>
+      </div>
+      <div class="field-gap">
+        <label>How to follow</label>
+        <div class="audio-source-options" id="liveSourceOptions">
+          <label><input type="radio" name="liveAudioSource" value="microphone" checked /> This device's microphone <small>— hears the shiur or video through the speakers; works on any phone or laptop</small></label>
+          <label id="liveSourceTabLabel"><input type="radio" name="liveAudioSource" value="tab" /> Tab audio <small id="liveSourceTabNote">— takes the sound straight from this browser tab, no echo (desktop Chrome / Edge)</small></label>
+          <label id="liveSourceTranscriptLabel" class="disabled"><input type="radio" name="liveAudioSource" value="transcript" disabled /> Video transcript <small id="liveSourceTranscriptNote">— transcribes the linked video once (a minute or two), then follows its playhead; seeking works. Load a video link first</small></label>
           <label class="disabled"><input type="radio" name="liveAudioSource" value="shared" disabled /> Shared live shiur <small>(coming later)</small></label>
         </div>
       </div>
@@ -230,6 +255,7 @@
   <div class="toast" id="toast" role="status" aria-live="polite" style="position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);opacity:0;pointer-events:none;background:#17304b;border:1px solid #2a4a70;color:#fff;padding:11px 15px;border-radius:12px;box-shadow:0 12px 35px rgba(0,0,0,.35);transition:.25s;z-index:20;"></div>
 
   <script src="../live-matcher.js" defer></script>
+  <script src="../live-video.js" defer></script>
   <script src="../live.js" defer></script>
 </body>
 </html>

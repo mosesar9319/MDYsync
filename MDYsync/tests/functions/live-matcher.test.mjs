@@ -493,3 +493,23 @@ test('any stretch of the list long enough is a recitation, wherever it starts', 
 function phraseText(start, length) {
   return canon.words.slice(start, start + length).map((w) => w.norm).join(' ');
 }
+
+// --- the dense batch keyterm list ------------------------------------------------
+
+test('against the dense batch list, genuine reading is kept and a recitation of the list is still stripped', () => {
+  const batchList = M.keytermTokens(M.buildKeytermList(canon, 400));
+  // Real batch transcripts (phone microphone, Chullin 91a) that the 5-word rule
+  // wrongly cut away -- the daf's words are in the list, in daf order.
+  for (const real of [
+    'דתניא שמנו מותר וישראל קדושים נהגו בו אסור',
+    'תא שמע, אכל מזה כזית ומזה כזית, סופג שמונים',
+    'יאמר בשלמא מיפשט פשיטא ליה שפיר',
+  ]) {
+    assert.ok(M.cleanTranscript(real, batchList).includes('·'), `the sparse-list rule does cut it: ${real}`);
+    assert.equal(M.cleanTranscript(real, batchList, M.LEAK_MIN_RUN_BATCH), real, real);
+  }
+  // A recitation of the list is dozens of words long.
+  const recited = batchList.slice(20, 50).join(' ');
+  const cleaned = M.cleanTranscript(recited, batchList, M.LEAK_MIN_RUN_BATCH);
+  assert.equal(cleaned.split(' ').filter((t) => t !== '·').length, 0);
+});

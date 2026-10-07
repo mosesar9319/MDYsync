@@ -37,6 +37,7 @@ const MANUAL_SCROLL_GRACE_MS = 5000;
 const FATAL_ERROR_TYPES = new Set(['quota_exceeded', 'unaccepted_terms']);
 
 const LM = window.LiveMatcher;
+const LV = window.LiveVideo;
 
 // Opt-in switches for trying the speech service's own settings on real audio,
 // since most of what still goes wrong in a real session (garbled readings that
@@ -223,6 +224,12 @@ const live = {
   levelStats: null,
   levelTimer: null,
   followState: null, // what setFollowState last showed
+  // The video the page has loaded (see loadVideo): { kind, url, getTime(),
+  // seekTo(t), destroy() } -- and, in "Video transcript" mode, the session
+  // following its playhead: { job, video, segments, timeline, timer, lastKey }.
+  video: null,
+  videoFollow: null,
+  videoPollMs: 3000,
   log: [],
   logStart: 0,
 };
@@ -476,7 +483,9 @@ function setAnchor(index) {
   hint.classList.add('empty');
   $('liveConfidenceText').textContent = 'Position set by you';
   $('liveDafText').classList.remove('dimmed');
-  if (live.tracker) {
+  if (live.videoFollow?.timeline) {
+    realignVideoFrom(index);
+  } else if (live.tracker) {
     // Mid-session: take it as the position now. The next phrase heard is
     // matched around it.
     live.tracker.anchor(index);
@@ -488,9 +497,11 @@ function setAnchor(index) {
     updateSearchWindowDebug();
   } else {
     live.anchorIndex = index;
-    setStatus('', 'Ready', `${anchorDetail(span).replace(' — tap another word to correct', '')} — tap Start to listen.`);
+    // (While a video transcript is still being made the status is about
+    // that; the word is simply used when it arrives.)
+    if (!live.videoFollow) setStatus('', 'Ready', `${anchorDetail(span).replace(' — tap another word to correct', '')} — tap Start to listen.`);
   }
-  logEvent('anchor', { index, word: live.daf.canon.words[index].text, midSession: Boolean(live.tracker) });
+  logEvent('anchor', { index, word: live.daf.canon.words[index].text, midSession: Boolean(live.tracker || live.videoFollow) });
 }
 
 function updateSearchWindowDebug() {
@@ -542,8 +553,8 @@ function setFollowState(state, options = {}) {
 // then, failing that (the reading jumped back, or on past the local window),
 // across the whole daf -- which is also all there is when it isn't locked yet.
 // `far` marks a whole-daf match found with a lock in place.
-function scoreText(text, cursor, locked, listTokens) {
-  const heard = LM.cleanTranscript(text, listTokens);
+function scoreText(text, cursor, locked, listTokens, leakMinRun) {
+  const heard = LM.cleanTranscript(text, listTokens, leakMinRun);
   return LM.splitHebrewRuns(heard)
     .flatMap((run) => LM.chunkRun(run))
     .filter((run) => run.length >= LM.PLACEABLE_RUN_MIN_WORDS)
@@ -609,11 +620,11 @@ async function runBatchSegment({ seq, audio, rtText, cursorBefore, lockedBefore,
   const entry = {
     seq, ms, seconds: +(audio.length / TARGET_SAMPLE_RATE).toFixed(1), text: result.text, lang: result.languageCode,
     realtime: scoreText(rtText, cursorBefore, lockedBefore, activeKeytermTokens()),
-    batch: scoreText(result.text, cursorBefore, lockedBefore, batchTokens),
+    batch: scoreText(result.text, cursorBefore, lockedBefore, batchTokens, LM.LEAK_MIN_RUN_BATCH),
   };
   let rescued = null;
   if (!rtPlaced && live.tracker && !live.manualStop && live.placementSeq === placementSeq && result.text) {
-    const runs = LM.splitHebrewRuns(LM.cleanTranscript(result.text, batchTokens))
+    const runs = LM.splitHebrewRuns(LM.cleanTranscript(result.text, batchTokens, LM.LEAK_MIN_RUN_BATCH))
       .flatMap((run) => LM.chunkRun(run))
       .filter((run) => run.length >= LM.PLACEABLE_RUN_MIN_WORDS);
     let placed = null;
@@ -939,13 +950,48 @@ function handleRawMicFrames(float32AtNativeRate) {
   live.resampleTail = combined.slice(offset);
 }
 
-async function startMic() {
+// The sound to follow: this device's microphone, or -- "Tab audio" -- the
+// sound of a browser tab, taken straight from the browser with none of the
+// room echo a microphone hearing the speakers adds.
+async function openInputStream(source) {
+  if (source === 'tab') {
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      throw new Error('This browser can\u2019t share a tab\u2019s sound (phones can\u2019t) \u2014 use the microphone, or a video transcript, instead.');
+    }
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      // Chrome only offers a tab's sound together with its picture. The
+      // picture is wanted for nothing: one frame a second, and switched off.
+      video: { frameRate: 1 },
+      // Processing built for voice calls would mangle a recording; off.
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      preferCurrentTab: true,
+      selfBrowserSurface: 'include',
+      systemAudio: 'exclude',
+    });
+    stream.getVideoTracks().forEach((track) => { track.enabled = false; });
+    if (!stream.getAudioTracks().length) {
+      stream.getTracks().forEach((track) => track.stop());
+      const error = new Error('No sound was shared. Choose the tab with the video and tick \u201cShare tab audio\u201d.');
+      error.name = 'NoAudioShared';
+      throw error;
+    }
+    stream.getAudioTracks()[0].addEventListener('ended', () => {
+      if (live.manualStop || live.micStream !== stream) return;
+      showToast('Tab sharing stopped.', 'error');
+      stopLiveFollow();
+    });
+    return stream;
+  }
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new Error('This browser does not support microphone access (or the page was not loaded over HTTPS).');
   }
   const constraints = { channelCount: 1 };
   if (PAGE_OPTIONS.raw) Object.assign(constraints, { echoCancellation: false, noiseSuppression: false, autoGainControl: false });
-  live.micStream = await navigator.mediaDevices.getUserMedia({ audio: constraints });
+  return navigator.mediaDevices.getUserMedia({ audio: constraints });
+}
+
+async function startMic(inputKind = 'microphone') {
+  live.micStream = await openInputStream(inputKind);
   // Not relying on { sampleRate: 16000 } in the AudioContext constructor
   // actually producing 16kHz -- some browsers (notably older Safari) are
   // known to ignore that option and keep the hardware rate. Reading back
@@ -971,6 +1017,7 @@ async function startMic() {
   // not run at 16kHz -- the log should say which of those apply.
   const settings = live.micStream.getAudioTracks?.()[0]?.getSettings?.() || {};
   logEvent('audio', {
+    source: inputKind,
     contextRate: live.audioContext.sampleRate,
     contextState: live.audioContext.state,
     trackRate: settings.sampleRate ?? null,
@@ -1007,6 +1054,335 @@ function stopMic() {
   setMicLevel(0);
 }
 
+// ---- Video link --------------------------------------------------------------
+// A pasted link becomes a player on the page, and a way to follow it:
+//   microphone -- the player is just there to press play on; the microphone
+//                 hears it through the speakers (or hears a shiur in the room).
+//   tab audio  -- the browser hands over this tab's sound directly (see
+//                 openInputStream); the same realtime pipeline as the mic.
+//   transcript -- ElevenLabs transcribes the linked video once, server-side
+//                 (live-video-job-background.mjs); the transcript, with its
+//                 word times, is aligned to the daf ahead of time, and the
+//                 highlight simply follows the player's clock. No lag, and
+//                 seeking works -- at the cost of the wait for the transcript
+//                 and of not being "live".
+const PLAYHEAD_POLL_MS = 250;
+// The highlight moves a little before the phrase's first word, not after it.
+const PLAYHEAD_LEAD_SECONDS = 0.25;
+const VIDEO_JOB_TIMEOUT_MS = 16 * 60 * 1000;
+const VIDEO_START_RETRY_MS = 25000;
+const VIDEO_JOB_PATH = '/.netlify/functions/live-video-job-background';
+
+const selectedSource = () => document.querySelector('input[name="liveAudioSource"]:checked')?.value || 'microphone';
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const formatClock = (seconds) => {
+  const t = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const sec = String(t % 60).padStart(2, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
+};
+
+function setVideoMessage(text, isError = false) {
+  const el = $('liveVideoMessage');
+  if (!el) return;
+  el.textContent = text || '';
+  el.classList.toggle('error', Boolean(isError));
+}
+
+function setTranscriptAvailable(available) {
+  const radio = document.querySelector('input[name="liveAudioSource"][value="transcript"]');
+  if (!radio) return;
+  radio.disabled = !available;
+  $('liveSourceTranscriptLabel')?.classList.toggle('disabled', !available);
+  if (!available && radio.checked) document.querySelector('input[name="liveAudioSource"][value="microphone"]').checked = true;
+}
+
+function clearVideo() {
+  if (live.videoFollow) stopLiveFollow();
+  live.video?.destroy();
+  live.video = null;
+  const wrap = $('liveVideoWrap');
+  if (wrap) { wrap.textContent = ''; wrap.hidden = true; wrap.className = ''; }
+  setTranscriptAvailable(false);
+}
+
+let youTubeApi = null;
+function loadYouTubeApi() {
+  if (window.YT?.Player) return Promise.resolve();
+  if (!youTubeApi) {
+    youTubeApi = new Promise((resolve, reject) => {
+      const previous = window.onYouTubeIframeAPIReady;
+      const timer = setTimeout(() => { youTubeApi = null; reject(new Error('The YouTube player did not load.')); }, 12000);
+      window.onYouTubeIframeAPIReady = () => { clearTimeout(timer); previous?.(); resolve(); };
+      const script = document.createElement('script');
+      script.src = 'https://www.youtube.com/iframe_api';
+      script.onerror = () => { clearTimeout(timer); youTubeApi = null; reject(new Error('The YouTube player could not be loaded.')); };
+      document.head.append(script);
+    });
+  }
+  return youTubeApi;
+}
+
+async function createYouTubePlayer(parsed, wrap) {
+  await loadYouTubeApi();
+  const mount = document.createElement('div');
+  wrap.append(mount);
+  return new Promise((resolve, reject) => {
+    let ready = false;
+    const player = new window.YT.Player(mount, {
+      videoId: parsed.id,
+      width: '100%',
+      height: '100%',
+      playerVars: { playsinline: 1, rel: 0, start: parsed.startSeconds || 0 },
+      events: {
+        onReady: () => {
+          ready = true;
+          resolve({
+            kind: 'youtube',
+            url: parsed.url,
+            getTime: () => Number(player.getCurrentTime?.()) || 0,
+            seekTo: (t) => player.seekTo?.(t, true),
+            destroy: () => { try { player.destroy?.(); } catch { /* already gone */ } },
+          });
+        },
+        onError: (event) => {
+          // 101 / 150: the owner has switched embedding off.
+          const embedBlocked = event?.data === 101 || event?.data === 150;
+          const message = embedBlocked
+            ? 'The owner of this video doesn’t allow it to be played here. Try another link.'
+            : 'YouTube could not play this video.';
+          if (ready) { setVideoMessage(message, true); showToast(message, 'error'); } else reject(new Error(message));
+        },
+      },
+    });
+  });
+}
+
+function createMediaPlayer(parsed, wrap) {
+  const element = document.createElement('video');
+  element.controls = true;
+  element.playsInline = true;
+  element.preload = 'metadata';
+  element.src = parsed.url;
+  element.addEventListener('error', () => {
+    const message = 'This browser could not play that file (check the link).';
+    setVideoMessage(message, true);
+  });
+  wrap.append(element);
+  return {
+    kind: 'media',
+    url: parsed.url,
+    getTime: () => element.currentTime || 0,
+    seekTo: (t) => { element.currentTime = t; },
+    destroy: () => { element.pause(); element.removeAttribute('src'); element.load(); },
+  };
+}
+
+async function loadVideo() {
+  const parsed = LV.parseVideoLink($('liveVideoInput').value);
+  if (!parsed) {
+    setVideoMessage('That isn’t a link I can use. Paste a YouTube link, or a direct https link to an audio or video file (.mp3, .m4a, .mp4, .webm …).', true);
+    return false;
+  }
+  clearVideo();
+  const button = $('liveVideoLoadButton');
+  button.disabled = true;
+  setVideoMessage('Loading the video…');
+  const wrap = $('liveVideoWrap');
+  wrap.hidden = false;
+  wrap.className = parsed.kind === 'youtube' ? 'youtube' : '';
+  try {
+    live.video = parsed.kind === 'youtube' ? await createYouTubePlayer(parsed, wrap) : createMediaPlayer(parsed, wrap);
+  } catch (error) {
+    console.error('Could not load the video for Live Follow:', error);
+    wrap.textContent = '';
+    wrap.hidden = true;
+    setVideoMessage(error.message, true);
+    return false;
+  } finally {
+    button.disabled = false;
+  }
+  setVideoMessage('Video loaded. Choose how to follow it, then tap Start.');
+  setTranscriptAvailable(true);
+  // A pasted link is most naturally followed from its own transcript.
+  document.querySelector('input[name="liveAudioSource"][value="transcript"]').checked = true;
+  return true;
+}
+
+async function fetchVideoTranscript(video, job) {
+  const params = new URLSearchParams({ url: video.url, daf: live.daf.label });
+  if (PAGE_OPTIONS.keyterms) params.set('kt', '1');
+  if (PAGE_OPTIONS.lang === 'he') params.set('lang', 'he');
+  const readStatus = async () => {
+    const response = await fetch(`/api/live-video-status?${params}`);
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+    return body;
+  };
+  const startJob = () => fetch(VIDEO_JOB_PATH, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url: video.url,
+      daf: live.daf.label,
+      keyterms: PAGE_OPTIONS.keyterms ? live.daf.batchKeyterms : [],
+      language: PAGE_OPTIONS.lang === 'he' ? 'he' : undefined,
+    }),
+  });
+  const began = performance.now();
+  let startedAt = null;
+  let starts = 0;
+  let status = await readStatus();
+  for (;;) {
+    if (job.cancelled) throw Object.assign(new Error('cancelled'), { cancelled: true });
+    if (status.status === 'done') return status;
+    const sinceStart = startedAt === null ? Infinity : performance.now() - startedAt;
+    if (status.status === 'error' && sinceStart > 10000) {
+      // A failure from before, or this attempt's own. Once only: the first
+      // is retried (it may have been a hiccup), the second is reported.
+      if (starts >= 1 && startedAt !== null) {
+        throw new Error([status.error, status.detail].filter(Boolean).join(' '));
+      }
+    }
+    if (status.status === 'absent' || (status.status === 'error' && starts === 0)) {
+      if (sinceStart > VIDEO_START_RETRY_MS || startedAt === null) {
+        if (starts >= 3) throw new Error('The transcript job would not start. Try again in a minute.');
+        await startJob();
+        starts += 1;
+        startedAt = performance.now();
+      }
+    }
+    const waited = Math.round((performance.now() - began) / 1000);
+    if (performance.now() - began > VIDEO_JOB_TIMEOUT_MS) throw new Error('The transcript took too long. Try again, or use tab audio or the microphone.');
+    setStatus('searching', 'Transcribing…', `Transcribing the video (${formatClock(waited)}) — usually a minute or two; a long shiur takes longer.`);
+    await sleep(live.videoPollMs);
+    if (job.cancelled) throw Object.assign(new Error('cancelled'), { cancelled: true });
+    status = await readStatus();
+  }
+}
+
+async function startTranscriptFollow({ button, startIndex }) {
+  const video = live.video;
+  const job = { cancelled: false };
+  live.videoFollow = { job, video, segments: [], timeline: null, timer: null, lastKey: null };
+  const follow = live.videoFollow;
+  button.disabled = false;
+  button.textContent = 'Stop Live Follow';
+  button.classList.add('stop');
+  setStatus('searching', 'Transcribing…', 'Sending the video to be transcribed — usually a minute or two.');
+  setDebug('Connection', 'video transcript');
+  const began = performance.now();
+  let transcript;
+  try {
+    transcript = await fetchVideoTranscript(video, job);
+  } catch (error) {
+    if (error.cancelled || live.videoFollow !== follow) return;
+    console.error('Could not get a transcript of the video:', error);
+    stopLiveFollow();
+    const message = `${error.message} — try Tab audio or the microphone instead.`;
+    setStatus('error', 'Error', message);
+    showToast(error.message, 'error');
+    return;
+  }
+  if (live.videoFollow !== follow) return;
+  const words = transcript.words.map(([text, start, end]) => ({ text, start, end }));
+  follow.segments = LV.wordsToSegments(words);
+  const listTokens = PAGE_OPTIONS.keyterms ? live.daf.batchKeytermTokens : [];
+  follow.listTokens = listTokens;
+  // A word tapped while the transcript was being made counts like one tapped before Start.
+  const first = live.anchorIndex !== null ? live.anchorIndex : startIndex;
+  live.anchorIndex = null;
+  follow.timeline = LV.alignSegments(LM, live.daf.canon, follow.segments, { startIndex: first, listTokens, leakMinRun: LM.LEAK_MIN_RUN_BATCH }).timeline;
+  const placed = follow.timeline.filter((e) => e.state === 'read').length;
+  logEvent('transcript', {
+    ms: Math.round(performance.now() - began),
+    words: words.length,
+    seconds: transcript.seconds,
+    language: transcript.languageCode,
+    segments: follow.segments.length,
+    placed,
+    explain: follow.timeline.filter((e) => e.state === 'explain').length,
+    unplaced: follow.timeline.filter((e) => e.state === 'unplaced').length,
+    // [start, state, firstWord, lastWord, phonetic] -- enough to see where the
+    // alignment went wrong without the whole transcript.
+    timeline: follow.timeline.map((e) => [Math.round(e.start), e.state[0], e.s ?? null, e.e ?? null, e.phon ?? null]),
+  });
+  setDebug('Connection', `video transcript · ${words.length} words, ${placed}/${follow.segments.length} phrases placed`);
+  if (!words.length) {
+    stopLiveFollow();
+    setStatus('error', 'Error', 'No speech was found in that video.');
+    showToast('No speech was found in that video.', 'error');
+    return;
+  }
+  follow.timer = setInterval(applyPlayhead, PLAYHEAD_POLL_MS);
+  applyPlayhead();
+}
+
+function stopTranscriptFollow() {
+  const follow = live.videoFollow;
+  if (!follow) return;
+  follow.job.cancelled = true;
+  clearInterval(follow.timer);
+  live.videoFollow = null;
+}
+
+// The video's clock -> the daf. Cheap enough to run four times a second; the
+// DOM is only touched when the answer changes.
+function applyPlayhead() {
+  const follow = live.videoFollow;
+  if (!follow?.timeline) return;
+  const t = follow.video.getTime();
+  const pos = LV.positionAt(follow.timeline, t + PLAYHEAD_LEAD_SECONDS);
+  const key = `${pos.state}|${pos.placement ? pos.placement.index : -1}|${pos.unplacedRun}`;
+  if (key === follow.lastKey) {
+    if (pos.state === 'read') setStatusClock(t);
+    return;
+  }
+  follow.lastKey = key;
+  if (pos.placement) {
+    if (!live.confirmed || live.confirmed.s !== pos.placement.s || live.confirmed.e !== pos.placement.e) {
+      showConfirmed({ s: pos.placement.s, e: pos.placement.e, phonScore: pos.placement.phon ?? 100, charScore: pos.placement.char ?? 100, source: 'video' });
+    }
+  } else if (live.confirmed) {
+    paintRange(live.confirmed, 'hl', false);
+    live.confirmed = null;
+  }
+  live.unplacedHebrew = pos.unplacedRun;
+  if (pos.state === 'read') {
+    setFollowState('reading', { detail: `Following the video · ${formatClock(t)}` });
+  } else if (pos.state === 'explain') {
+    setFollowState('explaining');
+  } else if (pos.state === 'unplaced') {
+    setFollowState('listening');
+  } else {
+    setStatus('searching', 'Waiting…', pos.placement
+      ? 'Waiting for the reading to resume.'
+      : 'Nothing has been read yet at this point in the video — press play, or move on in it.');
+  }
+}
+
+function setStatusClock(t) {
+  const detail = $('liveStatusDetail');
+  if (detail) detail.textContent = `Following the video · ${formatClock(t)}`;
+}
+
+// A tap while following a video: the reading is at that word *now*. The
+// phrases from the playhead on are placed again from there; the ones already
+// behind it keep their places.
+function realignVideoFrom(index) {
+  const follow = live.videoFollow;
+  const t = follow.video.getTime();
+  const at = Math.max(0, LV.indexAt(follow.timeline, t));
+  const tail = LV.alignSegments(LM, live.daf.canon, follow.segments.slice(at), { startIndex: index, listTokens: follow.listTokens, leakMinRun: LM.LEAK_MIN_RUN_BATCH }).timeline;
+  const tapped = { start: t, end: t, text: '(set by you)', state: 'read', s: index, e: index, phon: 100, char: 100 };
+  const insertAt = tail.findIndex((e) => e.start > t);
+  const merged = insertAt < 0 ? [...tail, tapped] : [...tail.slice(0, insertAt), tapped, ...tail.slice(insertAt)];
+  follow.timeline = [...follow.timeline.slice(0, at), ...merged];
+  follow.lastKey = null;
+  applyPlayhead();
+}
+
 async function startLiveFollow() {
   const parsed = parseDafInput($('liveRefInput').value);
   if (!parsed) {
@@ -1028,6 +1404,13 @@ async function startLiveFollow() {
     button.disabled = false;
     return;
   }
+  const source = selectedSource();
+  if (source === 'transcript' && !live.video) {
+    showToast('Paste a video link and tap Load video first.', 'error');
+    setStatus('', 'Ready', 'Paste a video link and tap Load video, or choose another way to follow.');
+    button.disabled = false;
+    return;
+  }
   live.manualStop = false;
   live.reconnectAttempt = 0;
   live.previousText = '';
@@ -1046,6 +1429,7 @@ async function startLiveFollow() {
   paintRange(live.confirmed, 'hl', false);
   setProvisional(null);
   live.confirmed = null;
+  const tappedStart = live.anchorIndex;
   if (live.anchorIndex !== null) {
     // A word was tapped before Start: the session begins locked there. It is
     // used once -- the next Start without a fresh tap goes back to searching.
@@ -1055,17 +1439,27 @@ async function startLiveFollow() {
   } else {
     clearAnchorMark();
   }
-  logEvent('start', { daf: live.daf.label, anchored: live.tracker.locked, options: PAGE_OPTIONS });
+  logEvent('start', { daf: live.daf.label, anchored: live.tracker.locked, source, ...(live.video ? { video: live.video.url } : {}), options: PAGE_OPTIONS });
   $('liveRefInput').disabled = true;
   $('liveShowDafButton').disabled = true;
-  setStatus('', 'Connecting…', 'Requesting microphone access');
+  if (source === 'transcript') {
+    // No microphone and no socket: the video's own transcript, aligned ahead
+    // of time. The tracker made above is not used; the alignment makes its own.
+    live.tracker = null;
+    live.preview = null;
+    await startTranscriptFollow({ button, startIndex: tappedStart });
+    return;
+  }
+  const sourceName = source === 'tab' ? 'tab audio' : 'microphone';
+  setStatus('', 'Connecting…', source === 'tab' ? 'Choose the tab to share, and tick “Share tab audio”' : 'Requesting microphone access');
   try {
-    await startMic();
+    await startMic(source);
   } catch (error) {
-    console.error('Could not open the microphone for Live Follow:', error);
-    const deniedLikely = error?.name === 'NotAllowedError' || error?.name === 'SecurityError';
-    setStatus('error', 'Error', deniedLikely ? 'Microphone access was denied.' : error.message);
-    showToast(deniedLikely ? 'Microphone access was denied.' : error.message, 'error');
+    console.error(`Could not open the ${sourceName} for Live Follow:`, error);
+    const denied = error?.name === 'NotAllowedError' || error?.name === 'SecurityError';
+    const message = denied ? (source === 'tab' ? 'Tab sharing was cancelled or denied.' : 'Microphone access was denied.') : error.message;
+    setStatus('error', 'Error', message);
+    showToast(message, 'error');
     stopMic();
     live.tracker = null;
     live.preview = null;
@@ -1086,6 +1480,7 @@ async function startLiveFollow() {
 // it had got to is exactly what a reader wants to still see.
 function stopLiveFollow() {
   live.manualStop = true;
+  stopTranscriptFollow();
   clearReconnectTimer();
   clearTimeout(live.partialTimer);
   live.partialTimer = null;
@@ -1107,7 +1502,7 @@ function stopLiveFollow() {
 }
 
 $('liveStartButton')?.addEventListener('click', () => {
-  if (live.ws || live.micStream || live.reconnectTimer) stopLiveFollow();
+  if (live.ws || live.micStream || live.reconnectTimer || live.videoFollow) stopLiveFollow();
   else startLiveFollow();
 });
 
@@ -1115,6 +1510,27 @@ $('liveRefInput')?.addEventListener('keydown', (event) => {
   if (event.key === 'Enter' && !live.tracker) showDaf();
 });
 $('liveShowDafButton')?.addEventListener('click', showDaf);
+$('liveVideoLoadButton')?.addEventListener('click', loadVideo);
+$('liveVideoInput')?.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') loadVideo();
+});
+// Switching how to follow mid-session restarts in the new mode (the change is
+// itself the tap that browsers want before opening a microphone or a share).
+document.querySelectorAll('input[name="liveAudioSource"]').forEach((radio) => {
+  radio.addEventListener('change', () => {
+    if (live.ws || live.micStream || live.reconnectTimer || live.videoFollow) {
+      stopLiveFollow();
+      startLiveFollow();
+    }
+  });
+});
+// A browser with no getDisplayMedia (every phone) can't offer tab audio.
+if (!navigator.mediaDevices?.getDisplayMedia) {
+  const tabRadio = document.querySelector('input[name="liveAudioSource"][value="tab"]');
+  if (tabRadio) tabRadio.disabled = true;
+  $('liveSourceTabLabel')?.classList.add('disabled');
+  if ($('liveSourceTabNote')) $('liveSourceTabNote').textContent = '— not available in this browser (phones can’t share tab audio)';
+}
 $('liveCopyLogButton')?.addEventListener('click', copySessionLog);
 if (PAGE_OPTIONS.batch && $('liveDebugBatchRow')) $('liveDebugBatchRow').hidden = false;
 

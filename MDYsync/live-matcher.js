@@ -286,6 +286,14 @@
   // real "אמר רבא אמר אביי" is below the bar by design.)
   const LEAK_MIN_RUN = 5;
   const REPEAT_MIN_RUN = 3;
+  // The batch list is DENSE: up to 400 terms, which on one daf is nearly every
+  // distinct word of it, in daf order. Reading the daf then easily gives five
+  // consecutive list entries -- 4 of 100 real batch transcripts had genuine
+  // reading cut away ("דתניא שמנו מותר וישראל קדושים נהגו בו אסור" became
+  // "· · · · · · בו אסור") -- so against that list only a long stretch, which
+  // real reading (full of the short words the list leaves out) does not
+  // produce but a recitation of the list does, counts.
+  const LEAK_MIN_RUN_BATCH = 12;
 
   // The flattened, normalized words of the keyterm list, in the order they
   // were sent to the service.
@@ -295,7 +303,7 @@
 
   // Replaces hallucinated tokens with '·' (no Hebrew letters, so
   // splitHebrewRuns ends the run there instead of joining across the gap).
-  function cleanTranscript(text, listTokens) {
+  function cleanTranscript(text, listTokens, leakMinRun = LEAK_MIN_RUN) {
     const tokens = String(text || '').split(/\s+/).filter(Boolean);
     const norms = tokens.map(normalizeWord);
     const drop = new Array(tokens.length).fill(false);
@@ -308,7 +316,7 @@
         if (listTokens[p] !== norms[i]) continue;
         let n = 0;
         while (i + n < tokens.length && p + n < listTokens.length && norms[i + n] === listTokens[p + n]) n += 1;
-        if (n >= LEAK_MIN_RUN) for (let k = 0; k < n; k += 1) drop[i + k] = true;
+        if (n >= leakMinRun) for (let k = 0; k < n; k += 1) drop[i + k] = true;
       }
     }
     return tokens.map((token, i) => (drop[i] ? '·' : token)).join(' ');
@@ -681,5 +689,7 @@
     buildRealtimeKeyterms,
     keytermTokens,
     cleanTranscript,
+    LEAK_MIN_RUN,
+    LEAK_MIN_RUN_BATCH,
   };
 });

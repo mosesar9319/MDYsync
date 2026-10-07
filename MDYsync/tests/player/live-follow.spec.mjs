@@ -739,3 +739,377 @@ test.describe('Live Follow — audio-path switches and diagnostics', () => {
     expect(url.searchParams.getAll('keyterms').length).toBeGreaterThan(12);
   });
 });
+
+// ---- Video links: embed, tab audio, server transcript ---------------------------
+
+test.describe('Live Follow — video link', () => {
+  const MEDIA = 'https://cdn.example.org/shiur/chullin-91.wav';
+  const YT_LINK = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=90';
+
+  // A 30 second, 8kHz, 8-bit mono silent WAV: small, and a real <video> source.
+  function wav() {
+    const rate = 8000; const seconds = 30; const n = rate * seconds;
+    const buf = Buffer.alloc(44 + n, 128);
+    buf.write('RIFF', 0); buf.writeUInt32LE(36 + n, 4); buf.write('WAVEfmt ', 8); buf.writeUInt32LE(16, 16);
+    buf.writeUInt16LE(1, 20); buf.writeUInt16LE(1, 22); buf.writeUInt32LE(rate, 24); buf.writeUInt32LE(rate, 28);
+    buf.writeUInt16LE(1, 32); buf.writeUInt16LE(8, 34); buf.write('data', 36); buf.writeUInt32LE(n, 40);
+    return buf;
+  }
+
+  // The transcript a reading of the daf would give: phrases of 7 words every
+  // 3 seconds, an English aside, then the reading again from further on.
+  function transcriptWords() {
+    const words = [];
+    const read = (from, phrases, offset) => {
+      for (let p = 0; p < phrases; p += 1) {
+        fixture.canonNorms.slice(from + p * 7, from + p * 7 + 7).forEach((text, i) => {
+          words.push([text, +(offset + p * 3 + i * 0.3).toFixed(2), +(offset + p * 3 + i * 0.3 + 0.25).toFixed(2)]);
+        });
+      }
+    };
+    read(407, 3, 1); // 1s..9s
+    'so what is the gemara asking here and why does rav ashi need it'.split(' ').forEach((text, i) => words.push([text, +(10 + i * 0.3).toFixed(2), +(10.25 + i * 0.3).toFixed(2)]));
+    read(500, 2, 20); // 20s..26s
+    return words;
+  }
+
+  async function setup(page, { statuses, query = '', transcript = null, noTabShare = false } = {}) {
+    await preparePage(page, { user: null });
+    await serveRealDaf(page);
+    const seen = { status: [], job: [] };
+    const queue = statuses ? [...statuses] : [{ status: 'done', words: transcript || transcriptWords(), languageCode: 'heb', seconds: 26 }];
+    await page.route('**/api/live-video-status?*', (route) => {
+      seen.status.push(new URL(route.request().url()).searchParams);
+      const next = queue.length > 1 ? queue.shift() : queue[0];
+      const code = next.__code || 200;
+      return route.fulfill({ status: code, contentType: 'application/json', body: JSON.stringify(next) });
+    });
+    await page.route('**/.netlify/functions/live-video-job-background', (route) => {
+      seen.job.push(route.request().postDataJSON());
+      return route.fulfill({ status: 202, body: '' });
+    });
+    // With Range support, as a real file server has: without it a <video> cannot seek.
+    const wavBytes = wav();
+    await page.route(MEDIA, (route) => {
+      const range = /bytes=(\d+)-(\d*)/.exec(route.request().headers().range || '');
+      if (!range) return route.fulfill({ status: 200, contentType: 'audio/wav', headers: { 'Accept-Ranges': 'bytes' }, body: wavBytes });
+      const start = Number(range[1]);
+      const end = range[2] ? Math.min(Number(range[2]), wavBytes.length - 1) : wavBytes.length - 1;
+      return route.fulfill({
+        status: 206, contentType: 'audio/wav',
+        headers: { 'Accept-Ranges': 'bytes', 'Content-Range': `bytes ${start}-${end}/${wavBytes.length}` },
+        body: wavBytes.subarray(start, end + 1),
+      });
+    });
+    await page.route('https://www.youtube.com/iframe_api', (route) => route.fulfill({
+      status: 200, contentType: 'application/javascript',
+      body: `window.__yt = { created: [], time: 0 };
+        window.YT = { Player: class { constructor(el, opts) { this.opts = opts; window.__yt.created.push({ videoId: opts.videoId, start: opts.playerVars.start });
+          window.__yt.player = this; setTimeout(() => opts.events.onReady({}), 0); }
+          getCurrentTime() { return window.__yt.time; } seekTo(t) { window.__yt.time = t; } destroy() { window.__yt.destroyed = true; } } };
+        setTimeout(() => window.onYouTubeIframeAPIReady && window.onYouTubeIframeAPIReady(), 0);`,
+    }));
+    await page.addInitScript(() => {
+      window.__constraints = null; window.__display = null;
+      navigator.mediaDevices.getUserMedia = (c) => { window.__constraints = c; return Promise.resolve(new AudioContext().createMediaStreamDestination().stream); };
+      navigator.mediaDevices.getDisplayMedia = (c) => {
+        window.__display = c;
+        if (window.__noAudioShared) return Promise.resolve(new MediaStream());
+        const stream = new AudioContext().createMediaStreamDestination().stream;
+        const canvas = document.createElement('canvas'); canvas.getContext('2d');
+        stream.addTrack(canvas.captureStream(1).getVideoTracks()[0]);
+        window.__displayStream = stream;
+        return Promise.resolve(stream);
+      };
+      window.WebSocket = class { constructor() { this.readyState = 0; } addEventListener() {} send() {} close() {} };
+    });
+    if (noTabShare) await page.addInitScript(() => { navigator.mediaDevices.getDisplayMedia = undefined; });
+    await page.goto(`/live/${query}`);
+    await page.evaluate(() => { live.videoPollMs = 40; });
+    await page.locator('#liveRefInput').fill('Chullin 91a');
+    await page.locator('#liveShowDafButton').click();
+    await expect(page.locator('#liveDafHeading')).toHaveText('Chullin 91a – Chullin 91b');
+    return seen;
+  }
+  const loadLink = async (page, link) => {
+    await page.locator('#liveVideoInput').fill(link);
+    await page.locator('#liveVideoLoadButton').click();
+  };
+  const setTime = (page, t) => page.evaluate((x) => { window.__time = x; live.video.getTime = () => window.__time; }, t);
+  const hl = (page) => page.evaluate(() => live.confirmed);
+  const wordAt = (index) => fixture.canonNorms[index];
+
+  test('before any link: transcript mode is unavailable, and so is nothing else but tab audio where the browser has it', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('input[value="transcript"]')).toBeDisabled();
+    await expect(page.locator('input[value="microphone"]')).toBeChecked();
+    await expect(page.locator('input[value="tab"]')).toBeEnabled();
+    await expect(page.locator('#liveVideoWrap')).toBeHidden();
+  });
+
+  test('a link that is not a video link says so and loads nothing', async ({ page }) => {
+    await setup(page);
+    for (const bad of ['not a link', 'https://vimeo.com/123', 'https://example.org/page.html', 'http://example.org/a.mp3']) {
+      await loadLink(page, bad);
+      await expect(page.locator('#liveVideoMessage')).toContainText('isn’t a link I can use');
+      await expect(page.locator('#liveVideoMessage')).toHaveClass(/error/);
+      await expect(page.locator('#liveVideoWrap')).toBeHidden();
+      await expect(page.locator('input[value="transcript"]')).toBeDisabled();
+    }
+  });
+
+  test('a media link embeds a player, enables the transcript mode and selects it', async ({ page }) => {
+    await setup(page);
+    await loadLink(page, MEDIA);
+    await expect(page.locator('#liveVideoWrap video')).toBeVisible();
+    await expect(page.locator('#liveVideoWrap video')).toHaveAttribute('src', MEDIA);
+    await expect(page.locator('input[value="transcript"]')).toBeEnabled();
+    await expect(page.locator('input[value="transcript"]')).toBeChecked();
+    await expect(page.locator('#liveVideoMessage')).toContainText('Video loaded');
+    // The real <video> clock is what the page reads, and seeking it works.
+    await expect.poll(() => page.evaluate(() => document.querySelector('#liveVideoWrap video').readyState)).toBeGreaterThan(0);
+    expect(await page.evaluate(() => { document.querySelector('#liveVideoWrap video').currentTime = 12; return live.video.getTime(); })).toBeGreaterThan(11.9);
+  });
+
+  test('a YouTube link creates the YouTube player with the video id and start time', async ({ page }) => {
+    await setup(page);
+    await loadLink(page, YT_LINK);
+    await expect(page.locator('#liveVideoMessage')).toContainText('Video loaded');
+    expect(await page.evaluate(() => window.__yt.created)).toEqual([{ videoId: 'dQw4w9WgXcQ', start: 90 }]);
+    await expect(page.locator('#liveVideoWrap')).toHaveClass(/youtube/);
+    await page.evaluate(() => { window.__yt.time = 33; });
+    expect(await page.evaluate(() => live.video.getTime())).toBe(33);
+    // Loading another link replaces it.
+    await loadLink(page, MEDIA);
+    expect(await page.evaluate(() => window.__yt.destroyed)).toBe(true);
+    await expect(page.locator('#liveVideoWrap video')).toBeVisible();
+  });
+
+  test('a YouTube video that cannot be embedded is reported, not half-loaded', async ({ page }) => {
+    await setup(page);
+    await page.route('https://www.youtube.com/iframe_api', (route) => route.fulfill({
+      status: 200, contentType: 'application/javascript',
+      body: `window.YT = { Player: class { constructor(el, opts) { setTimeout(() => opts.events.onError({ data: 101 }), 0); } } };
+        setTimeout(() => window.onYouTubeIframeAPIReady(), 0);`,
+    }));
+    await loadLink(page, YT_LINK);
+    await expect(page.locator('#liveVideoMessage')).toContainText('doesn’t allow it to be played here');
+    await expect(page.locator('input[value="transcript"]')).toBeDisabled();
+  });
+
+  test('transcript mode: waits for the job, then the highlight follows the playhead, holds through English, and seeks both ways', async ({ page }) => {
+    const seen = await setup(page, {
+      statuses: [{ status: 'absent' }, { status: 'pending', elapsedMs: 2000 }, { status: 'pending', elapsedMs: 5000 },
+        { status: 'done', words: transcriptWords(), languageCode: 'heb', seconds: 26 }],
+    });
+    await loadLink(page, MEDIA);
+    await page.locator('#liveStartButton').click();
+    await expect(page.locator('#liveStatusText')).toHaveText('Transcribing…');
+    await expect(page.locator('#liveStartButton')).toHaveText('Stop Live Follow');
+    await expect(page.locator('#liveStatusText')).not.toHaveText('Transcribing…');
+
+    // What was asked of the server: this video, this daf, the bias list.
+    expect(seen.job).toHaveLength(1);
+    expect(seen.job[0].url).toBe(MEDIA);
+    expect(seen.job[0].daf).toBe('Chullin 91a');
+    expect(seen.job[0].keyterms.length).toBeGreaterThan(50);
+    expect(seen.status[0].get('url')).toBe(MEDIA);
+    expect(seen.status[0].get('kt')).toBe('1');
+
+    await setTime(page, 0.5);
+    await expect(page.locator('#liveStatusText')).toHaveText('Waiting…');
+    expect(await hl(page)).toBeNull();
+
+    await setTime(page, 2);
+    await expect.poll(() => hl(page)).toMatchObject({ s: 407 });
+    await expect(page.locator('#liveStatusText')).toHaveText('Following');
+    await expect(page.locator('#liveStatusDetail')).toContainText('Following the video');
+    expect(await page.locator('#liveDafText .w.hl').count()).toBeGreaterThan(0);
+
+    await setTime(page, 8);
+    await expect.poll(() => hl(page).then((h) => h?.s)).toBe(407 + 14);
+
+    await setTime(page, 12);
+    await expect(page.locator('#liveStatusText')).toHaveText('Explaining');
+    expect((await hl(page)).s).toBe(407 + 14); // held on the last phrase read
+    await expect(page.locator('#liveDafText')).toHaveClass(/dimmed/);
+
+    await setTime(page, 22);
+    await expect.poll(() => hl(page).then((h) => h?.s)).toBe(500);
+    await expect(page.locator('#liveStatusText')).toHaveText('Following');
+
+    await setTime(page, 4); // back
+    await expect.poll(() => hl(page).then((h) => h?.s)).toBe(407 + 7);
+    await setTime(page, 1000);
+    await expect.poll(() => hl(page).then((h) => h?.s)).toBe(500 + 7);
+
+    const log = await page.evaluate(() => live.log);
+    const t = log.find((e) => e.kind === 'transcript');
+    expect(t).toMatchObject({ language: 'heb', placed: 5 });
+    expect(log.find((e) => e.kind === 'start')).toMatchObject({ source: 'transcript', video: MEDIA });
+    // No microphone and no socket were ever involved.
+    expect(await page.evaluate(() => [window.__constraints, live.ws, live.micStream])).toEqual([null, null, null]);
+  });
+
+  test('transcript mode on a link whose job is already finished starts straight away without starting a job', async ({ page }) => {
+    const seen = await setup(page);
+    await loadLink(page, MEDIA);
+    await page.locator('#liveStartButton').click();
+    await setTime(page, 2);
+    await expect.poll(() => hl(page).then((h) => h?.s)).toBe(407);
+    expect(seen.job).toHaveLength(0);
+  });
+
+  test('a word tapped before Start is where the transcript is aligned from', async ({ page }) => {
+    await setup(page);
+    await loadLink(page, MEDIA);
+    await page.locator(`#liveDafText .w[data-i="${407}"]`).click();
+    await page.locator('#liveStartButton').click();
+    await setTime(page, 2);
+    await expect.poll(() => hl(page).then((h) => h?.s)).toBe(407);
+    expect(await page.evaluate(() => live.log.find((e) => e.kind === 'anchor'))).toMatchObject({ index: 407, midSession: false });
+  });
+
+  test('tapping a word while following a video re-places the phrases from the playhead on', async ({ page }) => {
+    await setup(page);
+    await loadLink(page, MEDIA);
+    await page.locator('#liveStartButton').click();
+    await setTime(page, 2);
+    await expect.poll(() => hl(page).then((h) => h?.s)).toBe(407);
+    await setTime(page, 14); // in the English aside
+    await expect(page.locator('#liveStatusText')).toHaveText('Explaining');
+    await page.locator('#liveDafText .w[data-i="498"]').click();
+    await expect.poll(() => hl(page).then((h) => h?.s)).toBe(498);
+    await setTime(page, 21);
+    await expect.poll(() => hl(page).then((h) => h?.s)).toBe(500);
+  });
+
+  test('a transcript job that fails is reported with the way out, and Start works again', async ({ page }) => {
+    const failure = { status: 'error', error: 'ElevenLabs returned 422.', detail: 'cannot fetch' };
+    const seen = await setup(page, { statuses: [{ status: 'absent' }, failure] });
+    await loadLink(page, MEDIA);
+    await page.locator('#liveStartButton').click();
+    await expect(page.locator('#liveStatusText')).toHaveText('Error', { timeout: 20000 });
+    await expect(page.locator('#liveStatusDetail')).toContainText('422');
+    await expect(page.locator('#liveStatusDetail')).toContainText('Tab audio or the microphone');
+    await expect(page.locator('#liveStartButton')).toHaveText('Start Live Follow');
+    expect(await page.evaluate(() => live.videoFollow)).toBeNull();
+    expect(seen.job.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('an old failure is retried once, not shown', async ({ page }) => {
+    const seen = await setup(page, {
+      statuses: [{ status: 'error', error: 'old failure' }, { status: 'pending' }, { status: 'done', words: transcriptWords(), languageCode: 'heb', seconds: 26 }],
+    });
+    await loadLink(page, MEDIA);
+    await page.locator('#liveStartButton').click();
+    await setTime(page, 2);
+    await expect.poll(() => hl(page).then((h) => h?.s)).toBe(407);
+    expect(seen.job).toHaveLength(1);
+  });
+
+  test('the server refusing the link (400) is shown', async ({ page }) => {
+    await setup(page, { statuses: [{ __code: 400, error: 'Use a YouTube link, or a direct https link.' }] });
+    await loadLink(page, MEDIA);
+    await page.locator('#liveStartButton').click();
+    await expect(page.locator('#liveStatusText')).toHaveText('Error');
+    await expect(page.locator('#liveStatusDetail')).toContainText('Use a YouTube link');
+  });
+
+  test('stopping while the transcript is being made cancels it cleanly', async ({ page }) => {
+    const seen = await setup(page, { statuses: [{ status: 'absent' }, { status: 'pending' }] });
+    await loadLink(page, MEDIA);
+    await page.locator('#liveStartButton').click();
+    await expect(page.locator('#liveStatusText')).toHaveText('Transcribing…');
+    await page.locator('#liveStartButton').click();
+    await expect(page.locator('#liveStatusText')).toHaveText('Idle');
+    const polls = seen.status.length;
+    await page.waitForTimeout(300);
+    expect(seen.status.length).toBeLessThanOrEqual(polls + 1);
+    await expect(page.locator('#liveStartButton')).toHaveText('Start Live Follow');
+  });
+
+  test('a transcript with no speech in it is reported', async ({ page }) => {
+    await setup(page, { transcript: [] });
+    await loadLink(page, MEDIA);
+    await page.locator('#liveStartButton').click();
+    await expect(page.locator('#liveStatusDetail')).toContainText('No speech was found');
+  });
+
+  test('transcript mode without a video loaded asks for one and starts nothing', async ({ page }) => {
+    await setup(page);
+    await page.evaluate(() => { const r = document.querySelector('input[value="transcript"]'); r.disabled = false; r.checked = true; });
+    await page.locator('#liveStartButton').click();
+    await expect(page.locator('#liveStatusDetail')).toContainText('Paste a video link');
+    expect(await page.evaluate(() => [live.videoFollow, live.micStream])).toEqual([null, null]);
+  });
+
+  test('tab audio mode asks the browser for this tab\'s sound, with the voice processing off, and keeps no picture', async ({ page }) => {
+    await setup(page);
+    await page.locator('input[value="tab"]').check();
+    await page.locator('#liveStartButton').click();
+    await expect.poll(() => page.evaluate(() => window.__display)).not.toBeNull();
+    const display = await page.evaluate(() => window.__display);
+    expect(display).toMatchObject({
+      preferCurrentTab: true,
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+    });
+    expect(await page.evaluate(() => window.__constraints)).toBeNull(); // not the microphone
+    await expect(page.locator('#liveStartButton')).toHaveText('Stop Live Follow');
+    expect(await page.evaluate(() => window.__displayStream.getVideoTracks().every((t) => t.enabled === false))).toBe(true);
+    const log = await page.evaluate(() => live.log);
+    expect(log.find((e) => e.kind === 'start')).toMatchObject({ source: 'tab' });
+    expect(log.find((e) => e.kind === 'audio')).toMatchObject({ source: 'tab', contextRate: 16000 });
+  });
+
+  test('tab audio with no sound shared says what to tick', async ({ page }) => {
+    await setup(page);
+    await page.evaluate(() => { window.__noAudioShared = true; });
+    await page.locator('input[value="tab"]').check();
+    await page.locator('#liveStartButton').click();
+    await expect(page.locator('#liveStatusDetail')).toContainText('Share tab audio');
+    await expect(page.locator('#liveStartButton')).toHaveText('Start Live Follow');
+  });
+
+  test('cancelling the tab-share dialog is reported as that, not as a microphone problem', async ({ page }) => {
+    await setup(page);
+    await page.evaluate(() => { navigator.mediaDevices.getDisplayMedia = () => Promise.reject(Object.assign(new Error('x'), { name: 'NotAllowedError' })); });
+    await page.locator('input[value="tab"]').check();
+    await page.locator('#liveStartButton').click();
+    await expect(page.locator('#liveStatusDetail')).toHaveText('Tab sharing was cancelled or denied.');
+  });
+
+  test('ending the tab share from the browser stops Live Follow', async ({ page }) => {
+    await setup(page);
+    await page.locator('input[value="tab"]').check();
+    await page.locator('#liveStartButton').click();
+    await expect(page.locator('#liveStartButton')).toHaveText('Stop Live Follow');
+    await page.evaluate(() => { const t = live.micStream.getAudioTracks()[0]; t.stop(); t.dispatchEvent(new Event('ended')); });
+    await expect(page.locator('#liveStartButton')).toHaveText('Start Live Follow');
+  });
+
+  test('where the browser cannot share a tab, that option is disabled and says why', async ({ page }) => {
+    await setup(page, { noTabShare: true });
+    await expect(page.locator('input[value="tab"]')).toBeDisabled();
+    await expect(page.locator('#liveSourceTabNote')).toContainText('not available in this browser');
+  });
+
+  test('switching how to follow mid-session restarts in the new mode', async ({ page }) => {
+    await setup(page);
+    await loadLink(page, MEDIA);
+    await page.locator('input[value="microphone"]').check();
+    await page.locator('#liveStartButton').click();
+    await expect(page.locator('#liveStartButton')).toHaveText('Stop Live Follow');
+    expect(await page.evaluate(() => window.__constraints)).not.toBeNull();
+    await page.locator('input[value="tab"]').check();
+    await expect.poll(() => page.evaluate(() => window.__display)).not.toBeNull();
+    await expect(page.locator('#liveStartButton')).toHaveText('Stop Live Follow');
+    await page.locator('input[value="transcript"]').check();
+    await expect.poll(() => page.evaluate(() => live.videoFollow !== null)).toBe(true);
+    expect(await page.evaluate(() => live.micStream)).toBeNull();
+    await page.locator('#liveStartButton').click();
+    await expect(page.locator('#liveStatusText')).toHaveText('Idle');
+    const sources = await page.evaluate(() => live.log.filter((e) => e.kind === 'start').map((e) => e.source));
+    expect(sources).toEqual(['transcript']); // the log restarts with each session
+  });
+});
