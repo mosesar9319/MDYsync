@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { preparePage, failOnPageError } from '../support/harness.mjs';
+import { preparePage, failOnPageError, stubPrintedPage } from '../support/harness.mjs';
 
 // Reported directly: the "now playing" highlight sometimes jumping fully or
 // partially into Rashi or Tosafot -- a technically correct word match
@@ -105,6 +105,7 @@ test.describe('The Vilna page load -- wired end to end', () => {
     // renders the page image (syncDafPickerFromRef) rather than also
     // auto-triggering a full video+alignment load, which needs a published
     // sync job this fixture doesn't have and isn't what this test is about.
+    await stubPrintedPage(page);
     await page.goto('/browse/?ref=Chullin%2089a');
     await page.waitForTimeout(500);
 

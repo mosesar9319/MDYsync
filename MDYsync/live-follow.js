@@ -1658,12 +1658,16 @@ $('lfStartButton')?.addEventListener('click', () => {
   if (sessionRunning()) stopLiveFollow();
   else startLiveFollow();
 });
-// The page's own daf picker lives in the player's top bar menu.
-$('lfChooseDafButton')?.addEventListener('click', (event) => {
-  // Not allowed to reach the document: its click handler closes the player's menus.
-  event.stopPropagation();
-  const menu = $('playerDafMenu');
-  if (menu?.hidden) $('playerDafButton')?.click();
+// The page's own daf picker sits at the top of the page: take the reader to it.
+$('lfChooseDafButton')?.addEventListener('click', () => {
+  const field = document.querySelector('.setup-field.ref-field');
+  const select = $('dafDafSelect');
+  if (!field) return;
+  field.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  field.classList.remove('lf-picker-flash');
+  void field.offsetWidth; // restart the animation if it is already showing
+  field.classList.add('lf-picker-flash');
+  select?.focus({ preventScroll: true });
 });
 $('lfVideoLoadButton')?.addEventListener('click', loadLiveVideo);
 $('lfVideoInput')?.addEventListener('keydown', (event) => { if (event.key === 'Enter') loadLiveVideo(); });

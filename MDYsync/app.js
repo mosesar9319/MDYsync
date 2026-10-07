@@ -8724,8 +8724,18 @@ function currentSyncAmud() {
 function refreshDafPickerOptions() {
   const entry = syncState.talmudByName[$('dafTractateSelect').value];
   if (!entry) return;
-  const options = browsableDafOptions(entry);
-  $('dafDafSelect').innerHTML = options.map((d) => `<option value="${d}">${d}</option>`).join('');
+  // Every daf of the tractate, not only the ones with a synced recording: the
+  // page itself (the printed daf, and Live Follow) works for any daf, and a
+  // list that stops at the last synced daf looked like a list that stops.
+  // A daf with nothing synced says so, and stays page-only when picked.
+  const options = dafOptionsFor(entry);
+  const synced = state.browseMode && state.syncedDapim ? state.syncedDapim[entry.name] || {} : null;
+  const hasRecording = (d) => !synced || ['a', 'b'].some((side) => (synced[`${d}${side}`] || []).length);
+  // The list opens on the first daf that has a recording (as it always did,
+  // when it listed only those), not on the tractate's first daf.
+  const firstRecorded = options.find(hasRecording);
+  $('dafDafSelect').innerHTML = options
+    .map((d) => `<option value="${d}"${d === firstRecorded ? ' selected' : ''}>${hasRecording(d) ? d : `${d} · no recording yet`}</option>`).join('');
   refreshDafPickerAmud();
 }
 
@@ -8746,7 +8756,7 @@ function refreshDafPickerAmud() {
   // (reading 'endDaf')" inside amudimForDaf).
   if (!entry) return;
   const daf = Number($('dafDafSelect').value);
-  const sides = daf ? (browsableAmudim(entry, daf).length ? browsableAmudim(entry, daf) : ['a']) : ['a'];
+  const sides = daf ? (amudimForDaf(entry, daf).length ? amudimForDaf(entry, daf) : ['a']) : ['a'];
   populateAmudToggle('dafAmudToggle', sides);
   refreshDafPickerVariantLanguage();
 }

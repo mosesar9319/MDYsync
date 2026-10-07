@@ -58,3 +58,11 @@
 body.lf-quiet .vilna-active-rect { background: rgba(142, 155, 175, .55); }
 body.lf-quiet .daf-segment.active { opacity: .6; }
 body.lf-on #vilnaPageWrap { cursor: pointer; }
+
+/* "Choose daf" scrolls to the page's picker and flashes it so it is easy to find. */
+.lf-picker-flash { animation: lf-picker-flash 1.6s ease-out; border-radius: 12px; }
+@keyframes lf-picker-flash {
+  0%, 35% { box-shadow: 0 0 0 3px var(--accent, #d4a843); }
+  100% { box-shadow: 0 0 0 3px transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .lf-picker-flash { animation: none; } }

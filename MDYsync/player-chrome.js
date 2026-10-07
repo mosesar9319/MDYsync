@@ -68,14 +68,16 @@
   // would pull a core authoring control out of the surface it belongs to, so
   // studio gets the same top bar with a plain, non-interactive daf label.
   const isStudio = location.pathname.includes('/studio');
+  const pickerStaysOnPage = document.body.dataset.page === 'browse';
+  const dafLabelOnly = isStudio || pickerStaysOnPage;
   const hasNotes = Boolean($('noteDialog'));
   topbar.innerHTML = `
     <div class="player-topbar-group">
       <span class="player-brand"><img src="/assets/dafsync-mark.png" alt="" /><span>DafSync</span></span>
       <span class="player-topbar-rule"></span>
-      <button class="player-daf-button" id="playerDafButton" type="button" aria-expanded="false" ${isStudio ? 'disabled' : ''}>
+      <button class="player-daf-button" id="playerDafButton" type="button" aria-expanded="false" ${dafLabelOnly ? 'disabled' : ''}>
         <span id="playerDafLabel">No daf loaded</span>
-        ${isStudio ? '' : `<span class="player-daf-chevron">${ICONS.chevron}</span>`}
+        ${dafLabelOnly ? '' : `<span class="player-daf-chevron">${ICONS.chevron}</span>`}
       </button>
       <span class="player-topbar-rule player-topbar-rule-he"></span>
       <span class="player-daf-hebrew" id="playerDafHebrew" dir="rtl" lang="he"></span>
@@ -97,7 +99,10 @@
   // picker otherwise sits inside .setup-strip, which those pages hide from
   // non-admins outright -- so this is the first time a reader can actually
   // reach it.
-  const refField = !isStudio && document.querySelector('.setup-field.ref-field');
+  // The Interactive Daf page keeps its picker on the page, where there is room
+  // for it (the player there can be empty or short, and a list inside a small
+  // popover was hard to scroll); its top-bar daf name is then just a label.
+  const refField = !isStudio && !pickerStaysOnPage && document.querySelector('.setup-field.ref-field');
   const dafMenu = $('playerDafMenu');
   if (refField) dafMenu.appendChild(refField);
   else $('playerDafButton').disabled = true;
