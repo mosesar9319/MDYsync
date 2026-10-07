@@ -40,6 +40,30 @@ test('a start time on a YouTube link is carried', () => {
   assert.equal(LV.parseVideoLink(`https://www.youtube.com/watch?v=${id}&t=nonsense`).startSeconds, 0);
 });
 
+test('Google Drive links, in every shape, become the address of the file itself', () => {
+  const id = '1AbCdEfGhIjKlMnOpQrStUvWxYz012345';
+  const file = { kind: 'media', source: 'drive', url: `https://drive.google.com/uc?export=download&id=${id}`, startSeconds: 0 };
+  for (const input of [
+    `https://drive.google.com/file/d/${id}/view?usp=sharing`,
+    `https://drive.google.com/file/d/${id}/view`,
+    `https://drive.google.com/file/d/${id}`,
+    `https://drive.google.com/u/0/file/d/${id}/view`,
+    `https://drive.google.com/open?id=${id}`,
+    `https://drive.google.com/uc?export=download&id=${id}`,
+    `https://docs.google.com/uc?id=${id}`,
+    `drive.google.com/file/d/${id}/view?usp=drive_link`,
+  ]) assert.deepEqual(LV.parseVideoLink(input), file, input);
+  for (const bad of [
+    `https://drive.google.com/drive/folders/${id}`, // a folder, not a file
+    'https://drive.google.com/file/d/short/view',
+    'https://drive.google.com/file/d//view',
+    'https://drive.google.com/',
+    `http://drive.google.com/file/d/${id}/view`,
+    `https://drive.google.com.evil.example/file/d/${id}/view`,
+    `https://docs.google.com/document/d/${id}/edit`, // a Google Doc
+  ]) assert.equal(LV.parseVideoLink(bad), null, bad);
+});
+
 test('direct media files are accepted over https; anything else is not', () => {
   assert.deepEqual(LV.parseVideoLink('https://cdn.example.org/shiur/chullin-91.mp3'), { kind: 'media', url: 'https://cdn.example.org/shiur/chullin-91.mp3', startSeconds: 0 });
   assert.equal(LV.parseVideoLink('https://example.org/a/b.MP4?token=1').kind, 'media');

@@ -26,6 +26,8 @@ export const MAX_KEYTERMS = 400;
 const YOUTUBE_HOSTS = new Set(['youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com', 'youtu.be', 'www.youtu.be']);
 const MEDIA_EXTENSIONS = /\.(mp4|m4v|webm|mov|mp3|m4a|aac|wav|ogg|oga|opus|flac)$/i;
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
+const DRIVE_HOSTS = new Set(['drive.google.com', 'docs.google.com']);
+const DRIVE_FILE_ID = /^[A-Za-z0-9_-]{20,}$/;
 
 // A host ElevenLabs could be pointed at that is not the public internet:
 // IP literals, localhost, single-label and internal names.
@@ -51,6 +53,12 @@ export function acceptVideoUrl(input) {
       id = m ? m[1] : null;
     }
     return id && VIDEO_ID.test(id) ? { kind: 'youtube', url: `https://www.youtube.com/watch?v=${id}` } : null;
+  }
+  if (DRIVE_HOSTS.has(host)) {
+    // The same turning of a share link into the file's own address as the page does.
+    const m = /^\/(?:u\/\d+\/)?file\/d\/([^/?#]+)/.exec(url.pathname);
+    const id = m ? m[1] : (/^\/(?:u\/\d+\/)?(?:open|uc)$/.test(url.pathname) ? url.searchParams.get('id') : null);
+    return id && DRIVE_FILE_ID.test(id) ? { kind: 'media', url: `https://drive.google.com/uc?export=download&id=${id}` } : null;
   }
   if (MEDIA_EXTENSIONS.test(url.pathname)) return { kind: 'media', url: url.toString() };
   return null;

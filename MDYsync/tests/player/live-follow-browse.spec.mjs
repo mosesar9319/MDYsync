@@ -1036,6 +1036,42 @@ test.describe('Live follow — video link and the page\'s own player', () => {
     expect(await page.evaluate(() => { seek(12); return getCurrentTime(); })).toBeGreaterThan(11.9);
   });
 
+  const DRIVE_ID = '1AbCdEfGhIjKlMnOpQrStUvWxYz012345';
+  const DRIVE_SHARE = `https://drive.google.com/file/d/${DRIVE_ID}/view?usp=sharing`;
+  const DRIVE_FILE = `https://drive.google.com/uc?export=download&id=${DRIVE_ID}`;
+
+  test('a Google Drive share link is turned into the file\'s own address, played by the page, and sent for transcription as that', async ({ page }) => {
+    const seen = await setup(page);
+    await page.route('https://drive.google.com/uc?*', (route) => route.fulfill({ status: 200, contentType: 'audio/wav', headers: { 'Accept-Ranges': 'bytes' }, body: wav() }));
+    await loadLink(page, DRIVE_SHARE);
+    await expect(page.locator('#lfVideoMessage')).toContainText('Video loaded');
+    await expect(page.locator('#lfVideoMessage')).not.toHaveClass(/error/);
+    expect(await page.evaluate(() => state.videoSource)).toMatchObject({ type: 'direct', url: DRIVE_FILE, label: 'Google Drive' });
+    expect(await page.evaluate(() => document.getElementById('video').src)).toBe(DRIVE_FILE);
+    await page.locator('#lfStartButton').click();
+    await expect.poll(() => seen.status.length).toBeGreaterThan(0);
+    expect(seen.status[0].get('url')).toBe(DRIVE_FILE); // what the server is asked about
+    expect(seen.saves).toEqual([]);
+  });
+
+  test('a Drive file the player cannot get (not shared, or too big for Drive\'s virus check) says why', async ({ page }) => {
+    await setup(page);
+    // What Drive sends in those cases: a web page, not audio.
+    await page.route('https://drive.google.com/uc?*', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<html>Sign in</html>' }));
+    await loadLink(page, DRIVE_SHARE);
+    await expect(page.locator('#lfVideoMessage')).toContainText('Google Drive would not play this file');
+    await expect(page.locator('#lfVideoMessage')).toContainText('anyone with the link');
+  });
+
+  test('a Drive folder or a Google Doc is not a file link, and says so', async ({ page }) => {
+    await setup(page);
+    for (const bad of [`https://drive.google.com/drive/folders/${DRIVE_ID}`, `https://docs.google.com/document/d/${DRIVE_ID}/edit`]) {
+      await loadLink(page, bad);
+      await expect(page.locator('#lfVideoMessage')).toContainText('Google Drive link to an audio or video file');
+      await expect(page.locator('#lfVideoMessage')).toHaveClass(/error/);
+    }
+  });
+
   test('a YouTube link goes into the page\'s own player, from its start time, and is not saved either', async ({ page }) => {
     const seen = await setup(page);
     await loadLink(page, YT_LINK);

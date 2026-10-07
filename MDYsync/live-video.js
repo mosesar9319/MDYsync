@@ -17,6 +17,10 @@
   const YOUTUBE_HOSTS = new Set(['youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com', 'youtube-nocookie.com', 'www.youtube-nocookie.com']);
   const MEDIA_EXTENSIONS = /\.(mp4|m4v|webm|mov|mp3|m4a|aac|wav|ogg|oga|opus|flac)$/i;
   const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
+  // A Google Drive file's id: a share link is a viewer page, not the file, so
+  // it is turned into the address that serves the file itself.
+  const DRIVE_HOSTS = new Set(['drive.google.com', 'docs.google.com']);
+  const DRIVE_FILE_ID = /^[A-Za-z0-9_-]{20,}$/;
 
   // "90", "90s", "1m30s", "1h2m3s" -> seconds; anything else -> 0.
   function parseStartTime(value) {
@@ -55,6 +59,13 @@
         url: `https://www.youtube.com/watch?v=${id}`,
         startSeconds: parseStartTime(url.searchParams.get('t') || url.searchParams.get('start')),
       };
+    }
+    if (url.protocol === 'https:' && DRIVE_HOSTS.has(host)) {
+      // /file/d/<id>/view , /open?id=<id> , /uc?id=<id>&export=download
+      const m = /^\/(?:u\/\d+\/)?file\/d\/([^/?#]+)/.exec(url.pathname);
+      const id = m ? m[1] : (/^\/(?:u\/\d+\/)?(?:open|uc)$/.test(url.pathname) ? url.searchParams.get('id') : null);
+      if (!id || !DRIVE_FILE_ID.test(id)) return null;
+      return { kind: 'media', source: 'drive', url: `https://drive.google.com/uc?export=download&id=${id}`, startSeconds: 0 };
     }
     if (url.protocol === 'https:' && MEDIA_EXTENSIONS.test(url.pathname)) {
       return { kind: 'media', url: url.toString(), startSeconds: 0 };

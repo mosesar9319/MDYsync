@@ -38,7 +38,9 @@ const elevenLabs = (words = [
 // --- acceptVideoUrl: same answers as the page's own parser, plus the safety rules ----
 
 test('the server accepts what the page accepts, canonicalised the same way', () => {
-  for (const input of [YT, 'https://youtu.be/dQw4w9WgXcQ?t=5', 'https://www.youtube.com/shorts/dQw4w9WgXcQ', 'https://cdn.example.org/a/b.mp3', 'https://example.org/page.html', 'https://vimeo.com/1']) {
+  for (const input of [YT, 'https://youtu.be/dQw4w9WgXcQ?t=5', 'https://www.youtube.com/shorts/dQw4w9WgXcQ', 'https://cdn.example.org/a/b.mp3', 'https://example.org/page.html', 'https://vimeo.com/1',
+    'https://drive.google.com/file/d/1AbCdEfGhIjKlMnOpQrStUvWxYz012345/view?usp=sharing', 'https://drive.google.com/open?id=1AbCdEfGhIjKlMnOpQrStUvWxYz012345',
+    'https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQrStUvWxYz012345', 'https://docs.google.com/document/d/1AbCdEfGhIjKlMnOpQrStUvWxYz012345/edit']) {
     const page = LV.parseVideoLink(input);
     const server = acceptVideoUrl(input);
     assert.equal(server?.kind ?? null, page?.kind ?? null, input);

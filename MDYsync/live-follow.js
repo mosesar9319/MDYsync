@@ -1120,7 +1120,7 @@ function pageVideo() {
 async function loadLiveVideo() {
   const parsed = LV.parseVideoLink($('lfVideoInput').value);
   if (!parsed) {
-    setVideoMessage('That isn’t a link I can use. Paste a YouTube link, or a direct https link to an audio or video file (.mp3, .m4a, .mp4, .webm …).', true);
+    setVideoMessage('That isn’t a link I can use. Paste a YouTube link, a Google Drive link to an audio or video file (shared with “anyone with the link”), or a direct https link to a file (.mp3, .m4a, .mp4, .webm …).', true);
     return false;
   }
   if (live.videoFollow) stopLiveFollow();
@@ -1136,12 +1136,19 @@ async function loadLiveVideo() {
       setSourceBadge('YouTube');
     } else {
       switchPlayerType('html5');
-      state.videoSource = { type: 'direct', url: parsed.url, label: 'Direct link', locked: false };
+      state.videoSource = { type: 'direct', url: parsed.url, label: parsed.source === 'drive' ? 'Google Drive' : 'Direct link', locked: false };
       htmlVideo.src = parsed.url;
       htmlVideo.load();
+      // Say so if the file cannot be played here (a Drive file too large for Drive's
+      // own virus check, or one not shared with "anyone with the link", comes back as a web page).
+      htmlVideo.addEventListener('error', () => {
+        setVideoMessage(parsed.source === 'drive'
+          ? 'Google Drive would not play this file. It needs to be shared with “anyone with the link”, and Drive will not hand a large file (about 100 MB or more) straight to a player — try a smaller file, or a link to the file somewhere else.'
+          : 'This browser could not play that file (check the link).', true);
+      }, { once: true });
       setPlaybackRate(Number($('speedSelect').value));
       $('lectureTitle').textContent = titleFromUrl(parsed.url);
-      setSourceBadge('Direct link');
+      setSourceBadge(parsed.source === 'drive' ? 'Google Drive' : 'Direct link');
       $('largePlay').hidden = false;
       showVideoControls();
     }
