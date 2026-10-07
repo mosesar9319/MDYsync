@@ -92,7 +92,7 @@
     return segments;
   }
 
-  // Places each phrase on the daf the way live.js's handleCommitted does --
+  // Places each phrase on the daf the way live-follow.js's handleCommitted does --
   // cleanTranscript, Hebrew runs, tracker.step -- so a phrase that places
   // live places here too. `startIndex` (a tapped word) locks the tracker
   // there first. Entries:

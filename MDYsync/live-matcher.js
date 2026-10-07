@@ -5,7 +5,7 @@
 // match_runs' lock/relocalize/confirm state machine, hebrew_script_runs,
 // build_keyterm_list) and the normalize_word/load_canonical pieces it
 // borrows from caption_ocr_align.py. Pure functions, no DOM: loaded as a
-// plain <script> by /live/ (exposed as window.LiveMatcher) and require()d
+// plain <script> by the Interactive Daf page's live follow (live-follow.js; exposed as window.LiveMatcher) and require()d
 // directly by tests/functions/live-matcher.test.mjs.
 //
 // Ported line-for-line rather than re-derived, so the two implementations

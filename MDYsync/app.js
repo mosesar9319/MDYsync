@@ -252,6 +252,16 @@ const state = {
   // segment" that page normally reads instead.
   browseMode: document.body.dataset.page === 'browse',
   browsePageRef: null,
+  // Live follow (live-follow.js, the Interactive Daf page's "Live follow"
+  // mode): while { active: true, activeIndex }, the daf's position comes from
+  // what is being heard (or from a video's own transcript), not from a
+  // recording's clock -- findSegmentAt answers with activeIndex, and the
+  // segments are the daf's paragraphs, with the active one's w0/w1 narrowed
+  // to the words being read. Every view that follows the active segment
+  // (text, printed page, daf-on-video, video-on-daf) then follows the reading
+  // with no other change. Null everywhere else, where none of the hooks below
+  // do anything.
+  liveFollow: null,
   // Set by loadDaf() when the NEXT daf's own recording reviews the tail of
   // the one just loaded as its lead-in -- see seekToVilnaWord's own comment
   // for why a boundary word tap should redirect there instead of seeking
@@ -1116,6 +1126,7 @@ function switchPlayerType(type) {
 }
 
 function findSegmentAt(time) {
+  if (state.liveFollow?.active) return state.liveFollow.activeIndex;
   if (!state.segments.length) return -1;
   // Segments can slightly overlap in end/start (real speech doesn't cut
   // cleanly at a segment boundary, so a stray word can get matched into the
@@ -1847,6 +1858,8 @@ async function loadVilnaPageMap(parsed, stillWanted = () => true) {
       renderVilnaSelectTextWordTargets();
       renderVilnaNoteMarkers();
       window.DafHighlights?.renderVilnaOverlay();
+      // Live follow draws its own light "just heard" bars over the page.
+      window.dispatchEvent(new CustomEvent('dafsync:vilna-page', { detail: { reason: 'map' } }));
       return true;
     } catch {
       return false;
@@ -1934,6 +1947,7 @@ async function rerenderVilnaPageForZoom() {
   state.vilnaOverlayKey = '';
   updateVilnaOverlay(getCurrentTime());
   updateVilnaMarkTarget();
+  window.dispatchEvent(new CustomEvent('dafsync:vilna-page', { detail: { reason: 'raster' } }));
 }
 
 function toggleVilnaFullscreen() {
@@ -2482,6 +2496,8 @@ function applyRealVideoTitle(ref) {
 // currentVilnaPageKey) always prefers state.browsePageRef over anything
 // video/segment-derived, and loadDaf() never touches the view-switch itself.
 async function playWordInline(ref, wordIndex) {
+  // Live follow: a tap says where the reading is; it plays nothing.
+  if (state.liveFollow?.active) return window.dafLiveFollow?.tapWord(ref, wordIndex);
   // Only meaningful once the layout collapses to a single column (see the
   // 1120px breakpoint in browse/index.html) -- side by side on a wider
   // screen the video is already in view, and this is a harmless no-op.
@@ -2538,6 +2554,7 @@ function findWordTime(wordTimeline, segments, ref, wordIndex) {
 }
 
 async function seekToVilnaWord(ref, wordIndex) {
+  if (state.liveFollow?.active) return window.dafLiveFollow?.tapWord(ref, wordIndex);
   // A tap on a word that's ALSO the next daf's own lead-in review should
   // land in that (later) recording, not this one -- see loadDaf's own
   // comment on state.forwardAlignment for the real report this fixes.
@@ -4392,6 +4409,20 @@ function appendLineRects(overlay, rects, className) {
 // 'active' class on each individual (deliberately oversized, for easier
 // tapping) word box, which used to render a multi-word phrase as a jagged
 // block of overlapping rectangles instead of one clean bar.
+// The printed words to highlight for the active segment, in reading order:
+// the ones in its own w0..w1 range. In live follow (live-follow.js) a phrase
+// being read can run on from one paragraph into the next, which a single
+// segment's range cannot say -- there, exactly the words being read.
+function activeSegmentWordBoxes(segment) {
+  const live = state.liveFollow?.active ? window.dafLiveFollow?.activeWordBoxes() : null;
+  if (live) return live;
+  const hasRange = segment.w0 !== null && segment.w1 !== null;
+  return state.vilnaPageMap.wordBoxes
+    .filter((box) => box.ref === segment.ref
+      && (!hasRange || (box.wordIndex >= segment.w0 && box.wordIndex <= segment.w1)))
+    .sort((a, b) => a.wordIndex - b.wordIndex);
+}
+
 function updateVilnaOverlay() {
   const overlay = $('vilnaActiveOverlay');
   if (!overlay) return;
@@ -4437,12 +4468,8 @@ function updateVilnaOverlay() {
 
   overlay.innerHTML = '';
   if (!activeSegment) return;
-  const hasRange = activeSegment.w0 !== null && activeSegment.w1 !== null;
-  const boxes = state.vilnaPageMap.wordBoxes
-    .filter((box) => box.ref === activeSegment.ref
-      && (!hasRange || (box.wordIndex >= activeSegment.w0 && box.wordIndex <= activeSegment.w1))
-      && !isSelected(box.ref, box.wordIndex))
-    .sort((a, b) => a.wordIndex - b.wordIndex);
+  const boxes = activeSegmentWordBoxes(activeSegment)
+    .filter((box) => !isSelected(box.ref, box.wordIndex));
   appendLineRects(overlay, groupBoxesIntoLineRects(boxes, state.vilnaPageMap, vilnaInkBands(state.vilnaPageMap)), 'vilna-active-rect');
 }
 
@@ -4575,11 +4602,7 @@ function updateVideoOverlay(time) {
   }
 
   const activeSegment = state.segments[state.activeIndex];
-  const hasRange = activeSegment && activeSegment.w0 !== null && activeSegment.w1 !== null;
-  const activeBoxes = activeSegment
-    ? state.vilnaPageMap.wordBoxes.filter((b) => b.ref === activeSegment.ref
-        && (!hasRange || (b.wordIndex >= activeSegment.w0 && b.wordIndex <= activeSegment.w1)))
-    : [];
+  const activeBoxes = activeSegment ? activeSegmentWordBoxes(activeSegment) : [];
   const isIdle = activeBoxes.length === 0;
   if (isIdle && state.videoOverlayIdleMode === 'hide') {
     wrap.hidden = true;
@@ -6432,6 +6455,7 @@ function seek(time, allowSeekAhead = true) {
 }
 
 function seekToSegment(index) {
+  if (state.liveFollow?.active) return window.dafLiveFollow?.tapSegment(index);
   selectEditingIndex(index);
   const segment = state.segments[index];
   if (!segment) return;
@@ -8551,12 +8575,13 @@ function dafOptionsFor(entry) {
 // admin syncs from there precisely because a daf isn't synced yet.
 function browsableAmudim(entry, daf) {
   const sides = amudimForDaf(entry, daf);
-  if (!state.browseMode || !state.syncedDapim) return sides;
+  // Live follow can follow any daf, not just ones with a synced recording.
+  if (!state.browseMode || !state.syncedDapim || state.liveFollow?.active) return sides;
   return sides.filter((side) => (state.syncedDapim[entry.name]?.[`${daf}${side}`] || []).length);
 }
 
 function browsableDafOptions(entry) {
-  if (!state.browseMode || !state.syncedDapim) return dafOptionsFor(entry);
+  if (!state.browseMode || !state.syncedDapim || state.liveFollow?.active) return dafOptionsFor(entry);
   const options = [];
   for (let d = entry.startDaf; d <= entry.endDaf; d++) {
     if (browsableAmudim(entry, d).length) options.push(d);
@@ -8777,6 +8802,9 @@ function dafPickerRef() {
 function onDafPickerChanged() {
   const ref = dafPickerRef();
   if (!ref) return;
+  // Live follow takes the picked daf as the one to follow (it loads the text
+  // itself; nothing here should load a recording over it).
+  if (state.liveFollow?.active) return window.dafLiveFollow?.pickerChanged(ref);
   if (state.browseMode) {
     state.browsePageRef = ref;
     const titleEl = $('dafTitle');

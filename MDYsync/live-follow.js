@@ -1,21 +1,29 @@
 'use strict';
 
-// Live Follow (experimental) -- /live/'s own script, deliberately separate
-// from app.js. app.js's entire state object exists to drive a recorded
-// video's playback (scrubber, YouTube/HTML5 player, segment timestamps);
-// none of that applies here. Live Follow has no video and no recording --
-// it streams this device's own microphone straight to ElevenLabs' realtime
-// speech-to-text over a browser-opened WebSocket (see live-token.mjs's own
-// comment for why the API key itself never reaches this file), and matches
-// what comes back against the daf's text with live-matcher.js -- a port of
-// the batch voice-sync pipeline's own deterministic matcher -- highlighting
-// the phrase being read.
+// Live follow on the Interactive Daf page: follow a shiur being given right
+// now (microphone, or a browser tab's sound), or a video (its transcript),
+// on the daf picked in the page's own picker -- with the highlight on the
+// page's own printed daf, text view, daf-on-video and video-on-daf.
 //
-// The daf is shown as Sefaria's text, not the Vilna page image: the page
-// image's word boxes and highlight overlay live inside app.js's player and
-// would have to be extracted first. That's a follow-up once this proves
-// it can actually track a live shiur.
+// How it fits in. This script finds out WHERE on the daf the reading is, as
+// a range of words; app.js draws it. While live follow is on,
+// state.liveFollow is { active: true, activeIndex } and the page's segments
+// are the daf's paragraphs: placing a range sets the active paragraph and
+// narrows its w0/w1 to the words being read, which is all the page's
+// existing "active segment" views need to follow it (see the few hooks in
+// app.js, each inert unless state.liveFollow is set). Nothing about the
+// printed page, its word positions, its zoom or its viewing modes is
+// reimplemented here.
+//
+// Audio never passes through this site's server in the realtime modes: the
+// browser opens ElevenLabs' realtime WebSocket itself with a single-use token
+// (live-token.mjs; the API key never reaches a browser) and the transcript is
+// matched against the daf with live-matcher.js, a port of the batch voice-sync
+// pipeline's own deterministic matcher.
+//
+// Wrapped in a function: app.js and this script share one global scope.
 
+(() => {
 const ELEVENLABS_WS_BASE = 'wss://api.elevenlabs.io/v1/speech-to-text/realtime';
 // ElevenLabs recommends 16kHz mono for realtime STT as the right bandwidth/
 // quality tradeoff; pcm_16000 (the audio_format below) is 16-bit signed
@@ -32,40 +40,27 @@ const PROVISIONAL_THROTTLE_MS = 50;
 // real API with a long reading, the default left the highlight a median 9s
 // behind the voice; 0.5s brought that to about 2s.
 const VAD_SILENCE_SECS = 0.5;
-const MANUAL_SCROLL_GRACE_MS = 5000;
 // Errors that a reconnect can't fix -- retrying would just loop.
 const FATAL_ERROR_TYPES = new Set(['quota_exceeded', 'unaccepted_terms']);
 
 const LM = window.LiveMatcher;
 const LV = window.LiveVideo;
 
-// Opt-in switches for trying the speech service's own settings on real audio,
-// since most of what still goes wrong in a real session (garbled readings that
-// match nowhere) is the transcription, not the matching. Compare the session
-// logs (the phonetic scores and the number of unplaced commits) with and
-// without. Both are recorded in the log's first entry.
-//   /live/?lang=he     Hebrew as the primary language, English as secondary.
-//                      Default is auto-detect, which keeps English explanation
-//                      in Latin letters (so it can be told from the reading)
-//                      but may hear Hebrew/Aramaic reading less well.
-//   /live/?filter=1    ElevenLabs' background-audio filter.
-//   /live/?raw=0       Leave the browser's own voice processing (echo
-//                      cancellation, noise suppression, automatic gain) on.
-//                      By default it is off: it is tuned for phone calls and
-//                      can mangle speech a recognizer would otherwise hear
-//                      fine, and the one real session recorded with it off
-//                      scored best (realtime match ~85 vs ~78).
-//   /live/?keyterms=0  Send no bias list. The list nudges the service toward
-//                      the daf's rarer words (and, in silence, made it recite
-//                      the list itself); whether it helps real speech is open.
-//   /live/?batch=0     Turn off the batch second opinion. By default each
-//                      finished segment is also sent to ElevenLabs' BATCH
-//                      model (see live-batch.mjs) and both transcripts are
-//                      logged side by side; when the live model fails to place
-//                      a phrase and the batch one can, it rescues the position.
-//                      On real phone-mic sessions the batch model scored ~92
-//                      against ~78-85 for the live one and rescued 5-7
-//                      segments a session.
+// Switches for trying the speech service's own settings on real audio, as
+// URL parameters (/browse/?lang=he ...); recorded in the session log's first
+// entry. Defaults are what real phone-microphone sessions favoured.
+//   lang=he     Hebrew as the primary language, English as secondary.
+//   filter=1    ElevenLabs' background-audio filter.
+//   raw=0       Leave the browser's own voice processing (echo cancellation,
+//               noise suppression, automatic gain) on. Off by default: it is
+//               built for phone calls and can mangle speech a recognizer
+//               would hear fine (realtime match ~85 with it off vs ~78 on).
+//   keyterms=0  Send no bias list.
+//   batch=0     No batch second opinion. By default each finished segment is
+//               also sent to ElevenLabs' BATCH model (live-batch.mjs); when
+//               the live model fails to place a phrase and the batch one can,
+//               it rescues the position (batch scored ~92 vs ~78-85 for the
+//               live model and rescued 5-7 segments a session).
 const PAGE_PARAMS = new URLSearchParams(location.search);
 const PAGE_OPTIONS = {
   lang: PAGE_PARAMS.get('lang'),
@@ -86,19 +81,6 @@ const BATCH_OVERLAP_SECONDS = 1.2;
 const AUDIO_KEEP_SECONDS = 90;
 const BATCH_MAX_IN_FLIGHT = 3;
 const AUDIO_LOG_INTERVAL_MS = 10000;
-
-function $(id) { return document.getElementById(id); }
-
-let toastTimer = null;
-function showToast(message, type = 'info') {
-  const toast = $('toast');
-  if (!toast) return;
-  toast.textContent = message;
-  toast.classList.toggle('error', type === 'error');
-  toast.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove('show'), Math.min(12000, Math.max(3200, 1200 + message.length * 60)));
-}
 
 // ---- Audio pipeline ---------------------------------------------------
 // AudioWorkletProcessor that does nothing but batch raw Float32 frames and
@@ -140,7 +122,7 @@ registerProcessor('live-mic-processor', LiveMicProcessor);
 // need audiophile-grade output. Each call resamples independently (no
 // carried-over fractional phase across chunk boundaries), which can leave a
 // sub-millisecond seam every ~46ms; inaudible-to-ASR in practice, not worth
-// the extra bookkeeping for this experiment.
+
 function resampleLinear(float32, fromRate, toRate) {
   if (fromRate === toRate) return float32;
   const ratio = fromRate / toRate;
@@ -183,8 +165,13 @@ function rms(float32) {
   return Math.sqrt(sum / float32.length);
 }
 
-// ---- Live Follow session ----------------------------------------------
+
+// ---- Session state ------------------------------------------------------
 const live = {
+  on: false, // live follow mode (the panel is open, the page is following live, not a recording)
+  saved: null, // what the page was showing before, restored when the mode is turned off
+  pickerSnapshot: null,
+  navLabelText: '',
   micStream: null,
   audioContext: null,
   workletNode: null,
@@ -195,22 +182,21 @@ const live = {
   reconnectTimer: null,
   firstChunkSentThisConnection: false,
   previousText: '', // rolling committed-transcript tail, carried across reconnects
-  // The daf being followed (see loadDaf) and the matcher's state over it.
-  daf: null, // { key, label, canon, keyterms }
+  // The daf being followed (see loadLiveDaf) and the matcher's state over it.
+  daf: null, // { key, label, refs, canon, segmentIndexByRef, ... }
   tracker: null,
   preview: null,
   runCounter: 0,
-  spans: [], // canon word index -> its <span> in #liveDafText
-  confirmed: null, // { s, e } currently highlighted as confirmed
-  provisional: null, // { s, e } currently highlighted from a partial transcript
+  confirmed: null, // { s, e } the words highlighted as the reading's place
+  provisional: null, // { s, e } lighter highlight from a partial transcript
   partialTimer: null,
   latestPartial: '',
-  lastManualScrollAt: 0,
+  lastPreview: null,
   // Where the reader pointed (a canon word index), until the next Start
-  // consumes it; and the <span> carrying its marker, until the first phrase
-  // is actually placed from it.
+  // consumes it; and the marker drawn for it, until the first phrase is
+  // actually placed from it.
   anchorIndex: null,
-  anchorSpan: null,
+  anchorMark: null,
   unplacedHebrew: 0, // consecutive commits with Hebrew in them that placed nothing
   // The audio that was sent (16kHz Int16, kept AUDIO_KEEP_SECONDS), so a
   // finished segment can be re-transcribed; and what the batch side needs to
@@ -224,10 +210,8 @@ const live = {
   levelStats: null,
   levelTimer: null,
   followState: null, // what setFollowState last showed
-  // The video the page has loaded (see loadVideo): { kind, url, getTime(),
-  // seekTo(t), destroy() } -- and, in "Video transcript" mode, the session
-  // following its playhead: { job, video, segments, timeline, timer, lastKey }.
-  video: null,
+  // In "Video transcript" mode, the session following the page's video:
+  // { job, video, segments, timeline, timer, lastKey, listTokens }.
   videoFollow: null,
   videoPollMs: 3000,
   log: [],
@@ -235,22 +219,24 @@ const live = {
 };
 const LOG_MAX_ENTRIES = 400;
 
+// ---- Panel ----------------------------------------------------------------
 function setStatus(kind, text, detail) {
-  const dot = $('liveStatusDot');
-  const label = $('liveStatusText');
-  const detailEl = $('liveStatusDetail');
-  if (dot) dot.className = `status-dot${kind ? ' ' + kind : ''}`;
+  const dot = $('lfStatusDot');
+  const label = $('lfStatusText');
+  const detailEl = $('lfStatusDetail');
+  if (dot) dot.className = `lf-dot${kind ? ' ' + kind : ''}`;
   if (label) label.textContent = text;
   if (detailEl) detailEl.textContent = detail || '';
 }
+const statusText = () => $('lfStatusText')?.textContent || '';
 
 function setMicLevel(level) {
-  const fill = $('liveMicMeterFill');
+  const fill = $('lfMeterFill');
   if (fill) fill.style.width = `${Math.min(100, Math.max(0, level * 100))}%`;
 }
 
 function setDebug(field, value) {
-  const el = $(`liveDebug${field}`);
+  const el = $(`lfDebug${field}`);
   if (el) el.textContent = value === undefined || value === null || value === '' ? '—' : value;
 }
 
@@ -285,330 +271,181 @@ async function copySessionLog() {
   showToast(`Session log copied (${live.log.length} entries).`);
 }
 
-// ---- The daf ------------------------------------------------------------
-// "Chullin 91a", "chullin 91", "Bava Metzia 12b". English tractate names
-// only (Sefaria's own), matching what every other page here accepts.
-function parseDafInput(input) {
-  const match = /^\s*([A-Za-z][A-Za-z' -]*?)\s*(\d{1,3})\s*([abAB])?\s*$/.exec(input || '');
-  if (!match) return null;
-  const tractate = match[1].trim().split(/\s+/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-  const daf = Number(match[2]);
-  const amud = (match[3] || 'a').toLowerCase();
-  // The requested amud plus the one after it: a shiur that runs past the end
-  // of the amud keeps being followed instead of going quiet at the page break.
-  const refs = amud === 'a'
-    ? [`${tractate} ${daf}a`, `${tractate} ${daf}b`]
-    : [`${tractate} ${daf}b`, `${tractate} ${daf + 1}a`];
-  return { label: `${tractate} ${daf}${amud}`, key: refs.join('|'), refs };
-}
-
-// ---- Daf picker ---------------------------------------------------------------
-// The player's own "daf reference" picker -- tractate and daf dropdowns plus an
-// a / b toggle over talmud_index.json, with the same rules for which dapim
-// and sides exist (app.js's amudimForDaf / dafOptionsFor, repeated here:
-// that file is a page script, not a module this page can load). They spell
-// out the one value (#liveRefInput, "Chullin 91a") everything else reads, so
-// choosing is all it takes: the text is shown as soon as a daf is picked.
-const dafPicker = { byName: {}, names: [], touched: false, ready: null };
-
-function amudimForDaf(entry, daf) {
-  const sides = [];
-  for (const side of ['a', 'b']) {
-    if (daf === entry.endDaf && side === 'b' && entry.endSide === 'a') continue;
-    if (entry.skipAmudim.includes(`${daf}${side}`)) continue;
-    sides.push(side);
-  }
-  return sides;
-}
-
-function dafOptionsFor(entry) {
-  const options = [];
-  for (let d = entry.startDaf; d <= entry.endDaf; d += 1) {
-    if (amudimForDaf(entry, d).length) options.push(d);
-  }
-  return options;
-}
-
-const amudButtons = () => [...document.querySelectorAll('#liveAmudToggle .amud-option')];
-const activeAmud = () => amudButtons().find((b) => b.classList.contains('active') && !b.disabled)?.dataset.side || 'a';
-
-// Offers only the sides this daf has; keeps the chosen side if it is still there.
-function populateAmudToggle(sides, preferred) {
-  const wanted = sides.includes(preferred) ? preferred : sides[0];
-  for (const button of amudButtons()) {
-    const available = sides.includes(button.dataset.side);
-    button.disabled = !available;
-    button.classList.toggle('active', available && button.dataset.side === wanted);
-  }
-}
-
-function dafPickerSync() {
-  const tractate = $('liveTractateSelect').value;
-  const daf = $('liveDafSelect').value;
-  $('liveRefInput').value = tractate && daf ? `${tractate} ${daf}${activeAmud()}` : '';
-}
-
-function dafPickerFillDafs(tractateName, preferredDaf, preferredSide) {
-  const entry = dafPicker.byName[tractateName];
-  const select = $('liveDafSelect');
-  select.textContent = '';
-  if (!entry) return;
-  const options = dafOptionsFor(entry);
-  for (const daf of options) select.append(new Option(String(daf), String(daf)));
-  select.value = String(options.includes(Number(preferredDaf)) ? preferredDaf : options[0]);
-  populateAmudToggle(amudimForDaf(entry, Number(select.value)), preferredSide || activeAmud());
-}
-
-// "Chullin 91a" (or "Chullin 91", meaning the a side) -> the pickers. False if
-// that is not a daf in the list.
-function setDafPickerValue(ref) {
-  const parsed = parseDafInput(ref);
-  const match = parsed && /^(.+?)\s+(\d+)([ab])$/.exec(parsed.label);
-  const entry = match && dafPicker.byName[match[1]];
-  if (!entry || !dafOptionsFor(entry).includes(Number(match[2])) || !amudimForDaf(entry, Number(match[2])).includes(match[3])) return false;
-  $('liveTractateSelect').value = entry.name;
-  dafPickerFillDafs(entry.name, Number(match[2]), match[3]);
-  dafPickerSync();
-  return true;
-}
-
-// Today's Daf Yomi, via the site's own calendar proxy: where the picker starts
-// when nobody has asked for anything else. Null when it cannot be had.
-async function fetchTodaysDafForPicker() {
-  try {
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-    const response = await fetch(`/api/sefaria-calendars?timezone=${encodeURIComponent(timezone)}`);
-    if (!response.ok) return null;
-    const data = await response.json();
-    const item = (data.calendar_items || []).find((i) => i.category === 'Talmud' && i.title?.en === 'Daf Yomi');
-    const match = /^(.+?)\s+(\d+)$/.exec(String(item?.displayValue?.en || '').trim());
-    return match ? `${match[1]} ${match[2]}a` : null;
-  } catch {
-    return null;
-  }
-}
-
-const sessionActive = () => Boolean(live.ws || live.micStream || live.reconnectTimer || live.videoFollow);
-
-function setDafControlsDisabled(disabled) {
-  $('liveTractateSelect').disabled = disabled;
-  $('liveDafSelect').disabled = disabled;
-  $('liveShowDafButton').disabled = disabled;
-  for (const button of amudButtons()) {
-    const entry = dafPicker.byName[$('liveTractateSelect').value];
-    const sideExists = entry ? amudimForDaf(entry, Number($('liveDafSelect').value)).includes(button.dataset.side) : true;
-    button.disabled = disabled || !sideExists;
-  }
-}
-
-async function initDafPicker() {
-  const tractateSelect = $('liveTractateSelect');
-  if (!tractateSelect) return;
-  try {
-    const response = await fetch('/talmud_index.json');
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const tractates = (await response.json()).tractates || [];
-    dafPicker.names = tractates.map((t) => t.name);
-    for (const t of tractates) dafPicker.byName[t.name] = t;
-  } catch (error) {
-    console.error('Could not load the list of tractates.', error);
-    tractateSelect.textContent = '';
-    tractateSelect.append(new Option('Could not load the list', ''));
-    showToast('Could not load the list of dapim — try reloading.', 'error');
-    return;
-  }
-  tractateSelect.textContent = '';
-  for (const name of dafPicker.names) tractateSelect.append(new Option(name, name));
-  const fromLink = new URLSearchParams(location.search).get('daf');
-  if (fromLink && setDafPickerValue(fromLink)) {
-    showDaf();
-    return;
-  }
-  tractateSelect.value = dafPicker.names[0];
-  dafPickerFillDafs(tractateSelect.value);
-  dafPickerSync();
-  // Today's daf, unless a daf has been chosen while that was being looked up.
-  fetchTodaysDafForPicker().then((ref) => { if (ref && !dafPicker.touched) setDafPickerValue(ref); });
-}
-
-// Choosing a daf (or a side) shows it -- unless a session is running, when the
-// pickers are locked anyway.
-function onDafPicked() {
-  dafPicker.touched = true;
-  dafPickerSync();
-  if (!sessionActive()) showDaf();
-}
-
-// A new tractate only refills the daf list -- the daf is the next thing
-// chosen, and loading the text of whichever page happens to come first would
-// be a fetch nobody asked for. (Start, or Show daf, uses what is shown.)
-$('liveTractateSelect')?.addEventListener('change', () => {
-  dafPicker.touched = true;
-  dafPickerFillDafs($('liveTractateSelect').value, $('liveDafSelect').value, activeAmud());
-  dafPickerSync();
-});
-$('liveDafSelect')?.addEventListener('change', () => {
-  const entry = dafPicker.byName[$('liveTractateSelect').value];
-  if (entry) populateAmudToggle(amudimForDaf(entry, Number($('liveDafSelect').value)), activeAmud());
-  onDafPicked();
-});
-$('liveAmudToggle')?.addEventListener('click', (event) => {
-  const button = event.target.closest('.amud-option');
-  if (!button || button.disabled) return;
-  for (const b of amudButtons()) b.classList.toggle('active', b === button);
-  onDafPicked();
-});
-
-function flattenText(value) {
-  if (typeof value === 'string') return [value];
-  if (!Array.isArray(value)) return [];
-  return value.flatMap(flattenText).filter(Boolean);
-}
-
-// Same request and response handling as app.js's fetchSefariaParagraphs:
-// this site's own proxy first, Sefaria directly if the proxy is down.
-async function fetchAmudSegments(ref) {
-  let response;
-  try {
-    response = await fetch(`/api/sefaria?ref=${encodeURIComponent(ref)}`);
-    if (!response.ok) throw new Error('Proxy unavailable');
-  } catch {
-    response = await fetch(`https://www.sefaria.org/api/v3/texts/${encodeURIComponent(ref)}?version=source&return_format=text_only`);
-  }
-  if (!response.ok) throw new Error(`Sefaria returned ${response.status} for ${ref}`);
-  const data = await response.json();
-  const versions = Array.isArray(data.versions) ? data.versions : [];
-  const source = versions.find((v) => String(v.language || '').toLowerCase().includes('hebrew')) || versions[0];
-  const he = flattenText(source?.text ?? data.he);
-  if (!he.length) throw new Error(`No Hebrew text came back for ${ref}.`);
-  return he.map((text, i) => ({ ref: `${ref}:${i + 1}`, he: text }));
-}
-
-async function loadDaf(parsed) {
-  if (live.daf?.key === parsed.key) return live.daf;
-  const [first, second] = await Promise.allSettled(parsed.refs.map(fetchAmudSegments));
-  if (first.status === 'rejected') throw first.reason;
-  // The following amud is a bonus -- the end of a tractate has none.
-  const segments = first.value.concat(second.status === 'fulfilled' ? second.value : []);
-  const canon = LM.buildCanon(segments);
+// ---- The daf -----------------------------------------------------------------
+// The picker's daf and the amud after it (a shiur that runs past the end of
+// the amud keeps being followed instead of going quiet at the page break),
+// as the page's own paragraphs: fetchSefariaParagraphs is what the page loads
+// a daf's text with, so the words here are indexed exactly as its word
+// positions (page maps) and its highlights index them -- paragraph ref
+// "Chullin 91a.3", word index within it.
+async function loadLiveDaf(ref) {
+  const parsed = parseDafRef(ref);
+  if (!parsed) throw new Error('Choose a daf first.');
+  const first = realDafRef(ref);
+  const second = realDafRef(nextDafRef(first));
+  const key = `${first}|${second}`;
+  if (live.daf?.key === key) { showLiveSegments(); return live.daf; }
+  const [a, b] = await Promise.allSettled([fetchSefariaParagraphs(first), fetchSefariaParagraphs(second)]);
+  if (a.status !== 'fulfilled') throw a.reason;
+  const paragraphs = [...a.value.paragraphs, ...(b.status === 'fulfilled' ? b.value.paragraphs : [])];
+  const canon = LM.buildCanon(paragraphs.map((p) => ({ ref: p.ref, he: p.he })));
   const keyterms = LM.buildRealtimeKeyterms(canon);
   // The batch model takes far more terms (the same 400 voice_align.py uses).
   const batchKeyterms = LM.buildKeytermList(canon, 400);
+  const segmentIndexByRef = new Map(paragraphs.map((p, i) => [p.ref, i]));
+  const canonIndex = new Map(canon.words.map((w, i) => [`${w.ref}#${w.wordIndex}`, i]));
+  const firstCanonOfSegment = new Map();
+  canon.words.forEach((w, i) => { if (!firstCanonOfSegment.has(w.segIndex)) firstCanonOfSegment.set(w.segIndex, i); });
   live.daf = {
-    key: parsed.key, label: parsed.label, refs: parsed.refs, segments, canon, keyterms, batchKeyterms,
+    key, label: first, refs: [first, second], paragraphs, canon, keyterms, batchKeyterms, segmentIndexByRef, canonIndex, firstCanonOfSegment,
+    tokenCounts: paragraphs.map((p) => LM.segmentTokens(p.he).length),
     keytermTokens: LM.keytermTokens(keyterms), batchKeytermTokens: LM.keytermTokens(batchKeyterms),
   };
-  renderDaf(live.daf);
+  live.confirmed = null;
+  live.provisional = null;
+  live.anchorMark = null;
+  showLiveSegments();
   return live.daf;
 }
 
-async function showDaf() {
-  const parsed = parseDafInput($('liveRefInput').value);
-  if (!parsed) {
-    showToast('Choose a daf first.', 'error');
-    return false;
-  }
-  const button = $('liveShowDafButton');
-  button.disabled = true;
-  setStatus('', 'Loading…', `Loading ${parsed.label}`);
-  try {
-    await loadDaf(parsed);
-  } catch (error) {
-    console.error('Could not load the daf for Live Follow:', error);
-    setStatus('error', 'Error', `Could not load ${parsed.label}.`);
-    showToast(`Could not load ${parsed.label}: ${error.message}`, 'error');
-    return false;
-  } finally {
-    button.disabled = Boolean(live.tracker);
-  }
-  setStatus('', 'Ready', 'Tap the word where the reading starts, or just tap Start.');
-  return true;
+// The daf's paragraphs become the page's segments, so every view that follows
+// the active segment has the daf to follow. No recording is involved: the
+// times are zero and w0/w1 start as the whole paragraph.
+function showLiveSegments() {
+  const daf = live.daf;
+  state.segments = daf.paragraphs.map((p, i) => ({
+    id: `live-${i + 1}`, ref: p.ref, start: 0, end: 0, he: p.he, en: p.en, w0: 0, w1: daf.tokenCounts[i] - 1,
+  }));
+  state.wordTimeline = [];
+  state.dafRef = daf.label;
+  $('lfDafName').textContent = daf.label;
+  state.liveFollow.activeIndex = -1;
+  state.activeIndex = -1;
+  state.vilnaOverlayKey = '';
+  $('dafTitle').textContent = daf.label;
+  showPageFor(daf.label);
+  renderDaf({ forceActiveSegment: true });
+  drawProvisional();
+  drawAnchor();
 }
 
-function renderDaf(daf) {
-  const container = $('liveDafText');
-  container.textContent = '';
-  container.classList.remove('dimmed');
-  live.spans = [];
-  live.confirmed = null;
-  live.provisional = null;
-  live.anchorIndex = null;
-  live.anchorSpan = null;
-  let canonIndex = 0;
-  for (const segment of daf.segments) {
-    const p = document.createElement('p');
-    p.dataset.ref = segment.ref;
-    LM.segmentTokens(segment.he).forEach((token, i) => {
-      if (i) p.append(' ');
-      const span = document.createElement('span');
-      span.textContent = token;
-      // Exactly buildCanon's rule, so span N is always canon word N.
-      if (LM.normalizeWord(token)) {
-        span.className = 'w';
-        span.dataset.i = String(canonIndex);
-        live.spans[canonIndex] = span;
-        canonIndex += 1;
-      }
-      p.append(span);
-    });
-    container.append(p);
-  }
-  $('liveDafEmpty').hidden = true;
-  window.LiveDafPage?.setDaf(daf);
-  $('liveDafHeading').textContent = daf.refs[1] && daf.segments.some((s) => s.ref.startsWith(`${daf.refs[1]}:`))
-    ? `${daf.refs[0]} – ${daf.refs[1]}`
-    : daf.refs[0];
-}
-
-// ---- Highlighting ---------------------------------------------------------
-function paintRange(range, className, on) {
-  if (!range) return;
-  for (let i = range.s; i <= range.e; i += 1) live.spans[i]?.classList.toggle(className, on);
-  // The printed-daf view (live-daf-page.js) draws the same two highlights.
-  if (className === 'hl' || className === 'hl-provisional') {
-    window.LiveDafPage?.setRange(className === 'hl' ? 'confirmed' : 'provisional', on ? range : null);
+// Shows the printed page of an amud ("Chullin 91a"), keeping the picker on it.
+function showPageFor(pageRef) {
+  if (state.browseMode && state.browsePageRef !== pageRef) {
+    state.browsePageRef = pageRef;
+    $('dafTitle').textContent = pageRef;
+    syncDafPickerFromRef(pageRef);
+    renderVilnaPage();
   }
 }
 
-function scrollToWord(index) {
-  const span = live.spans[index];
-  const scroller = $('liveDafScroll');
-  if (!span || !scroller) return;
-  if (Date.now() - live.lastManualScrollAt < MANUAL_SCROLL_GRACE_MS) return;
-  // offsetTop is relative to #liveDafScroll (position: relative), so this
-  // scrolls only the daf box, never the page around it.
-  const top = span.offsetTop - scroller.clientHeight / 3;
-  scroller.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+// ---- Highlighting (through the page's own active segment) -------------------------------
+// The canon range s..e -> the paragraph it starts in, with w0/w1 narrowed to
+// those words (clipped at the paragraph's end if the range runs on into the
+// next). The page redraws everything it draws for the active segment.
+function placeOnPage(range) {
+  const daf = live.daf;
+  const word = daf.canon.words[range.s];
+  const last = daf.canon.words[range.e];
+  const index = daf.segmentIndexByRef.get(word.ref);
+  if (index === undefined) return;
+  resetActiveRange();
+  const segment = state.segments[index];
+  segment.w0 = word.wordIndex;
+  segment.w1 = last.ref === word.ref ? last.wordIndex : daf.tokenCounts[index] - 1;
+  const parsed = parseDafRef(word.ref);
+  if (parsed) showPageFor(`${parsed.tractate} ${parsed.daf}${parsed.amud}`);
+  state.liveFollow.activeIndex = index;
+  state.vilnaOverlayKey = ''; // the same paragraph with other words must redraw
+  updateActiveSegment(true);
+  scrollPageToActive();
 }
+
+// A paragraph that was the active one goes back to being whole.
+function resetActiveRange() {
+  const segment = state.segments[state.liveFollow?.activeIndex];
+  if (segment) { segment.w0 = 0; segment.w1 = live.daf.tokenCounts[state.liveFollow.activeIndex] - 1; }
+}
+
+// Nothing highlighted as the place (a tapped word is shown instead, or nothing yet).
+function clearPlacement() {
+  if (!state.liveFollow || state.liveFollow.activeIndex === -1) return;
+  resetActiveRange();
+  state.liveFollow.activeIndex = -1;
+  state.activeIndex = -1;
+  state.vilnaOverlayKey = 'cleared-by-live-follow'; // anything but '', or the overlay thinks it is already empty
+  renderDafWindow();
+  updateActiveWords(0);
+}
+
+// The printed page never scrolled to the highlight in normal use (it follows
+// a video only in Reading mode); here the reading moves on its own, so keep it
+// in view -- unless the reader has just scrolled it somewhere themselves.
+function scrollPageToActive() {
+  if ($('vilnaPlaceholder')?.hidden) return;
+  if (Date.now() - state.lastManualScrollAt < AUTO_SCROLL_RESUME_MS) return;
+  const bar = $('vilnaActiveOverlay')?.firstElementChild;
+  if (!bar) return;
+  const rect = bar.getBoundingClientRect();
+  const box = ($('dafScroll') || document.documentElement).getBoundingClientRect();
+  const top = Math.max(box.top, 0);
+  const bottom = Math.min(box.bottom, innerHeight);
+  if (rect.top >= top + (bottom - top) * 0.12 && rect.bottom <= bottom - (bottom - top) * 0.2) return; // comfortably in view
+  bar.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
+// "Just heard" (a partial transcript, not yet confirmed) and "start here"
+// (a tapped word) are Live follow's own marks, drawn over the printed page with
+// the page's own geometry, in the page's own blue.
+function boxesForRange(range) {
+  const map = state.vilnaPageMap;
+  if (!range || !map || !live.daf) return { map, boxes: [] };
+  const order = new Map();
+  for (let i = range.s; i <= range.e; i += 1) {
+    const w = live.daf.canon.words[i];
+    if (w) order.set(`${w.ref}#${w.wordIndex}`, i);
+  }
+  const boxes = map.wordBoxes
+    .filter((b) => order.has(`${b.ref}#${b.wordIndex}`))
+    .sort((a, b) => order.get(`${a.ref}#${a.wordIndex}`) - order.get(`${b.ref}#${b.wordIndex}`));
+  return { map, boxes };
+}
+
+// What app.js asks for when it draws the active highlight (activeSegmentWordBoxes):
+// the words being read, even where they run on from one paragraph into the next.
+function activeWordBoxes() {
+  if (!live.confirmed || !live.daf) return [];
+  return boxesForRange(live.confirmed).boxes;
+}
+
+function drawMark(overlayId, range, className) {
+  const overlay = $(overlayId);
+  if (!overlay) return;
+  overlay.textContent = '';
+  const { map, boxes } = boxesForRange(range);
+  if (!boxes.length) return;
+  appendLineRects(overlay, groupBoxesIntoLineRects(boxes, map, vilnaInkBands(map)), className);
+}
+const drawProvisional = () => drawMark('vilnaLiveProvisionalOverlay', live.provisional, 'vilna-live-provisional-rect');
+const drawAnchor = () => drawMark('vilnaLiveAnchorOverlay', live.anchorMark === null ? null : { s: live.anchorMark, e: live.anchorMark }, 'vilna-live-anchor-rect');
+// The page's word positions arrive after the page itself, and a zoom redraws the bars.
+window.addEventListener('dafsync:vilna-page', () => { if (live.on) { drawProvisional(); drawAnchor(); } });
 
 function showConfirmed(match) {
   live.placementSeq += 1;
   setProvisional(null);
   clearAnchorMark();
-  paintRange(live.confirmed, 'hl', false);
   live.confirmed = { s: match.s, e: match.e };
-  paintRange(live.confirmed, 'hl', true);
-  $('liveDafText').classList.remove('dimmed');
-  scrollToWord(match.s);
+  document.body.classList.remove('lf-quiet');
+  placeOnPage(live.confirmed);
   const words = live.daf.canon.words.slice(match.s, match.e + 1);
-  const phrase = words.map((w) => w.text).join(' ');
-  const phraseEl = $('livePhraseText');
-  phraseEl.textContent = phrase;
-  phraseEl.classList.remove('empty');
-  const confidence = `Sound match ${Math.round(match.phonScore)} · Letters ${Math.round(match.charScore)}`;
-  $('liveConfidenceText').textContent = `${confidence} · ${words[0].ref}`;
-  // Hebrew alone in the right-to-left row; the Latin details get their own
-  // left-to-right row, or the bidi algorithm scrambles them together.
-  setDebug('Match', phrase);
+  setDebug('Match', words.map((w) => w.text).join(' '));
   setDebug('Confidence', `phonetic ${match.phonScore.toFixed(1)} / character ${match.charScore.toFixed(1)} · words ${match.s}–${match.e} (${match.source})`);
 }
 
 function setProvisional(match) {
-  paintRange(live.provisional, 'hl-provisional', false);
   live.provisional = match ? { s: match.s, e: match.e } : null;
-  paintRange(live.provisional, 'hl-provisional', true);
-  if (match) scrollToWord(match.s);
+  drawProvisional();
 }
 
 // ---- Pointing at the daf ----------------------------------------------------
@@ -619,34 +456,32 @@ function setProvisional(match) {
 // mid-session, to put right an alignment that has drifted. The automatic
 // search stays as the fallback when nothing is tapped, and as the safety net
 // when the reading moves on from a tapped word.
-function anchorDetail(span) {
-  const words = live.daf.canon.words.slice(Number(span.dataset.i), Number(span.dataset.i) + 4).map((w) => w.text).join(' ');
+function anchorDetail(index) {
+  const words = live.daf.canon.words.slice(index, index + 4).map((w) => w.text).join(' ');
   return `From “${words}…” — tap another word to correct`;
 }
 
 function clearAnchorMark() {
-  live.anchorSpan?.classList.remove('anchor');
-  live.anchorSpan = null;
-  window.LiveDafPage?.setAnchor(null);
+  live.anchorMark = null;
+  drawAnchor();
 }
 
 function setAnchor(index) {
-  const span = live.spans[index];
-  if (!span || !live.daf) return;
+  if (!live.daf || !live.daf.canon.words[index]) return;
   live.placementSeq += 1;
   clearAnchorMark();
-  live.anchorSpan = span;
-  span.classList.add('anchor');
-  window.LiveDafPage?.setAnchor(index);
-  paintRange(live.confirmed, 'hl', false);
+  live.anchorMark = index;
   live.confirmed = null;
   setProvisional(null);
   live.lastPreview = null;
-  const hint = $('livePhraseText');
-  hint.textContent = live.daf.canon.words.slice(index, index + 5).map((w) => w.text).join(' ');
-  hint.classList.add('empty');
-  $('liveConfidenceText').textContent = 'Position set by you';
-  $('liveDafText').classList.remove('dimmed');
+  clearPlacement();
+  document.body.classList.remove('lf-quiet');
+  // The page the word is on, and the word in view.
+  const parsed = parseDafRef(live.daf.canon.words[index].ref);
+  if (parsed) showPageFor(`${parsed.tractate} ${parsed.daf}${parsed.amud}`);
+  drawAnchor();
+  setDebug('Match', live.daf.canon.words.slice(index, index + 5).map((w) => w.text).join(' '));
+  setDebug('Confidence', 'Position set by you');
   if (live.videoFollow?.timeline) {
     realignVideoFrom(index);
   } else if (live.tracker) {
@@ -656,16 +491,24 @@ function setAnchor(index) {
     live.preview.reset();
     live.unplacedHebrew = 0;
     live.anchorIndex = null;
-    setFollowState('reading', { detail: anchorDetail(span) });
+    setFollowState('reading', { detail: anchorDetail(index) });
     setDebug('Pending', '—');
     updateSearchWindowDebug();
   } else {
     live.anchorIndex = index;
     // (While a video transcript is still being made the status is about
     // that; the word is simply used when it arrives.)
-    if (!live.videoFollow) setStatus('', 'Ready', `${anchorDetail(span).replace(' — tap another word to correct', '')} — tap Start to listen.`);
+    if (!live.videoFollow) setStatus('', 'Ready', `${anchorDetail(index).replace(' — tap another word to correct', '')} — tap Start to listen.`);
   }
   logEvent('anchor', { index, word: live.daf.canon.words[index].text, midSession: Boolean(live.tracker || live.videoFollow) });
+  scrollAnchorIntoView();
+}
+
+function scrollAnchorIntoView() {
+  const mark = $('vilnaLiveAnchorOverlay')?.firstElementChild;
+  if (!mark || $('vilnaPlaceholder')?.hidden) return;
+  const rect = mark.getBoundingClientRect();
+  if (rect.top < 0 || rect.bottom > innerHeight) mark.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
 function updateSearchWindowDebug() {
@@ -684,20 +527,18 @@ function updateSearchWindowDebug() {
 //   listening -- Hebrew was heard but not placed. Not "explaining": it may be
 //                the reading with the position slightly off, a reading that
 //                skipped ahead and is waiting on confirmation, or Hebrew
-//                explanation. Doesn't dim the daf, and after a few in a row
+//                explanation. Doesn't quiet the daf, and after a few in a row
 //                says what to do about it (tap the word).
 //   searching -- no position yet; nothing locked, nothing pointed at.
-// (Before this split, every unplaced utterance said "Explaining" -- including
-// Hebrew reading the matcher simply hadn't caught up with.)
-function setFollowState(state, options = {}) {
-  live.followState = state;
-  $('liveDafText').classList.toggle('dimmed', state === 'explaining' || state === 'searching');
+function setFollowState(followState, options = {}) {
+  live.followState = followState;
+  document.body.classList.toggle('lf-quiet', followState === 'explaining' || followState === 'searching');
   const tapHint = live.unplacedHebrew >= 3 ? ' Not finding your place — tap the word being read to set it.' : '';
-  if (state === 'reading') {
+  if (followState === 'reading') {
     setStatus('reading', 'Following', options.detail || `Following ${live.daf.label}`);
-  } else if (state === 'explaining') {
+  } else if (followState === 'explaining') {
     setStatus('explaining', 'Explaining', 'No Hebrew heard — holding the last phrase until the reading resumes');
-  } else if (state === 'listening') {
+  } else if (followState === 'listening') {
     setStatus('explaining', 'Listening…', (options.pending
       ? 'Found a possible new spot — waiting for the next phrase to confirm it.'
       : 'Heard Hebrew but couldn’t place it on the daf yet.') + tapHint);
@@ -708,7 +549,7 @@ function setFollowState(state, options = {}) {
   }
 }
 
-// ---- Batch second opinion (on by default; /live/?batch=0 turns it off) ----------------------------------
+// ---- Batch second opinion (on by default; ?batch=0 turns it off) ----------------------------------
 // How a transcript would fare on the daf, from a given cursor: for each Hebrew
 // run, where it matches locally and how well. Pure -- it moves nothing -- so
 // the realtime and batch transcripts of the same segment can be compared like
@@ -822,7 +663,7 @@ function handleCommitted(text) {
     // heard -- so the status, and the highlight, stay as they were. (A real
     // session's log showed three of these, each flipping the status.)
     live.lastCommitSample = live.sentSamples;
-    logEvent('commit', { text: '', silent: true, outcomes: [], state: $('liveStatusText').textContent });
+    logEvent('commit', { text: '', silent: true, outcomes: [], state: statusText() });
     return;
   }
   setProvisional(null);
@@ -876,7 +717,7 @@ function handleCommitted(text) {
       runBatchSegment({ seq, audio, rtText: text, cursorBefore, lockedBefore, rtPlaced: Boolean(placed), placementSeq: live.placementSeq });
     }
   }
-  logEvent('commit', { seq, text, ...(heard !== text ? { cleaned: heard } : {}), outcomes, state: $('liveStatusText').textContent, locked: live.tracker.locked, cursor: live.tracker.cursor });
+  logEvent('commit', { seq, text, ...(heard !== text ? { cleaned: heard } : {}), outcomes, state: statusText(), locked: live.tracker.locked, cursor: live.tracker.cursor });
 }
 
 // A partial transcript is still being revised, so it never moves the
@@ -1218,18 +1059,14 @@ function stopMic() {
   setMicLevel(0);
 }
 
-// ---- Video link --------------------------------------------------------------
-// A pasted link becomes a player on the page, and a way to follow it:
-//   microphone -- the player is just there to press play on; the microphone
-//                 hears it through the speakers (or hears a shiur in the room).
-//   tab audio  -- the browser hands over this tab's sound directly (see
-//                 openInputStream); the same realtime pipeline as the mic.
-//   transcript -- ElevenLabs transcribes the linked video once, server-side
-//                 (live-video-job-background.mjs); the transcript, with its
-//                 word times, is aligned to the daf ahead of time, and the
-//                 highlight simply follows the player's clock. No lag, and
-//                 seeking works -- at the cost of the wait for the transcript
-//                 and of not being "live".
+
+// ---- Video link / transcript mode ----------------------------------------------------
+// The page already has a player for a video link (YouTube or a direct file).
+// "Video transcript" follows THAT video: ElevenLabs transcribes the link once,
+// server-side (live-video-job-background.mjs); the transcript, with its word
+// times, is aligned to the daf ahead of time, and the highlight simply follows
+// the player's clock -- no lag, and seeking works, at the cost of the wait for
+// the transcript and of not being "live".
 const PLAYHEAD_POLL_MS = 250;
 // The highlight moves a little before the phrase's first word, not after it.
 const PLAYHEAD_LEAD_SECONDS = 0.25;
@@ -1237,7 +1074,7 @@ const VIDEO_JOB_TIMEOUT_MS = 16 * 60 * 1000;
 const VIDEO_START_RETRY_MS = 25000;
 const VIDEO_JOB_PATH = '/.netlify/functions/live-video-job-background';
 
-const selectedSource = () => document.querySelector('input[name="liveAudioSource"]:checked')?.value || 'microphone';
+const selectedSource = () => document.querySelector('input[name="lfSource"]:checked')?.value || 'microphone';
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const formatClock = (seconds) => {
   const t = Math.max(0, Math.floor(seconds));
@@ -1248,129 +1085,79 @@ const formatClock = (seconds) => {
 };
 
 function setVideoMessage(text, isError = false) {
-  const el = $('liveVideoMessage');
+  const el = $('lfVideoMessage');
   if (!el) return;
   el.textContent = text || '';
   el.classList.toggle('error', Boolean(isError));
 }
 
-function setTranscriptAvailable(available) {
-  const radio = document.querySelector('input[name="liveAudioSource"][value="transcript"]');
-  if (!radio) return;
-  radio.disabled = !available;
-  $('liveSourceTranscriptLabel')?.classList.toggle('disabled', !available);
-  if (!available && radio.checked) document.querySelector('input[name="liveAudioSource"][value="microphone"]').checked = true;
+// What the chosen way of following does, and the link box for the one that needs a video.
+const SOURCE_NOTES = {
+  microphone: 'Hears the shiur in the room, or a video through the speakers. Works on any phone or laptop.',
+  tab: 'Takes the sound straight from a browser tab, with no echo. Desktop Chrome / Edge only.',
+  transcript: 'Transcribes a video link once (a minute or two), then follows the video’s own clock — seeking works.',
+};
+function updateSourceUi() {
+  const source = selectedSource();
+  const tabMissing = source === 'tab' && !navigator.mediaDevices?.getDisplayMedia;
+  const note = $('lfSourceNote');
+  if (note) note.textContent = tabMissing ? 'Not available in this browser — phones can’t share tab audio.' : SOURCE_NOTES[source];
+  if ($('lfVideoRow')) $('lfVideoRow').hidden = source !== 'transcript';
 }
 
-function clearVideo() {
-  if (live.videoFollow) stopLiveFollow();
-  live.video?.destroy();
-  live.video = null;
-  const wrap = $('liveVideoWrap');
-  if (wrap) { wrap.textContent = ''; wrap.hidden = true; wrap.className = ''; }
-  setTranscriptAvailable(false);
+// The video the page has loaded, if it is one a transcript can be made from
+// (a link: not a file on this device).
+function pageVideo() {
+  const source = state.videoSource;
+  if (!source?.url || !['youtube', 'direct'].includes(source.type)) return null;
+  const parsed = LV.parseVideoLink(source.url);
+  return parsed ? { kind: parsed.kind, url: parsed.url, getTime: () => getCurrentTime() } : null;
 }
 
-let youTubeApi = null;
-function loadYouTubeApi() {
-  if (window.YT?.Player) return Promise.resolve();
-  if (!youTubeApi) {
-    youTubeApi = new Promise((resolve, reject) => {
-      const previous = window.onYouTubeIframeAPIReady;
-      const timer = setTimeout(() => { youTubeApi = null; reject(new Error('The YouTube player did not load.')); }, 12000);
-      window.onYouTubeIframeAPIReady = () => { clearTimeout(timer); previous?.(); resolve(); };
-      const script = document.createElement('script');
-      script.src = 'https://www.youtube.com/iframe_api';
-      script.onerror = () => { clearTimeout(timer); youTubeApi = null; reject(new Error('The YouTube player could not be loaded.')); };
-      document.head.append(script);
-    });
-  }
-  return youTubeApi;
-}
-
-async function createYouTubePlayer(parsed, wrap) {
-  await loadYouTubeApi();
-  const mount = document.createElement('div');
-  wrap.append(mount);
-  return new Promise((resolve, reject) => {
-    let ready = false;
-    const player = new window.YT.Player(mount, {
-      videoId: parsed.id,
-      width: '100%',
-      height: '100%',
-      playerVars: { playsinline: 1, rel: 0, start: parsed.startSeconds || 0 },
-      events: {
-        onReady: () => {
-          ready = true;
-          resolve({
-            kind: 'youtube',
-            url: parsed.url,
-            getTime: () => Number(player.getCurrentTime?.()) || 0,
-            seekTo: (t) => player.seekTo?.(t, true),
-            destroy: () => { try { player.destroy?.(); } catch { /* already gone */ } },
-          });
-        },
-        onError: (event) => {
-          // 101 / 150: the owner has switched embedding off.
-          const embedBlocked = event?.data === 101 || event?.data === 150;
-          const message = embedBlocked
-            ? 'The owner of this video doesn’t allow it to be played here. Try another link.'
-            : 'YouTube could not play this video.';
-          if (ready) { setVideoMessage(message, true); showToast(message, 'error'); } else reject(new Error(message));
-        },
-      },
-    });
-  });
-}
-
-function createMediaPlayer(parsed, wrap) {
-  const element = document.createElement('video');
-  element.controls = true;
-  element.playsInline = true;
-  element.preload = 'metadata';
-  element.src = parsed.url;
-  element.addEventListener('error', () => {
-    const message = 'This browser could not play that file (check the link).';
-    setVideoMessage(message, true);
-  });
-  wrap.append(element);
-  return {
-    kind: 'media',
-    url: parsed.url,
-    getTime: () => element.currentTime || 0,
-    seekTo: (t) => { element.currentTime = t; },
-    destroy: () => { element.pause(); element.removeAttribute('src'); element.load(); },
-  };
-}
-
-async function loadVideo() {
-  const parsed = LV.parseVideoLink($('liveVideoInput').value);
+// Puts a link in the page's own player. Not the page's loaders: those also
+// save the link as this daf's video for everyone, which a live-follow link
+// must never do.
+async function loadLiveVideo() {
+  const parsed = LV.parseVideoLink($('lfVideoInput').value);
   if (!parsed) {
     setVideoMessage('That isn’t a link I can use. Paste a YouTube link, or a direct https link to an audio or video file (.mp3, .m4a, .mp4, .webm …).', true);
     return false;
   }
-  clearVideo();
-  const button = $('liveVideoLoadButton');
+  if (live.videoFollow) stopLiveFollow();
+  const button = $('lfVideoLoadButton');
   button.disabled = true;
   setVideoMessage('Loading the video…');
-  const wrap = $('liveVideoWrap');
-  wrap.hidden = false;
-  wrap.className = parsed.kind === 'youtube' ? 'youtube' : '';
   try {
-    live.video = parsed.kind === 'youtube' ? await createYouTubePlayer(parsed, wrap) : createMediaPlayer(parsed, wrap);
+    cleanupObjectUrl();
+    if (parsed.kind === 'youtube') {
+      await ensureYouTubePlayer(parsed.id);
+      state.videoSource = { type: 'youtube', videoId: parsed.id, url: parsed.url, label: 'YouTube', locked: false };
+      $('lectureTitle').textContent = `YouTube video · ${parsed.id}`;
+      setSourceBadge('YouTube');
+    } else {
+      switchPlayerType('html5');
+      state.videoSource = { type: 'direct', url: parsed.url, label: 'Direct link', locked: false };
+      htmlVideo.src = parsed.url;
+      htmlVideo.load();
+      setPlaybackRate(Number($('speedSelect').value));
+      $('lectureTitle').textContent = titleFromUrl(parsed.url);
+      setSourceBadge('Direct link');
+      $('largePlay').hidden = false;
+      showVideoControls();
+    }
+    state.currentProjectId = null;
+    seek(parsed.startSeconds || 0);
   } catch (error) {
-    console.error('Could not load the video for Live Follow:', error);
-    wrap.textContent = '';
-    wrap.hidden = true;
-    setVideoMessage(error.message, true);
+    console.error('Could not load the video for live follow:', error);
+    setVideoMessage(error.message || 'Could not load that video.', true);
     return false;
   } finally {
     button.disabled = false;
   }
-  setVideoMessage('Video loaded. Choose how to follow it, then tap Start.');
-  setTranscriptAvailable(true);
+  setVideoMessage('Video loaded. Tap Start to follow it from its transcript.');
   // A pasted link is most naturally followed from its own transcript.
-  document.querySelector('input[name="liveAudioSource"][value="transcript"]').checked = true;
+  document.querySelector('input[name="lfSource"][value="transcript"]').checked = true;
+  updateSourceUi();
   return true;
 }
 
@@ -1426,13 +1213,15 @@ async function fetchVideoTranscript(video, job) {
   }
 }
 
-async function startTranscriptFollow({ button, startIndex }) {
-  const video = live.video;
+
+async function startTranscriptFollow({ startIndex }) {
+  const video = pageVideo();
   const job = { cancelled: false };
   live.videoFollow = { job, video, segments: [], timeline: null, timer: null, lastKey: null };
   const follow = live.videoFollow;
+  const button = $('lfStartButton');
   button.disabled = false;
-  button.textContent = 'Stop Live Follow';
+  button.textContent = 'Stop live follow';
   button.classList.add('stop');
   setStatus('searching', 'Transcribing…', 'Sending the video to be transcribed — usually a minute or two.');
   setDebug('Connection', 'video transcript');
@@ -1492,7 +1281,7 @@ function stopTranscriptFollow() {
 }
 
 // The video's clock -> the daf. Cheap enough to run four times a second; the
-// DOM is only touched when the answer changes.
+// page is only touched when the answer changes.
 function applyPlayhead() {
   const follow = live.videoFollow;
   if (!follow?.timeline) return;
@@ -1509,8 +1298,8 @@ function applyPlayhead() {
       showConfirmed({ s: pos.placement.s, e: pos.placement.e, phonScore: pos.placement.phon ?? 100, charScore: pos.placement.char ?? 100, source: 'video' });
     }
   } else if (live.confirmed) {
-    paintRange(live.confirmed, 'hl', false);
     live.confirmed = null;
+    clearPlacement();
   }
   live.unplacedHebrew = pos.unplacedRun;
   if (pos.state === 'read') {
@@ -1527,7 +1316,7 @@ function applyPlayhead() {
 }
 
 function setStatusClock(t) {
-  const detail = $('liveStatusDetail');
+  const detail = $('lfStatusDetail');
   if (detail) detail.textContent = `Following the video · ${formatClock(t)}`;
 }
 
@@ -1547,31 +1336,33 @@ function realignVideoFrom(index) {
   applyPlayhead();
 }
 
+// ---- Start / stop ----------------------------------------------------------------------
+const sessionRunning = () => Boolean(live.ws || live.micStream || live.reconnectTimer || live.videoFollow);
+
 async function startLiveFollow() {
-  const parsed = parseDafInput($('liveRefInput').value);
-  if (!parsed) {
+  if (!live.on) return;
+  const ref = dafPickerRef();
+  const button = $('lfStartButton');
+  if (!ref) {
     showToast('Choose a daf first.', 'error');
     return;
   }
-  const button = $('liveStartButton');
-  button.disabled = true;
-  // The daf first: an unknown daf should fail before asking for the mic,
-  // and the keyterms sent when connecting are built from its text. (Already
-  // shown by "Show daf"? loadDaf reuses it, along with any word tapped.)
-  setStatus('', 'Loading…', `Loading ${parsed.label}`);
-  try {
-    await loadDaf(parsed);
-  } catch (error) {
-    console.error('Could not load the daf for Live Follow:', error);
-    setStatus('error', 'Error', `Could not load ${parsed.label}.`);
-    showToast(`Could not load ${parsed.label}: ${error.message}`, 'error');
-    button.disabled = false;
-    return;
-  }
   const source = selectedSource();
-  if (source === 'transcript' && !live.video) {
+  if (source === 'transcript' && !pageVideo()) {
     showToast('Paste a video link and tap Load video first.', 'error');
     setStatus('', 'Ready', 'Paste a video link and tap Load video, or choose another way to follow.');
+    return;
+  }
+  button.disabled = true;
+  // The daf first: an unknown daf should fail before asking for the mic, and
+  // the keyterms sent when connecting are built from its text.
+  setStatus('', 'Loading…', `Loading ${realDafRef(ref)}`);
+  try {
+    await loadLiveDaf(ref);
+  } catch (error) {
+    console.error('Could not load the daf for live follow:', error);
+    setStatus('error', 'Error', `Could not load ${realDafRef(ref)}.`);
+    showToast(`Could not load ${realDafRef(ref)}: ${error.message}`, 'error');
     button.disabled = false;
     return;
   }
@@ -1590,9 +1381,10 @@ async function startLiveFollow() {
   live.batchInFlight = 0;
   live.log = [];
   live.logStart = performance.now();
-  paintRange(live.confirmed, 'hl', false);
   setProvisional(null);
   live.confirmed = null;
+  clearPlacement();
+  document.body.classList.remove('lf-quiet');
   const tappedStart = live.anchorIndex;
   if (live.anchorIndex !== null) {
     // A word was tapped before Start: the session begins locked there. It is
@@ -1603,14 +1395,13 @@ async function startLiveFollow() {
   } else {
     clearAnchorMark();
   }
-  logEvent('start', { daf: live.daf.label, anchored: live.tracker.locked, source, ...(live.video ? { video: live.video.url } : {}), options: PAGE_OPTIONS });
-  setDafControlsDisabled(true);
+  logEvent('start', { daf: live.daf.label, anchored: live.tracker.locked, source, ...(source === 'transcript' ? { video: pageVideo()?.url } : {}), options: PAGE_OPTIONS });
   if (source === 'transcript') {
     // No microphone and no socket: the video's own transcript, aligned ahead
     // of time. The tracker made above is not used; the alignment makes its own.
     live.tracker = null;
     live.preview = null;
-    await startTranscriptFollow({ button, startIndex: tappedStart });
+    await startTranscriptFollow({ startIndex: tappedStart });
     return;
   }
   const sourceName = source === 'tab' ? 'tab audio' : 'microphone';
@@ -1618,7 +1409,7 @@ async function startLiveFollow() {
   try {
     await startMic(source);
   } catch (error) {
-    console.error(`Could not open the ${sourceName} for Live Follow:`, error);
+    console.error(`Could not open the ${sourceName} for live follow:`, error);
     const denied = error?.name === 'NotAllowedError' || error?.name === 'SecurityError';
     const message = denied ? (source === 'tab' ? 'Tab sharing was cancelled or denied.' : 'Microphone access was denied.') : error.message;
     setStatus('error', 'Error', message);
@@ -1626,12 +1417,11 @@ async function startLiveFollow() {
     stopMic();
     live.tracker = null;
     live.preview = null;
-    setDafControlsDisabled(false);
     button.disabled = false;
     return;
   }
   button.disabled = false;
-  button.textContent = 'Stop Live Follow';
+  button.textContent = 'Stop live follow';
   button.classList.add('stop');
   setStatus('searching', 'Connecting…', 'Opening the transcription connection');
   updateSearchWindowDebug();
@@ -1653,31 +1443,204 @@ function stopLiveFollow() {
   clearAnchorMark();
   live.tracker = null;
   live.preview = null;
-  setDafControlsDisabled(false);
-  const button = $('liveStartButton');
-  button.textContent = 'Start Live Follow';
+  const button = $('lfStartButton');
+  button.textContent = 'Start live follow';
   button.classList.remove('stop');
-  setStatus('', 'Idle', 'Choose a daf and tap Start.');
+  button.disabled = false;
+  setStatus('', 'Ready', 'Choose a daf, then tap Start. Tap a word on the daf at any time to set where the reading is.');
   setDebug('Partial', '—');
   setDebug('Connection', '—');
 }
 
-$('liveStartButton')?.addEventListener('click', () => {
-  if (live.ws || live.micStream || live.reconnectTimer || live.videoFollow) stopLiveFollow();
+// ---- The mode itself ----------------------------------------------------------------------
+// The page's own daf picker, but offering every daf: on this page it is
+// limited to dapim with a synced recording, which would rule out following a
+// shiur on any other.
+function setFullPicker(full) {
+  const select = $('dafTractateSelect');
+  if (!select) return;
+  const tractate = select.value;
+  const daf = $('dafDafSelect').value;
+  if (full) {
+    if (live.pickerSnapshot === null) live.pickerSnapshot = select.innerHTML;
+    select.innerHTML = syncState.tractateNames.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+    select.disabled = false;
+  } else if (live.pickerSnapshot !== null) {
+    select.innerHTML = live.pickerSnapshot;
+    live.pickerSnapshot = null;
+  }
+  if ([...select.options].some((o) => o.value === tractate)) select.value = tractate;
+  refreshDafPickerOptions();
+  if ([...$('dafDafSelect').options].some((o) => o.value === daf)) $('dafDafSelect').value = daf;
+  refreshDafPickerAmud();
+}
+
+async function enableLiveMode() {
+  if (live.on) return;
+  live.on = true;
+  live.saved = {
+    segments: state.segments,
+    activeIndex: state.activeIndex,
+    dafRef: state.dafRef,
+    wordTimeline: state.wordTimeline,
+    browsePageRef: state.browsePageRef,
+    title: $('dafTitle')?.textContent || '',
+  };
+  state.liveFollow = { active: true, activeIndex: -1 };
+  document.body.classList.add('lf-on');
+  // The page says a tap plays that part of the shiur; here it says where the reading is.
+  const navLabel = document.querySelector('.browse-nav-label');
+  if (navLabel) { live.navLabelText = navLabel.textContent; navLabel.textContent = 'Tap any word on the page to set where the reading is.'; }
+  $('lfBody').hidden = false;
+  const toggle = $('lfToggle');
+  toggle.textContent = 'Turn off';
+  toggle.setAttribute('aria-pressed', 'true');
+  const hadDaf = Boolean(dafPickerRef());
+  setFullPicker(true);
+  // A video already playing on this page is the one to follow.
+  if (pageVideo()) document.querySelector('input[name="lfSource"][value="transcript"]').checked = true;
+  updateSourceUi();
+  setStatus('', 'Ready', 'Choose a daf, then tap Start. Tap a word on the daf at any time to set where the reading is.');
+  const ref = dafPickerRef();
+  if (!ref || !hadDaf) return;
+  try {
+    await loadLiveDaf(ref);
+  } catch (error) {
+    console.error('Could not load the daf for live follow:', error);
+    setStatus('error', 'Error', `Could not load ${realDafRef(ref)}.`);
+    showToast(`Could not load ${realDafRef(ref)}: ${error.message}`, 'error');
+  }
+}
+
+function disableLiveMode() {
+  if (!live.on) return;
+  stopLiveFollow();
+  live.on = false;
+  const saved = live.saved;
+  live.saved = null;
+  state.liveFollow = null;
+  document.body.classList.remove('lf-on', 'lf-quiet');
+  const navLabel = document.querySelector('.browse-nav-label');
+  if (navLabel && live.navLabelText) navLabel.textContent = live.navLabelText;
+  $('lfBody').hidden = true;
+  const toggle = $('lfToggle');
+  toggle.textContent = 'Turn on';
+  toggle.setAttribute('aria-pressed', 'false');
+  setFullPicker(false);
+  for (const id of ['vilnaLiveProvisionalOverlay', 'vilnaLiveAnchorOverlay']) $(id)?.replaceChildren();
+  live.confirmed = null;
+  live.provisional = null;
+  live.anchorMark = null;
+  if (saved) {
+    state.segments = saved.segments;
+    state.wordTimeline = saved.wordTimeline;
+    state.dafRef = saved.dafRef;
+    state.activeIndex = Math.max(0, Math.min(saved.activeIndex, saved.segments.length - 1));
+    state.browsePageRef = saved.browsePageRef;
+    $('dafTitle').textContent = saved.title;
+  }
+  state.vilnaOverlayKey = '';
+  renderDaf({ forceActiveSegment: true });
+}
+
+// The picker (or the page's Previous / Next page buttons) moved while live
+// follow is on. A page of the daf being followed is only displayed -- the
+// shiur may well have moved on to it; any other daf becomes the one followed.
+async function pickerChanged(ref) {
+  const real = realDafRef(ref);
+  if (live.daf?.refs.includes(real)) {
+    showPageFor(real);
+    $('dafTitle').textContent = real;
+    return;
+  }
+  if (sessionRunning()) stopLiveFollow();
+  setStatus('', 'Loading…', `Loading ${real}`);
+  try {
+    await loadLiveDaf(ref);
+    setStatus('', 'Ready', 'Choose a daf, then tap Start. Tap a word on the daf at any time to set where the reading is.');
+  } catch (error) {
+    console.error('Could not load the daf for live follow:', error);
+    setStatus('error', 'Error', `Could not load ${real}.`);
+    showToast(`Could not load ${real}: ${error.message}`, 'error');
+  }
+}
+
+// ---- Taps ----------------------------------------------------------------------------------
+// A tap on the printed daf (the page's own handler would play a recording)
+// says where the reading is. The word under the finger, not the phrase.
+function tapWord(ref, wordIndex) {
+  const daf = live.daf;
+  if (!daf) return;
+  let index = daf.canonIndex.get(`${ref}#${wordIndex}`);
+  if (index === undefined) {
+    // A printed word with no entry on the daf's text (bare punctuation): the next one in its paragraph.
+    const segment = daf.segmentIndexByRef.get(ref);
+    if (segment === undefined) return;
+    index = daf.canon.words.findIndex((w) => w.segIndex === segment && w.wordIndex >= wordIndex);
+    if (index < 0) return;
+  }
+  setAnchor(index);
+}
+
+// The text view only has paragraphs to tap: the place is the start of the one tapped.
+function tapSegment(segmentIndex) {
+  const index = live.daf?.firstCanonOfSegment.get(segmentIndex);
+  if (index !== undefined) setAnchor(index);
+}
+
+function printedWordAt(boxes, fx, fy) {
+  const PAD = 0.004;
+  let best = null;
+  let bestDistance = Infinity;
+  for (const box of boxes) {
+    const dx = Math.max(box.x - PAD - fx, 0, fx - (box.x + box.w + PAD));
+    const dy = Math.max(box.y - PAD - fy, 0, fy - (box.y + box.h + PAD));
+    if (dx || dy) continue;
+    const distance = Math.hypot(fx - (box.x + box.w / 2), fy - (box.y + box.h / 2));
+    if (distance < bestDistance) { bestDistance = distance; best = box; }
+  }
+  return best;
+}
+
+// Capture phase, so it runs before the page's phrase-box handlers (which are
+// phrase-sized and would send the tap to the start of the paragraph).
+$('vilnaPageWrap')?.addEventListener('click', (event) => {
+  if (!live.on || state.vilnaSelectTextMode || state.vilnaMarkMode) return;
+  if (event.target.closest?.('#vilnaSelectTextActionBar')) return;
+  const canvas = $('vilnaPageCanvas');
+  const map = state.vilnaPageMap;
+  if (!map || canvas.hidden) return;
+  event.stopPropagation();
+  const rect = canvas.getBoundingClientRect(); // includes the page's zoom transform
+  if (!rect.width || !rect.height) return;
+  const box = printedWordAt(map.wordBoxes, (event.clientX - rect.left) / rect.width, (event.clientY - rect.top) / rect.height);
+  if (!box) return;
+  hapticTap();
+  tapWord(box.ref, box.wordIndex);
+}, true);
+
+// ---- Wiring ----------------------------------------------------------------------------------
+$('lfToggle')?.addEventListener('click', () => { if (live.on) disableLiveMode(); else enableLiveMode(); });
+$('lfStartButton')?.addEventListener('click', () => {
+  if (sessionRunning()) stopLiveFollow();
   else startLiveFollow();
 });
-
-$('liveShowDafButton')?.addEventListener('click', showDaf);
-dafPicker.ready = initDafPicker();
-$('liveVideoLoadButton')?.addEventListener('click', loadVideo);
-$('liveVideoInput')?.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') loadVideo();
+// The page's own daf picker lives in the player's top bar menu.
+$('lfChooseDafButton')?.addEventListener('click', (event) => {
+  // Not allowed to reach the document: its click handler closes the player's menus.
+  event.stopPropagation();
+  const menu = $('playerDafMenu');
+  if (menu?.hidden) $('playerDafButton')?.click();
 });
+$('lfVideoLoadButton')?.addEventListener('click', loadLiveVideo);
+$('lfVideoInput')?.addEventListener('keydown', (event) => { if (event.key === 'Enter') loadLiveVideo(); });
+$('lfCopyLogButton')?.addEventListener('click', copySessionLog);
 // Switching how to follow mid-session restarts in the new mode (the change is
 // itself the tap that browsers want before opening a microphone or a share).
-document.querySelectorAll('input[name="liveAudioSource"]').forEach((radio) => {
+document.querySelectorAll('input[name="lfSource"]').forEach((radio) => {
   radio.addEventListener('change', () => {
-    if (live.ws || live.micStream || live.reconnectTimer || live.videoFollow) {
+    updateSourceUi();
+    if (sessionRunning()) {
       stopLiveFollow();
       startLiveFollow();
     }
@@ -1685,31 +1648,37 @@ document.querySelectorAll('input[name="liveAudioSource"]').forEach((radio) => {
 });
 // A browser with no getDisplayMedia (every phone) can't offer tab audio.
 if (!navigator.mediaDevices?.getDisplayMedia) {
-  const tabRadio = document.querySelector('input[name="liveAudioSource"][value="tab"]');
+  const tabRadio = document.querySelector('input[name="lfSource"][value="tab"]');
   if (tabRadio) tabRadio.disabled = true;
-  $('liveSourceTabLabel')?.classList.add('disabled');
-  if ($('liveSourceTabNote')) $('liveSourceTabNote').textContent = '— not available in this browser (phones can’t share tab audio)';
+  $('lfSourceTabLabel')?.classList.add('lf-disabled');
 }
-$('liveCopyLogButton')?.addEventListener('click', copySessionLog);
-if (PAGE_OPTIONS.batch && $('liveDebugBatchRow')) $('liveDebugBatchRow').hidden = false;
-
-// (Also used by the printed-daf view, whose taps land here too.)
-window.liveSetAnchor = (index) => setAnchor(index);
-
-// A tap on a word sets the position. Skipped when the tap is the end of a text
-// selection drag, so selecting doesn't also move the highlight.
-$('liveDafText')?.addEventListener('click', (event) => {
-  const span = event.target.closest?.('.w');
-  if (!span || String(window.getSelection?.() || '')) return;
-  setAnchor(Number(span.dataset.i));
-});
-
-// Only genuine user scrolling pauses auto-scroll (wheel/touch/keys), never
-// the smooth programmatic scroll scrollToWord itself starts.
-for (const type of ['wheel', 'touchmove', 'keydown']) {
-  $('liveDafScroll')?.addEventListener(type, () => { live.lastManualScrollAt = Date.now(); }, { passive: true });
-}
+updateSourceUi();
+if (!PAGE_OPTIONS.batch && $('lfDebugBatchRow')) $('lfDebugBatchRow').hidden = true;
 
 window.addEventListener('beforeunload', () => {
   if (live.ws || live.micStream) stopLiveFollow();
 });
+
+// ?live=1 opens the page already in live follow (once the page's daf picker is ready).
+if (PAGE_PARAMS.get('live') === '1') {
+  const waitForPicker = setInterval(() => {
+    if (typeof syncState !== 'undefined' && syncState.tractateNames.length) { clearInterval(waitForPicker); enableLiveMode(); }
+  }, 100);
+  setTimeout(() => clearInterval(waitForPicker), 15000);
+}
+
+window.dafLiveFollow = {
+  enable: enableLiveMode,
+  disable: disableLiveMode,
+  tapWord,
+  tapSegment,
+  pickerChanged,
+  activeWordBoxes,
+  // For the tests: the same functions the socket / player clock drive.
+  __test: {
+    live, handleCommitted, handlePartial, showConfirmed, setProvisional, setAnchor, startLiveFollow, stopLiveFollow, loadLiveDaf,
+    recordSentAudio, segmentAudio, applyPlayhead, loadLiveVideo, scoreText, updateSourceUi, pageVideo, buildWsUrl,
+    activeKeyterms, activeKeytermTokens, PAGE_OPTIONS, boxesForRange,
+  },
+};
+})();

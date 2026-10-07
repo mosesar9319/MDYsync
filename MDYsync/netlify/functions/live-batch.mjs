@@ -1,5 +1,5 @@
 // Re-transcribes one short segment of Live Follow's microphone audio with
-// ElevenLabs' BATCH model (scribe_v2), for the default-on second-opinion pass (opt out with /live/?batch=0).
+// ElevenLabs' BATCH model (scribe_v2), for the default-on second-opinion pass (opt out with ?batch=0 on the Interactive Daf page).
 //
 // Why a second model at all: the realtime model Live Follow streams to
 // (scribe_v2_realtime) is the only streaming one ElevenLabs offers, and its

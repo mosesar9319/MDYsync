@@ -1,6 +1,6 @@
 // Mints a short-lived ElevenLabs token for Live Follow (the real-time
 // "listen to a live shiur and highlight the daf as it's read" experiment --
-// see /live/). The browser connects straight to ElevenLabs' realtime
+// see live-follow.js on the Interactive Daf page). The browser connects straight to ElevenLabs' realtime
 // WebSocket itself (mic audio never passes through this server), but that
 // connection needs *some* credential, and the real xi-api-key must never
 // reach a browser -- anyone who read it out of page source could run up
@@ -11,7 +11,7 @@
 //
 // Same Origin allowlist as save-settings.mjs/trigger-voice-job.mjs -- the
 // only abuse guard this function has for now. That's an accepted gap for an
-// experiment behind an unlisted /live/ page, not a production posture: once
+// experiment behind a switch on the Interactive Daf page, not a production posture: once
 // this leaves V1, minting should also require a signed-in session (none of
 // this repo's existing functions check that either, but none of them front
 // a metered paid API the way this one does).
