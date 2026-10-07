@@ -524,13 +524,13 @@ test.describe('Live Follow — session log', () => {
   });
 });
 
-test.describe('Live Follow — batch second opinion (?batch=1)', () => {
+test.describe('Live Follow — batch second opinion (on by default, ?batch=0 turns it off)', () => {
   const weakText = (start, length) => fixture.canonNorms.slice(start, start + length)
     .map((w) => [...w].map((c, i, all) => (i === all.length - 1 ? 'צ' : c)).join('')).join(' ');
   // Garbled beyond placing: the realtime model "heard" nothing the daf can use.
   const GARBLE = 'ברכתנו ומקצתם לעיגול שפרקוד ננעמיה חלמוני';
 
-  async function open(page, { query = '?batch=1', batchText = '', hold = null, status = 200 } = {}) {
+  async function open(page, { query = '', batchText = '', hold = null, status = 200 } = {}) {
     const requests = [];
     await openFollowing(page, query);
     // Registered after the page is up: preparePage's catch-all /api/** stub is
@@ -549,8 +549,8 @@ test.describe('Live Follow — batch second opinion (?batch=1)', () => {
   }
   const batchEntries = (page) => page.evaluate(() => live.log.filter((e) => e.kind === 'batch'));
 
-  test('off by default: nothing is sent to the batch function', async ({ page }) => {
-    const requests = await open(page, { query: '', batchText: phrase(407, 7) });
+  test('?batch=0 turns it off: nothing is sent to the batch function', async ({ page }) => {
+    const requests = await open(page, { query: '?batch=0', batchText: phrase(407, 7) });
     await say(page, phrase(400, 7));
     await say(page, GARBLE);
     await page.waitForTimeout(300);
@@ -653,7 +653,7 @@ test.describe('Live Follow — batch second opinion (?batch=1)', () => {
   });
 
   test('segmentAudio returns exactly the requested slice of what was sent', async ({ page }) => {
-    await openFollowing(page, '?batch=1');
+    await openFollowing(page);
     const sums = await page.evaluate(() => {
       live.audioChunks = []; live.sentSamples = 0;
       for (let i = 0; i < 5; i += 1) recordSentAudio(new Int16Array(1600).fill(i + 1).buffer); // 1600 each of 1,2,3,4,5
@@ -664,7 +664,7 @@ test.describe('Live Follow — batch second opinion (?batch=1)', () => {
   });
 
   test('the audio kept is capped, not unbounded', async ({ page }) => {
-    await openFollowing(page, '?batch=1');
+    await openFollowing(page);
     const kept = await page.evaluate(() => {
       live.audioChunks = []; live.sentSamples = 0;
       for (let i = 0; i < 1500; i += 1) recordSentAudio(new Int16Array(1600).buffer); // 150 seconds

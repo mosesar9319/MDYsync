@@ -1,4 +1,4 @@
-// live-batch.mjs (the batch re-transcription behind /live/?batch=1), with a
+// live-batch.mjs (the batch re-transcription behind /live/), with a
 // stubbed fetch and Netlify.env so nothing reaches ElevenLabs. Run with
 // `npm run test:functions`.
 

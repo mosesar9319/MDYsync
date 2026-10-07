@@ -55,17 +55,21 @@ const LM = window.LiveMatcher;
 //   /live/?keyterms=0  Send no bias list. The list nudges the service toward
 //                      the daf's rarer words (and, in silence, made it recite
 //                      the list itself); whether it helps real speech is open.
-//   /live/?batch=1     Also send each finished segment to ElevenLabs' BATCH
-//                      model (see live-batch.mjs) and log both transcripts
-//                      side by side; when the live model fails to place a
-//                      phrase and the batch one can, it rescues the position.
+//   /live/?batch=0     Turn off the batch second opinion. By default each
+//                      finished segment is also sent to ElevenLabs' BATCH
+//                      model (see live-batch.mjs) and both transcripts are
+//                      logged side by side; when the live model fails to place
+//                      a phrase and the batch one can, it rescues the position.
+//                      On real phone-mic sessions the batch model scored ~92
+//                      against ~78-85 for the live one and rescued 5-7
+//                      segments a session.
 const PAGE_PARAMS = new URLSearchParams(location.search);
 const PAGE_OPTIONS = {
   lang: PAGE_PARAMS.get('lang'),
   filter: PAGE_PARAMS.get('filter') === '1',
   raw: PAGE_PARAMS.get('raw') === '1',
   keyterms: PAGE_PARAMS.get('keyterms') !== '0',
-  batch: PAGE_PARAMS.get('batch') === '1',
+  batch: PAGE_PARAMS.get('batch') !== '0',
 };
 // A segment shorter than this isn't worth a round trip; a longer one than this
 // is capped to its last stretch (the API and function limits are far higher).
@@ -527,7 +531,7 @@ function setFollowState(state, options = {}) {
   }
 }
 
-// ---- Batch second opinion (/live/?batch=1) ----------------------------------
+// ---- Batch second opinion (on by default; /live/?batch=0 turns it off) ----------------------------------
 // How a transcript would fare on the daf, from a given cursor: for each Hebrew
 // run, where it matches locally and how well. Pure -- it moves nothing -- so
 // the realtime and batch transcripts of the same segment can be compared like
