@@ -1419,6 +1419,22 @@ function nextDafRef(ref) {
   return `${parsed.tractate} ${daf}${amud}${variantSuffix}${languageSuffix}`;
 }
 
+// The ref one amud before the given one -- 'b' goes back to 'a' on the same
+// daf, 'a' to the previous daf's 'b' -- or null before the first daf there can
+// be. The mirror of nextDafRef; Live Follow reads the amud before the one
+// chosen too, as the regular alignments do, for a shiur that begins from the
+// end of the previous daf.
+function prevDafRef(ref) {
+  const parsed = parseDafRef(ref);
+  if (!parsed) return null;
+  const daf = parsed.amud === 'b' ? parsed.daf : parsed.daf - 1;
+  if (daf < 2) return null;
+  const amud = parsed.amud === 'b' ? 'a' : 'b';
+  const variantSuffix = parsed.variant === 'chazarah' ? ' (Chazarah Daf)' : '';
+  const languageSuffix = parsed.language === 'he' ? ' (Hebrew)' : '';
+  return `${parsed.tractate} ${daf}${amud}${variantSuffix}${languageSuffix}`;
+}
+
 // Same Sefaria calendar lookup index.html's own hero card uses to find
 // today's Daf Yomi -- duplicated here (rather than shared) since the two
 // pages have no module system to share it through. Used by the Daf browser

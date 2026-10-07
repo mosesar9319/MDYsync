@@ -282,12 +282,18 @@ async function loadLiveDaf(ref) {
   const parsed = parseDafRef(ref);
   if (!parsed) throw new Error('Choose a daf first.');
   const first = realDafRef(ref);
-  const second = realDafRef(nextDafRef(first));
-  const key = `${first}|${second}`;
+  // The amud before and the amud after the one chosen come with it: a shiur
+  // may begin from the end of the previous daf (as a regular alignment's
+  // context does), or run on into the next. The one before is left out where
+  // there is none (the start of a tractate) or Sefaria has nothing for it.
+  const wanted = [prevDafRef(first), first, nextDafRef(first)].filter(Boolean).map(realDafRef);
+  const key = wanted.join('|');
   if (live.daf?.key === key) { showLiveSegments(); return live.daf; }
-  const [a, b] = await Promise.allSettled([fetchSefariaParagraphs(first), fetchSefariaParagraphs(second)]);
-  if (a.status !== 'fulfilled') throw a.reason;
-  const paragraphs = [...a.value.paragraphs, ...(b.status === 'fulfilled' ? b.value.paragraphs : [])];
+  const settled = await Promise.allSettled(wanted.map((wantedRef) => fetchSefariaParagraphs(wantedRef)));
+  const chosen = wanted.indexOf(first);
+  if (settled[chosen].status !== 'fulfilled') throw settled[chosen].reason;
+  const refs = wanted.filter((_, i) => settled[i].status === 'fulfilled');
+  const paragraphs = settled.flatMap((result) => (result.status === 'fulfilled' ? result.value.paragraphs : []));
   const canon = LM.buildCanon(paragraphs.map((p) => ({ ref: p.ref, he: p.he })));
   const keyterms = LM.buildRealtimeKeyterms(canon);
   // The batch model takes far more terms (the same 400 voice_align.py uses).
@@ -297,7 +303,7 @@ async function loadLiveDaf(ref) {
   const firstCanonOfSegment = new Map();
   canon.words.forEach((w, i) => { if (!firstCanonOfSegment.has(w.segIndex)) firstCanonOfSegment.set(w.segIndex, i); });
   live.daf = {
-    key, label: first, refs: [first, second], paragraphs, canon, keyterms, batchKeyterms, segmentIndexByRef, canonIndex, firstCanonOfSegment,
+    key, label: first, refs, paragraphs, canon, keyterms, batchKeyterms, segmentIndexByRef, canonIndex, firstCanonOfSegment,
     tokenCounts: paragraphs.map((p) => LM.segmentTokens(p.he).length),
     keytermTokens: LM.keytermTokens(keyterms), batchKeytermTokens: LM.keytermTokens(batchKeyterms),
   };

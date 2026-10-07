@@ -15,6 +15,11 @@ import { preparePage, failOnPageError } from '../support/harness.mjs';
 
 const fixture = JSON.parse(readFileSync(new URL('../fixtures/live-matcher-parity.json', import.meta.url), 'utf8'));
 const pageMap91a = JSON.parse(readFileSync(new URL('../fixtures/pagemap-chullin-91a.json', import.meta.url), 'utf8'));
+// The text of the amud before 91a, for the tests that read it (the other tests have none).
+const BEFORE_91A = [
+  'אמר רבי יוחנן משום רבי שמעון בן יוחאי כל המקיים מצות עשה בכל יום ויום זוכה ורואה פני השכינה תמיד',
+  'אבוהון דכולהו אמוראי הוו מסדרי שמעתתא בבי מדרשא ורב נחמן בר יצחק הוה ידע לברורי פלוגתא',
+];
 const phrase = (start, length) => fixture.canonNorms.slice(start, start + length).join(' ');
 
 const PDFJS = /^https:\/\/cdn\.jsdelivr\.net\/npm\/pdfjs-dist@[^/]+\/build\/pdf\.min\.mjs$/;
@@ -38,7 +43,7 @@ const mockPdfJs = (maps) => `
 
 // Registered AFTER preparePage: its catch-all /api/** stub is the latest route
 // until then, and the latest route wins.
-async function serveDaf(page, { maps = { 'Chullin-91a': pageMap91a }, jobStatus = 202, pageStatus = {} } = {}) {
+async function serveDaf(page, { maps = { 'Chullin-91a': pageMap91a }, jobStatus = 202, pageStatus = {}, before = null } = {}) {
   const seen = { pages: [], maps: [], jobs: [], sefaria: [] };
   await page.route('**/api/sefaria?*', (route) => {
     const ref = new URL(route.request().url()).searchParams.get('ref');
@@ -48,6 +53,13 @@ async function serveDaf(page, { maps = { 'Chullin-91a': pageMap91a }, jobStatus 
     // passes through on the way gets a one-line stand-in, as a real daf would
     // have text -- except one that does not exist at all.
     if (/ 999[ab]$/.test(ref)) return route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"not found"}' });
+    // The amud before 91a is read too. Unless a test gives it text (`before`),
+    // it has none here, so the canon is exactly the fixture's 91a + 91b.
+    if (ref === 'Chullin 90b') {
+      return before
+        ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ref, sectionRef: ref, heRef: ref, he: before }) })
+        : route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"not found"}' });
+    }
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ref, sectionRef: ref, heRef: ref, he: he.length ? he : ['שלום עליכם'] }) });
   });
   await page.route('https://www.sefaria.org/**', (route) => route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"offline in tests"}' }));
@@ -1573,12 +1585,51 @@ test.describe('Live follow — the page\'s own views follow the reading', () => 
     const sefariaBefore = seen.sefaria.length;
     await page.locator('#browseNextButton').click(); // 91a -> 91b: the second page of the same pair
     await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 91b');
-    expect(await page.evaluate(() => live.daf.key)).toBe('Chullin 91a|Chullin 91b');
+    expect(await page.evaluate(() => live.daf.refs)).toEqual(['Chullin 91a', 'Chullin 91b']);
     expect(seen.sefaria.length).toBe(sefariaBefore); // nothing was loaded
     expect(await page.evaluate(() => state.liveFollow.active)).toBe(true);
     await page.locator('#browseNextButton').click(); // 91b -> 92a: a different daf now
-    await expect.poll(() => page.evaluate(() => live.daf.key)).toBe('Chullin 92a|Chullin 92b');
+    await expect.poll(() => page.evaluate(() => live.daf.refs)).toEqual(['Chullin 91b', 'Chullin 92a', 'Chullin 92b']);
     await expect(page.locator('#lfDafName')).toHaveText('Chullin 92a');
+  });
+
+  test('the amud before the chosen one is followed too, for a shiur that begins from the end of the previous daf', async ({ page }) => {
+    const seen = await openFollowing(page, { serve: { before: BEFORE_91A } });
+    expect(seen.sefaria).toEqual(expect.arrayContaining(['Chullin 90b', 'Chullin 91a', 'Chullin 91b']));
+    expect(await page.evaluate(() => live.daf.refs)).toEqual(['Chullin 90b', 'Chullin 91a', 'Chullin 91b']);
+    // The daf chosen is still the one named and shown.
+    await expect(page.locator('#lfDafName')).toHaveText('Chullin 91a');
+    expect(await page.evaluate(() => state.browsePageRef)).toBe('Chullin 91a');
+    // Reading the end of the previous daf is placed there, and the page turns back to it.
+    await say(page, BEFORE_91A[0].split(' ').slice(0, 14).join(' '));
+    await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 90b');
+    expect(await page.evaluate(() => live.daf.canon.words[live.confirmed?.s ?? live.provisional?.s]?.ref)).toMatch(/^Chullin 90b/);
+    await expect(page.locator('#dafDafSelect')).toHaveValue('90');
+    await expect(page.locator('#dafAmudToggle .amud-option.active')).toHaveText('b');
+    // And on into the chosen daf.
+    const offset = await page.evaluate(() => live.daf.canon.words.findIndex((w) => w.ref.startsWith('Chullin 91a')));
+    await say(page, phrase(0, 7));
+    await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 91a');
+    expect(await confirmed(page)).toEqual({ s: offset, e: offset + 6 });
+  });
+
+  test('stepping back to the amud before only turns the page: it is already followed', async ({ page }) => {
+    const seen = await openFollowing(page, { serve: { before: BEFORE_91A } });
+    const loaded = seen.sefaria.length;
+    await page.locator('#browsePrevButton').click();
+    await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 90b');
+    expect(await page.evaluate(() => live.daf.label)).toBe('Chullin 91a');
+    expect(seen.sefaria.length).toBe(loaded);
+  });
+
+  test('at the start of a tractate there is no amud before to read', async ({ page }) => {
+    const seen = await openBrowse(page);
+    await page.locator('#lfToggle').click();
+    await page.locator('#dafTractateSelect').selectOption('Berakhot');
+    await page.locator('#dafDafSelect').selectOption('2');
+    await expect.poll(() => page.evaluate(() => dafLiveFollow.__test.live.daf?.label)).toBe('Berakhot 2a');
+    expect(await page.evaluate(() => dafLiveFollow.__test.live.daf.refs)).toEqual(['Berakhot 2a', 'Berakhot 2b']);
+    expect(seen.sefaria.some((ref) => /^Berakhot 1/.test(ref))).toBe(false);
   });
 
   test('picking another daf makes it the daf to follow, and stops a session that was running', async ({ page }) => {
