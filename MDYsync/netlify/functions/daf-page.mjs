@@ -70,7 +70,11 @@ export default async (request) => {
       },
     });
   } catch (error) {
-    return Response.json({ error: 'Page image request failed.', detail: error.message }, { status: 502 });
+    // undici's "fetch failed" hides the real reason in error.cause (a DNS
+    // failure, a refused or timed-out connection, a certificate problem...).
+    const cause = error.cause?.code || error.cause?.message || null;
+    console.error('daf-page: could not fetch from shas.org:', error.message, cause || '');
+    return Response.json({ error: 'Page image request failed.', detail: error.message, cause }, { status: 502 });
   }
 };
 
