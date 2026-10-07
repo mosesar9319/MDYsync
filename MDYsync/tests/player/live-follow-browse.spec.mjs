@@ -76,7 +76,7 @@ async function serveDaf(page, { maps = { 'Chullin-91a': pageMap91a }, jobStatus 
   return seen;
 }
 
-async function openBrowse(page, { query = '', serve = {}, errors = null, noTabShare = false, synced = null } = {}) {
+async function openBrowse(page, { query = '', serve = {}, errors = null, noTabShare = false, synced = null, catalog = null } = {}) {
   if (errors) failOnPageError(page, errors);
   await preparePage(page, { user: null });
   const seen = await serveDaf(page, serve);
@@ -98,6 +98,7 @@ async function openBrowse(page, { query = '', serve = {}, errors = null, noTabSh
     };
     window.WebSocket = class { constructor() { this.readyState = 0; } addEventListener() {} send() {} close() {} };
   });
+  if (catalog) await page.route('**/api/get-catalog', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(catalog) }));
   if (synced) await page.route('**/api/list-synced-dapim', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(synced) }));
   if (noTabShare) await page.addInitScript(() => { navigator.mediaDevices.getDisplayMedia = undefined; });
   await page.goto(`/browse/${query}`);
@@ -284,6 +285,52 @@ test.describe('Live follow — the mode on the Interactive Daf page', () => {
     await expect(page.locator('#dafDafSelect')).toHaveValue('89');
     await page.locator('#dafDafSelect').selectOption('120');
     await expect(page.locator('#dafAmudToggle .amud-option[data-side="b"]')).toBeEnabled();
+  });
+
+  test('a daf with videos linked but no finished sync says so, not "no recording"', async ({ page }) => {
+    await openBrowse(page, {
+      synced: { Chullin: { '89a': ['regularEn'], '89b': ['regularEn'] } },
+      catalog: { tractates: { Chullin: [{ daf: 89, regularEn: { videoId: 'a' } }, { daf: 120, regularEn: { videoId: 'b' }, chazarahEn: { videoId: 'c' } }] } },
+    });
+    const label = (daf) => page.locator(`#dafDafSelect option[value="${daf}"]`).textContent();
+    expect(await label(89)).toBe('89'); // synced
+    expect(await label(120)).toBe('120 · video not synced yet'); // linked, not synced
+    expect(await label(121)).toBe('121 · no recording yet'); // nothing linked
+  });
+
+  test('the arrows beside the daf name step through every amud without touching the video', async ({ page }) => {
+    await openBrowse(page, { query: '?ref=Chullin%2088a', synced: { Chullin: { '89a': ['regularEn'], '89b': ['regularEn'] } } });
+    await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 88a');
+    await page.evaluate(() => {
+      window.__loads = 0;
+      const original = window.loadDaf;
+      window.loadDaf = (...args) => { window.__loads += 1; return original(...args); };
+    });
+    const at = () => page.evaluate(() => [state.browsePageRef, document.getElementById('dafTitle').textContent]);
+    const next = page.locator('#dafNextAmudButton');
+    for (const ref of ['Chullin 88b', 'Chullin 89a', 'Chullin 89b', 'Chullin 90a']) { // through the synced ones and past them
+      await next.click();
+      await expect.poll(at).toEqual([ref, ref]);
+    }
+    const previous = page.locator('#dafPrevAmudButton');
+    for (const ref of ['Chullin 89b', 'Chullin 89a', 'Chullin 88b', 'Chullin 88a', 'Chullin 87b']) {
+      await previous.click();
+      await expect.poll(at).toEqual([ref, ref]);
+    }
+    expect(await page.evaluate(() => window.__loads)).toBe(0); // no recording was loaded or swapped
+    expect(await page.evaluate(() => state.dafRef)).not.toBe('Chullin 89a'); // and no recording took over
+    // The picker follows the page.
+    await expect(page.locator('#dafDafSelect')).toHaveValue('87');
+    await expect(page.locator('#dafAmudToggle .amud-option.active')).toHaveText('b');
+  });
+
+  test('the Previous / Next amud buttons under the picker step the same way', async ({ page }) => {
+    await openBrowse(page, { query: '?ref=Chullin%2088a' });
+    await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 88a');
+    await page.locator('#browseNextButton').click();
+    await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 88b');
+    await page.locator('#browsePrevButton').click();
+    await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 88a');
   });
 
   test('the Choose daf button takes you to the page\'s picker', async ({ page }) => {

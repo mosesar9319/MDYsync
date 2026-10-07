@@ -213,6 +213,11 @@
     body[data-page="browse"] .setup-strip .video-field { display: none; }
     .browse-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
     .browse-nav-label { color: var(--muted); font-size: 13px; text-align: center; flex: 1; }
+    .daf-title-row { display: flex; align-items: center; gap: 8px; }
+    .daf-title-row h2 { margin: 0; }
+    .amud-step { width: 34px; height: 34px; flex: none; display: grid; place-items: center; padding: 0 0 3px; border: 1px solid var(--line-strong, rgba(19,34,56,.25)); border-radius: 50%; background: none; color: inherit; font: inherit; font-size: 22px; line-height: 1; cursor: pointer; }
+    .amud-step:hover { background: rgba(127,127,127,.14); }
+    .amud-step:focus-visible { outline: 2px solid var(--accent, #2f6ea5); outline-offset: 2px; }
     @media (max-width: 640px) {
       body[data-page="browse"] .daf-heading { padding: 15px 14px 13px; }
       body[data-page="browse"] .daf-card[data-daf-view="page"] .vilna-placeholder { padding: 0 5px 12px; }
@@ -605,9 +610,9 @@
       </section>
 
       <div class="browse-nav">
-        <button class="button secondary" id="browsePrevButton" type="button">‹ Previous page</button>
+        <button class="button secondary" id="browsePrevButton" type="button">‹ Previous amud</button>
         <span class="browse-nav-label">Tap any word on the page to watch that part of the shiur.</span>
-        <button class="button secondary" id="browseNextButton" type="button">Next page ›</button>
+        <button class="button secondary" id="browseNextButton" type="button">Next amud ›</button>
       </div>
 
       <section class="card live-follow" id="lfPanel" aria-label="Live follow">
@@ -869,7 +874,11 @@
           <div class="card-heading daf-heading">
             <div>
               <div class="eyebrow">Digital daf</div>
-              <h2 id="dafTitle">No daf loaded</h2>
+              <div class="daf-title-row">
+                <button class="amud-step" id="dafPrevAmudButton" type="button" aria-label="Previous amud" title="Previous amud (the video keeps playing)">&#8249;</button>
+                <h2 id="dafTitle">No daf loaded</h2>
+                <button class="amud-step" id="dafNextAmudButton" type="button" aria-label="Next amud" title="Next amud (the video keeps playing)">&#8250;</button>
+              </div>
             </div>
             <div class="daf-heading-tools">
               <div class="view-switch" role="group" aria-label="Daf display mode">
@@ -1004,7 +1013,7 @@
     <div class="eyebrow">Guide</div>
     <h2>How to use Interactive Daf</h2>
     <ol>
-      <li>Pick a tractate, daf, and amud above, or use the "Previous page"/"Next page" buttons to flip through in order.</li>
+      <li>Pick a tractate, daf, and amud above, or use the ‹ and › buttons (beside the daf name) or "Previous amud"/"Next amud" to flip through in order &mdash; a video that is playing keeps playing.</li>
       <li>Tap any word on the page to play the shiur right here, starting at the exact moment it's discussed.</li>
       <li>Switch English/Hebrew and Regular/Chazarah Daf above to browse whichever recording you want a tapped word to jump to.</li>
     </ol>
