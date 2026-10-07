@@ -23,7 +23,7 @@ const STUB_SOURCE = readFileSync(join(HERE, '..', 'fixtures', 'supabase-stub.js'
 // regression suite; what matters is that the page gets a well-formed answer
 // instead of a network error that would mask a real UI defect.
 const API_RESPONSES = {
-  '/api/list-synced-dapim': { Chullin: { 89: ['a', 'b'] } },
+  '/api/list-synced-dapim': { Chullin: { '89a': ['regularEn'], '89b': ['regularEn'] } },
   '/api/get-catalog': { videos: [] },
   // fetchSefariaParagraphs() builds each paragraph's ref as
   // `${data.sectionRef}.${index + 1}` -- a DOT, which is why segment_ref values

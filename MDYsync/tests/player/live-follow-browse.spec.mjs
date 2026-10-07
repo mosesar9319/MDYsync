@@ -107,8 +107,6 @@ async function openBrowse(page, { query = '', serve = {}, errors = null, noTabSh
 // The page's own picker: tractate, daf, then side.
 async function pick(page, ref) {
   const [, tractate, daf, side] = /^(.+?)\s+(\d+)([ab])$/.exec(ref);
-  // It lives in the player's top-bar menu, which opens from the daf name.
-  if (await page.locator('#playerDafMenu').isHidden()) await page.locator('#playerDafButton').click();
   await page.locator('#dafTractateSelect').selectOption(tractate);
   await page.locator('#dafDafSelect').selectOption(daf);
   await page.locator(`#dafAmudToggle .amud-option[data-side="${side}"]`).click();
@@ -205,7 +203,6 @@ test.describe('Live follow — the mode on the Interactive Daf page', () => {
     const after = await page.locator('#dafTractateSelect option').evaluateAll((o) => o.map((x) => x.value));
     expect(after.length).toBe(36);
     expect(after.length).toBeGreaterThan(before.length);
-    await page.locator('#playerDafButton').click();
     await page.locator('#dafTractateSelect').selectOption('Berakhot');
     expect(await page.locator('#dafDafSelect option').count()).toBe(63); // 2..64, all of them
   });
@@ -267,12 +264,32 @@ test.describe('Live follow — the mode on the Interactive Daf page', () => {
     expect(info.title).toBe('Chullin 91a');
   });
 
-  test('the Choose daf button opens the page\'s picker menu', async ({ page }) => {
+  test('the daf picker is on the page itself, not inside the video player', async ({ page }) => {
+    await openBrowse(page);
+    expect(await page.evaluate(() => document.getElementById('dafDafSelect').closest('.video-frame'))).toBeNull();
+    await expect(page.locator('#dafDafSelect')).toBeVisible();
+    await expect(page.locator('#playerDafButton')).toBeDisabled(); // the player's daf name is only a label
+  });
+
+  test('the picker lists every daf of the tractate, with the unsynced ones marked', async ({ page }) => {
+    await openBrowse(page);
+    await expect(page.locator('#dafTractateSelect')).toHaveValue('Chullin');
+    const options = await page.locator('#dafDafSelect option').evaluateAll((o) => o.map((x) => [x.value, x.textContent]));
+    expect(options.length).toBe(141); // 2..142: past the last synced daf
+    expect(options.at(-1)[0]).toBe('142');
+    expect(options.find(([v]) => v === '89')[1]).toBe('89');
+    expect(options.find(([v]) => v === '120')[1]).toBe('120 · no recording yet');
+    await page.locator('#dafDafSelect').selectOption('120');
+    await expect(page.locator('#dafAmudToggle .amud-option[data-side="b"]')).toBeEnabled();
+  });
+
+  test('the Choose daf button takes you to the page\'s picker', async ({ page }) => {
     await openBrowse(page);
     await page.locator('#lfToggle').click();
-    await expect(page.locator('#playerDafMenu')).toBeHidden();
     await page.locator('#lfChooseDafButton').click();
-    await expect(page.locator('#playerDafMenu')).toBeVisible();
+    await expect(page.locator('.setup-field.ref-field')).toHaveClass(/lf-picker-flash/);
+    await expect(page.locator('#dafDafSelect')).toBeFocused();
+    await expect(page.locator('#dafDafSelect')).toBeInViewport();
   });
 
   test('without a daf chosen, Start says so and starts nothing', async ({ page }) => {

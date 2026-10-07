@@ -2823,3 +2823,7 @@ body.split-view-active .watch-layout.split-active .video-frame #youtubePlayerHos
   }
 }
 
+
+/* The Interactive Daf page keeps the daf picker on the page (see player-chrome.js);
+   for a reader, who sees no admin fields, it is the strip's only field. */
+body[data-page="browse"]:not(.is-admin) .setup-strip { grid-template-columns: 1fr; }
