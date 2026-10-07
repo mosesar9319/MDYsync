@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Live Follow</title>
+  <!-- Live Follow now lives on the Interactive Daf page, which already has the
+       daf picker, the printed daf and the viewing modes. Old links (and any
+       ?lang= / ?raw= / ?batch= options on them) are carried over. -->
+  <meta http-equiv="refresh" content="0; url=../browse/?live=1" />
+  <script>
+    (function () {
+      var query = location.search.replace(/^\?/, '');
+      location.replace('../browse/?live=1' + (query ? '&' + query : ''));
+    }());
+  </script>
+</head>
+<body>
+  <p>Live Follow has moved to <a href="../browse/?live=1">the Interactive Daf page</a>.</p>
+</body>
+</html>

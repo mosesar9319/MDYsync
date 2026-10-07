@@ -164,3 +164,12 @@
   for = "/player/*"
   [headers.values]
     Permissions-Policy = "camera=(self), microphone=(), geolocation=()"
+
+# Same idea, for Live Follow (see live-token.mjs and live-follow.js): the
+# Interactive Daf page is the only place on the site that needs the
+# microphone, so it gets its own narrow override rather than loosening the
+# sitewide default above for everyone.
+[[headers]]
+  for = "/browse/*"
+  [headers.values]
+    Permissions-Policy = "camera=(), microphone=(self), geolocation=()"

@@ -21,6 +21,34 @@ const MASECHTA_SLUGS = {
   'Niddah': 'niddah',
 };
 
+import https from 'node:https';
+
+const SHAS_HOSTS = ['www.shas.org', 'shas.org'];
+
+// shas.org's server has been presenting its hosting panel's certificate (it names
+// only mail.shas.org, webmail.shas.org, ...), so a fully verified connection is
+// refused. The site owner chose to accept that for this one host: ONLY when the
+// verified attempts have failed on a certificate error, ONE more request goes to
+// SHAS_HOSTS[0] with the certificate check off, and only a PDF is passed on. Every
+// request tries the verified way first, so this stops being used the moment shas.org
+// serves a valid certificate.
+const CERT_ERROR = /^(ERR_TLS_CERT_ALTNAME_INVALID|CERT_|DEPTH_ZERO_SELF_SIGNED_CERT|SELF_SIGNED_CERT_IN_CHAIN|UNABLE_TO_(GET_ISSUER_CERT|VERIFY_LEAF_SIGNATURE))/;
+
+function getWithoutCertificateCheck(endpoint, headers) {
+  return new Promise((resolve, reject) => {
+    const req = https.request(endpoint, { method: 'GET', headers, rejectUnauthorized: false, timeout: 20000 }, (res) => {
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(chunk));
+      res.on('end', () => resolve({ status: res.statusCode || 502, body: Buffer.concat(chunks) }));
+      res.on('error', reject);
+    });
+    req.on('timeout', () => req.destroy(Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' })));
+    req.on('error', reject);
+    req.end();
+  });
+}
+let uncheckedGet = getWithoutCertificateCheck;
+
 export default async (request) => {
   if (request.method !== 'GET') {
     return Response.json({ error: 'Method not allowed' }, { status: 405 });
@@ -42,38 +70,74 @@ export default async (request) => {
     return Response.json({ error: "Amud must be 'a' or 'b'." }, { status: 400 });
   }
 
-  const endpoint = new URL('https://www.shas.org/daf-pdf/api/');
-  endpoint.searchParams.set('masechta', slug);
-  endpoint.searchParams.set('daf', String(daf));
-  endpoint.searchParams.set('amud', amud);
-
-  try {
-    const upstream = await fetch(endpoint, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        Accept: 'application/pdf,*/*',
-      },
-    });
-    if (!upstream.ok) {
-      return Response.json(
-        { error: `No page image available for ${tractate} ${daf}${amud}.` },
-        { status: upstream.status === 404 || upstream.status === 400 ? 404 : 502 }
-      );
+  // www.shas.org first, then shas.org: each connection is fully verified, but a
+  // certificate that covers only one of the two names (shas.org's has done this)
+  // would otherwise take every page down with it.
+  const attempts = [];
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    Accept: 'application/pdf,*/*',
+  };
+  const endpointFor = (host) => {
+    const endpoint = new URL(`https://${host}/daf-pdf/api/`);
+    endpoint.searchParams.set('masechta', slug);
+    endpoint.searchParams.set('daf', String(daf));
+    endpoint.searchParams.set('amud', amud);
+    return endpoint;
+  };
+  const pdfResponse = (body) => new Response(body, {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Cache-Control': 'public, max-age=86400, s-maxage=604800',
+      'Access-Control-Allow-Origin': '*',
+    },
+  });
+  for (const host of SHAS_HOSTS) {
+    const endpoint = endpointFor(host);
+    try {
+      const upstream = await fetch(endpoint, { headers });
+      // An answer from the site, even a "no", is its answer: the other name would say the same.
+      if (!upstream.ok) {
+        return Response.json(
+          { error: `No page image available for ${tractate} ${daf}${amud}.` },
+          { status: upstream.status === 404 || upstream.status === 400 ? 404 : 502 }
+        );
+      }
+      return pdfResponse(await upstream.arrayBuffer());
+    } catch (error) {
+      // undici's "fetch failed" hides the real reason in error.cause (a DNS
+      // failure, a refused or timed-out connection, a certificate problem...).
+      attempts.push({ host, code: error.cause?.code || null, message: error.cause?.message || error.message });
     }
-    const body = await upstream.arrayBuffer();
-    return new Response(body, {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Cache-Control': 'public, max-age=86400, s-maxage=604800',
-        'Access-Control-Allow-Origin': '*',
-      },
-    });
-  } catch (error) {
-    return Response.json({ error: 'Page image request failed.', detail: error.message }, { status: 502 });
   }
+  if (attempts.length && attempts.every((a) => CERT_ERROR.test(a.code || ''))) {
+    try {
+      const { status, body } = await uncheckedGet(endpointFor(SHAS_HOSTS[0]), headers);
+      if (status === 404 || status === 400) {
+        return Response.json({ error: `No page image available for ${tractate} ${daf}${amud}.` }, { status: 404 });
+      }
+      // Without a certificate to vouch for the sender, accept nothing but a PDF.
+      if (status === 200 && body.subarray(0, 5).toString('latin1') === '%PDF-') {
+        console.warn('daf-page: shas.org certificate refused; served the page with certificate checking off for that host');
+        return pdfResponse(body);
+      }
+      attempts.push({ host: SHAS_HOSTS[0], code: null, message: `unchecked request answered ${status}` });
+    } catch (error) {
+      attempts.push({ host: SHAS_HOSTS[0], code: error.code || null, message: `unchecked request: ${error.message}` });
+    }
+  }
+  console.error('daf-page: could not fetch from shas.org:', JSON.stringify(attempts));
+  return Response.json({
+    error: 'Page image request failed.',
+    detail: 'fetch failed',
+    cause: attempts[0]?.code || attempts[0]?.message || null,
+    attempts,
+  }, { status: 502 });
 };
 
 export const config = {
   path: '/api/daf-page',
 };
+
+export const __testing = { SHAS_HOSTS, setUncheckedGetForTests: (fn) => { uncheckedGet = fn || getWithoutCertificateCheck; } };

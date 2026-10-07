@@ -54,6 +54,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Frank+Ruhl+Libre:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../styles.css" />
   <link rel="stylesheet" href="../watch-theme.css" />
+  <link rel="stylesheet" href="../live-follow.css" />
   <style>
     /* Side by side, matching player/index.html's own .watch-layout exactly
        (grid ratios, gap, and the 1120px collapse-to-single-column
@@ -609,6 +610,61 @@
         <button class="button secondary" id="browseNextButton" type="button">Next page ›</button>
       </div>
 
+      <section class="card live-follow" id="lfPanel" aria-label="Live follow">
+        <div class="lf-head">
+          <div class="lf-heading">
+            <span class="lf-badge">Experiment</span>
+            <h2>Live follow</h2>
+            <p>Follow a shiur being given right now &mdash; or a video &mdash; on the printed daf. The highlight moves as it is read.</p>
+          </div>
+          <button class="button secondary" id="lfToggle" type="button" aria-pressed="false">Turn on</button>
+        </div>
+        <div class="lf-body" id="lfBody" hidden>
+          <div class="lf-top">
+            <div class="lf-daf">
+              <span>Daf: <strong id="lfDafName">none chosen</strong></span>
+              <button class="button secondary small" id="lfChooseDafButton" type="button">Choose daf</button>
+            </div>
+            <div class="lf-seg" id="lfSources" role="radiogroup" aria-label="How to follow">
+              <label class="lf-seg-option"><input type="radio" name="lfSource" value="microphone" checked /><span>Microphone</span></label>
+              <label class="lf-seg-option" id="lfSourceTabLabel"><input type="radio" name="lfSource" value="tab" /><span>Tab audio</span></label>
+              <label class="lf-seg-option"><input type="radio" name="lfSource" value="transcript" /><span>Video transcript</span></label>
+            </div>
+          </div>
+          <p class="lf-source-note" id="lfSourceNote"></p>
+          <div class="lf-video" id="lfVideoRow" hidden>
+            <label for="lfVideoInput">Video link <span class="lf-hint">(YouTube, Google Drive, or a direct https link to an .mp3 / .mp4 file)</span></label>
+            <div class="lf-video-row">
+              <input id="lfVideoInput" type="url" inputmode="url" placeholder="https://www.youtube.com/watch?v=…" spellcheck="false" autocomplete="off" />
+              <button class="button secondary small" id="lfVideoLoadButton" type="button">Load video</button>
+            </div>
+            <div class="lf-video-message" id="lfVideoMessage"></div>
+          </div>
+          <div class="lf-run">
+            <button class="button primary lf-start" id="lfStartButton" type="button">Start live follow</button>
+            <div class="lf-status">
+              <div class="lf-status-row"><span class="lf-dot" id="lfStatusDot"></span><strong id="lfStatusText">Ready</strong></div>
+              <div class="lf-status-detail" id="lfStatusDetail">Choose a daf, then tap Start. Tap a word on the daf at any time to set where the reading is.</div>
+              <div class="lf-meter"><div id="lfMeterFill"></div></div>
+            </div>
+          </div>
+          <details class="lf-debug">
+            <summary>Details</summary>
+            <dl>
+              <div><dt>Partial</dt><dd id="lfDebugPartial" dir="rtl">—</dd></div>
+              <div><dt>Committed</dt><dd id="lfDebugCommitted" dir="rtl">—</dd></div>
+              <div><dt>Matched</dt><dd id="lfDebugMatch" dir="rtl">—</dd></div>
+              <div><dt>Confidence</dt><dd id="lfDebugConfidence">—</dd></div>
+              <div><dt>Pending jump</dt><dd id="lfDebugPending">—</dd></div>
+              <div><dt>Search window</dt><dd id="lfDebugWindow">—</dd></div>
+              <div><dt>Connection</dt><dd id="lfDebugConnection">—</dd></div>
+              <div id="lfDebugBatchRow"><dt>Batch model</dt><dd id="lfDebugBatch" dir="rtl">—</dd></div>
+            </dl>
+            <button class="button ghost small" id="lfCopyLogButton" type="button">Copy session log</button>
+          </details>
+        </div>
+      </section>
+
       <div class="viewer-mode-select" id="viewerModeSelect" role="group" aria-label="Viewing mode">
         <button type="button" class="viewer-mode-button" id="viewerModeSplitButton" aria-pressed="false" title="Split view: video and daf side by side">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="8.5" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="13" y="4.5" width="8.5" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
@@ -866,6 +922,8 @@
                 <div class="vilna-highlights-overlay" id="vilnaHighlightsOverlay"></div>
                 <div class="vilna-page-overlay" id="vilnaPageOverlay"></div>
                 <div class="vilna-active-overlay" id="vilnaActiveOverlay"></div>
+                <div class="vilna-live-provisional-overlay" id="vilnaLiveProvisionalOverlay"></div>
+                <div class="vilna-live-anchor-overlay" id="vilnaLiveAnchorOverlay"></div>
                 <div class="vilna-mark-target-overlay" id="vilnaMarkTargetOverlay"></div>
                 <div class="vilna-unmatched-overlay" id="vilnaUnmatchedOverlay"></div>
                 <div class="vilna-note-markers-overlay" id="vilnaNoteMarkersOverlay"></div>
@@ -1235,6 +1293,9 @@
   <script src="../highlights.js" defer></script>
   <script src="../daf-context-menu.js" defer></script>
   <script src="../shas-search.js" defer></script>
+  <script src="../live-matcher.js" defer></script>
+  <script src="../live-video.js" defer></script>
+  <script src="../live-follow.js" defer></script>
   <script src="../player-chrome.js" defer></script>
   <script src="../nav.js" defer></script>
   <script src="../collapse.js" defer></script>
