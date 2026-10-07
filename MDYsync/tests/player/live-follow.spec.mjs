@@ -696,18 +696,20 @@ test.describe('Live Follow — audio-path switches and diagnostics', () => {
     await page.evaluate(() => startLiveFollow());
   }
 
-  test('by default the browser\'s own voice processing is left as the browser chooses', async ({ page }) => {
+  test('by default echo cancellation, noise suppression and automatic gain are turned off', async ({ page }) => {
     await startWithMic(page, '');
-    const c = await page.evaluate(() => window.__constraints);
-    expect(c).toEqual({ audio: { channelCount: 1 } });
-  });
-
-  test('?raw=1 turns off echo cancellation, noise suppression and automatic gain', async ({ page }) => {
-    await startWithMic(page, '?raw=1');
     const c = await page.evaluate(() => window.__constraints);
     expect(c.audio).toMatchObject({ channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false });
     const start = await page.evaluate(() => live.log.find((e) => e.kind === 'start'));
     expect(start.options.raw).toBe(true);
+  });
+
+  test('?raw=0 leaves the browser\'s own voice processing as the browser chooses', async ({ page }) => {
+    await startWithMic(page, '?raw=0');
+    const c = await page.evaluate(() => window.__constraints);
+    expect(c).toEqual({ audio: { channelCount: 1 } });
+    const start = await page.evaluate(() => live.log.find((e) => e.kind === 'start'));
+    expect(start.options.raw).toBe(false);
   });
 
   test('the log records what the browser actually gave us, and level statistics are being gathered', async ({ page }) => {

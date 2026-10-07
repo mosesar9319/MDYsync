@@ -48,10 +48,12 @@ const LM = window.LiveMatcher;
 //                      in Latin letters (so it can be told from the reading)
 //                      but may hear Hebrew/Aramaic reading less well.
 //   /live/?filter=1    ElevenLabs' background-audio filter.
-//   /live/?raw=1       Turn off the browser's own voice processing (echo
-//                      cancellation, noise suppression, automatic gain). It is
-//                      tuned for phone calls and can mangle speech a
-//                      recognizer would otherwise hear fine.
+//   /live/?raw=0       Leave the browser's own voice processing (echo
+//                      cancellation, noise suppression, automatic gain) on.
+//                      By default it is off: it is tuned for phone calls and
+//                      can mangle speech a recognizer would otherwise hear
+//                      fine, and the one real session recorded with it off
+//                      scored best (realtime match ~85 vs ~78).
 //   /live/?keyterms=0  Send no bias list. The list nudges the service toward
 //                      the daf's rarer words (and, in silence, made it recite
 //                      the list itself); whether it helps real speech is open.
@@ -67,7 +69,7 @@ const PAGE_PARAMS = new URLSearchParams(location.search);
 const PAGE_OPTIONS = {
   lang: PAGE_PARAMS.get('lang'),
   filter: PAGE_PARAMS.get('filter') === '1',
-  raw: PAGE_PARAMS.get('raw') === '1',
+  raw: PAGE_PARAMS.get('raw') !== '0',
   keyterms: PAGE_PARAMS.get('keyterms') !== '0',
   batch: PAGE_PARAMS.get('batch') !== '0',
 };
