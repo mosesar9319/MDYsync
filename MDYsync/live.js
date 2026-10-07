@@ -48,10 +48,37 @@ const LM = window.LiveMatcher;
 //                      in Latin letters (so it can be told from the reading)
 //                      but may hear Hebrew/Aramaic reading less well.
 //   /live/?filter=1    ElevenLabs' background-audio filter.
+//   /live/?raw=1       Turn off the browser's own voice processing (echo
+//                      cancellation, noise suppression, automatic gain). It is
+//                      tuned for phone calls and can mangle speech a
+//                      recognizer would otherwise hear fine.
+//   /live/?keyterms=0  Send no bias list. The list nudges the service toward
+//                      the daf's rarer words (and, in silence, made it recite
+//                      the list itself); whether it helps real speech is open.
+//   /live/?batch=1     Also send each finished segment to ElevenLabs' BATCH
+//                      model (see live-batch.mjs) and log both transcripts
+//                      side by side; when the live model fails to place a
+//                      phrase and the batch one can, it rescues the position.
+const PAGE_PARAMS = new URLSearchParams(location.search);
 const PAGE_OPTIONS = {
-  lang: new URLSearchParams(location.search).get('lang'),
-  filter: new URLSearchParams(location.search).get('filter') === '1',
+  lang: PAGE_PARAMS.get('lang'),
+  filter: PAGE_PARAMS.get('filter') === '1',
+  raw: PAGE_PARAMS.get('raw') === '1',
+  keyterms: PAGE_PARAMS.get('keyterms') !== '0',
+  batch: PAGE_PARAMS.get('batch') === '1',
 };
+// A segment shorter than this isn't worth a round trip; a longer one than this
+// is capped to its last stretch (the API and function limits are far higher).
+const BATCH_MIN_SECONDS = 1;
+const BATCH_MAX_SECONDS = 40;
+// The batch audio starts a little before the previous commit: a commit arrives
+// about a second after the speech it covers ends (silence threshold plus
+// service latency), so the next utterance's first words may already be in the
+// audio that was sent by then.
+const BATCH_OVERLAP_SECONDS = 1.2;
+const AUDIO_KEEP_SECONDS = 90;
+const BATCH_MAX_IN_FLIGHT = 3;
+const AUDIO_LOG_INTERVAL_MS = 10000;
 
 function $(id) { return document.getElementById(id); }
 
@@ -178,6 +205,17 @@ const live = {
   anchorIndex: null,
   anchorSpan: null,
   unplacedHebrew: 0, // consecutive commits with Hebrew in them that placed nothing
+  // The audio that was sent (16kHz Int16, kept AUDIO_KEEP_SECONDS), so a
+  // finished segment can be re-transcribed; and what the batch side needs to
+  // know about the commits around it.
+  audioChunks: [], // { start, data } with start an absolute sample index
+  sentSamples: 0,
+  lastCommitSample: 0,
+  placementSeq: 0, // bumped whenever the highlight is placed or the reader taps
+  commitSeq: 0,
+  batchInFlight: 0,
+  levelStats: null,
+  levelTimer: null,
   followState: null, // what setFollowState last showed
   log: [],
   logStart: 0,
@@ -285,7 +323,12 @@ async function loadDaf(parsed) {
   const segments = first.value.concat(second.status === 'fulfilled' ? second.value : []);
   const canon = LM.buildCanon(segments);
   const keyterms = LM.buildRealtimeKeyterms(canon);
-  live.daf = { key: parsed.key, label: parsed.label, refs: parsed.refs, segments, canon, keyterms, keytermTokens: LM.keytermTokens(keyterms) };
+  // The batch model takes far more terms (the same 400 voice_align.py uses).
+  const batchKeyterms = LM.buildKeytermList(canon, 400);
+  live.daf = {
+    key: parsed.key, label: parsed.label, refs: parsed.refs, segments, canon, keyterms, batchKeyterms,
+    keytermTokens: LM.keytermTokens(keyterms), batchKeytermTokens: LM.keytermTokens(batchKeyterms),
+  };
   renderDaf(live.daf);
   return live.daf;
 }
@@ -365,6 +408,7 @@ function scrollToWord(index) {
 }
 
 function showConfirmed(match) {
+  live.placementSeq += 1;
   setProvisional(null);
   clearAnchorMark();
   paintRange(live.confirmed, 'hl', false);
@@ -413,6 +457,7 @@ function clearAnchorMark() {
 function setAnchor(index) {
   const span = live.spans[index];
   if (!span || !live.daf) return;
+  live.placementSeq += 1;
   clearAnchorMark();
   live.anchorSpan = span;
   span.classList.add('anchor');
@@ -482,6 +527,103 @@ function setFollowState(state, options = {}) {
   }
 }
 
+// ---- Batch second opinion (/live/?batch=1) ----------------------------------
+// How a transcript would fare on the daf, from a given cursor: for each Hebrew
+// run, where it matches locally and how well. Pure -- it moves nothing -- so
+// the realtime and batch transcripts of the same segment can be compared like
+// for like.
+// Searched the way the tracker would: around the cursor when it is locked, the
+// whole daf when it isn't.
+function scoreText(text, cursor, locked, listTokens) {
+  const heard = LM.cleanTranscript(text, listTokens);
+  return LM.splitHebrewRuns(heard)
+    .flatMap((run) => LM.chunkRun(run))
+    .filter((run) => run.length >= LM.PLACEABLE_RUN_MIN_WORDS)
+    .map((run) => {
+      const norms = run.map((w) => w.norm);
+      const phons = run.map((w) => w.phon);
+      const m = locked
+        ? LM.matchPhraseDual(live.daf.canon, norms, phons, cursor)
+        : LM.matchGlobalWithMargin(live.daf.canon, norms, phons);
+      return m
+        ? { words: run.length, s: m.s, e: m.e, phon: +m.phonScore.toFixed(1), char: +m.charScore.toFixed(1) }
+        : { words: run.length, miss: true };
+    });
+}
+
+async function fetchBatchTranscript(audio) {
+  const response = await fetch('/api/live-batch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      audioBase64: arrayBufferToBase64(audio.buffer),
+      keyterms: PAGE_OPTIONS.keyterms ? live.daf.batchKeyterms : [],
+      language: PAGE_OPTIONS.lang === 'he' ? 'he' : undefined,
+    }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+  return body;
+}
+
+// One finished segment, re-transcribed by the batch model a moment after the
+// realtime model committed it. Always logs both side by side. If the realtime
+// text placed nothing and the batch text does -- and nothing has moved the
+// highlight since, so this can't drag it backwards over newer progress -- the
+// batch placement is applied: a rescue a second or two late rather than a
+// freeze.
+async function runBatchSegment({ seq, audio, rtText, cursorBefore, lockedBefore, rtPlaced, placementSeq }) {
+  if (live.batchInFlight >= BATCH_MAX_IN_FLIGHT) {
+    logEvent('batch', { seq, skipped: 'busy' });
+    return;
+  }
+  live.batchInFlight += 1;
+  const started = performance.now();
+  let result = null;
+  let error = null;
+  try {
+    result = await fetchBatchTranscript(audio);
+  } catch (e) {
+    error = e.message;
+  } finally {
+    live.batchInFlight -= 1;
+  }
+  const ms = Math.round(performance.now() - started);
+  if (error) {
+    logEvent('batch', { seq, ms, error });
+    setDebug('Batch', `error: ${error}`);
+    return;
+  }
+  const batchTokens = PAGE_OPTIONS.keyterms ? live.daf.batchKeytermTokens : [];
+  const entry = {
+    seq, ms, seconds: +(audio.length / TARGET_SAMPLE_RATE).toFixed(1), text: result.text, lang: result.languageCode,
+    realtime: scoreText(rtText, cursorBefore, lockedBefore, activeKeytermTokens()),
+    batch: scoreText(result.text, cursorBefore, lockedBefore, batchTokens),
+  };
+  let rescued = null;
+  if (!rtPlaced && live.tracker && !live.manualStop && live.placementSeq === placementSeq && result.text) {
+    const runs = LM.splitHebrewRuns(LM.cleanTranscript(result.text, batchTokens))
+      .flatMap((run) => LM.chunkRun(run))
+      .filter((run) => run.length >= LM.PLACEABLE_RUN_MIN_WORDS);
+    let placed = null;
+    for (const run of runs) {
+      const step = live.tracker.step(run, live.runCounter);
+      live.runCounter += 1;
+      if (step.kind === 'local' || step.kind === 'confirmed' || step.kind === 'jump') placed = step.match;
+    }
+    if (placed) {
+      live.preview.reset();
+      showConfirmed({ ...placed, source: 'batch-rescue' });
+      live.unplacedHebrew = 0;
+      setFollowState('reading');
+      rescued = { s: placed.s, e: placed.e };
+    }
+  }
+  entry.rescued = rescued;
+  logEvent('batch', entry);
+  setDebug('Batch', `${result.text || '—'}${rescued ? '   ✓ placed it when the live model could not' : ''}`);
+}
+
 function handleCommitted(text) {
   clearTimeout(live.partialTimer);
   live.partialTimer = null;
@@ -493,6 +635,7 @@ function handleCommitted(text) {
     // The service committed nothing: silence. Not "Explaining" -- nobody was
     // heard -- so the status, and the highlight, stay as they were. (A real
     // session's log showed three of these, each flipping the status.)
+    live.lastCommitSample = live.sentSamples;
     logEvent('commit', { text: '', silent: true, outcomes: [], state: $('liveStatusText').textContent });
     return;
   }
@@ -500,7 +643,9 @@ function handleCommitted(text) {
   live.preview.reset(); // the preview's own position hands back to the confirmed one
   // The service sometimes recites its keyterm list, or sticks on one word, when
   // the audio goes quiet; neither is speech (see cleanTranscript).
-  const heard = LM.cleanTranscript(text, live.daf.keytermTokens);
+  const heard = LM.cleanTranscript(text, activeKeytermTokens());
+  const cursorBefore = live.tracker.cursor;
+  const lockedBefore = live.tracker.locked;
   const allRuns = LM.splitHebrewRuns(heard).flatMap((run) => LM.chunkRun(run));
   const runs = allRuns.filter((run) => run.length >= LM.PLACEABLE_RUN_MIN_WORDS);
   // A lone Hebrew word with nothing else around it is a fragment of the
@@ -534,7 +679,18 @@ function handleCommitted(text) {
     live.unplacedHebrew += 1;
     setFollowState(live.tracker.locked ? 'listening' : 'searching', { pending: Boolean(pending) });
   }
-  logEvent('commit', { text, ...(heard !== text ? { cleaned: heard } : {}), outcomes, state: $('liveStatusText').textContent, locked: live.tracker.locked, cursor: live.tracker.cursor });
+  live.commitSeq += 1;
+  const seq = live.commitSeq;
+  if (PAGE_OPTIONS.batch) {
+    const end = live.sentSamples;
+    const start = Math.max(live.lastCommitSample - Math.round(BATCH_OVERLAP_SECONDS * TARGET_SAMPLE_RATE), end - BATCH_MAX_SECONDS * TARGET_SAMPLE_RATE, 0);
+    live.lastCommitSample = end;
+    const audio = segmentAudio(start, end);
+    if (audio.length >= BATCH_MIN_SECONDS * TARGET_SAMPLE_RATE) {
+      runBatchSegment({ seq, audio, rtText: text, cursorBefore, lockedBefore, rtPlaced: Boolean(placed), placementSeq: live.placementSeq });
+    }
+  }
+  logEvent('commit', { seq, text, ...(heard !== text ? { cleaned: heard } : {}), outcomes, state: $('liveStatusText').textContent, locked: live.tracker.locked, cursor: live.tracker.cursor });
 }
 
 // A partial transcript is still being revised, so it never moves the
@@ -544,7 +700,7 @@ function handleCommitted(text) {
 function runProvisional() {
   live.partialTimer = null;
   if (!live.preview) return;
-  const runs = LM.splitHebrewRuns(LM.cleanTranscript(live.latestPartial, live.daf.keytermTokens));
+  const runs = LM.splitHebrewRuns(LM.cleanTranscript(live.latestPartial, activeKeytermTokens()));
   const last = runs[runs.length - 1];
   if (!last) return;
   const tail = last.slice(-LM.PROVISIONAL_TAIL_WORDS);
@@ -585,6 +741,11 @@ async function fetchLiveToken() {
   if (!response.ok || !body.token) throw new Error(body.error || 'Could not get a Live Follow token.');
   return body.token;
 }
+
+// The bias list actually in use (none with ?keyterms=0), and the tokens
+// cleanTranscript watches for a recitation of it.
+function activeKeyterms() { return PAGE_OPTIONS.keyterms ? live.daf.keyterms : []; }
+function activeKeytermTokens() { return PAGE_OPTIONS.keyterms ? live.daf.keytermTokens : []; }
 
 function buildWsUrl(token, keyterms) {
   const params = new URLSearchParams();
@@ -635,7 +796,7 @@ async function connectWebSocket() {
   if (live.manualStop) return; // Stop was clicked while the token request was in flight
 
   live.firstChunkSentThisConnection = true; // next chunk sent is this connection's first
-  const ws = new WebSocket(buildWsUrl(token, live.daf.keyterms));
+  const ws = new WebSocket(buildWsUrl(token, activeKeyterms()));
   live.ws = ws;
 
   ws.addEventListener('open', () => {
@@ -652,7 +813,7 @@ async function connectWebSocket() {
     switch (msg.message_type) {
       case 'session_started':
         live.reconnectAttempt = 0;
-        setDebug('Connection', `session ${msg.session_id || ''} started (${live.daf.keyterms.length} keyterms)`);
+        setDebug('Connection', `session ${msg.session_id || ''} started (${activeKeyterms().length} keyterms)`);
         if (live.anchorSpan) setFollowState('reading', { detail: anchorDetail(live.anchorSpan) });
         else if (live.tracker.locked) setFollowState('listening');
         else setFollowState('searching');
@@ -699,9 +860,34 @@ function scheduleReconnect() {
   live.reconnectTimer = setTimeout(connectWebSocket, delay);
 }
 
+function recordSentAudio(int16Buffer) {
+  const data = new Int16Array(int16Buffer);
+  live.audioChunks.push({ start: live.sentSamples, data });
+  live.sentSamples += data.length;
+  const keepFrom = live.sentSamples - AUDIO_KEEP_SECONDS * TARGET_SAMPLE_RATE;
+  while (live.audioChunks.length && live.audioChunks[0].start + live.audioChunks[0].data.length <= keepFrom) live.audioChunks.shift();
+}
+
+// The audio sent between two absolute sample positions, as one Int16Array
+// (clamped to what is still kept).
+function segmentAudio(fromSample, toSample) {
+  const first = live.audioChunks[0];
+  const from = Math.max(fromSample, first ? first.start : 0);
+  const to = Math.min(toSample, live.sentSamples);
+  if (to <= from) return new Int16Array(0);
+  const out = new Int16Array(to - from);
+  for (const chunk of live.audioChunks) {
+    const lo = Math.max(from, chunk.start);
+    const hi = Math.min(to, chunk.start + chunk.data.length);
+    if (hi > lo) out.set(chunk.data.subarray(lo - chunk.start, hi - chunk.start), lo - from);
+  }
+  return out;
+}
+
 function sendAudioChunk(int16Buffer) {
   const ws = live.ws;
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  if (PAGE_OPTIONS.batch) recordSentAudio(int16Buffer);
   const message = {
     message_type: 'input_audio_chunk',
     audio_base_64: arrayBufferToBase64(int16Buffer),
@@ -717,6 +903,16 @@ function sendAudioChunk(int16Buffer) {
 
 function handleRawMicFrames(float32AtNativeRate) {
   setMicLevel(Math.min(1, rms(float32AtNativeRate) * 6));
+  const stats = live.levelStats;
+  if (stats) {
+    for (let i = 0; i < float32AtNativeRate.length; i += 1) {
+      const v = Math.abs(float32AtNativeRate[i]);
+      stats.sumSq += v * v;
+      if (v > stats.peak) stats.peak = v;
+      if (v >= 0.99) stats.clipped += 1;
+    }
+    stats.n += float32AtNativeRate.length;
+  }
   const resampled = resampleLinear(float32AtNativeRate, live.audioContext.sampleRate, TARGET_SAMPLE_RATE);
   let combined = resampled;
   if (live.resampleTail.length) {
@@ -736,7 +932,9 @@ async function startMic() {
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new Error('This browser does not support microphone access (or the page was not loaded over HTTPS).');
   }
-  live.micStream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } });
+  const constraints = { channelCount: 1 };
+  if (PAGE_OPTIONS.raw) Object.assign(constraints, { echoCancellation: false, noiseSuppression: false, autoGainControl: false });
+  live.micStream = await navigator.mediaDevices.getUserMedia({ audio: constraints });
   // Not relying on { sampleRate: 16000 } in the AudioContext constructor
   // actually producing 16kHz -- some browsers (notably older Safari) are
   // known to ignore that option and keep the hardware rate. Reading back
@@ -756,9 +954,37 @@ async function startMic() {
   source.connect(live.workletNode);
   // Deliberately not connected onward to audioContext.destination -- this
   // pipeline only ever reads the mic, it never needs to play it back.
+
+  // What the browser actually gave us. "Loud and clear but not heard" can be
+  // the recognizer, or the browser's voice processing, or a context that did
+  // not run at 16kHz -- the log should say which of those apply.
+  const settings = live.micStream.getAudioTracks?.()[0]?.getSettings?.() || {};
+  logEvent('audio', {
+    contextRate: live.audioContext.sampleRate,
+    contextState: live.audioContext.state,
+    trackRate: settings.sampleRate ?? null,
+    echoCancellation: settings.echoCancellation ?? null,
+    noiseSuppression: settings.noiseSuppression ?? null,
+    autoGainControl: settings.autoGainControl ?? null,
+    channels: settings.channelCount ?? null,
+  });
+  live.levelStats = { n: 0, sumSq: 0, peak: 0, clipped: 0 };
+  live.levelTimer = setInterval(() => {
+    const stats = live.levelStats;
+    if (!stats || !stats.n) return;
+    logEvent('level', {
+      rms: +Math.sqrt(stats.sumSq / stats.n).toFixed(4),
+      peak: +stats.peak.toFixed(3),
+      clippedPct: +((stats.clipped / stats.n) * 100).toFixed(3),
+    });
+    live.levelStats = { n: 0, sumSq: 0, peak: 0, clipped: 0 };
+  }, AUDIO_LOG_INTERVAL_MS);
 }
 
 function stopMic() {
+  clearInterval(live.levelTimer);
+  live.levelTimer = null;
+  live.levelStats = null;
   if (live.workletNode) live.workletNode.port.onmessage = null;
   live.workletNode?.disconnect();
   live.workletNode = null;
@@ -799,6 +1025,11 @@ async function startLiveFollow() {
   live.runCounter = 0;
   live.unplacedHebrew = 0;
   live.lastPreview = null;
+  live.audioChunks = [];
+  live.sentSamples = 0;
+  live.lastCommitSample = 0;
+  live.commitSeq = 0;
+  live.batchInFlight = 0;
   live.log = [];
   live.logStart = performance.now();
   paintRange(live.confirmed, 'hl', false);
@@ -813,7 +1044,7 @@ async function startLiveFollow() {
   } else {
     clearAnchorMark();
   }
-  logEvent('start', { daf: live.daf.label, anchored: live.tracker.locked, lang: PAGE_OPTIONS.lang || 'auto', filter: PAGE_OPTIONS.filter });
+  logEvent('start', { daf: live.daf.label, anchored: live.tracker.locked, options: PAGE_OPTIONS });
   $('liveRefInput').disabled = true;
   $('liveShowDafButton').disabled = true;
   setStatus('', 'Connecting…', 'Requesting microphone access');
@@ -874,6 +1105,7 @@ $('liveRefInput')?.addEventListener('keydown', (event) => {
 });
 $('liveShowDafButton')?.addEventListener('click', showDaf);
 $('liveCopyLogButton')?.addEventListener('click', copySessionLog);
+if (PAGE_OPTIONS.batch && $('liveDebugBatchRow')) $('liveDebugBatchRow').hidden = false;
 
 // A tap on a word sets the position. Skipped when the tap is the end of a text
 // selection drag, so selecting doesn't also move the highlight.

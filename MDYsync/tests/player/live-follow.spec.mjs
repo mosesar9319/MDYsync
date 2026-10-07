@@ -36,10 +36,10 @@ async function serveRealDaf(page) {
 
 // Loads Chullin 91a(+b) and arms the tracker exactly as startLiveFollow
 // does, without opening a microphone or a socket.
-async function openFollowing(page) {
+async function openFollowing(page, query = '') {
   await preparePage(page, { user: null });
   await serveRealDaf(page);
-  await page.goto('/live/');
+  await page.goto(`/live/${query}`);
   await page.evaluate(async () => {
     await loadDaf(parseDafInput('Chullin 91a'));
     live.tracker = LiveMatcher.createTracker(live.daf.canon, { eagerRelocalize: true });
@@ -521,5 +521,208 @@ test.describe('Live Follow — session log', () => {
     expect(commits[0].state).toBe('Following');
     expect(commits[1].outcomes).toEqual([]);
     expect(commits[1].state).toBe('Explaining');
+  });
+});
+
+test.describe('Live Follow — batch second opinion (?batch=1)', () => {
+  const weakText = (start, length) => fixture.canonNorms.slice(start, start + length)
+    .map((w) => [...w].map((c, i, all) => (i === all.length - 1 ? 'צ' : c)).join('')).join(' ');
+  // Garbled beyond placing: the realtime model "heard" nothing the daf can use.
+  const GARBLE = 'ברכתנו ומקצתם לעיגול שפרקוד ננעמיה חלמוני';
+
+  async function open(page, { query = '?batch=1', batchText = '', hold = null, status = 200 } = {}) {
+    const requests = [];
+    await openFollowing(page, query);
+    // Registered after the page is up: preparePage's catch-all /api/** stub is
+    // added during openFollowing, and the most recently added route wins.
+    await page.route('**/api/live-batch', async (route) => {
+      requests.push(route.request().postDataJSON());
+      if (hold) await hold;
+      return route.fulfill({
+        status, contentType: 'application/json',
+        body: JSON.stringify(status === 200 ? { text: batchText, languageCode: 'heb', languageProbability: 0.9, ms: 1200 } : { error: 'no' }),
+      });
+    });
+    // A few seconds of "sent" audio, as the socket would have recorded.
+    await page.evaluate(() => { for (let i = 0; i < 40; i += 1) recordSentAudio(new Int16Array(1600).fill(i + 1).buffer); });
+    return requests;
+  }
+  const batchEntries = (page) => page.evaluate(() => live.log.filter((e) => e.kind === 'batch'));
+
+  test('off by default: nothing is sent to the batch function', async ({ page }) => {
+    const requests = await open(page, { query: '', batchText: phrase(407, 7) });
+    await say(page, phrase(400, 7));
+    await say(page, GARBLE);
+    await page.waitForTimeout(300);
+    expect(requests).toHaveLength(0);
+  });
+
+  test('when the live model places nothing and the batch model can, the batch placement is applied', async ({ page }) => {
+    const requests = await open(page, { batchText: phrase(407, 7) });
+    await say(page, phrase(400, 7));
+    await expect.poll(() => requests.length).toBe(1); // the first commit's segment
+    await say(page, GARBLE);
+    await expect.poll(() => batchEntries(page).then((e) => e.filter((x) => x.seq === 2).length)).toBe(1);
+    const rescued = (await batchEntries(page)).find((e) => e.seq === 2);
+    expect(rescued.rescued).toEqual({ s: 407, e: 413 });
+    expect(rescued.realtime.every((r) => r.miss)).toBe(true);
+    expect(rescued.batch[0]).toMatchObject({ s: 407, e: 413 });
+    expect(await confirmed(page)).toEqual({ s: 407, e: 413 });
+    await expect(page.locator('#liveStatusText')).toHaveText('Following');
+    await expect(page.locator('#liveDebugBatch')).toContainText('placed it when the live model could not');
+  });
+
+  test('the request carries the audio and the daf\'s keyterms, and no forced language', async ({ page }) => {
+    const requests = await open(page, { batchText: '' });
+    await say(page, phrase(400, 7));
+    await expect.poll(() => requests.length).toBe(1);
+    const [body] = requests;
+    expect(Buffer.from(body.audioBase64, 'base64').length).toBeGreaterThanOrEqual(32000); // 1s+ of 16kHz 16-bit audio
+    expect(body.keyterms.length).toBeGreaterThan(50);
+    expect(body.keyterms.length).toBeLessThanOrEqual(412);
+    expect(body.language).toBeUndefined();
+  });
+
+  test('it is only logged, never applied, when the live model placed the segment', async ({ page }) => {
+    const requests = await open(page, { batchText: phrase(420, 7) });
+    await say(page, phrase(400, 7));
+    await expect.poll(() => requests.length).toBe(1);
+    await expect.poll(() => batchEntries(page).then((e) => e.length)).toBe(1);
+    const [entry] = await batchEntries(page);
+    expect(entry.rescued).toBeNull();
+    expect(entry.realtime[0]).toMatchObject({ s: 400, e: 406 });
+    expect(await confirmed(page)).toEqual({ s: 400, e: 406 });
+  });
+
+  test('a late batch result never drags the highlight back over newer progress', async ({ page }) => {
+    let release;
+    const hold = new Promise((resolve) => { release = resolve; });
+    const requests = await open(page, { batchText: phrase(407, 7), hold });
+    await say(page, phrase(400, 7)); // its own batch request is held too
+    await say(page, GARBLE); // realtime misses
+    await expect.poll(() => requests.length).toBe(2);
+    await say(page, phrase(414, 7)); // the reading moves on before the batch answers
+    release();
+    await expect.poll(() => batchEntries(page).then((e) => e.length)).toBe(3);
+    expect((await batchEntries(page)).find((e) => e.seq === 2).rescued).toBeNull();
+    expect(await confirmed(page)).toEqual({ s: 414, e: 420 });
+  });
+
+  test('a tap while the batch result is in flight also wins', async ({ page }) => {
+    let release;
+    const hold = new Promise((resolve) => { release = resolve; });
+    const requests = await open(page, { batchText: phrase(407, 7), hold });
+    await say(page, phrase(400, 7));
+    await say(page, GARBLE);
+    await expect.poll(() => requests.length).toBe(2);
+    await page.evaluate(() => setAnchor(600));
+    release();
+    await expect.poll(() => batchEntries(page).then((e) => e.length)).toBe(2);
+    expect(await confirmed(page)).toBeNull();
+    expect(await page.evaluate(() => live.tracker.cursor)).toBe(600);
+  });
+
+  test('a segment under a second is not worth a round trip', async ({ page }) => {
+    const requests = await open(page, { batchText: phrase(407, 7) });
+    await page.evaluate(() => { live.audioChunks = []; live.sentSamples = 0; live.lastCommitSample = 0; recordSentAudio(new Int16Array(8000).buffer); });
+    await say(page, phrase(400, 7));
+    await page.waitForTimeout(300);
+    expect(requests).toHaveLength(0);
+  });
+
+  test('a failing batch request is logged and changes nothing', async ({ page }) => {
+    const requests = await open(page, { status: 502 });
+    await say(page, phrase(400, 7));
+    await say(page, GARBLE);
+    await expect.poll(() => requests.length).toBe(2);
+    await expect.poll(() => batchEntries(page).then((e) => e.length)).toBe(2);
+    expect((await batchEntries(page))[0].error).toBe('no');
+    expect(await confirmed(page)).toEqual({ s: 400, e: 406 });
+    await expect(page.locator('#liveDebugBatch')).toContainText('error');
+  });
+
+  test('segmentAudio returns exactly the requested slice of what was sent', async ({ page }) => {
+    await openFollowing(page, '?batch=1');
+    const sums = await page.evaluate(() => {
+      live.audioChunks = []; live.sentSamples = 0;
+      for (let i = 0; i < 5; i += 1) recordSentAudio(new Int16Array(1600).fill(i + 1).buffer); // 1600 each of 1,2,3,4,5
+      const a = segmentAudio(1000, 4200); // spans chunks 0..2
+      return { length: a.length, first: a[0], atBoundary: a[600], last: a[a.length - 1], empty: segmentAudio(5, 5).length, past: segmentAudio(7000, 99999).length };
+    });
+    expect(sums).toEqual({ length: 3200, first: 1, atBoundary: 2, last: 3, empty: 0, past: 1000 });
+  });
+
+  test('the audio kept is capped, not unbounded', async ({ page }) => {
+    await openFollowing(page, '?batch=1');
+    const kept = await page.evaluate(() => {
+      live.audioChunks = []; live.sentSamples = 0;
+      for (let i = 0; i < 1500; i += 1) recordSentAudio(new Int16Array(1600).buffer); // 150 seconds
+      return live.audioChunks.reduce((n, c) => n + c.data.length, 0) / 16000;
+    });
+    expect(kept).toBeLessThanOrEqual(91);
+    expect(kept).toBeGreaterThanOrEqual(89);
+  });
+});
+
+test.describe('Live Follow — audio-path switches and diagnostics', () => {
+  async function startWithMic(page, query) {
+    await preparePage(page, { user: null });
+    await serveRealDaf(page);
+    await page.route('**/api/live-token', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: '{"token":"t"}' }));
+    await page.addInitScript(() => {
+      window.__constraints = null;
+      navigator.mediaDevices.getUserMedia = (c) => {
+        window.__constraints = c;
+        return Promise.resolve(new AudioContext().createMediaStreamDestination().stream);
+      };
+      window.WebSocket = class { constructor() { this.readyState = 0; } addEventListener() {} send() {} close() {} };
+    });
+    await page.goto(`/live/${query}`);
+    await page.locator('#liveRefInput').fill('Chullin 91a');
+    await page.locator('#liveShowDafButton').click();
+    await expect(page.locator('#liveDafHeading')).toHaveText('Chullin 91a – Chullin 91b');
+    await page.evaluate(() => startLiveFollow());
+  }
+
+  test('by default the browser\'s own voice processing is left as the browser chooses', async ({ page }) => {
+    await startWithMic(page, '');
+    const c = await page.evaluate(() => window.__constraints);
+    expect(c).toEqual({ audio: { channelCount: 1 } });
+  });
+
+  test('?raw=1 turns off echo cancellation, noise suppression and automatic gain', async ({ page }) => {
+    await startWithMic(page, '?raw=1');
+    const c = await page.evaluate(() => window.__constraints);
+    expect(c.audio).toMatchObject({ channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false });
+    const start = await page.evaluate(() => live.log.find((e) => e.kind === 'start'));
+    expect(start.options.raw).toBe(true);
+  });
+
+  test('the log records what the browser actually gave us, and level statistics are being gathered', async ({ page }) => {
+    await startWithMic(page, '');
+    const audio = await page.evaluate(() => live.log.find((e) => e.kind === 'audio'));
+    expect(audio).toMatchObject({ contextRate: 16000 });
+    for (const key of ['contextState', 'trackRate', 'echoCancellation', 'noiseSuppression', 'autoGainControl', 'channels']) {
+      expect(audio, key).toHaveProperty(key);
+    }
+    expect(await page.evaluate(() => live.levelStats !== null && live.levelTimer !== null)).toBe(true);
+    await page.evaluate(() => stopLiveFollow());
+    expect(await page.evaluate(() => live.levelStats === null && live.levelTimer === null)).toBe(true);
+  });
+
+  test('?keyterms=0 sends no bias list, and nothing is watched for in the transcript', async ({ page }) => {
+    await startWithMic(page, '?keyterms=0');
+    const url = new URL(await page.evaluate(() => buildWsUrl('t', activeKeyterms())));
+    expect(url.searchParams.getAll('keyterms')).toEqual([]);
+    expect(await page.evaluate(() => activeKeytermTokens().length)).toBe(0);
+    const plain = await page.evaluate(() => PAGE_OPTIONS.keyterms);
+    expect(plain).toBe(false);
+  });
+
+  test('by default the daf\'s keyterms are sent', async ({ page }) => {
+    await startWithMic(page, '');
+    const url = new URL(await page.evaluate(() => buildWsUrl('t', activeKeyterms())));
+    expect(url.searchParams.getAll('keyterms').length).toBeGreaterThan(12);
   });
 });
