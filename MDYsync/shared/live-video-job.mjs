@@ -26,7 +26,7 @@ export const MAX_KEYTERMS = 400;
 const YOUTUBE_HOSTS = new Set(['youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com', 'youtu.be', 'www.youtu.be']);
 const MEDIA_EXTENSIONS = /\.(mp4|m4v|webm|mov|mp3|m4a|aac|wav|ogg|oga|opus|flac)$/i;
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
-const DRIVE_HOSTS = new Set(['drive.google.com', 'docs.google.com']);
+const DRIVE_HOSTS = new Set(['drive.google.com', 'docs.google.com', 'drive.usercontent.google.com']);
 const DRIVE_FILE_ID = /^[A-Za-z0-9_-]{20,}$/;
 
 // A host ElevenLabs could be pointed at that is not the public internet:
@@ -57,11 +57,29 @@ export function acceptVideoUrl(input) {
   if (DRIVE_HOSTS.has(host)) {
     // The same turning of a share link into the file's own address as the page does.
     const m = /^\/(?:u\/\d+\/)?file\/d\/([^/?#]+)/.exec(url.pathname);
-    const id = m ? m[1] : (/^\/(?:u\/\d+\/)?(?:open|uc)$/.test(url.pathname) ? url.searchParams.get('id') : null);
-    return id && DRIVE_FILE_ID.test(id) ? { kind: 'media', url: `https://drive.google.com/uc?export=download&id=${id}` } : null;
+    const id = m ? m[1] : (/^\/(?:u\/\d+\/)?(?:open|uc|download)$/.test(url.pathname) ? url.searchParams.get('id') : null);
+    return id && DRIVE_FILE_ID.test(id) ? { kind: 'media', url: driveFileUrl(id) } : null;
   }
   if (MEDIA_EXTENSIONS.test(url.pathname)) return { kind: 'media', url: url.toString() };
   return null;
+}
+
+// Drive's own download address, with `confirm=t` (without it a file over about
+// 100 MB is answered with a "can't scan this file for viruses" web page).
+export const driveFileUrl = (id) => `https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t`;
+
+// What Drive answered when asked for the start of a file, boiled down to why a
+// player might not be able to use it. `head` is the first few KB of the body when it
+// is a web page.
+export function classifyDriveResponse({ status, contentType = '', head = '' }) {
+  const type = String(contentType).toLowerCase();
+  const page = type.includes('text/html') || /^\s*<(!doctype|html)/i.test(head);
+  if (!page && status >= 200 && status < 300) return 'file';
+  if (status === 404) return 'missing';
+  if (/can.?t scan this file for viruses|virus scan warning/i.test(head)) return 'too-big';
+  if (/too many users have viewed or downloaded|download quota|quota exceeded/i.test(head)) return 'quota';
+  if (status === 401 || status === 403 || /accounts\.google\.com|sign in|you need access|request access|access denied/i.test(head)) return 'private';
+  return page ? 'page' : 'other';
 }
 
 // ElevenLabs' limits: under 50 characters and at most 5 words a term.

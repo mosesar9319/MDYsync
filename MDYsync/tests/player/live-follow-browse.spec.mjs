@@ -1038,11 +1038,11 @@ test.describe('Live follow — video link and the page\'s own player', () => {
 
   const DRIVE_ID = '1AbCdEfGhIjKlMnOpQrStUvWxYz012345';
   const DRIVE_SHARE = `https://drive.google.com/file/d/${DRIVE_ID}/view?usp=sharing`;
-  const DRIVE_FILE = `https://drive.google.com/uc?export=download&id=${DRIVE_ID}`;
+  const DRIVE_FILE = `https://drive.usercontent.google.com/download?id=${DRIVE_ID}&export=download&confirm=t`;
 
   test('a Google Drive share link is turned into the file\'s own address, played by the page, and sent for transcription as that', async ({ page }) => {
     const seen = await setup(page);
-    await page.route('https://drive.google.com/uc?*', (route) => route.fulfill({ status: 200, contentType: 'audio/wav', headers: { 'Accept-Ranges': 'bytes' }, body: wav() }));
+    await page.route('https://drive.usercontent.google.com/download?*', (route) => route.fulfill({ status: 200, contentType: 'audio/wav', headers: { 'Accept-Ranges': 'bytes' }, body: wav() }));
     await loadLink(page, DRIVE_SHARE);
     await expect(page.locator('#lfVideoMessage')).toContainText('Video loaded');
     await expect(page.locator('#lfVideoMessage')).not.toHaveClass(/error/);
@@ -1054,13 +1054,48 @@ test.describe('Live follow — video link and the page\'s own player', () => {
     expect(seen.saves).toEqual([]);
   });
 
-  test('a Drive file the player cannot get (not shared, or too big for Drive\'s virus check) says why', async ({ page }) => {
+  // When the page's player cannot play a Drive file, the server asks Drive why (live-video-probe.mjs)
+  // and the page says what it found.
+  const WHY = [
+    ['file', { outcome: 'file', status: 206, contentType: 'audio/x-ms-wma', size: 52428800 }, 'serving this file (audio/x-ms-wma, 50 MB), but this browser would not play it'],
+    ['too-big', { outcome: 'too-big', status: 200, contentType: 'text/html', size: null }, 'virus-scan page'],
+    ['private', { outcome: 'private', status: 403, contentType: 'text/html', size: null }, 'asking for a sign-in'],
+    ['quota', { outcome: 'quota', status: 403, contentType: 'text/html', size: null }, 'paused downloads of this file'],
+    ['missing', { outcome: 'missing', status: 404, contentType: 'text/html', size: null }, 'cannot find that file'],
+    ['unreachable', { outcome: 'unreachable', detail: 'timeout' }, 'Could not reach Google Drive'],
+    ['page', { outcome: 'page', status: 200, contentType: 'text/html', size: null }, 'would not play this file'],
+  ];
+  for (const [name, probeResult, expected] of WHY) {
+    test(`a Drive file the player cannot play: the page says why (${name})`, async ({ page }) => {
+      await setup(page);
+      const asked = [];
+      await page.route('**/api/live-video-probe?*', (route) => { asked.push(new URL(route.request().url()).searchParams.get('url')); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(probeResult) }); });
+      // What Drive sends when it will not hand over the file: a web page, not audio.
+      await page.route('https://drive.usercontent.google.com/download?*', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<html>Sign in</html>' }));
+      await loadLink(page, DRIVE_SHARE);
+      await expect(page.locator('#lfVideoMessage')).toContainText(expected);
+      await expect(page.locator('#lfVideoMessage')).toHaveClass(/error/);
+      expect(asked).toEqual([DRIVE_FILE]);
+    });
+  }
+
+  test('if even the check fails, the page falls back to the general Drive message', async ({ page }) => {
     await setup(page);
-    // What Drive sends in those cases: a web page, not audio.
-    await page.route('https://drive.google.com/uc?*', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<html>Sign in</html>' }));
+    await page.route('**/api/live-video-probe?*', (route) => route.fulfill({ status: 502, contentType: 'application/json', body: '{}' }));
+    await page.route('https://drive.usercontent.google.com/download?*', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<html>x</html>' }));
     await loadLink(page, DRIVE_SHARE);
     await expect(page.locator('#lfVideoMessage')).toContainText('Google Drive would not play this file');
     await expect(page.locator('#lfVideoMessage')).toContainText('anyone with the link');
+  });
+
+  test('a file that is not on Drive is not sent to the Drive check', async ({ page }) => {
+    await setup(page);
+    let asked = 0;
+    await page.route('**/api/live-video-probe?*', (route) => { asked += 1; return route.fulfill({ status: 200, body: '{}' }); });
+    await page.route('https://cdn.example.org/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<html>x</html>' }));
+    await loadLink(page, 'https://cdn.example.org/shiur/x.mp3');
+    await expect(page.locator('#lfVideoMessage')).toContainText('This browser could not play that file');
+    expect(asked).toBe(0);
   });
 
   test('a Drive folder or a Google Doc is not a file link, and says so', async ({ page }) => {

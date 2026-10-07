@@ -19,7 +19,10 @@
   const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
   // A Google Drive file's id: a share link is a viewer page, not the file, so
   // it is turned into the address that serves the file itself.
-  const DRIVE_HOSTS = new Set(['drive.google.com', 'docs.google.com']);
+  const DRIVE_HOSTS = new Set(['drive.google.com', 'docs.google.com', 'drive.usercontent.google.com']);
+  // Drive's own download address, with `confirm=t`: without it a file over about
+  // 100 MB is answered with a "can't scan this file for viruses" web page.
+  const driveFileUrl = (id) => `https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t`;
   const DRIVE_FILE_ID = /^[A-Za-z0-9_-]{20,}$/;
 
   // "90", "90s", "1m30s", "1h2m3s" -> seconds; anything else -> 0.
@@ -63,9 +66,9 @@
     if (url.protocol === 'https:' && DRIVE_HOSTS.has(host)) {
       // /file/d/<id>/view , /open?id=<id> , /uc?id=<id>&export=download
       const m = /^\/(?:u\/\d+\/)?file\/d\/([^/?#]+)/.exec(url.pathname);
-      const id = m ? m[1] : (/^\/(?:u\/\d+\/)?(?:open|uc)$/.test(url.pathname) ? url.searchParams.get('id') : null);
+      const id = m ? m[1] : (/^\/(?:u\/\d+\/)?(?:open|uc|download)$/.test(url.pathname) ? url.searchParams.get('id') : null);
       if (!id || !DRIVE_FILE_ID.test(id)) return null;
-      return { kind: 'media', source: 'drive', url: `https://drive.google.com/uc?export=download&id=${id}`, startSeconds: 0 };
+      return { kind: 'media', source: 'drive', url: driveFileUrl(id), startSeconds: 0 };
     }
     if (url.protocol === 'https:' && MEDIA_EXTENSIONS.test(url.pathname)) {
       return { kind: 'media', url: url.toString(), startSeconds: 0 };

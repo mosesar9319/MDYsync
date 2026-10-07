@@ -8,7 +8,8 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { runJob } from '../../netlify/functions/live-video-job-background.mjs';
 import { readStatus } from '../../netlify/functions/live-video-status.mjs';
-import { acceptVideoUrl, sanitizeKeyterms, jobKey, buildTranscribeFields, compactWords } from '../../shared/live-video-job.mjs';
+import { acceptVideoUrl, sanitizeKeyterms, jobKey, buildTranscribeFields, compactWords, classifyDriveResponse } from '../../shared/live-video-job.mjs';
+import { probe } from '../../netlify/functions/live-video-probe.mjs';
 
 const require = createRequire(import.meta.url);
 const LV = require('../../live-video.js');
@@ -203,4 +204,56 @@ test('status: absent, pending, stale pending, and the 400/403 cases', async () =
   assert.equal((await readStatus({ request: get({}), store })).code, 400);
   assert.equal((await readStatus({ request: get({ url: YT }, { Origin: 'https://evil.example' }), store })).code, 403);
   assert.equal((await readStatus({ request: get({ url: YT }, { Origin: ORIGIN }), store })).code, 200);
+});
+
+
+// --- Google Drive: telling why a file will not play ---------------------------------------
+
+test('what Drive answers is sorted into why a player could not use the file', () => {
+  const page = (head, status = 200) => ({ status, contentType: 'text/html; charset=utf-8', head });
+  assert.equal(classifyDriveResponse({ status: 206, contentType: 'audio/mpeg' }), 'file');
+  assert.equal(classifyDriveResponse({ status: 200, contentType: 'application/octet-stream' }), 'file');
+  assert.equal(classifyDriveResponse(page('<html><title>Google Drive - Virus scan warning</title> Google Drive can\'t scan this file for viruses.')), 'too-big');
+  assert.equal(classifyDriveResponse(page('<html>Sorry, you can\'t view or download this file at this time. Too many users have viewed or downloaded this file recently.', 403)), 'quota');
+  assert.equal(classifyDriveResponse(page('<html><a href="https://accounts.google.com/ServiceLogin">Sign in</a>', 200)), 'private');
+  assert.equal(classifyDriveResponse(page('<html>You need access. Request access, or switch to an account with access.', 403)), 'private');
+  assert.equal(classifyDriveResponse(page('<html>Error 404 (Not Found)!!1', 404)), 'missing');
+  assert.equal(classifyDriveResponse(page('<html>something else', 200)), 'page');
+  assert.equal(classifyDriveResponse({ status: 500, contentType: 'application/json' }), 'other');
+});
+
+test('the probe asks Drive for the start of a file and reports its type and size, and nothing else', async () => {
+  const id = '1AbCdEfGhIjKlMnOpQrStUvWxYz012345';
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push({ url, init });
+    return new Response(new Uint8Array(2048), { status: 206, headers: { 'content-type': 'audio/mpeg', 'content-range': 'bytes 0-2047/52428800' } });
+  };
+  const request = new Request(`https://x.test/api/live-video-probe?url=${encodeURIComponent(`https://drive.google.com/file/d/${id}/view?usp=sharing`)}`, { headers: { Origin: ORIGIN } });
+  const { code, body } = await probe({ request, fetchImpl });
+  assert.equal(code, 200);
+  assert.deepEqual(body, { outcome: 'file', status: 206, contentType: 'audio/mpeg', size: 52428800 });
+  assert.equal(calls[0].url, `https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t`);
+  assert.equal(calls[0].init.headers.Range, 'bytes=0-2047');
+});
+
+test('the probe reads a web page far enough to say why, and reports an unreachable Drive as that', async () => {
+  const id = '1AbCdEfGhIjKlMnOpQrStUvWxYz012345';
+  const request = new Request(`https://x.test/api/live-video-probe?url=${encodeURIComponent(`https://drive.google.com/open?id=${id}`)}`);
+  const virus = async () => new Response('<html>Google Drive can\'t scan this file for viruses.</html>', { status: 200, headers: { 'content-type': 'text/html' } });
+  assert.deepEqual((await probe({ request, fetchImpl: virus })).body, { outcome: 'too-big', status: 200, contentType: 'text/html', size: null });
+  const down = async () => { throw new Error('connect ETIMEDOUT'); };
+  assert.deepEqual((await probe({ request, fetchImpl: down })).body, { outcome: 'unreachable', detail: 'connect ETIMEDOUT' });
+});
+
+test('the probe is for Drive files only, and from this site only', async () => {
+  let fetched = 0;
+  const fetchImpl = async () => { fetched += 1; return new Response('x'); };
+  for (const url of ['https://example.org/a.mp3', YT, 'https://localhost/a', 'https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQrStUvWxYz012345', '']) {
+    const { code } = await probe({ request: new Request(`https://x.test/api/live-video-probe?url=${encodeURIComponent(url)}`), fetchImpl });
+    assert.equal(code, 400, url);
+  }
+  const ok = `https://x.test/api/live-video-probe?url=${encodeURIComponent('https://drive.google.com/open?id=1AbCdEfGhIjKlMnOpQrStUvWxYz012345')}`;
+  assert.equal((await probe({ request: new Request(ok, { headers: { Origin: 'https://evil.example' } }), fetchImpl })).code, 403);
+  assert.equal(fetched, 0);
 });

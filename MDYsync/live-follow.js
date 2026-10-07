@@ -1114,6 +1114,33 @@ function pageVideo() {
   return parsed ? { kind: parsed.kind, url: parsed.url, getTime: () => getCurrentTime() } : null;
 }
 
+// Why a Google Drive file would not play: the server asks Drive for the start of
+// the file and says what came back (see live-video-probe.mjs).
+async function explainDriveFailure(url) {
+  let result = null;
+  try {
+    const response = await fetch(`/api/live-video-probe?url=${encodeURIComponent(url)}`);
+    if (response.ok) result = await response.json();
+  } catch { /* falls through to the general message */ }
+  const mb = result?.size ? `${Math.max(1, Math.round(result.size / 1048576))} MB` : null;
+  switch (result?.outcome) {
+    case 'file':
+      return `Google Drive is serving this file${result.contentType ? ` (${result.contentType}${mb ? `, ${mb}` : ''})` : ''}, but this browser would not play it. It may be a format browsers cannot play (for example .wma, or an unusual codec) — an .mp3 or .m4a is safest.`;
+    case 'too-big':
+      return `Google Drive will not hand this file${mb ? ` (${mb})` : ''} straight to a player: it answers with a virus-scan page instead. Try a smaller copy, or a link to the file somewhere other than Drive.`;
+    case 'private':
+      return 'Google Drive is asking for a sign-in, so it is not open to “anyone with the link” as far as Drive is concerned. (A file in a work or school account, or one whose sharing was set on its folder only, can be limited even when it looks shared — try “Share → General access → Anyone with the link”.)';
+    case 'quota':
+      return 'Google Drive has paused downloads of this file for now (too many people have opened it recently). Try again later, or use a copy of the file.';
+    case 'missing':
+      return 'Google Drive cannot find that file. Check the link.';
+    case 'unreachable':
+      return 'Could not reach Google Drive just now. Try again in a moment.';
+    default:
+      return 'Google Drive would not play this file. It needs to be shared with “anyone with the link”, and Drive will not hand a very large file straight to a player — try a smaller file, or a link to it somewhere else.';
+  }
+}
+
 // Puts a link in the page's own player. Not the page's loaders: those also
 // save the link as this daf's video for everyone, which a live-follow link
 // must never do.
@@ -1139,12 +1166,11 @@ async function loadLiveVideo() {
       state.videoSource = { type: 'direct', url: parsed.url, label: parsed.source === 'drive' ? 'Google Drive' : 'Direct link', locked: false };
       htmlVideo.src = parsed.url;
       htmlVideo.load();
-      // Say so if the file cannot be played here (a Drive file too large for Drive's
-      // own virus check, or one not shared with "anyone with the link", comes back as a web page).
-      htmlVideo.addEventListener('error', () => {
-        setVideoMessage(parsed.source === 'drive'
-          ? 'Google Drive would not play this file. It needs to be shared with “anyone with the link”, and Drive will not hand a large file (about 100 MB or more) straight to a player — try a smaller file, or a link to the file somewhere else.'
-          : 'This browser could not play that file (check the link).', true);
+      // Say so if the file cannot be played here -- and, for Drive, ask Drive why.
+      htmlVideo.addEventListener('error', async () => {
+        if (parsed.source !== 'drive') return setVideoMessage('This browser could not play that file (check the link).', true);
+        setVideoMessage('This file would not play. Asking Google Drive why…');
+        setVideoMessage(await explainDriveFailure(parsed.url), true);
       }, { once: true });
       setPlaybackRate(Number($('speedSelect').value));
       $('lectureTitle').textContent = titleFromUrl(parsed.url);

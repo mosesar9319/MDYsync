@@ -42,7 +42,7 @@ test('a start time on a YouTube link is carried', () => {
 
 test('Google Drive links, in every shape, become the address of the file itself', () => {
   const id = '1AbCdEfGhIjKlMnOpQrStUvWxYz012345';
-  const file = { kind: 'media', source: 'drive', url: `https://drive.google.com/uc?export=download&id=${id}`, startSeconds: 0 };
+  const file = { kind: 'media', source: 'drive', url: `https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t`, startSeconds: 0 };
   for (const input of [
     `https://drive.google.com/file/d/${id}/view?usp=sharing`,
     `https://drive.google.com/file/d/${id}/view`,
@@ -51,6 +51,8 @@ test('Google Drive links, in every shape, become the address of the file itself'
     `https://drive.google.com/open?id=${id}`,
     `https://drive.google.com/uc?export=download&id=${id}`,
     `https://docs.google.com/uc?id=${id}`,
+    `https://drive.usercontent.google.com/download?id=${id}&export=download`,
+    `https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t&uuid=abc`,
     `drive.google.com/file/d/${id}/view?usp=drive_link`,
   ]) assert.deepEqual(LV.parseVideoLink(input), file, input);
   for (const bad of [
