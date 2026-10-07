@@ -89,6 +89,20 @@
       background: var(--ivory); color: var(--navy);
     }
     input[type="text"]:focus { outline: 2px solid var(--accent-light); outline-offset: 1px; }
+    select {
+      font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+      background: var(--ivory); color: var(--navy); min-width: 0;
+    }
+    select:focus { outline: 2px solid var(--accent-light); outline-offset: 1px; }
+    select:disabled { opacity: .6; }
+    .ref-row select:first-child { flex: 1; }
+    .ref-row select.daf-select { flex: none; width: 4.8em; }
+    .daf-picker-row { flex-wrap: wrap; }
+    .daf-picker-row #liveTractateSelect { flex: 1 1 9em; }
+    .amud-toggle { display: inline-flex; flex: none; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+    .amud-option { font: inherit; border: 0; background: var(--ivory); color: var(--muted); padding: 0 14px; cursor: pointer; font-weight: 700; }
+    .amud-option.active { background: var(--accent); color: #fff; }
+    .amud-option:disabled { opacity: .4; cursor: not-allowed; }
     .field-gap { margin-bottom: 14px; }
     .audio-source-options { display: flex; flex-direction: column; gap: 8px; }
     .audio-source-options label { display: flex; align-items: center; gap: 8px; font-weight: 500; margin: 0; cursor: pointer; }
@@ -150,6 +164,38 @@
     #liveVideoWrap video { width: 100%; display: block; max-height: 50vh; }
     .audio-source-options label.disabled small { opacity: .85; }
     .daf-text-card { padding: 0; overflow: hidden; }
+    .daf-text-card .daf-text-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .view-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; flex: none; }
+    .view-toggle button { font: inherit; font-size: 12px; font-weight: 700; border: 0; background: var(--ivory); color: var(--muted); padding: 5px 11px; cursor: pointer; }
+    .view-toggle button.active { background: var(--accent); color: #fff; }
+    /* The printed daf. The page, its overlays and the bars on it are the player's own
+       (styles.css: .vilna-page-wrap, .vilna-active-rect ...), down to the colours. */
+    #liveDafPageView[hidden] { display: none; }
+    .vilna-zoom-controls { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; align-items: center; gap: 8px; padding: 8px 12px; background: rgba(244,247,251,.94); backdrop-filter: blur(4px); border-bottom: 1px solid var(--line); }
+    .vilna-zoom-controls::-webkit-scrollbar { display: none; }
+    .vilna-zoom-controls > * { flex-shrink: 0; }
+    .vilna-zoom-btn { width: 28px; height: 26px; border-radius: 8px; border: 1px solid rgba(19,34,56,.25); background: rgba(255,255,255,.55); color: #132238; font-weight: 700; cursor: pointer; }
+    .vilna-zoom-btn:hover { background: rgba(255,255,255,.9); }
+    #liveVilnaZoomLabel { font-size: 12px; color: #132238; min-width: 38px; text-align: center; font-variant-numeric: tabular-nums; }
+    .vilna-zoom-reset { border: 1px solid rgba(19,34,56,.25); background: rgba(255,255,255,.55); color: #132238; border-radius: 8px; padding: 5px 10px; font-size: 12px; cursor: pointer; }
+    .vilna-fullscreen-button { margin-left: auto; width: 28px; height: 28px; border-radius: 8px; border: 1px solid rgba(19,34,56,.25); background: rgba(255,255,255,.55); color: #132238; display: grid; place-items: center; cursor: pointer; }
+    .vilna-fullscreen-button svg { width: 15px; height: 15px; }
+    #liveDafPageScroll { position: relative; max-height: 75vh; overflow: auto; padding: 12px 8px 18px; -webkit-overflow-scrolling: touch; }
+    #liveVilnaStatus { color: var(--muted); font-size: 13.5px; text-align: center; padding: 22px 12px; }
+    #liveVilnaStatus[hidden] { display: none; }
+    #liveVilnaWrap { position: relative; width: 100%; max-width: 100%; transform-origin: 0 0; }
+    #liveVilnaCanvas { display: block; margin: 0 auto; max-width: 100%; height: auto; box-shadow: 0 12px 35px rgba(19,34,56,.18); }
+    #liveVilnaCanvas[hidden] { display: none; }
+    .vilna-overlay { position: absolute; inset: 0; pointer-events: none; }
+    @keyframes vilna-highlight-in { from { opacity: 0; } to { opacity: 1; } }
+    .vilna-active-rect { position: absolute; background: #8ecdf5; mix-blend-mode: multiply; border-radius: 999px; animation: vilna-highlight-in .12s ease-out; }
+    .vilna-provisional-rect { position: absolute; background: rgba(142,205,245,.42); mix-blend-mode: multiply; border-radius: 999px; }
+    .vilna-anchor-rect { position: absolute; outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 4px; background: rgba(47,110,165,.12); }
+    /* Explaining/searching: the last phrase stays, quieter -- as in the text view. */
+    #liveDafPageView.dimmed .vilna-active-rect { background: rgba(142,155,175,.55); }
+    #liveVilnaWrap { cursor: pointer; -webkit-touch-callout: none; }
+    #liveDafCard:fullscreen { width: 100vw; height: 100vh; border-radius: 0; display: flex; flex-direction: column; overflow: auto; }
+    #liveDafCard:fullscreen #liveDafPageScroll { max-height: none; flex: 1; }
     .daf-hint { padding: 8px 20px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12.5px; }
     .daf-text-card .daf-text-heading { padding: 12px 20px; border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 700; color: var(--navy-soft); }
     #liveDafScroll { position: relative; max-height: 55vh; overflow-y: auto; padding: 14px 20px 18px; }
@@ -182,11 +228,18 @@
 
     <div class="card">
       <div class="field-gap">
-        <label for="liveRefInput">Daf</label>
-        <div class="ref-row">
-          <input type="text" id="liveRefInput" placeholder="e.g. Chullin 91a" autocomplete="off" enterkeyhint="go" />
+        <label for="liveTractateSelect">Daf</label>
+        <div class="ref-row daf-picker-row">
+          <select id="liveTractateSelect" aria-label="Tractate"><option value="">Loading…</option></select>
+          <select id="liveDafSelect" class="daf-select" aria-label="Daf"></select>
+          <div class="amud-toggle" id="liveAmudToggle" role="group" aria-label="Amud">
+            <button type="button" class="amud-option active" data-side="a">a</button>
+            <button type="button" class="amud-option" data-side="b">b</button>
+          </div>
           <button type="button" id="liveShowDafButton">Show daf</button>
         </div>
+        <!-- What the tractate, daf and amud pickers (the same three the player's own daf reference picker has) spell out ("Chullin 91a"): the one value the rest of the page reads. -->
+        <input type="hidden" id="liveRefInput" />
       </div>
       <div class="field-gap">
         <label for="liveVideoInput">Video link <small style="font-weight:400;color:var(--muted)">(optional — a YouTube link, or a direct link to an .mp3 / .mp4 file)</small></label>
@@ -223,12 +276,38 @@
       <div id="liveConfidenceText"></div>
     </div>
 
-    <div class="card daf-text-card">
-      <div class="daf-text-heading" id="liveDafHeading">Daf</div>
+    <div class="card daf-text-card" id="liveDafCard">
+      <div class="daf-text-heading">
+        <span id="liveDafHeading">Daf</span>
+        <div class="view-toggle" id="liveDafViewToggle" role="group" aria-label="Daf view">
+          <button type="button" data-view="text" class="active" aria-pressed="true">Text</button>
+          <button type="button" data-view="page" aria-pressed="false">Printed daf</button>
+        </div>
+      </div>
       <div class="daf-hint" id="liveDafHint">Tap the word being read to set your place — before you start, or any time to correct it. Without one, Live Follow finds the place by listening.</div>
       <div id="liveDafScroll">
-        <div id="liveDafEmpty">Tap “Show daf” to load the text and pick where to start, or just tap Start.</div>
+        <div id="liveDafEmpty">Choose a daf above and it appears here, or just tap Start.</div>
         <div id="liveDafText" lang="he"></div>
+      </div>
+      <div id="liveDafPageView" hidden>
+        <div class="vilna-zoom-controls" id="liveVilnaControls">
+          <button class="vilna-zoom-btn" id="liveVilnaZoomOut" type="button" aria-label="Zoom out">−</button>
+          <span id="liveVilnaZoomLabel">100%</span>
+          <button class="vilna-zoom-btn" id="liveVilnaZoomIn" type="button" aria-label="Zoom in">+</button>
+          <button class="vilna-zoom-reset" id="liveVilnaZoomReset" type="button">Reset zoom</button>
+          <button class="vilna-fullscreen-button" id="liveVilnaFullscreen" type="button" aria-label="Fullscreen" title="Fullscreen">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+          </button>
+        </div>
+        <div id="liveDafPageScroll">
+          <div id="liveVilnaStatus" hidden></div>
+          <div id="liveVilnaWrap">
+            <canvas id="liveVilnaCanvas" hidden></canvas>
+            <div class="vilna-overlay" id="liveVilnaProvisional"></div>
+            <div class="vilna-overlay" id="liveVilnaActive"></div>
+            <div class="vilna-overlay" id="liveVilnaAnchor"></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -256,6 +335,8 @@
 
   <script src="../live-matcher.js" defer></script>
   <script src="../live-video.js" defer></script>
+  <script src="../vilna-geometry.js" defer></script>
   <script src="../live.js" defer></script>
+  <script src="../live-daf-page.js" defer></script>
 </body>
 </html>

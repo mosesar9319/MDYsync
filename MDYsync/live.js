@@ -303,6 +303,163 @@ function parseDafInput(input) {
   return { label: `${tractate} ${daf}${amud}`, key: refs.join('|'), refs };
 }
 
+// ---- Daf picker ---------------------------------------------------------------
+// The player's own "daf reference" picker -- tractate and daf dropdowns plus an
+// a / b toggle over talmud_index.json, with the same rules for which dapim
+// and sides exist (app.js's amudimForDaf / dafOptionsFor, repeated here:
+// that file is a page script, not a module this page can load). They spell
+// out the one value (#liveRefInput, "Chullin 91a") everything else reads, so
+// choosing is all it takes: the text is shown as soon as a daf is picked.
+const dafPicker = { byName: {}, names: [], touched: false, ready: null };
+
+function amudimForDaf(entry, daf) {
+  const sides = [];
+  for (const side of ['a', 'b']) {
+    if (daf === entry.endDaf && side === 'b' && entry.endSide === 'a') continue;
+    if (entry.skipAmudim.includes(`${daf}${side}`)) continue;
+    sides.push(side);
+  }
+  return sides;
+}
+
+function dafOptionsFor(entry) {
+  const options = [];
+  for (let d = entry.startDaf; d <= entry.endDaf; d += 1) {
+    if (amudimForDaf(entry, d).length) options.push(d);
+  }
+  return options;
+}
+
+const amudButtons = () => [...document.querySelectorAll('#liveAmudToggle .amud-option')];
+const activeAmud = () => amudButtons().find((b) => b.classList.contains('active') && !b.disabled)?.dataset.side || 'a';
+
+// Offers only the sides this daf has; keeps the chosen side if it is still there.
+function populateAmudToggle(sides, preferred) {
+  const wanted = sides.includes(preferred) ? preferred : sides[0];
+  for (const button of amudButtons()) {
+    const available = sides.includes(button.dataset.side);
+    button.disabled = !available;
+    button.classList.toggle('active', available && button.dataset.side === wanted);
+  }
+}
+
+function dafPickerSync() {
+  const tractate = $('liveTractateSelect').value;
+  const daf = $('liveDafSelect').value;
+  $('liveRefInput').value = tractate && daf ? `${tractate} ${daf}${activeAmud()}` : '';
+}
+
+function dafPickerFillDafs(tractateName, preferredDaf, preferredSide) {
+  const entry = dafPicker.byName[tractateName];
+  const select = $('liveDafSelect');
+  select.textContent = '';
+  if (!entry) return;
+  const options = dafOptionsFor(entry);
+  for (const daf of options) select.append(new Option(String(daf), String(daf)));
+  select.value = String(options.includes(Number(preferredDaf)) ? preferredDaf : options[0]);
+  populateAmudToggle(amudimForDaf(entry, Number(select.value)), preferredSide || activeAmud());
+}
+
+// "Chullin 91a" (or "Chullin 91", meaning the a side) -> the pickers. False if
+// that is not a daf in the list.
+function setDafPickerValue(ref) {
+  const parsed = parseDafInput(ref);
+  const match = parsed && /^(.+?)\s+(\d+)([ab])$/.exec(parsed.label);
+  const entry = match && dafPicker.byName[match[1]];
+  if (!entry || !dafOptionsFor(entry).includes(Number(match[2])) || !amudimForDaf(entry, Number(match[2])).includes(match[3])) return false;
+  $('liveTractateSelect').value = entry.name;
+  dafPickerFillDafs(entry.name, Number(match[2]), match[3]);
+  dafPickerSync();
+  return true;
+}
+
+// Today's Daf Yomi, via the site's own calendar proxy: where the picker starts
+// when nobody has asked for anything else. Null when it cannot be had.
+async function fetchTodaysDafForPicker() {
+  try {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const response = await fetch(`/api/sefaria-calendars?timezone=${encodeURIComponent(timezone)}`);
+    if (!response.ok) return null;
+    const data = await response.json();
+    const item = (data.calendar_items || []).find((i) => i.category === 'Talmud' && i.title?.en === 'Daf Yomi');
+    const match = /^(.+?)\s+(\d+)$/.exec(String(item?.displayValue?.en || '').trim());
+    return match ? `${match[1]} ${match[2]}a` : null;
+  } catch {
+    return null;
+  }
+}
+
+const sessionActive = () => Boolean(live.ws || live.micStream || live.reconnectTimer || live.videoFollow);
+
+function setDafControlsDisabled(disabled) {
+  $('liveTractateSelect').disabled = disabled;
+  $('liveDafSelect').disabled = disabled;
+  $('liveShowDafButton').disabled = disabled;
+  for (const button of amudButtons()) {
+    const entry = dafPicker.byName[$('liveTractateSelect').value];
+    const sideExists = entry ? amudimForDaf(entry, Number($('liveDafSelect').value)).includes(button.dataset.side) : true;
+    button.disabled = disabled || !sideExists;
+  }
+}
+
+async function initDafPicker() {
+  const tractateSelect = $('liveTractateSelect');
+  if (!tractateSelect) return;
+  try {
+    const response = await fetch('/talmud_index.json');
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const tractates = (await response.json()).tractates || [];
+    dafPicker.names = tractates.map((t) => t.name);
+    for (const t of tractates) dafPicker.byName[t.name] = t;
+  } catch (error) {
+    console.error('Could not load the list of tractates.', error);
+    tractateSelect.textContent = '';
+    tractateSelect.append(new Option('Could not load the list', ''));
+    showToast('Could not load the list of dapim — try reloading.', 'error');
+    return;
+  }
+  tractateSelect.textContent = '';
+  for (const name of dafPicker.names) tractateSelect.append(new Option(name, name));
+  const fromLink = new URLSearchParams(location.search).get('daf');
+  if (fromLink && setDafPickerValue(fromLink)) {
+    showDaf();
+    return;
+  }
+  tractateSelect.value = dafPicker.names[0];
+  dafPickerFillDafs(tractateSelect.value);
+  dafPickerSync();
+  // Today's daf, unless a daf has been chosen while that was being looked up.
+  fetchTodaysDafForPicker().then((ref) => { if (ref && !dafPicker.touched) setDafPickerValue(ref); });
+}
+
+// Choosing a daf (or a side) shows it -- unless a session is running, when the
+// pickers are locked anyway.
+function onDafPicked() {
+  dafPicker.touched = true;
+  dafPickerSync();
+  if (!sessionActive()) showDaf();
+}
+
+// A new tractate only refills the daf list -- the daf is the next thing
+// chosen, and loading the text of whichever page happens to come first would
+// be a fetch nobody asked for. (Start, or Show daf, uses what is shown.)
+$('liveTractateSelect')?.addEventListener('change', () => {
+  dafPicker.touched = true;
+  dafPickerFillDafs($('liveTractateSelect').value, $('liveDafSelect').value, activeAmud());
+  dafPickerSync();
+});
+$('liveDafSelect')?.addEventListener('change', () => {
+  const entry = dafPicker.byName[$('liveTractateSelect').value];
+  if (entry) populateAmudToggle(amudimForDaf(entry, Number($('liveDafSelect').value)), activeAmud());
+  onDafPicked();
+});
+$('liveAmudToggle')?.addEventListener('click', (event) => {
+  const button = event.target.closest('.amud-option');
+  if (!button || button.disabled) return;
+  for (const b of amudButtons()) b.classList.toggle('active', b === button);
+  onDafPicked();
+});
+
 function flattenText(value) {
   if (typeof value === 'string') return [value];
   if (!Array.isArray(value)) return [];
@@ -349,7 +506,7 @@ async function loadDaf(parsed) {
 async function showDaf() {
   const parsed = parseDafInput($('liveRefInput').value);
   if (!parsed) {
-    showToast('Enter a daf like "Chullin 91a" (English tractate name).', 'error');
+    showToast('Choose a daf first.', 'error');
     return false;
   }
   const button = $('liveShowDafButton');
@@ -398,6 +555,7 @@ function renderDaf(daf) {
     container.append(p);
   }
   $('liveDafEmpty').hidden = true;
+  window.LiveDafPage?.setDaf(daf);
   $('liveDafHeading').textContent = daf.refs[1] && daf.segments.some((s) => s.ref.startsWith(`${daf.refs[1]}:`))
     ? `${daf.refs[0]} – ${daf.refs[1]}`
     : daf.refs[0];
@@ -407,6 +565,10 @@ function renderDaf(daf) {
 function paintRange(range, className, on) {
   if (!range) return;
   for (let i = range.s; i <= range.e; i += 1) live.spans[i]?.classList.toggle(className, on);
+  // The printed-daf view (live-daf-page.js) draws the same two highlights.
+  if (className === 'hl' || className === 'hl-provisional') {
+    window.LiveDafPage?.setRange(className === 'hl' ? 'confirmed' : 'provisional', on ? range : null);
+  }
 }
 
 function scrollToWord(index) {
@@ -465,6 +627,7 @@ function anchorDetail(span) {
 function clearAnchorMark() {
   live.anchorSpan?.classList.remove('anchor');
   live.anchorSpan = null;
+  window.LiveDafPage?.setAnchor(null);
 }
 
 function setAnchor(index) {
@@ -474,6 +637,7 @@ function setAnchor(index) {
   clearAnchorMark();
   live.anchorSpan = span;
   span.classList.add('anchor');
+  window.LiveDafPage?.setAnchor(index);
   paintRange(live.confirmed, 'hl', false);
   live.confirmed = null;
   setProvisional(null);
@@ -1386,7 +1550,7 @@ function realignVideoFrom(index) {
 async function startLiveFollow() {
   const parsed = parseDafInput($('liveRefInput').value);
   if (!parsed) {
-    showToast('Enter a daf like "Chullin 91a" (English tractate name).', 'error');
+    showToast('Choose a daf first.', 'error');
     return;
   }
   const button = $('liveStartButton');
@@ -1440,8 +1604,7 @@ async function startLiveFollow() {
     clearAnchorMark();
   }
   logEvent('start', { daf: live.daf.label, anchored: live.tracker.locked, source, ...(live.video ? { video: live.video.url } : {}), options: PAGE_OPTIONS });
-  $('liveRefInput').disabled = true;
-  $('liveShowDafButton').disabled = true;
+  setDafControlsDisabled(true);
   if (source === 'transcript') {
     // No microphone and no socket: the video's own transcript, aligned ahead
     // of time. The tracker made above is not used; the alignment makes its own.
@@ -1463,8 +1626,7 @@ async function startLiveFollow() {
     stopMic();
     live.tracker = null;
     live.preview = null;
-    $('liveRefInput').disabled = false;
-    $('liveShowDafButton').disabled = false;
+    setDafControlsDisabled(false);
     button.disabled = false;
     return;
   }
@@ -1491,8 +1653,7 @@ function stopLiveFollow() {
   clearAnchorMark();
   live.tracker = null;
   live.preview = null;
-  $('liveRefInput').disabled = false;
-  $('liveShowDafButton').disabled = false;
+  setDafControlsDisabled(false);
   const button = $('liveStartButton');
   button.textContent = 'Start Live Follow';
   button.classList.remove('stop');
@@ -1506,10 +1667,8 @@ $('liveStartButton')?.addEventListener('click', () => {
   else startLiveFollow();
 });
 
-$('liveRefInput')?.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter' && !live.tracker) showDaf();
-});
 $('liveShowDafButton')?.addEventListener('click', showDaf);
+dafPicker.ready = initDafPicker();
 $('liveVideoLoadButton')?.addEventListener('click', loadVideo);
 $('liveVideoInput')?.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') loadVideo();
@@ -1533,6 +1692,9 @@ if (!navigator.mediaDevices?.getDisplayMedia) {
 }
 $('liveCopyLogButton')?.addEventListener('click', copySessionLog);
 if (PAGE_OPTIONS.batch && $('liveDebugBatchRow')) $('liveDebugBatchRow').hidden = false;
+
+// (Also used by the printed-daf view, whose taps land here too.)
+window.liveSetAnchor = (index) => setAnchor(index);
 
 // A tap on a word sets the position. Skipped when the tap is the end of a text
 // selection drag, so selecting doesn't also move the highlight.

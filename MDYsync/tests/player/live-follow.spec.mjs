@@ -36,6 +36,17 @@ async function serveRealDaf(page) {
 
 // Loads Chullin 91a(+b) and arms the tracker exactly as startLiveFollow
 // does, without opening a microphone or a socket.
+// Chooses a daf the way a person does: tractate, daf, then side. (Choosing
+// shows it -- see onDafPicked in live.js.)
+async function pickDaf(page, ref) {
+  const [, tractate, daf, side] = /^(.+?)\s+(\d+)([ab])$/.exec(ref);
+  await expect.poll(() => page.locator('#liveTractateSelect option').count()).toBeGreaterThan(1);
+  await page.locator('#liveTractateSelect').selectOption(tractate);
+  await page.locator('#liveDafSelect').selectOption(daf);
+  await page.locator(`#liveAmudToggle .amud-option[data-side="${side}"]`).click();
+  await expect(page.locator('#liveRefInput')).toHaveValue(ref);
+}
+
 async function openFollowing(page, query = '') {
   await preparePage(page, { user: null });
   await serveRealDaf(page);
@@ -55,9 +66,10 @@ test.describe('Live Follow page basics', () => {
     await preparePage(page, { user: null });
     await page.goto('/live/');
     await expect(page.locator('#liveStartButton')).toBeVisible();
+    await page.evaluate(() => { document.getElementById('liveRefInput').value = ''; });
     await page.locator('#liveStartButton').click();
     await expect(page.locator('#toast')).toHaveClass(/show/);
-    await expect(page.locator('#toast')).toContainText('Enter a daf like');
+    await expect(page.locator('#toast')).toContainText('Choose a daf first');
     expect(errors).toEqual([]);
   });
 
@@ -70,7 +82,8 @@ test.describe('Live Follow page basics', () => {
       navigator.mediaDevices.getUserMedia = () => { window.__micRequests += 1; return Promise.reject(new Error('should not be called')); };
     });
     await page.goto('/live/');
-    await page.locator('#liveRefInput').fill('Chullin 999a');
+    await expect.poll(() => page.locator('#liveTractateSelect option').count()).toBeGreaterThan(1);
+    await page.evaluate(() => { document.getElementById('liveRefInput').value = 'Chullin 999a'; });
     await page.locator('#liveStartButton').click();
     await expect(page.locator('#liveStatusText')).toHaveText('Error');
     await expect(page.locator('#liveStatusDetail')).toContainText('Could not load Chullin 999a');
@@ -86,7 +99,7 @@ test.describe('Live Follow page basics', () => {
       navigator.mediaDevices.getUserMedia = () => Promise.reject(Object.assign(new Error('Permission denied'), { name: 'NotAllowedError' }));
     });
     await page.goto('/live/');
-    await page.locator('#liveRefInput').fill('Chullin 91a');
+    await pickDaf(page, 'Chullin 91a');
     await page.locator('#liveStartButton').click();
     await expect(page.locator('#liveStatusText')).toHaveText('Error');
     await expect(page.locator('#liveStatusDetail')).toContainText('denied');
@@ -111,7 +124,7 @@ test.describe('Live Follow page basics', () => {
       navigator.mediaDevices.getUserMedia = () => Promise.resolve(new AudioContext().createMediaStreamDestination().stream);
     });
     await page.goto('/live/');
-    await page.locator('#liveRefInput').fill('Chullin 91a');
+    await pickDaf(page, 'Chullin 91a');
     await page.locator('#liveStartButton').click();
     await expect.poll(() => tokenRequested).toBe(true);
     await expect(page.locator('#liveStatusText')).toHaveText('Error', { timeout: 5000 });
@@ -119,6 +132,85 @@ test.describe('Live Follow page basics', () => {
     expect(await page.evaluate(() => live.daf.keyterms.length)).toBeLessThanOrEqual(50);
     // Chrome logs the stubbed 503 itself; not a live.js error.
     expect(errors.filter((e) => !e.includes('503'))).toEqual([]);
+  });
+});
+
+test.describe('Live Follow — daf picker', () => {
+  async function open(page, query = '') {
+    await preparePage(page, { user: null });
+    await serveRealDaf(page);
+    await page.goto(`/live/${query}`);
+    await expect.poll(() => page.locator('#liveTractateSelect option').count()).toBeGreaterThan(1);
+  }
+
+  test('lists all 36 tractates and starts on today\'s daf, without loading its text', async ({ page }) => {
+    await open(page);
+    expect(await page.locator('#liveTractateSelect option').count()).toBe(36);
+    await expect(page.locator('#liveTractateSelect')).toHaveValue('Chullin'); // the harness's calendar says Chullin 89
+    await expect(page.locator('#liveDafSelect')).toHaveValue('89');
+    await expect(page.locator('#liveAmudToggle .amud-option.active')).toHaveText('a');
+    await expect(page.locator('#liveRefInput')).toHaveValue('Chullin 89a');
+    expect(await page.locator('#liveDafText .w').count()).toBe(0);
+  });
+
+  test('the daf list follows the tractate, and the sides follow the daf', async ({ page }) => {
+    await open(page);
+    await page.locator('#liveTractateSelect').selectOption('Berakhot');
+    const dafs = await page.locator('#liveDafSelect option').evaluateAll((o) => o.map((x) => Number(x.value)));
+    expect([dafs[0], dafs[dafs.length - 1], dafs.length]).toEqual([2, 64, 63]);
+    // Berakhot ends on 64a: no b side there.
+    await page.locator('#liveDafSelect').selectOption('64');
+    await expect(page.locator('#liveAmudToggle .amud-option[data-side="b"]')).toBeDisabled();
+    await expect(page.locator('#liveAmudToggle .amud-option.active')).toHaveText('a');
+    await expect(page.locator('#liveRefInput')).toHaveValue('Berakhot 64a');
+    // ...and back to a daf with both sides, the side that was chosen stays.
+    await page.locator('#liveDafSelect').selectOption('10');
+    await expect(page.locator('#liveAmudToggle .amud-option[data-side="b"]')).toBeEnabled();
+    await page.locator('#liveAmudToggle .amud-option[data-side="b"]').click();
+    await expect(page.locator('#liveRefInput')).toHaveValue('Berakhot 10b');
+    await page.locator('#liveDafSelect').selectOption('11');
+    await expect(page.locator('#liveRefInput')).toHaveValue('Berakhot 11b');
+  });
+
+  test('a page that does not exist (Nazir 33b) cannot be picked', async ({ page }) => {
+    await open(page);
+    await page.locator('#liveTractateSelect').selectOption('Nazir');
+    await page.locator('#liveDafSelect').selectOption('33');
+    await expect(page.locator('#liveAmudToggle .amud-option[data-side="b"]')).toBeDisabled();
+    await expect(page.locator('#liveRefInput')).toHaveValue('Nazir 33a');
+  });
+
+  test('a ?daf= link opens on that daf and shows it', async ({ page }) => {
+    await open(page, '?daf=Chullin%2091a');
+    await expect(page.locator('#liveRefInput')).toHaveValue('Chullin 91a');
+    await expect(page.locator('#liveDafHeading')).toHaveText('Chullin 91a – Chullin 91b');
+  });
+
+  test('a ?daf= link to a daf that does not exist is ignored', async ({ page }) => {
+    await open(page, '?daf=Chullin%20999a');
+    await expect(page.locator('#liveRefInput')).toHaveValue('Chullin 89a'); // today's daf, as with no link
+  });
+
+  test('changing the tractate alone loads nothing; choosing the daf does', async ({ page }) => {
+    await open(page);
+    let requests = 0;
+    await page.route('**/api/sefaria?*', (route) => { requests += 1; return route.fulfill({ status: 200, contentType: 'application/json', body: '{"he":["שלום"]}' }); });
+    await page.locator('#liveTractateSelect').selectOption('Berakhot');
+    await page.waitForTimeout(200);
+    expect(requests).toBe(0);
+    await expect(page.locator('#liveRefInput')).toHaveValue(/^Berakhot \d+a$/);
+    await page.locator('#liveDafSelect').selectOption('5');
+    await expect.poll(() => requests).toBeGreaterThan(0);
+    await expect(page.locator('#liveDafHeading')).toHaveText('Berakhot 5a – Berakhot 5b');
+  });
+
+  test('the b side is a real choice: starting on it follows 91b then 92a', async ({ page }) => {
+    await open(page);
+    await page.route('**/api/sefaria?*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"he":["שלום"]}' }));
+    await page.locator('#liveTractateSelect').selectOption('Chullin');
+    await page.locator('#liveDafSelect').selectOption('91');
+    await page.locator('#liveAmudToggle .amud-option[data-side="b"]').click();
+    await expect(page.locator('#liveDafHeading')).toHaveText('Chullin 91b – Chullin 92a');
   });
 });
 
@@ -397,7 +489,7 @@ test.describe('Live Follow — pointing at the daf', () => {
       window.WebSocket = class { constructor() { this.readyState = 0; } addEventListener() {} send() {} close() {} };
     });
     await page.goto('/live/');
-    await page.locator('#liveRefInput').fill('Chullin 91a');
+    await pickDaf(page, 'Chullin 91a');
     await page.locator('#liveShowDafButton').click();
     await expect(page.locator('#liveDafHeading')).toHaveText('Chullin 91a – Chullin 91b');
   }
@@ -410,13 +502,13 @@ test.describe('Live Follow — pointing at the daf', () => {
     expect(await page.evaluate(() => live.micStream === null && live.ws === null && live.tracker === null)).toBe(true);
   });
 
-  test('Enter in the daf field shows the daf, like the button', async ({ page }) => {
+  test('choosing a daf in the picker shows it, without pressing anything else', async ({ page }) => {
     await preparePage(page, { user: null });
     await serveRealDaf(page);
     await page.goto('/live/');
-    await page.locator('#liveRefInput').fill('Chullin 91a');
-    await page.locator('#liveRefInput').press('Enter');
+    await pickDaf(page, 'Chullin 91a');
     await expect(page.locator('#liveDafHeading')).toHaveText('Chullin 91a – Chullin 91b');
+    expect(await page.locator('#liveDafText .w').count()).toBe(fixture.canonNorms.length);
   });
 
   test('tapping a word before Start marks it, and the session then begins locked there', async ({ page }) => {
@@ -482,14 +574,14 @@ test.describe('Live Follow — pointing at the daf', () => {
     expect(await confirmed(page)).toEqual({ s: 644, e: 648 });
   });
 
-  test('the daf field is locked while listening, and free again after Stop', async ({ page }) => {
+  test('the daf pickers are locked while listening, and free again after Stop', async ({ page }) => {
     await showDaf(page);
     await page.evaluate(() => startLiveFollow());
-    await expect(page.locator('#liveRefInput')).toBeDisabled();
-    await expect(page.locator('#liveShowDafButton')).toBeDisabled();
+    for (const id of ['#liveTractateSelect', '#liveDafSelect', '#liveShowDafButton']) await expect(page.locator(id)).toBeDisabled();
+    await expect(page.locator('#liveAmudToggle .amud-option').first()).toBeDisabled();
     await page.evaluate(() => stopLiveFollow());
-    await expect(page.locator('#liveRefInput')).toBeEnabled();
-    await expect(page.locator('#liveShowDafButton')).toBeEnabled();
+    for (const id of ['#liveTractateSelect', '#liveDafSelect', '#liveShowDafButton']) await expect(page.locator(id)).toBeEnabled();
+    await expect(page.locator('#liveAmudToggle .amud-option.active')).toBeEnabled();
   });
 
   test('selecting text does not also move the position', async ({ page }) => {
@@ -690,7 +782,7 @@ test.describe('Live Follow — audio-path switches and diagnostics', () => {
       window.WebSocket = class { constructor() { this.readyState = 0; } addEventListener() {} send() {} close() {} };
     });
     await page.goto(`/live/${query}`);
-    await page.locator('#liveRefInput').fill('Chullin 91a');
+    await pickDaf(page, 'Chullin 91a');
     await page.locator('#liveShowDafButton').click();
     await expect(page.locator('#liveDafHeading')).toHaveText('Chullin 91a – Chullin 91b');
     await page.evaluate(() => startLiveFollow());
@@ -826,7 +918,7 @@ test.describe('Live Follow — video link', () => {
     if (noTabShare) await page.addInitScript(() => { navigator.mediaDevices.getDisplayMedia = undefined; });
     await page.goto(`/live/${query}`);
     await page.evaluate(() => { live.videoPollMs = 40; });
-    await page.locator('#liveRefInput').fill('Chullin 91a');
+    await pickDaf(page, 'Chullin 91a');
     await page.locator('#liveShowDafButton').click();
     await expect(page.locator('#liveDafHeading')).toHaveText('Chullin 91a – Chullin 91b');
     return seen;
@@ -1111,5 +1203,307 @@ test.describe('Live Follow — video link', () => {
     await expect(page.locator('#liveStatusText')).toHaveText('Idle');
     const sources = await page.evaluate(() => live.log.filter((e) => e.kind === 'start').map((e) => e.source));
     expect(sources).toEqual(['transcript']); // the log restarts with each session
+  });
+});
+
+// ---- The printed daf ------------------------------------------------------------------
+
+const pageMap91a = JSON.parse(readFileSync(new URL('../fixtures/pagemap-chullin-91a.json', import.meta.url), 'utf8'));
+
+test.describe('Live Follow — printed daf', () => {
+  // pdf.js is replaced by a stand-in module that "renders" a page with dark
+  // bars exactly where the real page map says the printed words are (so the
+  // ink-snapping, which reads the canvas, has real lines to find). The
+  // geometry, the page map and the real Chullin 91a text are all real.
+  const PDFJS = /^https:\/\/cdn\.jsdelivr\.net\/npm\/pdfjs-dist@[^/]+\/build\/pdf\.min\.mjs$/;
+  const mockPdfJs = (maps) => `
+    const MAPS = ${JSON.stringify(maps)};
+    export const GlobalWorkerOptions = {};
+    export function getDocument({ data }) {
+      const text = new TextDecoder().decode(data);
+      const key = /key=(\\S+)/.exec(text)?.[1];
+      window.__pdfLoads = (window.__pdfLoads || []).concat(key);
+      const map = MAPS[key];
+      const page = {
+        getViewport: ({ scale }) => ({ width: Math.round(1341 * scale), height: Math.round(2068 * scale) }),
+        render: ({ canvasContext: ctx, viewport }) => {
+          ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, viewport.width, viewport.height);
+          ctx.fillStyle = '#000';
+          for (const b of (map?.wordBoxes || [])) ctx.fillRect(b.x * viewport.width, (b.y + b.h * 0.2) * viewport.height, b.w * viewport.width, b.h * 0.55 * viewport.height);
+          return { promise: Promise.resolve() };
+        },
+      };
+      return { promise: Promise.resolve({ getPage: async () => page }) };
+    }`;
+
+  async function servePrinted(page, { maps = { 'Chullin-91a': pageMap91a }, pageStatus = {}, jobStatus = 202 } = {}) {
+    const seen = { pages: [], maps: [], jobs: [] };
+    await page.route(PDFJS, (route) => route.fulfill({ status: 200, contentType: 'text/javascript', body: mockPdfJs(maps) }));
+    await page.route('**/api/daf-page?*', (route) => {
+      const q = new URL(route.request().url()).searchParams;
+      const key = `${q.get('tractate')}-${q.get('daf')}${q.get('amud')}`;
+      seen.pages.push(key);
+      if (pageStatus[key]) return route.fulfill({ status: pageStatus[key], contentType: 'application/json', body: '{"error":"No page image available."}' });
+      return route.fulfill({ status: 200, contentType: 'application/pdf', body: `%PDF-fake key=${key}` });
+    });
+    await page.route('**/api/get-results-file?*', (route) => {
+      const key = /pages\/([^.]+)\.json/.exec(decodeURIComponent(new URL(route.request().url()).searchParams.get('path')))?.[1];
+      seen.maps.push(key);
+      const found = typeof maps[key] === 'function' ? maps[key]() : maps[key];
+      return found
+        ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(found) })
+        : route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"not found"}' });
+    });
+    await page.route('**/api/trigger-page-ocr-job', (route) => {
+      seen.jobs.push(route.request().postDataJSON());
+      return route.fulfill({ status: jobStatus, contentType: 'application/json', body: '{}' });
+    });
+    return seen;
+  }
+
+  async function openPrinted(page, options = {}) {
+    await openFollowing(page, '');
+    // After the page is prepared: preparePage's catch-all /api/** stub is the
+    // most recently added route until then, and the latest route wins.
+    const seen = await servePrinted(page, options);
+    await page.locator('#liveDafViewToggle [data-view="page"]').click();
+    return seen;
+  }
+  const bars = (page, id = 'liveVilnaActive') => page.locator(`#${id} > div`);
+  const barBoxes = (page, id = 'liveVilnaActive') => page.evaluate((x) => [...document.querySelectorAll(`#${x} > div`)].map((el) => ({
+    left: parseFloat(el.style.left) / 100, top: parseFloat(el.style.top) / 100, width: parseFloat(el.style.width) / 100, height: parseFloat(el.style.height) / 100,
+  })), id);
+  const lastAnchor = (page) => page.evaluate(() => live.log.filter((e) => e.kind === 'anchor').pop());
+  const drawn = (page) => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  // The printed words of canon words s..e: their boxes from the real page map.
+  const boxesOf = (s, e) => {
+    const out = [];
+    for (let i = s; i <= e; i += 1) {
+      const w = fixture.canonRefs?.[i];
+      if (w) { const box = pageMap91a.wordBoxes.find((b) => b.ref === w.ref && b.wordIndex === w.wordIndex); if (box) out.push(box); }
+    }
+    return out;
+  };
+
+  test('Text is the view to begin with; Printed daf swaps it for the page', async ({ page }) => {
+    await openFollowing(page, '');
+    await expect(page.locator('#liveDafScroll')).toBeVisible();
+    await expect(page.locator('#liveDafPageView')).toBeHidden();
+    await expect(page.locator('#liveDafViewToggle .active')).toHaveText('Text');
+    await servePrinted(page);
+    await page.locator('#liveDafViewToggle [data-view="page"]').click();
+    await expect(page.locator('#liveDafPageView')).toBeVisible();
+    await expect(page.locator('#liveDafScroll')).toBeHidden();
+    await expect(page.locator('#liveDafViewToggle .active')).toHaveText('Printed daf');
+    await page.locator('#liveDafViewToggle [data-view="text"]').click();
+    await expect(page.locator('#liveDafScroll')).toBeVisible();
+    await expect(page.locator('#liveDafPageView')).toBeHidden();
+  });
+
+  test('the first page of the daf is fetched the way the player fetches it: the page image and its word map', async ({ page }) => {
+    const seen = await openPrinted(page);
+    await expect(page.locator('#liveVilnaCanvas')).toBeVisible();
+    await expect(page.locator('#liveVilnaStatus')).toBeHidden();
+    expect(seen.pages).toEqual(['Chullin-91a']);
+    await expect.poll(() => seen.maps).toEqual(['Chullin-91a']);
+    const size = await page.locator('#liveVilnaCanvas').evaluate((c) => [c.width > 0, c.height > c.width]);
+    expect(size).toEqual([true, true]);
+  });
+
+  test('a placed phrase is highlighted on the page, in bars on the printed lines of those words', async ({ page }) => {
+    await openPrinted(page);
+    await expect(page.locator('#liveVilnaCanvas')).toBeVisible();
+    await expect.poll(() => page.evaluate(() => LiveDafPage.state.map !== null)).toBe(true);
+    await say(page, phrase(0, 7));
+    expect(await confirmed(page)).toEqual({ s: 0, e: 6 });
+    await expect(bars(page).first()).toBeVisible();
+    const rects = await barBoxes(page);
+    const expected = await page.evaluate(() => {
+      const out = [];
+      for (let i = 0; i <= 6; i += 1) {
+        const w = live.daf.canon.words[i];
+        const b = LiveDafPage.state.boxIndex.get(`${w.ref.replace(/:(\d+)$/, '.$1')}#${w.wordIndex}`);
+        if (b) out.push(b);
+      }
+      return out;
+    });
+    expect(expected.length).toBeGreaterThan(3);
+    // Every word of the phrase lies within one of the bars (its row, its x-range).
+    for (const b of expected) {
+      const cy = b.y + b.h / 2;
+      const hit = rects.find((r) => b.x >= r.left - 0.001 && b.x + b.w <= r.left + r.width + 0.001 && cy >= r.top - 0.004 && cy <= r.top + r.height + 0.004);
+      expect(hit, `word at ${b.x.toFixed(3)},${b.y.toFixed(3)} is under a bar`).toBeTruthy();
+    }
+    // Thin bars (a printed line's ink, not a fat block) and not stacked on one another.
+    for (const r of rects) expect(r.height).toBeLessThan(0.02);
+    expect(rects.length).toBeLessThanOrEqual(3);
+  });
+
+  test('the bars are snapped to the printed ink, as in the player', async ({ page }) => {
+    await openPrinted(page);
+    await expect.poll(() => page.evaluate(() => LiveDafPage.state.map !== null)).toBe(true);
+    await say(page, phrase(0, 7));
+    await expect(bars(page).first()).toBeVisible();
+    const [rect] = await barBoxes(page);
+    const snapped = await page.evaluate(() => {
+      const bands = (() => { const c = document.getElementById('liveVilnaCanvas'); return LiveDafPage.state.inkCache.bands && c.width > 0 ? LiveDafPage.state.inkCache.bands : null; })();
+      return bands;
+    });
+    expect(snapped, 'the ink bands were measured off the canvas').not.toBeNull();
+    // The stand-in page has ink from 20% to 75% of each box's height: a snapped bar spans exactly that.
+    const box = (await page.evaluate(() => { const w = live.daf.canon.words[0]; return LiveDafPage.state.boxIndex.get(`${w.ref.replace(/:(\d+)$/, '.$1')}#${w.wordIndex}`); }));
+    expect(Math.abs(rect.top - (box.y + box.h * 0.2))).toBeLessThan(0.0015);
+    expect(Math.abs(rect.height - box.h * 0.55)).toBeLessThan(0.0025);
+  });
+
+  test('the highlight follows the reading from line to line, and clears when nothing is placed', async ({ page }) => {
+    await openPrinted(page);
+    await expect.poll(() => page.evaluate(() => LiveDafPage.state.map !== null)).toBe(true);
+    await say(page, phrase(0, 7));
+    await expect(bars(page).first()).toBeVisible();
+    const first = (await barBoxes(page))[0];
+    await say(page, phrase(200, 7));
+    await expect.poll(async () => (await barBoxes(page))[0]?.top).toBeGreaterThan(first.top + 0.05);
+    await page.evaluate(() => { setAnchor(10); });
+    await expect(bars(page)).toHaveCount(0);
+    await expect(bars(page, 'liveVilnaAnchor')).toHaveCount(1);
+  });
+
+  test('the lighter in-progress highlight is drawn too, and replaced by the confirmed one', async ({ page }) => {
+    await openPrinted(page);
+    await expect.poll(() => page.evaluate(() => LiveDafPage.state.map !== null)).toBe(true);
+    await page.evaluate(() => setProvisional({ s: 30, e: 35 }));
+    await expect(bars(page, 'liveVilnaProvisional').first()).toBeVisible();
+    await expect(bars(page)).toHaveCount(0);
+    await say(page, phrase(30, 7));
+    await expect(bars(page).first()).toBeVisible();
+    await expect(bars(page, 'liveVilnaProvisional')).toHaveCount(0);
+  });
+
+  test('while explaining the bar goes quiet, as the text does', async ({ page }) => {
+    await openPrinted(page);
+    await expect.poll(() => page.evaluate(() => LiveDafPage.state.map !== null)).toBe(true);
+    await say(page, phrase(0, 7));
+    await expect(page.locator('#liveDafPageView')).not.toHaveClass(/dimmed/);
+    await say(page, 'and so the gemara goes on to explain what this means in plain english');
+    await expect(page.locator('#liveDafPageView')).toHaveClass(/dimmed/);
+    await say(page, phrase(7, 7));
+    await expect(page.locator('#liveDafPageView')).not.toHaveClass(/dimmed/);
+  });
+
+  test('tapping a printed word sets the place there, exactly as tapping it in the text does', async ({ page }) => {
+    await openPrinted(page);
+    await expect.poll(() => page.evaluate(() => LiveDafPage.state.map !== null)).toBe(true);
+    const target = await page.evaluate(() => {
+      const w = live.daf.canon.words[60];
+      const b = LiveDafPage.state.boxIndex.get(`${w.ref.replace(/:(\d+)$/, '.$1')}#${w.wordIndex}`);
+      const r = document.getElementById('liveVilnaCanvas').getBoundingClientRect();
+      return { x: (b.x + b.w / 2) * r.width, y: (b.y + b.h / 2) * r.height };
+    });
+    await page.locator('#liveVilnaCanvas').click({ position: target }); // scrolls it into view first
+    expect(await lastAnchor(page)).toMatchObject({ index: 60, midSession: true });
+    await expect(bars(page, 'liveVilnaAnchor')).toHaveCount(1);
+    await expect(page.locator('#liveDafText .w.anchor')).toHaveCount(1);
+    // The session carries on from it: the next phrase placed near there is taken.
+    await say(page, phrase(60, 6));
+    expect(await confirmed(page)).toEqual({ s: 60, e: 65 });
+    await expect(bars(page, 'liveVilnaAnchor')).toHaveCount(0);
+  });
+
+  test('a tap on blank paper (or the commentary) sets nothing', async ({ page }) => {
+    await openPrinted(page);
+    await expect.poll(() => page.evaluate(() => LiveDafPage.state.map !== null)).toBe(true);
+    const corner = await page.evaluate(() => { const r = document.getElementById('liveVilnaCanvas').getBoundingClientRect(); return { x: r.left + r.width * 0.02, y: r.top + r.height * 0.97 }; });
+    await page.mouse.click(corner.x, corner.y);
+    expect(await lastAnchor(page)).toBeUndefined();
+  });
+
+  test('zoom scales the page and the bars together, and a tap still lands on the right word', async ({ page }) => {
+    await openPrinted(page);
+    await expect.poll(() => page.evaluate(() => LiveDafPage.state.map !== null)).toBe(true);
+    await page.locator('#liveVilnaZoomIn').click();
+    await page.locator('#liveVilnaZoomIn').click();
+    await expect(page.locator('#liveVilnaZoomLabel')).toHaveText('140%');
+    expect(await page.locator('#liveVilnaWrap').evaluate((el) => el.style.transform)).toBe('scale(1.4)');
+    const target = await page.evaluate(() => {
+      const w = live.daf.canon.words[12];
+      const b = LiveDafPage.state.boxIndex.get(`${w.ref.replace(/:(\d+)$/, '.$1')}#${w.wordIndex}`);
+      const r = document.getElementById('liveVilnaCanvas').getBoundingClientRect(); // includes the 140% transform
+      return { x: (b.x + b.w / 2) * r.width, y: (b.y + b.h / 2) * r.height, scaledWidth: r.width / document.getElementById('liveVilnaCanvas').offsetWidth };
+    });
+    expect(target.scaledWidth).toBeCloseTo(1.4, 2);
+    await page.locator('#liveVilnaCanvas').click({ position: target });
+    expect(await lastAnchor(page)).toMatchObject({ index: 12 });
+    await page.locator('#liveVilnaZoomReset').click();
+    await expect(page.locator('#liveVilnaZoomLabel')).toHaveText('100%');
+  });
+
+  test('reading across the join turns the page, and turns back without fetching 91a again', async ({ page }) => {
+    const seen = await openPrinted(page);
+    await expect.poll(() => page.evaluate(() => LiveDafPage.state.map !== null)).toBe(true);
+    await say(page, phrase(0, 7));
+    const firstOfB = await page.evaluate(() => live.daf.canon.words.findIndex((w) => w.ref.startsWith('Chullin 91b:')));
+    expect(firstOfB).toBeGreaterThan(300);
+    await say(page, phrase(firstOfB + 20, 7));
+    await expect.poll(() => seen.pages).toEqual(['Chullin-91a', 'Chullin-91b']);
+    await expect.poll(() => page.evaluate(() => LiveDafPage.state.key)).toBe('Chullin-91b');
+    // 91b has no word map in this test: said plainly, and the job that makes one is asked for.
+    await expect(page.locator('#liveVilnaStatus')).toContainText('being prepared');
+    expect(seen.jobs).toEqual([{ tractate: 'Chullin', daf: 91, amud: 'b' }]);
+    await say(page, phrase(0, 7));
+    await expect.poll(() => page.evaluate(() => LiveDafPage.state.key)).toBe('Chullin-91a');
+    await expect(bars(page).first()).toBeVisible();
+    expect(seen.pages).toEqual(['Chullin-91a', 'Chullin-91b']); // 91a came from the cache
+    expect(seen.maps.filter((k) => k === 'Chullin-91a')).toHaveLength(1);
+  });
+
+  test('a page with no word map yet: the job is started once, polled, and the highlight appears when the map arrives', async ({ page }) => {
+    let ready = false;
+    const seen = await openPrinted(page, { maps: { 'Chullin-91a': () => (ready ? pageMap91a : null) } });
+    await page.evaluate(() => { LiveDafPage.state.mapPollMs = 80; });
+    await expect(page.locator('#liveVilnaStatus')).toContainText('being prepared');
+    await say(page, phrase(0, 7));
+    await expect(bars(page)).toHaveCount(0);
+    ready = true;
+    await expect(bars(page).first()).toBeVisible({ timeout: 10000 });
+    expect(seen.jobs).toHaveLength(1);
+    await expect(page.locator('#liveVilnaStatus')).toBeHidden();
+  });
+
+  test('if the job cannot be started the page is still shown, with the reason', async ({ page }) => {
+    await openPrinted(page, { maps: {}, jobStatus: 500 });
+    await expect(page.locator('#liveVilnaStatus')).toContainText('can’t be highlighted here');
+    await expect(page.locator('#liveVilnaCanvas')).toBeVisible();
+  });
+
+  test('a page image that cannot be had is reported', async ({ page }) => {
+    await openPrinted(page, { pageStatus: { 'Chullin-91a': 404 } });
+    await expect(page.locator('#liveVilnaStatus')).toContainText('Couldn’t load the printed page for Chullin 91a');
+    await expect(page.locator('#liveVilnaCanvas')).toBeHidden();
+  });
+
+  test('the text view keeps its own highlight while the page is shown, and the choice is remembered', async ({ page }) => {
+    await openPrinted(page);
+    await expect.poll(() => page.evaluate(() => LiveDafPage.state.map !== null)).toBe(true);
+    await say(page, phrase(0, 7));
+    await page.locator('#liveDafViewToggle [data-view="text"]').click();
+    await expect(page.locator('#liveDafText .w.hl')).toHaveCount(7);
+    await page.locator('#liveDafViewToggle [data-view="page"]').click();
+    await page.reload();
+    await expect(page.locator('#liveDafPageView')).toBeVisible();
+    await expect(page.locator('#liveDafViewToggle .active')).toHaveText('Printed daf');
+  });
+
+  test('choosing another daf while on the page view loads that daf\'s page', async ({ page }) => {
+    const seen = await openPrinted(page);
+    await expect.poll(() => seen.pages).toEqual(['Chullin-91a']);
+    await page.evaluate(() => { document.getElementById('liveRefInput').value = 'Chullin 91b'; });
+    await page.route('**/api/sefaria?*', (route) => {
+      const ref = new URL(route.request().url()).searchParams.get('ref');
+      const he = fixture.segments.filter((s) => s.ref.startsWith(`${ref}:`)).map((s) => s.he);
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ he: he.length ? he : ['שלום'] }) });
+    });
+    await page.evaluate(() => showDaf());
+    await expect.poll(() => seen.pages).toEqual(['Chullin-91a', 'Chullin-91b']);
   });
 });
