@@ -572,6 +572,17 @@ test.describe('Live Follow — batch second opinion (?batch=1)', () => {
     await expect(page.locator('#liveDebugBatch')).toContainText('placed it when the live model could not');
   });
 
+  test('the side-by-side scoring also searches the whole daf when the reading jumps beyond the local window', async ({ page }) => {
+    const requests = await open(page, { batchText: phrase(100, 8) });
+    await say(page, phrase(400, 7)); // locked at 400
+    await expect.poll(() => requests.length).toBe(1);
+    await say(page, phrase(100, 8)); // jumps far back
+    await expect.poll(() => batchEntries(page).then((e) => e.length)).toBe(2);
+    const entry = (await batchEntries(page)).find((e) => e.seq === 2);
+    expect(entry.realtime[0]).toMatchObject({ s: 100, e: 107, far: true });
+    expect(entry.batch[0]).toMatchObject({ s: 100, e: 107, far: true });
+  });
+
   test('the request carries the audio and the daf\'s keyterms, and no forced language', async ({ page }) => {
     const requests = await open(page, { batchText: '' });
     await say(page, phrase(400, 7));

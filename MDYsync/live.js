@@ -532,8 +532,10 @@ function setFollowState(state, options = {}) {
 // run, where it matches locally and how well. Pure -- it moves nothing -- so
 // the realtime and batch transcripts of the same segment can be compared like
 // for like.
-// Searched the way the tracker would: around the cursor when it is locked, the
-// whole daf when it isn't.
+// Searched the way the tracker would: around the cursor when it is locked and
+// then, failing that (the reading jumped back, or on past the local window),
+// across the whole daf -- which is also all there is when it isn't locked yet.
+// `far` marks a whole-daf match found with a lock in place.
 function scoreText(text, cursor, locked, listTokens) {
   const heard = LM.cleanTranscript(text, listTokens);
   return LM.splitHebrewRuns(heard)
@@ -542,11 +544,14 @@ function scoreText(text, cursor, locked, listTokens) {
     .map((run) => {
       const norms = run.map((w) => w.norm);
       const phons = run.map((w) => w.phon);
-      const m = locked
-        ? LM.matchPhraseDual(live.daf.canon, norms, phons, cursor)
-        : LM.matchGlobalWithMargin(live.daf.canon, norms, phons);
+      let m = locked ? LM.matchPhraseDual(live.daf.canon, norms, phons, cursor) : null;
+      let far = false;
+      if (!m) {
+        m = LM.matchGlobalWithMargin(live.daf.canon, norms, phons);
+        far = Boolean(locked && m);
+      }
       return m
-        ? { words: run.length, s: m.s, e: m.e, phon: +m.phonScore.toFixed(1), char: +m.charScore.toFixed(1) }
+        ? { words: run.length, s: m.s, e: m.e, phon: +m.phonScore.toFixed(1), char: +m.charScore.toFixed(1), ...(far ? { far: true } : {}) }
         : { words: run.length, miss: true };
     });
 }
