@@ -23,7 +23,7 @@ const STUB_SOURCE = readFileSync(join(HERE, '..', 'fixtures', 'supabase-stub.js'
 // regression suite; what matters is that the page gets a well-formed answer
 // instead of a network error that would mask a real UI defect.
 const API_RESPONSES = {
-  '/api/list-synced-dapim': { Chullin: { '89a': ['regularEn'], '89b': ['regularEn'] } },
+  '/api/list-synced-dapim': { Chullin: { 89: ['a', 'b'] } },
   '/api/get-catalog': { videos: [] },
   // fetchSefariaParagraphs() builds each paragraph's ref as
   // `${data.sectionRef}.${index + 1}` -- a DOT, which is why segment_ref values
@@ -140,4 +140,17 @@ export async function readTestQueries(page) {
 
 export async function resetTestQueries(page) {
   await page.evaluate(() => { window.__DAFSYNC_TEST_QUERIES__ = []; });
+}
+
+// For a test that opens the Interactive Daf page with a ?ref= but isn't about the
+// printed page: the page renders the daf (it asks for the PDF and loads pdf.js),
+// so give it quiet answers -- a one-line PDF, and a pdf.js that never finishes --
+// rather than a 404 and a blocked CDN, which both log console errors.
+export async function stubPrintedPage(page) {
+  await page.route('**/api/daf-page?*', (route) => route.fulfill({ status: 200, contentType: 'application/pdf', body: '%PDF-fake' }));
+  await page.route(/^https:\/\/cdn\.jsdelivr\.net\/npm\/pdfjs-dist@[^/]+\/build\/pdf\.min\.mjs$/, (route) => route.fulfill({
+    status: 200,
+    contentType: 'text/javascript',
+    body: 'export const GlobalWorkerOptions = {}; export function getDocument() { return { promise: new Promise(() => {}) }; }',
+  }));
 }

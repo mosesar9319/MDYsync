@@ -8731,8 +8731,11 @@ function refreshDafPickerOptions() {
   const options = dafOptionsFor(entry);
   const synced = state.browseMode && state.syncedDapim ? state.syncedDapim[entry.name] || {} : null;
   const hasRecording = (d) => !synced || ['a', 'b'].some((side) => (synced[`${d}${side}`] || []).length);
+  // The list opens on the first daf that has a recording (as it always did,
+  // when it listed only those), not on the tractate's first daf.
+  const firstRecorded = options.find(hasRecording);
   $('dafDafSelect').innerHTML = options
-    .map((d) => `<option value="${d}">${hasRecording(d) ? d : `${d} · no recording yet`}</option>`).join('');
+    .map((d) => `<option value="${d}"${d === firstRecorded ? ' selected' : ''}>${hasRecording(d) ? d : `${d} · no recording yet`}</option>`).join('');
   refreshDafPickerAmud();
 }
 

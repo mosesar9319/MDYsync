@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { preparePage, failOnPageError } from '../support/harness.mjs';
+import { preparePage, failOnPageError, stubPrintedPage } from '../support/harness.mjs';
 
 // The video/daf player's own playback-speed control -- reader-facing on
 // every page that embeds it (player/, watch/, browse/, studio/), and covered
@@ -41,6 +41,7 @@ test.describe('Video player -- playback speed survives a new video load', () => 
     const errors = [];
     failOnPageError(page, errors);
     await preparePage(page, { user: null });
+    await stubPrintedPage(page);
     await page.goto('/browse/?ref=Chullin%2089a');
     await expect(page.locator('#speedSelect')).toBeAttached();
 

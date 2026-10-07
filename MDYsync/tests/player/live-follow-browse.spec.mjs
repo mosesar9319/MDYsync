@@ -76,7 +76,7 @@ async function serveDaf(page, { maps = { 'Chullin-91a': pageMap91a }, jobStatus 
   return seen;
 }
 
-async function openBrowse(page, { query = '', serve = {}, errors = null, noTabShare = false } = {}) {
+async function openBrowse(page, { query = '', serve = {}, errors = null, noTabShare = false, synced = null } = {}) {
   if (errors) failOnPageError(page, errors);
   await preparePage(page, { user: null });
   const seen = await serveDaf(page, serve);
@@ -98,6 +98,7 @@ async function openBrowse(page, { query = '', serve = {}, errors = null, noTabSh
     };
     window.WebSocket = class { constructor() { this.readyState = 0; } addEventListener() {} send() {} close() {} };
   });
+  if (synced) await page.route('**/api/list-synced-dapim', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(synced) }));
   if (noTabShare) await page.addInitScript(() => { navigator.mediaDevices.getDisplayMedia = undefined; });
   await page.goto(`/browse/${query}`);
   await expect.poll(() => page.locator('#dafTractateSelect option').count()).toBeGreaterThan(0);
@@ -272,13 +273,15 @@ test.describe('Live follow — the mode on the Interactive Daf page', () => {
   });
 
   test('the picker lists every daf of the tractate, with the unsynced ones marked', async ({ page }) => {
-    await openBrowse(page);
+    await openBrowse(page, { synced: { Chullin: { '89a': ['regularEn'], '89b': ['regularEn'] } } });
     await expect(page.locator('#dafTractateSelect')).toHaveValue('Chullin');
     const options = await page.locator('#dafDafSelect option').evaluateAll((o) => o.map((x) => [x.value, x.textContent]));
     expect(options.length).toBe(141); // 2..142: past the last synced daf
     expect(options.at(-1)[0]).toBe('142');
     expect(options.find(([v]) => v === '89')[1]).toBe('89');
     expect(options.find(([v]) => v === '120')[1]).toBe('120 · no recording yet');
+    // It opens on the first daf that has a recording, not on the tractate's daf 2.
+    await expect(page.locator('#dafDafSelect')).toHaveValue('89');
     await page.locator('#dafDafSelect').selectOption('120');
     await expect(page.locator('#dafAmudToggle .amud-option[data-side="b"]')).toBeEnabled();
   });
