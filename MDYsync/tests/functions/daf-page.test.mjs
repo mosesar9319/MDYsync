@@ -3,7 +3,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import handler from '../../netlify/functions/daf-page.mjs';
+import handler, { __testing } from '../../netlify/functions/daf-page.mjs';
 
 const get = (query = 'tractate=Bekhorot&daf=16&amud=b') => handler(new Request(`https://x.test/api/daf-page?${query}`));
 function withFetch(impl) {
@@ -37,16 +37,53 @@ test('if www.shas.org\'s certificate is refused, shas.org is tried -- verified t
   } finally { stub.restore(); }
 });
 
+const refuseUnchecked = () => __testing.setUncheckedGetForTests(async () => { throw new Error('unreachable'); });
+
 test('if neither name can be reached, the answer says why for each', async () => {
   const stub = withFetch(() => { throw certError(); });
+  refuseUnchecked();
   try {
     const response = await get();
     assert.equal(response.status, 502);
     const body = await response.json();
     assert.equal(body.error, 'Page image request failed.');
     assert.equal(body.cause, 'ERR_TLS_CERT_ALTNAME_INVALID');
-    assert.deepEqual(body.attempts.map((a) => [a.host, a.code]), [['www.shas.org', 'ERR_TLS_CERT_ALTNAME_INVALID'], ['shas.org', 'ERR_TLS_CERT_ALTNAME_INVALID']]);
-  } finally { stub.restore(); }
+    assert.deepEqual(body.attempts.slice(0, 2).map((a) => [a.host, a.code]), [['www.shas.org', 'ERR_TLS_CERT_ALTNAME_INVALID'], ['shas.org', 'ERR_TLS_CERT_ALTNAME_INVALID']]);
+    assert.match(body.attempts[2].message, /unchecked request/);
+  } finally { stub.restore(); __testing.setUncheckedGetForTests(null); }
+});
+
+test('when both names fail on the certificate, one unchecked request to www.shas.org serves a PDF', async () => {
+  const stub = withFetch(() => { throw certError(); });
+  const seen = [];
+  __testing.setUncheckedGetForTests(async (endpoint) => { seen.push(endpoint.hostname); return { status: 200, body: Buffer.from('%PDF-1.6 fake') }; });
+  try {
+    const response = await get();
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('content-type'), 'application/pdf');
+    assert.deepEqual(stub.calls.map((u) => new URL(u).hostname), ['www.shas.org', 'shas.org']); // verified first
+    assert.deepEqual(seen, ['www.shas.org']);
+  } finally { stub.restore(); __testing.setUncheckedGetForTests(null); }
+});
+
+test('the unchecked request passes on nothing but a PDF', async () => {
+  const stub = withFetch(() => { throw certError(); });
+  __testing.setUncheckedGetForTests(async () => ({ status: 200, body: Buffer.from('<html>not a pdf</html>') }));
+  try {
+    const response = await get();
+    assert.equal(response.status, 502);
+    assert.match((await response.json()).attempts.pop().message, /answered 200/);
+  } finally { stub.restore(); __testing.setUncheckedGetForTests(null); }
+});
+
+test('the unchecked request is used only for certificate errors, never for other failures', async () => {
+  const stub = withFetch(() => { throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error('no'), { code: 'ECONNREFUSED' }) }); });
+  let used = false;
+  __testing.setUncheckedGetForTests(async () => { used = true; return { status: 200, body: Buffer.from('%PDF-') }; });
+  try {
+    assert.equal((await get()).status, 502);
+    assert.equal(used, false);
+  } finally { stub.restore(); __testing.setUncheckedGetForTests(null); }
 });
 
 test('an answer from the site, even a "no", is final: the other name is not asked', async () => {
