@@ -56,8 +56,10 @@ import argparse
 import base64
 import json
 import os
+import ssl
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 
 import cv2
@@ -113,19 +115,53 @@ CROPBOX_WIDTH_FRAC = 643.575 / 842.0
 CROPBOX_HEIGHT_FRAC = 992.575 / 1191.0
 
 
+# Where the same PDFs are served from when shas.org itself can't be reached with a
+# valid certificate (see fetch_page_pdf). Overridable for a local or preview site.
+PAGE_PROXY_BASE = os.environ.get('DAFSYNC_PAGE_PROXY', 'https://dafsync.netlify.app').rstrip('/')
+_PAGE_REQUEST_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    'Accept': 'application/pdf,*/*',
+}
+
+
+def _is_certificate_error(error):
+    """True when a urllib failure was the server's TLS certificate being refused."""
+    reason = getattr(error, 'reason', error)
+    return isinstance(reason, ssl.SSLCertVerificationError)
+
+
+def _download_pdf(url):
+    req = urllib.request.Request(url, headers=_PAGE_REQUEST_HEADERS)
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return r.read()
+
+
 def fetch_page_pdf(tractate, daf, amud, out_path):
     slug = MASECHTA_SLUGS.get(tractate)
     if not slug:
         raise RuntimeError(f"Unknown tractate '{tractate}'.")
-    url = (f"https://www.shas.org/daf-pdf/api/?masechta={slug}"
-           f"&daf={daf}&amud={amud}")
-    req = urllib.request.Request(url, headers={
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/pdf,*/*',
-    })
-    with urllib.request.urlopen(req, timeout=30) as r:
-        data = r.read()
-    if len(data) < 5000:
+    query = f"masechta={slug}&daf={daf}&amud={amud}"
+    try:
+        data = _download_pdf(f"https://www.shas.org/daf-pdf/api/?{query}")
+    except urllib.error.URLError as error:
+        # shas.org has at times served a certificate that isn't its own (its hosting
+        # panel's), which this check rightly refuses. Rather than turn the check off
+        # here -- what is fetched is OCR'd and the result stored for good -- take the
+        # same PDF from the DafSync site's own /api/daf-page, which has a valid
+        # certificate and is the one place that decision about shas.org is made.
+        # Any other failure (DNS, a 404, a timeout) is raised as it always was.
+        if not _is_certificate_error(error):
+            raise
+        print(f"shas.org's certificate was refused ({error.reason}); "
+              f"fetching {tractate} {daf}{amud} through {PAGE_PROXY_BASE}/api/daf-page")
+        try:
+            data = _download_pdf(f"{PAGE_PROXY_BASE}/api/daf-page?tractate={urllib.parse.quote(tractate)}"
+                                 f"&daf={daf}&amud={amud}")
+        except urllib.error.HTTPError as proxy_error:
+            if proxy_error.code == 404:
+                raise RuntimeError(f"No page image available for {tractate} {daf}{amud}.")
+            raise
+    if not data.startswith(b'%PDF-') or len(data) < 5000:
         raise RuntimeError(f"No page image available for {tractate} {daf}{amud}.")
     with open(out_path, 'wb') as f:
         f.write(data)
