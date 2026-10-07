@@ -21,6 +21,8 @@ const MASECHTA_SLUGS = {
   'Niddah': 'niddah',
 };
 
+const SHAS_HOSTS = ['www.shas.org', 'shas.org'];
+
 export default async (request) => {
   if (request.method !== 'GET') {
     return Response.json({ error: 'Method not allowed' }, { status: 405 });
@@ -42,42 +44,55 @@ export default async (request) => {
     return Response.json({ error: "Amud must be 'a' or 'b'." }, { status: 400 });
   }
 
-  const endpoint = new URL('https://www.shas.org/daf-pdf/api/');
-  endpoint.searchParams.set('masechta', slug);
-  endpoint.searchParams.set('daf', String(daf));
-  endpoint.searchParams.set('amud', amud);
-
-  try {
-    const upstream = await fetch(endpoint, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        Accept: 'application/pdf,*/*',
-      },
-    });
-    if (!upstream.ok) {
-      return Response.json(
-        { error: `No page image available for ${tractate} ${daf}${amud}.` },
-        { status: upstream.status === 404 || upstream.status === 400 ? 404 : 502 }
-      );
+  // www.shas.org first, then shas.org: each connection is fully verified, but a
+  // certificate that covers only one of the two names (shas.org's has done this)
+  // would otherwise take every page down with it.
+  const attempts = [];
+  for (const host of SHAS_HOSTS) {
+    const endpoint = new URL(`https://${host}/daf-pdf/api/`);
+    endpoint.searchParams.set('masechta', slug);
+    endpoint.searchParams.set('daf', String(daf));
+    endpoint.searchParams.set('amud', amud);
+    try {
+      const upstream = await fetch(endpoint, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          Accept: 'application/pdf,*/*',
+        },
+      });
+      // An answer from the site, even a "no", is its answer: the other name would say the same.
+      if (!upstream.ok) {
+        return Response.json(
+          { error: `No page image available for ${tractate} ${daf}${amud}.` },
+          { status: upstream.status === 404 || upstream.status === 400 ? 404 : 502 }
+        );
+      }
+      const body = await upstream.arrayBuffer();
+      return new Response(body, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Cache-Control': 'public, max-age=86400, s-maxage=604800',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
+    } catch (error) {
+      // undici's "fetch failed" hides the real reason in error.cause (a DNS
+      // failure, a refused or timed-out connection, a certificate problem...).
+      attempts.push({ host, code: error.cause?.code || null, message: error.cause?.message || error.message });
     }
-    const body = await upstream.arrayBuffer();
-    return new Response(body, {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Cache-Control': 'public, max-age=86400, s-maxage=604800',
-        'Access-Control-Allow-Origin': '*',
-      },
-    });
-  } catch (error) {
-    // undici's "fetch failed" hides the real reason in error.cause (a DNS
-    // failure, a refused or timed-out connection, a certificate problem...).
-    const cause = error.cause?.code || error.cause?.message || null;
-    console.error('daf-page: could not fetch from shas.org:', error.message, cause || '');
-    return Response.json({ error: 'Page image request failed.', detail: error.message, cause }, { status: 502 });
   }
+  console.error('daf-page: could not fetch from shas.org:', JSON.stringify(attempts));
+  return Response.json({
+    error: 'Page image request failed.',
+    detail: 'fetch failed',
+    cause: attempts[0]?.code || attempts[0]?.message || null,
+    attempts,
+  }, { status: 502 });
 };
 
 export const config = {
   path: '/api/daf-page',
 };
+
+export const __testing = { SHAS_HOSTS };
