@@ -1611,6 +1611,24 @@ test.describe('Live follow — the page\'s own views follow the reading', () => 
     for (const r of rects) expect(r.height).toBeLessThan(0.02); // a printed line's ink, not a fat block
   });
 
+  test('with the amud before also loaded (as in real use), the placed phrase is still highlighted on the printed page', async ({ page }) => {
+    await openFollowing(page, { serve: { before: BEFORE_91A } });
+    const offset = await page.evaluate(() => live.daf.canon.words.findIndex((w) => w.ref.startsWith('Chullin 91a')));
+    expect(offset).toBeGreaterThan(0);
+    await say(page, phrase(0, 7));
+    expect(await confirmed(page)).toEqual({ s: offset, e: offset + 6 });
+    await expect(activeBars(page).first()).toBeVisible();
+    const rects = await barBoxes(page);
+    expect(rects.length).toBeGreaterThan(0);
+    for (let i = offset; i <= offset + 6; i += 1) {
+      const b = await boxOf(page, i);
+      if (!b) continue;
+      const cy = b.y + b.h / 2;
+      const hit = rects.find((r) => b.x >= r.left - 0.001 && b.x + b.w <= r.left + r.width + 0.001 && cy >= r.top - 0.004 && cy <= r.top + r.height + 0.004);
+      expect(hit, `word ${i} is under a bar`).toBeTruthy();
+    }
+  });
+
   test('a phrase that runs on from one paragraph into the next is highlighted in full, not cut at the paragraph', async ({ page }) => {
     await openFollowing(page);
     // Words 120-128: 120-122 end paragraph 5, 123-128 begin paragraph 6.
