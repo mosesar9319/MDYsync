@@ -252,6 +252,8 @@ const state = {
   // segment" that page normally reads instead.
   browseMode: document.body.dataset.page === 'browse',
   browsePageRef: null,
+  // { "<Tractate>": Set(daf) } of dapim with a linked video; see ensureVideoCatalogLoaded.
+  videoDapim: null,
   // Live follow (live-follow.js, the Interactive Daf page's "Live follow"
   // mode): while { active: true, activeIndex }, the daf's position comes from
   // what is being heard (or from a video's own transcript), not from a
@@ -271,8 +273,7 @@ const state = {
   // Daf browser only -- fetched once from list-synced-dapim.mjs (see
   // loadTalmudIndex()), { "<Tractate>": { "<daf><amud>": ["regularEn",...] } }.
   // loadTalmudIndex() awaits that fetch before building either picker, so
-  // this is never actually null by the time browsableAmudim/
-  // browsableDafOptions get called from real picker code.
+  // this is never actually null by the time refreshDafPickerOptions reads it.
   syncedDapim: null,
 };
 
@@ -1413,6 +1414,22 @@ function nextDafRef(ref) {
   if (!parsed) return null;
   const daf = parsed.amud === 'a' ? parsed.daf : parsed.daf + 1;
   const amud = parsed.amud === 'a' ? 'b' : 'a';
+  const variantSuffix = parsed.variant === 'chazarah' ? ' (Chazarah Daf)' : '';
+  const languageSuffix = parsed.language === 'he' ? ' (Hebrew)' : '';
+  return `${parsed.tractate} ${daf}${amud}${variantSuffix}${languageSuffix}`;
+}
+
+// The ref one amud before the given one -- 'b' goes back to 'a' on the same
+// daf, 'a' to the previous daf's 'b' -- or null before the first daf there can
+// be. The mirror of nextDafRef; Live Follow reads the amud before the one
+// chosen too, as the regular alignments do, for a shiur that begins from the
+// end of the previous daf.
+function prevDafRef(ref) {
+  const parsed = parseDafRef(ref);
+  if (!parsed) return null;
+  const daf = parsed.amud === 'b' ? parsed.daf : parsed.daf - 1;
+  if (daf < 2) return null;
+  const amud = parsed.amud === 'b' ? 'a' : 'b';
   const variantSuffix = parsed.variant === 'chazarah' ? ' (Chazarah Daf)' : '';
   const languageSuffix = parsed.language === 'he' ? ' (Hebrew)' : '';
   return `${parsed.tractate} ${daf}${amud}${variantSuffix}${languageSuffix}`;
@@ -8567,28 +8584,6 @@ function dafOptionsFor(entry) {
   return options;
 }
 
-// Daf-browser-only narrowing on top of the two generic functions above --
-// kept separate rather than folded into amudimForDaf/dafOptionsFor
-// themselves, since those are also used by the sync dialog's own
-// tractate/daf/amud picker (present, admin-only, on every page including
-// browse/index.html), which needs to keep offering *every* daf -- an
-// admin syncs from there precisely because a daf isn't synced yet.
-function browsableAmudim(entry, daf) {
-  const sides = amudimForDaf(entry, daf);
-  // Live follow can follow any daf, not just ones with a synced recording.
-  if (!state.browseMode || !state.syncedDapim || state.liveFollow?.active) return sides;
-  return sides.filter((side) => (state.syncedDapim[entry.name]?.[`${daf}${side}`] || []).length);
-}
-
-function browsableDafOptions(entry) {
-  if (!state.browseMode || !state.syncedDapim || state.liveFollow?.active) return dafOptionsFor(entry);
-  const options = [];
-  for (let d = entry.startDaf; d <= entry.endDaf; d++) {
-    if (browsableAmudim(entry, d).length) options.push(d);
-  }
-  return options;
-}
-
 // Fetches list-synced-dapim.mjs's { "<Tractate>": { "<daf><amud>":
 // ["regularEn",...] } } map once and caches it on state -- shared by the
 // Daf browser's own picker (loadTalmudIndex, gated to browseMode) and the
@@ -8608,6 +8603,23 @@ async function ensureSyncedDapimLoaded() {
   return state.syncedDapim;
 }
 
+// The dapim with at least one video linked (the library's catalog), as
+// { "<Tractate>": Set(daf) } -- so the picker can tell "a video exists but its
+// sync hasn't finished" (nothing to tap-to-play yet) from "no video at all".
+// Memoised on state; a failed fetch just means no dapim are marked.
+async function ensureVideoCatalogLoaded() {
+  if (state.videoDapim) return state.videoDapim;
+  state.videoDapim = {};
+  try {
+    const response = await fetch('/api/get-catalog');
+    const data = response.ok ? await response.json() : {};
+    for (const [tractate, rows] of Object.entries(data.tractates || {})) {
+      state.videoDapim[tractate] = new Set((Array.isArray(rows) ? rows : []).map((row) => Number(row.daf)));
+    }
+  } catch { /* the picker simply marks fewer dapim */ }
+  return state.videoDapim;
+}
+
 async function loadTalmudIndex() {
   if (!syncState.tractateNames.length) {
     const response = await fetch('/talmud_index.json');
@@ -8622,7 +8634,7 @@ async function loadTalmudIndex() {
   // ensureSyncedDapimLoaded/showScanResult), gated so every other page's
   // picker (which is for picking *any* daf, including ones still needing a
   // sync) is unaffected.
-  if (state.browseMode) await ensureSyncedDapimLoaded();
+  if (state.browseMode) await Promise.all([ensureSyncedDapimLoaded(), ensureVideoCatalogLoaded()]);
   // Every tractate picker (the reader-facing daf reference picker, the
   // admin sync dialog, the studio catalog grid) now offers the full Daf
   // Yomi cycle -- all 36 tractates in talmud_index.json -- not just a
@@ -8731,11 +8743,18 @@ function refreshDafPickerOptions() {
   const options = dafOptionsFor(entry);
   const synced = state.browseMode && state.syncedDapim ? state.syncedDapim[entry.name] || {} : null;
   const hasRecording = (d) => !synced || ['a', 'b'].some((side) => (synced[`${d}${side}`] || []).length);
-  // The list opens on the first daf that has a recording (as it always did,
-  // when it listed only those), not on the tractate's first daf.
+  const hasVideo = (d) => Boolean(state.videoDapim?.[entry.name]?.has(d));
+  // A daf can have videos linked (they are in the library) and still nothing
+  // to tap-to-play: a recording only counts once its sync has finished.
+  const labelFor = (d) => {
+    if (hasRecording(d)) return String(d);
+    return `${d} · ${hasVideo(d) ? 'video not synced yet' : 'no recording yet'}`;
+  };
+  // The list opens on the first daf that has a synced recording (as it always
+  // did, when it listed only those), not on the tractate's first daf.
   const firstRecorded = options.find(hasRecording);
   $('dafDafSelect').innerHTML = options
-    .map((d) => `<option value="${d}"${d === firstRecorded ? ' selected' : ''}>${hasRecording(d) ? d : `${d} · no recording yet`}</option>`).join('');
+    .map((d) => `<option value="${d}"${d === firstRecorded ? ' selected' : ''}>${escapeHtml(labelFor(d))}</option>`).join('');
   refreshDafPickerAmud();
 }
 
@@ -8809,6 +8828,17 @@ function dafPickerRef() {
   return `${tractate} ${daf}${activeAmud('dafAmudToggle')}${variantSuffix}${languageSuffix}`;
 }
 
+// Shows a daf's printed page (and names it in the heading) without touching
+// whatever video is loaded or playing -- the page on screen is its own state
+// (state.browsePageRef), so this is also all that stepping to the next or
+// previous amud does.
+function showBrowsePage(ref) {
+  state.browsePageRef = ref;
+  const titleEl = $('dafTitle');
+  if (titleEl) titleEl.textContent = ref;
+  renderVilnaPage();
+}
+
 function onDafPickerChanged() {
   const ref = dafPickerRef();
   if (!ref) return;
@@ -8816,10 +8846,7 @@ function onDafPickerChanged() {
   // itself; nothing here should load a recording over it).
   if (state.liveFollow?.active) return window.dafLiveFollow?.pickerChanged(ref);
   if (state.browseMode) {
-    state.browsePageRef = ref;
-    const titleEl = $('dafTitle');
-    if (titleEl) titleEl.textContent = ref;
-    renderVilnaPage();
+    showBrowsePage(ref);
     // The Daf browser used to leave it at that -- a real report confirmed
     // the video panel just stayed empty here, unlike every other page that
     // embeds this same player DOM, where picking a daf always loads its
@@ -8844,40 +8871,31 @@ function onDafPickerChanged() {
 }
 
 // Steps the picker's own tractate/daf/amud selection by one amud in either
-// direction (b -> the next daf's a, rolling into the next tractate at a
-// startDaf/endDaf boundary) and applies it -- reuses the exact same
-// talmud_index.json-driven helpers the picker's dropdowns already use
-// (amudimForDaf/dafOptionsFor for which amudim/dapim actually exist,
-// refreshDafPickerOptions/refreshDafPickerAmud to keep the dropdowns
-// themselves in sync with the new tractate), so there's no separate
-// "is this a real daf" logic to keep correct in two places.
-// Only present (and so only ever called) on browse/index.html -- the
-// browsable* wrappers below are used throughout rather than
-// amudimForDaf/dafOptionsFor directly, so page-turning only ever lands on
-// a daf/amud that's actually synced, skipping past a whole tractate with
-// nothing synced yet rather than stopping on its first (unsynced) daf.
-function tractateWithBrowsableDapim(startIndex, direction) {
-  for (let i = startIndex; i >= 0 && i < syncState.tractateNames.length; i += direction) {
-    const name = syncState.tractateNames[i];
-    const entry = syncState.talmudByName[name];
-    if (browsableDafOptions(entry).length) return { name, entry };
-  }
-  return null;
-}
-
+// direction (b -> the next daf's a, rolling into the next tractate the picker
+// offers at a startDaf/endDaf boundary), through EVERY amud -- the page on
+// screen doesn't need a recording -- using the same talmud_index.json helpers
+// the picker's dropdowns use (amudimForDaf/dafOptionsFor), so there is no
+// separate "is this a real daf" logic to keep correct in two places.
+// Only present (and so only ever called) on browse/index.html.
+//
+// Stepping turns the printed page and nothing else: a video that is loaded or
+// playing is left exactly as it is (picking a daf in the picker is what loads
+// that daf's recording). Live follow is the exception, as it is for the
+// picker: stepping then makes the new daf the one being followed.
 function stepBrowseDaf(direction) {
-  const tractate = $('dafTractateSelect')?.value;
-  const entry = syncState.talmudByName[tractate];
+  const tractates = [...$('dafTractateSelect').options].map((option) => option.value);
+  const tractateIndex = tractates.indexOf($('dafTractateSelect').value);
+  const entry = syncState.talmudByName[tractates[tractateIndex]];
   if (!entry) return;
   const daf = Number($('dafDafSelect').value);
   const amud = activeAmud('dafAmudToggle');
-  const sides = browsableAmudim(entry, daf);
+  const sides = amudimForDaf(entry, daf);
   const sideIndex = sides.indexOf(amud);
-  const dafOptions = browsableDafOptions(entry);
+  const dafOptions = dafOptionsFor(entry);
   const dafIndex = dafOptions.indexOf(daf);
-  const tractateIndex = syncState.tractateNames.indexOf(tractate);
+  const lastOf = (list) => list[list.length - 1];
 
-  let nextTractate = tractate;
+  let nextTractate = tractates[tractateIndex];
   let nextDaf = daf;
   let nextSide;
 
@@ -8886,30 +8904,26 @@ function stepBrowseDaf(direction) {
       nextSide = sides[sideIndex + 1];
     } else if (dafIndex !== -1 && dafIndex + 1 < dafOptions.length) {
       nextDaf = dafOptions[dafIndex + 1];
-      nextSide = browsableAmudim(entry, nextDaf)[0];
+      nextSide = amudimForDaf(entry, nextDaf)[0];
     } else {
-      const found = tractateWithBrowsableDapim(tractateIndex + 1, 1);
-      if (!found) return; // already at the last synced amud there is
-      nextTractate = found.name;
-      const nextOptions = browsableDafOptions(found.entry);
-      nextDaf = nextOptions[0];
-      nextSide = browsableAmudim(found.entry, nextDaf)[0];
+      const next = syncState.talmudByName[tractates[tractateIndex + 1]];
+      if (!next) return; // already at the last amud there is
+      nextTractate = tractates[tractateIndex + 1];
+      nextDaf = dafOptionsFor(next)[0];
+      nextSide = amudimForDaf(next, nextDaf)[0];
     }
   } else {
     if (sideIndex > 0) {
       nextSide = sides[sideIndex - 1];
     } else if (dafIndex > 0) {
       nextDaf = dafOptions[dafIndex - 1];
-      const prevSides = browsableAmudim(entry, nextDaf);
-      nextSide = prevSides[prevSides.length - 1];
+      nextSide = lastOf(amudimForDaf(entry, nextDaf));
     } else {
-      const found = tractateWithBrowsableDapim(tractateIndex - 1, -1);
-      if (!found) return; // already at the first synced amud there is
-      nextTractate = found.name;
-      const prevOptions = browsableDafOptions(found.entry);
-      nextDaf = prevOptions[prevOptions.length - 1];
-      const prevSides = browsableAmudim(found.entry, nextDaf);
-      nextSide = prevSides[prevSides.length - 1];
+      const previous = syncState.talmudByName[tractates[tractateIndex - 1]];
+      if (!previous) return; // already at the first amud there is
+      nextTractate = tractates[tractateIndex - 1];
+      nextDaf = lastOf(dafOptionsFor(previous));
+      nextSide = lastOf(amudimForDaf(previous, nextDaf));
     }
   }
 
@@ -8921,14 +8935,14 @@ function stepBrowseDaf(direction) {
     if (!button.disabled) button.classList.toggle('active', button.dataset.side === nextSide);
   });
   // refreshDafPickerAmud() above already calls this, but at that point the
-  // active amud is still whatever it was before this step (populateAmudToggle
-  // only just preserved it, since it was still technically valid) -- the
-  // reassignment to nextSide happens right above, after both
-  // refreshDafPickerAmud() calls (the implicit one inside
-  // refreshDafPickerOptions() and the explicit one), so this needs one more
-  // call now that the real target amud is actually in place.
+  // active amud is still whatever it was before this step; the reassignment
+  // to nextSide happens right above, so this needs one more call now that the
+  // real target amud is in place.
   refreshDafPickerVariantLanguage();
-  onDafPickerChanged();
+  const ref = dafPickerRef();
+  if (!ref) return;
+  if (state.liveFollow?.active) onDafPickerChanged();
+  else showBrowsePage(ref);
 }
 
 // Reflects an externally-set ref (loaded via import, restored project,
@@ -9597,6 +9611,8 @@ document.querySelectorAll('#dafLanguageToggle .language-option').forEach((button
 // everywhere else, same pattern as the camera-scan listeners above.
 $('browsePrevButton')?.addEventListener('click', () => stepBrowseDaf(-1));
 $('browseNextButton')?.addEventListener('click', () => stepBrowseDaf(1));
+$('dafPrevAmudButton')?.addEventListener('click', () => stepBrowseDaf(-1));
+$('dafNextAmudButton')?.addEventListener('click', () => stepBrowseDaf(1));
 // A catalog link (?ref=Chullin+86a&variant=chazarah&language=hebrew) should
 // land straight on that daf instead of the built-in demo -- but the picker
 // it feeds (syncDafPickerFromRef) needs the tractate index loaded first, so

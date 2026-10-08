@@ -172,3 +172,41 @@ test('an empty transcript gives an empty timeline', () => {
   assert.deepEqual(timeline, []);
   assert.deepEqual(LV.positionAt(timeline, 5), { state: 'before', placement: null, index: -1, unplacedRun: 0 });
 });
+
+// ---- A saved sync of the video, in place of a transcript ----------------------------------------
+
+test('a saved sync becomes a timeline of the canon ranges it covers, in time order', () => {
+  const index = new Map();
+  let n = 0;
+  for (const [ref, words] of [['Chullin 91a.1', 5], ['Chullin 91a.2', 4]]) {
+    for (let i = 0; i < words; i += 1) index.set(`${ref}#${i}`, n++);
+  }
+  const alignment = {
+    wordTimeline: [
+      { start: 30, end: 33, ref: 'Chullin 91a:2', w0: 1, w1: 3 },
+      { start: 10, end: 12, ref: 'Chullin 91a:1', w0: 0, w1: 4 },
+      { start: 20, end: 25, ref: 'Chullin 90b:7', w0: 0, w1: 2 }, // an amud the page is not following
+      { start: 40, end: 41, ref: 'Chullin 91a:2', w0: 2, w1: 99 }, // runs past the paragraph: ends where it does
+      { start: Number.NaN, ref: 'Chullin 91a:1', w0: 0, w1: 1 },
+      { start: 50, ref: 'Chullin 91a:1', w0: 3, w1: 1 },
+    ],
+  };
+  const { timeline, mapped, total } = LV.timelineFromAlignment(alignment, index);
+  assert.deepEqual(timeline.map((e) => [e.start, e.end, e.s, e.e, e.state]), [
+    [10, 12, 0, 4, 'read'],
+    [30, 33, 6, 8, 'read'],
+    [40, 41, 7, 8, 'read'],
+  ]);
+  assert.equal(mapped, 3);
+  assert.equal(total, 5); // the entry with no usable start is not counted at all
+  // It is the same kind of timeline positionAt reads: the highlight holds between entries.
+  assert.equal(LV.positionAt(timeline, 20).placement.s, 0);
+  assert.equal(LV.positionAt(timeline, 35).placement.s, 6);
+  assert.equal(LV.positionAt(timeline, 5).state, 'before');
+});
+
+test('anything that is not an alignment gives an empty timeline', () => {
+  for (const bad of [null, undefined, {}, { wordTimeline: 'x' }, { wordTimeline: [null, 3, {}] }]) {
+    assert.deepEqual(LV.timelineFromAlignment(bad, new Map()).timeline, []);
+  }
+});

@@ -15,6 +15,11 @@ import { preparePage, failOnPageError } from '../support/harness.mjs';
 
 const fixture = JSON.parse(readFileSync(new URL('../fixtures/live-matcher-parity.json', import.meta.url), 'utf8'));
 const pageMap91a = JSON.parse(readFileSync(new URL('../fixtures/pagemap-chullin-91a.json', import.meta.url), 'utf8'));
+// The text of the amud before 91a, for the tests that read it (the other tests have none).
+const BEFORE_91A = [
+  'אמר רבי יוחנן משום רבי שמעון בן יוחאי כל המקיים מצות עשה בכל יום ויום זוכה ורואה פני השכינה תמיד',
+  'אבוהון דכולהו אמוראי הוו מסדרי שמעתתא בבי מדרשא ורב נחמן בר יצחק הוה ידע לברורי פלוגתא',
+];
 const phrase = (start, length) => fixture.canonNorms.slice(start, start + length).join(' ');
 
 const PDFJS = /^https:\/\/cdn\.jsdelivr\.net\/npm\/pdfjs-dist@[^/]+\/build\/pdf\.min\.mjs$/;
@@ -38,7 +43,7 @@ const mockPdfJs = (maps) => `
 
 // Registered AFTER preparePage: its catch-all /api/** stub is the latest route
 // until then, and the latest route wins.
-async function serveDaf(page, { maps = { 'Chullin-91a': pageMap91a }, jobStatus = 202, pageStatus = {} } = {}) {
+async function serveDaf(page, { maps = { 'Chullin-91a': pageMap91a }, jobStatus = 202, pageStatus = {}, before = null } = {}) {
   const seen = { pages: [], maps: [], jobs: [], sefaria: [] };
   await page.route('**/api/sefaria?*', (route) => {
     const ref = new URL(route.request().url()).searchParams.get('ref');
@@ -48,6 +53,13 @@ async function serveDaf(page, { maps = { 'Chullin-91a': pageMap91a }, jobStatus 
     // passes through on the way gets a one-line stand-in, as a real daf would
     // have text -- except one that does not exist at all.
     if (/ 999[ab]$/.test(ref)) return route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"not found"}' });
+    // The amud before 91a is read too. Unless a test gives it text (`before`),
+    // it has none here, so the canon is exactly the fixture's 91a + 91b.
+    if (ref === 'Chullin 90b') {
+      return before
+        ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ref, sectionRef: ref, heRef: ref, he: before }) })
+        : route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"not found"}' });
+    }
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ref, sectionRef: ref, heRef: ref, he: he.length ? he : ['שלום עליכם'] }) });
   });
   await page.route('https://www.sefaria.org/**', (route) => route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"offline in tests"}' }));
@@ -76,7 +88,7 @@ async function serveDaf(page, { maps = { 'Chullin-91a': pageMap91a }, jobStatus 
   return seen;
 }
 
-async function openBrowse(page, { query = '', serve = {}, errors = null, noTabShare = false, synced = null } = {}) {
+async function openBrowse(page, { query = '', serve = {}, errors = null, noTabShare = false, synced = null, catalog = null } = {}) {
   if (errors) failOnPageError(page, errors);
   await preparePage(page, { user: null });
   const seen = await serveDaf(page, serve);
@@ -98,6 +110,7 @@ async function openBrowse(page, { query = '', serve = {}, errors = null, noTabSh
     };
     window.WebSocket = class { constructor() { this.readyState = 0; } addEventListener() {} send() {} close() {} };
   });
+  if (catalog) await page.route('**/api/get-catalog', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(catalog) }));
   if (synced) await page.route('**/api/list-synced-dapim', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(synced) }));
   if (noTabShare) await page.addInitScript(() => { navigator.mediaDevices.getDisplayMedia = undefined; });
   await page.goto(`/browse/${query}`);
@@ -284,6 +297,73 @@ test.describe('Live follow — the mode on the Interactive Daf page', () => {
     await expect(page.locator('#dafDafSelect')).toHaveValue('89');
     await page.locator('#dafDafSelect').selectOption('120');
     await expect(page.locator('#dafAmudToggle .amud-option[data-side="b"]')).toBeEnabled();
+  });
+
+  test('a daf with videos linked but no finished sync says so, not "no recording"', async ({ page }) => {
+    await openBrowse(page, {
+      synced: { Chullin: { '89a': ['regularEn'], '89b': ['regularEn'] } },
+      catalog: { tractates: { Chullin: [{ daf: 89, regularEn: { videoId: 'a' } }, { daf: 120, regularEn: { videoId: 'b' }, chazarahEn: { videoId: 'c' } }] } },
+    });
+    const label = (daf) => page.locator(`#dafDafSelect option[value="${daf}"]`).textContent();
+    expect(await label(89)).toBe('89'); // synced
+    expect(await label(120)).toBe('120 · video not synced yet'); // linked, not synced
+    expect(await label(121)).toBe('121 · no recording yet'); // nothing linked
+  });
+
+  test('the arrows beside the daf name step through every amud without touching the video', async ({ page }) => {
+    await openBrowse(page, { query: '?ref=Chullin%2088a', synced: { Chullin: { '89a': ['regularEn'], '89b': ['regularEn'] } } });
+    await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 88a');
+    await page.evaluate(() => {
+      window.__loads = 0;
+      const original = window.loadDaf;
+      window.loadDaf = (...args) => { window.__loads += 1; return original(...args); };
+    });
+    const at = () => page.evaluate(() => [state.browsePageRef, document.getElementById('dafTitle').textContent]);
+    const next = page.locator('#dafNextAmudButton');
+    for (const ref of ['Chullin 88b', 'Chullin 89a', 'Chullin 89b', 'Chullin 90a']) { // through the synced ones and past them
+      await next.click();
+      await expect.poll(at).toEqual([ref, ref]);
+    }
+    const previous = page.locator('#dafPrevAmudButton');
+    for (const ref of ['Chullin 89b', 'Chullin 89a', 'Chullin 88b', 'Chullin 88a', 'Chullin 87b']) {
+      await previous.click();
+      await expect.poll(at).toEqual([ref, ref]);
+    }
+    expect(await page.evaluate(() => window.__loads)).toBe(0); // no recording was loaded or swapped
+    expect(await page.evaluate(() => state.dafRef)).not.toBe('Chullin 89a'); // and no recording took over
+    // The picker follows the page.
+    await expect(page.locator('#dafDafSelect')).toHaveValue('87');
+    await expect(page.locator('#dafAmudToggle .amud-option.active')).toHaveText('b');
+  });
+
+  test('the arrows are laid out as in a Hebrew book: the one pointing left goes forward', async ({ page }) => {
+    await openBrowse(page, { query: '?ref=Chullin%2088a' });
+    await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 88a');
+    const x = (selector) => page.locator(selector).evaluate((el) => el.getBoundingClientRect().left);
+    // Beside the daf name: next (‹) on the left of the name, previous (›) on its right.
+    const [next, title, previous] = [await x('#dafNextAmudButton'), await x('#dafTitle'), await x('#dafPrevAmudButton')];
+    expect(next).toBeLessThan(title);
+    expect(title).toBeLessThan(previous);
+    await expect(page.locator('#dafNextAmudButton')).toHaveText('‹');
+    await expect(page.locator('#dafPrevAmudButton')).toHaveText('›');
+    // And the same under the picker.
+    expect(await x('#browseNextButton')).toBeLessThan(await x('#browsePrevButton'));
+    await expect(page.locator('#browseNextButton')).toHaveText('‹ Next amud');
+    await expect(page.locator('#browsePrevButton')).toHaveText('Previous amud ›');
+    // The left-pointing arrow really does go forward.
+    await page.locator('#dafNextAmudButton').click();
+    await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 88b');
+    await page.locator('#dafPrevAmudButton').click();
+    await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 88a');
+  });
+
+  test('the Previous / Next amud buttons under the picker step the same way', async ({ page }) => {
+    await openBrowse(page, { query: '?ref=Chullin%2088a' });
+    await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 88a');
+    await page.locator('#browseNextButton').click();
+    await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 88b');
+    await page.locator('#browsePrevButton').click();
+    await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 88a');
   });
 
   test('the Choose daf button takes you to the page\'s picker', async ({ page }) => {
@@ -1207,6 +1287,126 @@ test.describe('Live follow — video link and the page\'s own player', () => {
     expect(await page.evaluate(() => [window.__constraints, live.ws, live.micStream])).toEqual([null, null, null]);
   });
 
+  // A saved sync of the video, as the regular engine publishes it (results/by-video/<id>.json):
+  // chunks of up to 7 words of the daf, one every 3 seconds from the 5th. `ranges` is where each lands.
+  async function savedSync(page, { from = 400, chunks = 14, refs = null } = {}) {
+    return page.evaluate(({ from, chunks, refs }) => {
+      const words = dafLiveFollow.__test.live.daf.canon.words;
+      const wordTimeline = [];
+      const ranges = [];
+      let i = from;
+      let t = 5;
+      while (wordTimeline.length < chunks) {
+        const first = words[i];
+        let j = i;
+        while (j + 1 < words.length && words[j + 1].ref === first.ref && j - i < 6) j += 1;
+        const ref = (refs ? refs[wordTimeline.length % refs.length] : first.ref).replace(/\.(\d+)$/, ':$1');
+        wordTimeline.push({ start: t, end: t + 2.5, ref, w0: first.wordIndex, w1: words[j].wordIndex, source: '' });
+        ranges.push([i, j]);
+        i = j + 1;
+        t += 3;
+      }
+      return { alignment: { schema: 'dafsync-alignment-v2', videoId: 'dQw4w9WgXcQ', coveredRefs: ['Chullin 91a'], wordTimeline }, ranges };
+    }, { from, chunks, refs });
+  }
+  const serveSavedSync = async (page, alignment, key = 'dQw4w9WgXcQ') => {
+    const asked = [];
+    await page.route('**/api/get-results-file?*', (route) => {
+      const path = decodeURIComponent(new URL(route.request().url()).searchParams.get('path'));
+      asked.push(path);
+      if (path === `by-video/${key}.json`) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(alignment) });
+      return route.fallback();
+    });
+    return asked;
+  };
+
+  test('a video the regular engine already synced is followed from its saved sync: no transcript is made', async ({ page }) => {
+    const seen = await setup(page);
+    const { alignment, ranges } = await savedSync(page);
+    const asked = await serveSavedSync(page, alignment);
+    await loadLink(page, YT_LINK);
+    await page.locator('#lfStartButton').click();
+    await expect(page.locator('#lfStartButton')).toHaveText('Stop live follow');
+    await setTime(page, 3);
+    await expect(status(page)).toHaveText('Waiting…');
+    await setTime(page, 6);
+    await expect.poll(() => hl(page)).toMatchObject({ s: ranges[0][0], e: ranges[0][1] });
+    await expect(status(page)).toHaveText('Following');
+    await expect(detail(page)).toContainText('saved sync');
+    await expect(activeBars(page).first()).toBeVisible();
+    await setTime(page, 5 + 3 * 5 + 1);
+    await expect.poll(() => hl(page)).toMatchObject({ s: ranges[5][0], e: ranges[5][1] });
+    await setTime(page, 7); // back
+    await expect.poll(() => hl(page).then((h) => h?.s)).toBe(ranges[0][0]);
+    // Nothing was transcribed, and only the saved sync's own spellings were looked up.
+    expect(seen.job).toEqual([]);
+    expect(seen.status).toEqual([]);
+    expect(asked).toContain('by-video/dQw4w9WgXcQ.json');
+    expect(asked.filter((path) => path.startsWith('by-video/'))).toHaveLength(4);
+    const log = await page.evaluate(() => live.log);
+    expect(log.find((e) => e.kind === 'stored-alignment')).toMatchObject({ key: 'dQw4w9WgXcQ', mapped: 14, total: 14 });
+    expect(log.some((e) => e.kind === 'transcript')).toBe(false);
+    await expect(page.locator('#lfDebugConnection')).toContainText('saved sync');
+  });
+
+  test('a saved sync is found under the Hebrew and Chazarah spellings too', async ({ page }) => {
+    await setup(page);
+    const { alignment, ranges } = await savedSync(page);
+    await serveSavedSync(page, alignment, 'Hebrew-Chazarah-Daf-dQw4w9WgXcQ');
+    await loadLink(page, YT_LINK);
+    await page.locator('#lfStartButton').click();
+    await setTime(page, 6);
+    await expect.poll(() => hl(page).then((h) => h?.s)).toBe(ranges[0][0]);
+    await expect(detail(page)).toContainText('saved sync');
+  });
+
+  test('?stored=0 transcribes even a video that has a saved sync', async ({ page }) => {
+    const seen = await setup(page, { statuses: [{ status: 'absent' }, { status: 'done', words: transcriptWords(), languageCode: 'heb', seconds: 26 }], query: '?stored=0' });
+    const { alignment } = await savedSync(page);
+    const asked = await serveSavedSync(page, alignment);
+    await loadLink(page, YT_LINK);
+    await page.locator('#lfStartButton').click();
+    await expect.poll(() => seen.job.length).toBe(1);
+    expect(asked.filter((path) => path.startsWith('by-video/'))).toEqual([]);
+  });
+
+  test('a saved sync of a different daf is not used: the video is transcribed', async ({ page }) => {
+    const seen = await setup(page, { statuses: [{ status: 'absent' }, { status: 'done', words: transcriptWords(), languageCode: 'heb', seconds: 26 }] });
+    // Twelve entries, none about the words being followed.
+    const { alignment } = await savedSync(page, { chunks: 12, refs: ['Chullin 40a.1'] });
+    await serveSavedSync(page, alignment);
+    await loadLink(page, YT_LINK);
+    await page.locator('#lfStartButton').click();
+    await expect.poll(() => seen.job.length).toBe(1);
+    const log = await page.evaluate(() => live.log);
+    expect(log.find((e) => e.kind === 'stored-alignment-skipped')).toMatchObject({ key: 'dQw4w9WgXcQ', mapped: 0, total: 12 });
+    expect(log.some((e) => e.kind === 'stored-alignment')).toBe(false);
+  });
+
+  test('a video with no saved sync is transcribed, as before', async ({ page }) => {
+    const seen = await setup(page, { statuses: [{ status: 'absent' }, { status: 'done', words: transcriptWords(), languageCode: 'heb', seconds: 26 }] });
+    await loadLink(page, YT_LINK);
+    await page.locator('#lfStartButton').click();
+    await expect.poll(() => seen.job.length).toBe(1);
+    expect(seen.job[0].url).toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+  });
+
+  test('a word tapped while following a saved sync marks the place from there and keeps the rest of the sync', async ({ page }) => {
+    await setup(page);
+    const { alignment, ranges } = await savedSync(page);
+    await serveSavedSync(page, alignment);
+    await loadLink(page, YT_LINK);
+    await page.locator('#lfStartButton').click();
+    await setTime(page, 6);
+    await expect.poll(() => hl(page).then((h) => h?.s)).toBe(ranges[0][0]);
+    await setTime(page, 7);
+    await page.evaluate(() => dafLiveFollow.tapWord('Chullin 91a.1', 3));
+    const tappedIndex = await page.evaluate(() => live.daf.canonIndex.get('Chullin 91a.1#3'));
+    await expect.poll(() => hl(page).then((h) => h?.s)).toBe(tappedIndex);
+    await setTime(page, 5 + 3 * 4 + 1); // later in the sync: its own entry, untouched
+    await expect.poll(() => hl(page).then((h) => h?.s)).toBe(ranges[4][0]);
+  });
+
   test('transcript mode on a link whose job is already finished starts straight away without starting a job', async ({ page }) => {
     const seen = await setup(page);
     await loadLink(page, MEDIA);
@@ -1526,12 +1726,51 @@ test.describe('Live follow — the page\'s own views follow the reading', () => 
     const sefariaBefore = seen.sefaria.length;
     await page.locator('#browseNextButton').click(); // 91a -> 91b: the second page of the same pair
     await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 91b');
-    expect(await page.evaluate(() => live.daf.key)).toBe('Chullin 91a|Chullin 91b');
+    expect(await page.evaluate(() => live.daf.refs)).toEqual(['Chullin 91a', 'Chullin 91b']);
     expect(seen.sefaria.length).toBe(sefariaBefore); // nothing was loaded
     expect(await page.evaluate(() => state.liveFollow.active)).toBe(true);
     await page.locator('#browseNextButton').click(); // 91b -> 92a: a different daf now
-    await expect.poll(() => page.evaluate(() => live.daf.key)).toBe('Chullin 92a|Chullin 92b');
+    await expect.poll(() => page.evaluate(() => live.daf.refs)).toEqual(['Chullin 91b', 'Chullin 92a', 'Chullin 92b']);
     await expect(page.locator('#lfDafName')).toHaveText('Chullin 92a');
+  });
+
+  test('the amud before the chosen one is followed too, for a shiur that begins from the end of the previous daf', async ({ page }) => {
+    const seen = await openFollowing(page, { serve: { before: BEFORE_91A } });
+    expect(seen.sefaria).toEqual(expect.arrayContaining(['Chullin 90b', 'Chullin 91a', 'Chullin 91b']));
+    expect(await page.evaluate(() => live.daf.refs)).toEqual(['Chullin 90b', 'Chullin 91a', 'Chullin 91b']);
+    // The daf chosen is still the one named and shown.
+    await expect(page.locator('#lfDafName')).toHaveText('Chullin 91a');
+    expect(await page.evaluate(() => state.browsePageRef)).toBe('Chullin 91a');
+    // Reading the end of the previous daf is placed there, and the page turns back to it.
+    await say(page, BEFORE_91A[0].split(' ').slice(0, 14).join(' '));
+    await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 90b');
+    expect(await page.evaluate(() => live.daf.canon.words[live.confirmed?.s ?? live.provisional?.s]?.ref)).toMatch(/^Chullin 90b/);
+    await expect(page.locator('#dafDafSelect')).toHaveValue('90');
+    await expect(page.locator('#dafAmudToggle .amud-option.active')).toHaveText('b');
+    // And on into the chosen daf.
+    const offset = await page.evaluate(() => live.daf.canon.words.findIndex((w) => w.ref.startsWith('Chullin 91a')));
+    await say(page, phrase(0, 7));
+    await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 91a');
+    expect(await confirmed(page)).toEqual({ s: offset, e: offset + 6 });
+  });
+
+  test('stepping back to the amud before only turns the page: it is already followed', async ({ page }) => {
+    const seen = await openFollowing(page, { serve: { before: BEFORE_91A } });
+    const loaded = seen.sefaria.length;
+    await page.locator('#browsePrevButton').click();
+    await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 90b');
+    expect(await page.evaluate(() => live.daf.label)).toBe('Chullin 91a');
+    expect(seen.sefaria.length).toBe(loaded);
+  });
+
+  test('at the start of a tractate there is no amud before to read', async ({ page }) => {
+    const seen = await openBrowse(page);
+    await page.locator('#lfToggle').click();
+    await page.locator('#dafTractateSelect').selectOption('Berakhot');
+    await page.locator('#dafDafSelect').selectOption('2');
+    await expect.poll(() => page.evaluate(() => dafLiveFollow.__test.live.daf?.label)).toBe('Berakhot 2a');
+    expect(await page.evaluate(() => dafLiveFollow.__test.live.daf.refs)).toEqual(['Berakhot 2a', 'Berakhot 2b']);
+    expect(seen.sefaria.some((ref) => /^Berakhot 1/.test(ref))).toBe(false);
   });
 
   test('picking another daf makes it the daf to follow, and stops a session that was running', async ({ page }) => {
