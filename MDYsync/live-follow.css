@@ -66,3 +66,8 @@ body.lf-on #vilnaPageWrap { cursor: pointer; }
   100% { box-shadow: 0 0 0 3px transparent; }
 }
 @media (prefers-reduced-motion: reduce) { .lf-picker-flash { animation: none; } }
+
+/* Said on the printed page itself, where the missing highlight is noticed. */
+.lf-page-banner { margin: 0 0 10px; padding: 9px 13px; border-radius: 10px; border: 1px solid var(--line-strong, rgba(19,34,56,.25)); background: rgba(212,168,67,.14); color: inherit; font-size: 13px; line-height: 1.45; }
+.lf-page-banner[hidden] { display: none; }
+.lf-page-banner.is-unavailable { background: rgba(142,155,175,.18); }

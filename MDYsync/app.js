@@ -252,6 +252,11 @@ const state = {
   // segment" that page normally reads instead.
   browseMode: document.body.dataset.page === 'browse',
   browsePageRef: null,
+  // Where the printed page's word positions stand, for the page last asked for:
+  // { ref, status: 'loading' | 'ready' | 'preparing' | 'unavailable' } -- 'preparing'
+  // while the on-demand OCR job for a page with no map yet is being polled for,
+  // 'unavailable' if that job could not be started or never finished (3 minutes).
+  vilnaPageMapStatus: null,
   // { "<Tractate>": Set(daf) } of dapim with a linked video; see ensureVideoCatalogLoaded.
   videoDapim: null,
   // Live follow (live-follow.js, the Interactive Daf page's "Live follow"
@@ -1843,8 +1848,15 @@ async function ensureVilnaPageSegments(parsed, wordBoxes, stillWanted) {
   state.vilnaFallbackSegments = fetched?.segments || [];
 }
 
+function setVilnaPageMapStatus(parsed, status) {
+  state.vilnaPageMapStatus = { ref: `${parsed.tractate} ${parsed.daf}${parsed.amud}`, status };
+  // Live follow says so on the page when it is not going to be highlighted.
+  window.dispatchEvent(new CustomEvent('dafsync:vilna-page', { detail: { reason: 'status', status } }));
+}
+
 async function loadVilnaPageMap(parsed, stillWanted = () => true) {
   stopVilnaPagePoll();
+  setVilnaPageMapStatus(parsed, 'loading');
   state.vilnaPageMap = null;
   state.vilnaOverlayKey = '';
   state.vilnaFallbackSegments = [];
@@ -1875,6 +1887,7 @@ async function loadVilnaPageMap(parsed, stillWanted = () => true) {
       renderVilnaSelectTextWordTargets();
       renderVilnaNoteMarkers();
       window.DafHighlights?.renderVilnaOverlay();
+      setVilnaPageMapStatus(parsed, 'ready');
       // Live follow draws its own light "just heard" bars over the page.
       window.dispatchEvent(new CustomEvent('dafsync:vilna-page', { detail: { reason: 'map' } }));
       return true;
@@ -1892,15 +1905,22 @@ async function loadVilnaPageMap(parsed, stillWanted = () => true) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tractate: parsed.tractate, daf: parsed.daf, amud: parsed.amud }),
     });
-    if (!parsedResponse.ok) return;
+    if (!parsedResponse.ok) {
+      if (stillWanted()) setVilnaPageMapStatus(parsed, 'unavailable');
+      return;
+    }
   } catch {
+    if (stillWanted()) setVilnaPageMapStatus(parsed, 'unavailable');
     return;
   }
+  if (!stillWanted()) return;
+  setVilnaPageMapStatus(parsed, 'preparing');
 
   const startedAt = Date.now();
   state.vilnaPagePollTimer = setInterval(async () => {
     if (Date.now() - startedAt > 3 * 60 * 1000) {
       stopVilnaPagePoll();
+      if (stillWanted()) setVilnaPageMapStatus(parsed, 'unavailable');
       return;
     }
     if (await tryFetch()) stopVilnaPagePoll();

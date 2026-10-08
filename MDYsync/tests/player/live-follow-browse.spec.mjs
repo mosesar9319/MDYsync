@@ -1611,6 +1611,49 @@ test.describe('Live follow — the page\'s own views follow the reading', () => 
     for (const r of rects) expect(r.height).toBeLessThan(0.02); // a printed line's ink, not a fat block
   });
 
+  test('a printed page with no word positions yet says so on the page, and the note goes when they arrive', async ({ page }) => {
+    let ready = false;
+    const seen = await openBrowse(page, { serve: { maps: { 'Chullin-91a': () => (ready ? pageMap91a : undefined) } } });
+    await page.locator('#lfToggle').click();
+    await pick(page, 'Chullin 91a');
+    const banner = page.locator('#lfPageBanner');
+    await expect(banner).toBeVisible();
+    await expect(banner).toContainText('The printed page for Chullin 91a is still being prepared');
+    await expect(banner).not.toHaveClass(/is-unavailable/);
+    expect(seen.jobs.filter((job) => job.daf === 91 && job.amud === 'a')).toEqual([{ tractate: 'Chullin', daf: 91, amud: 'a' }]);
+    expect(await page.evaluate(() => state.vilnaPageMapStatus)).toEqual({ ref: 'Chullin 91a', status: 'preparing' });
+    // The text view is where it follows meanwhile, so the note is only for the printed page.
+    await page.locator('.view-switch button[data-view="text"]').click();
+    await expect(banner).toBeHidden();
+    await page.locator('.view-switch button[data-view="page"]').click();
+    await expect(banner).toBeVisible();
+    // The job finishes: the next poll finds the map and the note goes.
+    ready = true;
+    await expect(banner).toBeHidden({ timeout: 15000 });
+    expect(await page.evaluate(() => state.vilnaPageMapStatus.status)).toBe('ready');
+    expect(await page.evaluate(() => state.vilnaPageMap !== null)).toBe(true);
+  });
+
+  test('if the page cannot be prepared the note says so, and live follow off puts it away', async ({ page }) => {
+    await openBrowse(page, { serve: { maps: {}, jobStatus: 500 } });
+    await page.locator('#lfToggle').click();
+    await pick(page, 'Chullin 91a');
+    const banner = page.locator('#lfPageBanner');
+    await expect(banner).toBeVisible();
+    await expect(banner).toContainText('The printed page for Chullin 91a has no word positions yet');
+    await expect(banner).toHaveClass(/is-unavailable/);
+    await page.locator('#lfToggle').click(); // live follow off
+    await expect(banner).toBeHidden();
+    await page.locator('#lfToggle').click(); // and on again
+    await expect(banner).toBeVisible();
+  });
+
+  test('a printed page that has its word positions shows no note', async ({ page }) => {
+    await openFollowing(page);
+    await expect(page.locator('#lfPageBanner')).toBeHidden();
+    expect(await page.evaluate(() => state.vilnaPageMapStatus)).toEqual({ ref: 'Chullin 91a', status: 'ready' });
+  });
+
   test('with the amud before also loaded (as in real use), the placed phrase is still highlighted on the printed page', async ({ page }) => {
     await openFollowing(page, { serve: { before: BEFORE_91A } });
     const offset = await page.evaluate(() => live.daf.canon.words.findIndex((w) => w.ref.startsWith('Chullin 91a')));
