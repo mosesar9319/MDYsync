@@ -465,10 +465,26 @@ test.describe('Live follow — following a reading', () => {
     await say(page, phrase(400, 7));
     await say(page, 'so what is the question here? think about it for a second');
     await expect(status(page)).toHaveText('Explaining');
-    await say(page, phrase(520, 8)); // well past the +60-word window
+    await say(page, phrase(480, 8)); // past the +60-word window, within the jump limit
     await expect(status(page)).toHaveText('Following');
-    expect(await confirmed(page)).toEqual({ s: 520, e: 527 });
+    expect(await confirmed(page)).toEqual({ s: 480, e: 487 });
     await quiet(page).not.toHaveClass(/lf-quiet/);
+  });
+
+  test('a phrase a whole amud away does not move the highlight on its own; the reading carrying on there does', async ({ page }) => {
+    await openFollowing(page);
+    await say(page, phrase(400, 7));
+    expect(await confirmed(page)).toEqual({ s: 400, e: 406 });
+    const jumpLimit = await page.evaluate(() => LiveMatcher.MAX_SINGLE_JUMP_WORDS);
+    await say(page, phrase(400 + jumpLimit + 60, 8)); // clear, unique, and far beyond the limit
+    expect(await confirmed(page)).toEqual({ s: 400, e: 406 }); // stayed with the reading
+    await say(page, phrase(414, 7)); // which went on where it was
+    expect(await confirmed(page)).toEqual({ s: 414, e: 420 });
+    // Reading that really does move there is followed once a second phrase agrees.
+    await say(page, phrase(560, 8));
+    expect(await confirmed(page)).toEqual({ s: 414, e: 420 });
+    await say(page, phrase(568, 8));
+    expect(await confirmed(page)).toEqual({ s: 568, e: 575 });
   });
 
   test('a lone Hebrew term inside English speech neither moves the highlight nor changes the status', async ({ page }) => {
@@ -1625,7 +1641,7 @@ test.describe('Live follow — the page\'s own views follow the reading', () => 
     await say(page, phrase(0, 7));
     await expect(activeBars(page).first()).toBeVisible();
     const first = (await barBoxes(page))[0];
-    await say(page, phrase(200, 7));
+    await say(page, phrase(60, 7)); // six or seven printed lines on
     await expect.poll(async () => (await barBoxes(page))[0]?.top).toBeGreaterThan(first.top + 0.05);
     await page.evaluate(() => setAnchor(10));
     await expect(activeBars(page)).toHaveCount(0);
@@ -1711,12 +1727,16 @@ test.describe('Live follow — the page\'s own views follow the reading', () => 
     await say(page, phrase(0, 7));
     const firstOfB = await page.evaluate(() => live.daf.canon.words.findIndex((w) => w.ref.startsWith('Chullin 91b.')));
     expect(firstOfB).toBeGreaterThan(300);
+    // Read on through the amud, as a shiur does, in steps within the search window.
+    for (let at = 50; at < firstOfB; at += 50) await say(page, phrase(at, 7));
     await say(page, phrase(firstOfB + 20, 7));
     await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 91b');
     await expect.poll(() => seen.pages.includes('Chullin-91b')).toBe(true);
     await expect(page.locator('#dafAmudToggle .amud-option.active')).toHaveText('b');
     expect(await page.evaluate(() => document.getElementById('dafTitle').textContent)).toBe('Chullin 91b');
-    await say(page, phrase(0, 7)); // and back
+    await say(page, phrase(0, 7)); // and back to the start of the amud before: one phrase is not enough...
+    expect(await page.evaluate(() => state.browsePageRef)).toBe('Chullin 91b');
+    await say(page, phrase(8, 7)); // ...a second one carrying on from it is
     await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 91a');
     await expect(page.locator('#dafAmudToggle .amud-option.active')).toHaveText('a');
   });

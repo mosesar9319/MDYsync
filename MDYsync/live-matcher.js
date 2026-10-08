@@ -366,6 +366,17 @@
   const DECISIVE_MIN_PHON = 80;
   const DECISIVE_MIN_CHAR = 65;
   const DECISIVE_MIN_MARGIN = 10;
+  // The farthest ONE phrase may move a locked position, however decisive it
+  // looks. Reading resumes a few lines on from where it was (the case decisive
+  // jumps exist for) -- tens of words, up to about this. A match hundreds of
+  // words away is a different amud or a parallel passage, and in real use
+  // jumped the highlight a whole amud and straight back: one clearly-best
+  // phrase is not evidence enough for that. Beyond this distance a locked
+  // tracker needs a second, agreeing phrase (the same rule as in batch), so a
+  // one-off decoy can never move it, and a genuine move costs one phrase.
+  // Not applied when there is no position to compare with (a fresh session, or
+  // after the lock was lost), where a decisive phrase may land anywhere.
+  const MAX_SINGLE_JUMP_WORDS = 100;
 
   function matchGlobalWithMargin(canon, hlNorm, hlPhon) {
     const best = matchPhraseDual(canon, hlNorm, hlPhon, 0, { global: true });
@@ -415,6 +426,7 @@
       const hlNorm = run.map((w) => w.norm);
       const hlPhon = run.map((w) => w.phon);
       let unlocked = false;
+      const wasLocked = st.locked;
       if (st.locked) {
         const held = st.held; // a weak far move held by the previous phrase, if any
         st.held = null;
@@ -454,7 +466,8 @@
         return { kind: 'miss', unlocked };
       }
       const match = { ...m, source: 'deterministic-global' };
-      if (eager && isDecisive(m, run.length)) {
+      const tooFarForOnePhrase = wasLocked && Math.abs(m.s - st.cursor) > MAX_SINGLE_JUMP_WORDS;
+      if (eager && isDecisive(m, run.length) && !tooFarForOnePhrase) {
         st.cursor = m.s;
         st.locked = true;
         st.localMisses = 0;
@@ -530,7 +543,11 @@
   const PREVIEW_MAX_LEAD = 3;
   const PREVIEW_PACE_WINDOW = 5; // seconds of recent progress the pace is measured over
   function createPreview(canon, tracker) {
-    const st = { cursor: null, candidate: null, misses: 0, progress: [] };
+    // lastGood: where the preview last placed a partial. It is what a far
+    // candidate is measured from -- the preview never makes a far move on
+    // partial text (see update), however decisive: partials are short and noisy,
+    // and only the tracker's own rules, on committed text, move far.
+    const st = { cursor: null, lastGood: null, candidate: null, misses: 0, progress: [] };
 
     // Words per second over the recent window, from successive placements
     // (nowSeconds is any monotonic clock, in seconds). A jump back, or a
@@ -560,6 +577,7 @@
         if (m && Math.abs(m.s - from) > LOCAL_JUMP_WORDS && !strongLocal(m, run.length)) m = null;
         if (m) {
           st.cursor = m.s;
+          st.lastGood = m.s;
           st.misses = 0;
           st.candidate = null;
           return withLead(m, now);
@@ -579,8 +597,16 @@
         st.candidate = null;
         return null;
       }
+      // Far from the last place: not on partial text. (Nothing to compare with
+      // -- a fresh session -- and a whole-daf search is allowed as before.)
+      const reference = st.lastGood !== null ? st.lastGood : (tracker.locked ? tracker.cursor : null);
+      if (reference !== null && Math.abs(g.s - reference) > MAX_SINGLE_JUMP_WORDS) {
+        st.candidate = null;
+        return null;
+      }
       if (isDecisive(g, run.length)) {
         st.cursor = g.s;
+        st.lastGood = g.s;
         st.misses = 0;
         st.candidate = null;
         return withLead(g, now);
@@ -593,6 +619,7 @@
       st.candidate = { ...g, key };
       if (previous && previous.key !== key && g.s >= previous.s && g.s - previous.s <= FWD_WINDOW) {
         st.cursor = g.s;
+        st.lastGood = g.s;
         st.misses = 0;
         st.candidate = null;
         return withLead(g, now);
@@ -602,7 +629,7 @@
 
     return {
       update,
-      reset() { st.cursor = null; st.candidate = null; st.misses = 0; st.progress = []; },
+      reset() { st.cursor = null; st.lastGood = null; st.candidate = null; st.misses = 0; st.progress = []; },
       get cursor() { return st.cursor; },
     };
   }
@@ -670,6 +697,7 @@
     LIVE_MAX_RUN_WORDS,
     PROVISIONAL_TAIL_WORDS,
     PLACEABLE_RUN_MIN_WORDS,
+    MAX_SINGLE_JUMP_WORDS,
     strongLocal,
     REALTIME_MAX_KEYTERMS,
     normalizeWord,
