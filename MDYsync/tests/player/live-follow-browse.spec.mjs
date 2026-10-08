@@ -465,9 +465,9 @@ test.describe('Live follow — following a reading', () => {
     await say(page, phrase(400, 7));
     await say(page, 'so what is the question here? think about it for a second');
     await expect(status(page)).toHaveText('Explaining');
-    await say(page, phrase(480, 8)); // past the +60-word window, within the jump limit
+    await say(page, phrase(440, 8)); // 34 words on: within the jump limit
     await expect(status(page)).toHaveText('Following');
-    expect(await confirmed(page)).toEqual({ s: 480, e: 487 });
+    expect(await confirmed(page)).toEqual({ s: 440, e: 447 });
     await quiet(page).not.toHaveClass(/lf-quiet/);
   });
 
@@ -1702,7 +1702,8 @@ test.describe('Live follow — the page\'s own views follow the reading', () => 
     await say(page, phrase(0, 7));
     await expect(activeBars(page).first()).toBeVisible();
     const first = (await barBoxes(page))[0];
-    await say(page, phrase(60, 7)); // six or seven printed lines on
+    await say(page, phrase(35, 7));
+    await say(page, phrase(70, 7)); // seven or eight printed lines on, in steps within the jump limit
     await expect.poll(async () => (await barBoxes(page))[0]?.top).toBeGreaterThan(first.top + 0.05);
     await page.evaluate(() => setAnchor(10));
     await expect(activeBars(page)).toHaveCount(0);
@@ -1719,7 +1720,7 @@ test.describe('Live follow — the page\'s own views follow the reading', () => 
     await expect(page.locator('#dafPage .daf-segment.active')).toHaveCount(1);
     expect(await page.locator('#dafPage .daf-segment.active').getAttribute('data-index')).toBe(String(info.index));
     // The paragraph that was active goes back to being whole.
-    await say(page, phrase(200, 7));
+    await say(page, phrase(150, 7));
     const earlier = await page.evaluate(() => ({ w0: state.segments[4].w0, w1: state.segments[4].w1, tokens: live.daf.tokenCounts[4] }));
     expect([earlier.w0, earlier.w1]).toEqual([0, earlier.tokens - 1]);
   });
@@ -1789,8 +1790,11 @@ test.describe('Live follow — the page\'s own views follow the reading', () => 
     const firstOfB = await page.evaluate(() => live.daf.canon.words.findIndex((w) => w.ref.startsWith('Chullin 91b.')));
     expect(firstOfB).toBeGreaterThan(300);
     // Read on through the amud, as a shiur does, in steps within the search window.
-    for (let at = 50; at < firstOfB; at += 50) await say(page, phrase(at, 7));
-    await say(page, phrase(firstOfB + 20, 7));
+    for (let at = 35; ; at += 35) {
+      const target = Math.min(at, firstOfB + 20); // the last step lands in the second amud
+      await say(page, phrase(target, 7));
+      if (target === firstOfB + 20) break;
+    }
     await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 91b');
     await expect.poll(() => seen.pages.includes('Chullin-91b')).toBe(true);
     await expect(page.locator('#dafAmudToggle .amud-option.active')).toHaveText('b');

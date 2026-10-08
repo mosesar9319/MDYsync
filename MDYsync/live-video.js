@@ -124,19 +124,30 @@
     const listTokens = options.listTokens || [];
     let runCounter = options.runCounter || 0;
     const timeline = [];
+    // The entry each run was stepped for, so a phrase the tracker held back and a
+    // later phrase confirmed can be placed where (and when) it was said.
+    const entryOfRun = new Map();
     for (const segment of segments) {
       const heard = LM.cleanTranscript(segment.text, listTokens, options.leakMinRun);
       const allRuns = LM.splitHebrewRuns(heard).flatMap((run) => LM.chunkRun(run));
       const runs = allRuns.filter((run) => run.length >= LM.PLACEABLE_RUN_MIN_WORDS);
       const latinWords = heard.split(/\s+/).filter((token) => /[A-Za-z]/.test(token)).length;
       const bareFragment = !runs.length && allRuns.length > 0 && latinWords < 2;
+      const entry = { start: segment.start, end: segment.end, text: segment.text };
       let placed = null;
       for (const run of runs) {
+        entryOfRun.set(runCounter, entry);
         const result = tracker.step(run, runCounter);
         runCounter += 1;
         if (result.kind === 'local' || result.kind === 'confirmed' || result.kind === 'jump') placed = result.match;
+        if (result.kind === 'confirmed') {
+          const earlier = entryOfRun.get(result.pending?.idx);
+          if (earlier && earlier !== entry && earlier.state !== 'read') {
+            const m = result.pending.match;
+            Object.assign(earlier, { state: 'read', s: m.s, e: m.e, phon: +m.phonScore.toFixed(1), char: +m.charScore.toFixed(1) });
+          }
+        }
       }
-      const entry = { start: segment.start, end: segment.end, text: segment.text };
       if (placed) {
         Object.assign(entry, {
           state: 'read', s: placed.s, e: placed.e, phon: +placed.phonScore.toFixed(1), char: +placed.charScore.toFixed(1),

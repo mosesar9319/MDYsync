@@ -210,3 +210,21 @@ test('anything that is not an alignment gives an empty timeline', () => {
     assert.deepEqual(LV.timelineFromAlignment(bad, new Map()).timeline, []);
   }
 });
+
+test('a far phrase the tracker held back is placed where it was said once the next phrase confirms it', () => {
+  // Reading at 407, then 100+ words on (beyond the jump limit), carrying on there: the first
+  // far phrase is held, and the one after confirms it -- both are read, each at its own time.
+  const words = [...reading(407, 2), ...reading(560, 3, { offset: 10 })];
+  const { timeline } = LV.alignSegments(LM, canon, LV.wordsToSegments(words));
+  assert.deepEqual(timeline.map((e) => e.state), ['read', 'read', 'read', 'read', 'read'], JSON.stringify(timeline.map((e) => [Math.round(e.start), e.state, e.s])));
+  assert.equal(timeline[2].s, 560, 'the held phrase is at its own place');
+  assert.equal(timeline[3].s, 567);
+});
+
+test('a far phrase nothing confirms stays unplaced, and the reading is not moved by it', () => {
+  const words = [...reading(407, 2), ...reading(560, 1, { offset: 10 }), ...reading(421, 2, { offset: 20 })];
+  const { timeline } = LV.alignSegments(LM, canon, LV.wordsToSegments(words));
+  assert.equal(timeline[2].state, 'unplaced');
+  assert.equal(LV.positionAt(timeline, 12).placement.s, 407 + 7, 'held on the last place read');
+  assert.equal(timeline[3].s, 421);
+});

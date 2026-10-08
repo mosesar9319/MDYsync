@@ -178,12 +178,42 @@ test('one long, unambiguous phrase locks a fresh session straight away', () => {
   assert.equal(tracker.step(readRun(206, 6), 1).kind, 'local', 'and reading continues from there');
 });
 
-test('a locked session follows a decisive phrase beyond its search window at once, up to the jump limit', () => {
-  const tracker = lockedTracker(400); // cursor 406; the local window ends near 466
-  const result = tracker.step(readRun(490, 7), 2); // 84 words on
-  assert.equal(result.kind, 'jump');
-  assert.equal(tracker.cursor, 490);
-  assert.equal(tracker.pending, null);
+test('the jump limit is 40 words', () => {
+  assert.equal(M.MAX_SINGLE_JUMP_WORDS, 40);
+});
+
+test('a short re-read within the limit is followed at once', () => {
+  const tracker = lockedTracker(400); // cursor 406
+  const result = tracker.step(readRun(392, 7), 2); // 14 words back, inside the window
+  assert.equal(result.kind, 'local');
+  assert.equal(tracker.cursor, 392);
+});
+
+test('a clear phrase inside the search window but beyond the limit waits for a second one', () => {
+  const tracker = lockedTracker(400); // cursor 406; the window reaches ahead to 466
+  const ahead = 406 + M.MAX_SINGLE_JUMP_WORDS + 10; // 56 words on: in the window, past the limit
+  const first = tracker.step(readRun(ahead, 7), 2);
+  assert.equal(first.kind, 'pending', 'held, though the phrase matches well');
+  assert.equal(tracker.cursor, 406, 'not moved');
+  const second = tracker.step(readRun(ahead + 8, 7), 3); // carries on from it
+  assert.equal(second.kind, 'confirmed');
+  assert.equal(tracker.cursor, ahead + 8);
+});
+
+test('a held move is confirmed by the next phrase even when that falls outside the old search window', () => {
+  const tracker = lockedTracker(400); // cursor 406; the window ends near 466
+  const ahead = 406 + M.MAX_SINGLE_JUMP_WORDS + 15; // 61... hold it, then read on past the window's end
+  assert.equal(tracker.step(readRun(ahead, 7), 2).kind, 'pending');
+  const second = tracker.step(readRun(ahead + 12, 7), 3); // 73 words from the old cursor: out of its window
+  assert.equal(second.kind, 'confirmed');
+  assert.equal(tracker.cursor, ahead + 12);
+});
+
+test('reading on within the limit is followed at once, as ever', () => {
+  const tracker = lockedTracker(400);
+  assert.equal(tracker.step(readRun(406 + 30, 7), 2).kind, 'local'); // 30 words on
+  assert.equal(tracker.cursor, 436);
+  assert.equal(tracker.step(readRun(436 + 8, 7), 3).kind, 'local');
 });
 
 test('one decisive phrase more than the jump limit away does not move a locked session', () => {
