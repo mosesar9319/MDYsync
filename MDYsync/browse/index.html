@@ -610,9 +610,10 @@
       </section>
 
       <div class="browse-nav">
-        <button class="button secondary" id="browsePrevButton" type="button">‹ Previous amud</button>
+        <!-- A Hebrew book turns the other way: the arrow pointing left goes forward. -->
+        <button class="button secondary" id="browseNextButton" type="button">‹ Next amud</button>
         <span class="browse-nav-label">Tap any word on the page to watch that part of the shiur.</span>
-        <button class="button secondary" id="browseNextButton" type="button">Next amud ›</button>
+        <button class="button secondary" id="browsePrevButton" type="button">Previous amud ›</button>
       </div>
 
       <section class="card live-follow" id="lfPanel" aria-label="Live follow">
@@ -875,9 +876,10 @@
             <div>
               <div class="eyebrow">Digital daf</div>
               <div class="daf-title-row">
-                <button class="amud-step" id="dafPrevAmudButton" type="button" aria-label="Previous amud" title="Previous amud (the video keeps playing)">&#8249;</button>
+                <!-- As in a Hebrew book, the arrow pointing left goes forward to the next amud. -->
+                <button class="amud-step" id="dafNextAmudButton" type="button" aria-label="Next amud" title="Next amud (the video keeps playing)">&#8249;</button>
                 <h2 id="dafTitle">No daf loaded</h2>
-                <button class="amud-step" id="dafNextAmudButton" type="button" aria-label="Next amud" title="Next amud (the video keeps playing)">&#8250;</button>
+                <button class="amud-step" id="dafPrevAmudButton" type="button" aria-label="Previous amud" title="Previous amud (the video keeps playing)">&#8250;</button>
               </div>
             </div>
             <div class="daf-heading-tools">
@@ -1013,7 +1015,7 @@
     <div class="eyebrow">Guide</div>
     <h2>How to use Interactive Daf</h2>
     <ol>
-      <li>Pick a tractate, daf, and amud above, or use the ‹ and › buttons (beside the daf name) or "Previous amud"/"Next amud" to flip through in order &mdash; a video that is playing keeps playing.</li>
+      <li>Pick a tractate, daf, and amud above, or use the arrows beside the daf name (as in a Hebrew book, ‹ goes forward to the next amud and › goes back) or the "Next amud"/"Previous amud" buttons to flip through in order &mdash; a video that is playing keeps playing.</li>
       <li>Tap any word on the page to play the shiur right here, starting at the exact moment it's discussed.</li>
       <li>Switch English/Hebrew and Regular/Chazarah Daf above to browse whichever recording you want a tapped word to jump to.</li>
     </ol>

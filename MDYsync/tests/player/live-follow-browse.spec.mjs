@@ -336,6 +336,27 @@ test.describe('Live follow — the mode on the Interactive Daf page', () => {
     await expect(page.locator('#dafAmudToggle .amud-option.active')).toHaveText('b');
   });
 
+  test('the arrows are laid out as in a Hebrew book: the one pointing left goes forward', async ({ page }) => {
+    await openBrowse(page, { query: '?ref=Chullin%2088a' });
+    await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 88a');
+    const x = (selector) => page.locator(selector).evaluate((el) => el.getBoundingClientRect().left);
+    // Beside the daf name: next (‹) on the left of the name, previous (›) on its right.
+    const [next, title, previous] = [await x('#dafNextAmudButton'), await x('#dafTitle'), await x('#dafPrevAmudButton')];
+    expect(next).toBeLessThan(title);
+    expect(title).toBeLessThan(previous);
+    await expect(page.locator('#dafNextAmudButton')).toHaveText('‹');
+    await expect(page.locator('#dafPrevAmudButton')).toHaveText('›');
+    // And the same under the picker.
+    expect(await x('#browseNextButton')).toBeLessThan(await x('#browsePrevButton'));
+    await expect(page.locator('#browseNextButton')).toHaveText('‹ Next amud');
+    await expect(page.locator('#browsePrevButton')).toHaveText('Previous amud ›');
+    // The left-pointing arrow really does go forward.
+    await page.locator('#dafNextAmudButton').click();
+    await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 88b');
+    await page.locator('#dafPrevAmudButton').click();
+    await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 88a');
+  });
+
   test('the Previous / Next amud buttons under the picker step the same way', async ({ page }) => {
     await openBrowse(page, { query: '?ref=Chullin%2088a' });
     await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 88a');
