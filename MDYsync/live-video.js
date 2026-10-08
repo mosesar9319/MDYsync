@@ -10,6 +10,10 @@
 //                      of "at this second the reading is at these words".
 //   positionAt         the timeline looked up by the video's playhead, so
 //                      seeking forwards or back just works.
+//   timelineFromAlignment
+//                      the same kind of timeline, read from an alignment the
+//                      regular sync engine already published for the video,
+//                      instead of from a fresh transcript.
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.LiveVideo = factory();
@@ -149,6 +153,49 @@
     return { timeline, tracker, runCounter };
   }
 
+  // A saved sync of the video -> the timeline alignSegments would have made.
+  // `alignment` is a published dafsync-alignment-v2 file (by-video/<id>.json):
+  // its wordTimeline is a list of { start, end, ref: "Chullin 91a:3", w0, w1 }
+  // -- words w0..w1 of a paragraph, read from `start` to `end`. The page's canon
+  // names a paragraph "Chullin 91a.3" and counts words across the whole daf, so
+  // each entry is turned into the canon range it covers (canonIndex maps
+  // "<paragraph ref>#<word>" to that count). Entries about words the canon
+  // does not hold -- the alignment also covers amudim the page isn't following
+  // -- are dropped, and `mapped / total` says how much of the sync was usable.
+  // Only 'read' entries are made: a saved sync says where the words were read,
+  // not when the rabbi was explaining, so the highlight simply holds between them.
+  function timelineFromAlignment(alignment, canonIndex) {
+    const entries = Array.isArray(alignment?.wordTimeline) ? alignment.wordTimeline : [];
+    const timeline = [];
+    let total = 0;
+    for (const entry of entries) {
+      if (!entry || !Number.isFinite(entry.start) || typeof entry.ref !== 'string') continue;
+      total += 1;
+      const ref = entry.ref.replace(/:(\d+)$/, '.$1');
+      const w0 = Number(entry.w0);
+      let w1 = Number(entry.w1);
+      if (!Number.isInteger(w0) || !Number.isInteger(w1) || w1 < w0) continue;
+      const s = canonIndex.get(`${ref}#${w0}`);
+      if (s === undefined) continue;
+      // A range that runs past the paragraph's last word ends where it does.
+      let e = canonIndex.get(`${ref}#${w1}`);
+      while (e === undefined && w1 > w0) { w1 -= 1; e = canonIndex.get(`${ref}#${w1}`); }
+      if (e === undefined || e < s) continue;
+      timeline.push({
+        start: entry.start,
+        end: Number.isFinite(entry.end) ? entry.end : entry.start,
+        text: '',
+        state: 'read',
+        s,
+        e,
+        phon: 100,
+        char: 100,
+      });
+    }
+    timeline.sort((a, b) => a.start - b.start);
+    return { timeline, mapped: timeline.length, total };
+  }
+
   // The latest entry that has started by time t: index into the timeline, or
   // -1 before the first.
   function indexAt(timeline, t) {
@@ -184,5 +231,5 @@
     return { state: effective === 'hold' ? 'before' : effective, placement, index: i, unplacedRun };
   }
 
-  return { parseVideoLink, parseStartTime, wordsToSegments, alignSegments, indexAt, positionAt, GAP_SECONDS, MAX_WORDS, MAX_SECONDS };
+  return { parseVideoLink, parseStartTime, wordsToSegments, alignSegments, timelineFromAlignment, indexAt, positionAt, GAP_SECONDS, MAX_WORDS, MAX_SECONDS };
 }));

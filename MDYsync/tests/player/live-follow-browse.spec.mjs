@@ -1266,6 +1266,126 @@ test.describe('Live follow — video link and the page\'s own player', () => {
     expect(await page.evaluate(() => [window.__constraints, live.ws, live.micStream])).toEqual([null, null, null]);
   });
 
+  // A saved sync of the video, as the regular engine publishes it (results/by-video/<id>.json):
+  // chunks of up to 7 words of the daf, one every 3 seconds from the 5th. `ranges` is where each lands.
+  async function savedSync(page, { from = 400, chunks = 14, refs = null } = {}) {
+    return page.evaluate(({ from, chunks, refs }) => {
+      const words = dafLiveFollow.__test.live.daf.canon.words;
+      const wordTimeline = [];
+      const ranges = [];
+      let i = from;
+      let t = 5;
+      while (wordTimeline.length < chunks) {
+        const first = words[i];
+        let j = i;
+        while (j + 1 < words.length && words[j + 1].ref === first.ref && j - i < 6) j += 1;
+        const ref = (refs ? refs[wordTimeline.length % refs.length] : first.ref).replace(/\.(\d+)$/, ':$1');
+        wordTimeline.push({ start: t, end: t + 2.5, ref, w0: first.wordIndex, w1: words[j].wordIndex, source: '' });
+        ranges.push([i, j]);
+        i = j + 1;
+        t += 3;
+      }
+      return { alignment: { schema: 'dafsync-alignment-v2', videoId: 'dQw4w9WgXcQ', coveredRefs: ['Chullin 91a'], wordTimeline }, ranges };
+    }, { from, chunks, refs });
+  }
+  const serveSavedSync = async (page, alignment, key = 'dQw4w9WgXcQ') => {
+    const asked = [];
+    await page.route('**/api/get-results-file?*', (route) => {
+      const path = decodeURIComponent(new URL(route.request().url()).searchParams.get('path'));
+      asked.push(path);
+      if (path === `by-video/${key}.json`) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(alignment) });
+      return route.fallback();
+    });
+    return asked;
+  };
+
+  test('a video the regular engine already synced is followed from its saved sync: no transcript is made', async ({ page }) => {
+    const seen = await setup(page);
+    const { alignment, ranges } = await savedSync(page);
+    const asked = await serveSavedSync(page, alignment);
+    await loadLink(page, YT_LINK);
+    await page.locator('#lfStartButton').click();
+    await expect(page.locator('#lfStartButton')).toHaveText('Stop live follow');
+    await setTime(page, 3);
+    await expect(status(page)).toHaveText('Waiting…');
+    await setTime(page, 6);
+    await expect.poll(() => hl(page)).toMatchObject({ s: ranges[0][0], e: ranges[0][1] });
+    await expect(status(page)).toHaveText('Following');
+    await expect(detail(page)).toContainText('saved sync');
+    await expect(activeBars(page).first()).toBeVisible();
+    await setTime(page, 5 + 3 * 5 + 1);
+    await expect.poll(() => hl(page)).toMatchObject({ s: ranges[5][0], e: ranges[5][1] });
+    await setTime(page, 7); // back
+    await expect.poll(() => hl(page).then((h) => h?.s)).toBe(ranges[0][0]);
+    // Nothing was transcribed, and only the saved sync's own spellings were looked up.
+    expect(seen.job).toEqual([]);
+    expect(seen.status).toEqual([]);
+    expect(asked).toContain('by-video/dQw4w9WgXcQ.json');
+    expect(asked.filter((path) => path.startsWith('by-video/'))).toHaveLength(4);
+    const log = await page.evaluate(() => live.log);
+    expect(log.find((e) => e.kind === 'stored-alignment')).toMatchObject({ key: 'dQw4w9WgXcQ', mapped: 14, total: 14 });
+    expect(log.some((e) => e.kind === 'transcript')).toBe(false);
+    await expect(page.locator('#lfDebugConnection')).toContainText('saved sync');
+  });
+
+  test('a saved sync is found under the Hebrew and Chazarah spellings too', async ({ page }) => {
+    await setup(page);
+    const { alignment, ranges } = await savedSync(page);
+    await serveSavedSync(page, alignment, 'Hebrew-Chazarah-Daf-dQw4w9WgXcQ');
+    await loadLink(page, YT_LINK);
+    await page.locator('#lfStartButton').click();
+    await setTime(page, 6);
+    await expect.poll(() => hl(page).then((h) => h?.s)).toBe(ranges[0][0]);
+    await expect(detail(page)).toContainText('saved sync');
+  });
+
+  test('?stored=0 transcribes even a video that has a saved sync', async ({ page }) => {
+    const seen = await setup(page, { statuses: [{ status: 'absent' }, { status: 'done', words: transcriptWords(), languageCode: 'heb', seconds: 26 }], query: '?stored=0' });
+    const { alignment } = await savedSync(page);
+    const asked = await serveSavedSync(page, alignment);
+    await loadLink(page, YT_LINK);
+    await page.locator('#lfStartButton').click();
+    await expect.poll(() => seen.job.length).toBe(1);
+    expect(asked.filter((path) => path.startsWith('by-video/'))).toEqual([]);
+  });
+
+  test('a saved sync of a different daf is not used: the video is transcribed', async ({ page }) => {
+    const seen = await setup(page, { statuses: [{ status: 'absent' }, { status: 'done', words: transcriptWords(), languageCode: 'heb', seconds: 26 }] });
+    // Twelve entries, none about the words being followed.
+    const { alignment } = await savedSync(page, { chunks: 12, refs: ['Chullin 40a.1'] });
+    await serveSavedSync(page, alignment);
+    await loadLink(page, YT_LINK);
+    await page.locator('#lfStartButton').click();
+    await expect.poll(() => seen.job.length).toBe(1);
+    const log = await page.evaluate(() => live.log);
+    expect(log.find((e) => e.kind === 'stored-alignment-skipped')).toMatchObject({ key: 'dQw4w9WgXcQ', mapped: 0, total: 12 });
+    expect(log.some((e) => e.kind === 'stored-alignment')).toBe(false);
+  });
+
+  test('a video with no saved sync is transcribed, as before', async ({ page }) => {
+    const seen = await setup(page, { statuses: [{ status: 'absent' }, { status: 'done', words: transcriptWords(), languageCode: 'heb', seconds: 26 }] });
+    await loadLink(page, YT_LINK);
+    await page.locator('#lfStartButton').click();
+    await expect.poll(() => seen.job.length).toBe(1);
+    expect(seen.job[0].url).toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+  });
+
+  test('a word tapped while following a saved sync marks the place from there and keeps the rest of the sync', async ({ page }) => {
+    await setup(page);
+    const { alignment, ranges } = await savedSync(page);
+    await serveSavedSync(page, alignment);
+    await loadLink(page, YT_LINK);
+    await page.locator('#lfStartButton').click();
+    await setTime(page, 6);
+    await expect.poll(() => hl(page).then((h) => h?.s)).toBe(ranges[0][0]);
+    await setTime(page, 7);
+    await page.evaluate(() => dafLiveFollow.tapWord('Chullin 91a.1', 3));
+    const tappedIndex = await page.evaluate(() => live.daf.canonIndex.get('Chullin 91a.1#3'));
+    await expect.poll(() => hl(page).then((h) => h?.s)).toBe(tappedIndex);
+    await setTime(page, 5 + 3 * 4 + 1); // later in the sync: its own entry, untouched
+    await expect.poll(() => hl(page).then((h) => h?.s)).toBe(ranges[4][0]);
+  });
+
   test('transcript mode on a link whose job is already finished starts straight away without starting a job', async ({ page }) => {
     const seen = await setup(page);
     await loadLink(page, MEDIA);

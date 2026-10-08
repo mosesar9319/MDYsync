@@ -68,6 +68,8 @@ const PAGE_OPTIONS = {
   raw: PAGE_PARAMS.get('raw') !== '0',
   keyterms: PAGE_PARAMS.get('keyterms') !== '0',
   batch: PAGE_PARAMS.get('batch') !== '0',
+  // ?stored=0 always transcribes a video link, even one with a saved sync (to compare the two).
+  stored: PAGE_PARAMS.get('stored') !== '0',
 };
 // A segment shorter than this isn't worth a round trip; a longer one than this
 // is capped to its last stretch (the API and function limits are far higher).
@@ -1117,7 +1119,7 @@ function pageVideo() {
   const source = state.videoSource;
   if (!source?.url || !['youtube', 'direct'].includes(source.type)) return null;
   const parsed = LV.parseVideoLink(source.url);
-  return parsed ? { kind: parsed.kind, url: parsed.url, getTime: () => getCurrentTime() } : null;
+  return parsed ? { kind: parsed.kind, id: parsed.id || null, url: parsed.url, getTime: () => getCurrentTime() } : null;
 }
 
 // Why a Google Drive file would not play: the server asks Drive for the start of
@@ -1253,6 +1255,46 @@ async function fetchVideoTranscript(video, job) {
 }
 
 
+// A video the regular sync engine has already aligned has a saved sync
+// (results/by-video/<id>.json, in four spellings: Hebrew / Chazarah prefixes; the
+// voice-recognition engine's own are the fallback). Better than transcribing again:
+// nothing to wait for or pay for, and it has had the engine's second pass.
+const STORED_PREFIXES = [['', ''], ['Chazarah-Daf-', 'Chazarah'], ['Hebrew-', 'Hebrew'], ['Hebrew-Chazarah-Daf-', 'Hebrew Chazarah']];
+// Used only when it is about THIS daf: enough of it must land on the words being followed.
+const STORED_MIN_ENTRIES = 10;
+const STORED_MIN_SHARE = 0.5;
+
+async function fetchStoredAlignmentFile(key) {
+  try {
+    const response = await fetch(`/api/get-results-file?path=${encodeURIComponent(`by-video/${key}.json`)}`);
+    if (!response.ok) return null;
+    const data = await response.json();
+    return Array.isArray(data?.wordTimeline) ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+// -> { key, label, timeline, mapped, total } or null.
+async function findStoredTimeline(video) {
+  if (!PAGE_OPTIONS.stored || video.kind !== 'youtube' || !video.id) return null;
+  for (const voice of ['', 'Voice-']) {
+    const found = await Promise.all(STORED_PREFIXES.map(async ([prefix, label]) => {
+      const key = `${voice}${prefix}${video.id}`;
+      return { key, label: `${voice ? 'voice ' : ''}${label}`.trim() || 'regular', data: await fetchStoredAlignmentFile(key) };
+    }));
+    for (const candidate of found) {
+      if (!candidate.data) continue;
+      const { timeline, mapped, total } = LV.timelineFromAlignment(candidate.data, live.daf.canonIndex);
+      if (mapped >= STORED_MIN_ENTRIES && mapped / total >= STORED_MIN_SHARE) {
+        return { key: candidate.key, label: candidate.label, timeline, mapped, total };
+      }
+      logEvent('stored-alignment-skipped', { key: candidate.key, mapped, total, covered: candidate.data.coveredRefs || null });
+    }
+  }
+  return null;
+}
+
 async function startTranscriptFollow({ startIndex }) {
   const video = pageVideo();
   const job = { cancelled: false };
@@ -1262,6 +1304,25 @@ async function startTranscriptFollow({ startIndex }) {
   button.disabled = false;
   button.textContent = 'Stop live follow';
   button.classList.add('stop');
+  setStatus('searching', 'Checking…', 'Looking for a saved sync of this video.');
+  const stored = await findStoredTimeline(video);
+  if (live.videoFollow !== follow) return;
+  if (stored) {
+    follow.stored = stored;
+    follow.timeline = stored.timeline;
+    live.anchorIndex = null; // a saved sync is not re-placed from a tapped word
+    logEvent('stored-alignment', {
+      key: stored.key,
+      mapped: stored.mapped,
+      total: stored.total,
+      // [start, firstWord, lastWord] -- enough to see where it goes without the whole sync.
+      timeline: stored.timeline.map((e) => [Math.round(e.start), e.s, e.e]),
+    });
+    setDebug('Connection', `saved sync (${stored.label}) · ${stored.mapped}/${stored.total} entries on this daf`);
+    follow.timer = setInterval(applyPlayhead, PLAYHEAD_POLL_MS);
+    applyPlayhead();
+    return;
+  }
   setStatus('searching', 'Transcribing…', 'Sending the video to be transcribed — usually a minute or two.');
   setDebug('Connection', 'video transcript');
   const began = performance.now();
@@ -1342,7 +1403,7 @@ function applyPlayhead() {
   }
   live.unplacedHebrew = pos.unplacedRun;
   if (pos.state === 'read') {
-    setFollowState('reading', { detail: `Following the video · ${formatClock(t)}` });
+    setFollowState('reading', { detail: videoFollowDetail(t) });
   } else if (pos.state === 'explain') {
     setFollowState('explaining');
   } else if (pos.state === 'unplaced') {
@@ -1354,9 +1415,14 @@ function applyPlayhead() {
   }
 }
 
+// "Following the video · 1:23", and where it is following from when that is a saved sync.
+function videoFollowDetail(t) {
+  return `Following the video · ${formatClock(t)}${live.videoFollow?.stored ? ' · saved sync' : ''}`;
+}
+
 function setStatusClock(t) {
   const detail = $('lfStatusDetail');
-  if (detail) detail.textContent = `Following the video · ${formatClock(t)}`;
+  if (detail) detail.textContent = videoFollowDetail(t);
 }
 
 // A tap while following a video: the reading is at that word *now*. The
@@ -1365,6 +1431,15 @@ function setStatusClock(t) {
 function realignVideoFrom(index) {
   const follow = live.videoFollow;
   const t = follow.video.getTime();
+  if (follow.stored) {
+    // A saved sync has no phrases to re-place: the tap marks where the reading is
+    // from here, and the entries after it stay as they were.
+    const tapped = { start: t, end: t, text: '(set by you)', state: 'read', s: index, e: index, phon: 100, char: 100 };
+    follow.timeline = [...follow.timeline.filter((e) => e.start < t), tapped, ...follow.timeline.filter((e) => e.start > t)];
+    follow.lastKey = null;
+    applyPlayhead();
+    return;
+  }
   const at = Math.max(0, LV.indexAt(follow.timeline, t));
   const tail = LV.alignSegments(LM, live.daf.canon, follow.segments.slice(at), { startIndex: index, listTokens: follow.listTokens, leakMinRun: LM.LEAK_MIN_RUN_BATCH }).timeline;
   const tapped = { start: t, end: t, text: '(set by you)', state: 'read', s: index, e: index, phon: 100, char: 100 };
