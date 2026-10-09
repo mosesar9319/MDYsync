@@ -590,3 +590,60 @@ test('against the dense batch list, genuine reading is kept and a recitation of 
   const cleaned = M.cleanTranscript(recited, batchList, M.LEAK_MIN_RUN_BATCH);
   assert.equal(cleaned.split(' ').filter((t) => t !== '·').length, 0);
 });
+
+// ---- Hebrew terms inside English, and what may move a locked position far ----------------------
+
+test('a Hebrew run shorter than four words inside an English sentence is a term, not a reading', () => {
+  const norms = (from, n) => canon.words.slice(from, from + n).map((w) => w.norm).join(' ');
+  const term = M.placeableRuns(`so the Gemara says ${norms(170, 2)} and then it asks`);
+  assert.equal(term.runs.length, 0, 'not placeable');
+  assert.equal(term.allRuns.length, 1, 'but still seen as Hebrew (not a pure-English phrase)');
+  const three = M.placeableRuns(`and the ${norms(170, 3)} part of it`);
+  assert.equal(three.runs.length, 0);
+  const reading = M.placeableRuns(`the Gemara says ${norms(170, 4)} and then it asks`);
+  assert.equal(reading.runs.length, 1, 'four words in a row are a quotation');
+  assert.equal(reading.runs[0].length, 4);
+});
+
+test('the same short run is placeable when the speech is mostly Hebrew', () => {
+  const norms = (from, n) => canon.words.slice(from, from + n).map((w) => w.norm).join(' ');
+  assert.equal(M.placeableRuns(`${norms(170, 2)}`).runs.length, 1);
+  assert.equal(M.placeableRuns(`${norms(170, 2)} ${norms(300, 3)} amar`).runs.length, 1, 'two Hebrew runs, one English word: not English-dominant');
+});
+
+test('a long reading in an English sentence is judged before it is chunked', () => {
+  const norms = (from, n) => canon.words.slice(from, from + n).map((w) => w.norm).join(' ');
+  const { runs } = M.placeableRuns(`and he reads ${norms(200, 13)} which is`);
+  assert.deepEqual(runs.map((run) => run.length), [7, 6], 'one 13-word reading, evenly chunked');
+});
+
+test('englishDominant counts Latin words against Hebrew ones', () => {
+  assert.equal(M.englishDominant('so this is הלכה'), true);
+  assert.equal(M.englishDominant('אמר רבא so'), false);
+  assert.equal(M.englishDominant(''), false);
+});
+
+test('two short terms, or one phrase said twice, cannot move a locked position far', () => {
+  const far = 406 + M.MAX_SINGLE_JUMP_WORDS + 120;
+  // Two different but short phrases (3 words each) far away: not enough.
+  let tracker = lockedTracker(400);
+  assert.equal(tracker.step(readRun(far, 3), 2).kind, 'pending');
+  assert.notEqual(tracker.step(readRun(far + 4, 3), 3).kind, 'confirmed');
+  assert.ok(Math.abs(tracker.cursor - 406) <= M.MAX_SINGLE_JUMP_WORDS, `not moved far by short terms: ${tracker.cursor}`);
+  // The very same long phrase twice: one observation.
+  tracker = lockedTracker(400);
+  assert.equal(tracker.step(readRun(far, 7), 2).kind, 'pending');
+  assert.notEqual(tracker.step(readRun(far, 7), 3).kind, 'confirmed');
+  assert.equal(tracker.cursor, 406, 'not moved by a repeat');
+  // Two different substantial phrases do move it.
+  tracker = lockedTracker(400);
+  assert.equal(tracker.step(readRun(far, 5), 2).kind, 'pending');
+  assert.equal(tracker.step(readRun(far + 6, 5), 3).kind, 'confirmed');
+  assert.equal(tracker.cursor, far + 6);
+});
+
+test('short phrases still move a locked position within the jump limit, as ever', () => {
+  const tracker = lockedTracker(400);
+  assert.equal(tracker.step(readRun(412, 3), 2).kind, 'local');
+  assert.equal(tracker.step(readRun(418, 2), 3).kind, 'local');
+});

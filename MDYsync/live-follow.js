@@ -592,9 +592,7 @@ function setFollowState(followState, options = {}) {
 // `far` marks a whole-daf match found with a lock in place.
 function scoreText(text, cursor, locked, listTokens, leakMinRun) {
   const heard = LM.cleanTranscript(text, listTokens, leakMinRun);
-  return LM.splitHebrewRuns(heard)
-    .flatMap((run) => LM.chunkRun(run))
-    .filter((run) => run.length >= LM.PLACEABLE_RUN_MIN_WORDS)
+  return LM.placeableRuns(heard).runs
     .map((run) => {
       const norms = run.map((w) => w.norm);
       const phons = run.map((w) => w.phon);
@@ -661,9 +659,7 @@ async function runBatchSegment({ seq, audio, rtText, cursorBefore, lockedBefore,
   };
   let rescued = null;
   if (!rtPlaced && live.tracker && !live.manualStop && live.placementSeq === placementSeq && result.text) {
-    const runs = LM.splitHebrewRuns(LM.cleanTranscript(result.text, batchTokens, LM.LEAK_MIN_RUN_BATCH))
-      .flatMap((run) => LM.chunkRun(run))
-      .filter((run) => run.length >= LM.PLACEABLE_RUN_MIN_WORDS);
+    const { runs } = LM.placeableRuns(LM.cleanTranscript(result.text, batchTokens, LM.LEAK_MIN_RUN_BATCH));
     let placed = null;
     for (const run of runs) {
       const step = live.tracker.step(run, live.runCounter);
@@ -705,8 +701,7 @@ function handleCommitted(text) {
   const heard = LM.cleanTranscript(text, activeKeytermTokens());
   const cursorBefore = live.tracker.cursor;
   const lockedBefore = live.tracker.locked;
-  const allRuns = LM.splitHebrewRuns(heard).flatMap((run) => LM.chunkRun(run));
-  const runs = allRuns.filter((run) => run.length >= LM.PLACEABLE_RUN_MIN_WORDS);
+  const { allRuns, runs } = LM.placeableRuns(heard);
   // A lone Hebrew word with nothing else around it is a fragment of the
   // reading the voice detector split off, or one term inside English: not
   // enough to say anything about the state either way. (With a few English
@@ -759,9 +754,12 @@ function handleCommitted(text) {
 function runProvisional() {
   live.partialTimer = null;
   if (!live.preview) return;
-  const runs = LM.splitHebrewRuns(LM.cleanTranscript(live.latestPartial, activeKeytermTokens()));
+  const partial = LM.cleanTranscript(live.latestPartial, activeKeytermTokens());
+  const runs = LM.splitHebrewRuns(partial);
   const last = runs[runs.length - 1];
   if (!last) return;
+  // A few Hebrew words in the middle of English are a term, not the reading.
+  if (LM.englishDominant(partial) && last.length < LM.ENGLISH_CONTEXT_MIN_RUN_WORDS) return;
   const tail = last.slice(-LM.PROVISIONAL_TAIL_WORDS);
   const match = live.preview.update(tail, performance.now() / 1000);
   if (!match) {

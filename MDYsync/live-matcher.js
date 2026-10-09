@@ -90,6 +90,16 @@
   // reading the voice detector split -- and placing it moves the tracker's
   // position to wherever that word happens to occur next to the cursor.
   const PLACEABLE_RUN_MIN_WORDS = 2;
+  // In a mostly-English sentence, a run of Hebrew shorter than this is a TERM
+  // the speaker dropped in ("הלכה", "מחוסר זמן"), not a reading of the daf: it is
+  // never placed. Measured on a real 51-minute English shiur: 115 of the 170
+  // placements were such terms, matched to wherever the same words occur on the
+  // daf (one pair of words 15 times), and they moved the highlight around.
+  const ENGLISH_CONTEXT_MIN_RUN_WORDS = 4;
+  // To move a locked position FAR (beyond MAX_SINGLE_JUMP_WORDS) on two agreeing
+  // phrases, each must be at least this long, and they must be different phrases:
+  // two short terms, or the same words said twice, are not evidence of a move.
+  const FAR_CONFIRM_MIN_WORDS = 4;
   const PROVISIONAL_TAIL_WORDS = 6;
   // ElevenLabs' realtime limits (batch Scribe allows far more).
   const REALTIME_MAX_KEYTERMS = 50;
@@ -251,6 +261,32 @@
     }
     if (current.length) runs.push(current);
     return runs;
+  }
+
+  const hasHebrew = (token) => /[\u0590-\u05FF]/.test(token);
+  const hasLatin = (token) => /[A-Za-z]/.test(token);
+
+  // Whether a stretch of speech is mostly English: more Latin-letter words than
+  // Hebrew-letter ones. Hebrew in such speech is mostly terms and names.
+  function englishDominant(text) {
+    const tokens = String(text || '').split(/\s+/).filter(Boolean);
+    return tokens.filter(hasLatin).length > tokens.filter(hasHebrew).length;
+  }
+
+  // The runs of a transcript the tracker may be asked to place. `allRuns` is
+  // every Hebrew run (chunked), for telling a bare fragment from explanation;
+  // `runs` drops the lone words, and, inside English, the runs too short to be
+  // a reading (ENGLISH_CONTEXT_MIN_RUN_WORDS). Judged on the run as spoken,
+  // before it is chunked, so a long reading is never mistaken for terms.
+  function placeableRuns(heard) {
+    const hebrewRuns = splitHebrewRuns(heard);
+    const english = englishDominant(heard);
+    const allRuns = hebrewRuns.flatMap((run) => chunkRun(run));
+    const runs = hebrewRuns
+      .filter((run) => !english || run.length >= ENGLISH_CONTEXT_MIN_RUN_WORDS)
+      .flatMap((run) => chunkRun(run))
+      .filter((run) => run.length >= PLACEABLE_RUN_MIN_WORDS);
+    return { allRuns, runs };
   }
 
   // Evenly sized consecutive chunks of at most maxWords -- 13 words become
@@ -429,6 +465,21 @@
   //   { kind: 'pending', match }    -- a first global candidate, held
   //   { kind: 'miss', unlocked }    -- nothing placed (unlocked: true when
   //                                    this miss is what lost the lock)
+  // Whether `run` (of `words` words, text `key`) can corroborate the earlier
+  // candidate `earlier` for a far move: both substantial, and not the same words.
+  function corroborates(earlier, words, key) {
+    return earlier.key !== key
+      && (earlier.words || 0) >= FAR_CONFIRM_MIN_WORDS
+      && words >= FAR_CONFIRM_MIN_WORDS;
+  }
+
+  // The same, for a move held out of the search window: different words always;
+  // and, only when it is beyond the jump limit, both substantial.
+  function confirmsHeld(held, cursor, words, key) {
+    if (held.key === key) return false;
+    return Math.abs(held.s - cursor) <= MAX_SINGLE_JUMP_WORDS || corroborates(held, words, key);
+  }
+
   function createTracker(canon, options = {}) {
     const eager = Boolean(options.eagerRelocalize);
     const st = { cursor: 0, locked: false, localMisses: 0, pending: null, held: null };
@@ -436,6 +487,7 @@
     function step(run, idx) {
       const hlNorm = run.map((w) => w.norm);
       const hlPhon = run.map((w) => w.phon);
+      const key = hlNorm.join(' ');
       let unlocked = false;
       const wasLocked = st.locked;
       let heldBefore = null; // a far move held by the previous phrase, if any
@@ -447,14 +499,15 @@
         if (m && eager && needsCorroboration(m, st.cursor, run.length)) {
           const local = { ...m, source: 'deterministic-local' };
           // Carrying on from the held spot (the next phrase starts about where
-          // it ended) is the corroboration.
-          if (held && m.s >= held.s - 3 && m.s <= held.e + 12) {
+          // it ended) is the corroboration -- from a different, substantial
+          // phrase (see FAR_CONFIRM_MIN_WORDS), not the same words said again.
+          if (held && m.s >= held.s - 3 && m.s <= held.e + 12 && confirmsHeld(held, st.cursor, run.length, key)) {
             st.cursor = m.s;
             st.localMisses = 0;
             st.pending = null;
             return { kind: 'confirmed', match: local, pending: { match: held, idx: held.idx } };
           }
-          st.held = { ...m, source: 'deterministic-local', idx };
+          st.held = { ...m, source: 'deterministic-local', idx, words: run.length, key };
           return { kind: 'pending', match: local, held: true };
         }
         if (m) {
@@ -490,15 +543,19 @@
       // A far move held last phrase counts as the first of the two agreeing
       // phrases even when this one falls outside the search window around the
       // old position (the reading has moved on from the held spot).
-      const pending = st.pending || (heldBefore ? { match: heldBefore, idx: heldBefore.idx } : null);
-      if (pending && m.s >= pending.match.s && m.s - pending.match.s <= FWD_WINDOW) {
+      const pending = st.pending || (heldBefore ? { match: heldBefore, idx: heldBefore.idx, words: heldBefore.words, key: heldBefore.key } : null);
+      // A move beyond the jump limit from a locked position needs two substantial,
+      // different phrases; short terms, or one phrase said twice, cannot do it.
+      const farMove = wasLocked && Math.abs(m.s - st.cursor) > MAX_SINGLE_JUMP_WORDS;
+      const corroborated = !eager || !pending || (pending.key !== key && (!farMove || corroborates(pending, run.length, key)));
+      if (pending && corroborated && m.s >= pending.match.s && m.s - pending.match.s <= FWD_WINDOW) {
         st.cursor = m.s;
         st.locked = true;
         st.localMisses = 0;
         st.pending = null;
         return { kind: 'confirmed', match, pending };
       }
-      st.pending = { match, idx };
+      st.pending = { match, idx, words: run.length, key };
       return { kind: 'pending', match, unlocked };
     }
 
@@ -713,6 +770,10 @@
     LIVE_MAX_RUN_WORDS,
     PROVISIONAL_TAIL_WORDS,
     PLACEABLE_RUN_MIN_WORDS,
+    ENGLISH_CONTEXT_MIN_RUN_WORDS,
+    FAR_CONFIRM_MIN_WORDS,
+    englishDominant,
+    placeableRuns,
     MAX_SINGLE_JUMP_WORDS,
     strongLocal,
     REALTIME_MAX_KEYTERMS,

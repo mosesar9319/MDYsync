@@ -500,6 +500,31 @@ test.describe('Live follow — following a reading', () => {
     expect(await page.evaluate(() => live.tracker.cursor)).toBe(400);
   });
 
+  test('two or three Hebrew words inside an English sentence are a term and are not placed; a four-word quotation is', async ({ page }) => {
+    await openFollowing(page);
+    await say(page, phrase(400, 7));
+    // Close to the cursor and a perfect match: the old rule would have moved the highlight.
+    await say(page, `so the gemara says ${phrase(420, 2)} and that is the whole point of it`);
+    await expect(status(page)).toHaveText('Explaining');
+    expect(await confirmed(page)).toEqual({ s: 400, e: 406 });
+    await say(page, `and then it says ${phrase(420, 3)} in the next line of it`);
+    expect(await confirmed(page)).toEqual({ s: 400, e: 406 });
+    await say(page, `and then it quotes ${phrase(420, 5)} word for word`);
+    await expect(status(page)).toHaveText('Following');
+    expect(await confirmed(page)).toEqual({ s: 420, e: 424 });
+  });
+
+  test('a partial transcript that ends in a Hebrew term inside English shows no preview', async ({ page }) => {
+    await openFollowing(page);
+    await say(page, phrase(400, 7));
+    await say(page, 'so what does that mean');
+    await page.evaluate((t) => handlePartial(t), `and the gemara says ${phrase(412, 3)}`);
+    await page.waitForTimeout(400);
+    expect(await page.evaluate(() => live.provisional)).toBeNull();
+    await page.evaluate((t) => handlePartial(t), phrase(412, 4));
+    await expect.poll(() => page.evaluate(() => live.provisional)).toEqual({ s: 412, e: 415 });
+  });
+
   // Real ElevenLabs output: at the end of a reading it recited the keyterm list it
   // had been given (after 9 genuine words). The list's daf-derived terms come out
   // in daf order, which used to look like steady forward reading and moved the
