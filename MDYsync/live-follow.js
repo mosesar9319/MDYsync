@@ -437,7 +437,31 @@ function drawMark(overlayId, range, className) {
 const drawProvisional = () => drawMark('vilnaLiveProvisionalOverlay', live.provisional, 'vilna-live-provisional-rect');
 const drawAnchor = () => drawMark('vilnaLiveAnchorOverlay', live.anchorMark === null ? null : { s: live.anchorMark, e: live.anchorMark }, 'vilna-live-anchor-rect');
 // The page's word positions arrive after the page itself, and a zoom redraws the bars.
-window.addEventListener('dafsync:vilna-page', () => { if (live.on) { drawProvisional(); drawAnchor(); } });
+window.addEventListener('dafsync:vilna-page', () => { if (live.on) { drawProvisional(); drawAnchor(); } updatePageBanner(); });
+
+// The printed page can only be highlighted once its word positions exist. For a
+// page with none yet (the on-demand job that makes them is running, or could not
+// run) say so on the page, rather than leave a highlight that never comes; the
+// text view follows regardless.
+function updatePageBanner() {
+  const banner = $('lfPageBanner');
+  if (!banner) return;
+  const info = state.vilnaPageMapStatus;
+  const onPageView = document.querySelector('.daf-card')?.getAttribute('data-daf-view') === 'page';
+  const waiting = info && (info.status === 'preparing' || info.status === 'unavailable');
+  if (!live.on || !onPageView || !waiting || info.ref !== state.browsePageRef) {
+    banner.hidden = true;
+    return;
+  }
+  banner.classList.toggle('is-unavailable', info.status === 'unavailable');
+  banner.textContent = info.status === 'preparing'
+    ? `The printed page for ${info.ref} is still being prepared (usually a minute or two). It will be highlighted as soon as it is ready; the text view follows now.`
+    : `The printed page for ${info.ref} has no word positions yet, so it can’t be highlighted. The text view follows along; reload the page to try again.`;
+  banner.hidden = false;
+}
+// Switching between the text and the printed page changes whether it matters.
+const dafCardForBanner = document.querySelector('.daf-card');
+if (dafCardForBanner) new MutationObserver(updatePageBanner).observe(dafCardForBanner, { attributes: true, attributeFilter: ['data-daf-view'] });
 
 function showConfirmed(match) {
   live.placementSeq += 1;
@@ -1592,6 +1616,7 @@ function setFullPicker(full) {
 async function enableLiveMode() {
   if (live.on) return;
   live.on = true;
+  updatePageBanner();
   live.saved = {
     segments: state.segments,
     activeIndex: state.activeIndex,
@@ -1630,6 +1655,7 @@ function disableLiveMode() {
   if (!live.on) return;
   stopLiveFollow();
   live.on = false;
+  updatePageBanner();
   const saved = live.saved;
   live.saved = null;
   state.liveFollow = null;

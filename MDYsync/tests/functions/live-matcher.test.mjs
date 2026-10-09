@@ -178,12 +178,81 @@ test('one long, unambiguous phrase locks a fresh session straight away', () => {
   assert.equal(tracker.step(readRun(206, 6), 1).kind, 'local', 'and reading continues from there');
 });
 
-test('a locked session follows a decisive phrase far beyond its search window at once', () => {
-  const tracker = lockedTracker(400); // cursor 406; the local window ends near 466
-  const result = tracker.step(readRun(520, 7), 2);
-  assert.equal(result.kind, 'jump');
-  assert.equal(tracker.cursor, 520);
+test('the jump limit is 40 words', () => {
+  assert.equal(M.MAX_SINGLE_JUMP_WORDS, 40);
+});
+
+test('a short re-read within the limit is followed at once', () => {
+  const tracker = lockedTracker(400); // cursor 406
+  const result = tracker.step(readRun(392, 7), 2); // 14 words back, inside the window
+  assert.equal(result.kind, 'local');
+  assert.equal(tracker.cursor, 392);
+});
+
+test('a clear phrase inside the search window but beyond the limit waits for a second one', () => {
+  const tracker = lockedTracker(400); // cursor 406; the window reaches ahead to 466
+  const ahead = 406 + M.MAX_SINGLE_JUMP_WORDS + 10; // 56 words on: in the window, past the limit
+  const first = tracker.step(readRun(ahead, 7), 2);
+  assert.equal(first.kind, 'pending', 'held, though the phrase matches well');
+  assert.equal(tracker.cursor, 406, 'not moved');
+  const second = tracker.step(readRun(ahead + 8, 7), 3); // carries on from it
+  assert.equal(second.kind, 'confirmed');
+  assert.equal(tracker.cursor, ahead + 8);
+});
+
+test('a held move is confirmed by the next phrase even when that falls outside the old search window', () => {
+  const tracker = lockedTracker(400); // cursor 406; the window ends near 466
+  const ahead = 406 + M.MAX_SINGLE_JUMP_WORDS + 15; // 61... hold it, then read on past the window's end
+  assert.equal(tracker.step(readRun(ahead, 7), 2).kind, 'pending');
+  const second = tracker.step(readRun(ahead + 12, 7), 3); // 73 words from the old cursor: out of its window
+  assert.equal(second.kind, 'confirmed');
+  assert.equal(tracker.cursor, ahead + 12);
+});
+
+test('reading on within the limit is followed at once, as ever', () => {
+  const tracker = lockedTracker(400);
+  assert.equal(tracker.step(readRun(406 + 30, 7), 2).kind, 'local'); // 30 words on
+  assert.equal(tracker.cursor, 436);
+  assert.equal(tracker.step(readRun(436 + 8, 7), 3).kind, 'local');
+});
+
+test('one decisive phrase more than the jump limit away does not move a locked session', () => {
+  const tracker = lockedTracker(400); // cursor 406
+  const far = 406 + M.MAX_SINGLE_JUMP_WORDS + 20;
+  const found = M.matchGlobalWithMargin(canon, readRun(far, 7).map((w) => w.norm), readRun(far, 7).map((w) => w.phon));
+  assert.ok(M.isDecisive(found, 7), 'a clean, unique phrase: decisive on its own');
+  const result = tracker.step(readRun(far, 7), 2);
+  assert.equal(result.kind, 'pending', 'but held, not followed');
+  assert.equal(tracker.cursor, 406, 'the position has not moved');
+  // The reading was in fact still near the old place: that wins, and the decoy is dropped.
+  assert.equal(tracker.step(readRun(414, 6), 3).kind, 'local');
+  assert.equal(tracker.cursor, 414);
   assert.equal(tracker.pending, null);
+});
+
+test('a full amud away and back is never made by single phrases', () => {
+  const tracker = lockedTracker(100); // cursor 106
+  const trace = [];
+  for (const [from, length] of [[106, 6], [560, 7], [114, 6], [560, 7], [122, 6]]) {
+    tracker.step(readRun(from, length), trace.length);
+    trace.push(tracker.cursor);
+  }
+  assert.ok(trace.every((cursor) => cursor < 140), `the cursor stayed with the reading: ${trace}`);
+});
+
+test('a move beyond the jump limit is followed once a second phrase agrees', () => {
+  const tracker = lockedTracker(400); // cursor 406
+  const far = 406 + M.MAX_SINGLE_JUMP_WORDS + 20;
+  assert.equal(tracker.step(readRun(far, 7), 2).kind, 'pending');
+  const second = tracker.step(readRun(far + 8, 7), 3);
+  assert.equal(second.kind, 'confirmed');
+  assert.equal(tracker.cursor, far + 8);
+});
+
+test('with no position to compare with, a decisive phrase may land anywhere', () => {
+  const tracker = M.createTracker(canon, { eagerRelocalize: true }); // fresh: not locked
+  assert.equal(tracker.step(readRun(560, 7), 0).kind, 'jump');
+  assert.equal(tracker.cursor, 560);
 });
 
 test('a phrase that repeats elsewhere on the daf is never trusted alone', () => {
@@ -383,14 +452,22 @@ test('the preview ignores a tail of fewer than 3 words, even right beside the cu
   assert.ok(preview.update(readRun(412, 3), 2), 'but three words are enough');
 });
 
-test('a decoy match elsewhere in the daf is not previewed on its own', () => {
+test('a decoy match far from the last place is never previewed, even when two partials agree', () => {
   const tracker = lockedTracker(400);
   const preview = M.createPreview(canon, tracker);
   preview.update(readRun(412, 6), 0);
   for (let i = 0; i < 3; i += 1) preview.update(readRun(100, 5), i + 1); // 3 local misses: thread lost
   assert.equal(preview.cursor, null);
-  assert.equal(preview.update(readRun(100, 5), 4), null, 'first global hit is only a candidate');
-  assert.ok(preview.update(readRun(105, 5), 5), 'a second agreeing partial confirms the jump');
+  assert.equal(preview.update(readRun(100, 5), 4), null, 'a first far hit is nothing');
+  assert.equal(preview.update(readRun(105, 5), 5), null, 'and a second agreeing one still does not move it far');
+  assert.equal(preview.update(readRun(520, 7), 6), null, 'nor does one decisive partial');
+  assert.ok(preview.update(readRun(430, 6), 7), 'but the reading, near where it was, is found again');
+});
+
+test('a preview with no earlier place can still search the whole daf', () => {
+  const tracker = M.createTracker(canon, { eagerRelocalize: true }); // fresh
+  const preview = M.createPreview(canon, tracker);
+  assert.ok(preview.update(readRun(520, 7), 0), 'one decisive partial places a fresh preview');
 });
 
 test('reset hands the preview back to the confirmed position', () => {
