@@ -228,3 +228,22 @@ test('a far phrase nothing confirms stays unplaced, and the reading is not moved
   assert.equal(LV.positionAt(timeline, 12).placement.s, 407 + 7, 'held on the last place read');
   assert.equal(timeline[3].s, 421);
 });
+
+test('a Hebrew term inside an English sentence is explanation, not a place', () => {
+  const norms = (from, n) => fixture.canonNorms.slice(from, from + n);
+  // Words follow one another without a pause, as a transcript's do within a sentence.
+  const sentence = (before, hebrew, after, t) => {
+    const tokens = [...before.split(' '), ...hebrew, ...after.split(' ')];
+    return tokens.map((text, i) => w(text, t + i * .3, t + i * .3 + .25));
+  };
+  const words = [
+    ...reading(407, 2),
+    ...sentence('and the Gemara says', norms(500, 2), 'which is the case here', 10),
+    ...sentence('now the Gemara quotes', norms(420, 5), 'word for word', 20),
+  ];
+  const { timeline } = LV.alignSegments(LM, canon, LV.wordsToSegments(words));
+  const at = (t) => timeline.find((e) => e.start >= t && e.start < t + 3);
+  assert.equal(at(10).state, 'explain', 'two Hebrew words in English: a term');
+  assert.equal(at(20).state, 'read', 'five in a row: a quotation');
+  assert.equal(at(20).s, 420);
+});

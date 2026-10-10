@@ -164,7 +164,8 @@ def tie_break_cases(rng):
 def crafted_sequence(canon):
     """Hand-built edge cases for match_runs' confirmation rule: a second
     global match too far forward (> FWD_WINDOW) or behind the first must NOT
-    confirm a lock; it just becomes the new pending candidate."""
+    confirm a lock; it just becomes the new pending candidate. Up to
+    PENDING_MAX_MISSES unplaceable runs in between do not break a candidate."""
     def read(start, k=6):
         return as_run([c.norm for c in canon[start:start + k]])
     return [
@@ -177,6 +178,14 @@ def crafted_sequence(canon):
     ] + [as_run(["זזזז", "טטטט"])] * 12 + [   # 12 straight misses: lock lost
         read(500), read(480),           # second match BEHIND the first: no lock
         read(486),                      # agrees with 480: lock confirmed
+    ] + [as_run(["זזזז", "טטטט"])] * 12 + [   # lost again
+        read(200),
+        as_run(["בבבב", "גגגג", "דדדד"]), as_run(["בבבב", "גגגג", "דדדד"]),   # 2 unplaceable runs in between...
+        read(206),                      # ...still agree with 200: lock confirmed (PENDING_MAX_MISSES)
+    ] + [as_run(["זזזז", "טטטט"])] * 12 + [   # lost again
+        read(400),
+    ] + [as_run(["בבבב", "גגגג", "דדדד"])] * (va.PENDING_MAX_MISSES + 1) + [   # too many in between...
+        read(406),                      # ...the candidate was dropped: this is a new one, no lock
     ]
 
 
