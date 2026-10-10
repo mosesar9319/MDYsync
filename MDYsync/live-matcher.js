@@ -109,7 +109,8 @@
   // phrases happened to be back to back (a real session: three consecutive
   // candidates on the way to the right spot, each wiped by an unplaceable phrase
   // before the next arrived, and three minutes lost). Now it survives this many
-  // unplaceable runs and this many seconds; whichever comes first expires it.
+  // unplaceable runs (the same constant, and rule, as voice_align.py) and, live,
+  // this many seconds; whichever comes first expires it.
   const PENDING_MAX_MISSES = 3;
   const PENDING_MAX_AGE_SECONDS = 30;
   // Hebrew that has almost nothing in common with the daf is not a reading of it
@@ -510,11 +511,9 @@
       st.pendingAt = value && now ? now() : 0;
     }
     // A pending candidate still worth waiting on: not too many unplaceable runs
-    // since, not too long ago. Live only -- batch alignment (voice_align.py)
-    // keeps its rule that anything in between breaks it.
+    // since (voice_align.py's rule too), and, live, not too long ago.
     function pendingAlive() {
       if (!st.pending) return false;
-      if (!eager) return true;
       if (st.pendingMisses > PENDING_MAX_MISSES) return false;
       return !(now && now() - st.pendingAt > PENDING_MAX_AGE_SECONDS);
     }
@@ -567,10 +566,9 @@
         ? matchGlobalWithMargin(canon, hlNorm, hlPhon)
         : matchPhraseDual(canon, hlNorm, hlPhon, st.cursor, { global: true });
       if (!m) {
-        // In batch an unmatched run in between breaks any pending candidate; live
-        // lets a few go by (see PENDING_MAX_MISSES).
-        if (!eager) setPending(null);
-        else if (st.pending) {
+        // A few unmatched runs in between do not break a pending candidate (see
+        // PENDING_MAX_MISSES); more than that do.
+        if (st.pending) {
           st.pendingMisses += 1;
           if (!pendingAlive()) setPending(null);
         }

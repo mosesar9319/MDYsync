@@ -84,6 +84,13 @@ MIN_SCORE_GLOBAL = 72
 MIN_SCORE_SINGLE = 85
 CHAR_FLOOR = 55
 RELOCALIZE_AFTER = 12
+# A first candidate for a new position (`pending` in match_runs) waits for a
+# second, agreeing global match. Runs that match nothing in between -- garbled
+# Hebrew, which is most of what a mixed English/Hebrew shiur gives the speech
+# service -- used to break it, so two phrases that agreed on a move were only
+# trusted if they happened to be back to back. It now survives up to this many
+# unmatched runs in between (live_matcher.js keeps the same constant).
+PENDING_MAX_MISSES = 3
 MAX_RUN_GAP_SECONDS = 2.0
 # Confirmed against two real production syncs: every genuine matched run
 # (an actual verbatim quotation) has come in well under 20 words. The runs
@@ -1185,6 +1192,7 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
     locked = False
     local_misses = 0
     pending = None
+    pending_misses = 0
     run_matches = [None] * len(runs)
     llm_calls = 0
     llm_client = None
@@ -1252,7 +1260,12 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
                     print(f"  t={run[0]['start']:7.2f}  LLM rescue -> [{m[0]}-{m[1]}] "
                           f"confidence={m[2]:.1f}{anchor_note}")
         if m is None:
-            pending = None  # an unmatched run in between breaks any pending candidate
+            # A few unmatched runs in between do not break a pending candidate
+            # (see PENDING_MAX_MISSES); more than that do.
+            if pending is not None:
+                pending_misses += 1
+                if pending_misses > PENDING_MAX_MISSES:
+                    pending = None
             continue
         s, e, phon_score, char_score = m
         if pending is not None and s >= pending["s"] and s - pending["s"] <= FWD_WINDOW:
@@ -1266,11 +1279,13 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
             locked = True
             local_misses = 0
             pending = None
+            pending_misses = 0
             if debug:
                 print(f"  t={run[0]['start']:7.2f}  LOCK confirmed at [{s}-{e}]")
         else:
             pending = {"s": s, "e": e, "phon_score": phon_score, "char_score": char_score,
                        "run": run, "idx": idx, "source": source}
+            pending_misses = 0
 
     return run_matches, llm_calls, llm_client, offered_indices
 

@@ -49,7 +49,7 @@ const toRun = (norms) => norms.map((norm) => ({ norm, phon: M.phonetic(norm) }))
 // --- Constants ---------------------------------------------------------------
 
 test('matcher constants match voice_align.py', () => {
-  for (const name of ['BACK_WINDOW', 'FWD_WINDOW', 'MIN_SCORE', 'MIN_SCORE_GLOBAL', 'MIN_SCORE_SINGLE', 'CHAR_FLOOR', 'RELOCALIZE_AFTER']) {
+  for (const name of ['BACK_WINDOW', 'FWD_WINDOW', 'MIN_SCORE', 'MIN_SCORE_GLOBAL', 'MIN_SCORE_SINGLE', 'CHAR_FLOOR', 'RELOCALIZE_AFTER', 'PENDING_MAX_MISSES']) {
     assert.equal(M[name], pyConstant(name), name);
   }
 });
@@ -679,11 +679,16 @@ test('live: nor for long', () => {
   assert.equal(tracker.step(readRun(306, 5), 2).kind, 'pending', 'too late to corroborate');
 });
 
-test('batch alignment keeps its rule: anything unmatched in between breaks a pending candidate', () => {
+test('batch alignment (matchRuns) follows voice_align.py: a few unmatched runs in between keep a pending candidate, more break it', () => {
   const tracker = M.createTracker(canon);
   assert.equal(tracker.step(readRun(300, 5), 0).kind, 'pending');
-  assert.equal(tracker.step(GARBAGE, 1).kind, 'miss');
-  assert.equal(tracker.pending, null);
+  for (let i = 1; i <= M.PENDING_MAX_MISSES; i += 1) assert.equal(tracker.step(GARBAGE, i).kind, 'miss');
+  assert.ok(tracker.pending);
+  assert.equal(tracker.step(readRun(306, 5), 9).kind, 'confirmed');
+  const broken = M.createTracker(canon);
+  broken.step(readRun(300, 5), 0);
+  for (let i = 1; i <= M.PENDING_MAX_MISSES + 1; i += 1) broken.step(GARBAGE, i);
+  assert.equal(broken.pending, null);
 });
 
 test('a miss weighted down counts less toward losing the lock, and none at all at zero', () => {
