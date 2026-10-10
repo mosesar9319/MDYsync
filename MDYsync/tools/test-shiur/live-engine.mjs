@@ -162,13 +162,14 @@ export function buildAlignment({ timeline, canon, paragraphs, videoId, videoUrl,
 // above is the way in when it does not. Mirrors shared/live-video-job.mjs's
 // buildTranscribeFields/compactWords, which can't be imported here: that module
 // pulls in Netlify's blob store.
-async function transcribeWithElevenLabs(videoId, { apiKey = process.env.ELEVENLABS_API_KEY, fetchImpl = fetch } = {}) {
+async function transcribeWithElevenLabs(videoId, { keyterms = [], apiKey = process.env.ELEVENLABS_API_KEY, fetchImpl = fetch } = {}) {
   if (!apiKey) throw new Error('ELEVENLABS_API_KEY is not set');
   const form = new FormData();
   form.set('model_id', 'scribe_v2');
   form.set('source_url', `https://www.youtube.com/watch?v=${videoId}`);
   form.set('timestamps_granularity', 'word');
   form.set('tag_audio_events', 'false');
+  for (const term of keyterms) form.append('keyterms', term);
   const response = await fetchImpl('https://api.elevenlabs.io/v1/speech-to-text', {
     method: 'POST', headers: { 'xi-api-key': apiKey }, body: form, signal: AbortSignal.timeout(14 * 60 * 1000),
   });
@@ -180,24 +181,36 @@ async function transcribeWithElevenLabs(videoId, { apiKey = process.env.ELEVENLA
   return { words, seconds: words.length ? words[words.length - 1][2] : 0, languageCode: result.language_code ?? null };
 }
 
-async function fetchTranscript(videoId, { base = 'https://dafsync.netlify.app', origin = 'https://dafsync.netlify.app', timeoutMs = 20 * 60 * 1000 } = {}) {
+async function fetchTranscript(videoId, { daf = '', keyterms = [],  base = 'https://dafsync.netlify.app', origin = 'https://dafsync.netlify.app', timeoutMs = 20 * 60 * 1000 } = {}) {
   const url = `https://www.youtube.com/watch?v=${videoId}`;
-  const statusUrl = `${base}/api/live-video-status?url=${encodeURIComponent(url)}`;
+  // The page asks for a transcript with the daf's own words as keyterms (that is what
+  // makes the model write the Hebrew phrases in Hebrew letters instead of spelling
+  // them out in English); the job is keyed by (video, daf, keyterms), so ask the same way.
+  const params = new URLSearchParams({ url, daf });
+  if (keyterms.length) params.set('kt', '1');
+  const statusUrl = `${base}/api/live-video-status?${params}`;
   const read = async () => (await fetch(statusUrl, { headers: { Origin: origin } })).json();
   let status = await read();
-  if (status.status === 'absent') {
-    await fetch(`${base}/.netlify/functions/live-video-job-background`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Origin: origin },
-      body: JSON.stringify({ url }),
-    });
-  }
+  if (status.status === 'done') return status;
+  // Nothing started, or an earlier try failed (ElevenLabs's own YouTube fetch
+  // fails now and then, and the failure is kept until a new job replaces it).
+  await fetch(`${base}/.netlify/functions/live-video-job-background`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: origin },
+    body: JSON.stringify({ url, daf, keyterms }),
+  });
   const deadline = Date.now() + timeoutMs;
+  const startedAt = Date.now();
+  let sawPending = false;
   while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, sawPending ? 15000 : 3000));
     status = await read();
     if (status.status === 'done') return status;
-    if (status.status === 'error') throw new Error(`Transcript job failed: ${status.error}`);
-    await new Promise((resolve) => setTimeout(resolve, 15000));
+    if (status.status === 'pending') sawPending = true;
+    // An error seen before our job reported itself running may be the old one.
+    if (status.status === 'error' && (sawPending || Date.now() - startedAt > 45000)) {
+      throw new Error(`Transcript job failed: ${status.error} ${status.detail ? String(status.detail).slice(0, 300) : ''}`.trim());
+    }
   }
   throw new Error('Timed out waiting for the transcript.');
 }
@@ -217,10 +230,17 @@ function parseArgs(argv) {
 async function main() {
   const args = parseArgs(process.argv);
   if (!args.videoId) throw new Error('--video-id is required');
+  if (!args.refs) throw new Error('--refs is required (comma separated, e.g. "Bekhorot 2a,Bekhorot 2b")');
+  const refs = args.refs.split(',').map((r) => r.trim()).filter(Boolean);
+  const paragraphs = (await Promise.all(refs.map((r) => fetchSefariaParagraphs(r)))).flat();
   let words;
   let duration;
   if (args.fetchTranscript) {
-    const status = args.elevenlabs ? await transcribeWithElevenLabs(args.videoId) : await fetchTranscript(args.videoId);
+    // The same 400 daf terms Live Follow's video mode gives the transcriber.
+    const keyterms = LM.buildKeytermList(LM.buildCanon(paragraphs.map((p) => ({ ref: p.ref, he: p.he }))), 400);
+    const status = args.elevenlabs
+      ? await transcribeWithElevenLabs(args.videoId, { keyterms })
+      : await fetchTranscript(args.videoId, { daf: args.daf || refs[0], keyterms });
     words = status.words;
     duration = status.seconds;
     if (args.outWords) fs.writeFileSync(args.outWords, JSON.stringify(status));
@@ -231,9 +251,6 @@ async function main() {
     words = Array.isArray(loaded) ? loaded : loaded.words;
     duration = loaded.seconds;
   }
-  if (!args.refs) throw new Error('--refs is required (comma separated, e.g. "Bekhorot 2a,Bekhorot 2b")');
-  const refs = args.refs.split(',').map((r) => r.trim()).filter(Boolean);
-  const paragraphs = (await Promise.all(refs.map((r) => fetchSefariaParagraphs(r)))).flat();
   const { canon, timeline } = alignTranscript({ words, paragraphs, startRef: args.startRef || refs[0] });
   const videoUrl = `https://www.youtube.com/watch?v=${args.videoId}`;
   const alignment = buildAlignment({ timeline, canon, paragraphs, videoId: args.videoId, videoUrl, refs, duration });
