@@ -9420,16 +9420,9 @@ async function startVoiceSync() {
   setSyncProgress(0, ['Starting the server-side job…']);
   let jobId, resultUrl;
   try {
-    // The signed-in admin's session lets the server accept a video from any channel
-    // (see trigger-voice-job.mjs); anyone else is held to the authorized channel.
-    const headers = { 'Content-Type': 'application/json' };
-    try {
-      const session = (await window.DafSyncAuth?.client?.auth.getSession())?.data?.session;
-      if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
-    } catch { /* no session: the request goes without one */ }
     const response = await fetch(TRIGGER_VOICE_ENDPOINT, {
       method: 'POST',
-      headers,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ youtubeUrl, refs: syncState.readings.map((r) => realDafRef(r.ref)), variant, language })
     });
     if (!response.ok) throw new Error((await response.json()).error || 'Could not start the job.');

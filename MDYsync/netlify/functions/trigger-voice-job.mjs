@@ -5,8 +5,6 @@
 // only for now, matching the sync dialog tab it serves -- no Google Drive
 // path yet, since this is a beta feature, not the default sync method.
 
-import { isAdminRequest } from '../../shared/admin-check.mjs';
-
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
 const ALLOWED_ORIGINS = new Set([
@@ -21,15 +19,6 @@ const ALLOWED_ORIGINS = new Set([
 // carve-out) -- grabbing an arbitrary public YouTube URL server-side to
 // download carries no rights signal the way a Drive link shared with this
 // account does.
-//
-// A signed-in admin is the exception (the site owner's decision): an admin may
-// run voice recognition on any YouTube video, e.g. a shiur by another rav, which
-// has no burned-in captions for the caption sync to use. The caller has to prove
-// it with their session token (see shared/admin-check.mjs); nothing in the
-// request body can. Without that this function would be an open relay for
-// anyone on the internet -- each job spends GitHub Actions minutes, ElevenLabs
-// and Claude credits and the repo's YouTube cookies, and writes to the shared
-// results store.
 const YOUTUBE_CHANNEL_ID = 'UCKwQa5DB_VR98ac_r-Wyl-g'; // @MercazDafYomi
 
 function extractYoutubeVideoId(url) {
@@ -109,11 +98,10 @@ export default async (request) => {
   if (!youtubeVideoId) {
     return Response.json({ error: 'Paste a valid YouTube video link.' }, { status: 400 });
   }
-  const admin = await isAdminRequest(request);
-  let isChannelUpload = admin;
+  let isChannelUpload;
   let feedError = null;
   try {
-    if (!admin) isChannelUpload = await isRecentUploadOfChannel(youtubeVideoId);
+    isChannelUpload = await isRecentUploadOfChannel(youtubeVideoId);
   } catch (error) {
     // Don't fail outright yet -- the catalog check below is an independent
     // signal that doesn't depend on the feed being reachable at all.
@@ -129,7 +117,7 @@ export default async (request) => {
       return Response.json({ error: `Could not verify the video's channel: ${feedError.message}` }, { status: 502 });
     }
     return Response.json({
-      error: 'Voice recognition sync only works for recent Mercaz Daf Yomi uploads (sign in as an admin to use any YouTube video).'
+      error: 'Voice recognition sync only works for recent Mercaz Daf Yomi uploads.'
     }, { status: 403 });
   }
   if (!Array.isArray(refs) || !refs.length || refs.length > 40
