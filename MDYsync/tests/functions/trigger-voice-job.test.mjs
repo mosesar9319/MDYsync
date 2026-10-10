@@ -7,8 +7,13 @@ import assert from 'node:assert/strict';
 const MDY = 'UCKwQa5DB_VR98ac_r-Wyl-g';
 const LAKEWOOD = 'UCyk5Q9nuhwqJC_-zrP2Ojcg';
 
-async function trigger({ videoId, feeds = {}, linked = {}, body = {} }) {
+import { maggidById } from '../../shared/maggidim.mjs';
+
+async function trigger({ videoId, feeds = {}, linked = {}, body = {}, followBernstein = false }) {
   const dispatches = [];
+  const bernstein = maggidById('bernstein');
+  const wasFollowing = bernstein.follow;
+  bernstein.follow = followBernstein;
   globalThis.Netlify = { env: { get: (k) => (k === 'GITHUB_DISPATCH_TOKEN' ? 'token' : undefined) } };
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (input, init = {}) => {
@@ -33,11 +38,18 @@ async function trigger({ videoId, feeds = {}, linked = {}, body = {} }) {
     return { status: response.status, json: await response.json(), dispatches };
   } finally {
     globalThis.fetch = realFetch;
+    bernstein.follow = wasFollowing;
   }
 }
 
-test('a recent Lakewood Daf Yomi upload is accepted and published behind the Bernstein prefix', async () => {
-  const { status, json, dispatches } = await trigger({ videoId: 'Zsy7oDUP6Pw', feeds: { [LAKEWOOD]: ['Zsy7oDUP6Pw'], [MDY]: ['CNu3Ba5XCao'] } });
+test('while the maggid is not followed, a recent Lakewood upload that was never imported is refused', async () => {
+  const { status, dispatches } = await trigger({ videoId: 'g7VSmqB8Xlk', feeds: { [LAKEWOOD]: ['g7VSmqB8Xlk'], [MDY]: [] } });
+  assert.equal(status, 403);
+  assert.equal(dispatches.length, 0);
+});
+
+test('once the maggid is followed, a recent Lakewood Daf Yomi upload is accepted and published behind the Bernstein prefix', async () => {
+  const { status, json, dispatches } = await trigger({ videoId: 'Zsy7oDUP6Pw', feeds: { [LAKEWOOD]: ['Zsy7oDUP6Pw'], [MDY]: ['CNu3Ba5XCao'] }, followBernstein: true });
   assert.equal(status, 200);
   assert.equal(dispatches.length, 1);
   assert.equal(dispatches[0].event_type, 'run-voice-job');
@@ -55,11 +67,11 @@ test('a Mercaz Daf Yomi upload is published exactly as before, with no maggid in
 test('a video of some other channel is refused', async () => {
   const { status, json, dispatches } = await trigger({ videoId: 'aaaaaaaaaaa', feeds: { [LAKEWOOD]: ['Zsy7oDUP6Pw'], [MDY]: ['CNu3Ba5XCao'] } });
   assert.equal(status, 403);
-  assert.match(json.error, /Lakewood Daf Yomi/);
+  assert.match(json.error, /Mercaz Daf Yomi/);
   assert.equal(dispatches.length, 0);
 });
 
-test('an older Lakewood video (off the 15-newest feed) is accepted when it is linked for the daf', async () => {
+test('the imported Lakewood video (the test shiur) is accepted because it is linked for the daf', async () => {
   const { status, dispatches } = await trigger({
     videoId: 'Zsy7oDUP6Pw', feeds: { [LAKEWOOD]: [], [MDY]: [] },
     linked: { 'Bernstein-Bekhorot-2a': 'Zsy7oDUP6Pw' }, body: { maggid: 'bernstein' },

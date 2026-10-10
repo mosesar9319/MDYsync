@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// NOT in use for now: only Bechoros 2 (the test shiur) is imported from Lakewood Daf Yomi,
+// by hand. This is how a maggid's channel would be filled in later.
+//
 // Links a followed maggid's whole back catalogue (everything their channel has
 // uploaded, not just the 15 newest that the hourly channel sync can see) into a
 // checkout of the `results` branch: one video-links/<refKey>.json per daf video

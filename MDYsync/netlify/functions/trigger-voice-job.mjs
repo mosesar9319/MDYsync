@@ -65,7 +65,9 @@ async function isRecentUploadOfChannel(videoId, channelId) {
 // that cannot be read throws only if no other feed answered yes.
 async function maggidOfRecentUpload(videoId) {
   let failure = null;
-  for (const maggid of MAGGIDIM) {
+  // Only channels followed automatically: a maggid whose videos are imported by hand
+  // is vouched for by the link recorded for the video instead (below).
+  for (const maggid of MAGGIDIM.filter((m) => m.follow)) {
     try {
       if (await isRecentUploadOfChannel(videoId, maggid.channelId)) return maggid;
     } catch (error) {
@@ -143,7 +145,7 @@ export default async (request) => {
       return Response.json({ error: `Could not verify the video's channel: ${feedError.message}` }, { status: 502 });
     }
     return Response.json({
-      error: 'Voice recognition sync only works for recent uploads of the channels this site follows (Mercaz Daf Yomi, Lakewood Daf Yomi).'
+      error: 'Voice recognition sync only works for recent Mercaz Daf Yomi uploads, or a video already linked on this site for the daf.'
     }, { status: 403 });
   }
   if (!Array.isArray(refs) || !refs.length || refs.length > 40

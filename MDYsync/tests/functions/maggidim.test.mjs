@@ -28,6 +28,8 @@ test('the registry: Mercaz Daf Yomi is the default and has no key prefix; Lakewo
   assert.equal(bernstein.channelId, 'UCyk5Q9nuhwqJC_-zrP2Ojcg');
   assert.equal(bernstein.keyPrefix, 'Bernstein-');
   assert.equal(maggidByChannelId('UCKwQa5DB_VR98ac_r-Wyl-g').id, 'stefansky');
+  assert.equal(MAGGIDIM[0].follow, true);
+  assert.equal(bernstein.follow, false, 'only the one video asked for is imported, by hand, for now');
   assert.equal(maggidKeyPrefix('bernstein'), 'Bernstein-');
   assert.equal(maggidKeyPrefix('stefansky'), '');
   assert.equal(maggidKeyPrefix('nobody'), '');
@@ -163,8 +165,12 @@ function feedXml(entries) {
   return `<feed>${entries.map((e) => `<entry><yt:videoId>${e.id}</yt:videoId><title>${e.title}</title><published>${e.published}</published></entry>`).join('')}</feed>`;
 }
 
-async function runSync({ mdyFeed = [], bernsteinFeed = [], bernsteinStatus = 200, existing = {}, files = {} }) {
+// `followBernstein` turns the maggid's `follow` flag on for the run (it is off by default).
+async function runSync({ mdyFeed = [], bernsteinFeed = [], bernsteinStatus = 200, existing = {}, files = {}, followBernstein = true }) {
   const puts = [];
+  const bernstein = maggidById('bernstein');
+  const wasFollowing = bernstein.follow;
+  bernstein.follow = followBernstein;
   const talmud = read('talmud_index.json');
   globalThis.Netlify = { env: { get: (k) => (k === 'GITHUB_DISPATCH_TOKEN' ? 'token' : undefined) } };
   const realFetch = globalThis.fetch;
@@ -197,8 +203,18 @@ async function runSync({ mdyFeed = [], bernsteinFeed = [], bernsteinStatus = 200
     return { response: await response.json(), puts };
   } finally {
     globalThis.fetch = realFetch;
+    bernstein.follow = wasFollowing;
   }
 }
+
+test('by default the channel sync does not touch Lakewood Daf Yomi at all', async () => {
+  const { puts } = await runSync({
+    followBernstein: false,
+    mdyFeed: [],
+    bernsteinFeed: [{ id: 'g7VSmqB8Xlk', title: 'Bechoros 22', published: '2026-10-09T10:00:00+00:00' }],
+  });
+  assert.equal(puts.some((p) => p.path.includes('Bernstein') || p.path.startsWith('maggidim/')), false);
+});
 
 test('the channel sync links a new Lakewood Daf Yomi video behind the Bernstein prefix, under its own daf only', async () => {
   const { response, puts } = await runSync({

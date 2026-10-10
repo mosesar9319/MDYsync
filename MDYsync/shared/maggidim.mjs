@@ -14,6 +14,10 @@
 // because the player has no module system -- tests/functions/maggidim.test.mjs
 // checks the two agree.
 //
+// A maggid whose `follow` is false is still a maggid -- the page lists them, the
+// player plays the videos that were imported by hand, the keys work -- but nothing
+// is pulled in from their channel automatically.
+//
 // Deliberately dependency-free: imported by the Netlify functions, the channel
 // backfill tool and the tests alike.
 
@@ -26,6 +30,7 @@ export const MAGGIDIM = [
     handle: '@MercazDafYomi',
     keyPrefix: '',
     marker: '',
+    follow: true,
   },
   {
     id: 'bernstein',
@@ -35,6 +40,12 @@ export const MAGGIDIM = [
     handle: '@lakewooddafyomi',
     keyPrefix: 'Bernstein-',
     marker: 'Bernstein',
+    // Whether the hourly channel sync links this channel's new uploads on its
+    // own, and the voice sync accepts any of its recent uploads. Off for now:
+    // only the one video that was asked for (Bechoros 2, Zsy7oDUP6Pw, the test
+    // shiur) is imported, by hand. Turning it on is this one flag -- the sync,
+    // the catalog and the pages already handle a followed channel.
+    follow: false,
   },
 ];
 

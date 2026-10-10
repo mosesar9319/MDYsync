@@ -62,7 +62,7 @@ import { MAGGIDIM, parseBernsteinTitle } from '../../shared/maggidim.mjs';
 
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
-// Each maggid's channel (shared/maggidim.mjs) is polled the same way; the
+// Each followed maggid's channel (shared/maggidim.mjs, `follow`) is polled the same way; the
 // default one (Mercaz Daf Yomi) keeps its original behaviour exactly, the
 // others publish under their own refKey prefix, read their titles with their
 // own parser, and never trigger the caption-OCR auto-sync (their videos have
@@ -127,7 +127,7 @@ export default async (request) => {
   // maggid's feed being down only skips that maggid this hour.
   const entries = [];
   const feedProblems = [];
-  for (const maggid of MAGGIDIM) {
+  for (const maggid of MAGGIDIM.filter((m) => m.follow)) {
     try {
       const response = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${maggid.channelId}`);
       if (!response.ok) throw new Error(`YouTube feed returned ${response.status}`);
@@ -376,7 +376,7 @@ export default async (request) => {
   // daf video -- derashos, topical shiurim -- and so has no catalog row, yet is
   // still "his shiurim" on his page. The feed only carries the newest 15, so
   // the list accumulates: new entries are merged into what is already there.
-  for (const maggid of MAGGIDIM.filter((m) => m.keyPrefix)) {
+  for (const maggid of MAGGIDIM.filter((m) => m.keyPrefix && m.follow)) {
     const fresh = entries.filter((e) => e.maggid === maggid);
     if (!fresh.length) continue;
     try {
