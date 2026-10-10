@@ -1426,7 +1426,8 @@ async function findStoredTimeline(video) {
   if (!PAGE_OPTIONS.stored || video.kind !== 'youtube' || !video.id) return null;
   for (const voice of ['', 'Voice-']) {
     const found = await Promise.all(STORED_PREFIXES.map(async ([prefix, label]) => {
-      const key = `${voice}${prefix}${video.id}`;
+      // Another maggid's saved syncs are keyed behind their own prefix, after "Voice-".
+      const key = `${voice}${maggidKeyPrefix(state.maggid)}${prefix}${video.id}`;
       return { key, label: `${voice ? 'voice ' : ''}${label}`.trim() || 'regular', data: await fetchStoredAlignmentFile(key) };
     }));
     for (const candidate of found) {

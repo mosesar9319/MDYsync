@@ -25,6 +25,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { MAGGIDIM } from '../shared/maggidim.mjs';
 
 function parseArgs(argv) {
   const args = {};
@@ -38,18 +39,24 @@ function parseArgs(argv) {
 }
 
 // Inverse of app.js's refKey(): "Hebrew-Chazarah-Daf-Chullin-89a" ->
-// { tractate: "Chullin", daf: 89, amud: "a", variant: "chazarah", language: "he" }.
+// { tractate: "Chullin", daf: 89, amud: "a", variant: "chazarah", language: "he", maggid: null }.
+// Another maggid's videos carry that maggid's keyPrefix first
+// ("Bernstein-Bekhorot-2b" -> maggid: 'bernstein'; see shared/maggidim.mjs).
 // Must stay in lockstep with app.js/refKey() and index.html's own
 // parseRefKey() -- all three encode/decode the same filename scheme.
 function parseRefKey(key) {
   let rest = key;
   let language = 'en';
   let variant = 'regular';
+  let maggid = null;
+  for (const m of MAGGIDIM) {
+    if (m.keyPrefix && rest.startsWith(m.keyPrefix)) { maggid = m.id; rest = rest.slice(m.keyPrefix.length); break; }
+  }
   if (rest.startsWith('Hebrew-')) { language = 'he'; rest = rest.slice('Hebrew-'.length); }
   if (rest.startsWith('Chazarah-Daf-')) { variant = 'chazarah'; rest = rest.slice('Chazarah-Daf-'.length); }
   const match = /^(.+)-(\d+)([ab])$/.exec(rest);
   if (!match) return null;
-  return { tractate: match[1].replace(/-/g, ' '), daf: Number(match[2]), amud: match[3], variant, language };
+  return { tractate: match[1].replace(/-/g, ' '), daf: Number(match[2]), amud: match[3], variant, language, maggid };
 }
 
 const args = parseArgs(process.argv);
@@ -58,8 +65,8 @@ const files = fs.readdirSync(videoLinksDir).filter((f) => f.endsWith('.json'));
 
 const COMBO_KEY = { regular_en: 'regularEn', chazarah_en: 'chazarahEn', regular_he: 'regularHe', chazarah_he: 'chazarahHe' };
 
-// tractate -> daf -> comboKey -> { a: {videoId,label}, b: {videoId,label} }
-const byTractate = new Map();
+// maggid id (null = the default, Mercaz Daf Yomi) -> tractate -> daf -> comboKey -> { a: {videoId,label}, b: {videoId,label} }
+const byMaggid = new Map();
 let skipped = 0;
 for (const file of files) {
   const key = file.slice(0, -'.json'.length);
@@ -74,32 +81,61 @@ for (const file of files) {
   }
   if (!payload.videoId) { skipped++; continue; }
 
+  if (!byMaggid.has(parsed.maggid)) byMaggid.set(parsed.maggid, new Map());
+  const byTractate = byMaggid.get(parsed.maggid);
   if (!byTractate.has(parsed.tractate)) byTractate.set(parsed.tractate, new Map());
   const dafMap = byTractate.get(parsed.tractate);
   if (!dafMap.has(parsed.daf)) dafMap.set(parsed.daf, {});
   const comboKey = COMBO_KEY[`${parsed.variant}_${parsed.language}`];
   const combos = dafMap.get(parsed.daf);
   if (!combos[comboKey]) combos[comboKey] = {};
-  combos[comboKey][parsed.amud] = { videoId: payload.videoId, label: payload.label || null };
+  combos[comboKey][parsed.amud] = {
+    videoId: payload.videoId,
+    label: payload.label || null,
+    // A video the maintainers are using to tune the voice models: the player
+    // offers its numbered test runs (see test-runs/ on the results branch).
+    ...(payload.testShiur ? { testShiur: true } : {}),
+  };
 }
 
-const tractates = {};
-for (const [tractate, dafMap] of byTractate) {
-  const rows = [];
-  for (const [daf, combos] of dafMap) {
-    const row = { daf };
-    for (const [comboKey, byAmud] of Object.entries(combos)) {
-      const picked = byAmud.a || byAmud.b;
-      row[comboKey] = { videoId: picked.videoId, label: picked.label, amud: byAmud.a ? 'a' : 'b' };
+function rowsFor(byTractate) {
+  const tractates = {};
+  for (const [tractate, dafMap] of byTractate) {
+    const rows = [];
+    for (const [daf, combos] of dafMap) {
+      const row = { daf };
+      for (const [comboKey, byAmud] of Object.entries(combos)) {
+        const picked = byAmud.a || byAmud.b;
+        row[comboKey] = {
+          videoId: picked.videoId, label: picked.label, amud: byAmud.a ? 'a' : 'b',
+          ...(picked.testShiur ? { testShiur: true } : {}),
+        };
+      }
+      rows.push(row);
     }
-    rows.push(row);
+    tractates[tractate] = rows.sort((a, b) => a.daf - b.daf);
   }
-  tractates[tractate] = rows.sort((a, b) => a.daf - b.daf);
+  return tractates;
 }
 
-const catalog = { generatedAt: new Date().toISOString(), tractates };
+const tractates = rowsFor(byMaggid.get(null) || new Map());
+// Every other maggid's rows, beside the default maggid's: the home page lists
+// them side by side. Absent when there are none, so the file is byte-identical
+// to before for a site with only the one channel.
+const maggidim = {};
+for (const m of MAGGIDIM) {
+  if (!m.keyPrefix || !byMaggid.has(m.id)) continue;
+  maggidim[m.id] = { tractates: rowsFor(byMaggid.get(m.id)) };
+}
+
+const catalog = {
+  generatedAt: new Date().toISOString(),
+  tractates,
+  ...(Object.keys(maggidim).length ? { maggidim } : {}),
+};
 const outPath = path.join(args.results, 'catalog.json');
 fs.writeFileSync(outPath, `${JSON.stringify(catalog, null, 2)}\n`);
 
-const totalRows = Object.values(tractates).reduce((sum, rows) => sum + rows.length, 0);
-console.log(`Wrote ${outPath}: ${Object.keys(tractates).length} tractate(s), ${totalRows} daf row(s) (one per daf, not per amud), ${skipped} file(s) skipped.`);
+const countRows = (t) => Object.values(t).reduce((sum, rows) => sum + rows.length, 0);
+console.log(`Wrote ${outPath}: ${Object.keys(tractates).length} tractate(s), ${countRows(tractates)} daf row(s) (one per daf, not per amud), `
+  + `${Object.values(maggidim).reduce((n, m) => n + countRows(m.tractates), 0)} row(s) from other maggidim, ${skipped} file(s) skipped.`);

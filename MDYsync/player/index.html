@@ -1307,6 +1307,24 @@
               </button>
             </div>
           </header>
+          <!-- Only shown for a test shiur: a video the voice models are tuned on,
+               which keeps every run of either engine as its own numbered alignment
+               (see refreshTestRuns() in app.js). Open to every reader. -->
+          <div class="test-runs" id="testRuns" hidden>
+            <p class="test-runs-title">Test shiur &middot; compare alignments</p>
+            <div class="test-runs-fields">
+              <label class="test-run-field" for="testRunRegularSelect">
+                <span>Regular engine</span>
+                <select id="testRunRegularSelect" aria-label="Regular engine alignment"></select>
+              </label>
+              <label class="test-run-field" for="testRunLiveSelect">
+                <span>Live engine</span>
+                <select id="testRunLiveSelect" aria-label="Live engine alignment"></select>
+              </label>
+            </div>
+            <p class="test-runs-note" id="testRunNote" aria-live="polite"></p>
+          </div>
+
           <div class="reading-mode-tip" id="readingModeTip" aria-hidden="true">Drag the video to move · pinch to resize · Follow daf tracks the highlighted words</div>
 
           <div class="daf-scroll" id="dafScroll">

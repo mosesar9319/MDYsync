@@ -23,6 +23,12 @@ const REPO = 'MDYsync';
 const RAW_BASE = `https://raw.githubusercontent.com/${OWNER}/${REPO}/results`;
 const COMBO_KEYS = ['regularEn', 'chazarahEn', 'regularHe', 'chazarahHe'];
 
+// Every tractate -> rows map a catalog holds: the default maggid's, and each
+// other maggid's under catalog.maggidim (see tools/build-video-catalog.mjs).
+function tractateMaps(catalog) {
+  return [catalog.tractates || {}, ...Object.values(catalog.maggidim || {}).map((m) => m.tractates || {})];
+}
+
 async function fetchJson(url, init) {
   const res = await fetch(url, init);
   if (!res.ok) return null;
@@ -91,9 +97,11 @@ export default async () => {
 
   const allVideoIds = new Set();
   for (const f of videoLinkFiles) if (f.videoId) allVideoIds.add(f.videoId);
-  for (const tractate of Object.keys(catalog.tractates || {})) {
-    for (const row of catalog.tractates[tractate]) {
-      for (const key of COMBO_KEYS) if (row[key]?.videoId) allVideoIds.add(row[key].videoId);
+  for (const tractates of tractateMaps(catalog)) {
+    for (const tractate of Object.keys(tractates)) {
+      for (const row of tractates[tractate]) {
+        for (const key of COMBO_KEYS) if (row[key]?.videoId) allVideoIds.add(row[key].videoId);
+      }
     }
   }
   if (!allVideoIds.size) return Response.json({ checked: 0, dead: [] });
@@ -146,19 +154,21 @@ export default async () => {
       const file = await catalogResponse.json();
       const sha = file.sha;
       const freshCatalog = JSON.parse(Buffer.from(file.content, 'base64').toString('utf8'));
-      for (const tractate of Object.keys(freshCatalog.tractates || {})) {
-        const rows = freshCatalog.tractates[tractate];
-        for (const row of rows) {
-          for (const key of COMBO_KEYS) {
-            if (row[key]?.videoId && deadIds.has(row[key].videoId)) {
-              delete row[key];
-              removedCombos++;
+      for (const tractates of tractateMaps(freshCatalog)) {
+        for (const tractate of Object.keys(tractates)) {
+          const rows = tractates[tractate];
+          for (const row of rows) {
+            for (const key of COMBO_KEYS) {
+              if (row[key]?.videoId && deadIds.has(row[key].videoId)) {
+                delete row[key];
+                removedCombos++;
+              }
             }
           }
+          const kept = rows.filter((row) => COMBO_KEYS.some((key) => row[key]));
+          removedRows += rows.length - kept.length;
+          tractates[tractate] = kept;
         }
-        const kept = rows.filter((row) => COMBO_KEYS.some((key) => row[key]));
-        removedRows += rows.length - kept.length;
-        freshCatalog.tractates[tractate] = kept;
       }
       if (removedCombos) {
         freshCatalog.generatedAt = new Date().toISOString();

@@ -514,6 +514,17 @@ h1 {
   margin-top: 28px;
 }
 
+.maggid-list { display: block; }
+.maggid-back { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 10px; padding: 6px 12px; border-radius: 999px; border: 1px solid #d5dfeb; background: #fff; color: #1d3958; font: inherit; font-size: 14px; cursor: pointer; }
+.maggid-back[hidden] { display: none; }
+.maggid-other { margin-top: 28px; }
+.maggid-other[hidden] { display: none; }
+.maggid-other-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.maggid-other-list a { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; background: #fff; border: 1px solid #e1e8f0; color: #1d3958; text-decoration: none; }
+.maggid-other-list a:hover { box-shadow: 0 6px 16px rgba(29, 57, 88, 0.12); }
+.maggid-other-list img { width: 96px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; flex: none; background: #e9eef5; }
+.maggid-other-list strong { font-size: 15px; line-height: 1.3; }
+.maggid-other-list small { display: block; color: #62758c; margin-top: 2px; }
 .maggid-card {
   align-items: center;
   background: var(--paper);
@@ -1331,6 +1342,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         </section>
 
         <section class="learning-section">
+          <button class="maggid-back" id="maggidBack" type="button" hidden>&larr; All maggidei shiur</button>
           <div class="section-heading">
             <div>
               <p class="eyebrow" id="section-eyebrow">PICK UP WHERE YOU LEFT OFF</p>
@@ -1377,6 +1389,16 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
           </div>
         </section>
 
+        <section class="maggid-other" id="maggidOther" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow" id="maggidOtherEyebrow">MORE SHIURIM</p>
+              <h2 id="maggidOtherTitle">Other shiurim</h2>
+            </div>
+          </div>
+          <ul class="maggid-other-list" id="maggidOtherList"></ul>
+        </section>
+
         <section class="maggidim-section" id="maggidimSection" hidden>
           <div class="section-heading">
             <div>
@@ -1384,13 +1406,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
               <h2>Maggidei Shiurim</h2>
             </div>
           </div>
-          <button class="maggid-card" id="maggidStefanskyCard" type="button">
-            <span class="maggid-avatar" data-icon="teacher" aria-hidden="true"></span>
-            <div>
-              <strong>R’ Eli Stefansky</strong>
-              <span>Daf Yomi &middot; view all his shiurim</span>
-            </div>
-          </button>
+          <div class="maggid-list" id="maggidCards"></div>
           <p class="field-note">More maggidei shiur coming soon.</p>
         </section>
       </main>
@@ -1521,6 +1537,18 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       "Temurah", "Keritot", "Meilah", "Niddah",
     ];
 
+    // The maggidei shiur the site follows (shared/maggidim.mjs, hand-mirrored --
+    // tests/functions/maggidim.test.mjs checks the two agree). The first is the
+    // default maggid: his videos are the plain rows of catalog.json, everyone
+    // else's sit under its maggidim section.
+    const MAGGIDIM = [
+      { id: "stefansky", name: "R’ Eli Stefansky", blurb: "Daf Yomi · Mercaz Daf Yomi" },
+      { id: "bernstein", name: "R’ Sruly Bernstein", blurb: "Daf Yomi · Lakewood Daf Yomi" },
+    ];
+    const DEFAULT_MAGGID = MAGGIDIM[0].id;
+    const maggidName = (id) => (MAGGIDIM.find((m) => m.id === id) || MAGGIDIM[0]).name;
+    const rowMaggid = (row) => row.maggid || DEFAULT_MAGGID;
+
     // Display label only -- no amud. The a/b split is a syncing concern
     // (catalog.json already collapses each daf's own two amudim down to
     // one video, see tools/build-video-catalog.mjs); the channel itself
@@ -1549,6 +1577,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       const params = new URLSearchParams({ ref: `${entry.tractate} ${entry.daf}${entry.amud}` });
       if (entry.variant === "chazarah") params.set("variant", "chazarah");
       if (entry.language === "he") params.set("language", "hebrew");
+      if (entry.maggid && entry.maggid !== DEFAULT_MAGGID) params.set("maggid", entry.maggid);
       return `/player/?${params.toString()}`;
     }
 
@@ -1571,13 +1600,23 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         for (const tractate of SITE_TRACTATES) {
           for (const row of data.tractates?.[tractate] || []) rows.push({ tractate, ...row });
         }
-        return { rows: rows.sort((a, b) => a.tractate.localeCompare(b.tractate) || a.daf - b.daf), failed: false };
+        // Every other maggid's rows, tagged with who they belong to.
+        const maggidRows = [];
+        for (const maggid of MAGGIDIM) {
+          if (maggid.id === DEFAULT_MAGGID) continue;
+          for (const tractate of SITE_TRACTATES) {
+            for (const row of data.maggidim?.[maggid.id]?.tractates?.[tractate] || []) {
+              maggidRows.push({ tractate, maggid: maggid.id, ...row });
+            }
+          }
+        }
+        return { rows: rows.sort((a, b) => a.tractate.localeCompare(b.tractate) || a.daf - b.daf), maggidRows, failed: false };
       } catch (error) {
         console.error("Could not load the video catalog.", error);
         // Distinguished from a genuinely empty catalog below (state.catalogFailed)
         // -- a fetch failure isn't the same thing as "this daf has no shiur yet",
         // and telling a reader the wrong one of those is actively misleading.
-        return { rows: [], failed: true };
+        return { rows: [], maggidRows: [], failed: true };
       }
     }
 
@@ -1605,7 +1644,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       return {
         tractate: row.tractate, daf: row.daf, amud: row[key].amud,
         variant: comboVariant(key), language: comboLanguage(key),
-        videoId: row[key].videoId,
+        videoId: row[key].videoId, maggid: rowMaggid(row),
       };
     }
 
@@ -1661,6 +1700,10 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     const state = {
       activeNav: "Home", filter: "All Shiurim", filters: ["All Shiurim"],
       tractate: "all", language: "all", variant: "all", sortOrder: "new", query: "", catalog: [], today: null,
+      // Another maggid's daf videos (catalog.json's maggidim section), listed
+      // beside the default maggid's. maggidFilter is a maggid id while that
+      // maggid's own page is open, else null (everyone's, side by side).
+      maggidRows: [], maggidFilter: null, maggidVideos: {},
       // catalogLoading distinguishes "haven't heard back yet" from a
       // genuinely empty result, and catalogFailed distinguishes a real fetch
       // failure from "this daf/search really has nothing" -- collapsing
@@ -1716,7 +1759,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
           // Maggidei Shiurim doesn't touch state.filter -- it swaps in its
           // own dedicated section instead of filtering the video grid (see
           // renderCards' maggidimActive branch).
-          if (state.activeNav === "Home") { state.filter = "All Shiurim"; state.query = ""; }
+          if (state.activeNav === "Home") { state.filter = "All Shiurim"; state.query = ""; state.maggidFilter = null; }
           search.value = state.query;
           render();
           window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1745,6 +1788,13 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       regularHe: "Hebrew", chazarahHe: "Hebrew · Chazarah",
     };
 
+    // " · R’ Sruly Bernstein" on another maggid's cards, so two recordings of
+    // the same daf side by side say whose is whose. The default maggid's are
+    // left as they always were.
+    function maggidTag(row) {
+      return rowMaggid(row) === DEFAULT_MAGGID ? "" : ` · ${escapeHtml(maggidName(rowMaggid(row)))}`;
+    }
+
     function cardMarkup(item, index) {
       const { row, combo } = item;
       const videoId = row[combo].videoId;
@@ -1753,7 +1803,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
           <img class="thumb-img" src="${thumbUrl(videoId)}" alt="" loading="lazy" />
           <span class="thumbnail-play">${icon("play", 20)}</span>
         </span>
-        <span class="card-copy"><strong>${escapeHtml(videoLabel(row, combo))}</strong><span>${dafLabel(row)} · ${COMBO_LABELS[combo]}</span></span>
+        <span class="card-copy"><strong>${escapeHtml(videoLabel(row, combo))}</strong><span>${dafLabel(row)} · ${COMBO_LABELS[combo]}${maggidTag(row)}</span></span>
       </button>`;
     }
 
@@ -1766,7 +1816,8 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     // even though the other combos were still technically reachable.
     // Narrowing a filter just narrows which combos produce a card.
     function cardItems() {
-      let rows = state.catalog;
+      let rows = state.catalog.concat(state.maggidRows);
+      if (state.maggidFilter) rows = rows.filter((row) => rowMaggid(row) === state.maggidFilter);
       if (state.filter === "Today") {
         rows = state.today ? rows.filter((row) => row.tractate === state.today.tractate && row.daf === state.today.daf) : [];
       }
@@ -1796,6 +1847,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       return items.sort((a, b) =>
         direction * (SITE_TRACTATES.indexOf(a.row.tractate) - SITE_TRACTATES.indexOf(b.row.tractate))
         || direction * (a.row.daf - b.row.daf)
+        || MAGGIDIM.findIndex((m) => m.id === rowMaggid(a.row)) - MAGGIDIM.findIndex((m) => m.id === rowMaggid(b.row))
         || COMBO_KEYS.indexOf(a.combo) - COMBO_KEYS.indexOf(b.combo));
     }
 
@@ -1805,7 +1857,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     function selectModalCombo(row, combo) {
       const entry = entryForCombo(row, combo);
       document.querySelector("#shiur-title").textContent = videoLabel(row, combo);
-      document.querySelector("#modal-teacher").textContent = `${dafLabel(row)} · ${COMBO_LABELS[combo]}`;
+      document.querySelector("#modal-teacher").textContent = `${maggidName(rowMaggid(row))} · ${dafLabel(row)} · ${COMBO_LABELS[combo]}`;
       document.querySelector("#modal-thumb").src = thumbUrl(row[combo].videoId);
       document.querySelector("#modal-watch-link").href = playerUrl(entry);
       document.querySelectorAll("#modal-variant-toggle button").forEach((button) => {
@@ -1834,6 +1886,73 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       document.body.style.overflow = "";
     }
 
+    // The Maggidei Shiurim tab: one card per maggid the site follows.
+    function renderMaggidCards() {
+      document.querySelector("#maggidCards").innerHTML = MAGGIDIM.map((maggid) => `
+        <button class="maggid-card" data-maggid="${escapeHtml(maggid.id)}" type="button">
+          ${icon("teacher", 22)}
+          <div>
+            <strong>${escapeHtml(maggid.name)}</strong>
+            <span>${escapeHtml(maggid.blurb)} &middot; view all his shiurim</span>
+          </div>
+        </button>`).join("");
+      document.querySelectorAll("#maggidCards [data-maggid]").forEach((card) => {
+        card.addEventListener("click", () => openMaggid(card.dataset.maggid));
+      });
+    }
+
+    // A maggid's own page: the ordinary video grid narrowed to their dapim.
+    function openMaggid(id) {
+      state.activeNav = "Home";
+      state.filter = "All Shiurim";
+      state.maggidFilter = id;
+      state.query = "";
+      search.value = "";
+      render();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    // Everything else a maggid's channel posts -- derashos, topical shiurim,
+    // anything not titled as a daf -- has no catalog row but is still "his
+    // shiurim": listed under the dapim on his page, linking to YouTube.
+    async function loadMaggidVideos(id) {
+      if (state.maggidVideos[id]) return state.maggidVideos[id];
+      state.maggidVideos[id] = { loading: true, videos: [] };
+      try {
+        const response = await fetch(`/api/get-results-file?path=${encodeURIComponent(`maggidim/${id}.json`)}`);
+        if (response.ok) {
+          const data = await response.json();
+          state.maggidVideos[id] = { loading: false, videos: Array.isArray(data.videos) ? data.videos : [] };
+        } else {
+          state.maggidVideos[id] = { loading: false, videos: [] };
+        }
+      } catch {
+        state.maggidVideos[id] = { loading: false, videos: [] };
+      }
+      return state.maggidVideos[id];
+    }
+
+    function renderOtherShiurim() {
+      const section = document.querySelector("#maggidOther");
+      const id = state.maggidFilter;
+      if (!id || id === DEFAULT_MAGGID || state.query) { section.hidden = true; return; }
+      const entry = state.maggidVideos[id];
+      if (!entry) {
+        loadMaggidVideos(id).then(() => { if (state.maggidFilter === id) renderOtherShiurim(); });
+        section.hidden = true;
+        return;
+      }
+      const others = entry.videos.filter((video) => !video.daf);
+      section.hidden = !others.length;
+      document.querySelector("#maggidOtherEyebrow").textContent = `${others.length} MORE`;
+      document.querySelector("#maggidOtherTitle").textContent = `More shiurim from ${maggidName(id)}`;
+      document.querySelector("#maggidOtherList").innerHTML = others.map((video) => `
+        <li><a href="https://www.youtube.com/watch?v=${encodeURIComponent(video.videoId)}" target="_blank" rel="noopener">
+          <img src="${thumbUrl(video.videoId)}" alt="" loading="lazy" />
+          <span><strong>${escapeHtml(video.title)}</strong>${video.published ? `<small>${escapeHtml(String(video.published).slice(0, 10))}</small>` : ""}</span>
+        </a></li>`).join("");
+    }
+
     function renderCards() {
       // Maggidei Shiurim swaps in its own dedicated section (a short
       // teacher list, not a video filter) instead of anything below --
@@ -1843,8 +1962,14 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       document.querySelector(".learning-section").hidden = maggidimActive;
       if (maggidimActive) {
         todaySection.hidden = true;
+        document.querySelector("#maggidOther").hidden = true;
+        renderMaggidCards();
         return;
       }
+      // One maggid's own page (opened from their card) shows only their
+      // videos, with a way back; everywhere else everyone's sit side by side.
+      document.querySelector("#maggidBack").hidden = !state.maggidFilter;
+      renderOtherShiurim();
 
       const items = state.catalogLoading ? [] : cardItems();
       todaySection.hidden = Boolean(state.query);
@@ -1879,8 +2004,10 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       } else if (state.filter === "All Shiurim") {
         sectionEyebrow.textContent = state.catalogLoading ? "LOADING"
           : state.catalogFailed ? "COULDN’T LOAD"
-          : `${state.catalog.length} DAPIM AVAILABLE`;
-        sectionTitle.textContent = "Browse shiurim";
+          : `${new Set(state.catalog.concat(state.maggidRows)
+            .filter((row) => !state.maggidFilter || rowMaggid(row) === state.maggidFilter)
+            .map((row) => `${row.tractate} ${row.daf}`)).size} DAPIM AVAILABLE`;
+        sectionTitle.textContent = state.maggidFilter ? maggidName(state.maggidFilter) : "Browse shiurim";
       } else {
         sectionEyebrow.textContent = state.filter.toUpperCase();
         sectionTitle.textContent = state.filter;
@@ -1957,13 +2084,9 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       search.value = "";
       render();
     });
-    document.querySelector("#maggidStefanskyCard").addEventListener("click", () => {
-      // Every shiur in the catalog is currently his, so "all his videos" is
-      // just the ordinary full grid -- same as tapping the Home tab.
-      state.activeNav = "Home";
-      state.filter = "All Shiurim";
-      state.query = "";
-      search.value = "";
+    document.querySelector("#maggidBack").addEventListener("click", () => {
+      state.maggidFilter = null;
+      state.activeNav = "Maggidei Shiurim";
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
@@ -1976,6 +2099,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     });
     document.querySelectorAll(".brand").forEach((brand) => brand.addEventListener("click", (event) => {
       event.preventDefault();
+      state.maggidFilter = null;
       state.activeNav = "Home";
       state.filter = "All Shiurim";
       state.query = "";
@@ -1989,6 +2113,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     (async () => {
       const [catalogResult, today] = await Promise.all([loadVideoCatalog(), loadTodaysDaf()]);
       state.catalog = catalogResult.rows;
+      state.maggidRows = catalogResult.maggidRows || [];
       state.catalogFailed = catalogResult.failed;
       state.catalogLoading = false;
       state.today = today;
@@ -2002,7 +2127,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       // cardItems), so the newest tractate to get synced content is always
       // the last, not somewhere the cycle's alphabet happens to drop it.
       const tractatesWithContent = SITE_TRACTATES.filter(
-        (tractate) => state.catalog.some((row) => row.tractate === tractate)
+        (tractate) => state.catalog.concat(state.maggidRows).some((row) => row.tractate === tractate)
       );
       tractateFilter.innerHTML = `<option value="all">All</option>` + tractatesWithContent
         .map((tractate) => `<option value="${escapeHtml(tractate)}">${escapeHtml(tractate)}</option>`).join("");
