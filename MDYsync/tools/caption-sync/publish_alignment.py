@@ -60,7 +60,14 @@ def ref_key(ref, prefix=''):
     return prefix + re.sub(r'\s+', '-', ref.strip())
 
 
-def key_prefix(variant=None, language=None, voice=False):
+# Another maggid's videos are keyed behind their own prefix, so a daf can have a
+# recording from each. Mirrors MAGGIDIM in shared/maggidim.mjs (the default
+# maggid, Mercaz Daf Yomi, has none); tests/functions/maggidim.test.mjs checks
+# the two agree.
+MAGGID_KEY_PREFIXES = {'bernstein': 'Bernstein-'}
+
+
+def key_prefix(variant=None, language=None, voice=False, maggid=None):
     """A 'Chazarah Daf' (shorter gemara-only review) recording and/or a
     Hebrew-language recording are namespaced under their own prefix(es),
     composed in this order, so none of the four variant/language
@@ -71,9 +78,10 @@ def key_prefix(variant=None, language=None, voice=False):
     on the same daf never race to overwrite each other's result (the player
     fetches both and lets the reader pick). That separation applies to the
     by-video files too, or the two engines' alignments for one recording
-    would collide there instead.
+    would collide there instead. Another maggid's prefix comes right after it.
     """
     return (('Voice-' if voice else '')
+            + MAGGID_KEY_PREFIXES.get(maggid, '')
             + ('Hebrew-' if language == 'he' else '')
             + ('Chazarah-Daf-' if variant == 'chazarah' else ''))
 
@@ -149,9 +157,9 @@ def video_key(video_id=None, video_url=None, job_id=None, prefix=''):
 
 
 def publish(alignment, refs, out_dir, job_id=None, variant=None, language=None,
-            video_id=None, video_url=None, voice=False):
+            video_id=None, video_url=None, voice=False, maggid=None):
     """Writes the by-video file and the primary by-ref files. Returns a report."""
-    prefix = key_prefix(variant, language, voice)
+    prefix = key_prefix(variant, language, voice, maggid)
     own_refs, context_refs = split_refs(refs)
     # A YouTube job passes the watch URL; the id inside it is the stable key
     # (a Drive job has neither, and falls back inside video_key below).
@@ -206,6 +214,7 @@ def main():
     p.add_argument('--language')
     p.add_argument('--video-id')
     p.add_argument('--video-url')
+    p.add_argument('--maggid', help="Another maggid's id (e.g. 'bernstein'): publish under their key prefix.")
     p.add_argument('--voice', action='store_true',
                    help="Publish under the voice engine's own 'Voice-' key namespace.")
     args = p.parse_args()
@@ -215,7 +224,7 @@ def main():
     report = publish(
         alignment, json.loads(args.refs_json), args.out_dir,
         job_id=args.job_id, variant=args.variant, language=args.language,
-        video_id=args.video_id, video_url=args.video_url, voice=args.voice,
+        video_id=args.video_id, video_url=args.video_url, voice=args.voice, maggid=args.maggid,
     )
     for path in report['written']:
         print(f'Published {path}')

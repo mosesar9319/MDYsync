@@ -1,0 +1,139 @@
+name: Test shiur run (both voice engines)
+
+# Runs the regular and/or the live voice engine on a TEST SHIUR -- the video the
+# voice models are tuned on (currently R' Sruly Bernstein's "Bechoros 2",
+# Zsy7oDUP6Pw) -- and saves each result as the next numbered run under
+# test-runs/<videoId>/ on the results branch. The player offers every run in two
+# dropdowns (one per engine) to every reader, so a change to an engine can be
+# judged by playing the same stretch of the same shiur under the old and new runs.
+#
+#   Regular engine: dispatches the ordinary run-voice-job (voice-job.yml) with
+#     testRun: true, which also publishes the alignment as "Regular #N". That job
+#     runs on main with its own secrets (YouTube cookies, ElevenLabs, Claude).
+#   Live engine: runs here -- transcribes the video with ElevenLabs, then plays
+#     the transcript through live-matcher.js exactly as Live Follow's video
+#     mode does (tools/test-shiur/live-engine.mjs) and publishes "Live #N".
+#
+# Run it from main after merging a change to either engine: the number and the
+# note ("what changed") are what tell the runs apart afterwards.
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_id:
+        description: 'YouTube video id of the test shiur'
+        required: true
+        default: 'Zsy7oDUP6Pw'
+      refs:
+        description: 'The dapim the shiur covers, comma separated'
+        required: true
+        default: 'Bekhorot 2a,Bekhorot 2b'
+      maggid:
+        description: "The maggid's id (bernstein), or empty for Mercaz Daf Yomi"
+        required: false
+        default: 'bernstein'
+      engines:
+        description: 'Which engine(s) to run'
+        type: choice
+        options: [both, regular, live]
+        default: both
+      notes:
+        description: 'What changed since the last run (shown in the dropdown)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  regular:
+    if: inputs.engines == 'both' || inputs.engines == 'regular'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Start the regular engine's job
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VIDEO_ID: ${{ inputs.video_id }}
+          REFS: ${{ inputs.refs }}
+          MAGGID: ${{ inputs.maggid }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          set -e
+          python3 - <<'PY' > payload.json
+          import json, os, uuid
+          refs = [r.strip() for r in os.environ['REFS'].split(',') if r.strip()]
+          payload = {
+              'youtubeUrl': 'https://www.youtube.com/watch?v=' + os.environ['VIDEO_ID'],
+              'refs': refs,
+              'jobId': uuid.uuid4().hex,
+              'variant': 'regular',
+              'language': 'en',
+              'testRun': 'true',
+              'testNotes': os.environ.get('NOTES', ''),
+          }
+          if os.environ.get('MAGGID'):
+              payload['maggid'] = os.environ['MAGGID']
+          print(json.dumps({'event_type': 'run-voice-job', 'client_payload': payload}))
+          PY
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/dispatches" -d @payload.json
+          echo "Dispatched the regular engine's job; it publishes 'Regular #N' when it finishes."
+
+  live:
+    if: inputs.engines == 'both' || inputs.engines == 'live'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run the live engine over the shiur
+        working-directory: MDYsync
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          VIDEO_ID: ${{ inputs.video_id }}
+          REFS: ${{ inputs.refs }}
+        run: |
+          set -e
+          if [ -z "$ELEVENLABS_API_KEY" ]; then
+            echo "The ELEVENLABS_API_KEY repo secret is not set."
+            exit 1
+          fi
+          node tools/test-shiur/live-engine.mjs --video-id "$VIDEO_ID" --elevenlabs --fetch-transcript \
+            --out-words /tmp/words.json --refs "$REFS" --out /tmp/alignment.json
+
+      - name: Publish it as the next numbered "Live #N" run
+        env:
+          VIDEO_ID: ${{ inputs.video_id }}
+          REFS: ${{ inputs.refs }}
+          NOTES: ${{ inputs.notes }}
+          ENGINE_VERSION: ${{ github.sha }}
+        run: |
+          set -e
+          git config user.name "dafsync-bot"
+          git config user.email "dafsync-bot@users.noreply.github.com"
+          git fetch origin results
+          git worktree add /tmp/results-checkout origin/results
+          python3 MDYsync/tools/caption-sync/test_runs.py publish \
+            --alignment /tmp/alignment.json \
+            --out-dir /tmp/results-checkout \
+            --video-id "$VIDEO_ID" \
+            --engine live \
+            --notes "$NOTES" \
+            --engine-version "${ENGINE_VERSION:0:7}"
+          cd /tmp/results-checkout
+          git add test-runs
+          git commit -m "Add a live-engine test run for ${VIDEO_ID}"
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:results; then
+              break
+            fi
+            git fetch origin results
+            git rebase origin/results
+            sleep 2
+          done

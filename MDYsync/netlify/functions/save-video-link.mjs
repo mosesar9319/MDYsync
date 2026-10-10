@@ -6,6 +6,8 @@
 // videoSource is just the generic local filename the OCR job used
 // internally, never a real link worth sharing across devices.
 
+import { MAGGIDIM } from '../../shared/maggidim.mjs';
+
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
 const ALLOWED_ORIGINS = new Set([
@@ -58,12 +60,23 @@ export default async (request) => {
   let working = ref.trim();
   let chazarah = false;
   let hebrew = false;
-  for (let pass = 0; pass < 2; pass++) {
+  // Another maggid's reading ends in their marker too ("Bekhorot 2a (Bernstein)")
+  // and is keyed behind their prefix -- see shared/maggidim.mjs.
+  let maggidPrefix = '';
+  const markers = MAGGIDIM.filter((m) => m.marker).map((m) => m.marker);
+  for (let pass = 0; pass < 3; pass++) {
     if (/\(Chazarah Daf\)\s*$/i.test(working)) { chazarah = true; working = working.replace(/\s*\(Chazarah Daf\)\s*$/i, ''); }
     if (/\(Hebrew\)\s*$/i.test(working)) { hebrew = true; working = working.replace(/\s*\(Hebrew\)\s*$/i, ''); }
+    for (const marker of markers) {
+      const pattern = new RegExp(`\\(${marker}\\)\\s*$`, 'i');
+      if (pattern.test(working)) {
+        maggidPrefix = MAGGIDIM.find((m) => m.marker === marker).keyPrefix;
+        working = working.replace(new RegExp(`\\s*\\(${marker}\\)\\s*$`, 'i'), '');
+      }
+    }
   }
   const match = /^(.+?)\s+(\d+)\s*([abAB])(?:[:.]\d+)?$/i.exec(working.trim());
-  const keyPrefix = (hebrew ? 'Hebrew-' : '') + (chazarah ? 'Chazarah-Daf-' : '');
+  const keyPrefix = maggidPrefix + (hebrew ? 'Hebrew-' : '') + (chazarah ? 'Chazarah-Daf-' : '');
   const refKey = match
     ? `${keyPrefix}${match[1].trim().replace(/\s+/g, '-')}-${match[2]}${match[3].toLowerCase()}`
     : ref.trim().replace(/\s+/g, '-');

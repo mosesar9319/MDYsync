@@ -5,6 +5,8 @@
 // only for now, matching the sync dialog tab it serves -- no Google Drive
 // path yet, since this is a beta feature, not the default sync method.
 
+import { MAGGIDIM, maggidById } from '../../shared/maggidim.mjs';
+
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
 const ALLOWED_ORIGINS = new Set([
@@ -19,7 +21,8 @@ const ALLOWED_ORIGINS = new Set([
 // carve-out) -- grabbing an arbitrary public YouTube URL server-side to
 // download carries no rights signal the way a Drive link shared with this
 // account does.
-const YOUTUBE_CHANNEL_ID = 'UCKwQa5DB_VR98ac_r-Wyl-g'; // @MercazDafYomi
+// The channels it applies to are the maggidei shiur this site follows
+// (shared/maggidim.mjs): Mercaz Daf Yomi, and Lakewood Daf Yomi.
 
 function extractYoutubeVideoId(url) {
   const match = /^https:\/\/(?:www\.)?(?:youtube\.com\/watch\?(?:.*&)?v=|youtu\.be\/)([\w-]{11})/.exec(url);
@@ -37,8 +40,8 @@ function sleep(ms) {
 // flakiness took down the whole sync request on a plain coin-flip -- reported
 // directly against this exact video/channel. Three tries with a short
 // backoff is cheap insurance against exactly that.
-async function isRecentUploadOfChannel(videoId) {
-  const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${YOUTUBE_CHANNEL_ID}`;
+async function isRecentUploadOfChannel(videoId, channelId) {
+  const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
   let lastStatus;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     if (attempt > 0) await sleep(500 * attempt);
@@ -58,6 +61,21 @@ async function isRecentUploadOfChannel(videoId) {
 // upload of the authorized channel" signal the feed does, just durably, so a
 // flaky/unreachable feed doesn't have to fail the whole request when this
 // independent signal is available instead.
+// Which followed maggid's recent uploads include this video, or null. A feed
+// that cannot be read throws only if no other feed answered yes.
+async function maggidOfRecentUpload(videoId) {
+  let failure = null;
+  for (const maggid of MAGGIDIM) {
+    try {
+      if (await isRecentUploadOfChannel(videoId, maggid.channelId)) return maggid;
+    } catch (error) {
+      failure = error;
+    }
+  }
+  if (failure) throw failure;
+  return null;
+}
+
 async function isLinkedVideoForAnyRef(videoId, refs, prefix) {
   for (const ref of refs.slice(0, 8)) {
     const key = prefix + String(ref).trim().replace(/\s+/g, '-');
@@ -100,8 +118,12 @@ export default async (request) => {
   }
   let isChannelUpload;
   let feedError = null;
+  // Which maggid the video belongs to is worked out from the feeds (never taken
+  // on the client's word): it decides the key the result is published under.
+  let maggid = null;
   try {
-    isChannelUpload = await isRecentUploadOfChannel(youtubeVideoId);
+    maggid = await maggidOfRecentUpload(youtubeVideoId);
+    isChannelUpload = Boolean(maggid);
   } catch (error) {
     // Don't fail outright yet -- the catalog check below is an independent
     // signal that doesn't depend on the feed being reachable at all.
@@ -109,15 +131,19 @@ export default async (request) => {
     isChannelUpload = false;
   }
   if (!isChannelUpload && Array.isArray(refs) && refs.length) {
-    const linkPrefix = (language === 'he' ? 'Hebrew-' : '') + (variant === 'chazarah' ? 'Chazarah-Daf-' : '');
+    // The client names the maggid only to say which video-links/ prefix to look
+    // in; a link recorded there is what vouches for the video, not the name.
+    const claimed = maggidById(body?.maggid) || MAGGIDIM[0];
+    const linkPrefix = claimed.keyPrefix + (language === 'he' ? 'Hebrew-' : '') + (variant === 'chazarah' ? 'Chazarah-Daf-' : '');
     isChannelUpload = await isLinkedVideoForAnyRef(youtubeVideoId, refs, linkPrefix);
+    if (isChannelUpload) maggid = claimed;
   }
   if (!isChannelUpload) {
     if (feedError) {
       return Response.json({ error: `Could not verify the video's channel: ${feedError.message}` }, { status: 502 });
     }
     return Response.json({
-      error: 'Voice recognition sync only works for recent Mercaz Daf Yomi uploads.'
+      error: 'Voice recognition sync only works for recent uploads of the channels this site follows (Mercaz Daf Yomi, Lakewood Daf Yomi).'
     }, { status: 403 });
   }
   if (!Array.isArray(refs) || !refs.length || refs.length > 40
@@ -149,7 +175,10 @@ export default async (request) => {
       },
       body: JSON.stringify({
         event_type: 'run-voice-job',
-        client_payload: { youtubeUrl, refs, jobId, variant: variant || 'regular', language: language || 'en' },
+        client_payload: {
+          youtubeUrl, refs, jobId, variant: variant || 'regular', language: language || 'en',
+          ...(maggid?.keyPrefix ? { maggid: maggid.id } : {}),
+        },
       }),
     }
   );
@@ -168,7 +197,7 @@ export default async (request) => {
   // on the same daf race to silently overwrite each other's result (see
   // voice-job.yml's publish step, which writes under this same prefix).
   // The player fetches both keys and lets the reader choose between them.
-  const keyPrefix = 'Voice-' + (language === 'he' ? 'Hebrew-' : '') + (variant === 'chazarah' ? 'Chazarah-Daf-' : '');
+  const keyPrefix = 'Voice-' + (maggid?.keyPrefix || '') + (language === 'he' ? 'Hebrew-' : '') + (variant === 'chazarah' ? 'Chazarah-Daf-' : '');
   const refKey = keyPrefix + refs[0].trim().replace(/\s+/g, '-');
 
   return Response.json({

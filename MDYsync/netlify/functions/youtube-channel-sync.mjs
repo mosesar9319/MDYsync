@@ -53,14 +53,21 @@ import {
   buildTalmudLookup,
   parseChannelTitle,
   readingsForVideo,
+  amudimForDaf,
   refKeyFor,
   refDisplay,
   plainRef,
 } from '../../shared/mdy-channel.mjs';
+import { MAGGIDIM, parseBernsteinTitle } from '../../shared/maggidim.mjs';
 
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
-const CHANNEL_ID = 'UCKwQa5DB_VR98ac_r-Wyl-g'; // @MercazDafYomi
+// Each maggid's channel (shared/maggidim.mjs) is polled the same way; the
+// default one (Mercaz Daf Yomi) keeps its original behaviour exactly, the
+// others publish under their own refKey prefix, read their titles with their
+// own parser, and never trigger the caption-OCR auto-sync (their videos have
+// no burned-in captions to read).
+const TITLE_PARSERS = { stefansky: parseChannelTitle, bernstein: parseBernsteinTitle };
 const TALMUD_INDEX_URL = `https://raw.githubusercontent.com/${OWNER}/${REPO}/main/MDYsync/talmud_index.json`;
 const SETTINGS_URL = `https://raw.githubusercontent.com/${OWNER}/${REPO}/results/settings.json`;
 
@@ -115,13 +122,22 @@ export default async (request) => {
     // Leave it off.
   }
 
-  let entries;
-  try {
-    const response = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${CHANNEL_ID}`);
-    if (!response.ok) throw new Error(`YouTube feed returned ${response.status}`);
-    entries = parseFeedEntries(await response.text());
-  } catch (error) {
-    return Response.json({ error: `Could not read the channel feed: ${error.message}` }, { status: 502 });
+  // Every followed channel's recent uploads, tagged with the maggid they
+  // belong to. The default channel failing is fatal (as it always was); another
+  // maggid's feed being down only skips that maggid this hour.
+  const entries = [];
+  const feedProblems = [];
+  for (const maggid of MAGGIDIM) {
+    try {
+      const response = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${maggid.channelId}`);
+      if (!response.ok) throw new Error(`YouTube feed returned ${response.status}`);
+      for (const entry of parseFeedEntries(await response.text())) entries.push({ ...entry, maggid });
+    } catch (error) {
+      if (!maggid.keyPrefix) {
+        return Response.json({ error: `Could not read the channel feed: ${error.message}` }, { status: 502 });
+      }
+      feedProblems.push({ maggid: maggid.id, reason: error.message });
+    }
   }
 
   // One tree listing up front tells us every video-links ref that already
@@ -142,16 +158,23 @@ export default async (request) => {
   }
 
   const published = [];
-  const skipped = [];
+  const skipped = [...feedProblems];
   const catalogUpdates = []; // { tractate, daf, amud, comboKey, videoId, label }
 
   for (const entry of entries) {
-    const parsed = parseChannelTitle(entry.title, lookup);
+    const maggid = entry.maggid;
+    const parsed = TITLE_PARSERS[maggid.id](entry.title, lookup);
     if (!parsed) {
       skipped.push({ videoId: entry.videoId, title: entry.title, reason: 'title did not match a known pattern' });
       continue;
     }
-    const readings = readingsForVideo(parsed, lookup);
+    // Another maggid's video is published under just the amud(s) of its own
+    // daf: the "opens on the tail of the previous daf" reading is something
+    // Mercaz Daf Yomi's shiurim do, not something known about the others.
+    const readings = maggid.keyPrefix
+      ? amudimForDaf(lookup.byName.get(parsed.tractate.toLowerCase()), parsed.daf)
+        .map((amud) => ({ tractate: parsed.tractate, daf: parsed.daf, amud, variant: parsed.variant, language: parsed.language, maggid: maggid.id }))
+      : readingsForVideo(parsed, lookup);
     const videoSource = {
       type: 'youtube',
       url: `https://www.youtube.com/watch?v=${entry.videoId}`,
@@ -169,6 +192,7 @@ export default async (request) => {
       // See the file-level comment: only a link carrying this marker is
       // ever eligible to be silently replaced by a later upload.
       source: 'channel-auto',
+      ...(maggid.keyPrefix ? { maggid: maggid.id } : {}),
     };
     const body = JSON.stringify(videoSource);
     let entryPublishedCount = 0;
@@ -233,6 +257,7 @@ export default async (request) => {
             daf: reading.daf,
             amud: reading.amud,
             comboKey: comboKeyFor(reading.variant, reading.language),
+            maggid: reading.maggid,
             videoId: entry.videoId,
             label: decodeHtmlEntities(entry.title).slice(0, 100),
           });
@@ -247,7 +272,7 @@ export default async (request) => {
     // One job per video, covering every ref it actually got linked to this
     // run -- not one per reading, and not for a video that turned out to be
     // already up to date (entryPublishedCount stays 0 for those).
-    if (autoSyncEnabled && entryPublishedCount) {
+    if (autoSyncEnabled && entryPublishedCount && !maggid.keyPrefix) {
       try {
         const dispatchResponse = await fetch(
           `https://api.github.com/repos/${OWNER}/${REPO}/dispatches`,
@@ -307,7 +332,15 @@ export default async (request) => {
         // collapse into a single row, preferring whichever combo entry
         // anchors on amud 'a' (the natural start of the daf) when both
         // amudim get linked.
-        const rows = catalog.tractates[update.tractate] || (catalog.tractates[update.tractate] = []);
+        // Another maggid's rows live beside the default maggid's, under
+        // catalog.maggidim[<id>].tractates (see tools/build-video-catalog.mjs).
+        let tractatesOf = catalog.tractates;
+        if (update.maggid) {
+          if (!catalog.maggidim) catalog.maggidim = {};
+          if (!catalog.maggidim[update.maggid]) catalog.maggidim[update.maggid] = { tractates: {} };
+          tractatesOf = catalog.maggidim[update.maggid].tractates;
+        }
+        const rows = tractatesOf[update.tractate] || (tractatesOf[update.tractate] = []);
         let row = rows.find((r) => r.daf === update.daf);
         if (!row) {
           row = { daf: update.daf };
@@ -335,6 +368,57 @@ export default async (request) => {
       // stop the individually-published video-links files above from
       // counting as published.
       console.error('Could not update catalog.json', error);
+    }
+  }
+
+  // Each non-default maggid also gets a plain list of everything its channel
+  // posts (maggidim/<id>.json), because most of what a maggid uploads is not a
+  // daf video -- derashos, topical shiurim -- and so has no catalog row, yet is
+  // still "his shiurim" on his page. The feed only carries the newest 15, so
+  // the list accumulates: new entries are merged into what is already there.
+  for (const maggid of MAGGIDIM.filter((m) => m.keyPrefix)) {
+    const fresh = entries.filter((e) => e.maggid === maggid);
+    if (!fresh.length) continue;
+    try {
+      const path = `maggidim/${maggid.id}.json`;
+      const getResponse = await fetch(
+        `https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}?ref=results`,
+        { headers }
+      );
+      let list = { maggid: maggid.id, channelId: maggid.channelId, videos: [] };
+      let sha;
+      if (getResponse.ok) {
+        const file = await getResponse.json();
+        sha = file.sha;
+        list = JSON.parse(Buffer.from(file.content, 'base64').toString('utf8'));
+        if (!Array.isArray(list.videos)) list.videos = [];
+      }
+      const known = new Set(list.videos.map((v) => v.videoId));
+      const added = fresh.filter((e) => !known.has(e.videoId));
+      if (!added.length) continue;
+      for (const e of added) {
+        const parsed = TITLE_PARSERS[maggid.id](e.title, lookup);
+        list.videos.push({
+          videoId: e.videoId,
+          title: decodeHtmlEntities(e.title).slice(0, 120),
+          published: e.published || null,
+          ...(parsed ? { tractate: parsed.tractate, daf: parsed.daf } : {}),
+        });
+      }
+      list.videos.sort((a, b) => String(b.published || '').localeCompare(String(a.published || '')));
+      list.generatedAt = new Date().toISOString();
+      await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          message: `Update ${maggid.name}'s video list (${added.length} new)`,
+          content: Buffer.from(JSON.stringify(list, null, 2) + '\n', 'utf8').toString('base64'),
+          branch: 'results',
+          ...(sha ? { sha } : {}),
+        }),
+      });
+    } catch (error) {
+      console.error(`Could not update ${maggid.id}'s video list`, error);
     }
   }
 
