@@ -75,6 +75,23 @@ const PAGE_OPTIONS = {
 // is capped to its last stretch (the API and function limits are far higher).
 const BATCH_MIN_SECONDS = 1;
 const BATCH_MAX_SECONDS = 40;
+// ...and is sent in consecutive parts no longer than this: a 20-35 second chunk
+// of mixed English and Hebrew came back empty or invented (the batch model
+// loses the Hebrew inside long stretches of English, and takes 10-30s a call).
+const BATCH_PART_SECONDS = 12;
+// Audio quieter than this (RMS, 0..1) is the room or a side conversation, not
+// the shiur; the batch model hallucinates fluent Hebrew out of it.
+const BATCH_MIN_RMS = LM.QUIET_RMS;
+// A segment the live model heard as a plain English sentence this long has no
+// Hebrew to rescue. (Shorter ones are the live model mishearing Hebrew as
+// English -- "And it's time, mate." was "אדרבה. תא שמע" -- so they still go.)
+const BATCH_ENGLISH_SKIP_WORDS = 5;
+// When all the slots are busy, Hebrew-bearing segments wait (a few of them, and
+// not for long: a stale rescue is refused anyway) instead of being dropped.
+const BATCH_QUEUE_MAX = 3;
+const BATCH_QUEUE_MAX_AGE_MS = 20000;
+// Searching this long with no position suggests tapping the word being read.
+const SEARCH_TAP_HINT_SECONDS = 60;
 // The batch audio starts a little before the previous commit: a commit arrives
 // about a second after the speech it covers ends (silence threshold plus
 // service latency), so the next utterance's first words may already be in the
@@ -209,6 +226,9 @@ const live = {
   placementSeq: 0, // bumped whenever the highlight is placed or the reader taps
   commitSeq: 0,
   batchInFlight: 0,
+  batchQueue: [], // segments waiting for a free batch slot
+  searchingSince: null, // performance.now() when "Searching…" began, until a place is found
+  followOptions: null, // what setFollowState was last given
   levelStats: null,
   levelTimer: null,
   followState: null, // what setFollowState last showed
@@ -564,8 +584,19 @@ function updateSearchWindowDebug() {
 //   searching -- no position yet; nothing locked, nothing pointed at.
 function setFollowState(followState, options = {}) {
   live.followState = followState;
+  live.followOptions = options;
   document.body.classList.toggle('lf-quiet', followState === 'explaining' || followState === 'searching');
-  const tapHint = live.unplacedHebrew >= 3 ? ' Not finding your place — tap the word being read to set it.' : '';
+  if (followState !== 'searching') live.searchingSince = null;
+  else if (live.searchingSince === null) live.searchingSince = performance.now();
+  const searchingFor = live.searchingSince === null ? 0 : (performance.now() - live.searchingSince) / 1000;
+  // Nothing placed for a while is something the reader can fix: they can see
+  // the page and hear the room. Said after a few Hebrew commits that placed
+  // nothing, or after a minute without a position however much English there was.
+  const tapHint = live.unplacedHebrew >= 3
+    ? ' Not finding your place — tap the word being read to set it.'
+    : searchingFor >= SEARCH_TAP_HINT_SECONDS
+      ? ' No position yet — if you can see where the reading is, tap that word to set it.'
+      : '';
   if (followState === 'reading') {
     setStatus('reading', 'Following', options.detail || `Following ${live.daf.label}`);
   } else if (followState === 'explaining') {
@@ -577,7 +608,9 @@ function setFollowState(followState, options = {}) {
   } else {
     setStatus('searching', 'Searching…', (options.pending
       ? 'Found a possible spot — waiting for the next phrase to confirm it.'
-      : `Listening for a phrase from ${live.daf.label}.`) + tapHint);
+      : options.english
+        ? `Hearing explanation in English — waiting for the Hebrew reading from ${live.daf.label}.`
+        : `Listening for a phrase from ${live.daf.label}.`) + tapHint);
   }
 }
 
@@ -608,14 +641,27 @@ function scoreText(text, cursor, locked, listTokens, leakMinRun) {
     });
 }
 
-async function fetchBatchTranscript(audio) {
+// The terms the batch model is told to expect. Once there is a position (or a
+// last known one), the words just before and well ahead of it come first, then
+// the whole-daf list; before that, the whole-daf list alone.
+function batchKeytermsAt(cursor, positioned) {
+  if (!PAGE_OPTIONS.keyterms) return [];
+  return positioned
+    ? LM.buildLocalKeyterms(live.daf.canon, cursor, live.daf.batchKeyterms)
+    : live.daf.batchKeyterms;
+}
+
+async function fetchBatchTranscript(audio, { keyterms, hebrew }) {
   const response = await fetch('/api/live-batch', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       audioBase64: arrayBufferToBase64(audio.buffer),
-      keyterms: PAGE_OPTIONS.keyterms ? live.daf.batchKeyterms : [],
-      language: PAGE_OPTIONS.lang === 'he' ? 'he' : undefined,
+      keyterms,
+      // Told it is Hebrew only when the live model heard mostly Hebrew: left to
+      // itself it called stretches Dutch and Yiddish, and told so about English
+      // it writes the English out in Hebrew letters, which then match the daf.
+      language: hebrew || PAGE_OPTIONS.lang === 'he' ? 'he' : undefined,
     }),
   });
   const body = await response.json().catch(() => ({}));
@@ -629,21 +675,21 @@ async function fetchBatchTranscript(audio) {
 // highlight since, so this can't drag it backwards over newer progress -- the
 // batch placement is applied: a rescue a second or two late rather than a
 // freeze.
-async function runBatchSegment({ seq, audio, rtText, cursorBefore, lockedBefore, rtPlaced, placementSeq }) {
-  if (live.batchInFlight >= BATCH_MAX_IN_FLIGHT) {
-    logEvent('batch', { seq, skipped: 'busy' });
-    return;
-  }
+//
+// Which segments go at all, and when there is no free slot: see submitBatch.
+async function runBatchSegment({ seq, part, parts, audio, rtText, cursorBefore, lockedBefore, rtPlaced, placementSeq, hebrew }) {
   live.batchInFlight += 1;
   const started = performance.now();
+  const keyterms = batchKeytermsAt(cursorBefore, lockedBefore || cursorBefore > 0);
   let result = null;
   let error = null;
   try {
-    result = await fetchBatchTranscript(audio);
+    result = await fetchBatchTranscript(audio, { keyterms, hebrew });
   } catch (e) {
     error = e.message;
   } finally {
     live.batchInFlight -= 1;
+    drainBatchQueue();
   }
   const ms = Math.round(performance.now() - started);
   if (error) {
@@ -651,9 +697,10 @@ async function runBatchSegment({ seq, audio, rtText, cursorBefore, lockedBefore,
     setDebug('Batch', `error: ${error}`);
     return;
   }
-  const batchTokens = PAGE_OPTIONS.keyterms ? live.daf.batchKeytermTokens : [];
+  // What was actually sent is what a recitation of the list would repeat.
+  const batchTokens = PAGE_OPTIONS.keyterms ? LM.keytermTokens(keyterms) : [];
   const entry = {
-    seq, ms, seconds: +(audio.length / TARGET_SAMPLE_RATE).toFixed(1), text: result.text, lang: result.languageCode,
+    seq, ...(parts > 1 ? { part, parts } : {}), ...(hebrew ? { hint: 'he' } : {}), ms, seconds: +(audio.length / TARGET_SAMPLE_RATE).toFixed(1), text: result.text, lang: result.languageCode,
     realtime: scoreText(rtText, cursorBefore, lockedBefore, activeKeytermTokens()),
     batch: scoreText(result.text, cursorBefore, lockedBefore, batchTokens, LM.LEAK_MIN_RUN_BATCH),
   };
@@ -662,7 +709,9 @@ async function runBatchSegment({ seq, audio, rtText, cursorBefore, lockedBefore,
     const { runs } = LM.placeableRuns(LM.cleanTranscript(result.text, batchTokens, LM.LEAK_MIN_RUN_BATCH));
     let placed = null;
     for (const run of runs) {
-      const step = live.tracker.step(run, live.runCounter);
+      // The realtime commit of this same speech already counted its miss toward
+      // losing the lock; the batch re-reading of it must not count it again.
+      const step = live.tracker.step(run, live.runCounter, { missWeight: 0 });
       live.runCounter += 1;
       if (step.kind === 'local' || step.kind === 'confirmed' || step.kind === 'jump') placed = step.match;
     }
@@ -677,6 +726,69 @@ async function runBatchSegment({ seq, audio, rtText, cursorBefore, lockedBefore,
   entry.rescued = rescued;
   logEvent('batch', entry);
   setDebug('Batch', `${result.text || '—'}${rescued ? '   ✓ placed it when the live model could not' : ''}`);
+}
+
+// RMS (0..1) of 16-bit audio.
+function audioRms(samples) {
+  if (!samples.length) return 0;
+  let sum = 0;
+  for (let i = 0; i < samples.length; i += 1) sum += samples[i] * samples[i];
+  return Math.sqrt(sum / samples.length) / 32768;
+}
+
+// Why a segment is not worth a batch call, or null. The slots are few and each
+// call takes seconds, so they go to segments that could still place something.
+function batchSkipReason(text, rms) {
+  if (typeof rms === 'number' && rms < BATCH_MIN_RMS) return 'quiet';
+  const hasHebrew = /[א-ת]/.test(text);
+  const words = text.split(/\s+/).filter(Boolean).length;
+  if (!hasHebrew && words >= BATCH_ENGLISH_SKIP_WORDS) return 'english';
+  return null;
+}
+
+// A segment, cut into consecutive parts of at most BATCH_PART_SECONDS, goes to
+// the batch model (or waits for a slot). Only the first part carries the live
+// transcript for the side-by-side log.
+function submitBatchSegment(job) {
+  const perPart = BATCH_PART_SECONDS * TARGET_SAMPLE_RATE;
+  const parts = Math.max(1, Math.ceil(job.audio.length / perPart));
+  const size = Math.ceil(job.audio.length / parts);
+  for (let part = 0; part < parts; part += 1) {
+    submitBatchPart({
+      ...job,
+      part: part + 1,
+      parts,
+      audio: parts === 1 ? job.audio : job.audio.slice(part * size, (part + 1) * size),
+      rtText: part === 0 ? job.rtText : '',
+    });
+  }
+}
+
+function submitBatchPart(job) {
+  if (live.batchInFlight < BATCH_MAX_IN_FLIGHT) {
+    runBatchSegment(job);
+    return;
+  }
+  // Busy: wait for a slot if there is Hebrew in it, else it is not worth waiting for.
+  if (!/[א-ת]/.test(job.rtText) && job.parts === 1) {
+    logEvent('batch', { seq: job.seq, skipped: 'busy' });
+    return;
+  }
+  live.batchQueue.push({ ...job, queuedAt: performance.now() });
+  while (live.batchQueue.length > BATCH_QUEUE_MAX) {
+    logEvent('batch', { seq: live.batchQueue.shift().seq, skipped: 'busy' });
+  }
+}
+
+function drainBatchQueue() {
+  while (live.batchQueue.length && live.batchInFlight < BATCH_MAX_IN_FLIGHT && !live.manualStop) {
+    const job = live.batchQueue.shift();
+    if (performance.now() - job.queuedAt > BATCH_QUEUE_MAX_AGE_MS) {
+      logEvent('batch', { seq: job.seq, skipped: 'stale' });
+      continue;
+    }
+    runBatchSegment(job);
+  }
 }
 
 function handleCommitted(text) {
@@ -701,6 +813,13 @@ function handleCommitted(text) {
   const heard = LM.cleanTranscript(text, activeKeytermTokens());
   const cursorBefore = live.tracker.cursor;
   const lockedBefore = live.tracker.locked;
+  // The audio this commit covers (a little of the one before it too, see
+  // BATCH_OVERLAP_SECONDS): how loud it was says whether it was the shiur.
+  const end = live.sentSamples;
+  const start = Math.max(live.lastCommitSample - Math.round(BATCH_OVERLAP_SECONDS * TARGET_SAMPLE_RATE), end - BATCH_MAX_SECONDS * TARGET_SAMPLE_RATE, 0);
+  live.lastCommitSample = end;
+  const audio = segmentAudio(start, end);
+  const rms = audio.length ? audioRms(audio) : undefined; // no audio recorded: level unknown
   const { allRuns, runs } = LM.placeableRuns(heard);
   // A lone Hebrew word with nothing else around it is a fragment of the
   // reading the voice detector split off, or one term inside English: not
@@ -712,10 +831,13 @@ function handleCommitted(text) {
   let pending = null;
   const outcomes = [];
   for (const run of runs) {
-    const result = live.tracker.step(run, live.runCounter);
+    // A failed match counts less toward losing the lock when the audio is quiet
+    // or the words have little to do with the daf (a side conversation).
+    const missWeight = LM.missWeightFor(live.daf.canon, run, rms);
+    const result = live.tracker.step(run, live.runCounter, { missWeight });
     live.runCounter += 1;
     const m = result.match;
-    outcomes.push({ words: run.length, kind: result.kind, ...(m ? { s: m.s, e: m.e, phon: +m.phonScore.toFixed(1), char: +m.charScore.toFixed(1), margin: m.margin === undefined ? undefined : +m.margin.toFixed(1) } : {}) });
+    outcomes.push({ words: run.length, kind: result.kind, ...(missWeight < 1 ? { missWeight } : {}), ...(m ? { s: m.s, e: m.e, phon: +m.phonScore.toFixed(1), char: +m.charScore.toFixed(1), margin: m.margin === undefined ? undefined : +m.margin.toFixed(1) } : {}) });
     if (result.kind === 'local' || result.kind === 'confirmed' || result.kind === 'jump') { placed = result.match; pending = null; }
     else if (result.kind === 'pending') pending = result.match;
   }
@@ -728,20 +850,20 @@ function handleCommitted(text) {
   } else if (bareFragment) {
     // leave the status and the highlight exactly as they were
   } else if (!runs.length) {
-    setFollowState(live.tracker.locked ? 'explaining' : 'searching');
+    setFollowState(live.tracker.locked ? 'explaining' : 'searching', { english: latinWords >= 2 });
   } else {
     live.unplacedHebrew += 1;
     setFollowState(live.tracker.locked ? 'listening' : 'searching', { pending: Boolean(pending) });
   }
   live.commitSeq += 1;
   const seq = live.commitSeq;
-  if (PAGE_OPTIONS.batch) {
-    const end = live.sentSamples;
-    const start = Math.max(live.lastCommitSample - Math.round(BATCH_OVERLAP_SECONDS * TARGET_SAMPLE_RATE), end - BATCH_MAX_SECONDS * TARGET_SAMPLE_RATE, 0);
-    live.lastCommitSample = end;
-    const audio = segmentAudio(start, end);
-    if (audio.length >= BATCH_MIN_SECONDS * TARGET_SAMPLE_RATE) {
-      runBatchSegment({ seq, audio, rtText: text, cursorBefore, lockedBefore, rtPlaced: Boolean(placed), placementSeq: live.placementSeq });
+  if (PAGE_OPTIONS.batch && audio.length >= BATCH_MIN_SECONDS * TARGET_SAMPLE_RATE) {
+    const skip = batchSkipReason(text, rms);
+    if (skip) {
+      logEvent('batch', { seq, skipped: skip });
+    } else {
+      const hebrew = /[א-ת]/.test(text) && !LM.englishDominant(text);
+      submitBatchSegment({ seq, audio, rtText: text, cursorBefore, lockedBefore, rtPlaced: Boolean(placed), placementSeq: live.placementSeq, hebrew });
     }
   }
   logEvent('commit', { seq, text, ...(heard !== text ? { cleaned: heard } : {}), outcomes, state: statusText(), locked: live.tracker.locked, cursor: live.tracker.cursor });
@@ -1063,6 +1185,8 @@ async function startMic(inputKind = 'microphone') {
   });
   live.levelStats = { n: 0, sumSq: 0, peak: 0, clipped: 0 };
   live.levelTimer = setInterval(() => {
+    // The minute-without-a-position hint appears on its own, not on the next commit.
+    if (live.followState === 'searching' && live.followOptions && !live.manualStop) setFollowState('searching', live.followOptions);
     const stats = live.levelStats;
     if (!stats || !stats.n) return;
     logEvent('level', {
@@ -1505,9 +1629,11 @@ async function startLiveFollow() {
   live.manualStop = false;
   live.reconnectAttempt = 0;
   live.previousText = '';
-  live.tracker = LM.createTracker(live.daf.canon, { eagerRelocalize: true });
+  live.tracker = LM.createTracker(live.daf.canon, { eagerRelocalize: true, now: () => performance.now() / 1000 });
   live.preview = LM.createPreview(live.daf.canon, live.tracker);
   live.runCounter = 0;
+  live.searchingSince = null;
+  live.batchQueue = [];
   live.unplacedHebrew = 0;
   live.lastPreview = null;
   live.audioChunks = [];
@@ -1515,6 +1641,7 @@ async function startLiveFollow() {
   live.lastCommitSample = 0;
   live.commitSeq = 0;
   live.batchInFlight = 0;
+  live.batchQueue = [];
   live.log = [];
   live.logStart = performance.now();
   setProvisional(null);
@@ -1820,7 +1947,7 @@ window.dafLiveFollow = {
   __test: {
     live, handleCommitted, handlePartial, showConfirmed, setProvisional, setAnchor, startLiveFollow, stopLiveFollow, loadLiveDaf,
     recordSentAudio, segmentAudio, applyPlayhead, loadLiveVideo, scoreText, updateSourceUi, pageVideo, buildWsUrl,
-    activeKeyterms, activeKeytermTokens, PAGE_OPTIONS, boxesForRange,
+    activeKeyterms, activeKeytermTokens, PAGE_OPTIONS, boxesForRange, setFollowState,
   },
 };
 })();

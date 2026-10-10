@@ -134,7 +134,7 @@ const alias = (page) => page.evaluate(() => {
     live: t.live, handleCommitted: t.handleCommitted, handlePartial: t.handlePartial, setProvisional: t.setProvisional,
     setAnchor: t.setAnchor, startLiveFollow: t.startLiveFollow, stopLiveFollow: t.stopLiveFollow, recordSentAudio: t.recordSentAudio,
     segmentAudio: t.segmentAudio, buildWsUrl: t.buildWsUrl, activeKeyterms: t.activeKeyterms, activeKeytermTokens: t.activeKeytermTokens,
-    PAGE_OPTIONS: t.PAGE_OPTIONS,
+    PAGE_OPTIONS: t.PAGE_OPTIONS, setFollowState: t.setFollowState,
   });
 });
 
@@ -794,6 +794,56 @@ test.describe('Live follow — pointing at the daf', () => {
     expect(await confirmed(page)).toEqual({ s: 644, e: 648 });
   });
 
+  test('English explanation while searching says so, and a minute without a position suggests tapping the word', async ({ page }) => {
+    await openChosen(page);
+    await page.locator('#lfStartButton').click();
+    await expect.poll(() => page.evaluate(() => live.tracker !== null)).toBe(true);
+    await say(page, 'so the husband had to catch a flight the next morning');
+    await expect(status(page)).toHaveText('Searching…');
+    await expect(detail(page)).toContainText('Hearing explanation in English');
+    await expect(detail(page)).not.toContainText('tap that word');
+    await page.evaluate(() => { live.searchingSince = performance.now() - 61000; });
+    await say(page, 'and then he looked at the clock and could not believe it');
+    await expect(detail(page)).toContainText('No position yet');
+    await expect(detail(page)).toContainText('tap that word');
+    // It appears on its own too, without waiting for the next commit.
+    await page.evaluate(() => { live.searchingSince = performance.now(); setFollowState('searching', { english: true }); });
+    await expect(detail(page)).not.toContainText('tap that word');
+    await page.evaluate(() => { live.searchingSince = performance.now() - 61000; setFollowState('searching', live.followOptions); });
+    await expect(detail(page)).toContainText('tap that word');
+    // Finding the place clears it.
+    await say(page, phrase(400, 7));
+    await expect(status(page)).toHaveText('Following');
+    expect(await page.evaluate(() => live.searchingSince)).toBeNull();
+  });
+
+  test('Hebrew with nothing in common with the daf does not cost the lock', async ({ page }) => {
+    await openChosen(page);
+    await page.locator('#lfStartButton').click();
+    await expect.poll(() => page.evaluate(() => live.tracker !== null)).toBe(true);
+    await say(page, phrase(400, 7));
+    expect(await page.evaluate(() => live.tracker.locked)).toBe(true);
+    for (let i = 0; i < 20; i += 1) await say(page, 'משרד הבריאות חיסון התלמיד שכבת הגיל הנתונים האישיים');
+    expect(await page.evaluate(() => live.tracker.locked)).toBe(true);
+    expect(await confirmed(page)).toEqual({ s: 400, e: 406 });
+  });
+
+  test('a garbled reading still loses the lock after a dozen misses, but quiet audio takes twice as many', async ({ page }) => {
+    await openChosen(page);
+    await page.locator('#lfStartButton').click();
+    await expect.poll(() => page.evaluate(() => live.tracker !== null)).toBe(true);
+    // The daf's own words in an order that is nowhere on it (windows picked that match nothing near 406).
+    const jumbled = (n) => phrase(100 + n, 8).split(' ').reverse().join(' ');
+    const record = (level) => page.evaluate((v) => { for (let i = 0; i < 20; i += 1) recordSentAudio(new Int16Array(1600).fill(i % 2 ? v : -v).buffer); }, level);
+    await record(3000);
+    await say(page, phrase(400, 7));
+    expect(await page.evaluate(() => live.tracker.locked)).toBe(true);
+    for (let i = 0; i < 14; i += 1) { await record(60); await say(page, jumbled(i * 7)); } // quiet: half weight
+    expect(await page.evaluate(() => live.tracker.locked)).toBe(true);
+    for (let i = 0; i < 14; i += 1) { await record(3000); await say(page, jumbled(i * 7)); }
+    expect(await page.evaluate(() => live.tracker.locked)).toBe(false);
+  });
+
   test('tapping the text view sets the place at the start of the paragraph tapped', async ({ page }) => {
     await openFollowing(page);
     await page.evaluate(() => switchDafView('text'));
@@ -860,8 +910,9 @@ test.describe('Live follow — batch second opinion (on by default, ?batch=0 tur
       live.tracker = LiveMatcher.createTracker(live.daf.canon, { eagerRelocalize: true });
       live.preview = LiveMatcher.createPreview(live.daf.canon, live.tracker);
     });
-    // A few seconds of "sent" audio, as the socket would have recorded.
-    await page.evaluate(() => { for (let i = 0; i < 40; i += 1) recordSentAudio(new Int16Array(1600).fill(i + 1).buffer); });
+    // A few seconds of "sent" audio, as the socket would have recorded: loud enough
+    // to be the shiur rather than the room (RMS about 0.09).
+    await page.evaluate(() => { for (let i = 0; i < 40; i += 1) recordSentAudio(new Int16Array(1600).fill(i % 2 ? 3000 : -3000).buffer); });
     return requests;
   }
   const batchEntries = (page) => page.evaluate(() => live.log.filter((e) => e.kind === 'batch'));
@@ -900,7 +951,7 @@ test.describe('Live follow — batch second opinion (on by default, ?batch=0 tur
     expect(entry.batch[0]).toMatchObject({ s: 100, e: 107, far: true });
   });
 
-  test('the request carries the audio and the daf\'s keyterms, and no forced language', async ({ page }) => {
+  test('the request carries the audio and the daf\'s keyterms, and says Hebrew for a Hebrew segment', async ({ page }) => {
     const requests = await open(page, { batchText: '' });
     await say(page, phrase(400, 7));
     await expect.poll(() => requests.length).toBe(1);
@@ -908,7 +959,101 @@ test.describe('Live follow — batch second opinion (on by default, ?batch=0 tur
     expect(Buffer.from(body.audioBase64, 'base64').length).toBeGreaterThanOrEqual(32000); // 1s+ of 16kHz 16-bit audio
     expect(body.keyterms.length).toBeGreaterThan(50);
     expect(body.keyterms.length).toBeLessThanOrEqual(412);
-    expect(body.language).toBeUndefined();
+    expect(body.language).toBe('he');
+    expect((await batchEntries(page).then((e) => e[0])).hint).toBe('he');
+  });
+
+  test('the language is left to the model when the segment was mostly English with a Hebrew term in it', async ({ page }) => {
+    const requests = await open(page, { batchText: '' });
+    await say(page, `so then he says that ${phrase(400, 2)} is the problem here`);
+    await expect.poll(() => requests.length).toBe(1);
+    expect(requests[0].language).toBeUndefined();
+  });
+
+  test('keyterms start with the words around the reader once there is a position', async ({ page }) => {
+    const requests = await open(page, { batchText: '' });
+    await say(page, phrase(400, 7)); // locked at 400
+    await expect.poll(() => requests.length).toBe(1);
+    await say(page, phrase(407, 7));
+    await expect.poll(() => requests.length).toBe(2);
+    const near = new Set(await page.evaluate(() => live.daf.canon.words.slice(380, 560).map((w) => w.norm)));
+    const [first, second] = requests;
+    // The first segment had no position yet: the whole-daf list. The second: around 406.
+    const local = second.keyterms.slice(12, 40);
+    expect(local.every((term) => near.has(term))).toBe(true);
+    expect(second.keyterms.slice(12, 40)).toEqual([...second.keyterms.slice(12, 40)].sort());
+    expect(first.keyterms.slice(12, 40)).not.toEqual(second.keyterms.slice(12, 40));
+  });
+
+  test('audio too quiet to be the shiur is not sent', async ({ page }) => {
+    const requests = await open(page, { batchText: phrase(407, 7) });
+    await page.evaluate(() => { live.audioChunks = []; live.sentSamples = 0; live.lastCommitSample = 0; for (let i = 0; i < 40; i += 1) recordSentAudio(new Int16Array(1600).fill(i % 2 ? 100 : -100).buffer); });
+    await say(page, phrase(400, 7));
+    await expect.poll(() => batchEntries(page).then((e) => e.length)).toBe(1);
+    expect((await batchEntries(page))[0]).toMatchObject({ seq: 1, skipped: 'quiet' });
+    expect(requests).toHaveLength(0);
+  });
+
+  test('a plain English sentence is not sent, but a short English phrase (often Hebrew misheard) is', async ({ page }) => {
+    const requests = await open(page, { batchText: '' });
+    await say(page, 'so the husband had to catch a flight the next morning');
+    await expect.poll(() => batchEntries(page).then((e) => e.length)).toBe(1);
+    expect((await batchEntries(page))[0]).toMatchObject({ skipped: 'english' });
+    await say(page, "And it's time, mate.");
+    await expect.poll(() => requests.length).toBe(1);
+  });
+
+  test('a long segment goes in consecutive parts of at most 12 seconds, in order', async ({ page }) => {
+    const requests = await open(page, { batchText: '' });
+    await page.evaluate(() => { live.audioChunks = []; live.sentSamples = 0; live.lastCommitSample = 0; for (let i = 0; i < 300; i += 1) recordSentAudio(new Int16Array(1600).fill(i % 2 ? 3000 : -3000).buffer); }); // 30 s
+    await say(page, phrase(400, 7));
+    await expect.poll(() => requests.length).toBe(3);
+    const seconds = requests.map((r) => Buffer.from(r.audioBase64, 'base64').length / 32000);
+    expect(Math.max(...seconds)).toBeLessThanOrEqual(12);
+    expect(seconds.reduce((a, b) => a + b, 0)).toBeCloseTo(30, 0);
+    await expect.poll(() => batchEntries(page).then((e) => e.length)).toBe(3);
+    expect((await batchEntries(page)).map((e) => [e.part, e.parts]).sort()).toEqual([[1, 3], [2, 3], [3, 3]]);
+  });
+
+  test('when every slot is busy, Hebrew segments wait for one instead of being dropped', async ({ page }) => {
+    let release;
+    const hold = new Promise((resolve) => { release = resolve; });
+    const requests = await open(page, { batchText: '', hold });
+    for (let i = 0; i < 6; i += 1) await say(page, phrase(400 + i * 8, 7)); // 3 slots, then 3 waiting
+    await expect.poll(() => requests.length).toBe(3);
+    await say(page, phrase(500, 7)); // a 7th: the queue holds 3, so the oldest waiting one is dropped
+    expect((await batchEntries(page)).filter((e) => e.skipped === 'busy')).toHaveLength(1);
+    release();
+    await expect.poll(() => requests.length).toBe(6);
+  });
+
+  test('a segment with no Hebrew in it is dropped, not queued, when busy', async ({ page }) => {
+    let release;
+    const hold = new Promise((resolve) => { release = resolve; });
+    const requests = await open(page, { batchText: '', hold });
+    for (let i = 0; i < 3; i += 1) await say(page, phrase(400 + i * 8, 7));
+    await expect.poll(() => requests.length).toBe(3);
+    await say(page, 'yes no');
+    expect((await batchEntries(page)).filter((e) => e.skipped === 'busy')).toHaveLength(1);
+    release();
+    await page.waitForTimeout(300);
+    expect(requests).toHaveLength(3);
+  });
+
+  test('the batch re-reading of a phrase the live model missed is stepped without weight, so it is not counted against the lock twice', async ({ page }) => {
+    const requests = await open(page, { batchText: phrase(407, 7) });
+    await page.evaluate(() => {
+      window.__stepOptions = [];
+      const original = live.tracker.step;
+      live.tracker.step = (run, idx, options) => { window.__stepOptions.push(options); return original(run, idx, options); };
+    });
+    await say(page, phrase(400, 7));
+    await say(page, GARBLE);
+    await expect.poll(() => batchEntries(page).then((e) => e.filter((x) => x.rescued).length)).toBe(1);
+    const options = await page.evaluate(() => window.__stepOptions);
+    expect(options[0]).toMatchObject({ missWeight: expect.any(Number) }); // the live commit
+    expect(options.at(-1)).toEqual({ missWeight: 0 }); // the batch rescue
+    expect(requests.length).toBeGreaterThan(0);
   });
 
   test('it is only logged, never applied, when the live model placed the segment', async ({ page }) => {

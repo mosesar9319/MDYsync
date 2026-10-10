@@ -623,27 +623,113 @@ test('englishDominant counts Latin words against Hebrew ones', () => {
   assert.equal(M.englishDominant(''), false);
 });
 
-test('two short terms, or one phrase said twice, cannot move a locked position far', () => {
-  const far = 406 + M.MAX_SINGLE_JUMP_WORDS + 120;
-  // Two different but short phrases (3 words each) far away: not enough.
-  let tracker = lockedTracker(400);
-  assert.equal(tracker.step(readRun(far, 3), 2).kind, 'pending');
-  assert.notEqual(tracker.step(readRun(far + 4, 3), 3).kind, 'confirmed');
-  assert.ok(Math.abs(tracker.cursor - 406) <= M.MAX_SINGLE_JUMP_WORDS, `not moved far by short terms: ${tracker.cursor}`);
+test('the same phrase said twice cannot move a locked position far; two different phrases can', () => {
+  assert.equal(M.FAR_CONFIRM_MIN_WORDS, 2);
+  const far = 600; // well past the jump limit and the search window from 406
   // The very same long phrase twice: one observation.
-  tracker = lockedTracker(400);
+  let tracker = lockedTracker(400);
   assert.equal(tracker.step(readRun(far, 7), 2).kind, 'pending');
   assert.notEqual(tracker.step(readRun(far, 7), 3).kind, 'confirmed');
   assert.equal(tracker.cursor, 406, 'not moved by a repeat');
-  // Two different substantial phrases do move it.
-  tracker = lockedTracker(400);
-  assert.equal(tracker.step(readRun(far, 5), 2).kind, 'pending');
-  assert.equal(tracker.step(readRun(far + 6, 5), 3).kind, 'confirmed');
-  assert.equal(tracker.cursor, far + 6);
+  // Two different phrases do move it, short ones (down to two words) included.
+  for (const words of [5, 3, 2]) {
+    tracker = lockedTracker(400);
+    assert.equal(tracker.step(readRun(far, words), 2).kind, 'pending', `${words} words`);
+    assert.equal(tracker.step(readRun(far + words + 1, words), 3).kind, 'confirmed', `${words} words`);
+    assert.equal(tracker.cursor, far + words + 1);
+  }
 });
 
 test('short phrases still move a locked position within the jump limit, as ever', () => {
   const tracker = lockedTracker(400);
   assert.equal(tracker.step(readRun(412, 3), 2).kind, 'local');
   assert.equal(tracker.step(readRun(418, 2), 3).kind, 'local');
+});
+
+// ---- A pending candidate survives garbled phrases (live), and quiet / off-topic Hebrew is not a miss ------
+
+const GARBAGE = toRun(['קקקק', 'לללל', 'גגגג', 'ששש', 'ממממ', 'פפפפ']);
+
+test('live: a first candidate survives a few garbled phrases and is confirmed by the next agreeing one', () => {
+  const tracker = M.createTracker(canon, { eagerRelocalize: true });
+  assert.equal(tracker.step(readRun(300, 5), 0).kind, 'pending');
+  for (let i = 1; i <= M.PENDING_MAX_MISSES; i += 1) assert.equal(tracker.step(GARBAGE, i).kind, 'miss');
+  assert.ok(tracker.pending, 'still waiting');
+  assert.equal(tracker.step(readRun(306, 5), 9).kind, 'confirmed');
+  assert.equal(tracker.cursor, 306);
+  assert.equal(tracker.locked, true);
+});
+
+test('live: but not through any number of them', () => {
+  const tracker = M.createTracker(canon, { eagerRelocalize: true });
+  assert.equal(tracker.step(readRun(300, 5), 0).kind, 'pending');
+  for (let i = 1; i <= M.PENDING_MAX_MISSES + 1; i += 1) tracker.step(GARBAGE, i);
+  assert.equal(tracker.pending, null, 'given up');
+  assert.equal(tracker.step(readRun(306, 5), 9).kind, 'pending', 'the second phrase starts over');
+});
+
+test('live: nor for long', () => {
+  let t = 100;
+  const tracker = M.createTracker(canon, { eagerRelocalize: true, now: () => t });
+  assert.equal(tracker.step(readRun(300, 5), 0).kind, 'pending');
+  t += M.PENDING_MAX_AGE_SECONDS - 1;
+  assert.equal(tracker.step(GARBAGE, 1).kind, 'miss');
+  assert.ok(tracker.pending, 'a miss within the time keeps it');
+  t += 2;
+  assert.equal(tracker.step(readRun(306, 5), 2).kind, 'pending', 'too late to corroborate');
+});
+
+test('batch alignment keeps its rule: anything unmatched in between breaks a pending candidate', () => {
+  const tracker = M.createTracker(canon);
+  assert.equal(tracker.step(readRun(300, 5), 0).kind, 'pending');
+  assert.equal(tracker.step(GARBAGE, 1).kind, 'miss');
+  assert.equal(tracker.pending, null);
+});
+
+test('a miss weighted down counts less toward losing the lock, and none at all at zero', () => {
+  let tracker = lockedTracker(400);
+  for (let i = 0; i < 40; i += 1) tracker.step(GARBAGE, 10 + i, { missWeight: 0 });
+  assert.equal(tracker.locked, true, 'weightless misses never unlock');
+  tracker = lockedTracker(400);
+  for (let i = 0; i < M.RELOCALIZE_AFTER - 1; i += 1) tracker.step(GARBAGE, 10 + i, { missWeight: 1 });
+  assert.equal(tracker.locked, true);
+  tracker.step(GARBAGE, 99, { missWeight: 1 });
+  assert.equal(tracker.locked, false, 'a dozen full misses do');
+  tracker = lockedTracker(400);
+  for (let i = 0; i < 2 * M.RELOCALIZE_AFTER - 1; i += 1) tracker.step(GARBAGE, 10 + i, { missWeight: 0.5 });
+  assert.equal(tracker.locked, true, 'half-weight misses take twice as many');
+});
+
+test('missWeightFor: garbled reading counts in full; modern Hebrew and quiet audio count less', () => {
+  const reading = readRun(300, 6);
+  assert.equal(M.missWeightFor(canon, reading, 0.05), 1);
+  const phoneCall = toRun(['משרד', 'הבריאות', 'חיסון', 'התלמיד', 'שכבת', 'הגיל']);
+  assert.equal(M.vocabShare(canon, phoneCall), 0);
+  assert.equal(M.missWeightFor(canon, phoneCall, 0.05), 0);
+  const hazy = toRun([...reading.slice(0, 2).map((w) => w.norm), 'חיסון', 'משרד', 'בריאות', 'התלמיד']);
+  assert.equal(M.missWeightFor(canon, hazy, 0.05), 0.5);
+  assert.equal(M.missWeightFor(canon, reading, M.QUIET_RMS / 2), 0.5, 'a real reading too quiet to be the shiur');
+  assert.equal(M.missWeightFor(canon, reading, undefined), 1, 'level unknown: no reduction');
+});
+
+// ---- Batch keyterms around the reader ------------------------------------------------------------------
+
+test('local keyterms: the words around the cursor first, alphabetically, then the whole-daf list', () => {
+  const whole = M.buildKeytermList(canon, 400);
+  const list = M.buildLocalKeyterms(canon, 300, whole);
+  assert.ok(list.length <= 400);
+  assert.deepEqual(list.slice(0, 3), whole.slice(0, 3), 'the fixed Gemara terms lead');
+  assert.equal(new Set(list).size, list.length, 'no duplicates');
+  const near = new Set(canon.words.slice(280, 440).map((w) => w.norm).filter((n) => n.length >= 3));
+  const head = list.slice(12, 12 + 20);
+  assert.ok(head.every((term) => near.has(term)), 'the next ones are from just around the cursor');
+  assert.deepEqual([...head].sort(), head, 'in alphabetical order');
+  assert.ok(canon.words.slice(300, 304).every((w) => w.norm.length < 3 || list.includes(w.norm)), 'the very next words are in it');
+});
+
+test('local keyterms are not daf order, so reading on from the cursor is not mistaken for the model reciting its list', () => {
+  const list = M.buildLocalKeyterms(canon, 300, M.buildKeytermList(canon, 400));
+  const reading = canon.words.slice(300, 330).map((w) => w.norm).join(' ');
+  const cleaned = M.cleanTranscript(reading, M.keytermTokens(list), M.LEAK_MIN_RUN_BATCH);
+  assert.equal(hebrewWordsOf(cleaned).length, 30, 'every word of the reading survives');
 });
