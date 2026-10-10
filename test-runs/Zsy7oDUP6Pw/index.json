@@ -1,0 +1,28 @@
+{
+  "schema": "dafsync-test-runs-v1",
+  "videoId": "Zsy7oDUP6Pw",
+  "runs": [
+    {
+      "id": "live-1",
+      "engine": "live",
+      "number": 1,
+      "name": "Live #1 · 10 Oct 2026 · baseline",
+      "notes": "baseline",
+      "engineVersion": "f9d5c30",
+      "createdAt": "2026-10-10T22:41:42Z",
+      "file": "live-1.json",
+      "jobId": null,
+      "summary": {
+        "segments": 100,
+        "estimatedSegments": 41,
+        "placements": 59,
+        "placedWords": 233,
+        "totalRuns": 1141,
+        "totalWords": 1003,
+        "matchedWords": 233,
+        "durationSeconds": 4909.98
+      }
+    }
+  ],
+  "updatedAt": "2026-10-10T22:41:42Z"
+}
