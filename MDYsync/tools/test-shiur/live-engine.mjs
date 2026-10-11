@@ -182,7 +182,7 @@ async function transcribeWithElevenLabs(videoId, { keyterms = [], apiKey = proce
   return { words, seconds: words.length ? words[words.length - 1][2] : 0, languageCode: result.language_code ?? null };
 }
 
-async function fetchTranscript(videoId, { daf = '', keyterms = [],  base = 'https://dafsync.netlify.app', origin = 'https://dafsync.netlify.app', timeoutMs = 20 * 60 * 1000 } = {}) {
+async function fetchTranscript(videoId, { daf = '', keyterms = [], tries = 4,  base = 'https://dafsync.netlify.app', origin = 'https://dafsync.netlify.app', timeoutMs = 20 * 60 * 1000 } = {}) {
   const url = `https://www.youtube.com/watch?v=${videoId}`;
   // The page asks for a transcript with the daf's own words as keyterms (that is what
   // makes the model write the Hebrew phrases in Hebrew letters instead of spelling
@@ -193,24 +193,31 @@ async function fetchTranscript(videoId, { daf = '', keyterms = [],  base = 'http
   const read = async () => (await fetch(statusUrl, { headers: { Origin: origin } })).json();
   let status = await read();
   if (status.status === 'done') return status;
-  // Nothing started, or an earlier try failed (ElevenLabs's own YouTube fetch
-  // fails now and then, and the failure is kept until a new job replaces it).
-  await fetch(`${base}/.netlify/functions/live-video-job-background`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Origin: origin },
-    body: JSON.stringify({ url, daf, keyterms }),
-  });
+  // Nothing started, or an earlier try failed (ElevenLabs's own YouTube fetch fails now
+  // and then -- a 400 that a second or third try gets past -- and the failure is kept
+  // until a new job replaces it). Start, and on a failure start again, up to `tries`.
   const deadline = Date.now() + timeoutMs;
-  const startedAt = Date.now();
-  let sawPending = false;
-  while (Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, sawPending ? 15000 : 3000));
-    status = await read();
-    if (status.status === 'done') return status;
-    if (status.status === 'pending') sawPending = true;
-    // An error seen before our job reported itself running may be the old one.
-    if (status.status === 'error' && (sawPending || Date.now() - startedAt > 45000)) {
-      throw new Error(`Transcript job failed: ${status.error} ${status.detail ? String(status.detail).slice(0, 300) : ''}`.trim());
+  for (let attempt = 1; attempt <= tries; attempt += 1) {
+    await fetch(`${base}/.netlify/functions/live-video-job-background`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: origin },
+      body: JSON.stringify({ url, daf, keyterms }),
+    });
+    const startedAt = Date.now();
+    let sawPending = false;
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, sawPending ? 15000 : 3000));
+      status = await read();
+      if (status.status === 'done') return status;
+      if (status.status === 'pending') sawPending = true;
+      // An error seen before our job reported itself running may be the old one.
+      if (status.status === 'error' && (sawPending || Date.now() - startedAt > 45000)) {
+        if (attempt >= tries) {
+          throw new Error(`Transcript job failed: ${status.error} ${status.detail ? String(status.detail).slice(0, 300) : ''}`.trim());
+        }
+        console.error(`Transcript attempt ${attempt} failed (${status.error}); trying again.`);
+        break;
+      }
     }
   }
   throw new Error('Timed out waiting for the transcript.');
