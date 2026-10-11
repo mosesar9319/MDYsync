@@ -22,7 +22,29 @@
         "matchedWords": 233,
         "durationSeconds": 4909.98
       }
+    },
+    {
+      "id": "regular-1",
+      "engine": "regular",
+      "number": 1,
+      "name": "Regular #1 · 11 Oct 2026 · baseline",
+      "notes": "baseline",
+      "engineVersion": "86f6e78",
+      "createdAt": "2026-10-11T04:23:28Z",
+      "file": "regular-1.json",
+      "jobId": "0243d1635500415dba8d00318b77132d",
+      "summary": {
+        "segments": 160,
+        "estimatedSegments": 92,
+        "placements": 107,
+        "placedWords": 210,
+        "totalRuns": 471,
+        "totalWords": 1965,
+        "matchedWords": 259,
+        "unmatchedWords": 644,
+        "durationSeconds": 4910.0
+      }
     }
   ],
-  "updatedAt": "2026-10-10T22:41:42Z"
+  "updatedAt": "2026-10-11T04:23:28Z"
 }
