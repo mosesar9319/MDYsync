@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { preparePage, stubPrintedPage } from '../support/harness.mjs';
 
-// Another maggid's recording (R' Sruly Bernstein, Lakewood Daf Yomi) plays through
+// Another maggid's recording (R' Sruly Bornstein, Lakewood Daf Yomi) plays through
 // the same player under its own key prefix; and a TEST SHIUR -- the video the voice
 // models are tuned on -- offers every numbered run of both engines in two
 // dropdowns, to every reader.
@@ -34,7 +34,7 @@ const FILES = {
   'test-runs/Zsy7oDUP6Pw/live-1.json': alignment('live', 300),
 };
 
-async function open(page, { url = '/player/?ref=Bekhorot%202a&maggid=bernstein', files = FILES } = {}) {
+async function open(page, { url = '/player/?ref=Bekhorot%202a&maggid=bornstein', files = FILES } = {}) {
   const asked = [];
   await preparePage(page);
   await stubPrintedPage(page);
@@ -56,47 +56,47 @@ const showVideo = (page, videoId = VIDEO) => page.evaluate(async (id) => {
 }, videoId);
 
 test.describe('Another maggid\'s recording', () => {
-  test('?maggid=bernstein looks everything up under the Bernstein prefix', async ({ page }) => {
+  test('?maggid=bornstein looks everything up under the Bornstein prefix', async ({ page }) => {
     const asked = await open(page, {
-      files: { 'video-links/Bernstein-Bekhorot-2a.json': { type: 'youtube', videoId: 'Zsy7oDUP6Pw', url: `https://www.youtube.com/watch?v=${VIDEO}`, label: 'Bechoros 2', maggid: 'bernstein' } },
+      files: { 'video-links/Bornstein-Bekhorot-2a.json': { type: 'youtube', videoId: 'Zsy7oDUP6Pw', url: `https://www.youtube.com/watch?v=${VIDEO}`, label: 'Bechoros 2', maggid: 'bornstein' } },
     });
-    await expect.poll(() => asked.some((p) => p.startsWith('by-ref/Voice-Bernstein-Bekhorot-2a'))).toBe(true);
-    expect(asked).toContain('by-ref/Bernstein-Bekhorot-2a.json');
-    expect(asked).toContain('by-ref/Voice-Bernstein-Bekhorot-2a.json');
+    await expect.poll(() => asked.some((p) => p.startsWith('by-ref/Voice-Bornstein-Bekhorot-2a'))).toBe(true);
+    expect(asked).toContain('by-ref/Bornstein-Bekhorot-2a.json');
+    expect(asked).toContain('by-ref/Voice-Bornstein-Bekhorot-2a.json');
     expect(asked.filter((p) => /^(by-ref|video-links)\/(Voice-)?Bekhorot-/.test(p))).toEqual([]); // never the other maggid's keys
-    expect(await page.evaluate(() => state.maggid)).toBe('bernstein');
-    expect(await page.evaluate(() => document.getElementById('dafRef').value)).toBe('Bekhorot 2a (Bernstein)');
+    expect(await page.evaluate(() => state.maggid)).toBe('bornstein');
+    expect(await page.evaluate(() => document.getElementById('dafRef').value)).toBe('Bekhorot 2a (Bornstein)');
   });
 
   test('without it the keys are the default maggid\'s, as always', async ({ page }) => {
     const asked = await open(page, { url: '/player/?ref=Bekhorot%202a' });
     await expect.poll(() => asked.some((p) => p === 'by-ref/Voice-Bekhorot-2a.json')).toBe(true);
-    expect(asked.filter((p) => p.includes('Bernstein'))).toEqual([]);
+    expect(asked.filter((p) => p.includes('Bornstein'))).toEqual([]);
     expect(await page.evaluate(() => state.maggid)).toBeNull();
   });
 
   test('the ref helpers keep the maggid through every kind of ref the page builds', async ({ page }) => {
     await open(page, { url: '/player/' });
     const r = await page.evaluate(() => ({
-      parsed: parseDafRef('Bekhorot 2a (Hebrew) (Bernstein)'),
-      key: refKey('Bekhorot 2a (Bernstein)'),
-      voiceKey: refKey('Bekhorot 2a (Bernstein)', { voice: true }),
-      hebrewKey: refKey('Bekhorot 2a (Hebrew) (Bernstein)'),
+      parsed: parseDafRef('Bekhorot 2a (Hebrew) (Bornstein)'),
+      key: refKey('Bekhorot 2a (Bornstein)'),
+      voiceKey: refKey('Bekhorot 2a (Bornstein)', { voice: true }),
+      hebrewKey: refKey('Bekhorot 2a (Hebrew) (Bornstein)'),
       plainKey: refKey('Bekhorot 2a'),
-      next: nextDafRef('Bekhorot 2a (Bernstein)'),
-      prev: prevDafRef('Bekhorot 3a (Bernstein)'),
-      canonical: canonicalDafRef('bekhorot 2a (bernstein)'),
-      real: realDafRef('Bekhorot 2a (Bernstein)'),
-      segment: normalizeDafParagraphRef('Bekhorot 2a (Bernstein):3'),
+      next: nextDafRef('Bekhorot 2a (Bornstein)'),
+      prev: prevDafRef('Bekhorot 3a (Bornstein)'),
+      canonical: canonicalDafRef('bekhorot 2a (bornstein)'),
+      real: realDafRef('Bekhorot 2a (Bornstein)'),
+      segment: normalizeDafParagraphRef('Bekhorot 2a (Bornstein):3'),
     }));
-    expect(r.parsed).toMatchObject({ tractate: 'Bekhorot', daf: 2, amud: 'a', language: 'he', maggid: 'bernstein' });
-    expect(r.key).toBe('Bernstein-Bekhorot-2a');
-    expect(r.voiceKey).toBe('Voice-Bernstein-Bekhorot-2a');
-    expect(r.hebrewKey).toBe('Bernstein-Hebrew-Bekhorot-2a');
+    expect(r.parsed).toMatchObject({ tractate: 'Bekhorot', daf: 2, amud: 'a', language: 'he', maggid: 'bornstein' });
+    expect(r.key).toBe('Bornstein-Bekhorot-2a');
+    expect(r.voiceKey).toBe('Voice-Bornstein-Bekhorot-2a');
+    expect(r.hebrewKey).toBe('Bornstein-Hebrew-Bekhorot-2a');
     expect(r.plainKey).toBe('Bekhorot-2a');
-    expect(r.next).toBe('Bekhorot 2b (Bernstein)');
-    expect(r.prev).toBe('Bekhorot 2b (Bernstein)');
-    expect(r.canonical).toBe('Bekhorot 2a (Bernstein)');
+    expect(r.next).toBe('Bekhorot 2b (Bornstein)');
+    expect(r.prev).toBe('Bekhorot 2b (Bornstein)');
+    expect(r.canonical).toBe('Bekhorot 2a (Bornstein)');
     expect(r.real).toBe('Bekhorot 2a');
     expect(r.segment).toBe('Bekhorot 2a.3');
   });
@@ -153,7 +153,7 @@ test.describe('Test shiur — one dropdown per engine, numbered runs', () => {
     await showVideo(page);
     await page.locator('#testRunLiveSelect').selectOption('live-1');
     await expect.poll(() => page.evaluate(() => state.testRuns.activeId)).toBe('live-1');
-    expect(await page.evaluate(() => state.dafRef)).toBe('Bekhorot 2a (Bernstein)');
+    expect(await page.evaluate(() => state.dafRef)).toBe('Bekhorot 2a (Bornstein)');
   });
 
   test('a video without test runs shows no dropdowns, and moving to one hides them again', async ({ page }) => {

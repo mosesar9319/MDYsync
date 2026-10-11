@@ -4,11 +4,11 @@
 // videos live under the plain refKey scheme (video-links/Bekhorot-2b.json,
 // Hebrew-/Chazarah-Daf- prefixes for the other recordings of the same daf).
 // Every other maggid's videos sit in the same scheme behind their own
-// `keyPrefix` ("Bernstein-Bekhorot-2b"), so a daf can have a recording from
+// `keyPrefix` ("Bornstein-Bekhorot-2b"), so a daf can have a recording from
 // each side by side and everything keyed by refKey (video links, published
 // alignments, sync jobs) keeps working without a second code path.
 //
-// The marker a ref carries in the player ("Bekhorot 2b (Bernstein)") is
+// The marker a ref carries in the player ("Bekhorot 2b (Bornstein)") is
 // `marker`; app.js's parseDafRef reads it back, and refKey() composes
 // `keyPrefix` after any Voice- prefix. Hand-mirrored in app.js (MAGGIDIM)
 // because the player has no module system -- tests/functions/maggidim.test.mjs
@@ -33,13 +33,13 @@ export const MAGGIDIM = [
     follow: true,
   },
   {
-    id: 'bernstein',
-    name: "R' Sruly Bernstein",
+    id: 'bornstein',
+    name: "R' Sruly Bornstein",
     channelName: 'Lakewood Daf Yomi',
     channelId: 'UCyk5Q9nuhwqJC_-zrP2Ojcg', // @lakewooddafyomi
     handle: '@lakewooddafyomi',
-    keyPrefix: 'Bernstein-',
-    marker: 'Bernstein',
+    keyPrefix: 'Bornstein-',
+    marker: 'Bornstein',
     // Whether the hourly channel sync links this channel's new uploads on its
     // own, and the voice sync accepts any of its recent uploads. Off for now:
     // only the one video that was asked for (Bechoros 2, Zsy7oDUP6Pw, the test
@@ -81,7 +81,7 @@ const BERNSTEIN_TRACTATE_ALIASES = {
 // English only, one regular recording per daf. Everything else it posts
 // (derashos, shiurim on a topic) is not tied to a daf and returns null.
 // Returns { tractate, daf, variant, language } or null.
-export function parseBernsteinTitle(rawTitle, lookup) {
+export function parseBornsteinTitle(rawTitle, lookup) {
   const title = String(rawTitle || '').replace(/&amp;/g, '&').trim();
   const m = /^([A-Za-z][A-Za-z' ]*?)(?:\s+Daf)?\s+(\d{1,3})(?:\s+by\s+Sruly\s+B[eo]rn?stein)?$/i.exec(title);
   if (!m) return null;

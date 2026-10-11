@@ -1,7 +1,7 @@
 # Test shiur
 
 A **test shiur** is a video the voice models are tuned on. Right now that is
-R' Sruly Bernstein's "Bechoros 2" (`Zsy7oDUP6Pw`, Lakewood Daf Yomi).
+R' Sruly Bornstein's "Bechoros 2" (`Zsy7oDUP6Pw`, Lakewood Daf Yomi).
 
 Every time either voice engine is run on it, the alignment is saved as a new
 **numbered run** (`Regular #1`, `Regular #2`, `Live #1`, ... — numbers count per
@@ -40,7 +40,7 @@ ElevenLabs key; add `--elevenlabs` to ask ElevenLabs directly with
 On the `results` branch:
 
 ```
-video-links/Bernstein-Bekhorot-2a.json      the video, marked "testShiur": true (and locked)
+video-links/Bornstein-Bekhorot-2a.json      the video, marked "testShiur": true (and locked)
 test-runs/<videoId>/index.json              every run, newest last (what the dropdowns read)
 test-runs/<videoId>/regular-1.json          one dafsync-alignment-v2 file per run
 test-runs/<videoId>/live-1.json

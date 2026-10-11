@@ -58,7 +58,7 @@ import {
   refDisplay,
   plainRef,
 } from '../../shared/mdy-channel.mjs';
-import { MAGGIDIM, parseBernsteinTitle } from '../../shared/maggidim.mjs';
+import { MAGGIDIM, parseBornsteinTitle } from '../../shared/maggidim.mjs';
 
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
@@ -67,7 +67,7 @@ const REPO = 'MDYsync';
 // others publish under their own refKey prefix, read their titles with their
 // own parser, and never trigger the caption-OCR auto-sync (their videos have
 // no burned-in captions to read).
-const TITLE_PARSERS = { stefansky: parseChannelTitle, bernstein: parseBernsteinTitle };
+const TITLE_PARSERS = { stefansky: parseChannelTitle, bornstein: parseBornsteinTitle };
 const TALMUD_INDEX_URL = `https://raw.githubusercontent.com/${OWNER}/${REPO}/main/MDYsync/talmud_index.json`;
 const SETTINGS_URL = `https://raw.githubusercontent.com/${OWNER}/${REPO}/results/settings.json`;
 

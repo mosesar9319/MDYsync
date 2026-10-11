@@ -64,7 +64,7 @@ def ref_key(ref, prefix=''):
 # recording from each. Mirrors MAGGIDIM in shared/maggidim.mjs (the default
 # maggid, Mercaz Daf Yomi, has none); tests/functions/maggidim.test.mjs checks
 # the two agree.
-MAGGID_KEY_PREFIXES = {'bernstein': 'Bernstein-'}
+MAGGID_KEY_PREFIXES = {'bornstein': 'Bornstein-'}
 
 
 def key_prefix(variant=None, language=None, voice=False, maggid=None):
@@ -214,7 +214,7 @@ def main():
     p.add_argument('--language')
     p.add_argument('--video-id')
     p.add_argument('--video-url')
-    p.add_argument('--maggid', help="Another maggid's id (e.g. 'bernstein'): publish under their key prefix.")
+    p.add_argument('--maggid', help="Another maggid's id (e.g. 'bornstein'): publish under their key prefix.")
     p.add_argument('--voice', action='store_true',
                    help="Publish under the voice engine's own 'Voice-' key namespace.")
     args = p.parse_args()

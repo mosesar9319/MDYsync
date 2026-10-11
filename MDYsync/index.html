@@ -1543,7 +1543,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     // else's sit under its maggidim section.
     const MAGGIDIM = [
       { id: "stefansky", name: "R’ Eli Stefansky", blurb: "Daf Yomi · Mercaz Daf Yomi" },
-      { id: "bernstein", name: "R’ Sruly Bernstein", blurb: "Daf Yomi · Lakewood Daf Yomi" },
+      { id: "bornstein", name: "R’ Sruly Bornstein", blurb: "Daf Yomi · Lakewood Daf Yomi" },
     ];
     const DEFAULT_MAGGID = MAGGIDIM[0].id;
     const maggidName = (id) => (MAGGIDIM.find((m) => m.id === id) || MAGGIDIM[0]).name;
@@ -1788,7 +1788,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       regularHe: "Hebrew", chazarahHe: "Hebrew · Chazarah",
     };
 
-    // " · R’ Sruly Bernstein" on another maggid's cards, so two recordings of
+    // " · R’ Sruly Bornstein" on another maggid's cards, so two recordings of
     // the same daf side by side say whose is whose. The default maggid's are
     // left as they always were.
     function maggidTag(row) {

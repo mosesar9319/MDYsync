@@ -60,7 +60,7 @@ export default async (request) => {
   let working = ref.trim();
   let chazarah = false;
   let hebrew = false;
-  // Another maggid's reading ends in their marker too ("Bekhorot 2a (Bernstein)")
+  // Another maggid's reading ends in their marker too ("Bekhorot 2a (Bornstein)")
   // and is keyed behind their prefix -- see shared/maggidim.mjs.
   let maggidPrefix = '';
   const markers = MAGGIDIM.filter((m) => m.marker).map((m) => m.marker);

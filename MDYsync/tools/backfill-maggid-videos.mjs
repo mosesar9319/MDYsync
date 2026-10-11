@@ -15,7 +15,7 @@
 //   yt-dlp --flat-playlist -J "https://www.youtube.com/channel/<channelId>/videos" \
 //     | node -e 'const d=JSON.parse(require("fs").readFileSync(0));
 //         console.log(JSON.stringify(d.entries.map(e=>({id:e.id,title:e.title}))))' > videos.json
-//   node backfill-maggid-videos.mjs --maggid bernstein --videos videos.json \
+//   node backfill-maggid-videos.mjs --maggid bornstein --videos videos.json \
 //        --talmud-index ../talmud_index.json --results /path/to/results-checkout \
 //        [--test-video Zsy7oDUP6Pw]
 //
@@ -30,9 +30,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildTalmudLookup, amudimForDaf, refKeyFor, plainRef } from '../shared/mdy-channel.mjs';
-import { maggidById, parseBernsteinTitle } from '../shared/maggidim.mjs';
+import { maggidById, parseBornsteinTitle } from '../shared/maggidim.mjs';
 
-const TITLE_PARSERS = { bernstein: parseBernsteinTitle };
+const TITLE_PARSERS = { bornstein: parseBornsteinTitle };
 
 function parseArgs(argv) {
   const args = {};
