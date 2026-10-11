@@ -3,7 +3,7 @@ import { preparePage, failOnPageError } from '../support/harness.mjs';
 
 // The home page lists every followed maggid's videos side by side, and the
 // Maggidei Shiurim tab has a page for each maggid (R' Eli Stefansky, and
-// R' Sruly Bernstein of Lakewood Daf Yomi).
+// R' Sruly Bornstein of Lakewood Daf Yomi).
 
 const CATALOG = {
   generatedAt: '2026-10-10T00:00:00Z',
@@ -14,7 +14,7 @@ const CATALOG = {
     ],
   },
   maggidim: {
-    bernstein: {
+    bornstein: {
       tractates: {
         Bekhorot: [
           { daf: 2, regularEn: { videoId: 'Zsy7oDUP6Pw', label: 'Bechoros 2', amud: 'a', testShiur: true } },
@@ -26,7 +26,7 @@ const CATALOG = {
   },
 };
 const OTHER_SHIURIM = {
-  maggid: 'bernstein',
+  maggid: 'bornstein',
   videos: [
     { videoId: 'g7VSmqB8Xlk', title: 'Bechoros 22', tractate: 'Bekhorot', daf: 22 },
     { videoId: 'FvMHzatB_9Y', title: 'Not All of Our Sages Were Created Equally', published: '2026-09-28T10:00:00+00:00' },
@@ -40,7 +40,7 @@ async function open(page, { query = '', catalog = CATALOG } = {}) {
   await page.route('**/api/get-catalog', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(catalog) }));
   await page.route('**/api/get-results-file?*', (route) => {
     const path = new URL(route.request().url()).searchParams.get('path');
-    if (path === 'maggidim/bernstein.json') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(OTHER_SHIURIM) });
+    if (path === 'maggidim/bornstein.json') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(OTHER_SHIURIM) });
     return route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"Not found."}' });
   });
   await page.goto(`/index.html${query}`);
@@ -56,7 +56,7 @@ test.describe('Home page — every maggid side by side', () => {
     const text = await cards(page).allInnerTexts();
     const forDaf2 = text.filter((t) => /Bekhorot 2 /.test(t));
     expect(forDaf2).toHaveLength(2);
-    expect(forDaf2.some((t) => t.includes('R’ Sruly Bernstein'))).toBe(true);
+    expect(forDaf2.some((t) => t.includes('R’ Sruly Bornstein'))).toBe(true);
     expect(forDaf2.some((t) => t.includes("R' Eli Stefansky"))).toBe(true);
     // The default maggid's card is as it always was: no maggid tag on it.
     expect(forDaf2.find((t) => t.includes("R' Eli Stefansky"))).not.toContain('Sruly');
@@ -79,11 +79,11 @@ test.describe('Home page — every maggid side by side', () => {
   test('a card opens the player on that maggid\'s recording', async ({ page }) => {
     await open(page);
     await cards(page).filter({ hasText: 'Bechoros 22' }).click();
-    await expect(page.locator('#modal-teacher')).toHaveText('R’ Sruly Bernstein · Bekhorot 22 · English');
+    await expect(page.locator('#modal-teacher')).toHaveText('R’ Sruly Bornstein · Bekhorot 22 · English');
     const href = await page.locator('#modal-watch-link').getAttribute('href');
     const params = new URL(href, 'http://x').searchParams;
     expect(params.get('ref')).toBe('Bekhorot 22a');
-    expect(params.get('maggid')).toBe('bernstein');
+    expect(params.get('maggid')).toBe('bornstein');
   });
 
   test('the default maggid\'s link carries no maggid, as before', async ({ page }) => {
@@ -95,22 +95,22 @@ test.describe('Home page — every maggid side by side', () => {
 });
 
 test.describe('Maggidei Shiurim tab', () => {
-  test('lists R’ Eli Stefansky and R’ Sruly Bernstein', async ({ page }) => {
+  test('lists R’ Eli Stefansky and R’ Sruly Bornstein', async ({ page }) => {
     await open(page, { query: '?nav=maggidei' });
     const names = page.locator('#maggidCards .maggid-card strong');
-    await expect(names).toHaveText(['R’ Eli Stefansky', 'R’ Sruly Bernstein']);
+    await expect(names).toHaveText(['R’ Eli Stefansky', 'R’ Sruly Bornstein']);
     await expect(page.locator('#maggidCards .maggid-card').nth(1)).toContainText('Lakewood Daf Yomi');
   });
 
   test('his page shows only his dapim, the rest of his shiurim, and a way back', async ({ page }) => {
     await open(page, { query: '?nav=maggidei' });
-    await page.locator('#maggidCards [data-maggid="bernstein"]').click();
-    await expect(page.locator('#section-title')).toHaveText('R’ Sruly Bernstein');
+    await page.locator('#maggidCards [data-maggid="bornstein"]').click();
+    await expect(page.locator('#section-title')).toHaveText('R’ Sruly Bornstein');
     await expect(page.locator('#section-eyebrow')).toHaveText('3 DAPIM AVAILABLE');
     await expect(cards(page)).toHaveCount(3);
-    for (const text of await cards(page).allInnerTexts()) expect(text).toContain('R’ Sruly Bernstein');
+    for (const text of await cards(page).allInnerTexts()) expect(text).toContain('R’ Sruly Bornstein');
     // What his channel posts that isn't a daf: listed under the dapim, linking to YouTube.
-    await expect(page.locator('#maggidOtherTitle')).toHaveText('More shiurim from R’ Sruly Bernstein');
+    await expect(page.locator('#maggidOtherTitle')).toHaveText('More shiurim from R’ Sruly Bornstein');
     const others = page.locator('#maggidOtherList a');
     await expect(others).toHaveCount(2);
     await expect(others.first()).toContainText('Not All of Our Sages Were Created Equally');

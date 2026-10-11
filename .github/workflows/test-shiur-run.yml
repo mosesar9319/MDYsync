@@ -1,7 +1,7 @@
 name: Test shiur run (both voice engines)
 
 # Runs the regular and/or the live voice engine on a TEST SHIUR -- the video the
-# voice models are tuned on (currently R' Sruly Bernstein's "Bechoros 2",
+# voice models are tuned on (currently R' Sruly Bornstein's "Bechoros 2",
 # Zsy7oDUP6Pw) -- and saves each result as the next numbered run under
 # test-runs/<videoId>/ on the results branch. The player offers every run in two
 # dropdowns (one per engine) to every reader, so a change to an engine can be
@@ -29,9 +29,9 @@ on:
         required: true
         default: 'Bekhorot 2a,Bekhorot 2b'
       maggid:
-        description: "The maggid's id (bernstein), or empty for Mercaz Daf Yomi"
+        description: "The maggid's id (bornstein), or empty for Mercaz Daf Yomi"
         required: false
-        default: 'bernstein'
+        default: 'bornstein'
       engines:
         description: 'Which engine(s) to run'
         type: choice

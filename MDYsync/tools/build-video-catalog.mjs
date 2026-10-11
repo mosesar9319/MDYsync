@@ -41,7 +41,7 @@ function parseArgs(argv) {
 // Inverse of app.js's refKey(): "Hebrew-Chazarah-Daf-Chullin-89a" ->
 // { tractate: "Chullin", daf: 89, amud: "a", variant: "chazarah", language: "he", maggid: null }.
 // Another maggid's videos carry that maggid's keyPrefix first
-// ("Bernstein-Bekhorot-2b" -> maggid: 'bernstein'; see shared/maggidim.mjs).
+// ("Bornstein-Bekhorot-2b" -> maggid: 'bornstein'; see shared/maggidim.mjs).
 // Must stay in lockstep with app.js/refKey() and index.html's own
 // parseRefKey() -- all three encode/decode the same filename scheme.
 function parseRefKey(key) {

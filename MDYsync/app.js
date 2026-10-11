@@ -17,12 +17,12 @@ const SCAN_HEADER_BAND_FRACTION_MAX = 0.08;
 // The maggidei shiur whose channels the site follows (shared/maggidim.mjs --
 // hand-mirrored, and tests/functions/maggidim.test.mjs checks the two agree).
 // Mercaz Daf Yomi is the default and has no marker or key prefix; another
-// maggid's reading carries a "(Bernstein)" marker on its ref and a "Bernstein-"
+// maggid's reading carries a "(Bornstein)" marker on its ref and a "Bornstein-"
 // key prefix, composed right after "Voice-", so a daf can have a recording
 // from each without anything colliding.
 const MAGGIDIM = [
   { id: 'stefansky', keyPrefix: '', marker: '' },
-  { id: 'bernstein', keyPrefix: 'Bernstein-', marker: 'Bernstein' },
+  { id: 'bornstein', keyPrefix: 'Bornstein-', marker: 'Bornstein' },
 ];
 const maggidKeyPrefix = (id) => MAGGIDIM.find((m) => m.id === id)?.keyPrefix || '';
 const maggidMarkerSuffix = (id) => {

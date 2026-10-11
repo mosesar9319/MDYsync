@@ -9,11 +9,11 @@ const LAKEWOOD = 'UCyk5Q9nuhwqJC_-zrP2Ojcg';
 
 import { maggidById } from '../../shared/maggidim.mjs';
 
-async function trigger({ videoId, feeds = {}, linked = {}, body = {}, followBernstein = false }) {
+async function trigger({ videoId, feeds = {}, linked = {}, body = {}, followBornstein = false }) {
   const dispatches = [];
-  const bernstein = maggidById('bernstein');
-  const wasFollowing = bernstein.follow;
-  bernstein.follow = followBernstein;
+  const bornstein = maggidById('bornstein');
+  const wasFollowing = bornstein.follow;
+  bornstein.follow = followBornstein;
   globalThis.Netlify = { env: { get: (k) => (k === 'GITHUB_DISPATCH_TOKEN' ? 'token' : undefined) } };
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (input, init = {}) => {
@@ -38,7 +38,7 @@ async function trigger({ videoId, feeds = {}, linked = {}, body = {}, followBern
     return { status: response.status, json: await response.json(), dispatches };
   } finally {
     globalThis.fetch = realFetch;
-    bernstein.follow = wasFollowing;
+    bornstein.follow = wasFollowing;
   }
 }
 
@@ -48,13 +48,13 @@ test('while the maggid is not followed, a recent Lakewood upload that was never 
   assert.equal(dispatches.length, 0);
 });
 
-test('once the maggid is followed, a recent Lakewood Daf Yomi upload is accepted and published behind the Bernstein prefix', async () => {
-  const { status, json, dispatches } = await trigger({ videoId: 'Zsy7oDUP6Pw', feeds: { [LAKEWOOD]: ['Zsy7oDUP6Pw'], [MDY]: ['CNu3Ba5XCao'] }, followBernstein: true });
+test('once the maggid is followed, a recent Lakewood Daf Yomi upload is accepted and published behind the Bornstein prefix', async () => {
+  const { status, json, dispatches } = await trigger({ videoId: 'Zsy7oDUP6Pw', feeds: { [LAKEWOOD]: ['Zsy7oDUP6Pw'], [MDY]: ['CNu3Ba5XCao'] }, followBornstein: true });
   assert.equal(status, 200);
   assert.equal(dispatches.length, 1);
   assert.equal(dispatches[0].event_type, 'run-voice-job');
-  assert.equal(dispatches[0].client_payload.maggid, 'bernstein');
-  assert.match(json.resultUrl, /by-ref\/Voice-Bernstein-Bekhorot-2a\.json$/);
+  assert.equal(dispatches[0].client_payload.maggid, 'bornstein');
+  assert.match(json.resultUrl, /by-ref\/Voice-Bornstein-Bekhorot-2a\.json$/);
 });
 
 test('a Mercaz Daf Yomi upload is published exactly as before, with no maggid in the job', async () => {
@@ -74,13 +74,13 @@ test('a video of some other channel is refused', async () => {
 test('the imported Lakewood video (the test shiur) is accepted because it is linked for the daf', async () => {
   const { status, dispatches } = await trigger({
     videoId: 'Zsy7oDUP6Pw', feeds: { [LAKEWOOD]: [], [MDY]: [] },
-    linked: { 'Bernstein-Bekhorot-2a': 'Zsy7oDUP6Pw' }, body: { maggid: 'bernstein' },
+    linked: { 'Bornstein-Bekhorot-2a': 'Zsy7oDUP6Pw' }, body: { maggid: 'bornstein' },
   });
   assert.equal(status, 200);
-  assert.equal(dispatches[0].client_payload.maggid, 'bernstein');
+  assert.equal(dispatches[0].client_payload.maggid, 'bornstein');
 });
 
 test('a claimed maggid does not vouch for a video that is linked under nobody\'s name', async () => {
-  const { status } = await trigger({ videoId: 'Zsy7oDUP6Pw', feeds: { [LAKEWOOD]: [], [MDY]: [] }, linked: { 'Bekhorot-2a': 'someoneelse1' }, body: { maggid: 'bernstein' } });
+  const { status } = await trigger({ videoId: 'Zsy7oDUP6Pw', feeds: { [LAKEWOOD]: [], [MDY]: [] }, linked: { 'Bekhorot-2a': 'someoneelse1' }, body: { maggid: 'bornstein' } });
   assert.equal(status, 403);
 });

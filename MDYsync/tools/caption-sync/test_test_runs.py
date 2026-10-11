@@ -69,9 +69,9 @@ class TestRuns(unittest.TestCase):
 
 class MaggidKeyPrefix(unittest.TestCase):
     def test_prefix_order_is_voice_then_maggid_then_language_then_variant(self):
-        self.assertEqual(publish_alignment.key_prefix('chazarah', 'he', True, 'bernstein'), 'Voice-Bernstein-Hebrew-Chazarah-Daf-')
-        self.assertEqual(publish_alignment.key_prefix(None, None, True, 'bernstein'), 'Voice-Bernstein-')
-        self.assertEqual(publish_alignment.key_prefix(None, None, False, 'bernstein'), 'Bernstein-')
+        self.assertEqual(publish_alignment.key_prefix('chazarah', 'he', True, 'bornstein'), 'Voice-Bornstein-Hebrew-Chazarah-Daf-')
+        self.assertEqual(publish_alignment.key_prefix(None, None, True, 'bornstein'), 'Voice-Bornstein-')
+        self.assertEqual(publish_alignment.key_prefix(None, None, False, 'bornstein'), 'Bornstein-')
 
     def test_the_default_maggid_is_unchanged(self):
         self.assertEqual(publish_alignment.key_prefix('chazarah', 'he', True), 'Voice-Hebrew-Chazarah-Daf-')

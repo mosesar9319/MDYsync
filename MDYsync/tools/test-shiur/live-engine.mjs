@@ -14,7 +14,8 @@
 //   node live-engine.mjs --video-id Zsy7oDUP6Pw --refs "Bekhorot 2a,Bekhorot 2b,Bekhorot 3a" \
 //        --words words.json --out alignment.json
 //   node live-engine.mjs --video-id Zsy7oDUP6Pw --fetch-transcript --out-words words.json
-//   (--elevenlabs asks ElevenLabs directly, with ELEVENLABS_API_KEY, instead of the site;
+//   (--keyterms N asks for a hint list of N terms instead of 400, for trying sizes;
+//    --elevenlabs asks ElevenLabs directly, with ELEVENLABS_API_KEY, instead of the site;
 //    --base https://deploy-preview-N--dafsync.netlify.app asks a deploy preview's transcript job)
 //
 // Saving the result as the next numbered run is test_runs.py's job
@@ -57,9 +58,9 @@ export async function fetchSefariaParagraphs(ref, fetchImpl = fetch) {
 }
 
 // words: [[text, start, end], ...] -> the engine's own phrase timeline.
-export function alignTranscript({ words, paragraphs, startRef = null }) {
+export function alignTranscript({ words, paragraphs, startRef = null, keytermCount = 400 }) {
   const canon = LM.buildCanon(paragraphs.map((p) => ({ ref: p.ref, he: p.he })));
-  const batchKeyterms = LM.buildKeytermList(canon, 400);
+  const batchKeyterms = LM.buildKeytermList(canon, keytermCount);
   const listTokens = LM.keytermTokens(batchKeyterms);
   const segments = LV.wordsToSegments(words.map(([text, start, end]) => ({ text, start, end })));
   let startIndex = null;
@@ -241,14 +242,17 @@ async function main() {
   if (!args.refs) throw new Error('--refs is required (comma separated, e.g. "Bekhorot 2a,Bekhorot 2b")');
   const refs = args.refs.split(',').map((r) => r.trim()).filter(Boolean);
   const paragraphs = (await Promise.all(refs.map((r) => fetchSefariaParagraphs(r)))).flat();
+  const keytermCount = Number(args.keyterms) || 400;
   let words;
   let duration;
   if (args.fetchTranscript) {
-    // The same 400 daf terms Live Follow's video mode gives the transcriber.
-    const keyterms = LM.buildKeytermList(LM.buildCanon(paragraphs.map((p) => ({ ref: p.ref, he: p.he }))), 400);
+    // The same daf terms Live Follow's video mode gives the transcriber (400 unless --keyterms says
+    // otherwise, to try another size: the label is part of the daf name the job is keyed by, so a
+    // different size is a new transcript, not the saved one).
+    const keyterms = LM.buildKeytermList(LM.buildCanon(paragraphs.map((p) => ({ ref: p.ref, he: p.he }))), keytermCount);
     const status = args.elevenlabs
       ? await transcribeWithElevenLabs(args.videoId, { keyterms })
-      : await fetchTranscript(args.videoId, { daf: args.daf || refs[0], keyterms, ...(args.base ? { base: args.base, origin: args.base } : {}) });
+      : await fetchTranscript(args.videoId, { daf: args.daf || (keytermCount === 400 ? refs[0] : `${refs[0]} (${keytermCount} hint terms)`), keyterms, ...(args.base ? { base: args.base, origin: args.base } : {}) });
     words = status.words;
     duration = status.seconds;
     if (args.outWords) fs.writeFileSync(args.outWords, JSON.stringify(status));
@@ -259,7 +263,7 @@ async function main() {
     words = Array.isArray(loaded) ? loaded : loaded.words;
     duration = loaded.seconds;
   }
-  const { canon, timeline } = alignTranscript({ words, paragraphs, startRef: args.startRef || refs[0] });
+  const { canon, timeline } = alignTranscript({ words, paragraphs, startRef: args.startRef || refs[0], keytermCount });
   const videoUrl = `https://www.youtube.com/watch?v=${args.videoId}`;
   const alignment = buildAlignment({ timeline, canon, paragraphs, videoId: args.videoId, videoUrl, refs, duration });
   fs.writeFileSync(args.out, JSON.stringify(alignment, null, 2));
