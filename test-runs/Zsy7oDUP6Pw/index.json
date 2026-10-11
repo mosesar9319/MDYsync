@@ -65,7 +65,28 @@
         "matchedWords": 106,
         "durationSeconds": 4909.98
       }
+    },
+    {
+      "id": "live-3",
+      "engine": "live",
+      "number": 3,
+      "name": "Live #3 · 11 Oct 2026 · paraphrase filter, 400-term hint list",
+      "notes": "paraphrase filter, 400-term hint list",
+      "engineVersion": null,
+      "createdAt": "2026-10-11T06:45:13Z",
+      "file": "live-3.json",
+      "jobId": null,
+      "summary": {
+        "segments": 94,
+        "estimatedSegments": 40,
+        "placements": 54,
+        "placedWords": 221,
+        "totalRuns": 1141,
+        "totalWords": 1003,
+        "matchedWords": 221,
+        "durationSeconds": 4909.98
+      }
     }
   ],
-  "updatedAt": "2026-10-11T06:43:11Z"
+  "updatedAt": "2026-10-11T06:45:13Z"
 }
