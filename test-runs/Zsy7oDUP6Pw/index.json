@@ -86,7 +86,29 @@
         "matchedWords": 221,
         "durationSeconds": 4909.98
       }
+    },
+    {
+      "id": "regular-2",
+      "engine": "regular",
+      "number": 2,
+      "name": "Regular #2 · 11 Oct 2026 · no lone words in English, 40-word jump limit",
+      "notes": "no lone words in English, 40-word jump limit",
+      "engineVersion": "4e86a8e",
+      "createdAt": "2026-10-11T06:57:30Z",
+      "file": "regular-2.json",
+      "jobId": "b472384c46c44a7685b045c01cb7acab",
+      "summary": {
+        "segments": 119,
+        "estimatedSegments": 74,
+        "placements": 79,
+        "placedWords": 252,
+        "totalRuns": 556,
+        "totalWords": 2183,
+        "matchedWords": 255,
+        "unmatchedWords": 170,
+        "durationSeconds": 4910.0
+      }
     }
   ],
-  "updatedAt": "2026-10-11T06:45:13Z"
+  "updatedAt": "2026-10-11T06:57:30Z"
 }
