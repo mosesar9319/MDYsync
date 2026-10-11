@@ -84,32 +84,6 @@ MIN_SCORE_GLOBAL = 72
 MIN_SCORE_SINGLE = 85
 CHAR_FLOOR = 55
 RELOCALIZE_AFTER = 12
-# A first candidate for a new position (`pending` in match_runs) waits for a
-# second, agreeing global match. Runs that match nothing in between -- garbled
-# Hebrew, which is most of what a mixed English/Hebrew shiur gives the speech
-# service -- used to break it, so two phrases that agreed on a move were only
-# trusted if they happened to be back to back. It now survives up to this many
-# unmatched runs in between (live_matcher.js keeps the same constant).
-PENDING_MAX_MISSES = 3
-# What may be placed at all. A lone Hebrew word is almost always a TERM the speaker
-# dropped into English ("the Gemara says עובר ..."), and a short run inside an
-# English sentence is the same: either matches the nearest occurrence of that word
-# on the daf, which is usually the wrong one. Measured on a real English shiur
-# (Bechoros 2): 79 of the 107 placements were one or two words, and the live run
-# backed up only a quarter to a third of those, against two thirds of the longer
-# ones; every isolated, out-of-order placement was one of them. live_matcher.js
-# has the same two rules (PLACEABLE_RUN_MIN_WORDS, ENGLISH_CONTEXT_MIN_RUN_WORDS).
-PLACEABLE_RUN_MIN_WORDS = 2
-ENGLISH_CONTEXT_MIN_RUN_WORDS = 4
-# Words closer together than this belong to one spoken utterance; an utterance
-# with more Latin-script words than Hebrew-script ones is English speech.
-UTTERANCE_GAP_SECONDS = 1.0
-# The farthest ONE phrase may move a locked position. Reading goes on from where it
-# was, or resumes a few lines later: tens of words. A match farther off is held and
-# followed only when a second, different phrase carries on from it (the same rule
-# as live_matcher.js's MAX_SINGLE_JUMP_WORDS).
-MAX_SINGLE_JUMP_WORDS = 40
-FAR_CONFIRM_MIN_WORDS = 2
 MAX_RUN_GAP_SECONDS = 2.0
 # Confirmed against two real production syncs: every genuine matched run
 # (an actual verbatim quotation) has come in well under 20 words. The runs
@@ -434,40 +408,14 @@ def transcribe(audio_path, model_size="small", initial_prompt=None):
     return words, info.duration
 
 
-def _is_latin_word(text):
-    return any("a" <= ch.lower() <= "z" for ch in text)
-
-
-def _utterance_is_english(words):
-    """For each word, whether the utterance it is in (words with no pause longer than
-    UTTERANCE_GAP_SECONDS between them) has more Latin-script words than Hebrew-script
-    ones -- i.e. whether Hebrew in it is a term inside English, not a reading."""
-    ids = []
-    uid = 0
-    for i, w in enumerate(words):
-        if i and w["start"] - words[i - 1]["end"] > UTTERANCE_GAP_SECONDS:
-            uid += 1
-        ids.append(uid)
-    latin = {}
-    hebrew = {}
-    for w, u in zip(words, ids):
-        if normalize_word(w["text"]):
-            hebrew[u] = hebrew.get(u, 0) + 1
-        elif _is_latin_word(w["text"]):
-            latin[u] = latin.get(u, 0) + 1
-    return [latin.get(u, 0) > hebrew.get(u, 0) for u in ids]
-
-
 def hebrew_script_runs(words):
     """Group consecutive Hebrew-script words into runs -- a run breaks on
     any non-Hebrew word (English explanation) or a gap between consecutive
     Hebrew words, since either means we've left a continuous stretch of
-    actual reading. Each word also carries `english`: whether it was said inside
-    English speech (see _utterance_is_english), which is_placeable_run uses."""
-    english = _utterance_is_english(words)
+    actual reading."""
     runs = []
     current = []
-    for w, in_english in zip(words, english):
+    for w in words:
         n = normalize_word(w["text"])
         if not n:
             if current:
@@ -477,26 +425,10 @@ def hebrew_script_runs(words):
         if current and w["start"] - current[-1]["end"] > MAX_RUN_GAP_SECONDS:
             runs.append(current)
             current = []
-        current.append({**w, "norm": n, "phon": phonetic(n), "english": in_english})
+        current.append({**w, "norm": n, "phon": phonetic(n)})
     if current:
         runs.append(current)
     return runs
-
-
-def run_in_english(run):
-    """True when most of the run's words were said inside English speech."""
-    return sum(1 for w in run if w.get("english")) * 2 > len(run)
-
-
-def is_placeable_run(run):
-    """Whether a run may be placed on the daf at all: never a lone word, and inside
-    an English sentence never a run shorter than ENGLISH_CONTEXT_MIN_RUN_WORDS --
-    those are terms, not a reading of the daf."""
-    if len(run) < PLACEABLE_RUN_MIN_WORDS:
-        return False
-    if run_in_english(run) and len(run) < ENGLISH_CONTEXT_MIN_RUN_WORDS:
-        return False
-    return True
 
 
 # Claude Opus 5 -- this step is deliberately low-volume (only the minority
@@ -1045,8 +977,6 @@ def refine_matches(canon, runs, run_matches, llm_client=None, debug=False,
 
             # 1) Deterministic retry first, in the now-tight window.
             for idx, run in gap_runs:
-                if not is_placeable_run(run):
-                    continue
                 hl_norm = [w["norm"] for w in run]
                 hl_phon = [w["phon"] for w in run]
                 m = match_phrase_dual(canon, hl_norm, hl_phon, 0, window=(lo, hi))
@@ -1060,8 +990,7 @@ def refine_matches(canon, runs, run_matches, llm_client=None, debug=False,
             #    retry above) -- see that constant's own comment for why an LLM
             #    call on one is pure waste, never a real rescue.
             still_unresolved = [(idx, run) for idx, run in gap_runs
-                                 if idx not in resolved_this_gap and len(run) <= MAX_PLAUSIBLE_QUOTE_WORDS
-                                 and is_placeable_run(run)]
+                                 if idx not in resolved_this_gap and len(run) <= MAX_PLAUSIBLE_QUOTE_WORDS]
             for chunk_start in range(0, len(still_unresolved), GAP_MAX_RUNS_PER_CALL):
                 if llm_client is None or llm_calls >= max_llm_calls:
                     break
@@ -1155,9 +1084,7 @@ def _build_match_stats(runs, run_matches, passes=1, llm_calls=0, offered_indices
                 "end": round(run[-1]["end"], 2),
                 "text": " ".join(w["text"] for w in run),
             }
-            if words > MAX_PLAUSIBLE_QUOTE_WORDS or not is_placeable_run(run):
-                if words <= MAX_PLAUSIBLE_QUOTE_WORDS:
-                    entry["reason"] = "term inside English"
+            if words > MAX_PLAUSIBLE_QUOTE_WORDS:
                 stats["excludedWords"] += words
                 stats["excluded"].append(entry)
             else:
@@ -1258,8 +1185,6 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
     locked = False
     local_misses = 0
     pending = None
-    pending_misses = 0
-    held = None  # a far move (beyond MAX_SINGLE_JUMP_WORDS) waiting for a second phrase
     run_matches = [None] * len(runs)
     llm_calls = 0
     llm_client = None
@@ -1269,40 +1194,11 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
         llm_client = anthropic.Anthropic()
 
     for idx, run in enumerate(runs):
-        # A lone word, or a few words inside an English sentence, is a term the
-        # speaker dropped in, not a reading: never placed, and it changes nothing
-        # (no miss counted, nothing pending broken).
-        if not is_placeable_run(run):
-            continue
         hl_norm = [w["norm"] for w in run]
         hl_phon = [w["phon"] for w in run]
-        key = " ".join(hl_norm)
 
-        held_before = held
-        held = None
         if locked:
             m = match_phrase_dual(canon, hl_norm, hl_phon, cursor)
-            if m is not None and abs(m[0] - cursor) > MAX_SINGLE_JUMP_WORDS:
-                s, e, phon_score, char_score = m
-                # A far move: carrying on from the one held last phrase, with a
-                # different phrase, is the second agreeing match; else hold this one.
-                if (held_before is not None and held_before["key"] != key
-                        and s >= held_before["s"] - 3 and s <= held_before["e"] + 12
-                        and len(held_before["run"]) >= FAR_CONFIRM_MIN_WORDS and len(run) >= FAR_CONFIRM_MIN_WORDS):
-                    run_matches[held_before["idx"]] = {"s": held_before["s"], "e": held_before["e"],
-                                                       "score": held_before["phon_score"], "source": "deterministic-local"}
-                    run_matches[idx] = {"s": s, "e": e, "score": phon_score, "source": "deterministic-local"}
-                    cursor = s
-                    local_misses = 0
-                    pending = None
-                    pending_misses = 0
-                    if debug:
-                        print(f"  t={run[0]['start']:7.2f}  far move confirmed at [{s}-{e}]")
-                else:
-                    held = {"s": s, "e": e, "phon_score": phon_score, "run": run, "idx": idx, "key": key}
-                    if debug:
-                        print(f"  t={run[0]['start']:7.2f}  far move to [{s}-{e}] held for a second phrase")
-                continue
             if m is not None:
                 s, e, phon_score, char_score = m
                 cursor = s
@@ -1356,16 +1252,10 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
                     print(f"  t={run[0]['start']:7.2f}  LLM rescue -> [{m[0]}-{m[1]}] "
                           f"confidence={m[2]:.1f}{anchor_note}")
         if m is None:
-            # A few unmatched runs in between do not break a pending candidate
-            # (see PENDING_MAX_MISSES); more than that do.
-            if pending is not None:
-                pending_misses += 1
-                if pending_misses > PENDING_MAX_MISSES:
-                    pending = None
+            pending = None  # an unmatched run in between breaks any pending candidate
             continue
         s, e, phon_score, char_score = m
-        if (pending is not None and pending["key"] != key
-                and s >= pending["s"] and s - pending["s"] <= FWD_WINDOW):
+        if pending is not None and s >= pending["s"] and s - pending["s"] <= FWD_WINDOW:
             # Two consecutive global matches agreeing on forward progression
             # -- confirmed. Both the pending run and this one are now
             # trusted; the pending one was withheld until now.
@@ -1376,13 +1266,11 @@ def match_runs(canon, runs, debug=False, llm_rescue=False):
             locked = True
             local_misses = 0
             pending = None
-            pending_misses = 0
             if debug:
                 print(f"  t={run[0]['start']:7.2f}  LOCK confirmed at [{s}-{e}]")
         else:
             pending = {"s": s, "e": e, "phon_score": phon_score, "char_score": char_score,
-                       "run": run, "idx": idx, "source": source, "key": key}
-            pending_misses = 0
+                       "run": run, "idx": idx, "source": source}
 
     return run_matches, llm_calls, llm_client, offered_indices
 
@@ -1529,7 +1417,7 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
         print(f"  Not matched -- left for manual review: {stats['unmatchedWords']} words "
               f"({len(stats['unmatched'])} runs)")
     if stats["excluded"]:
-        print(f"  Excluded (a term inside English, or too long to be a daf-text quotation): "
+        print(f"  Excluded (too long to be a daf-text quotation, likely free explanation): "
               f"{stats['excludedWords']} words ({len(stats['excluded'])} runs)")
 
     return canon, segments, events, duration, stats

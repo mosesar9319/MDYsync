@@ -90,42 +90,6 @@
   // reading the voice detector split -- and placing it moves the tracker's
   // position to wherever that word happens to occur next to the cursor.
   const PLACEABLE_RUN_MIN_WORDS = 2;
-  // In a mostly-English sentence, a run of Hebrew shorter than this is a TERM
-  // the speaker dropped in ("הלכה", "מחוסר זמן"), not a reading of the daf: it is
-  // never placed. Measured on a real 51-minute English shiur: 115 of the 170
-  // placements were such terms, matched to wherever the same words occur on the
-  // daf (one pair of words 15 times), and they moved the highlight around.
-  const ENGLISH_CONTEXT_MIN_RUN_WORDS = 4;
-  // To move a locked position FAR (beyond MAX_SINGLE_JUMP_WORDS) on two agreeing
-  // phrases, each must be at least this long, and they must be different phrases:
-  // the same words said twice are not evidence of a move. (Two words is also the
-  // shortest run that is ever placed at all, PLACEABLE_RUN_MIN_WORDS; a lone word
-  // never counts.)
-  const FAR_CONFIRM_MIN_WORDS = 2;
-  // A first candidate for a new position (`pending`) waits for a second, agreeing
-  // phrase. Garbled phrases in between -- Hebrew the speech service could not
-  // make anything of, which is most of what it hears from a mixed English/Hebrew
-  // shiur -- used to wipe it, so a real move was only ever confirmed if its two
-  // phrases happened to be back to back (a real session: three consecutive
-  // candidates on the way to the right spot, each wiped by an unplaceable phrase
-  // before the next arrived, and three minutes lost). Now it survives this many
-  // unplaceable runs (the same constant, and rule, as voice_align.py) and, live,
-  // this many seconds; whichever comes first expires it.
-  const PENDING_MAX_MISSES = 3;
-  const PENDING_MAX_AGE_SECONDS = 30;
-  // Hebrew that has almost nothing in common with the daf is not a reading of it
-  // (a side conversation, a phone call, a hallucination on quiet audio): it should
-  // not count against the lock the way a garbled reading does.
-  const OFF_TOPIC_SHARE = 0.25;
-  const HAZY_SHARE = 0.5;
-  const QUIET_RMS = 0.01;
-  // The transcriber, told to expect a list of Hebrew terms, sometimes writes stretches of
-  // ENGLISH speech out as modern-Hebrew paraphrase. In a real 82-minute shiur 16 runs
-  // (461 words) of the Hebrew-script text were such paraphrase -- long, and with under
-  // a third of their words anywhere on the daf. They are not a reading: a run this long
-  // that shares so little with the daf is dropped before matching (see placeableRuns).
-  const PARAPHRASE_MIN_RUN_WORDS = 8;
-  const PARAPHRASE_MAX_VOCAB_SHARE = 0.3;
   const PROVISIONAL_TAIL_WORDS = 6;
   // ElevenLabs' realtime limits (batch Scribe allows far more).
   const REALTIME_MAX_KEYTERMS = 50;
@@ -289,34 +253,6 @@
     return runs;
   }
 
-  const hasHebrew = (token) => /[\u0590-\u05FF]/.test(token);
-  const hasLatin = (token) => /[A-Za-z]/.test(token);
-
-  // Whether a stretch of speech is mostly English: more Latin-letter words than
-  // Hebrew-letter ones. Hebrew in such speech is mostly terms and names.
-  function englishDominant(text) {
-    const tokens = String(text || '').split(/\s+/).filter(Boolean);
-    return tokens.filter(hasLatin).length > tokens.filter(hasHebrew).length;
-  }
-
-  // The runs of a transcript the tracker may be asked to place. `allRuns` is
-  // every Hebrew run (chunked), for telling a bare fragment from explanation;
-  // `runs` drops the lone words, and, inside English, the runs too short to be
-  // a reading (ENGLISH_CONTEXT_MIN_RUN_WORDS). Judged on the run as spoken,
-  // before it is chunked, so a long reading is never mistaken for terms.
-  // `canon` (the daf's words), when given, also drops Hebrew paraphrase of English.
-  function placeableRuns(heard, canon = null) {
-    const hebrewRuns = splitHebrewRuns(heard)
-      .filter((run) => !canon || !isParaphrase(canon, run));
-    const english = englishDominant(heard);
-    const allRuns = hebrewRuns.flatMap((run) => chunkRun(run));
-    const runs = hebrewRuns
-      .filter((run) => !english || run.length >= ENGLISH_CONTEXT_MIN_RUN_WORDS)
-      .flatMap((run) => chunkRun(run))
-      .filter((run) => run.length >= PLACEABLE_RUN_MIN_WORDS);
-    return { allRuns, runs };
-  }
-
   // Evenly sized consecutive chunks of at most maxWords -- 13 words become
   // 7 + 6, never 10 + a lone, unplaceable 3rd-class single word.
   function chunkRun(run, maxWords = LIVE_MAX_RUN_WORDS) {
@@ -448,11 +384,9 @@
   // Whether a match near the cursor must wait for a second phrase: always when
   // it is beyond MAX_SINGLE_JUMP_WORDS, and between LOCAL_JUMP_WORDS and that
   // unless its own evidence is strong.
-  // Batch alignment (voice_align.py) has only the distance rule; the extra
-  // evidence test for a moderate move is live-only.
-  function needsCorroboration(match, cursor, wordCount, live = true) {
+  function needsCorroboration(match, cursor, wordCount) {
     const distance = Math.abs(match.s - cursor);
-    return distance > MAX_SINGLE_JUMP_WORDS || (live && distance > LOCAL_JUMP_WORDS && !strongLocal(match, wordCount));
+    return distance > MAX_SINGLE_JUMP_WORDS || (distance > LOCAL_JUMP_WORDS && !strongLocal(match, wordCount));
   }
 
   function matchGlobalWithMargin(canon, hlNorm, hlPhon) {
@@ -495,48 +429,13 @@
   //   { kind: 'pending', match }    -- a first global candidate, held
   //   { kind: 'miss', unlocked }    -- nothing placed (unlocked: true when
   //                                    this miss is what lost the lock)
-  // Whether `run` (of `words` words, text `key`) can corroborate the earlier
-  // candidate `earlier` for a far move: both substantial, and not the same words.
-  function corroborates(earlier, words, key) {
-    return earlier.key !== key
-      && (earlier.words || 0) >= FAR_CONFIRM_MIN_WORDS
-      && words >= FAR_CONFIRM_MIN_WORDS;
-  }
-
-  // The same, for a move held out of the search window: different words always;
-  // and, only when it is beyond the jump limit, both substantial.
-  function confirmsHeld(held, cursor, words, key) {
-    if (held.key === key) return false;
-    return Math.abs(held.s - cursor) <= MAX_SINGLE_JUMP_WORDS || corroborates(held, words, key);
-  }
-
   function createTracker(canon, options = {}) {
     const eager = Boolean(options.eagerRelocalize);
-    const st = { cursor: 0, locked: false, localMisses: 0, pending: null, held: null, pendingMisses: 0, pendingAt: 0 };
-    // Seconds on any monotonic clock, to age out a pending candidate; without it
-    // only the run count does (tests, and batch alignment, which has no clock).
-    const now = typeof options.now === 'function' ? options.now : null;
-    function setPending(value) {
-      st.pending = value;
-      st.pendingMisses = 0;
-      st.pendingAt = value && now ? now() : 0;
-    }
-    // A pending candidate still worth waiting on: not too many unplaceable runs
-    // since (voice_align.py's rule too), and, live, not too long ago.
-    function pendingAlive() {
-      if (!st.pending) return false;
-      if (st.pendingMisses > PENDING_MAX_MISSES) return false;
-      return !(now && now() - st.pendingAt > PENDING_MAX_AGE_SECONDS);
-    }
+    const st = { cursor: 0, locked: false, localMisses: 0, pending: null, held: null };
 
-    // `options.missWeight` (0..1, live only) says how much a failed local match
-    // counts toward losing the lock: 1 for a garbled reading, less for audio that
-    // is quiet or has nothing in common with the daf (see missWeightFor).
-    function step(run, idx, stepOptions = {}) {
-      const missWeight = eager && typeof stepOptions.missWeight === 'number' ? stepOptions.missWeight : 1;
+    function step(run, idx) {
       const hlNorm = run.map((w) => w.norm);
       const hlPhon = run.map((w) => w.phon);
-      const key = hlNorm.join(' ');
       let unlocked = false;
       const wasLocked = st.locked;
       let heldBefore = null; // a far move held by the previous phrase, if any
@@ -545,27 +444,26 @@
         heldBefore = held;
         st.held = null;
         const m = matchPhraseDual(canon, hlNorm, hlPhon, st.cursor);
-        if (m && needsCorroboration(m, st.cursor, run.length, eager)) {
+        if (m && eager && needsCorroboration(m, st.cursor, run.length)) {
           const local = { ...m, source: 'deterministic-local' };
           // Carrying on from the held spot (the next phrase starts about where
-          // it ended) is the corroboration -- from a different, substantial
-          // phrase (see FAR_CONFIRM_MIN_WORDS), not the same words said again.
-          if (held && m.s >= held.s - 3 && m.s <= held.e + 12 && confirmsHeld(held, st.cursor, run.length, key)) {
+          // it ended) is the corroboration.
+          if (held && m.s >= held.s - 3 && m.s <= held.e + 12) {
             st.cursor = m.s;
             st.localMisses = 0;
-            setPending(null);
+            st.pending = null;
             return { kind: 'confirmed', match: local, pending: { match: held, idx: held.idx } };
           }
-          st.held = { ...m, source: 'deterministic-local', idx, words: run.length, key };
+          st.held = { ...m, source: 'deterministic-local', idx };
           return { kind: 'pending', match: local, held: true };
         }
         if (m) {
           st.cursor = m.s;
           st.localMisses = 0;
-          setPending(null); // always already null in batch mode; see eagerRelocalize
+          st.pending = null; // always already null in batch mode; see eagerRelocalize
           return { kind: 'local', match: { ...m, source: 'deterministic-local' } };
         }
-        st.localMisses += missWeight;
+        st.localMisses += 1;
         if (st.localMisses >= RELOCALIZE_AFTER) {
           st.locked = false;
           unlocked = true;
@@ -577,12 +475,7 @@
         ? matchGlobalWithMargin(canon, hlNorm, hlPhon)
         : matchPhraseDual(canon, hlNorm, hlPhon, st.cursor, { global: true });
       if (!m) {
-        // A few unmatched runs in between do not break a pending candidate (see
-        // PENDING_MAX_MISSES); more than that do.
-        if (st.pending) {
-          st.pendingMisses += 1;
-          if (!pendingAlive()) setPending(null);
-        }
+        st.pending = null; // an unmatched run in between breaks any pending candidate
         return { kind: 'miss', unlocked };
       }
       const match = { ...m, source: 'deterministic-global' };
@@ -591,27 +484,21 @@
         st.cursor = m.s;
         st.locked = true;
         st.localMisses = 0;
-        setPending(null);
+        st.pending = null;
         return { kind: 'jump', match };
       }
       // A far move held last phrase counts as the first of the two agreeing
       // phrases even when this one falls outside the search window around the
       // old position (the reading has moved on from the held spot).
-      const pending = (pendingAlive() ? st.pending : null) || (eager && heldBefore ? { match: heldBefore, idx: heldBefore.idx, words: heldBefore.words, key: heldBefore.key } : null);
-      // A move beyond the jump limit from a locked position needs two substantial,
-      // different phrases; short terms, or one phrase said twice, cannot do it.
-      const farMove = wasLocked && Math.abs(m.s - st.cursor) > MAX_SINGLE_JUMP_WORDS;
-      // Two agreeing matches must be two different phrases (the same words said
-      // twice are one observation); live also holds a far move to the longer-phrase rule.
-      const corroborated = !pending || (pending.key !== key && (!eager || !farMove || corroborates(pending, run.length, key)));
-      if (pending && corroborated && m.s >= pending.match.s && m.s - pending.match.s <= FWD_WINDOW) {
+      const pending = st.pending || (heldBefore ? { match: heldBefore, idx: heldBefore.idx } : null);
+      if (pending && m.s >= pending.match.s && m.s - pending.match.s <= FWD_WINDOW) {
         st.cursor = m.s;
         st.locked = true;
         st.localMisses = 0;
-        setPending(null);
+        st.pending = null;
         return { kind: 'confirmed', match, pending };
       }
-      setPending({ match, idx, words: run.length, key });
+      st.pending = { match, idx };
       return { kind: 'pending', match, unlocked };
     }
 
@@ -624,7 +511,7 @@
       st.cursor = Math.max(0, Math.min(canon.length - 1, index));
       st.locked = true;
       st.localMisses = 0;
-      setPending(null);
+      st.pending = null;
       st.held = null;
     }
 
@@ -771,10 +658,6 @@
     const out = runs.map(() => null);
     const record = (m) => ({ s: m.s, e: m.e, score: m.phonScore, source: m.source });
     runs.forEach((run, idx) => {
-      // As in voice_align.py: a lone word is a term, never placed, and changes nothing.
-      // (Its other rule, a short run inside English, needs the speech's context; a run
-      // here has none.)
-      if (run.length < PLACEABLE_RUN_MIN_WORDS) return;
       const result = tracker.step(run, idx);
       if (result.kind === 'local') out[idx] = record(result.match);
       else if (result.kind === 'confirmed') {
@@ -783,69 +666,6 @@
       }
     });
     return out;
-  }
-
-  // The distinct words of the daf, for telling Hebrew that could be a reading of
-  // it from Hebrew that has nothing to do with it. Built once per canon.
-  const vocabularies = new WeakMap();
-  function vocabularyOf(canon) {
-    let vocab = vocabularies.get(canon);
-    if (!vocab) {
-      vocab = new Set();
-      for (const w of canon.words) if (w.norm.length >= 2) vocab.add(w.norm);
-      vocabularies.set(canon, vocab);
-    }
-    return vocab;
-  }
-
-  // The share of a run's words that occur anywhere on the daf. Garbled reading
-  // keeps a good part of them (the daf's own Aramaic is what the speaker is
-  // saying); a side conversation in modern Hebrew keeps almost none.
-  function vocabShare(canon, run) {
-    if (!run.length) return 0;
-    const vocab = vocabularyOf(canon);
-    return run.filter((w) => vocab.has(w.norm)).length / run.length;
-  }
-
-  // How much a failed local match counts toward losing the lock (0..1). A
-  // garbled reading counts in full; Hebrew with little in common with the daf
-  // counts for nothing or half, and so does audio too quiet to be the shiur
-  // itself. A real session lost its lock to a side conversation picked up at about
-  // 0.005-0.01 RMS and spent the next two minutes "Searching" with no position -- and, unlocked,
-  // a decisive phrase may land anywhere on the daf.
-  function missWeightFor(canon, run, rms) {
-    const share = vocabShare(canon, run);
-    let weight = share < OFF_TOPIC_SHARE ? 0 : share < HAZY_SHARE ? 0.5 : 1;
-    if (typeof rms === 'number' && rms < QUIET_RMS) weight = Math.min(weight, 0.5);
-    return weight;
-  }
-
-  // Batch-model keyterms for a reader who is somewhere near `cursor`: the words
-  // just before and well ahead of it, the fixed Gemara terms, then the whole-daf
-  // list for the rest of the budget. Listed words first, in alphabetical order
-  // and NOT daf order: reading the next stretch aloud would otherwise be
-  // consecutive entries of the list, which is exactly what cleanTranscript takes
-  // for the model reciting its list and cuts away (see LEAK_MIN_RUN).
-  const LOCAL_KEYTERM_BACK = 20;
-  const LOCAL_KEYTERM_FWD = 140;
-  function buildLocalKeyterms(canon, cursor, wholeDafList, maxTerms = 400) {
-    const from = Math.max(0, cursor - LOCAL_KEYTERM_BACK);
-    const to = Math.min(canon.length, cursor + LOCAL_KEYTERM_FWD);
-    const local = new Set();
-    for (let i = from; i < to; i += 1) {
-      const n = canon.words[i].norm;
-      if (n.length >= 3 && !KEYTERM_STOPWORDS.has(n)) local.add(n);
-    }
-    const head = COMMON_GEMARA_TERMS.concat([...local].sort());
-    const seen = new Set(head);
-    const rest = (wholeDafList || []).filter((term) => !seen.has(term));
-    return head.concat(rest).slice(0, maxTerms);
-  }
-
-  // A long Hebrew-script run that shares almost nothing with the daf: the transcriber's
-  // modern-Hebrew rendering of English speech, not anyone reading the daf.
-  function isParaphrase(canon, run) {
-    return run.length >= PARAPHRASE_MIN_RUN_WORDS && vocabShare(canon, run) < PARAPHRASE_MAX_VOCAB_SHARE;
   }
 
   // voice_align.build_keyterm_list.
@@ -893,10 +713,6 @@
     LIVE_MAX_RUN_WORDS,
     PROVISIONAL_TAIL_WORDS,
     PLACEABLE_RUN_MIN_WORDS,
-    ENGLISH_CONTEXT_MIN_RUN_WORDS,
-    FAR_CONFIRM_MIN_WORDS,
-    englishDominant,
-    placeableRuns,
     MAX_SINGLE_JUMP_WORDS,
     strongLocal,
     REALTIME_MAX_KEYTERMS,
@@ -914,17 +730,6 @@
     isDecisive,
     matchRuns,
     buildKeytermList,
-    buildLocalKeyterms,
-    isParaphrase,
-    PARAPHRASE_MIN_RUN_WORDS,
-    PARAPHRASE_MAX_VOCAB_SHARE,
-    vocabShare,
-    missWeightFor,
-    PENDING_MAX_MISSES,
-    PENDING_MAX_AGE_SECONDS,
-    OFF_TOPIC_SHARE,
-    HAZY_SHARE,
-    QUIET_RMS,
     buildRealtimeKeyterms,
     keytermTokens,
     cleanTranscript,
