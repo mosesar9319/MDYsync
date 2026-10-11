@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { runJob } from '../../netlify/functions/live-video-job-background.mjs';
 import { readStatus } from '../../netlify/functions/live-video-status.mjs';
-import { acceptVideoUrl, sanitizeKeyterms, jobKey, buildTranscribeFields, compactWords, classifyDriveResponse } from '../../shared/live-video-job.mjs';
+import { acceptVideoUrl, sanitizeKeyterms, jobKey, keytermsLabel, keytermsLabelFromQuery, buildTranscribeFields, compactWords, classifyDriveResponse } from '../../shared/live-video-job.mjs';
 import { probe } from '../../netlify/functions/live-video-probe.mjs';
 
 const require = createRequire(import.meta.url);
@@ -106,7 +106,7 @@ test('a job stores the transcript, and the status function then serves it', asyn
     assert.match(calls[0].init.body, /name="source_url"\r\n\r\nhttps:\/\/www\.youtube\.com\/watch\?v=dQw4w9WgXcQ/);
     assert.match(calls[0].init.body, /name="keyterms"\r\n\r\nשור/);
 
-    const status = await readStatus({ request: get({ url: YT, daf: 'Chullin 91a', kt: '1' }), store });
+    const status = await readStatus({ request: get({ url: YT, daf: 'Chullin 91a', kt: '2' }), store });
     assert.equal(status.code, 200);
     assert.deepEqual(status.body, { status: 'done', words: [['רב', 1.23, 1.5], ['אשי', 1.55, 1.9]], languageCode: 'heb', seconds: 1.9 });
   } finally { restore(); }
@@ -256,4 +256,32 @@ test('the probe is for Drive files only, and from this site only', async () => {
   const ok = `https://x.test/api/live-video-probe?url=${encodeURIComponent('https://drive.google.com/open?id=1AbCdEfGhIjKlMnOpQrStUvWxYz012345')}`;
   assert.equal((await probe({ request: new Request(ok, { headers: { Origin: 'https://evil.example' } }), fetchImpl })).code, 403);
   assert.equal(fetched, 0);
+});
+
+test('a transcript made with the short hint list is kept apart from one made with the old 400-term list', async () => {
+  const restore = withKey();
+  try {
+    const store = memoryStore();
+    const fetchImpl = async () => elevenLabs()();
+    const many = Array.from({ length: 150 }, (_, i) => `מילה${'אבגדהוזחטי'[i % 11]}${'אבגדהוזחטי'[Math.floor(i / 11) % 11]}${'אבגדהוזחטי'[Math.floor(i / 121)]}`);
+    assert.equal(await runJob({ request: post({ url: YT, daf: 'd', keyterms: many }), store, fetchImpl }), 'done');
+    // The old list's transcript is found by kt=1, and not by kt=2 ...
+    assert.equal((await readStatus({ request: get({ url: YT, daf: 'd', kt: '1' }), store })).body.status, 'done');
+    assert.equal((await readStatus({ request: get({ url: YT, daf: 'd', kt: '2' }), store })).body.status, 'absent');
+    // ... so asking for the short list's makes a new one.
+    assert.equal(await runJob({ request: post({ url: YT, daf: 'd', keyterms: many.slice(0, 60) }), store, fetchImpl }), 'done');
+    assert.equal((await readStatus({ request: get({ url: YT, daf: 'd', kt: '2' }), store })).body.status, 'done');
+  } finally { restore(); }
+});
+
+test('which hint list a request used is read from the list itself, and from the status query', () => {
+  assert.equal(keytermsLabel([]), false);
+  assert.equal(keytermsLabel(new Array(60).fill('x')), 'kt2');
+  assert.equal(keytermsLabel(new Array(400).fill('x')), true);
+  assert.equal(keytermsLabelFromQuery('1'), true);
+  assert.equal(keytermsLabelFromQuery('2'), 'kt2');
+  assert.equal(keytermsLabelFromQuery(null), false);
+  assert.equal(jobKey({ url: YT, daf: 'd', withKeyterms: true }), jobKey({ url: YT, daf: 'd', withKeyterms: true }));
+  assert.notEqual(jobKey({ url: YT, daf: 'd', withKeyterms: true }), jobKey({ url: YT, daf: 'd', withKeyterms: 'kt2' }));
+  assert.notEqual(jobKey({ url: YT, daf: 'd', withKeyterms: 'kt2' }), jobKey({ url: YT, daf: 'd', withKeyterms: false }));
 });

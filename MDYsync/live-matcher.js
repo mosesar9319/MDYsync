@@ -119,6 +119,18 @@
   const OFF_TOPIC_SHARE = 0.25;
   const HAZY_SHARE = 0.5;
   const QUIET_RMS = 0.01;
+  // The transcriber, told to expect a list of Hebrew terms, sometimes writes stretches of
+  // ENGLISH speech out as modern-Hebrew paraphrase. In a real 82-minute shiur 16 runs
+  // (461 words) of the Hebrew-script text were such paraphrase -- long, and with under
+  // a third of their words anywhere on the daf. They are not a reading: a run this long
+  // that shares so little with the daf is dropped before matching (see placeableRuns).
+  const PARAPHRASE_MIN_RUN_WORDS = 8;
+  const PARAPHRASE_MAX_VOCAB_SHARE = 0.3;
+  // The hint list sent with a whole-video transcript: the fixed Gemara terms and this
+  // many distinctive words of the daf. 400 of them (what voice_align.py sends) is
+  // where the paraphrase above came from; a short list keeps the model's attention on
+  // the terms without inviting it to write Hebrew for everything.
+  const TRANSCRIPT_KEYTERMS = 50;
   const PROVISIONAL_TAIL_WORDS = 6;
   // ElevenLabs' realtime limits (batch Scribe allows far more).
   const REALTIME_MAX_KEYTERMS = 50;
@@ -297,8 +309,10 @@
   // `runs` drops the lone words, and, inside English, the runs too short to be
   // a reading (ENGLISH_CONTEXT_MIN_RUN_WORDS). Judged on the run as spoken,
   // before it is chunked, so a long reading is never mistaken for terms.
-  function placeableRuns(heard) {
-    const hebrewRuns = splitHebrewRuns(heard);
+  // `canon` (the daf's words), when given, also drops Hebrew paraphrase of English.
+  function placeableRuns(heard, canon = null) {
+    const hebrewRuns = splitHebrewRuns(heard)
+      .filter((run) => !canon || !isParaphrase(canon, run));
     const english = englishDominant(heard);
     const allRuns = hebrewRuns.flatMap((run) => chunkRun(run));
     const runs = hebrewRuns
@@ -439,9 +453,11 @@
   // Whether a match near the cursor must wait for a second phrase: always when
   // it is beyond MAX_SINGLE_JUMP_WORDS, and between LOCAL_JUMP_WORDS and that
   // unless its own evidence is strong.
-  function needsCorroboration(match, cursor, wordCount) {
+  // Batch alignment (voice_align.py) has only the distance rule; the extra
+  // evidence test for a moderate move is live-only.
+  function needsCorroboration(match, cursor, wordCount, live = true) {
     const distance = Math.abs(match.s - cursor);
-    return distance > MAX_SINGLE_JUMP_WORDS || (distance > LOCAL_JUMP_WORDS && !strongLocal(match, wordCount));
+    return distance > MAX_SINGLE_JUMP_WORDS || (live && distance > LOCAL_JUMP_WORDS && !strongLocal(match, wordCount));
   }
 
   function matchGlobalWithMargin(canon, hlNorm, hlPhon) {
@@ -534,7 +550,7 @@
         heldBefore = held;
         st.held = null;
         const m = matchPhraseDual(canon, hlNorm, hlPhon, st.cursor);
-        if (m && eager && needsCorroboration(m, st.cursor, run.length)) {
+        if (m && needsCorroboration(m, st.cursor, run.length, eager)) {
           const local = { ...m, source: 'deterministic-local' };
           // Carrying on from the held spot (the next phrase starts about where
           // it ended) is the corroboration -- from a different, substantial
@@ -586,11 +602,13 @@
       // A far move held last phrase counts as the first of the two agreeing
       // phrases even when this one falls outside the search window around the
       // old position (the reading has moved on from the held spot).
-      const pending = (pendingAlive() ? st.pending : null) || (heldBefore ? { match: heldBefore, idx: heldBefore.idx, words: heldBefore.words, key: heldBefore.key } : null);
+      const pending = (pendingAlive() ? st.pending : null) || (eager && heldBefore ? { match: heldBefore, idx: heldBefore.idx, words: heldBefore.words, key: heldBefore.key } : null);
       // A move beyond the jump limit from a locked position needs two substantial,
       // different phrases; short terms, or one phrase said twice, cannot do it.
       const farMove = wasLocked && Math.abs(m.s - st.cursor) > MAX_SINGLE_JUMP_WORDS;
-      const corroborated = !eager || !pending || (pending.key !== key && (!farMove || corroborates(pending, run.length, key)));
+      // Two agreeing matches must be two different phrases (the same words said
+      // twice are one observation); live also holds a far move to the longer-phrase rule.
+      const corroborated = !pending || (pending.key !== key && (!eager || !farMove || corroborates(pending, run.length, key)));
       if (pending && corroborated && m.s >= pending.match.s && m.s - pending.match.s <= FWD_WINDOW) {
         st.cursor = m.s;
         st.locked = true;
@@ -758,6 +776,10 @@
     const out = runs.map(() => null);
     const record = (m) => ({ s: m.s, e: m.e, score: m.phonScore, source: m.source });
     runs.forEach((run, idx) => {
+      // As in voice_align.py: a lone word is a term, never placed, and changes nothing.
+      // (Its other rule, a short run inside English, needs the speech's context; a run
+      // here has none.)
+      if (run.length < PLACEABLE_RUN_MIN_WORDS) return;
       const result = tracker.step(run, idx);
       if (result.kind === 'local') out[idx] = record(result.match);
       else if (result.kind === 'confirmed') {
@@ -823,6 +845,17 @@
     const seen = new Set(head);
     const rest = (wholeDafList || []).filter((term) => !seen.has(term));
     return head.concat(rest).slice(0, maxTerms);
+  }
+
+  // A long Hebrew-script run that shares almost nothing with the daf: the transcriber's
+  // modern-Hebrew rendering of English speech, not anyone reading the daf.
+  function isParaphrase(canon, run) {
+    return run.length >= PARAPHRASE_MIN_RUN_WORDS && vocabShare(canon, run) < PARAPHRASE_MAX_VOCAB_SHARE;
+  }
+
+  // The hint list for a whole-video transcript (see TRANSCRIPT_KEYTERMS).
+  function buildTranscriptKeyterms(canon) {
+    return buildKeytermList(canon, TRANSCRIPT_KEYTERMS);
   }
 
   // voice_align.build_keyterm_list.
@@ -892,6 +925,11 @@
     matchRuns,
     buildKeytermList,
     buildLocalKeyterms,
+    buildTranscriptKeyterms,
+    isParaphrase,
+    PARAPHRASE_MIN_RUN_WORDS,
+    PARAPHRASE_MAX_VOCAB_SHARE,
+    TRANSCRIPT_KEYTERMS,
     vocabShare,
     missWeightFor,
     PENDING_MAX_MISSES,

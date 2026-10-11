@@ -14,7 +14,8 @@
 //   node live-engine.mjs --video-id Zsy7oDUP6Pw --refs "Bekhorot 2a,Bekhorot 2b,Bekhorot 3a" \
 //        --words words.json --out alignment.json
 //   node live-engine.mjs --video-id Zsy7oDUP6Pw --fetch-transcript --out-words words.json
-//   (--elevenlabs asks ElevenLabs directly, with ELEVENLABS_API_KEY, instead of the site)
+//   (--elevenlabs asks ElevenLabs directly, with ELEVENLABS_API_KEY, instead of the site;
+//    --base https://deploy-preview-N--dafsync.netlify.app asks a deploy preview's transcript job)
 //
 // Saving the result as the next numbered run is test_runs.py's job
 // (tools/caption-sync/test_runs.py publish --engine live ...), so both engines
@@ -58,15 +59,15 @@ export async function fetchSefariaParagraphs(ref, fetchImpl = fetch) {
 // words: [[text, start, end], ...] -> the engine's own phrase timeline.
 export function alignTranscript({ words, paragraphs, startRef = null }) {
   const canon = LM.buildCanon(paragraphs.map((p) => ({ ref: p.ref, he: p.he })));
-  const batchKeyterms = LM.buildKeytermList(canon, 400);
-  const listTokens = LM.keytermTokens(batchKeyterms);
+  // The hint list the transcript was asked for with (see LM.TRANSCRIPT_KEYTERMS).
+  const listTokens = LM.keytermTokens(LM.buildTranscriptKeyterms(canon));
   const segments = LV.wordsToSegments(words.map(([text, start, end]) => ({ text, start, end })));
   let startIndex = null;
   if (startRef) {
     const first = canon.words.findIndex((w) => w.ref.startsWith(`${startRef}.`));
     if (first >= 0) startIndex = first;
   }
-  const { timeline } = LV.alignSegments(LM, canon, segments, { startIndex, listTokens, leakMinRun: LM.LEAK_MIN_RUN_BATCH });
+  const { timeline } = LV.alignSegments(LM, canon, segments, { startIndex, listTokens, leakMinRun: LM.LEAK_MIN_RUN });
   return { canon, timeline, phrases: segments.length };
 }
 
@@ -187,7 +188,7 @@ async function fetchTranscript(videoId, { daf = '', keyterms = [],  base = 'http
   // makes the model write the Hebrew phrases in Hebrew letters instead of spelling
   // them out in English); the job is keyed by (video, daf, keyterms), so ask the same way.
   const params = new URLSearchParams({ url, daf });
-  if (keyterms.length) params.set('kt', '1');
+  if (keyterms.length) params.set('kt', '2');
   const statusUrl = `${base}/api/live-video-status?${params}`;
   const read = async () => (await fetch(statusUrl, { headers: { Origin: origin } })).json();
   let status = await read();
@@ -236,11 +237,11 @@ async function main() {
   let words;
   let duration;
   if (args.fetchTranscript) {
-    // The same 400 daf terms Live Follow's video mode gives the transcriber.
-    const keyterms = LM.buildKeytermList(LM.buildCanon(paragraphs.map((p) => ({ ref: p.ref, he: p.he }))), 400);
+    // The same short list of daf terms Live Follow's video mode gives the transcriber.
+    const keyterms = LM.buildTranscriptKeyterms(LM.buildCanon(paragraphs.map((p) => ({ ref: p.ref, he: p.he }))));
     const status = args.elevenlabs
       ? await transcribeWithElevenLabs(args.videoId, { keyterms })
-      : await fetchTranscript(args.videoId, { daf: args.daf || refs[0], keyterms });
+      : await fetchTranscript(args.videoId, { daf: args.daf || refs[0], keyterms, ...(args.base ? { base: args.base, origin: args.base } : {}) });
     words = status.words;
     duration = status.seconds;
     if (args.outWords) fs.writeFileSync(args.outWords, JSON.stringify(status));

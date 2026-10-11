@@ -129,7 +129,7 @@
     const entryOfRun = new Map();
     for (const segment of segments) {
       const heard = LM.cleanTranscript(segment.text, listTokens, options.leakMinRun);
-      const { allRuns, runs } = LM.placeableRuns(heard);
+      const { allRuns, runs } = LM.placeableRuns(heard, canon);
       const latinWords = heard.split(/\s+/).filter((token) => /[A-Za-z]/.test(token)).length;
       const bareFragment = !runs.length && allRuns.length > 0 && latinWords < 2;
       const entry = { start: segment.start, end: segment.end, text: segment.text };

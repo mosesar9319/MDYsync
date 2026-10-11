@@ -186,6 +186,22 @@ def crafted_sequence(canon):
         read(400),
     ] + [as_run(["בבבב", "גגגג", "דדדד"])] * (va.PENDING_MAX_MISSES + 1) + [   # too many in between...
         read(406),                      # ...the candidate was dropped: this is a new one, no lock
+    ] + [
+        # Not placeable: a lone word changes nothing (no miss, nothing broken).
+        as_run([canon[10].norm]),
+        # The same phrase twice is one observation, not two agreeing matches...
+        read(250), read(250),
+        read(256),                      # ...a different phrase carrying on from it locks (cursor 256)
+        # A far move (> MAX_SINGLE_JUMP_WORDS from the cursor, inside the search window) is held...
+        read(300),
+        read(306),                      # ...and followed once a different phrase carries on from it
+        # Held, then a lone word in between (changes nothing), then confirmed:
+        read(352),
+        as_run([canon[12].norm]),
+        read(358),
+        # Held, then the next phrase is near the old cursor: normal placement, hold dropped.
+        read(405),
+        read(362, 5),
     ]
 
 
