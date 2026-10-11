@@ -14,7 +14,8 @@
 //   node live-engine.mjs --video-id Zsy7oDUP6Pw --refs "Bekhorot 2a,Bekhorot 2b,Bekhorot 3a" \
 //        --words words.json --out alignment.json
 //   node live-engine.mjs --video-id Zsy7oDUP6Pw --fetch-transcript --out-words words.json
-//   (--elevenlabs asks ElevenLabs directly, with ELEVENLABS_API_KEY, instead of the site)
+//   (--elevenlabs asks ElevenLabs directly, with ELEVENLABS_API_KEY, instead of the site;
+//    --base https://deploy-preview-N--dafsync.netlify.app asks a deploy preview's transcript job)
 //
 // Saving the result as the next numbered run is test_runs.py's job
 // (tools/caption-sync/test_runs.py publish --engine live ...), so both engines
@@ -181,7 +182,7 @@ async function transcribeWithElevenLabs(videoId, { keyterms = [], apiKey = proce
   return { words, seconds: words.length ? words[words.length - 1][2] : 0, languageCode: result.language_code ?? null };
 }
 
-async function fetchTranscript(videoId, { daf = '', keyterms = [],  base = 'https://dafsync.netlify.app', origin = 'https://dafsync.netlify.app', timeoutMs = 20 * 60 * 1000 } = {}) {
+async function fetchTranscript(videoId, { daf = '', keyterms = [], tries = 4,  base = 'https://dafsync.netlify.app', origin = 'https://dafsync.netlify.app', timeoutMs = 20 * 60 * 1000 } = {}) {
   const url = `https://www.youtube.com/watch?v=${videoId}`;
   // The page asks for a transcript with the daf's own words as keyterms (that is what
   // makes the model write the Hebrew phrases in Hebrew letters instead of spelling
@@ -192,24 +193,31 @@ async function fetchTranscript(videoId, { daf = '', keyterms = [],  base = 'http
   const read = async () => (await fetch(statusUrl, { headers: { Origin: origin } })).json();
   let status = await read();
   if (status.status === 'done') return status;
-  // Nothing started, or an earlier try failed (ElevenLabs's own YouTube fetch
-  // fails now and then, and the failure is kept until a new job replaces it).
-  await fetch(`${base}/.netlify/functions/live-video-job-background`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Origin: origin },
-    body: JSON.stringify({ url, daf, keyterms }),
-  });
+  // Nothing started, or an earlier try failed (ElevenLabs's own YouTube fetch fails now
+  // and then -- a 400 that a second or third try gets past -- and the failure is kept
+  // until a new job replaces it). Start, and on a failure start again, up to `tries`.
   const deadline = Date.now() + timeoutMs;
-  const startedAt = Date.now();
-  let sawPending = false;
-  while (Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, sawPending ? 15000 : 3000));
-    status = await read();
-    if (status.status === 'done') return status;
-    if (status.status === 'pending') sawPending = true;
-    // An error seen before our job reported itself running may be the old one.
-    if (status.status === 'error' && (sawPending || Date.now() - startedAt > 45000)) {
-      throw new Error(`Transcript job failed: ${status.error} ${status.detail ? String(status.detail).slice(0, 300) : ''}`.trim());
+  for (let attempt = 1; attempt <= tries; attempt += 1) {
+    await fetch(`${base}/.netlify/functions/live-video-job-background`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: origin },
+      body: JSON.stringify({ url, daf, keyterms }),
+    });
+    const startedAt = Date.now();
+    let sawPending = false;
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, sawPending ? 15000 : 3000));
+      status = await read();
+      if (status.status === 'done') return status;
+      if (status.status === 'pending') sawPending = true;
+      // An error seen before our job reported itself running may be the old one.
+      if (status.status === 'error' && (sawPending || Date.now() - startedAt > 45000)) {
+        if (attempt >= tries) {
+          throw new Error(`Transcript job failed: ${status.error} ${status.detail ? String(status.detail).slice(0, 300) : ''}`.trim());
+        }
+        console.error(`Transcript attempt ${attempt} failed (${status.error}); trying again.`);
+        break;
+      }
     }
   }
   throw new Error('Timed out waiting for the transcript.');
@@ -240,7 +248,7 @@ async function main() {
     const keyterms = LM.buildKeytermList(LM.buildCanon(paragraphs.map((p) => ({ ref: p.ref, he: p.he }))), 400);
     const status = args.elevenlabs
       ? await transcribeWithElevenLabs(args.videoId, { keyterms })
-      : await fetchTranscript(args.videoId, { daf: args.daf || refs[0], keyterms });
+      : await fetchTranscript(args.videoId, { daf: args.daf || refs[0], keyterms, ...(args.base ? { base: args.base, origin: args.base } : {}) });
     words = status.words;
     duration = status.seconds;
     if (args.outWords) fs.writeFileSync(args.outWords, JSON.stringify(status));

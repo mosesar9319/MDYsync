@@ -625,7 +625,7 @@ function setFollowState(followState, options = {}) {
 // `far` marks a whole-daf match found with a lock in place.
 function scoreText(text, cursor, locked, listTokens, leakMinRun) {
   const heard = LM.cleanTranscript(text, listTokens, leakMinRun);
-  return LM.placeableRuns(heard).runs
+  return LM.placeableRuns(heard, live.daf.canon).runs
     .map((run) => {
       const norms = run.map((w) => w.norm);
       const phons = run.map((w) => w.phon);
@@ -706,7 +706,7 @@ async function runBatchSegment({ seq, part, parts, audio, rtText, cursorBefore, 
   };
   let rescued = null;
   if (!rtPlaced && live.tracker && !live.manualStop && live.placementSeq === placementSeq && result.text) {
-    const { runs } = LM.placeableRuns(LM.cleanTranscript(result.text, batchTokens, LM.LEAK_MIN_RUN_BATCH));
+    const { runs } = LM.placeableRuns(LM.cleanTranscript(result.text, batchTokens, LM.LEAK_MIN_RUN_BATCH), live.daf.canon);
     let placed = null;
     for (const run of runs) {
       // The realtime commit of this same speech already counted its miss toward
@@ -820,7 +820,7 @@ function handleCommitted(text) {
   live.lastCommitSample = end;
   const audio = segmentAudio(start, end);
   const rms = audio.length ? audioRms(audio) : undefined; // no audio recorded: level unknown
-  const { allRuns, runs } = LM.placeableRuns(heard);
+  const { allRuns, runs } = LM.placeableRuns(heard, live.daf.canon);
   // A lone Hebrew word with nothing else around it is a fragment of the
   // reading the voice detector split off, or one term inside English: not
   // enough to say anything about the state either way. (With a few English

@@ -49,7 +49,8 @@ const toRun = (norms) => norms.map((norm) => ({ norm, phon: M.phonetic(norm) }))
 // --- Constants ---------------------------------------------------------------
 
 test('matcher constants match voice_align.py', () => {
-  for (const name of ['BACK_WINDOW', 'FWD_WINDOW', 'MIN_SCORE', 'MIN_SCORE_GLOBAL', 'MIN_SCORE_SINGLE', 'CHAR_FLOOR', 'RELOCALIZE_AFTER', 'PENDING_MAX_MISSES']) {
+  for (const name of ['BACK_WINDOW', 'FWD_WINDOW', 'MIN_SCORE', 'MIN_SCORE_GLOBAL', 'MIN_SCORE_SINGLE', 'CHAR_FLOOR', 'RELOCALIZE_AFTER', 'PENDING_MAX_MISSES',
+    'PLACEABLE_RUN_MIN_WORDS', 'ENGLISH_CONTEXT_MIN_RUN_WORDS', 'MAX_SINGLE_JUMP_WORDS', 'FAR_CONFIRM_MIN_WORDS']) {
     assert.equal(M[name], pyConstant(name), name);
   }
 });
@@ -737,4 +738,25 @@ test('local keyterms are not daf order, so reading on from the cursor is not mis
   const reading = canon.words.slice(300, 330).map((w) => w.norm).join(' ');
   const cleaned = M.cleanTranscript(reading, M.keytermTokens(list), M.LEAK_MIN_RUN_BATCH);
   assert.equal(hebrewWordsOf(cleaned).length, 30, 'every word of the reading survives');
+});
+
+// ---- The transcriber's Hebrew paraphrase of English, and the short transcript hint list ----------------
+
+test('a long Hebrew run that shares almost nothing with the daf is paraphrase, not a reading', () => {
+  const paraphrase = 'שבועה אולי אתה רשאי למכור כי בנוסף לעובדה שהיא עכשיו לא יכולה לעשות מלאכה';
+  assert.ok(M.splitHebrewRuns(paraphrase).flat().length >= M.PARAPHRASE_MIN_RUN_WORDS);
+  const asRun = M.splitHebrewRuns(paraphrase)[0];
+  assert.equal(M.isParaphrase(canon, asRun), true);
+  assert.equal(M.placeableRuns(paraphrase, canon).runs.length, 0, 'not placed');
+  assert.equal(M.placeableRuns(paraphrase, canon).allRuns.length, 0, 'and not counted as Hebrew heard');
+  assert.ok(M.placeableRuns(paraphrase).runs.length > 0, 'without the daf to judge by, nothing is dropped');
+});
+
+test('a real reading, however garbled, is kept; so is a short run with nothing in common', () => {
+  const norms = (from, n) => canon.words.slice(from, from + n).map((w) => w.norm);
+  const reading = norms(200, 12).join(' ');
+  assert.equal(M.placeableRuns(reading, canon).runs.length, 2, 'a clean reading (chunked 6 + 6)');
+  const garbled = norms(200, 12).map((w, i) => (i % 3 === 0 ? garbleWord(w) : w)).join(' ');
+  assert.ok(M.placeableRuns(garbled, canon).runs.length > 0, 'a third of the words wrong is still a reading');
+  assert.ok(M.placeableRuns('משרד הבריאות חיסון', canon).runs.length > 0, 'under eight words is never judged this way');
 });
