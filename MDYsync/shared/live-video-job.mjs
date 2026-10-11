@@ -98,30 +98,13 @@ export function sanitizeKeyterms(keyterms) {
   return out;
 }
 
-// One job per (video, daf, which bias list is used, language): the same video
-// opened again, on any device, is answered from what was already paid for.
-// `withKeyterms` is false (none), true (the original 400-term list: kept as it was,
-// so transcripts already made stay found) or a label for another list ('kt2').
+// One job per (video, daf, whether a bias list is used, language): the same
+// video opened again, on any device, is answered from what was already paid for.
 export function jobKey({ url, daf, withKeyterms, language }) {
   return createHash('sha256')
-    .update([url, daf || '', withKeyterms === true ? 'kt' : (withKeyterms || ''), language || ''].join('\n'))
+    .update([url, daf || '', withKeyterms ? 'kt' : '', language || ''].join('\n'))
     .digest('hex')
     .slice(0, 40);
-}
-
-// Which bias list a request used, from the list itself: the original dense one (400
-// terms), or the short one (about 60) that replaced it for whole-video transcripts.
-export const SHORT_KEYTERM_LIST_MAX = 100;
-export function keytermsLabel(keyterms) {
-  if (!keyterms.length) return false;
-  return keyterms.length > SHORT_KEYTERM_LIST_MAX ? true : 'kt2';
-}
-
-// The same label from the status request's `kt` query value.
-export function keytermsLabelFromQuery(value) {
-  if (value === '1') return true;
-  if (value === '2') return 'kt2';
-  return false;
 }
 
 // The multipart fields for ElevenLabs' batch endpoint.

@@ -320,17 +320,14 @@ async function loadLiveDaf(ref) {
   const keyterms = LM.buildRealtimeKeyterms(canon);
   // The batch model takes far more terms (the same 400 voice_align.py uses).
   const batchKeyterms = LM.buildKeytermList(canon, 400);
-  // The hint list for a whole-video transcript is a short one (see TRANSCRIPT_KEYTERMS).
-  const transcriptKeyterms = LM.buildTranscriptKeyterms(canon);
   const segmentIndexByRef = new Map(paragraphs.map((p, i) => [p.ref, i]));
   const canonIndex = new Map(canon.words.map((w, i) => [`${w.ref}#${w.wordIndex}`, i]));
   const firstCanonOfSegment = new Map();
   canon.words.forEach((w, i) => { if (!firstCanonOfSegment.has(w.segIndex)) firstCanonOfSegment.set(w.segIndex, i); });
   live.daf = {
-    key, label: first, refs, paragraphs, canon, keyterms, batchKeyterms, transcriptKeyterms, segmentIndexByRef, canonIndex, firstCanonOfSegment,
+    key, label: first, refs, paragraphs, canon, keyterms, batchKeyterms, segmentIndexByRef, canonIndex, firstCanonOfSegment,
     tokenCounts: paragraphs.map((p) => LM.segmentTokens(p.he).length),
     keytermTokens: LM.keytermTokens(keyterms), batchKeytermTokens: LM.keytermTokens(batchKeyterms),
-    transcriptKeytermTokens: LM.keytermTokens(transcriptKeyterms),
   };
   live.confirmed = null;
   live.provisional = null;
@@ -1353,8 +1350,7 @@ async function loadLiveVideo() {
 
 async function fetchVideoTranscript(video, job) {
   const params = new URLSearchParams({ url: video.url, daf: live.daf.label });
-  // kt=2: the short hint list (kt=1 was the 400-term one; its transcripts are kept apart).
-  if (PAGE_OPTIONS.keyterms) params.set('kt', '2');
+  if (PAGE_OPTIONS.keyterms) params.set('kt', '1');
   if (PAGE_OPTIONS.lang === 'he') params.set('lang', 'he');
   const readStatus = async () => {
     const response = await fetch(`/api/live-video-status?${params}`);
@@ -1368,7 +1364,7 @@ async function fetchVideoTranscript(video, job) {
     body: JSON.stringify({
       url: video.url,
       daf: live.daf.label,
-      keyterms: PAGE_OPTIONS.keyterms ? live.daf.transcriptKeyterms : [],
+      keyterms: PAGE_OPTIONS.keyterms ? live.daf.batchKeyterms : [],
       language: PAGE_OPTIONS.lang === 'he' ? 'he' : undefined,
     }),
   });
@@ -1492,12 +1488,12 @@ async function startTranscriptFollow({ startIndex }) {
   if (live.videoFollow !== follow) return;
   const words = transcript.words.map(([text, start, end]) => ({ text, start, end }));
   follow.segments = LV.wordsToSegments(words);
-  const listTokens = PAGE_OPTIONS.keyterms ? live.daf.transcriptKeytermTokens : [];
+  const listTokens = PAGE_OPTIONS.keyterms ? live.daf.batchKeytermTokens : [];
   follow.listTokens = listTokens;
   // A word tapped while the transcript was being made counts like one tapped before Start.
   const first = live.anchorIndex !== null ? live.anchorIndex : startIndex;
   live.anchorIndex = null;
-  follow.timeline = LV.alignSegments(LM, live.daf.canon, follow.segments, { startIndex: first, listTokens, leakMinRun: LM.LEAK_MIN_RUN }).timeline;
+  follow.timeline = LV.alignSegments(LM, live.daf.canon, follow.segments, { startIndex: first, listTokens, leakMinRun: LM.LEAK_MIN_RUN_BATCH }).timeline;
   const placed = follow.timeline.filter((e) => e.state === 'read').length;
   logEvent('transcript', {
     ms: Math.round(performance.now() - began),
@@ -1592,7 +1588,7 @@ function realignVideoFrom(index) {
     return;
   }
   const at = Math.max(0, LV.indexAt(follow.timeline, t));
-  const tail = LV.alignSegments(LM, live.daf.canon, follow.segments.slice(at), { startIndex: index, listTokens: follow.listTokens, leakMinRun: LM.LEAK_MIN_RUN }).timeline;
+  const tail = LV.alignSegments(LM, live.daf.canon, follow.segments.slice(at), { startIndex: index, listTokens: follow.listTokens, leakMinRun: LM.LEAK_MIN_RUN_BATCH }).timeline;
   const tapped = { start: t, end: t, text: '(set by you)', state: 'read', s: index, e: index, phon: 100, char: 100 };
   const insertAt = tail.findIndex((e) => e.start > t);
   const merged = insertAt < 0 ? [...tail, tapped] : [...tail.slice(0, insertAt), tapped, ...tail.slice(insertAt)];

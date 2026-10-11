@@ -14,7 +14,7 @@
 // guard for now, an accepted gap for an unlisted experiment.
 
 import {
-  isAllowedOrigin, acceptVideoUrl, sanitizeKeyterms, jobKey, keytermsLabel, buildTranscribeFields, compactWords, jobStore, PENDING_STALE_MS,
+  isAllowedOrigin, acceptVideoUrl, sanitizeKeyterms, jobKey, buildTranscribeFields, compactWords, jobStore, PENDING_STALE_MS,
 } from '../../shared/live-video-job.mjs';
 
 const UPSTREAM_TIMEOUT_MS = 14 * 60 * 1000; // inside the 15 minute limit
@@ -38,7 +38,7 @@ export async function runJob({ request, store, fetchImpl = fetch, now = () => Da
   const keyterms = sanitizeKeyterms(payload.keyterms);
   const language = payload.language === 'he' ? 'he' : undefined;
   const daf = typeof payload.daf === 'string' ? payload.daf.slice(0, 80) : '';
-  const key = jobKey({ url: video.url, daf, withKeyterms: keytermsLabel(keyterms), language });
+  const key = jobKey({ url: video.url, daf, withKeyterms: keyterms.length > 0, language });
 
   // One job at a time per key: a second request while the first is running
   // (a double click, two devices) does nothing; a finished one is kept.

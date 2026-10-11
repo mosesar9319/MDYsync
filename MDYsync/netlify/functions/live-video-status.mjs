@@ -1,6 +1,5 @@
 // Where a Live Follow video transcript stands: GET /api/live-video-status
-// ?url=<video link>&daf=<Chullin 91a>&kt=2&lang=he (kt=2: the short hint list; kt=1: the old
-// 400-term one, whose transcripts are kept apart). Answers
+// ?url=<video link>&daf=<Chullin 91a>&kt=1&lang=he. Answers
 //   { status: 'absent' }                     nothing has been started
 //   { status: 'pending' }                    ElevenLabs is working on it
 //   { status: 'error', error }               it failed -- start again to retry
@@ -8,7 +7,7 @@
 // A bad link is a 400 here, which is the page's first and only feedback on
 // one: the job function it then triggers answers 202 whatever it decides.
 
-import { isAllowedOrigin, acceptVideoUrl, jobKey, keytermsLabelFromQuery, jobStore, PENDING_STALE_MS } from '../../shared/live-video-job.mjs';
+import { isAllowedOrigin, acceptVideoUrl, jobKey, jobStore, PENDING_STALE_MS } from '../../shared/live-video-job.mjs';
 
 export async function readStatus({ request, store, now = () => Date.now() }) {
   // Read-only and free to call (it only looks at what the job function has
@@ -22,7 +21,7 @@ export async function readStatus({ request, store, now = () => Date.now() }) {
     return { code: 400, body: { error: 'Use a YouTube link, or a direct https link to an audio or video file (.mp3, .m4a, .mp4, .webm …).' } };
   }
   const key = jobKey({
-    url: video.url, daf: (params.get('daf') || '').slice(0, 80), withKeyterms: keytermsLabelFromQuery(params.get('kt')), language: params.get('lang') === 'he' ? 'he' : undefined,
+    url: video.url, daf: (params.get('daf') || '').slice(0, 80), withKeyterms: params.get('kt') === '1', language: params.get('lang') === 'he' ? 'he' : undefined,
   });
   const job = await store.get(key, { type: 'json' }).catch(() => null);
   if (!job) return { code: 200, body: { status: 'absent', url: video.url, kind: video.kind } };

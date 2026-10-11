@@ -126,11 +126,6 @@
   // that shares so little with the daf is dropped before matching (see placeableRuns).
   const PARAPHRASE_MIN_RUN_WORDS = 8;
   const PARAPHRASE_MAX_VOCAB_SHARE = 0.3;
-  // The hint list sent with a whole-video transcript: the fixed Gemara terms and this
-  // many distinctive words of the daf. 400 of them (what voice_align.py sends) is
-  // where the paraphrase above came from; a short list keeps the model's attention on
-  // the terms without inviting it to write Hebrew for everything.
-  const TRANSCRIPT_KEYTERMS = 50;
   const PROVISIONAL_TAIL_WORDS = 6;
   // ElevenLabs' realtime limits (batch Scribe allows far more).
   const REALTIME_MAX_KEYTERMS = 50;
@@ -853,11 +848,6 @@
     return run.length >= PARAPHRASE_MIN_RUN_WORDS && vocabShare(canon, run) < PARAPHRASE_MAX_VOCAB_SHARE;
   }
 
-  // The hint list for a whole-video transcript (see TRANSCRIPT_KEYTERMS).
-  function buildTranscriptKeyterms(canon) {
-    return buildKeytermList(canon, TRANSCRIPT_KEYTERMS);
-  }
-
   // voice_align.build_keyterm_list.
   function buildKeytermList(canon, maxTerms = 50) {
     const seen = new Set();
@@ -925,11 +915,9 @@
     matchRuns,
     buildKeytermList,
     buildLocalKeyterms,
-    buildTranscriptKeyterms,
     isParaphrase,
     PARAPHRASE_MIN_RUN_WORDS,
     PARAPHRASE_MAX_VOCAB_SHARE,
-    TRANSCRIPT_KEYTERMS,
     vocabShare,
     missWeightFor,
     PENDING_MAX_MISSES,

@@ -760,10 +760,3 @@ test('a real reading, however garbled, is kept; so is a short run with nothing i
   assert.ok(M.placeableRuns(garbled, canon).runs.length > 0, 'a third of the words wrong is still a reading');
   assert.ok(M.placeableRuns('משרד הבריאות חיסון', canon).runs.length > 0, 'under eight words is never judged this way');
 });
-
-test('the transcript hint list is short: the fixed Gemara terms and about fifty of the daf\'s words', () => {
-  const list = M.buildTranscriptKeyterms(canon);
-  assert.ok(list.length >= 40 && list.length <= 70, `${list.length} terms`);
-  assert.deepEqual(list.slice(0, 12), M.buildKeytermList(canon, 400).slice(0, 12));
-  assert.equal(M.TRANSCRIPT_KEYTERMS, 50);
-});

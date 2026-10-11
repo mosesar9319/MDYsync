@@ -1435,12 +1435,9 @@ test.describe('Live follow — video link and the page\'s own player', () => {
     expect(seen.job).toHaveLength(1);
     expect(seen.job[0].url).toBe(MEDIA);
     expect(seen.job[0].daf).toBe('Chullin 91a');
-    // A short list (the fixed Gemara terms and about fifty of the daf's own): a long one
-    // made the transcriber write English speech out as modern-Hebrew paraphrase.
-    expect(seen.job[0].keyterms.length).toBeGreaterThan(30);
-    expect(seen.job[0].keyterms.length).toBeLessThanOrEqual(70);
+    expect(seen.job[0].keyterms.length).toBeGreaterThan(50);
     expect(seen.status[0].get('url')).toBe(MEDIA);
-    expect(seen.status[0].get('kt')).toBe('2');
+    expect(seen.status[0].get('kt')).toBe('1');
 
     await setTime(page, 0.5);
     await expect(status(page)).toHaveText('Waiting…');
