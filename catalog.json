@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-11T07:01:13.964Z",
+  "generatedAt": "2026-10-11T09:01:06.264Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -472,6 +472,11 @@
         "regularHe": {
           "videoId": "azm7FoFrfUk",
           "label": "מרכז דף יומי - בכורות דף כב. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
+        "chazarahEn": {
+          "videoId": "22QQvIfyNN4",
+          "label": "CHAZARAH - Bechoros Daf 22 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         }
       },
