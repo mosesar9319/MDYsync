@@ -771,6 +771,15 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .view-switch button { border: 0; background: transparent; color: var(--muted); border-radius: 8px; padding: 7px 10px; cursor: pointer; font-size: 13px; }
 .view-switch button.active { background: rgba(255,255,255,.08); color: var(--text); }
 .daf-toolbar { justify-content: space-between; gap: 14px; margin-bottom: 12px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 10px 0; flex-wrap: wrap; }
+.video-choice { margin: 0 0 12px; padding: 12px; border-radius: 12px; border: 1px solid var(--line, #d9e1eb); background: rgba(255,255,255,.04); }
+.video-choice[hidden] { display: none; }
+.video-choice-title { margin: 0 0 8px; font-size: 13px; font-weight: 700; color: var(--text); }
+.video-choice-list { display: grid; gap: 8px; }
+.video-choice-option { display: grid; gap: 2px; text-align: left; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line, #d9e1eb); background: transparent; color: var(--text); cursor: pointer; font: inherit; min-width: 0; }
+.video-choice-option:hover { background: rgba(255,255,255,.07); }
+.video-choice-option[aria-pressed="true"] { border-color: var(--accent-strong); background: rgba(255,255,255,.1); }
+.video-choice-option strong { font-size: 14px; }
+.video-choice-option span { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .test-runs { margin: 12px 16px 4px; padding: 12px; border-radius: 12px; border: 1px solid var(--line, #d9e1eb); background: var(--paper, #fff); }
 .test-runs[hidden] { display: none; }
 .test-runs-title { margin: 0 0 8px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }

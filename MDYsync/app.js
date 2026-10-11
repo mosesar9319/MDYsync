@@ -8766,6 +8766,7 @@ async function ensureVideoCatalogLoaded() {
   try {
     const response = await fetch('/api/get-catalog');
     const data = response.ok ? await response.json() : {};
+    state.videoCatalog = data;
     for (const [tractate, rows] of Object.entries(data.tractates || {})) {
       state.videoDapim[tractate] = new Set((Array.isArray(rows) ? rows : []).map((row) => Number(row.daf)));
     }
@@ -8990,9 +8991,100 @@ function showBrowsePage(ref) {
   const titleEl = $('dafTitle');
   if (titleEl) titleEl.textContent = ref;
   renderVilnaPage();
+  renderVideoChoice();
+}
+
+// The shiurim on the site for one daf: the default maggid's (regular / Chazarah,
+// English / Hebrew) and every other maggid's, each a different video, from the
+// catalog the Daf browser already loads. Distinct videos only.
+const VIDEO_CHOICE_KINDS = [
+  { key: 'regularEn', variant: 'regular', language: 'en', label: 'English' },
+  { key: 'regularHe', variant: 'regular', language: 'he', label: 'Hebrew' },
+  { key: 'chazarahEn', variant: 'chazarah', language: 'en', label: 'Chazarah Daf, English' },
+  { key: 'chazarahHe', variant: 'chazarah', language: 'he', label: 'Chazarah Daf, Hebrew' },
+];
+const VIDEO_CHOICE_MAGGID_NAMES = {
+  default: "R' Eli Stefansky · Mercaz Daf Yomi",
+  bornstein: "R' Sruly Bornstein · Lakewood Daf Yomi",
+};
+function videoChoicesFor(tractate, daf) {
+  const catalog = state.videoCatalog;
+  if (!catalog || !tractate || !daf) return [];
+  const sources = [
+    { maggid: null, tractates: catalog.tractates },
+    ...Object.entries(catalog.maggidim || {}).map(([id, entry]) => ({ maggid: id, tractates: entry?.tractates })),
+  ];
+  const seen = new Set();
+  const choices = [];
+  for (const source of sources) {
+    const rows = Array.isArray(source.tractates?.[tractate]) ? source.tractates[tractate] : [];
+    const row = rows.find((r) => Number(r.daf) === Number(daf));
+    if (!row) continue;
+    for (const kind of VIDEO_CHOICE_KINDS) {
+      const entry = row[kind.key];
+      if (!entry?.videoId || seen.has(entry.videoId)) continue;
+      seen.add(entry.videoId);
+      choices.push({
+        maggid: source.maggid,
+        variant: kind.variant,
+        language: kind.language,
+        videoId: entry.videoId,
+        who: VIDEO_CHOICE_MAGGID_NAMES[source.maggid || 'default'] || source.maggid || 'Other',
+        kind: kind.label,
+        title: entry.label || '',
+      });
+    }
+  }
+  return choices;
+}
+
+// Lists them above the player when there is more than one; with one (or none) the
+// page loads it on its own, as before, and the list stays hidden.
+function renderVideoChoice() {
+  const panel = $('videoChoice');
+  if (!panel) return;
+  const parsed = parseDafRef(state.browsePageRef || dafPickerRef());
+  const choices = parsed ? videoChoicesFor(parsed.tractate, parsed.daf) : [];
+  state.videoChoices = choices;
+  panel.hidden = choices.length < 2;
+  if (choices.length < 2) return;
+  const loaded = state.videoSource?.videoId || null;
+  $('videoChoiceTitle').textContent = `${choices.length} shiurim for ${parsed.tractate} ${parsed.daf} — choose one to load`;
+  const list = $('videoChoiceList');
+  list.textContent = '';
+  choices.forEach((choice, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'video-choice-option';
+    button.dataset.index = String(index);
+    button.setAttribute('aria-pressed', String(loaded === choice.videoId));
+    const who = document.createElement('strong');
+    who.textContent = `${choice.who} · ${choice.kind}`;
+    const title = document.createElement('span');
+    title.textContent = choice.title;
+    button.append(who, title);
+    button.addEventListener('click', () => loadVideoChoice(choice));
+    list.append(button);
+  });
+}
+
+// Loads the chosen shiur for the amud on screen: the picker's toggles and the other
+// maggid's marker are set to match it, then it goes through loadDaf like any pick.
+async function loadVideoChoice(choice) {
+  state.maggid = choice.maggid;
+  setActiveShiurVariant('dafShiurToggle', choice.variant);
+  setActiveLanguage('dafLanguageToggle', choice.language);
+  const ref = dafPickerRef();
+  if (!ref) return;
+  showBrowsePage(ref);
+  await loadDaf(ref);
+  renderVideoChoice();
 }
 
 function onDafPickerChanged() {
+  // The picker has no control for another maggid's shiur (the list above the player
+  // does), so a new pick starts from the default one unless a link named it.
+  if (state.browseMode && !state.browseLoadExplicit) state.maggid = null;
   const ref = dafPickerRef();
   if (!ref) return;
   // Live follow takes the picked daf as the one to follow (it loads the text
@@ -9000,6 +9092,12 @@ function onDafPickerChanged() {
   if (state.liveFollow?.active) return window.dafLiveFollow?.pickerChanged(ref);
   if (state.browseMode) {
     showBrowsePage(ref);
+    // A daf with more than one shiur on the site loads none of them: the list above the
+    // player offers them (showBrowsePage drew it). Only a link that names a shiur itself
+    // (variant, language or maggid in the address) loads straight away.
+    const pickedExplicitly = state.browseLoadExplicit;
+    state.browseLoadExplicit = false;
+    if (!pickedExplicitly && (state.videoChoices || []).length > 1) return;
     // The Daf browser used to leave it at that -- a real report confirmed
     // the video panel just stayed empty here, unlike every other page that
     // embeds this same player DOM, where picking a daf always loads its
@@ -9017,7 +9115,8 @@ function onDafPickerChanged() {
     const amud = activeAmud('dafAmudToggle');
     const combos = state.syncedDapim?.[tractate]?.[`${daf}${amud}`] || [];
     const wantsCombo = comboKeyFor(activeShiurVariant('dafShiurToggle'), activeLanguage('dafLanguageToggle'));
-    if (combos.includes(wantsCombo) && state.dafRef !== ref) loadDaf(ref);
+    const namedMaggid = Boolean(state.maggid) && (state.videoChoices || []).some((c) => c.maggid === state.maggid);
+    if ((combos.includes(wantsCombo) || namedMaggid) && state.dafRef !== ref) loadDaf(ref).then(() => renderVideoChoice());
     return;
   }
   loadDaf(ref);
@@ -9800,6 +9899,15 @@ loadTalmudIndex().then(() => {
     if (ref) {
       syncDafPickerFromRef(ref);
       switchDafView('page'); // the whole point of this page is the page image, not plain text
+      // A link that names its shiur (a variant, a language or a maggid) loads it; one that
+      // names only the daf leaves the choice to the reader if the daf has several.
+      const wantedMaggid = MAGGIDIM.find((m) => m.marker && m.id === params.get('maggid'));
+      const parsedRef = parseDafRef(ref);
+      state.browseLoadExplicit = Boolean(params.get('variant') || params.get('language') || wantedMaggid
+        || parsedRef?.variant === 'chazarah' || parsedRef?.language === 'he' || parsedRef?.maggid);
+      state.maggid = wantedMaggid ? wantedMaggid.id : (parsedRef?.maggid || null);
+      if (params.get('variant') === 'chazarah') setActiveShiurVariant('dafShiurToggle', 'chazarah');
+      if (params.get('language') === 'hebrew' || params.get('language') === 'he') setActiveLanguage('dafLanguageToggle', 'he');
       onDafPickerChanged();
     } else {
       switchDafView('page');
