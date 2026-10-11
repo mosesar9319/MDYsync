@@ -11,6 +11,8 @@
 // is already hand-mirrored in enough places (app.js, trigger-ocr-job.mjs,
 // save-video-link.mjs, ocr-job.yml) that adding another was a bad trade.
 
+import { maggidById, maggidKeyPrefix } from './maggidim.mjs';
+
 const GEMATRIA_VALUES = {
   'א': 1, 'ב': 2, 'ג': 3, 'ד': 4, 'ה': 5, 'ו': 6, 'ז': 7, 'ח': 8, 'ט': 9,
   'י': 10, 'כ': 20, 'ל': 30, 'מ': 40, 'נ': 50, 'ס': 60, 'ע': 70, 'פ': 80, 'צ': 90,
@@ -47,16 +49,20 @@ export function amudimForDaf(entry, daf) {
 // Same composition as app.js's refKey()/CHAZARAH_KEY_PREFIX/HEBREW_KEY_PREFIX
 // -- must match exactly, or a video published here would never be found by
 // the player looking it up under its own refKey().
-export function refKeyFor({ tractate, daf, amud, variant, language }) {
+// `maggid` is another maggid's id (see maggidim.mjs); its keyPrefix goes first.
+export function refKeyFor({ tractate, daf, amud, variant, language, maggid }) {
+  const maggidPrefix = maggidKeyPrefix(maggid);
   const languagePrefix = language === 'he' ? 'Hebrew-' : '';
   const variantPrefix = variant === 'chazarah' ? 'Chazarah-Daf-' : '';
-  return `${languagePrefix}${variantPrefix}${tractate.replace(/\s+/g, '-')}-${daf}${amud}`;
+  return `${maggidPrefix}${languagePrefix}${variantPrefix}${tractate.replace(/\s+/g, '-')}-${daf}${amud}`;
 }
 
-export function refDisplay({ tractate, daf, amud, variant, language }) {
+export function refDisplay({ tractate, daf, amud, variant, language, maggid }) {
   const variantSuffix = variant === 'chazarah' ? ' (Chazarah Daf)' : '';
   const languageSuffix = language === 'he' ? ' (Hebrew)' : '';
-  return `${tractate} ${daf}${amud}${variantSuffix}${languageSuffix}`;
+  const marker = maggidById(maggid)?.marker;
+  const maggidSuffix = marker ? ` (${marker})` : '';
+  return `${tractate} ${daf}${amud}${variantSuffix}${languageSuffix}${maggidSuffix}`;
 }
 
 // The real Sefaria reference alone, with no variant/language marker -- for

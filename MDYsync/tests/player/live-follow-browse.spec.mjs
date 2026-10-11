@@ -1546,6 +1546,19 @@ test.describe('Live follow — video link and the page\'s own player', () => {
     await expect(detail(page)).toContainText('saved sync');
   });
 
+  test('a saved sync of another maggid\'s video is looked up behind that maggid\'s key prefix', async ({ page }) => {
+    await setup(page);
+    const { alignment, ranges } = await savedSync(page);
+    await page.evaluate(() => { state.maggid = 'bernstein'; });
+    const asked = await serveSavedSync(page, alignment, 'Voice-Bernstein-dQw4w9WgXcQ');
+    await loadLink(page, YT_LINK);
+    await page.locator('#lfStartButton').click();
+    await setTime(page, 6);
+    await expect.poll(() => hl(page).then((h) => h?.s)).toBe(ranges[0][0]);
+    await expect(detail(page)).toContainText('saved sync');
+    expect(asked.filter((path) => path.startsWith('by-video/')).every((path) => /^by-video\/(Voice-)?Bernstein-/.test(path))).toBe(true);
+  });
+
   test('?stored=0 transcribes even a video that has a saved sync', async ({ page }) => {
     const seen = await setup(page, { statuses: [{ status: 'absent' }, { status: 'done', words: transcriptWords(), languageCode: 'heb', seconds: 26 }], query: '?stored=0' });
     const { alignment } = await savedSync(page);

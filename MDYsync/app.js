@@ -14,6 +14,22 @@ const SCAN_HEADER_BAND_FRACTION_DEFAULT = 0.05;
 const SCAN_HEADER_BAND_FRACTION_MIN = 0.02;
 const SCAN_HEADER_BAND_FRACTION_MAX = 0.08;
 
+// The maggidei shiur whose channels the site follows (shared/maggidim.mjs --
+// hand-mirrored, and tests/functions/maggidim.test.mjs checks the two agree).
+// Mercaz Daf Yomi is the default and has no marker or key prefix; another
+// maggid's reading carries a "(Bernstein)" marker on its ref and a "Bernstein-"
+// key prefix, composed right after "Voice-", so a daf can have a recording
+// from each without anything colliding.
+const MAGGIDIM = [
+  { id: 'stefansky', keyPrefix: '', marker: '' },
+  { id: 'bernstein', keyPrefix: 'Bernstein-', marker: 'Bernstein' },
+];
+const maggidKeyPrefix = (id) => MAGGIDIM.find((m) => m.id === id)?.keyPrefix || '';
+const maggidMarkerSuffix = (id) => {
+  const marker = MAGGIDIM.find((m) => m.id === id)?.marker;
+  return marker ? ` (${marker})` : '';
+};
+
 const state = {
   dafRef: '',
   segments: [],
@@ -188,6 +204,13 @@ const state = {
   // switchSyncMethod()/updateSyncMethodSwitchUi(). Both null means neither
   // a caption-OCR nor a voice-recognition sync exists yet for this daf.
   availableSyncMethods: { ocr: null, voice: null },
+  // Another maggid's id (see MAGGIDIM) while a reading of their video is open;
+  // null for the default, Mercaz Daf Yomi. Carried into every ref the daf picker
+  // and the sync dialog build, so moving around keeps to the same maggid.
+  maggid: null,
+  // The numbered test runs of the video on screen, when it is a test shiur
+  // (see refreshTestRuns): { videoId, runs: [...], activeId } or null.
+  testRuns: null,
   activeSyncMethod: null,
   // Admin-set per-ref overrides of which method is the default for readers
   // (results/settings.json's preferredSyncMethod, keyed by ref) -- see
@@ -537,9 +560,10 @@ function refKey(ref, { voice = false } = {}) {
   // key entirely so the two never race to overwrite each other when synced
   // for the same daf; the player fetches both and lets the reader choose.
   const voicePrefix = voice ? VOICE_KEY_PREFIX : '';
+  const maggidPrefix = maggidKeyPrefix(parsed.maggid);
   const languagePrefix = parsed.language === 'he' ? HEBREW_KEY_PREFIX : '';
   const variantPrefix = parsed.variant === 'chazarah' ? CHAZARAH_KEY_PREFIX : '';
-  return `${voicePrefix}${languagePrefix}${variantPrefix}${parsed.tractate.replace(/\s+/g, '-')}-${parsed.daf}${parsed.amud}`;
+  return `${voicePrefix}${maggidPrefix}${languagePrefix}${variantPrefix}${parsed.tractate.replace(/\s+/g, '-')}-${parsed.daf}${parsed.amud}`;
 }
 
 // Narrows a fetched alignment down to just one daf's own segments. Only
@@ -717,6 +741,7 @@ async function fetchAlignmentForVideo(videoId, ref, { voice = false } = {}) {
   try {
     const parsed = parseDafRef(ref);
     const prefix = (voice ? VOICE_KEY_PREFIX : '')
+      + maggidKeyPrefix(parsed?.maggid)
       + (parsed?.language === 'he' ? HEBREW_KEY_PREFIX : '')
       + (parsed?.variant === 'chazarah' ? CHAZARAH_KEY_PREFIX : '');
     const url = `/api/get-results-file?path=${encodeURIComponent(`by-video/${prefix}${videoId}.json`)}`;
@@ -974,7 +999,7 @@ function dafRefsCoveredByCurrentAlignment() {
   // its own namespace instead of colliding with the others.
   const loadedRef = parseDafRef(state.dafRef);
   const variant = loadedRef?.variant === 'chazarah' ? ' (Chazarah Daf)' : '';
-  const language = loadedRef?.language === 'he' ? ' (Hebrew)' : '';
+  const language = (loadedRef?.language === 'he' ? ' (Hebrew)' : '') + maggidMarkerSuffix(loadedRef?.maggid);
   const refs = new Set();
   for (const segment of state.segments) {
     const parsed = parseDafRef(segment.ref);
@@ -995,7 +1020,7 @@ function dafRefsCoveredByCurrentAlignment() {
 function reattachVariantLanguage(refs, dafRef) {
   const loaded = parseDafRef(dafRef);
   const variant = loaded?.variant === 'chazarah' ? ' (Chazarah Daf)' : '';
-  const language = loaded?.language === 'he' ? ' (Hebrew)' : '';
+  const language = (loaded?.language === 'he' ? ' (Hebrew)' : '') + maggidMarkerSuffix(loaded?.maggid);
   return refs.map((ref) => {
     const parsed = parseDafRef(ref);
     return parsed ? `${parsed.tractate} ${parsed.daf}${parsed.amud}${variant}${language}` : ref;
@@ -1370,6 +1395,12 @@ function parseDafRef(ref) {
   const hebrewMarker = /\s*\(Hebrew\)/i;
   if (chazarahMarker.test(working)) { variant = 'chazarah'; working = working.replace(chazarahMarker, ''); }
   if (hebrewMarker.test(working)) { language = 'he'; working = working.replace(hebrewMarker, ''); }
+  let maggid = null;
+  for (const entry of MAGGIDIM) {
+    if (!entry.marker) continue;
+    const markerPattern = new RegExp(`\\s*\\(${entry.marker}\\)`, 'i');
+    if (markerPattern.test(working)) { maggid = entry.id; working = working.replace(markerPattern, ''); }
+  }
   const match = /^(.+?)\s+(\d+)\s*([abAB])(?:[:.]\d+)?$/i.exec(working.trim());
   if (!match) return null;
   const typedTractate = match[1].trim();
@@ -1379,7 +1410,8 @@ function parseDafRef(ref) {
     daf: Number(match[2]),
     amud: match[3].toLowerCase(),
     variant,
-    language
+    language,
+    maggid
   };
 }
 
@@ -1394,7 +1426,7 @@ function canonicalDafRef(ref) {
   const parsed = parseDafRef(ref);
   if (!parsed) return String(ref || '').trim();
   const variantSuffix = parsed.variant === 'chazarah' ? ' (Chazarah Daf)' : '';
-  const languageSuffix = parsed.language === 'he' ? ' (Hebrew)' : '';
+  const languageSuffix = (parsed.language === 'he' ? ' (Hebrew)' : '') + maggidMarkerSuffix(parsed.maggid);
   return `${parsed.tractate} ${parsed.daf}${parsed.amud}${variantSuffix}${languageSuffix}`;
 }
 
@@ -1420,7 +1452,7 @@ function nextDafRef(ref) {
   const daf = parsed.amud === 'a' ? parsed.daf : parsed.daf + 1;
   const amud = parsed.amud === 'a' ? 'b' : 'a';
   const variantSuffix = parsed.variant === 'chazarah' ? ' (Chazarah Daf)' : '';
-  const languageSuffix = parsed.language === 'he' ? ' (Hebrew)' : '';
+  const languageSuffix = (parsed.language === 'he' ? ' (Hebrew)' : '') + maggidMarkerSuffix(parsed.maggid);
   return `${parsed.tractate} ${daf}${amud}${variantSuffix}${languageSuffix}`;
 }
 
@@ -1436,7 +1468,7 @@ function prevDafRef(ref) {
   if (daf < 2) return null;
   const amud = parsed.amud === 'b' ? 'a' : 'b';
   const variantSuffix = parsed.variant === 'chazarah' ? ' (Chazarah Daf)' : '';
-  const languageSuffix = parsed.language === 'he' ? ' (Hebrew)' : '';
+  const languageSuffix = (parsed.language === 'he' ? ' (Hebrew)' : '') + maggidMarkerSuffix(parsed.maggid);
   return `${parsed.tractate} ${daf}${amud}${variantSuffix}${languageSuffix}`;
 }
 
@@ -1751,7 +1783,7 @@ function normalizeDafParagraphRef(ref) {
     // shape, which is what the exact-string comparisons in
     // updateVilnaOverlay/updateScanOverlay/seekToVilnaWord all rely on.
     // No-op for the refs that were already plain.
-    .replace(/\s*\((?:Chazarah Daf|Hebrew)\)/gi, '')
+    .replace(new RegExp(`\\s*\\((?:Chazarah Daf|Hebrew${MAGGIDIM.filter((m) => m.marker).map((m) => `|${m.marker}`).join('')})\\)`, 'gi'), '')
     .replace(/(\d+[ab])[:.](\d+)$/i, '$1.$2');
 }
 
@@ -3897,7 +3929,7 @@ async function switchScanVideo() {
   const parsed = parseDafRef(state.scanSelectedRef);
   if (!parsed) return;
   const variantSuffix = activeShiurVariant('scanShiurToggle') === 'chazarah' ? ' (Chazarah Daf)' : '';
-  const languageSuffix = activeLanguage('scanLanguageToggle') === 'he' ? ' (Hebrew)' : '';
+  const languageSuffix = (activeLanguage('scanLanguageToggle') === 'he' ? ' (Hebrew)' : '') + maggidMarkerSuffix(parsed.maggid);
   const ref = `${parsed.tractate} ${parsed.daf}${parsed.amud}${variantSuffix}${languageSuffix}`;
   if (ref === state.scanSelectedRef) return;
   state.scanSelectedRef = ref;
@@ -6911,6 +6943,7 @@ function normalizeSegmentOrder(index, field) {
 
 async function loadDaf(refOverride = null, options = {}) {
   const ref = canonicalDafRef(String(refOverride || $('dafRef').value).trim());
+  state.maggid = parseDafRef(ref)?.maggid || null;
   $('dafRef').value = ref;
   syncDafPickerFromRef(ref);
   // Cleared unconditionally so a stale forward-redirect from whatever daf
@@ -7155,6 +7188,7 @@ function handleVideoFile(file) {
   switchPlayerType('html5');
   state.objectUrl = URL.createObjectURL(file);
   state.videoSource = { type: 'local', fileName: file.name, label: 'Local file' };
+  refreshTestRuns(null);
   htmlVideo.src = state.objectUrl;
   htmlVideo.load();
   // .load() resets playbackRate to 1 (confirmed against a real <video>
@@ -7421,6 +7455,7 @@ async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs =
   seek(0);
   saveProjectForRef(state.dafRef, { videoSource: state.videoSource });
   saveVideoLinkForCoveredRefs(state.videoSource, saveRefs);
+  refreshTestRuns(videoId);
   showToast('YouTube video connected to the synchronized timeline.');
 }
 
@@ -7458,6 +7493,7 @@ function loadDirectVideoUrl(url, saveRefs = null, locked = false) {
   showVideoControls();
   saveProjectForRef(state.dafRef, { videoSource: state.videoSource });
   saveVideoLinkForCoveredRefs(state.videoSource, saveRefs);
+  refreshTestRuns(null); // no test runs for a direct link: hides the panel of any earlier video
   showToast('Direct video link loaded. Playback depends on the host and browser format support.');
 }
 
@@ -7797,6 +7833,103 @@ async function switchSyncMethod(method) {
   if (await fillMissingDafText(realDafRef(state.dafRef))) renderDaf();
   seek(resumeTime);
   showToast(method === 'voice' ? 'Switched to the voice-recognition sync.' : 'Switched to the caption-OCR sync.');
+}
+
+// ---- Test shiur: numbered alignments of the same video, one dropdown per engine ----
+// A test shiur is a video the maintainers tune the voice models on. Every run of
+// either engine is kept as its own numbered alignment (test-runs/<videoId>/ on the
+// results branch, written by tools/caption-sync/test_runs.py) instead of replacing
+// the last, and the player offers them all, to every reader: "Regular engine"
+// lists the regular voice engine's runs, "Live engine" the live engine's. Picking
+// one swaps the highlighting over to that alignment at the same moment of the
+// video, so two runs can be compared by playing the same stretch under each.
+const TEST_RUN_ENGINES = { regular: 'testRunRegularSelect', live: 'testRunLiveSelect' };
+
+async function refreshTestRuns(videoId) {
+  const panel = $('testRuns');
+  if (!panel) return;
+  state.testRuns = null;
+  panel.hidden = true;
+  if (!/^[A-Za-z0-9_-]{11}$/.test(String(videoId || ''))) return;
+  let index = null;
+  try {
+    const response = await fetch(`/api/get-results-file?path=${encodeURIComponent(`test-runs/${videoId}/index.json`)}`);
+    if (response.ok) index = await response.json();
+  } catch {
+    // No test runs for this video (the usual case), or no way to reach them.
+  }
+  // A different video may have been loaded while this was in flight.
+  if (state.videoSource?.videoId !== videoId) return;
+  const runs = Array.isArray(index?.runs) ? index.runs : [];
+  if (!runs.length) return;
+  state.testRuns = { videoId, runs, activeId: null, cache: new Map() };
+  renderTestRunSelects();
+  panel.hidden = false;
+}
+
+function testRunOptionLabel(run) {
+  const placed = run.summary?.placedWords;
+  return placed != null ? `${run.name} — ${placed} words placed` : run.name;
+}
+
+function renderTestRunSelects() {
+  const testRuns = state.testRuns;
+  if (!testRuns) return;
+  for (const [engine, selectId] of Object.entries(TEST_RUN_ENGINES)) {
+    const select = $(selectId);
+    if (!select) continue;
+    const runs = testRuns.runs.filter((run) => run.engine === engine).sort((a, b) => b.number - a.number);
+    const label = engine === 'regular' ? 'regular engine' : 'live engine';
+    select.innerHTML = '';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = runs.length ? `Choose a ${label} alignment…` : `No ${label} runs yet`;
+    select.append(placeholder);
+    for (const run of runs) {
+      const option = document.createElement('option');
+      option.value = run.id;
+      option.textContent = testRunOptionLabel(run);
+      select.append(option);
+    }
+    select.disabled = !runs.length;
+    select.value = runs.some((run) => run.id === testRuns.activeId) ? testRuns.activeId : '';
+  }
+  const active = testRuns.runs.find((run) => run.id === testRuns.activeId);
+  const note = $('testRunNote');
+  if (note) note.textContent = active ? `Showing ${active.name}.` : 'Showing the default alignment. Pick a run to compare.';
+}
+
+async function applyTestRun(runId) {
+  const testRuns = state.testRuns;
+  const run = testRuns?.runs.find((r) => r.id === runId);
+  if (!run) return;
+  try {
+    let data = testRuns.cache.get(run.id);
+    if (!data) {
+      const response = await fetch(`/api/get-results-file?path=${encodeURIComponent(`test-runs/${testRuns.videoId}/${run.file}`)}`);
+      if (!response.ok) throw new Error(`the server returned ${response.status}`);
+      data = await response.json();
+      testRuns.cache.set(run.id, data);
+    }
+    const resumeTime = getCurrentTime();
+    // Same as switching between the caption and voice syncs: the video stays
+    // where it is, only the alignment driving the highlighting changes.
+    await loadAlignmentData(data, { restoreSource: false, dafRefOverride: state.dafRef, seekToStart: false });
+    testRuns.activeId = run.id;
+    renderTestRunSelects();
+    if (await fillMissingDafText(realDafRef(state.dafRef))) renderDaf();
+    seek(resumeTime);
+    showToast(`Showing ${run.name}.`);
+  } catch (error) {
+    showToast(`Could not load that alignment (${error.message}).`, 'error');
+    renderTestRunSelects();
+  }
+}
+
+for (const selectId of Object.values(TEST_RUN_ENGINES)) {
+  $(selectId)?.addEventListener('change', (event) => {
+    if (event.target.value) applyTestRun(event.target.value);
+  });
 }
 
 // Checks whether the *other* method (whichever didn't just load/sync) also
@@ -8844,7 +8977,7 @@ function dafPickerRef() {
   const daf = $('dafDafSelect').value;
   if (!tractate || !daf) return '';
   const variantSuffix = activeShiurVariant('dafShiurToggle') === 'chazarah' ? ' (Chazarah Daf)' : '';
-  const languageSuffix = activeLanguage('dafLanguageToggle') === 'he' ? ' (Hebrew)' : '';
+  const languageSuffix = (activeLanguage('dafLanguageToggle') === 'he' ? ' (Hebrew)' : '') + maggidMarkerSuffix(state.maggid);
   return `${tractate} ${daf}${activeAmud('dafAmudToggle')}${variantSuffix}${languageSuffix}`;
 }
 
@@ -8994,7 +9127,7 @@ function addSyncReading() {
   const daf = $('syncDafSelect').value;
   if (!tractate || !daf) return;
   const variantSuffix = activeShiurVariant('syncShiurToggle') === 'chazarah' ? ' (Chazarah Daf)' : '';
-  const languageSuffix = activeLanguage('syncLanguageToggle') === 'he' ? ' (Hebrew)' : '';
+  const languageSuffix = (activeLanguage('syncLanguageToggle') === 'he' ? ' (Hebrew)' : '') + maggidMarkerSuffix(state.maggid);
   const ref = `${tractate} ${daf}${currentSyncAmud()}${variantSuffix}${languageSuffix}`;
   syncState.readings.push({ ref, display: ref });
   renderSyncReadings();
@@ -9020,7 +9153,7 @@ function prefillYoutubeSyncTab() {
   const parsed = parseDafRef(state.dafRef);
   if (!parsed) return;
   const variantSuffix = parsed.variant === 'chazarah' ? ' (Chazarah Daf)' : '';
-  const languageSuffix = parsed.language === 'he' ? ' (Hebrew)' : '';
+  const languageSuffix = (parsed.language === 'he' ? ' (Hebrew)' : '') + maggidMarkerSuffix(parsed.maggid);
   // Both amudim of the current daf, not just whichever one happens to be on
   // screen -- a shiur almost always covers the whole daf, and the reader
   // can always remove the one it turns out not to.
@@ -9680,9 +9813,11 @@ loadTalmudIndex().then(() => {
   if (!ref) return;
   const wantsChazarah = params.get('variant') === 'chazarah';
   const wantsHebrew = params.get('language') === 'hebrew' || params.get('language') === 'he';
+  const wantedMaggid = MAGGIDIM.find((m) => m.marker && m.id === params.get('maggid'));
   let fullRef = ref;
   if (wantsChazarah && !/chazarah/i.test(fullRef)) fullRef += ' (Chazarah Daf)';
   if (wantsHebrew && !/hebrew/i.test(fullRef)) fullRef += ' (Hebrew)';
+  if (wantedMaggid && !fullRef.includes(`(${wantedMaggid.marker})`)) fullRef += ` (${wantedMaggid.marker})`;
   loadDaf(fullRef).then(() => {
     // ?seekWord=<n> (from the Daf browser's tap-a-word deep link) jumps
     // straight to that word's moment once the alignment's finished loading,

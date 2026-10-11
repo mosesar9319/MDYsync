@@ -207,6 +207,16 @@ jobs:
           # into the published file so the reader can verify it rather than
           # assuming whatever video-links happens to point at.
           VIDEO_URL: ${{ github.event.client_payload.youtubeUrl }}
+          # Another maggid's video (shared/maggidim.mjs): published under their
+          # key prefix. Empty for Mercaz Daf Yomi, whose keys have none.
+          MAGGID: ${{ github.event.client_payload.maggid }}
+          # A run on a test shiur (see tools/caption-sync/test_runs.py) is also
+          # saved as the next numbered "Regular #N" run, with the note it was
+          # dispatched with and the engine's own commit, so a tweak to the
+          # engine can be judged against the runs before it.
+          TEST_RUN: ${{ github.event.client_payload.testRun }}
+          TEST_NOTES: ${{ github.event.client_payload.testNotes }}
+          ENGINE_VERSION: ${{ github.sha }}
         run: |
           set -e
           mkdir -p /tmp/results-checkout
@@ -235,10 +245,24 @@ jobs:
             --variant "$VARIANT" \
             --language "$LANGUAGE" \
             --video-url "$VIDEO_URL" \
+            ${MAGGID:+--maggid "$MAGGID"} \
             --voice
+
+          if [ "$TEST_RUN" = "true" ]; then
+            python3 MDYsync/tools/caption-sync/test_runs.py publish \
+              --alignment MDYsync/tools/caption-sync/job-out/alignment.json \
+              --out-dir /tmp/results-checkout \
+              --video-url "$VIDEO_URL" \
+              --refs-json "$REFS_JSON" \
+              --engine regular \
+              --notes "$TEST_NOTES" \
+              --engine-version "${ENGINE_VERSION:0:7}" \
+              --job-id "$JOB_ID"
+          fi
 
           cd /tmp/results-checkout
           git add by-ref by-video
+          [ -d test-runs ] && git add test-runs
           git commit -m "Add voice-recognition result for job ${JOB_ID}"
           for attempt in 1 2 3 4 5; do
             if git push origin HEAD:results; then
