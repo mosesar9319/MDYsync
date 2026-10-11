@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-10T23:02:28.325Z",
+  "generatedAt": "2026-10-11T07:01:13.964Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -455,18 +455,36 @@
           "videoId": "0QEK5jsv39k",
           "label": "מרכז דף יומי - בכורות דף כא. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "HGifwaTcuNg",
+          "label": "חזרה - בכורות דף כא | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
         }
       },
       {
         "daf": 22,
         "regularEn": {
-          "videoId": "c1fdmUz5qM8",
-          "label": "Daf Yomi Bechoros Daf 22 by R' Eli Stefansky (unedited)",
+          "videoId": "JybRruxNlh8",
+          "label": "Daf Yomi Bechoros Daf 22 by R' Eli Stefansky",
           "amud": "a"
         },
         "regularHe": {
+          "videoId": "azm7FoFrfUk",
+          "label": "מרכז דף יומי - בכורות דף כב. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        }
+      },
+      {
+        "daf": 23,
+        "regularEn": {
           "videoId": "yoW7iSOlBqw",
-          "label": "מרכז דף יומי -  בכורות דף כב. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
+          "label": "Daf Yomi Bechoros Daf 23 by R’ Eli Stefansky (unedited)",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "I4uit9tWzL4",
+          "label": "מרכז דף יומי - בכורות דף כג. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
           "amud": "a"
         }
       }
