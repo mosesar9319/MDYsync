@@ -44,7 +44,28 @@
         "unmatchedWords": 644,
         "durationSeconds": 4910.0
       }
+    },
+    {
+      "id": "live-2",
+      "engine": "live",
+      "number": 2,
+      "name": "Live #2 · 11 Oct 2026 · 50-term hint list + paraphrase filter (paraphrase gone, but two thirds of the real Hebrew too)",
+      "notes": "50-term hint list + paraphrase filter (paraphrase gone, but two thirds of the real Hebrew too)",
+      "engineVersion": "68a69bf",
+      "createdAt": "2026-10-11T06:43:11Z",
+      "file": "live-2.json",
+      "jobId": null,
+      "summary": {
+        "segments": 68,
+        "estimatedSegments": 40,
+        "placements": 28,
+        "placedWords": 106,
+        "totalRuns": 1167,
+        "totalWords": 1003,
+        "matchedWords": 106,
+        "durationSeconds": 4909.98
+      }
     }
   ],
-  "updatedAt": "2026-10-11T04:23:28Z"
+  "updatedAt": "2026-10-11T06:43:11Z"
 }
