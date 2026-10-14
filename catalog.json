@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-14T11:00:46.897Z",
+  "generatedAt": "2026-10-14T12:00:54.561Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -564,6 +564,11 @@
         "regularEn": {
           "videoId": "zr-GOQI0kb0",
           "label": "Daf Yomi Bechoros Daf 26 by R' Eli Stefansky",
+          "amud": "a"
+        },
+        "chazarahEn": {
+          "videoId": "2dq0cypO3I4",
+          "label": "CHAZARAH - Bechoros Daf 26 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         }
       }
