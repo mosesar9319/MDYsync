@@ -34,6 +34,20 @@ const state = {
   dafRef: '',
   segments: [],
   activeIndex: 0,
+  // Holds the time a seek asked for until the player reports it. YouTube's
+  // getCurrentTime() keeps returning the pre-seek time for a short stretch;
+  // reading that stale value back is what snapped the highlight (and the
+  // scrubber) onto the phrase the reader had just left.
+  pendingSeek: null,
+  // A seek issued before the YouTube player can honor seekTo. Flushed from
+  // onReady / the already-built-player path instead of being dropped.
+  queuedSeek: null,
+  // Set by a phrase tap so the highlight stays on the tapped phrase while
+  // the playhead sits slightly before its start (and across a shared start
+  // time). Cleared once playback reaches the next distinct phrase.
+  phrasePin: null,
+  lastObservedTime: null,
+  youtubePolling: false,
   objectUrl: null,
   seeking: false,
   toastTimer: null,
@@ -306,6 +320,13 @@ const state = {
 };
 
 const AUTO_SCROLL_RESUME_MS = 4000;
+// A tap lands a little before the phrase so the reader hears its opening,
+// and the highlight is pinned to that phrase until playback catches up.
+const PHRASE_SEEK_LEAD = 0.4;
+// After a phrase's own end, keep the highlight briefly, then go idle so a
+// sponsor slide or explanation doesn't stay lit for minutes.
+const GAP_IDLE_AFTER_END = 3;
+const MIN_ESTIMATED_VISIBLE = 0.8;
 
 const $ = (id) => document.getElementById(id);
 const htmlVideo = $('video');
@@ -394,7 +415,9 @@ function updateAlignmentStatus(status = state.alignmentStatus) {
   const badge = $('alignmentStatus');
   if (!badge) return;
   badge.textContent = statusLabel(status);
-  badge.className = `alignment-badge ${status === 'complete' ? 'complete' : status === 'in-progress' ? 'in-progress' : 'needs-work'}`;
+  // Every published file is stamped in-progress, so the chip was a permanent
+  // "Alignment in progress" for readers. Admins still see the real status.
+  badge.className = `alignment-badge admin-only ${status === 'complete' ? 'complete' : status === 'in-progress' ? 'in-progress' : 'needs-work'}`;
 }
 
 function draftKey() {
@@ -895,9 +918,13 @@ const EXPLANATION_MIN_DURATION = 12; // seconds -- ignore brief holds, not worth
 // order and don't overlap.
 function findWordTimelineIndexAt(time) {
   const timeline = state.wordTimeline;
+  let lo = 0;
+  let hi = timeline.length - 1;
   let index = -1;
-  for (let i = 0; i < timeline.length; i++) {
-    if (timeline[i].start <= time) index = i; else break;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (timeline[mid].start <= time) { index = mid; lo = mid + 1; }
+    else hi = mid - 1;
   }
   return index;
 }
@@ -1082,11 +1109,30 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-function getCurrentTime() {
+function readPlayerTime() {
   if (state.playerType === 'youtube' && state.youtubeReady) {
     return Number(state.youtubePlayer?.getCurrentTime?.()) || 0;
   }
   return Number(htmlVideo.currentTime) || 0;
+}
+
+function armPendingSeek(time) {
+  state.pendingSeek = { time, issuedAt: performance.now() };
+}
+
+// Until the player catches up (or the request is clearly abandoned), report
+// the time we asked for. Otherwise the  playback poll reads the pre-seek
+// time and paints the phrase the reader just left.
+function getCurrentTime() {
+  const pending = state.pendingSeek;
+  if (!pending) return readPlayerTime();
+  const actual = readPlayerTime();
+  const age = performance.now() - pending.issuedAt;
+  if (Math.abs(actual - pending.time) <= 0.45 || age > 2500) {
+    state.pendingSeek = null;
+    return actual;
+  }
+  return pending.time;
 }
 
 function getDuration() {
@@ -1143,7 +1189,7 @@ function switchPlayerType(type) {
   youtubeHost.hidden = !isYouTube;
   $('videoFrame').classList.toggle('youtube-active', isYouTube);
 
-  if (isYouTube) startYouTubePoll(); else stopYouTubePoll();
+  if (isYouTube && !isPaused()) startYouTubePoll(); else stopYouTubePoll();
   // A direct-link <video> has no quality ladder to expose -- hide the
   // control immediately rather than waiting for a stale YouTube-only value
   // to linger on screen. Switching TO YouTube re-shows it itself, from
@@ -1158,44 +1204,53 @@ function switchPlayerType(type) {
 
 function findSegmentAt(time) {
   if (state.liveFollow?.active) return state.liveFollow.activeIndex;
-  if (!state.segments.length) return -1;
-  // Segments can slightly overlap in end/start (real speech doesn't cut
-  // cleanly at a segment boundary, so a stray word can get matched into the
-  // previous or next segment's range). Picking the first range that
-  // technically contains `time` would then always favor whichever segment
-  // comes first in reading order, even after seeking past it into the
-  // next one. What the reader actually means by "current segment" is
-  // whichever one they most recently entered, so take the segment with the
-  // LARGEST start that's still at or before `time` (ties -- identical start
-  // values -- broken toward the later array index, same as reading order).
-  //
-  // This used to stop scanning at the first segment whose start was AFTER
-  // `time`, on the assumption state.segments is always start-ascending. A
-  // real published alignment can violate that: a bad interpolation anchor
-  // confirmed directly on Chullin 112's video (_SGiQoBDjD4) stamped its
-  // lead-in review of 111b's paragraphs 1-12 with start times running
-  // BACKWARD -- 2408s down to 918s as the paragraph number increased --
-  // before the array picked back up in correct order from 111b:13 on. Against
-  // data like that, breaking early either froze the highlight on a stale
-  // segment (the scan gave up at array index 0 the instant its start
-  // exceeded `time`, before ever reaching the correctly-ordered segments
-  // sitting later in the array) or, once `time` caught up to the
-  // out-of-place cluster, snapped the highlight straight to it -- which is
-  // exactly the reported "highlight jumps back ~12 lines" symptom: whatever
-  // segment happened to occupy that array position could be well earlier on
-  // the printed page than what's actually playing. Scanning the whole array
-  // and keeping the true best match is correct regardless of ordering, and
-  // costs nothing measurable for a list sized like a real daf's segments.
+  const segments = state.segments;
+  if (!segments.length) return -1;
+  // Starts are sorted when an alignment is loaded (loadAlignmentData /
+  // fillMissingDafText). Binary search for the rightmost start still at or
+  // before `time`. A run of identical starts used to resolve to the later
+  // index, which handed a tap (and playback) the neighboring phrase; among
+  // a tie, prefer a real timestamp over an estimate, then the earlier one.
+  let lo = 0;
+  let hi = segments.length - 1;
   let index = -1;
-  let bestStart = -Infinity;
-  for (let i = 0; i < state.segments.length; i++) {
-    const start = state.segments[i].start;
-    if (start <= time && start >= bestStart) {
-      bestStart = start;
-      index = i;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (segments[mid].start <= time + 1e-6) { index = mid; lo = mid + 1; }
+    else hi = mid - 1;
+  }
+  // Unsorted edits (a manual mark that hasn't been re-sorted) fall back to
+  // a linear scan so a single out-of-order start can't hide the real phrase.
+  if (index >= 0 && index + 1 < segments.length && segments[index + 1].start <= time
+      && segments[index + 1].start < segments[index].start) {
+    index = -1;
+    let bestStart = -Infinity;
+    for (let i = 0; i < segments.length; i++) {
+      const start = segments[i].start;
+      if (start <= time && start >= bestStart) { bestStart = start; index = i; }
     }
   }
-  return index === -1 ? 0 : index;
+  if (index < 0) return -1;
+  const start = segments[index].start;
+  let best = index;
+  for (let i = index - 1; i >= 0 && Math.abs(segments[i].start - start) < 0.051; i--) {
+    const challenger = segments[i];
+    const current = segments[best];
+    if (Boolean(current.estimated) !== Boolean(challenger.estimated)) {
+      if (current.estimated) best = i;
+      continue;
+    }
+    best = i;
+  }
+  const segment = segments[best];
+  const end = Number(segment.end);
+  const effectiveEnd = Number.isFinite(end) ? end : segment.start;
+  let nextStart = Infinity;
+  for (let i = best + 1; i < segments.length; i++) {
+    if (segments[i].start > segment.start + 0.05) { nextStart = segments[i].start; break; }
+  }
+  if (time >= effectiveEnd + GAP_IDLE_AFTER_END && time < nextStart) return -1;
+  return best;
 }
 
 // How many segments of context to show before/after the active one. The daf
@@ -1210,8 +1265,9 @@ function buildSegmentSpan(segment, index) {
   const span = document.createElement('span');
   const classes = ['daf-segment'];
   if (index === state.editingIndex) classes.push('mark-target-segment');
+  if (segment.estimated) classes.push('estimated');
   if (index === state.activeIndex) classes.push('active');
-  else if (index < state.activeIndex) classes.push('past');
+  else if (state.activeIndex >= 0 && index < state.activeIndex) classes.push('past');
   span.className = classes.join(' ');
   span.dataset.index = String(index);
   span.dataset.start = String(segment.start);
@@ -1263,16 +1319,33 @@ function buildSegmentSpan(segment, index) {
 }
 
 function renderDafWindow() {
-  dafPage.innerHTML = '';
+  if (!dafPage) return;
   if (!state.segments.length) {
+    dafPage.dataset.window = '';
+    dafPage.innerHTML = '';
     const note = document.createElement('p');
     note.className = 'daf-empty-note';
     note.textContent = 'No daf loaded yet. Enter a reference above and press "Load daf."';
     dafPage.appendChild(note);
     return;
   }
-  const lo = Math.max(0, state.activeIndex - DAF_WINDOW_BEFORE);
-  const hi = Math.min(state.segments.length - 1, state.activeIndex + DAF_WINDOW_AFTER);
+  const anchor = state.activeIndex >= 0 ? state.activeIndex : 0;
+  const lo = Math.max(0, anchor - DAF_WINDOW_BEFORE);
+  const hi = Math.min(state.segments.length - 1, anchor + DAF_WINDOW_AFTER);
+  const windowKey = `${lo}:${hi}:${state.segments.length}`;
+  if (dafPage.dataset.window === windowKey) {
+    dafPage.querySelectorAll('.daf-segment').forEach((node) => {
+      const index = Number(node.dataset.index);
+      const segment = state.segments[index];
+      node.classList.toggle('active', index === state.activeIndex);
+      node.classList.toggle('past', state.activeIndex >= 0 && index < state.activeIndex);
+      node.classList.toggle('estimated', Boolean(segment?.estimated));
+      node.classList.toggle('mark-target-segment', index === state.editingIndex);
+    });
+    return;
+  }
+  dafPage.dataset.window = windowKey;
+  dafPage.innerHTML = '';
   if (lo > 0) {
     const more = document.createElement('p');
     more.className = 'daf-window-more';
@@ -1300,9 +1373,19 @@ function renderDafWindow() {
 // built from freshly-interpolated placeholder segments -- silently
 // overriding it mid-playback.
 function renderDaf({ forceActiveSegment = true } = {}) {
+  if (dafPage) dafPage.dataset.window = '';
   $('segmentCount').textContent = `${state.segments.length} synchronized segment${state.segments.length === 1 ? '' : 's'}`;
   updateMarkTargetUi();
-  updateActiveSegment(forceActiveSegment);
+  // false means the caller already placed state.activeIndex (fill-in text
+  // reindexes the array) and a clock reading must not overwrite it.
+  if (forceActiveSegment) updateActiveSegment(true);
+  else {
+    renderDafWindow();
+    updateActiveWords(getCurrentTime());
+    updateVilnaOverlay();
+    document.querySelectorAll('.editor-row').forEach((node, i) => node.classList.toggle('active', i === state.activeIndex));
+    updateReaderNotes(getCurrentTime(), state.activeIndex);
+  }
   renderEditor();
   renderVilnaPage();
   // The player chrome's timeline markers are built from state.segments (see
@@ -1596,8 +1679,12 @@ async function fillMissingDafText(sefariaRef) {
       w1: words.length - 1
     });
   }
-  if (!additions.length) return false;
-  state.segments = [...state.segments, ...additions].sort((a, b) => a.start - b.start);
+  if (!additions.length) {
+    applySefariaEnglish(paragraphs);
+    return false;
+  }
+  state.segments = stabilizeEstimatedSegments([...state.segments, ...additions].sort((a, b) => a.start - b.start));
+  applySefariaEnglish(paragraphs);
   // bankVoiceCorrection() diffs state.segments against voiceCorrectionBaseline
   // by array position (see its own comment) -- since this just changed the
   // segment count, the baseline (captured by loadAlignmentData before this
@@ -1611,6 +1698,72 @@ async function fillMissingDafText(sefariaRef) {
     };
   }
   return true;
+}
+
+function applySefariaEnglish(paragraphs) {
+  const byRef = new Map((paragraphs || []).map((paragraph) => [normalizeDafParagraphRef(paragraph.ref), paragraph.en || '']));
+  let changed = false;
+  for (const segment of state.segments) {
+    if (segment.en) continue;
+    const english = byRef.get(normalizeDafParagraphRef(segment.ref));
+    if (!english) continue;
+    segment.en = english;
+    changed = true;
+  }
+  if (changed && state.activeIndex >= 0) updateReaderNotes(getCurrentTime(), state.activeIndex);
+}
+
+function mergeEstimatedGroup(group, start, end) {
+  const first = group[0];
+  const w0s = group.map((segment) => segment.w0).filter((value) => value != null);
+  const w1s = group.map((segment) => segment.w1).filter((value) => value != null);
+  return {
+    ...first,
+    he: group.map((segment) => segment.he).filter(Boolean).join(' '),
+    en: group.map((segment) => segment.en).filter(Boolean).join(' '),
+    start: Number(start.toFixed(2)),
+    end: Number(Math.max(end, start).toFixed(2)),
+    estimated: true,
+    w0: w0s.length ? Math.min(...w0s) : first.w0,
+    w1: w1s.length ? Math.max(...w1s) : first.w1,
+  };
+}
+
+// Consecutive estimated placeholders are often a few hundredths of a second
+// apart and look identical to real highlights. Merge each same-ref run so
+// every visible piece lasts at least ~0.8s, without moving a real timestamp.
+function stabilizeEstimatedSegments(segments) {
+  const out = [];
+  let i = 0;
+  while (i < segments.length) {
+    if (!segments[i].estimated) { out.push(segments[i]); i += 1; continue; }
+    let j = i + 1;
+    while (j < segments.length && segments[j].estimated && segments[j].ref === segments[i].ref) j += 1;
+    const run = segments.slice(i, j);
+    let nextReal = null;
+    for (let k = j; k < segments.length; k += 1) {
+      if (!segments[k].estimated) { nextReal = segments[k].start; break; }
+    }
+    const start = run[0].start;
+    const limit = nextReal == null ? Infinity : nextReal;
+    const room = Number.isFinite(limit) ? Math.max(0, limit - start) : run.length * MIN_ESTIMATED_VISIBLE;
+    const slots = Math.max(1, Math.min(run.length, Math.floor(room / MIN_ESTIMATED_VISIBLE) || 1));
+    for (let g = 0; g < slots; g += 1) {
+      const from = Math.floor(g * run.length / slots);
+      const to = Math.floor((g + 1) * run.length / slots);
+      const group = run.slice(from, Math.max(to, from + 1));
+      const gStart = start + (Number.isFinite(limit) ? (room * g) / slots : g * MIN_ESTIMATED_VISIBLE);
+      let gEnd = start + (Number.isFinite(limit) ? (room * (g + 1)) / slots : (g + 1) * MIN_ESTIMATED_VISIBLE);
+      if (!Number.isFinite(limit)) gEnd = Math.max(gEnd, gStart + MIN_ESTIMATED_VISIBLE);
+      if (gEnd - gStart < MIN_ESTIMATED_VISIBLE && (!Number.isFinite(limit) || gStart + MIN_ESTIMATED_VISIBLE <= limit + 0.001)) {
+        gEnd = gStart + MIN_ESTIMATED_VISIBLE;
+      }
+      if (Number.isFinite(limit)) gEnd = Math.min(gEnd, limit);
+      out.push(mergeEstimatedGroup(group.length ? group : [run[Math.min(g, run.length - 1)]], gStart, Math.max(gEnd, gStart)));
+    }
+    i = j;
+  }
+  return out.sort((a, b) => a.start - b.start);
 }
 
 function setVilnaPageStatus(message) {
@@ -2132,6 +2285,7 @@ function renderVilnaWordBoxes() {
     // (plain CSS :hover can't reach sibling elements on its own), and any
     // of them is an equally valid click target for the same phrase.
     const wordIndex = segment.w0 ?? 0;
+    if (segment.estimated) for (const el of els) el.classList.add('estimated');
     const onEnter = () => { for (const el of els) el.classList.add('phrase-hover'); };
     const onLeave = () => { for (const el of els) el.classList.remove('phrase-hover'); };
     const onClick = () => {
@@ -2141,6 +2295,7 @@ function renderVilnaWordBoxes() {
       // idea as the scan feature's tapScannedWord).
       if (state.browseMode) playWordInline(segment.ref, wordIndex);
       else if (state.vilnaMarkMode) markSegmentAtVilnaWord(segment.ref, wordIndex);
+      else if (state.segments.includes(segment)) activatePhrase(state.segments.indexOf(segment));
       else seekToVilnaWord(segment.ref, wordIndex);
     };
     for (const el of els) {
@@ -2614,45 +2769,126 @@ async function playWordInline(ref, wordIndex) {
 // this word before falling back to just the first segment with a
 // matching ref. Returns null, not undefined, when nothing matches, so a
 // caller can tell "no match" apart from a genuine 0.
-function findWordTime(wordTimeline, segments, ref, wordIndex) {
-  const entry = wordTimeline.find((e) => e.ref === ref && wordIndex >= e.w0 && wordIndex <= e.w1);
-  if (entry) return entry.start;
-  const segment = segments.find((s) => s.ref === ref && s.w0 !== null && wordIndex >= s.w0 && wordIndex <= s.w1)
-    || segments.find((s) => s.ref === ref);
-  return segment ? segment.start : null;
+function coveringSegmentIndexes(segments, ref, wordIndex) {
+  const norm = normalizeDafParagraphRef(ref);
+  const ranged = [];
+  const sameRef = [];
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i];
+    if (normalizeDafParagraphRef(segment.ref) !== norm) continue;
+    sameRef.push(i);
+    if (segment.w0 != null && segment.w1 != null && wordIndex >= segment.w0 && wordIndex <= segment.w1) ranged.push(i);
+  }
+  return ranged.length ? ranged : sameRef;
+}
+
+function pickNearestIndex(segments, indexes, nearTime) {
+  if (!indexes.length) return -1;
+  if (nearTime == null || !Number.isFinite(nearTime)) return indexes[0];
+  let best = indexes[0];
+  let bestDist = Math.abs(segments[best].start - nearTime);
+  for (const index of indexes) {
+    const dist = Math.abs(segments[index].start - nearTime);
+    if (dist < bestDist) { best = index; bestDist = dist; }
+  }
+  return best;
+}
+
+// The phrase's own start, not the first wordTimeline/OCR hit that happens
+// to contain the word (those hits often belong to an earlier occurrence,
+// sometimes minutes earlier). `nearTime`, when passed, picks the closest
+// repeated occurrence instead of the earliest one. Returns null when
+// nothing matches so a caller can tell "no match" apart from a genuine 0.
+function findWordTime(wordTimeline, segments, ref, wordIndex, nearTime = null) {
+  const indexes = coveringSegmentIndexes(segments, ref, wordIndex);
+  if (indexes.length) return segments[pickNearestIndex(segments, indexes, nearTime)].start;
+  const norm = normalizeDafParagraphRef(ref);
+  const hits = [];
+  for (const entry of wordTimeline || []) {
+    if (normalizeDafParagraphRef(entry.ref) === norm && wordIndex >= entry.w0 && wordIndex <= entry.w1) hits.push(entry);
+  }
+  if (!hits.length) return null;
+  if (nearTime == null || !Number.isFinite(nearTime)) return hits[0].start;
+  let best = hits[0];
+  for (const hit of hits) if (Math.abs(hit.start - nearTime) < Math.abs(best.start - nearTime)) best = hit;
+  return best.start;
+}
+
+function nearestSamePhrase(index) {
+  const segment = state.segments[index];
+  if (!segment) return index;
+  const key = `${normalizeDafParagraphRef(segment.ref)}:${segment.w0}:${segment.w1}`;
+  const indexes = [];
+  state.segments.forEach((candidate, i) => {
+    if (`${normalizeDafParagraphRef(candidate.ref)}:${candidate.w0}:${candidate.w1}` === key) indexes.push(i);
+  });
+  return pickNearestIndex(state.segments, indexes, readPlayerTime());
+}
+
+function pinReleaseTime(index) {
+  const segment = state.segments[index];
+  if (!segment) return 0;
+  for (let i = index + 1; i < state.segments.length; i++) {
+    if (state.segments[i].start > segment.start + 0.05) return state.segments[i].start;
+  }
+  const end = Number(segment.end);
+  return Number.isFinite(end) ? Math.max(segment.start + 0.2, end) : segment.start + 0.2;
+}
+
+function flashSeekPending() {
+  const card = $('dafCard');
+  if (!card) return;
+  card.classList.add('seek-pending');
+  window.clearTimeout(state.seekPendingTimer);
+  state.seekPendingTimer = window.setTimeout(() => card.classList.remove('seek-pending'), 700);
+}
+
+// Seek to this phrase's own start (a fraction early) and pin the highlight
+// on it directly, so a shared start time or the lead-in offset can't light
+// the neighboring phrase instead.
+function activatePhrase(index) {
+  const resolved = nearestSamePhrase(index);
+  const segment = state.segments[resolved];
+  if (!segment) return;
+  const target = Math.max(0, Number(segment.start) - PHRASE_SEEK_LEAD);
+  state.phrasePin = { index: resolved, until: pinReleaseTime(resolved), seekTarget: target };
+  state.lastManualScrollAt = 0;
+  flashSeekPending();
+  seek(target, true);
 }
 
 async function seekToVilnaWord(ref, wordIndex) {
   if (state.liveFollow?.active) return window.dafLiveFollow?.tapWord(ref, wordIndex);
-  // A tap on a word that's ALSO the next daf's own lead-in review should
-  // land in that (later) recording, not this one -- see loadDaf's own
-  // comment on state.forwardAlignment for the real report this fixes.
-  // Checked first, against the forward alignment's own (narrow) coverage:
-  // it only ever holds the exact words that recording actually reviews,
-  // so finding nothing here and falling through to this daf's own video
-  // below is the common, correct case, not a failure.
-  if (state.forwardAlignment?.ref === ref
-      && findWordTime(state.forwardAlignment.wordTimeline, state.forwardAlignment.segments, ref, wordIndex) !== null) {
+  // state.forwardAlignment.ref is the NEXT daf (the recording to load), while
+  // `ref` here is a paragraph ("Bekhorot 30b.4"). Comparing them never
+  // matched, so the lead-in redirect never ran. Match on coverage instead:
+  // the forward timeline only holds words that next recording actually reviews.
+  const forward = state.forwardAlignment;
+  if (forward && findWordTime(forward.wordTimeline, forward.segments, ref, wordIndex) !== null) {
     try {
-      await loadDaf(state.forwardAlignment.ref, { silent: true });
+      await loadDaf(forward.ref, { silent: true });
     } catch (error) {
       console.error(error);
       // Falls through to this daf's own timing below rather than giving
       // up entirely -- a failed forward-load still leaves a usable seek.
     }
   }
-  const time = findWordTime(state.wordTimeline, state.segments, ref, wordIndex);
-  if (time === null) return;
+  const near = readPlayerTime();
+  const indexes = coveringSegmentIndexes(state.segments, ref, wordIndex);
+  const index = pickNearestIndex(state.segments, indexes, near);
+  if (index >= 0) {
+    activatePhrase(index);
+    return;
+  }
+  const time = findWordTime(state.wordTimeline, state.segments, ref, wordIndex, near);
+  if (time === null) {
+    showToast('No timing for this word');
+    return;
+  }
   state.lastManualScrollAt = 0;
-  // seek() already forces an active-segment update using this exact target
-  // time -- a second, redundant call here used to follow it with no time
-  // override, so it fell back to getCurrentTime(). For a YouTube-sourced
-  // shiur, player.seekTo() is asynchronous: getCurrentTime() read straight
-  // back still reported the OLD position, so this second call clobbered the
-  // correct, just-set activeIndex with the stale one a moment later --
-  // reported directly as the video jumping to the right place while the
-  // highlight stayed stuck on whatever was playing before the tap.
-  seek(time + 0.03, true);
+  state.phrasePin = null;
+  flashSeekPending();
+  seek(Math.max(0, time - PHRASE_SEEK_LEAD), true);
 }
 
 // --- Camera-scan feature (see scan-daf-page.mjs) ---------------------------
@@ -4530,7 +4766,7 @@ function updateVilnaOverlay() {
   // showing the words the selection had already grown past.
   const selectionSignature = selection?.runs?.map((run) => `${run.ref}:${run.start}-${run.end}`).join(',') || '';
   const dedupKey = activeSegment
-    ? `${activeSegment.ref}:${activeSegment.w0}:${activeSegment.w1}:${selectionSignature}`
+    ? `${activeSegment.ref}:${activeSegment.w0}:${activeSegment.w1}:${activeSegment.estimated ? 1 : 0}:${selectionSignature}`
     : '';
   if (dedupKey === state.vilnaOverlayKey) return;
   state.vilnaOverlayKey = dedupKey;
@@ -4539,7 +4775,8 @@ function updateVilnaOverlay() {
   if (!activeSegment) return;
   const boxes = activeSegmentWordBoxes(activeSegment)
     .filter((box) => !isSelected(box.ref, box.wordIndex));
-  appendLineRects(overlay, groupBoxesIntoLineRects(boxes, state.vilnaPageMap, vilnaInkBands(state.vilnaPageMap)), 'vilna-active-rect');
+  const rectClass = activeSegment.estimated ? 'vilna-active-rect estimated' : 'vilna-active-rect';
+  appendLineRects(overlay, groupBoxesIntoLineRects(boxes, state.vilnaPageMap, vilnaInkBands(state.vilnaPageMap)), rectClass);
 }
 
 // While vilnaMarkMode is on, outlines the word(s) belonging to the phrase
@@ -6205,71 +6442,201 @@ function updateActiveWords(time) {
   scheduleReadingVideoFollow(false);
 }
 
+function requestedDafLabelFromRef(ref) {
+  const parsed = parseDafRef(ref);
+  if (!parsed) return ref || '';
+  return `${parsed.tractate} ${parsed.daf}${parsed.amud}${parsed.variant === 'chazarah' ? ' · Chazarah' : ''}`;
+}
+
+function requestedDafLabel() {
+  return requestedDafLabelFromRef(state.dafRef);
+}
+
+function fullRefFromSearch(params) {
+  const ref = params.get('ref');
+  if (!ref) return null;
+  const wantsChazarah = params.get('variant') === 'chazarah';
+  const wantsHebrew = params.get('language') === 'hebrew' || params.get('language') === 'he';
+  const wantedMaggid = MAGGIDIM.find((m) => m.marker && m.id === params.get('maggid'));
+  let fullRef = ref;
+  if (wantsChazarah && !/chazarah/i.test(fullRef)) fullRef += ' (Chazarah Daf)';
+  if (wantsHebrew && !/hebrew/i.test(fullRef)) fullRef += ' (Hebrew)';
+  if (wantedMaggid && !fullRef.includes(`(${wantedMaggid.marker})`)) fullRef += ` (${wantedMaggid.marker})`;
+  return fullRef;
+}
+
+// Paint the requested daf before any alignment fetch returns, so the player
+// doesn't sit on "No daf loaded" for the whole round trip.
+function paintRequestedDafSkeleton(fullRef) {
+  const label = requestedDafLabelFromRef(fullRef);
+  const set = (id, text) => { const el = $(id); if (el) el.textContent = text; };
+  set('dafTitle', label);
+  set('currentRef', `Loading ${label}…`);
+  const lecture = $('lectureTitle');
+  if (lecture && /DafSync Studio|No daf loaded/i.test(lecture.textContent)) lecture.textContent = label;
+  const phrase = $('currentPhrase');
+  if (phrase) phrase.textContent = '';
+  const translation = $('currentTranslation');
+  if (translation) { translation.hidden = true; translation.textContent = ''; }
+  const empty = document.querySelector('#videoEmpty p');
+  if (empty) empty.textContent = `Loading ${label}…`;
+  const status = $('vilnaPageStatusText');
+  if (status) status.textContent = `Loading the page for ${label}…`;
+}
+
+function segmentDafKey(ref) {
+  const parsed = parseDafRef(ref);
+  return parsed ? `${parsed.tractate} ${parsed.daf}${parsed.amud}` : '';
+}
+
+function ownContentStartTime() {
+  const wanted = realDafRef(state.dafRef);
+  if (!wanted) return null;
+  let fallback = null;
+  for (const segment of state.segments) {
+    if (segmentDafKey(segment.ref) !== wanted) continue;
+    if (!segment.estimated) return segment.start;
+    if (fallback == null) fallback = segment.start;
+  }
+  return fallback;
+}
+
+function ensureReaderNotes() {
+  if ($('readerDafNotes')) return;
+  const header = document.querySelector('#dafCard .daf-header, #dafCard .card-heading, #dafCard header') || $('dafCard');
+  if (!header) return;
+  const wrap = document.createElement('div');
+  wrap.id = 'readerDafNotes';
+  wrap.className = 'reader-daf-notes';
+  wrap.innerHTML = '<p class="reviewing-label" id="reviewingLabel" hidden></p>'
+    + '<button type="button" class="skip-to-daf-chip" id="skipToDafChip" hidden></button>'
+    + '<p class="not-synced-note" id="notSyncedNote" hidden>Not synced yet</p>';
+  header.appendChild(wrap);
+  $('skipToDafChip')?.addEventListener('click', () => {
+    const start = ownContentStartTime();
+    if (start == null) return;
+    const wanted = realDafRef(state.dafRef);
+    const index = state.segments.findIndex((segment) => !segment.estimated && segmentDafKey(segment.ref) === wanted);
+    if (index >= 0) activatePhrase(index);
+    else seek(start, true);
+  });
+}
+
+function updateReaderNotes(time, index) {
+  ensureReaderNotes();
+  const ownStart = ownContentStartTime();
+  const inLeadIn = ownStart != null && time + 0.05 < ownStart;
+  const active = state.segments[index];
+  const activeLabel = active ? segmentDafKey(active.ref) : '';
+  const requested = requestedDafLabel();
+  const beforeFirst = state.segments.length > 0 && time < state.segments[0].start - 0.05 && index < 0;
+  let refText = requested || 'No daf loaded';
+  let reviewing = '';
+  if (!state.segments.length) refText = state.dafRef ? `Loading ${requested}…` : 'No daf loaded';
+  else if (beforeFirst) refText = 'Intro';
+  else if (index < 0) refText = 'Between phrases';
+  else if (inLeadIn && activeLabel && activeLabel !== realDafRef(state.dafRef)) {
+    reviewing = `Reviewing ${activeLabel}`;
+    refText = reviewing;
+  } else refText = requested;
+  const currentRef = $('currentRef');
+  if (currentRef) currentRef.textContent = refText;
+  const reviewingLabel = $('reviewingLabel');
+  if (reviewingLabel) {
+    reviewingLabel.hidden = !reviewing;
+    reviewingLabel.textContent = reviewing;
+  }
+  const chip = $('skipToDafChip');
+  if (chip) {
+    const show = Boolean(inLeadIn && ownStart > 0.5);
+    chip.hidden = !show;
+    if (show) chip.textContent = `Skip to ${realDafRef(state.dafRef)} (${formatTime(ownStart)})`;
+  }
+  const note = $('notSyncedNote');
+  if (note) {
+    const hasReal = state.segments.some((segment) => !segment.estimated);
+    note.hidden = !state.segments.length || hasReal;
+  }
+  if (!state.browseMode && state.dafRef && $('dafTitle')) $('dafTitle').textContent = requested;
+  const phrase = $('currentPhrase');
+  const translation = $('currentTranslation');
+  if (!active) {
+    if (phrase) phrase.textContent = '';
+    if (translation) { translation.hidden = true; translation.textContent = ''; }
+  } else {
+    if (phrase) phrase.textContent = active.he || '';
+    if (translation) {
+      if (active.en) { translation.hidden = false; translation.textContent = active.en; }
+      else { translation.hidden = true; translation.textContent = ''; }
+    }
+  }
+}
+
+function scrollActiveIntoView(force) {
+  const autoScroll = $('autoScroll');
+  if (!autoScroll?.checked) return;
+  if (Date.now() - state.lastManualScrollAt < AUTO_SCROLL_RESUME_MS) return;
+  const view = document.querySelector('.daf-card')?.getAttribute('data-daf-view');
+  const node = view === 'page'
+    ? document.querySelector('#vilnaActiveOverlay .vilna-active-rect')
+    : document.querySelector(`.daf-segment[data-index="${state.activeIndex}"]`);
+  if (!node) return;
+  state.programmaticScrollUntil = performance.now() + (force ? 80 : 900);
+  node.scrollIntoView({ block: 'center', behavior: force ? 'auto' : 'smooth' });
+}
+
 function updateActiveSegment(force = false, timeOverride = null) {
   const time = timeOverride ?? getCurrentTime();
-  const index = findSegmentAt(time);
+  let jumpedBack = false;
+  if (timeOverride == null) {
+    const previous = state.lastObservedTime;
+    jumpedBack = previous != null && time < previous - 1;
+    state.lastObservedTime = time;
+    // A real rewind (media keys, a seek this page didn't pin) must drop the
+    // tap pin so the highlight can follow. The landing of a tap's own seek
+    // is also a backward jump — the clock finally reports the earlier
+    // target — and that one has to keep the pin, or the 0.4s lead-in falls
+    // in the previous phrase's gap and the tap goes idle.
+    const pin = state.phrasePin;
+    const arrivedAtPin = pin && Math.abs(time - pin.seekTarget) <= 0.5;
+    if (jumpedBack && !arrivedAtPin) state.phrasePin = null;
+  }
+  let index = findSegmentAt(time);
+  if (state.phrasePin) {
+    const pin = state.phrasePin;
+    const segment = state.segments[pin.index];
+    const sameSeek = force && timeOverride != null && Math.abs(timeOverride - pin.seekTarget) <= 0.08;
+    if (!segment) state.phrasePin = null;
+    else if (sameSeek || time < pin.until) index = pin.index;
+    else state.phrasePin = null;
+  }
+  if (timeOverride == null) {
+    // A natural playback tick must not follow a tiny backward blip. A real
+    // rewind (media keys, a seek the player applied on its own) moves the
+    // clock by more than a second and is allowed through. Idle (-1) is also
+    // allowed: dimming in a gap is not "moving backward."
+    if (!force && !jumpedBack && index !== -1 && state.activeIndex >= 0 && index < state.activeIndex) {
+      updateActiveWords(time);
+      updateVaaterButtonUi(time);
+      return;
+    }
+  }
   if (!force && index === state.activeIndex) {
     updateActiveWords(time);
-    // Unlike the rest of this function, the fast-forward button's
-    // enabled/disabled state can change *within* the same segment (it's
-    // driven by wordTimeline entries, which are finer-grained than segments
-    // -- see nextReadingTime), not just when the active segment itself
-    // changes, so this needs to keep running on every tick, not only here.
     updateVaaterButtonUi(time);
-    return;
-  }
-  // A natural playback tick (force=false, no timeOverride -- i.e. called
-  // from updateTimeline's own poll, not from seek()) must never move the
-  // highlight BACKWARD. getCurrentTime() can report a slightly earlier
-  // time than the previous poll on a real, ordinary stall/quality-switch
-  // blip -- a few hundred milliseconds is enough, since Talmudic text
-  // often repeats near-identical phrasing a few lines apart, for that to
-  // read as the highlight visibly jumping back to an earlier, similar-
-  // looking word before snapping forward again on the very next tick.
-  // Every deliberate move (seek(), a fresh daf load, tap-a-word) already
-  // calls this with force=true specifically so it isn't caught here.
-  if (!force && index < state.activeIndex) {
-    updateActiveWords(time);
-    updateVaaterButtonUi(time);
+    updateReaderNotes(time, index);
     return;
   }
   state.activeIndex = index;
   updateVaaterButtonUi(time);
   const active = state.segments[index];
-  if (!active) return;
 
   renderDafWindow();
   updateActiveWords(time);
   renderVilnaPage();
   document.querySelectorAll('.editor-row').forEach((node, i) => node.classList.toggle('active', i === index));
-
-  $('currentPhrase').textContent = active.he;
-  $('currentTranslation').textContent = active.en || 'Translation not loaded.';
-  const activeDaf = parseDafRef(active.ref);
-  $('currentRef').textContent = activeDaf
-    ? `${activeDaf.tractate} ${activeDaf.daf}${activeDaf.amud} · Segment ${index + 1}`
-    : `${state.dafRef} · Segment ${index + 1}`;
-  // The prominent "Following: <daf>" heading above the daf card should
-  // track whichever daf is actually playing right now, not just sit on
-  // the ref the reader navigated to -- otherwise a video that opens on a
-  // lead-in review of the previous daf (see loadDaf's own comment on
-  // state.forwardAlignment) shows the WRONG daf here for the entire
-  // stretch that lead-in plays, which is exactly what a real report
-  // called out: the heading read "Chullin 103a" from the first second,
-  // even while the video was still reviewing 102b. Left alone in browse
-  // mode, where this same heading instead tracks state.browsePageRef (see
-  // onDafPickerChanged/renderVilnaWordBoxes) -- that one has to stay
-  // pinned to whichever page image is on screen, not whatever video
-  // happens to be playing behind it.
-  if (!state.browseMode && activeDaf) {
-    $('dafTitle').textContent = `${activeDaf.tractate} ${activeDaf.daf}${activeDaf.amud}`;
-  }
-
-  const recentlyScrolledManually = Date.now() - state.lastManualScrollAt < AUTO_SCROLL_RESUME_MS;
-  if ($('autoScroll').checked && timeOverride === null && !recentlyScrolledManually) {
-    const node = document.querySelector(`.daf-segment[data-index="${index}"]`);
-    node?.scrollIntoView({ block: 'center', behavior: force ? 'auto' : 'smooth' });
-  }
+  updateReaderNotes(time, index);
+  if (timeOverride === null) scrollActiveIntoView(force);
 }
 
 function applyDuration(duration, resetDefault = true) {
@@ -6507,18 +6874,29 @@ function seekHtmlVideo(time) {
   htmlVideo.addEventListener('loadedmetadata', onLoadedMetadata);
 }
 
+function flushQueuedSeek() {
+  const queued = state.queuedSeek;
+  if (!queued || !state.youtubeReady || !state.youtubePlayer?.seekTo) return;
+  state.queuedSeek = null;
+  seekYouTubePlayer(queued.time, queued.allowSeekAhead);
+  armPendingSeek(queued.time);
+}
+
 function seek(time, allowSeekAhead = true) {
   const max = getDuration() || Number(scrubber.max) || 0;
   const clamped = Math.max(0, Math.min(time, max || time));
+  if (!state.phrasePin || Math.abs(clamped - state.phrasePin.seekTarget) > 0.08) state.phrasePin = null;
 
   if (state.playerType === 'youtube') {
-    if (state.youtubeReady) seekYouTubePlayer(clamped, allowSeekAhead);
+    if (state.youtubeReady && state.youtubePlayer?.seekTo) seekYouTubePlayer(clamped, allowSeekAhead);
+    else state.queuedSeek = { time: clamped, allowSeekAhead };
   } else {
     seekHtmlVideo(clamped);
   }
+  armPendingSeek(clamped);
 
   scrubberEls.forEach((el) => { el.value = String(clamped); });
-  $('currentTime').textContent = formatTime(clamped);
+  if ($('currentTime')) $('currentTime').textContent = formatTime(clamped);
   updateScrubberFill();
   updateActiveSegment(true, clamped);
 }
@@ -6526,15 +6904,7 @@ function seek(time, allowSeekAhead = true) {
 function seekToSegment(index) {
   if (state.liveFollow?.active) return window.dafLiveFollow?.tapSegment(index);
   selectEditingIndex(index);
-  const segment = state.segments[index];
-  if (!segment) return;
-  state.lastManualScrollAt = 0;
-  // See seekToVilnaWord's own comment above -- seek() already forces the
-  // correct active-segment update using this exact target time; a second
-  // call here with no time override used to re-derive it from
-  // getCurrentTime(), which a YouTube-sourced shiur's asynchronous seekTo()
-  // has not caught up to yet at this point.
-  seek(segment.start + 0.03, true);
+  activatePhrase(index);
 }
 
 
@@ -6941,6 +7311,37 @@ function normalizeSegmentOrder(index, field) {
   if (field === 'end' && index < state.segments.length - 1) state.segments[index + 1].start = segment.end;
 }
 
+// The next daf's recording often opens by reviewing the tail of this one.
+// Kept off the first-paint path: the phrase list is already on screen, and
+// this only matters once a tap asks for a word this shiur never reaches.
+async function attachForwardAlignment(ref, loadedVideoId, voice) {
+  const nextRef = nextDafRef(ref);
+  const nextLink = nextRef ? await fetchServerVideoLink(nextRef) : null;
+  if (state.dafRef !== ref || !nextLink?.videoId || nextLink.videoId === loadedVideoId) return;
+  const forward = await fetchAlignmentForVideo(nextLink.videoId, ref, { voice });
+  if (state.dafRef !== ref || !forward) return;
+  const before = forward.ownContentStart;
+  const wordTimeline = before == null
+    ? forward.wordTimeline
+    : forward.wordTimeline.filter((entry) => entry.start < before);
+  const segments = before == null
+    ? forward.segments
+    : forward.segments.filter((segment) => segment.start < before);
+  if (wordTimeline.length || segments.length) {
+    state.forwardAlignment = { ref: nextRef, wordTimeline, segments };
+  }
+}
+
+async function fillLoadedDafText(ref) {
+  const activeSegmentBeforeFill = state.segments[state.activeIndex];
+  if (!await fillMissingDafText(realDafRef(ref)) || state.dafRef !== ref) return;
+  const preservedIndex = activeSegmentBeforeFill
+    ? state.segments.indexOf(activeSegmentBeforeFill)
+    : -1;
+  if (preservedIndex !== -1) state.activeIndex = preservedIndex;
+  renderDaf({ forceActiveSegment: preservedIndex === -1 });
+}
+
 async function loadDaf(refOverride = null, options = {}) {
   const ref = canonicalDafRef(String(refOverride || $('dafRef').value).trim());
   state.maggid = parseDafRef(ref)?.maggid || null;
@@ -6968,7 +7369,8 @@ async function loadDaf(refOverride = null, options = {}) {
   // once -- fetched together here so the switch UI (updateSyncMethodSwitchUi)
   // knows immediately whether there's a choice to offer, not just whichever
   // one happens to load first.
-  const [ocrAlignment, voiceAlignment, syncSettings] = await Promise.all([
+  const localSaved = loadProjectForRef(ref);
+  const [ocrAlignment, voiceAlignment, syncSettings, preferredVideoSource] = await Promise.all([
     fetchServerAlignment(ref),
     fetchServerAlignment(ref, { voice: true }),
     // Proxied through get-results-file.mjs, same as the autoSyncToggle
@@ -6978,6 +7380,7 @@ async function loadDaf(refOverride = null, options = {}) {
     fetch('/api/get-results-file?path=settings.json')
       .then((response) => (response.ok ? response.json() : null))
       .catch(() => null),
+    resolvePreferredVideoSource(ref, localSaved),
   ]);
   state.availableSyncMethods = { ocr: ocrAlignment, voice: voiceAlignment };
   state.syncMethodSettings = syncSettings?.preferredSyncMethod || {};
@@ -7006,11 +7409,6 @@ async function loadDaf(refOverride = null, options = {}) {
     // *candidate* for the forward-redirect (see seekToVilnaWord); whether
     // it's actually a different recording than this daf's own gets
     // decided once preferredVideoSource is in hand too.
-    const nextRef = nextDafRef(ref);
-    const [preferredVideoSource, nextLink] = await Promise.all([
-      resolvePreferredVideoSource(ref, loadProjectForRef(ref)),
-      nextRef ? fetchServerVideoLink(nextRef) : Promise.resolve(null),
-    ]);
     // An alignment's timestamps are only meaningful against the one recording
     // they were measured from, so if the video about to play isn't that
     // recording, its timestamps are simply wrong here -- every highlight
@@ -7029,64 +7427,18 @@ async function loadDaf(refOverride = null, options = {}) {
       if (forThisVideo) alignmentToLoad = forThisVideo;
     }
     if (preferredVideoSource) alignmentToLoad.videoSource = preferredVideoSource;
-    // Does the NEXT daf's own recording review the tail of THIS one as its
-    // lead-in? Confirmed directly: daf 103's video opens on a recap of the
-    // end of 102b using timestamps that only make sense against daf 103's
-    // own recording, yet a tap on those same words from 102b's OWN page
-    // used to seek within daf 102's (different, earlier) video instead --
-    // that page never knew daf 103's recording existed at all. Skipped
-    // when the next ref shares this daf's own video already (nothing to
-    // redirect to) or doesn't have one of its own yet -- see
-    // seekToVilnaWord for where this actually gets used.
-    if (nextLink?.videoId && nextLink.videoId !== preferredVideoSource?.videoId) {
-      const forward = await fetchAlignmentForVideo(
-        nextLink.videoId, ref, { voice: state.activeSyncMethod === 'voice' });
-      if (forward) {
-        // Restricted to before forward.ownContentStart (see
-        // fetchAlignmentForVideo's own comment) -- without this, a stray
-        // fuzzy-text match to this ref elsewhere in the next video (well
-        // past its own lead-in, already deep into its own daf) would be
-        // just as eligible to redirect a tap to as the real lead-in is,
-        // sending the reader to an arbitrary, unrelated moment instead of
-        // a genuine continuation.
-        const before = forward.ownContentStart;
-        const wordTimeline = before == null ? forward.wordTimeline : forward.wordTimeline.filter((e) => e.start < before);
-        const segments = before == null ? forward.segments : forward.segments.filter((s) => s.start < before);
-        if (wordTimeline.length || segments.length) {
-          state.forwardAlignment = { ref: nextRef, wordTimeline, segments };
-        }
-      }
-    }
     await loadAlignmentData(alignmentToLoad, { dafRefOverride: ref });
-    // Published alignments (especially older ones, or a voice sync that
-    // only ever locks onto part of the daf) can be missing whole
-    // paragraphs of canonical text -- fill those in from Sefaria directly
-    // rather than requiring a fresh sync job just to get the rest of the
-    // daf on screen for review. This is a background fetch that can resolve
-    // well after loadAlignmentData's own renderDaf() already picked the
-    // right active segment and playback is already under way -- reported
-    // directly: the highlight visibly jumped back several lines the moment
-    // this resolved, then snapped back to the right spot a moment later.
-    // Root cause: fillMissingDafText inserts new placeholder rows and
-    // re-sorts state.segments by start, which shifts every existing
-    // segment's array index -- a plain renderDaf() here force-recomputes
-    // state.activeIndex from getCurrentTime() (see updateActiveSegment),
-    // and the newly-inserted placeholders carry only an INTERPOLATED guess
-    // at their own start time (paragraph-position based, not real
-    // alignment), close enough to the true current time on occasion to
-    // briefly outrank the segment that's actually playing. The very next
-    // ordinary playback tick corrects it (updateActiveSegment's own
-    // never-move-backward guard lets it move forward again), which is
-    // exactly the "jumps back, then returns" pattern reported. Fixed by
-    // tracking the already-correct active segment through the reindex by
-    // its own identity, rather than asking imprecise fresh data where
-    // "now" is all over again.
-    const activeSegmentBeforeFill = state.segments[state.activeIndex];
-    if (await fillMissingDafText(realDafRef(ref))) {
-      const preservedIndex = activeSegmentBeforeFill ? state.segments.indexOf(activeSegmentBeforeFill) : -1;
-      if (preservedIndex !== -1) state.activeIndex = preservedIndex;
-      renderDaf({ forceActiveSegment: preservedIndex === -1 });
-    }
+    // Next-daf lead-in redirect and the Sefaria gap-fill both need more
+    // network after the phrase list is already on screen. Doing them here,
+    // before the first paint, is what left "No daf loaded" up for seconds.
+    const loadedRef = ref;
+    const loadedVideoId = preferredVideoSource?.videoId || null;
+    const voice = state.activeSyncMethod === 'voice';
+    setTimeout(() => {
+      if (state.dafRef !== loadedRef) return;
+      attachForwardAlignment(loadedRef, loadedVideoId, voice).catch((error) => console.error(error));
+      fillLoadedDafText(loadedRef).catch((error) => console.error(error));
+    }, 0);
     if (!options.silent) showToast(`Loaded the synced alignment for ${ref} from the server.`);
     return;
   }
@@ -7097,10 +7449,9 @@ async function loadDaf(refOverride = null, options = {}) {
     return;
   }
   // Restore a known video link before the text fetch below, not after --
-  // it shouldn't depend on Sefaria's fetch succeeding. Checks this
-  // browser's own saved link first, then the one published for this daf
-  // reference on the server (from another device), if any.
-  const preferredVideoSource = await resolvePreferredVideoSource(ref, saved);
+  // it shouldn't depend on Sefaria's fetch succeeding. Already resolved
+  // above, alongside the alignment lookup: this browser's saved link
+  // first, then the one published for this daf on the server.
   if (preferredVideoSource) {
     // Explicit [ref] here, not the default (state.segments-derived) covered
     // refs -- at this point in loadDaf(), state.segments/state.dafRef still
@@ -7129,7 +7480,7 @@ async function loadDaf(refOverride = null, options = {}) {
     state.wordTimeline = [];
     const duration = getDuration() || Number(scrubber.max) || 48;
     const length = duration / paragraphs.length;
-    state.segments = paragraphs.map((paragraph, index) => {
+    state.segments = stabilizeEstimatedSegments(paragraphs.map((paragraph, index) => {
       const words = paragraph.he.trim().split(/\s+/);
       return {
         id: `${ref.replace(/\W+/g, '-').toLowerCase()}-${index + 1}`,
@@ -7141,9 +7492,10 @@ async function loadDaf(refOverride = null, options = {}) {
         // Whole-paragraph bounds to start -- splitSegmentAtWord narrows
         // these as the admin carves the paragraph into hand-picked phrases.
         w0: 0,
-        w1: words.length - 1
+        w1: words.length - 1,
+        estimated: true,
       };
-    });
+    }));
     state.activeIndex = 0;
     state.editingIndex = 0;
     // Reaching this branch at all means there was no real synced alignment
@@ -7345,6 +7697,11 @@ async function ensureYouTubePlayer(videoId) {
         // lost by turning it off.
         controls: 0,
         enablejsapi: 1,
+        // YouTube's own keyboard shortcuts (arrows, m, the number keys)
+        // seek and mute inside the iframe, bypassing seek() — so the
+        // highlight never heard about the rewind. Our document keydown
+        // handler is the keyboard surface; the iframe should stay out of it.
+        disablekb: 1,
         // YouTube's own fullscreen button only fullscreens the iframe itself,
         // leaving the Vilna page overlay (a sibling element) behind -- our
         // own fullscreen button (below) fullscreens the whole video-frame
@@ -7374,7 +7731,8 @@ async function ensureYouTubePlayer(videoId) {
             state.youtubeReady = true;
             event.target.cueVideoById(videoId);
             state.youtubeState = 5;
-            startYouTubePoll();
+            flushQueuedSeek();
+            startPausedDriftWatch();
             syncVolumeUi();
             showVideoControls();
             resolve();
@@ -7382,6 +7740,8 @@ async function ensureYouTubePlayer(videoId) {
           onStateChange: (event) => {
             state.youtubeState = event.data;
             updatePlayUi();
+            if (event.data === 1 && !document.hidden) startYouTubePoll();
+            else stopYouTubePoll();
             updateTimeline();
             const duration = getDuration();
             if (duration > 0) applyDuration(duration);
@@ -7403,6 +7763,7 @@ async function ensureYouTubePlayer(videoId) {
   } else {
     state.youtubePlayer.cueVideoById(videoId);
     state.youtubeState = 5;
+    flushQueuedSeek();
     showVideoControls();
   }
 
@@ -7425,15 +7786,42 @@ function waitForYouTubeMetadata() {
 }
 
 function startYouTubePoll() {
-  stopYouTubePoll();
-  state.youtubePollTimer = setInterval(() => {
-    if (state.playerType === 'youtube') updateTimeline();
-  }, 100);
+  if (state.youtubePolling) return;
+  state.youtubePolling = true;
+  let last = 0;
+  const tick = (now) => {
+    if (!state.youtubePolling) return;
+    if (document.hidden || state.playerType !== 'youtube' || isPaused()) {
+      state.youtubePolling = false;
+      state.youtubePollTimer = null;
+      return;
+    }
+    state.youtubePollTimer = requestAnimationFrame(tick);
+    if (now - last < 100) return;
+    last = now;
+    updateTimeline();
+  };
+  state.youtubePollTimer = requestAnimationFrame(tick);
 }
 
 function stopYouTubePoll() {
-  if (state.youtubePollTimer) clearInterval(state.youtubePollTimer);
+  state.youtubePolling = false;
+  if (state.youtubePollTimer) cancelAnimationFrame(state.youtubePollTimer);
   state.youtubePollTimer = null;
+}
+
+// While paused the playback poll is stopped. A slow check still notices a
+// seek the player applied on its own (headset / media keys) so the highlight
+// can follow without a 100ms loop running the whole time.
+function startPausedDriftWatch() {
+  if (state.youtubeDriftTimer) return;
+  state.youtubeDriftTimer = setInterval(() => {
+    if (document.hidden || state.playerType !== 'youtube' || !isPaused()) return;
+    const time = readPlayerTime();
+    const pending = state.pendingSeek && performance.now() - state.pendingSeek.issuedAt < 2500;
+    const moved = state.lastObservedTime != null && Math.abs(time - state.lastObservedTime) > 0.5;
+    if (pending || moved) updateTimeline();
+  }, 500);
 }
 
 async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs = null, label = null, locked = false) {
@@ -7696,6 +8084,7 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
     w0: Number.isFinite(Number(segment.w0)) ? Number(segment.w0) : null,
     w1: Number.isFinite(Number(segment.w1)) ? Number(segment.w1) : null
   })).sort((a, b) => a.start - b.start);
+  state.segments = stabilizeEstimatedSegments(state.segments);
   state.wordTimeline = Array.isArray(data.wordTimeline)
     ? data.wordTimeline
         .filter((entry) => entry && entry.ref != null && Number.isFinite(Number(entry.start)))
@@ -7707,6 +8096,7 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
           w1: Number(entry.w1) || 0,
           heardText: typeof entry.heardText === 'string' ? entry.heardText : ''
         }))
+        .sort((a, b) => a.start - b.start)
     : [];
   state.alignmentDuration = Number(data.duration) || 0;
   state.dafRef = dafRefOverride || data.dafRef || state.dafRef;
@@ -8224,6 +8614,22 @@ $('vilnaFullscreenButton')?.addEventListener('click', toggleVilnaFullscreen);
 // ctrlKey is how browsers deliver a trackpad/touchscreen pinch gesture as a
 // wheel event -- only intercepted with that modifier so plain two-finger
 // scrolling still scrolls .daf-scroll normally instead of always zooming.
+$('vilnaPageWrap')?.addEventListener('click', (event) => {
+  if (state.vilnaSelectTextMode || state.vilnaMarkMode || state.browseMode) return;
+  if (event.target.closest?.('.vilna-phrase-box, button, a, .vilna-note-marker, .vilna-zoom-controls')) return;
+  const canvas = $('vilnaPageCanvas');
+  if (!canvas || canvas.hidden) return;
+  const rect = event.currentTarget.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  const x = (event.clientX - rect.left) / rect.width;
+  const y = (event.clientY - rect.top) / rect.height;
+  if (x < 0 || y < 0 || x > 1 || y > 1) return;
+  const block = state.vilnaPageMap?.textBlock;
+  const inGemara = block
+    ? x >= block.left && x <= block.right && y >= block.top && y <= block.bottom
+    : x >= 0.15 && x <= 0.855;
+  showToast(inGemara ? 'No timing for this word' : 'Only the Gemara text is synced');
+});
 $('vilnaPageWrap')?.addEventListener('wheel', (event) => {
   if (!event.ctrlKey) return;
   event.preventDefault();
@@ -8393,8 +8799,18 @@ document.querySelectorAll('.source-tab').forEach((tab) => {
 // doesn't yank the view back down mid-gesture. It resumes on its own after
 // the cooldown, or immediately once the reader clicks a phrase to seek.
 const markManualScroll = () => { state.lastManualScrollAt = Date.now(); };
-$('dafScroll').addEventListener('wheel', markManualScroll, { passive: true });
-$('dafScroll').addEventListener('touchmove', markManualScroll, { passive: true });
+const dafScrollEl = $('dafScroll');
+dafScrollEl?.addEventListener('wheel', markManualScroll, { passive: true });
+dafScrollEl?.addEventListener('touchmove', markManualScroll, { passive: true });
+// Scrollbar drags and keyboard scrolling never fire wheel/touchmove. Ignore
+// the bursts that follow our own scrollIntoView.
+dafScrollEl?.addEventListener('scroll', () => {
+  if (performance.now() < (state.programmaticScrollUntil || 0)) return;
+  markManualScroll();
+}, { passive: true });
+dafScrollEl?.addEventListener('keydown', (event) => {
+  if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) markManualScroll();
+});
 
 // Auto-hides the custom control bar (scrubber + play/volume/settings row)
 // after a few seconds of inactivity, rather than leaving it permanently
@@ -8511,6 +8927,16 @@ function showVideoControls() {
   });
 })();
 
+let scrubSeekTimer = 0;
+function applyScrubSeek(time, allowSeekAhead) {
+  if (state.playerType === 'youtube') {
+    if (state.youtubeReady && state.youtubePlayer?.seekTo) seekYouTubePlayer(time, allowSeekAhead);
+    else state.queuedSeek = { time, allowSeekAhead };
+  } else if (htmlVideo.readyState >= 1) {
+    htmlVideo.currentTime = time;
+  }
+  armPendingSeek(time);
+}
 function handleScrubInput(event) {
   state.seeking = true;
   const time = Number(event.target.value);
@@ -8518,15 +8944,13 @@ function handleScrubInput(event) {
   $('currentTime').textContent = formatTime(time);
   updateScrubberFill();
   updateActiveSegment(true, time);
-  if (state.playerType === 'youtube') {
-    if (state.youtubeReady) state.youtubePlayer.seekTo(time, false);
-  } else {
-    htmlVideo.currentTime = time;
-  }
+  window.clearTimeout(scrubSeekTimer);
+  scrubSeekTimer = window.setTimeout(() => applyScrubSeek(time, false), 150);
 }
 function handleScrubChange(event) {
   const time = Number(event.target.value);
-  if (state.playerType === 'youtube' && state.youtubeReady) seekYouTubePlayer(time, true);
+  window.clearTimeout(scrubSeekTimer);
+  applyScrubSeek(time, true);
   state.seeking = false;
   updateTimeline();
 }
@@ -8684,14 +9108,31 @@ $('helpDialog').addEventListener('click', (event) => {
   if (outside) event.currentTarget.close();
 });
 
+function keyFocusIsInteractive(event) {
+  const el = event.target;
+  if (!el || el === document.body || el === document.documentElement) return false;
+  return Boolean(el.closest?.('input, textarea, select, button, a, [role="button"], [role="slider"], [role="tab"], [contenteditable="true"], #dafScroll, .daf-scroll'));
+}
+
+function canMarkTimestamps() {
+  return document.body.classList.contains('is-admin') || location.pathname.includes('/studio');
+}
+
 document.addEventListener('keydown', (event) => {
-  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
+  if (keyFocusIsInteractive(event)) return;
+  if (event.metaKey || event.ctrlKey || event.altKey) return;
   if (event.code === 'Space') { event.preventDefault(); togglePlay(); }
-  if (event.code === 'ArrowLeft') seek(getCurrentTime() - 5);
-  if (event.code === 'ArrowRight') seek(getCurrentTime() + 5);
+  if (event.code === 'ArrowLeft') { event.preventDefault(); seek(getCurrentTime() - 5); }
+  if (event.code === 'ArrowRight') { event.preventDefault(); seek(getCurrentTime() + 5); }
+  if (!canMarkTimestamps()) return;
   if (event.key.toLowerCase() === 'm') { event.preventDefault(); markHereAndAdvance(); }
   if (event.key === '[') selectEditingIndex(state.editingIndex - 1);
   if (event.key === ']') selectEditingIndex(state.editingIndex + 1);
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) stopYouTubePoll();
+  else if (state.playerType === 'youtube' && !isPaused()) startYouTubePoll();
 });
 
 renderDaf();
@@ -9866,9 +10307,26 @@ $('browseNextButton')?.addEventListener('click', () => stepBrowseDaf(1));
 $('dafPrevAmudButton')?.addEventListener('click', () => stepBrowseDaf(-1));
 $('dafNextAmudButton')?.addEventListener('click', () => stepBrowseDaf(1));
 // A catalog link (?ref=Chullin+86a&variant=chazarah&language=hebrew) should
-// land straight on that daf instead of the built-in demo -- but the picker
-// it feeds (syncDafPickerFromRef) needs the tractate index loaded first, so
-// this waits on the same loadTalmudIndex() call the picker itself depends on.
+// land straight on that daf instead of the built-in demo. The picker it
+// feeds needs the tractate index, but the daf itself does not: paint the
+// requested name and start the alignment fetch now, and sync the picker
+// once the index arrives. Scan and the daf browser keep their own paths.
+let bootLoadStarted = false;
+const bootParams = new URLSearchParams(location.search);
+if (!state.browseMode && bootParams.get('view') !== 'scan') {
+  const bootRef = fullRefFromSearch(bootParams);
+  if (bootRef) {
+    switchDafView('page');
+    paintRequestedDafSkeleton(bootRef);
+    bootLoadStarted = true;
+    const seekWord = bootParams.get('seekWord');
+    loadDaf(bootRef).then(() => {
+      if (seekWord !== null && !Number.isNaN(Number(seekWord))) {
+        seekToVilnaWord(realDafRef(bootRef), Number(seekWord));
+      }
+    });
+  }
+}
 loadTalmudIndex().then(() => {
   const params = new URLSearchParams(location.search);
   // The player is a video + printed-daf experience. Start in the Vilna
@@ -9919,13 +10377,11 @@ loadTalmudIndex().then(() => {
     return;
   }
   if (!ref) return;
-  const wantsChazarah = params.get('variant') === 'chazarah';
-  const wantsHebrew = params.get('language') === 'hebrew' || params.get('language') === 'he';
-  const wantedMaggid = MAGGIDIM.find((m) => m.marker && m.id === params.get('maggid'));
-  let fullRef = ref;
-  if (wantsChazarah && !/chazarah/i.test(fullRef)) fullRef += ' (Chazarah Daf)';
-  if (wantsHebrew && !/hebrew/i.test(fullRef)) fullRef += ' (Hebrew)';
-  if (wantedMaggid && !fullRef.includes(`(${wantedMaggid.marker})`)) fullRef += ` (${wantedMaggid.marker})`;
+  const fullRef = fullRefFromSearch(params);
+  if (bootLoadStarted) {
+    if (fullRef) syncDafPickerFromRef(fullRef);
+    return;
+  }
   loadDaf(fullRef).then(() => {
     // ?seekWord=<n> (from the Daf browser's tap-a-word deep link) jumps
     // straight to that word's moment once the alignment's finished loading,

@@ -1141,16 +1141,27 @@
   wakeLayer.className = 'player-wake-layer';
   wakeLayer.setAttribute('aria-hidden', 'true');
   frame.appendChild(wakeLayer);
-  for (const type of ['mousemove', 'pointerdown', 'touchstart']) {
-    wakeLayer.addEventListener(type, () => showVideoControls(), { passive: true });
+  wakeLayer.addEventListener('mousemove', () => showVideoControls(), { passive: true });
+  // The first press on a faded bar used to die on this layer. pointerdown
+  // revealed the controls, which dropped this layer's pointer-events before
+  // mouseup, so the click that followed was retargeted onto an ancestor and
+  // the Play/speed button underneath never ran. The click stays on this
+  // layer and does both jobs: show the bar, and activate the control that
+  // is actually under the point.
+  function controlUnderPoint(x, y) {
+    const previous = wakeLayer.style.pointerEvents;
+    wakeLayer.style.pointerEvents = 'none';
+    const under = document.elementFromPoint(x, y);
+    wakeLayer.style.pointerEvents = previous;
+    const control = under?.closest?.('button, a, input, select, label, [role="button"]');
+    if (!control || control === wakeLayer || !frame.contains(control)) return null;
+    return control;
   }
-  // A native <select>'s pointerdown-vs-click quirk used to make this layer
-  // swallow a press meant for the speed control specifically (every other
-  // control in the bar activates on click and was never affected) -- see
-  // the long comment above #speedSelect's own construction. Replacing that
-  // <select> outright with a plain button removed the quirk at its root, so
-  // there is nothing left for this layer to special-case for any one
-  // control.
+  wakeLayer.addEventListener('click', (event) => {
+    showVideoControls();
+    const control = controlUnderPoint(event.clientX, event.clientY);
+    if (control) control.click();
+  });
 
   if (video) {
     video.addEventListener('durationchange', refreshChapterMarkers);

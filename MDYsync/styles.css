@@ -804,6 +804,14 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .daf-segment:hover { background: rgba(47, 110, 165, .12); box-shadow: 0 0 0 3px rgba(47, 110, 165,.08); }
 .daf-segment.past { color: #65748a; }
 .daf-segment.active { background: var(--highlight); color: var(--highlight-text); box-shadow: 0 0 0 4px rgba(255, 208, 84, .22); }
+.daf-segment.estimated { opacity: .72; background-image: repeating-linear-gradient(135deg, transparent, transparent 4px, rgba(19, 34, 56, .08) 4px, rgba(19, 34, 56, .08) 5px); }
+.daf-segment.estimated.active { background: rgba(255, 208, 84, .38); color: inherit; box-shadow: none; outline: 2px dashed rgba(159, 85, 0, .75); outline-offset: 1px; }
+.reader-daf-notes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.reviewing-label, .not-synced-note { margin: 0; font-size: 13px; font-weight: 800; letter-spacing: .01em; color: #9a5b00; }
+.skip-to-daf-chip { border: 1px solid rgba(47, 110, 165, .45); background: rgba(47, 110, 165, .12); color: #14324f; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; }
+.skip-to-daf-chip:hover { background: rgba(47, 110, 165, .2); }
+.skip-to-daf-chip[hidden], .reviewing-label[hidden], .not-synced-note[hidden] { display: none; }
+.daf-card.seek-pending #vilnaPageWrap, .daf-card.seek-pending .daf-scroll { cursor: progress; }
 .segment-marker { color: #65748a; font-size: .58em; vertical-align: super; margin-left: 2px; font-family: "Assistant", sans-serif; }
 .daf-window-more { direction: ltr; text-align: center; color: #65748a; font-family: "Assistant", sans-serif; font-size: 12px; font-weight: 700; letter-spacing: .04em; margin: 4px 0 14px; opacity: .75; }
 .vilna-placeholder { min-height: 100%; padding: 20px; color: #132238; text-align: center; }
@@ -938,6 +946,8 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
   border-radius: 999px;
   animation: vilna-highlight-in .12s ease-out;
 }
+.vilna-active-rect.estimated { background: transparent; outline: 2px dashed rgba(19, 34, 56, .75); mix-blend-mode: normal; }
+.vilna-phrase-box.estimated { outline: 1px dashed rgba(19, 34, 56, .45); outline-offset: 1px; }
 /* The phrase about to be marked (vilnaMarkMode) -- same whole-line-rect
    shape as .vilna-active-rect above, but an outline instead of a fill, so
    it stays visible layered on top of .vilna-active-rect's solid yellow
