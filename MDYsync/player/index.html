@@ -382,7 +382,18 @@
     .volume-button svg { width: 18px; height: 18px; }
 
     .watch-layout { display: grid; grid-template-columns: minmax(0,1.25fr) minmax(420px,.9fr); gap: 22px; align-items: start; }
-    .about-card { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); padding: 24px; margin-top: 24px; }
+    /* The shared stylesheet floors both cards at 640px, which left a tall
+       empty band under the video and pushed the daf past a laptop screen.
+       Let the pair size to its content, and keep the page itself scrolling
+       inside the daf card. */
+    .player-card, .daf-card { min-height: 0; }
+    .now-learning { min-height: 0; margin-top: 10px; }
+    .header-auto-scroll { margin-top: 8px; }
+    @media (min-width: 1121px) {
+      .daf-card { height: calc(100dvh - 150px); }
+      .daf-card .daf-scroll { min-height: 0; }
+    }
+    .about-card { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); padding: 18px; margin-top: 12px; }
     .about-card h2 { color: var(--navy); font: 700 25px Georgia,"Times New Roman",serif; }
     .about-card p { color: var(--muted); line-height: 1.7; }
     .details { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
@@ -781,7 +792,7 @@
 
     @media (max-width: 1120px) {
       .watch-layout { grid-template-columns: 1fr; }
-      .daf-card { position: static; }
+      .daf-card { position: static; height: auto; max-height: none; }
       .watch-layout .editor { position: static; max-height: none; }
       /* No room for side-by-side columns down here -- the editor and the
          video just stack in document order instead (see .watch-layout
@@ -1288,14 +1299,22 @@
           <div class="now-learning">
             <span class="now-label">The rabbi is discussing</span>
             <div id="currentPhrase" dir="rtl"></div>
-            <p id="currentTranslation">Enter a daf reference above and press "Load daf."</p>
+            <p id="currentTranslation" hidden></p>
           </div>
         </article>
 
         <div class="split-divider" id="splitDivider" role="separator" tabindex="0" aria-orientation="vertical" aria-valuemin="22" aria-valuemax="78" aria-valuenow="50" aria-label="Resize video and daf panels"></div>
         <aside class="daf-card card" id="dafCard" data-daf-view="page" aria-labelledby="dafTitle">
           <header class="daf-header">
-            <div><p class="eyebrow">Following</p><h2 id="dafTitle">No daf loaded</h2></div>
+            <div>
+              <p class="eyebrow">Following</p>
+              <h2 id="dafTitle">No daf loaded</h2>
+              <label class="toggle-label header-auto-scroll">
+                <input type="checkbox" id="autoScroll" checked />
+                <span class="toggle"></span>
+                Auto-scroll
+              </label>
+            </div>
             <div class="daf-tools">
               <button class="reading-mode-entry reading-follow-entry" id="readingVideoFollowButton" type="button" aria-pressed="true" title="Keep the video near the highlighted words">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -1354,6 +1373,30 @@
                 </div>
                 <p id="vilnaPageStatusText">Load a daf reference to see the Vilna page image.</p>
               </div>
+              <script>
+                (function () {
+                  try {
+                    var params = new URLSearchParams(location.search);
+                    var ref = params.get('ref');
+                    if (!ref) return;
+                    var label = ref.replace(/\+/g, ' ');
+                    if (params.get('variant') === 'chazarah' && !/chazarah/i.test(label)) label += ' · Chazarah';
+                    var set = function (id, text) {
+                      var el = document.getElementById(id);
+                      if (el) el.textContent = text;
+                    };
+                    set('lectureTitle', label);
+                    set('currentRef', 'Loading ' + label + '…');
+                    set('dafTitle', label);
+                    var empty = document.querySelector('#videoEmpty p');
+                    if (empty) empty.textContent = 'Loading ' + label + '…';
+                    var status = document.getElementById('vilnaPageStatusText');
+                    if (status) status.textContent = 'Loading the page for ' + label + '…';
+                    var translation = document.getElementById('currentTranslation');
+                    if (translation) { translation.hidden = true; translation.textContent = ''; }
+                  } catch (error) {}
+                })();
+              </script>
               <div class="vilna-page-wrap" id="vilnaPageWrap">
                 <canvas id="vilnaPageCanvas" hidden></canvas>
                 <div class="vilna-highlights-overlay" id="vilnaHighlightsOverlay"></div>
@@ -1652,7 +1695,7 @@
           </div>
 
           <div class="daf-toolbar">
-            <span class="alignment-badge needs-work" id="alignmentStatus">Needs alignment</span>
+            <span class="alignment-badge needs-work admin-only" id="alignmentStatus">Needs alignment</span>
             <!-- Only shown when both a caption-OCR and a voice-recognition
                  sync are published for the daf on screen (see
                  updateSyncMethodSwitchUi() in app.js) -- switching reloads
@@ -1672,11 +1715,6 @@
               <input type="checkbox" id="syncMethodDefaultToggle" />
               <span class="toggle"></span>
               Set as default
-            </label>
-            <label class="toggle-label">
-              <input type="checkbox" id="autoScroll" />
-              <span class="toggle"></span>
-              Auto-scroll
             </label>
             <span class="toolbar-hint">Click any phrase to jump to that point in the shiur.</span>
           </div>
@@ -1714,7 +1752,7 @@
         <p class="eyebrow">About this shiur</p>
         <h2>Learn today’s daf with the text beside you</h2>
         <p>DafSync keeps the video and Gemara together in one calm learning space. The daf automatically follows the maggid shiur, while still letting you pause, review, or jump directly to a passage.</p>
-        <div class="details"><span class="detail-pill">Word-level sync</span><span class="detail-pill">Auto-scroll</span><span class="detail-pill">Vilna page overlay</span><span class="detail-pill">Sefaria text</span></div>
+        <div class="details"><span class="detail-pill">Phrase-level sync</span><span class="detail-pill">Auto-scroll</span><span class="detail-pill">Vilna page overlay</span><span class="detail-pill">Sefaria text</span></div>
       </section>
     </main>
   </div>

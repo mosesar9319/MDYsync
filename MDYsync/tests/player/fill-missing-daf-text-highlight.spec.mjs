@@ -74,7 +74,7 @@ test.describe('fillMissingDafText does not knock the highlight off the actually-
     expect(result.activeRef).toBe('Chullin 89a.2');
   });
 
-  test('without the fix (plain renderDaf), a forced recompute derails to whatever "now" resolves to', async ({ page }) => {
+  test('a forced recompute follows the clock, and time 0 is the intro rather than phrase 0', async ({ page }) => {
     await preparePage(page, { user: null });
     await page.goto('/watch/?ref=Chullin%2089a');
     await seedMissingParagraphScenario(page);
@@ -84,27 +84,27 @@ test.describe('fillMissingDafText does not knock the highlight off the actually-
       // value for a stretch (see vilna-tap-highlight.spec.mjs for the same
       // async-seek gap) -- here it stands in for ANY reason "now" briefly
       // disagrees with the segment the reader is actually correctly
-      // following, which a forced, unconditional recompute has no way to
-      // tell apart from a genuine jump.
+      // following. renderDaf() with no options still recomputes from that
+      // clock. The test above is what keeps a known-good segment in place.
       state.playerType = 'youtube';
       state.youtubeReady = true;
       state.youtubePlayer = { getCurrentTime: () => 0, getDuration: () => 1000 };
 
       await fillMissingDafText('Chullin 89a');
-      renderDaf(); // old behavior: always force-recomputes from "now"
+      renderDaf();
 
       return {
         activeIndex: state.activeIndex,
-        activeRef: state.segments[state.activeIndex]?.ref,
+        activeRef: state.segments[state.activeIndex]?.ref || null,
+        firstStart: state.segments[0]?.start,
       };
     });
 
-    // getCurrentTime() reporting 0 sends the forced recompute all the way
-    // back to the very first segment -- the newly-inserted placeholder --
-    // stranding the reader on 89a.1 even though they were correctly on
-    // 89a.2 a moment before. This is exactly the class of regression the
-    // fix (the test above) exists to prevent.
-    expect(result.activeRef).toBe('Chullin 89a.1');
-    expect(result.activeIndex).toBe(0);
+    // Time 0 is before the first phrase (the inserted placeholder starts
+    // just ahead of the real segment at 100s). The highlight stays idle
+    // instead of lighting phrase 0 through the intro.
+    expect(result.firstStart).toBeGreaterThan(0);
+    expect(result.activeIndex).toBe(-1);
+    expect(result.activeRef).toBeNull();
   });
 });
