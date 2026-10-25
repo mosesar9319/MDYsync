@@ -387,6 +387,41 @@ select dafsync_test.check('there is no other policy that lets a client publish t
   (select count(*)::text from pg_policies where schemaname = 'realtime' and tablename = 'messages' and cmd in ('INSERT', 'ALL')),
   '1');
 
+-- ===========================================================================
+-- 11. Unread counts (phase 2)
+-- ===========================================================================
+-- State at this point: the reader follows t1 (their own thread) and read it up to seq 10 (section 8).
+-- The author posted in t1 earlier; the admin chatted 20 times. Build a clean case instead:
+select dafsync_test.read_as('authenticated', :admin,
+  $$select (public.live_start_thread('Unread-1a', 'Unread 1a.1',
+      '[{"ref":"Unread 1a.1","start":0,"end":1}]'::jsonb, 'תנו רבנן', 'Unread question')).id::text$$) as tu \gset
+select dafsync_test.attempt('authenticated', :reader, format($$insert into public.live_thread_follows (user_id, thread_id) values (%L, %L)$$, :reader, :'tu'));
+select dafsync_test.attempt_msg('authenticated', :author, format($$select public.live_post_message(%L, 'one', null)$$, :'tu'));
+select dafsync_test.attempt_msg('authenticated', :author, format($$select public.live_post_message(%L, 'two', null)$$, :'tu'));
+select dafsync_test.attempt_msg('authenticated', :reader, format($$select public.live_post_message(%L, 'mine does not count', null)$$, :'tu'));
+select dafsync_test.check('a follower sees how many new messages by others are waiting, never their own',
+  dafsync_test.read_as('authenticated', :reader,
+    format($$select unread::text from public.live_unread_counts('Unread-1a') where thread_id = %L$$, :'tu')),
+  '3'); -- the admin's opening question, and the author's two replies
+select dafsync_test.check('without a daf it covers every daf the reader follows',
+  dafsync_test.read_as('authenticated', :reader,
+    format($$select count(*)::text from public.live_unread_counts() where thread_id = %L$$, :'tu')),
+  '1');
+select dafsync_test.check('a thread the reader does not follow is not counted',
+  dafsync_test.read_as('authenticated', :newbie, 'select count(*)::text from public.live_unread_counts(''Unread-1a'')'),
+  '0');
+select dafsync_test.attempt('authenticated', :reader,
+  format($$insert into public.live_read_state (user_id, thread_id, last_read_seq) values (%L, %L, 1000000000)$$, :reader, :'tu'));
+select dafsync_test.check('reading up to the end clears it',
+  dafsync_test.read_as('authenticated', :reader,
+    format($$select count(*)::text from public.live_unread_counts('Unread-1a') where thread_id = %L$$, :'tu')),
+  '0');
+select dafsync_test.check('anon gets nothing, and cannot call it',
+  dafsync_test.attempt('anon', null, $$select * from public.live_unread_counts('Unread-1a')$$), '42501');
+select dafsync_test.check('a deleted message is not counted',
+  (select count(*)::text from (
+     select 1 from public.live_messages m where m.thread_id = :'tu' and m.deleted_at is not null) s), '0');
+
 select dafsync_test.check('the trigger functions and payload helpers cannot be called through the API',
   (select count(*)::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public'
@@ -398,7 +433,7 @@ select dafsync_test.check('the trigger functions and payload helpers cannot be c
 select dafsync_test.check('only the write functions are callable by signed-in readers, and none by anon',
   (select string_agg(p.proname, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname like 'live\_%' and has_function_privilege('authenticated', p.oid, 'execute')),
-  'live_access,live_delete_message,live_edit_message,live_moderate,live_post_message,live_report,live_set_answer,live_set_audience,live_start_thread');
+  'live_access,live_delete_message,live_edit_message,live_list_notifications,live_mark_notifications_read,live_moderate,live_my_notification_state,live_post_message,live_remove_push_subscription,live_report,live_save_push_subscription,live_set_answer,live_set_audience,live_set_current_daf,live_set_daf_pref,live_set_notification_prefs,live_set_thread_muted,live_start_thread,live_unread_counts');
 select dafsync_test.check('anon can run nothing but the access check',
   (select string_agg(p.proname, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname like 'live\_%' and has_function_privilege('anon', p.oid, 'execute')),
