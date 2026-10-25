@@ -341,7 +341,7 @@
               // are made of: progress/preferences (user_id, ref_key, variant),
               // thread_read_state (user_id, note_id), bookmarks (user_id,
               // target_type, target_id).
-              const KEY_COLUMNS = ['user_id', 'ref_key', 'variant', 'note_id', 'target_type', 'target_id'];
+              const KEY_COLUMNS = ['user_id', 'ref_key', 'variant', 'note_id', 'target_type', 'target_id', 'thread_id'];
               const keys = Object.keys(record).filter((k) => KEY_COLUMNS.includes(k));
               const existingIndex = rows.findIndex((existing) => keys.every((k) => existing[k] === record[k]));
               if (existingIndex >= 0) {
@@ -466,6 +466,48 @@
     const client = {
       from: builder,
       storage: { from: storageFrom },
+      // Realtime: just enough of a channel for Cloud Chaburah Live. A test pushes a broadcast
+      // with window.__DAFSYNC_TEST_EMIT__(topic, event, payload) and sets who is "here" with
+      // window.__DAFSYNC_TEST_PRESENCE__(topic, state); control.realtime = { fail: true } makes
+      // every channel report CHANNEL_ERROR, so the polling fallback can be exercised.
+      realtime: { setAuth() { return Promise.resolve(); } },
+      channel(topic, config) {
+        const channels = (window.__DAFSYNC_TEST_CHANNELS__ = window.__DAFSYNC_TEST_CHANNELS__ || []);
+        const handlers = [];
+        let presenceHandler = null;
+        let presence = {};
+        const channel = {
+          topic, config,
+          on(type, filter, callback) {
+            if (type === 'broadcast') handlers.push({ event: filter.event, callback });
+            else if (type === 'presence') presenceHandler = callback;
+            return channel;
+          },
+          subscribe(callback) {
+            channels.push(channel);
+            recordCall({ channel: topic, private: Boolean(config && config.config ? config.config.private : config && config.private) });
+            setTimeout(() => {
+              const failing = ((window.__DAFSYNC_TEST_CONTROL__ || {}).realtime || {}).fail;
+              if (failing) callback('CHANNEL_ERROR');
+              else callback('SUBSCRIBED');
+            }, 0);
+            return channel;
+          },
+          track(payload) { recordCall({ track: topic, payload: clone(payload) }); return Promise.resolve('ok'); },
+          presenceState() { return presence; },
+          __emit(event, payload) {
+            handlers.filter((h) => h.event === event).forEach((h) => h.callback({ type: 'broadcast', event, payload: clone(payload) }));
+          },
+          __setPresence(next) { presence = next; if (presenceHandler) presenceHandler(); },
+        };
+        return channel;
+      },
+      removeChannel(channel) {
+        const channels = window.__DAFSYNC_TEST_CHANNELS__ || [];
+        const index = channels.indexOf(channel);
+        if (index >= 0) channels.splice(index, 1);
+        return Promise.resolve('ok');
+      },
       rpc(name, params) {
         recordCall({ rpc: name, params: clone(params) });
         const handlers = (window.__DAFSYNC_TEST_CONTROL__ || {}).rpc || {};
@@ -499,5 +541,11 @@
     return client;
   }
 
+  window.__DAFSYNC_TEST_EMIT__ = (topic, event, payload) => {
+    (window.__DAFSYNC_TEST_CHANNELS__ || []).filter((c) => c.topic === topic).forEach((c) => c.__emit(event, payload));
+  };
+  window.__DAFSYNC_TEST_PRESENCE__ = (topic, state) => {
+    (window.__DAFSYNC_TEST_CHANNELS__ || []).filter((c) => c.topic === topic).forEach((c) => c.__setPresence(state));
+  };
   window.supabase = { createClient };
 })();

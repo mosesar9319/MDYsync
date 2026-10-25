@@ -516,6 +516,11 @@ function buildMenuItems(target) {
       label: multiWord ? 'Add note on this passage' : 'Add note here',
       onClick: () => addNoteFor(target),
     },
+    // Cloud Chaburah Live (live-chaburah-ui.js): only offered to whoever may use it.
+    ...(window.DafLive?.available?.() ? [{
+      label: multiWord ? 'Start live discussion on this passage' : 'Start live discussion here',
+      onClick: () => window.DafLive.startForSelection(target),
+    }] : []),
     {
       label: existingHighlight ? 'Remove highlight' : (multiWord ? 'Highlight this passage' : 'Highlight this word'),
       disabled: !user || target.start == null,
