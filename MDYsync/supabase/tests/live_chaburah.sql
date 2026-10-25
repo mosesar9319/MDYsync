@@ -433,7 +433,7 @@ select dafsync_test.check('the trigger functions and payload helpers cannot be c
 select dafsync_test.check('only the write functions are callable by signed-in readers, and none by anon',
   (select string_agg(p.proname, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname like 'live\_%' and has_function_privilege('authenticated', p.oid, 'execute')),
-  'live_access,live_delete_message,live_edit_message,live_moderate,live_post_message,live_report,live_set_answer,live_set_audience,live_start_thread,live_unread_counts');
+  'live_access,live_delete_message,live_edit_message,live_list_notifications,live_mark_notifications_read,live_moderate,live_my_notification_state,live_post_message,live_remove_push_subscription,live_report,live_save_push_subscription,live_set_answer,live_set_audience,live_set_current_daf,live_set_daf_pref,live_set_notification_prefs,live_set_thread_muted,live_start_thread,live_unread_counts');
 select dafsync_test.check('anon can run nothing but the access check',
   (select string_agg(p.proname, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname like 'live\_%' and has_function_privilege('anon', p.oid, 'execute')),
