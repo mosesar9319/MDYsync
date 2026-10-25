@@ -167,10 +167,10 @@ test.describe('Settings', () => {
     await page.locator('input[data-pref="quiet_enabled"]').check();
     await page.locator('select[data-pref="quiet_start"]').selectOption('23');
     await page.locator('select[data-pref="quiet_end"]').selectOption('6');
-    await page.locator('input[data-pref="shabbos_pause"]').check();
+    await page.locator('input[data-pref="digest_enabled"]').check();
     await expect(page.locator('.live-save-status')).toHaveText('Saved');
     const merged = Object.assign({}, ...(await savedPrefs(page)));
-    expect(merged).toMatchObject({ quiet_enabled: true, quiet_start: 23, quiet_end: 6, shabbos_pause: true });
+    expect(merged).toMatchObject({ quiet_enabled: true, quiet_start: 23, quiet_end: 6, digest_enabled: true });
   });
 
   test('batching, the digest and its hour', async ({ page }) => {

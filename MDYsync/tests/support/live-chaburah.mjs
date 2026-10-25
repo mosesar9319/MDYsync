@@ -129,8 +129,7 @@ export function installFakeServer() {
       const defaults = {
         all_off: false, snooze_until: null, in_app_enabled: true, push_enabled: false, lvl_mine: true, lvl_daf: false,
         lvl_everywhere: false, lvl_while_using: false, everywhere_mode: 'digest', timezone: 'UTC', batch_minutes: 5,
-        digest_enabled: false, digest_hour: 20, quiet_enabled: false, quiet_start: 22, quiet_end: 7, shabbos_pause: false,
-        shabbos_start_hour: 16, shabbos_end_hour: 22,
+        digest_enabled: false, digest_hour: 20, quiet_enabled: false, quiet_start: 22, quiet_end: 7,
       };
       const daf = (db.live_daf_prefs || []).find((d) => d.daf_ref_key === p.p_daf_ref_key) || { following: false, muted: false };
       return { data: {

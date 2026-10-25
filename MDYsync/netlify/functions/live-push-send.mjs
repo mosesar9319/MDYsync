@@ -1,7 +1,7 @@
 // Cloud Chaburah Live: sends the background alerts that are due. Runs every minute.
 //
 // The database decides who is due and what they asked for (live_push_claim: batching, quiet
-// hours, the Shabbos pause, mutes, "already read"); this only words it (shared/live-push.mjs)
+// hours, mutes, "already read"); this only words it (shared/live-push.mjs)
 // and delivers it to each device that agreed. A device the push service reports as gone
 // (404/410) is removed. Needs VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and SUPABASE_SERVICE_ROLE_KEY
 // (and optionally VAPID_SUBJECT, SUPABASE_URL); without them it does nothing at all.

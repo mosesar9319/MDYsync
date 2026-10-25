@@ -37,9 +37,6 @@ create table if not exists public.live_notification_prefs (
   quiet_enabled boolean not null default false,
   quiet_start smallint not null default 22 check (quiet_start between 0 and 23),
   quiet_end smallint not null default 7 check (quiet_end between 0 and 23),
-  shabbos_pause boolean not null default false,
-  shabbos_start_hour smallint not null default 16 check (shabbos_start_hour between 0 and 23),
-  shabbos_end_hour smallint not null default 22 check (shabbos_end_hour between 0 and 23),
   -- The daf the reader has open (kept fresh by the page), for "my daf" alerts.
   current_daf_key text check (char_length(current_daf_key) <= 80),
   current_daf_at timestamptz,
@@ -119,7 +116,6 @@ returns public.live_notification_prefs language sql stable set search_path = pub
     'lvl_mine', true, 'lvl_daf', false, 'lvl_everywhere', false, 'lvl_while_using', false,
     'everywhere_mode', 'digest', 'timezone', 'UTC', 'batch_minutes', 5, 'digest_enabled', false,
     'digest_hour', 20, 'quiet_enabled', false, 'quiet_start', 22, 'quiet_end', 7,
-    'shabbos_pause', false, 'shabbos_start_hour', 16, 'shabbos_end_hour', 22,
     'updated_at', now()));
 $$;
 
@@ -130,7 +126,7 @@ returns public.live_notification_prefs language sql stable set search_path = pub
 $$;
 
 -- ---------------------------------------------------------------------------
--- When may a background alert go out? Batching, quiet hours, the Shabbos pause, a snooze,
+-- When may a background alert go out? Batching, quiet hours, a snooze,
 -- and the daily digest hour, all in the person's own time zone.
 -- ---------------------------------------------------------------------------
 create or replace function public.live_push_time(p public.live_notification_prefs, p_digest boolean)
@@ -140,7 +136,6 @@ declare
   v_t timestamptz := now() + make_interval(mins => coalesce(p.batch_minutes, 0));
   v_local timestamp;
   v_hour integer;
-  v_dow integer;
   v_pass integer;
 begin
   if p_digest then
@@ -158,16 +153,6 @@ begin
          or (p.quiet_start > p.quiet_end and (v_hour >= p.quiet_start or v_hour < p.quiet_end)) then
         v_local := date_trunc('day', v_local) + make_interval(hours => p.quiet_end);
         if v_local <= (v_t at time zone v_tz) then v_local := v_local + interval '1 day'; end if;
-        v_t := v_local at time zone v_tz;
-      end if;
-    end if;
-    if p.shabbos_pause then
-      v_local := v_t at time zone v_tz;
-      v_hour := extract(hour from v_local);
-      v_dow := extract(dow from v_local);          -- 5 = Friday, 6 = Saturday
-      if (v_dow = 5 and v_hour >= p.shabbos_start_hour) or (v_dow = 6 and v_hour < p.shabbos_end_hour) then
-        v_local := date_trunc('day', v_local) + (case when v_dow = 5 then interval '1 day' else interval '0' end)
-                   + make_interval(hours => p.shabbos_end_hour);
         v_t := v_local at time zone v_tz;
       end if;
     end if;
@@ -362,9 +347,6 @@ begin
   if p ? 'quiet_enabled' then r.quiet_enabled := (p ->> 'quiet_enabled')::boolean; end if;
   if p ? 'quiet_start' then r.quiet_start := (p ->> 'quiet_start')::smallint; end if;
   if p ? 'quiet_end' then r.quiet_end := (p ->> 'quiet_end')::smallint; end if;
-  if p ? 'shabbos_pause' then r.shabbos_pause := (p ->> 'shabbos_pause')::boolean; end if;
-  if p ? 'shabbos_start_hour' then r.shabbos_start_hour := (p ->> 'shabbos_start_hour')::smallint; end if;
-  if p ? 'shabbos_end_hour' then r.shabbos_end_hour := (p ->> 'shabbos_end_hour')::smallint; end if;
   if p ? 'timezone' then
     v_text := p ->> 'timezone';
     if v_text is null or not exists (select 1 from pg_timezone_names where name = v_text) then
@@ -388,8 +370,7 @@ begin
     lvl_everywhere = r.lvl_everywhere, lvl_while_using = r.lvl_while_using,
     everywhere_mode = r.everywhere_mode, timezone = r.timezone, batch_minutes = r.batch_minutes,
     digest_enabled = r.digest_enabled, digest_hour = r.digest_hour, quiet_enabled = r.quiet_enabled,
-    quiet_start = r.quiet_start, quiet_end = r.quiet_end, shabbos_pause = r.shabbos_pause,
-    shabbos_start_hour = r.shabbos_start_hour, shabbos_end_hour = r.shabbos_end_hour, updated_at = now()
+    quiet_start = r.quiet_start, quiet_end = r.quiet_end, updated_at = now()
   where user_id = v_uid;
 
   -- Turning background alerts (or everything) off also cancels the ones still waiting.

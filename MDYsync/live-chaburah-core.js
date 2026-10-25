@@ -303,7 +303,6 @@
     lvl_mine: true, lvl_daf: false, lvl_everywhere: false, lvl_while_using: false,
     everywhere_mode: 'digest', timezone: 'UTC', batch_minutes: 5, digest_enabled: false, digest_hour: 20,
     quiet_enabled: false, quiet_start: 22, quiet_end: 7,
-    shabbos_pause: false, shabbos_start_hour: 16, shabbos_end_hour: 22,
   };
   const BATCH_CHOICES = [[0, 'Right away'], [5, 'Every 5 minutes'], [15, 'Every 15 minutes'], [60, 'Every hour']];
 

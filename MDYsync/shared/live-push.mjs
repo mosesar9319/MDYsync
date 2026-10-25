@@ -3,7 +3,7 @@
 // tap goes) are tested without a network. Used by netlify/functions/live-push-send.mjs.
 //
 // The database (live_push_claim) has already applied each person's choices -- batching,
-// quiet hours, the Shabbos pause, mutes, "already read" -- and hands over, per person, the
+// quiet hours, mutes, "already read" -- and hands over, per person, the
 // notifications that are due, newest first. This only words them.
 
 import core from '../live-chaburah-core.js';

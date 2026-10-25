@@ -299,9 +299,6 @@
       checkbox('Quiet hours', 'quiet_enabled', 'Background alerts wait until they end.'),
       choice('Quiet from', 'quiet_start', hourOptions()),
       choice('until', 'quiet_end', hourOptions()),
-      checkbox('Pause on Shabbos', 'shabbos_pause', 'From Friday afternoon to Saturday night, by the hours below. Yom Tov is not worked out for you; use “Pause for a while” for it.'),
-      choice('Shabbos begins (Friday)', 'shabbos_start_hour', hourOptions()),
-      choice('Shabbos ends (Saturday)', 'shabbos_end_hour', hourOptions()),
     );
     N.refs.timezone = el('p', 'live-setting-hint');
     N.refs.tzButton = button('live-link', 'Use this device’s time zone', () => {
@@ -344,8 +341,6 @@
     dim('digest_hour', p.digest_enabled || (p.lvl_everywhere && p.everywhere_mode === 'digest'));
     dim('quiet_start', p.quiet_enabled);
     dim('quiet_end', p.quiet_enabled);
-    dim('shabbos_start_hour', p.shabbos_pause);
-    dim('shabbos_end_hour', p.shabbos_pause);
     renderPush();
   }
 

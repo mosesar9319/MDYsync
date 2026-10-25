@@ -191,11 +191,6 @@ select dafsync_test.check('quiet hours push the alert to the end of the quiet wi
 select dafsync_test.check('and wrap past midnight',
   (extract(hour from public.live_push_time(nt.prefs('{"timezone":"America/New_York","quiet_enabled":true,"quiet_start":1,"quiet_end":0}'), false)
                      at time zone 'America/New_York') = 0)::text, 'true');
-select dafsync_test.check('the Shabbos pause never lets an alert land between Friday and Saturday night',
-  (select (extract(dow from t at time zone 'Asia/Jerusalem') not in (5)
-           and not (extract(dow from t at time zone 'Asia/Jerusalem') = 6 and extract(hour from t at time zone 'Asia/Jerusalem') < 23))::text
-     from (select public.live_push_time(nt.prefs('{"timezone":"Asia/Jerusalem","shabbos_pause":true,"shabbos_start_hour":0,"shabbos_end_hour":23,"batch_minutes":0}'), false) t) s),
-  'true');
 select dafsync_test.check('the digest goes out at the chosen hour, in the future',
   (select (extract(hour from t at time zone 'Europe/London') = 8 and extract(minute from t) = 0 and t > now())::text
      from (select public.live_push_time(nt.prefs('{"timezone":"Europe/London","digest_hour":8}'), true) t) s),

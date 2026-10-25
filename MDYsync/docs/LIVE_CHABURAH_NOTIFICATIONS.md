@@ -12,13 +12,12 @@ What a person can choose, and what has to be set up on the server for background
   discussions anywhere (off by default; arrives as a digest unless "as they happen" is chosen);
   live alerts while using the site (no push).
 - **When:** group background alerts (right away / 5 / 15 / 60 minutes), a daily digest at a chosen
-  hour, quiet hours, a Shabbos pause (Friday hour → Saturday hour, local time; Yom Tov is not
-  calculated — use "pause for a while"), a snooze, and "turn off all notifications".
+  hour, quiet hours, a snooze ("pause for a while"), and "turn off all notifications".
 - **Mutes:** per discussion (chat header) and per daf (list header).
 - A tapped alert opens that discussion, with its words highlighted. A grouped alert opens the inbox.
 
-The panel's inbox always shows everything that is not muted or turned off; batching, quiet hours,
-the Shabbos pause and the digest only delay **background** alerts.
+The panel's inbox always shows everything that is not muted or turned off; batching, quiet hours
+and the digest only delay **background** alerts.
 
 ## How it works
 
