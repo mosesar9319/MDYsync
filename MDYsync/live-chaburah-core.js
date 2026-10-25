@@ -211,7 +211,92 @@
     return Object.values(state || {}).filter((entries) => Array.isArray(entries) && entries.length > 0).length;
   }
 
+  // ---- Phase 2: finding, filtering, markers -----------------------------------------------
+
+  // Text for matching: without Hebrew vowel points and cantillation, lower-cased, spaces folded,
+  // so a search for "רבי" finds "רַבִּי" and "Rashi" finds "rashi".
+  function normalizeText(value) {
+    return String(value || '')
+      .normalize('NFC')
+      .replace(/[\u0591-\u05C7]/g, '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  // Does a thread's own text (its quoted words, opening question or asker) contain the query?
+  // Messages are searched by the database; this covers what the list already holds.
+  function matchesQuery(thread, query) {
+    const q = normalizeText(query);
+    if (!q) return true;
+    return [thread.quoted_text, thread.preview, thread.author_display_name]
+      .some((text) => normalizeText(text).includes(q));
+  }
+
+  // A search word as a LIKE pattern body: the characters that mean something to LIKE are
+  // escaped, so "100%" is searched for, not treated as a wildcard.
+  function escapeLike(query) {
+    return String(query || '').trim().replace(/[\\%_]/g, (c) => `\\${c}`);
+  }
+
+  // Which threads to list. `filter`: 'all', 'following', 'mine' (asked, or posted in) or 'here'
+  // (anchored in the passage the reader is at); `matchIds` is the set a search found (null
+  // means no search); `ids` limits to a set (the threads behind a marker the reader clicked).
+  function filterThreads(threads, { filter = 'all', follows, mine, matchIds = null, ids = null, myId = null, place = null } = {}) {
+    return threads.filter((thread) => {
+      if (ids && !ids.has(thread.id)) return false;
+      if (matchIds && !matchIds.has(thread.id)) return false;
+      if (filter === 'following') return Boolean(follows?.has(thread.id));
+      if (filter === 'mine') return thread.author_id === myId || Boolean(mine?.has(thread.id));
+      if (filter === 'here') return isHere(thread, place);
+      return true;
+    });
+  }
+
+  // Is a thread about the passage the reader is at (the same paragraph of the daf)?
+  function isHere(thread, place) {
+    return Boolean(place) && Number(thread.anchor_segment) === Number(place.segment) && Number(place.segment) > 0;
+  }
+
+  // The reader's place from what is on screen: the printed word nearest the vertical middle of
+  // the visible part of the page. `boxes` are the page's word boxes ({ ref, wordIndex, y, h }
+  // as fractions of the page height), `middle` the fraction of the page height at the middle
+  // of the viewport. Null when there is nothing to go by.
+  function placeFromViewport(boxes, middle) {
+    if (!Array.isArray(boxes) || !boxes.length || !Number.isFinite(middle)) return null;
+    let best = null;
+    let bestDistance = Infinity;
+    for (const box of boxes) {
+      const distance = Math.abs(box.y + box.h / 2 - middle);
+      if (distance < bestDistance) { best = box; bestDistance = distance; }
+    }
+    return best ? { segment: segmentNumber(best.ref), word: Number(best.wordIndex) || 0 } : null;
+  }
+
+  // Groups marker positions (fractions of the page) that are close enough to overlap into one
+  // marker with a count, so several threads about the same few words are one tap target.
+  // Points are { x, y, id }. Returns [{ x, y, ids: [...] }], top to bottom.
+  function clusterMarkers(points, { dx = 0.04, dy = 0.014 } = {}) {
+    const sorted = points.slice().sort((a, b) => a.y - b.y || a.x - b.x);
+    const clusters = [];
+    for (const point of sorted) {
+      const home = clusters.find((c) => Math.abs(c.x - point.x) <= dx && Math.abs(c.y - point.y) <= dy);
+      if (home) home.ids.push(point.id);
+      else clusters.push({ x: point.x, y: point.y, ids: [point.id] });
+    }
+    return clusters;
+  }
+
+  // Total new messages across an unread map (thread id -> count).
+  function unreadTotal(counts) {
+    let total = 0;
+    for (const value of (counts instanceof Map ? counts.values() : Object.values(counts || {}))) total += Number(value) || 0;
+    return total;
+  }
+
   return {
+    normalizeText, matchesQuery, escapeLike, filterThreads, isHere, placeFromViewport,
+    clusterMarkers, unreadTotal,
     dafKeyFromRef, dafLabelFromRef, segmentNumber, anchorOrder, placeOrder, sortThreads,
     replyCount, timeAgo, hasUnread, mergeMessage, mergeThread, removeThread, quoteSnippet,
     bodyProblem, errorText, runsFromTarget, threadUrl, threadIdFromSearch, presenceCount,

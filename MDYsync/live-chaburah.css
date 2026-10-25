@@ -149,3 +149,33 @@ body.live-open .live-toggle { display: none; }
   @keyframes live-in { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
   @media (max-width: 800px) { @keyframes live-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } } }
 }
+
+/* ---- Phase 2: search, filters, what is new, markers on the printed daf ------------------- */
+.live-toggle-new { padding: 1px 8px; border-radius: 999px; background: #c2410c; color: #fff; font-size: 12px; font-weight: 700; }
+.live-toggle-new[hidden] { display: none; }
+
+.live-search-row { padding: 8px 12px 0; }
+.live-search { width: 100%; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line-strong, var(--line)); background: var(--card); color: var(--text); font: inherit; font-size: 14px; }
+.live-filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px 0; }
+.live-filter { padding: 4px 12px; }
+.live-chip-on { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
+.live-chip-on:hover { background: var(--accent-strong); }
+.live-options { display: flex; flex-wrap: wrap; gap: 4px 16px; padding: 8px 14px 4px; font-size: 12px; color: var(--muted); }
+.live-option { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.live-option[hidden] { display: none; }
+.live-option input { accent-color: var(--accent-strong); }
+.live-banner { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 12px 0; padding: 6px 10px; border-radius: 10px; background: var(--accent-soft); font-size: 12px; }
+.live-banner[hidden] { display: none; }
+.live-badge-here { background: rgba(244, 214, 143, .55); color: #5c4310; }
+
+/* Markers: a small bubble under the first words of a discussion, on the printed page */
+.live-markers-overlay { position: absolute; inset: 0; pointer-events: none; }
+.live-marker {
+  position: absolute; width: 18px; height: 18px; padding: 0; transform: translate(50%, 2px);
+  border-radius: 9px 9px 9px 2px; border: 2px solid #fff; background: #c2410c; color: #fff;
+  box-shadow: 0 1px 4px rgba(19, 34, 56, .35); cursor: pointer; pointer-events: auto; opacity: .55;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; line-height: 1;
+}
+.live-marker:hover, .live-marker:focus-visible { opacity: 1; transform: translate(50%, 2px) scale(1.15); }
+.live-marker-count { pointer-events: none; }
+body.live-open .live-marker { opacity: .8; }
