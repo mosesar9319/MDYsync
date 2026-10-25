@@ -550,11 +550,13 @@ create trigger live_threads_broadcast after insert or update on public.live_thre
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists live_receive on realtime.messages;
-    create policy live_receive on realtime.messages for select to authenticated
-      using (realtime.topic() like 'live:%' and public.live_access());
-    drop policy if exists live_presence on realtime.messages;
-    create policy live_presence on realtime.messages for insert to authenticated
-      with check (realtime.topic() like 'live:%' and extension = 'presence' and public.live_access());
+    if not exists (select 1 from pg_policies where schemaname = 'realtime' and tablename = 'messages' and policyname = 'live_receive') then
+      create policy live_receive on realtime.messages for select to authenticated
+        using (realtime.topic() like 'live:%' and public.live_access());
+    end if;
+    if not exists (select 1 from pg_policies where schemaname = 'realtime' and tablename = 'messages' and policyname = 'live_presence') then
+      create policy live_presence on realtime.messages for insert to authenticated
+        with check (realtime.topic() like 'live:%' and extension = 'presence' and public.live_access());
+    end if;
   end if;
 end $$;
