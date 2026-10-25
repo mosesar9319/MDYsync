@@ -560,3 +560,16 @@ begin
     end if;
   end if;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- Not callable through the API: trigger functions and payload helpers are only ever run
+-- by the database itself (a trigger fires whatever its caller may execute).
+-- ---------------------------------------------------------------------------
+alter function public.live_read_state_monotonic() set search_path = public;
+alter function public.live_message_payload(public.live_messages) set search_path = public;
+alter function public.live_thread_payload(public.live_threads) set search_path = public;
+revoke all on function
+  public.live_messages_broadcast(), public.live_messages_bump_thread(),
+  public.live_threads_broadcast(), public.live_read_state_monotonic(),
+  public.live_message_payload(public.live_messages), public.live_thread_payload(public.live_threads)
+  from public, anon, authenticated;

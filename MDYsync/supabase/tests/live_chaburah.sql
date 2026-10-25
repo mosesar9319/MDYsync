@@ -387,4 +387,21 @@ select dafsync_test.check('there is no other policy that lets a client publish t
   (select count(*)::text from pg_policies where schemaname = 'realtime' and tablename = 'messages' and cmd in ('INSERT', 'ALL')),
   '1');
 
+select dafsync_test.check('the trigger functions and payload helpers cannot be called through the API',
+  (select count(*)::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname in ('live_messages_broadcast', 'live_messages_bump_thread', 'live_threads_broadcast',
+                        'live_read_state_monotonic', 'live_message_payload', 'live_thread_payload', 'live_check_may_post',
+                        'live_display_name', 'live_broadcast')
+      and (has_function_privilege('anon', p.oid, 'execute') or has_function_privilege('authenticated', p.oid, 'execute'))),
+  '0');
+select dafsync_test.check('only the write functions are callable by signed-in readers, and none by anon',
+  (select string_agg(p.proname, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname like 'live\_%' and has_function_privilege('authenticated', p.oid, 'execute')),
+  'live_access,live_delete_message,live_edit_message,live_moderate,live_post_message,live_report,live_set_answer,live_set_audience,live_start_thread');
+select dafsync_test.check('anon can run nothing but the access check',
+  (select string_agg(p.proname, ',' order by p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname like 'live\_%' and has_function_privilege('anon', p.oid, 'execute')),
+  'live_access');
+
 do $$ begin raise notice 'ALL LIVE CHABURAH TESTS PASSED'; end $$;
