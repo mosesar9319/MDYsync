@@ -222,6 +222,70 @@
   const joinDaf = (dafKey, handlers) => join(`live:daf:${dafKey}`, handlers);
   const joinThread = (threadId, handlers) => join(`live:thread:${threadId}`, handlers);
 
+
+  // ---- notifications ---------------------------------------------------------------------------
+  // Everything the settings and the bell need: the person's settings, whether this daf is
+  // followed or muted, the muted discussions, their devices, and how many notifications wait.
+  // null when it cannot be read (signed out, or the database function is not there yet).
+  async function fetchNotificationState(dafKey) {
+    if (!me()) return null;
+    try {
+      const { data, error } = await client().rpc('live_my_notification_state', { p_daf_ref_key: dafKey || null });
+      if (error) return null;
+      return data || null;
+    } catch {
+      return null;
+    }
+  }
+  const rpcVoid = async (name, args) => {
+    const { error } = await client().rpc(name, args);
+    if (error) throw error;
+  };
+  const setNotificationPrefs = (patch) => rpcVoid('live_set_notification_prefs', { p: core.cleanPrefs(patch) });
+  const setCurrentDaf = (dafKey) => rpcVoid('live_set_current_daf', { p_daf_ref_key: dafKey });
+  const setDafPref = (dafKey, { following = null, muted = null } = {}) =>
+    rpcVoid('live_set_daf_pref', { p_daf_ref_key: dafKey, p_following: following, p_muted: muted });
+  const setThreadMuted = (threadId, muted) =>
+    rpcVoid('live_set_thread_muted', { p_thread_id: threadId, p_muted: Boolean(muted) });
+  const markNotificationsRead = ({ threadId = null, all = false } = {}) =>
+    rpcVoid('live_mark_notifications_read', { p_thread_id: threadId, p_all: all });
+
+  async function listNotifications(limit = 50) {
+    if (!me()) return [];
+    const { data, error } = await client().rpc('live_list_notifications', { p_limit: limit, p_before: null });
+    if (error) throw error;
+    return data || [];
+  }
+
+  // Background alerts. The browser's own permission prompt is the consent; the endpoint and
+  // keys go to the database only after the person said yes.
+  const savePushSubscription = ({ endpoint, p256dh, auth, label }) =>
+    rpcVoid('live_save_push_subscription', { p_endpoint: endpoint, p_p256dh: p256dh, p_auth: auth, p_label: label || '' });
+  const removePushSubscription = ({ deviceId = null, endpoint = null } = {}) =>
+    rpcVoid('live_remove_push_subscription', { p_device_id: deviceId, p_endpoint: endpoint });
+
+  // Your own notifications channel: a private Broadcast topic only you may join.
+  function joinUser(userId, onNotification, onStatus) {
+    if (!me()) {
+      onStatus?.('offline');
+      return { close() {} };
+    }
+    let channel = null;
+    let closed = false;
+    (async () => {
+      try { await client().realtime.setAuth(); } catch { /* the client reads the session itself */ }
+      if (closed) return;
+      channel = client().channel(`notify:user:${userId}`, { config: { private: true } });
+      channel.on('broadcast', { event: 'notification' }, ({ payload }) => onNotification(payload));
+      channel.subscribe((status) => {
+        if (closed) return;
+        if (status === 'SUBSCRIBED') onStatus?.('live');
+        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') onStatus?.('offline');
+      });
+    })();
+    return { close() { closed = true; if (channel) client().removeChannel(channel); } };
+  }
+
   // Calls `tick` every few seconds until stopped; the page's fallback when a channel is
   // not live. Skips a tick while the tab is hidden.
   function poll(tick) {
@@ -238,6 +302,8 @@
     startThread, postMessage, editMessage, deleteMessage, setAnswer, moderate, setAudience, report,
     fetchFollows, follow, unfollow, fetchReadStates, markRead, fetchUnreadCounts, searchMessages, fetchParticipated,
     joinDaf, joinThread, poll,
+    fetchNotificationState, setNotificationPrefs, setCurrentDaf, setDafPref, setThreadMuted,
+    markNotificationsRead, listNotifications, savePushSubscription, removePushSubscription, joinUser,
     PAGE,
   };
 })();

@@ -7,6 +7,10 @@ import { buildDatabase, USERS } from '../fixtures/dataset.mjs';
 // supabase/tests/live_chaburah.sql), and small helpers for driving the panel.
 
 export const DAF = 'Chullin-89a';
+export const notice = (id, kind, thread_id, extra = {}) => ({
+  id, kind, thread_id, message_id: `m-${id}`, daf_ref_key: DAF, actor_display_name: 'Avi Author', preview: 'A reply', thread_preview: 'A question',
+  created_at: new Date(Date.now() - 5 * 60000).toISOString(), read_at: null, ...extra,
+});
 export const T1 = '10000000-0000-4000-8000-000000000001'; // answered, near the start
 export const T2 = '10000000-0000-4000-8000-000000000002'; // open, later on the daf, busier
 export const T3 = '10000000-0000-4000-8000-000000000003'; // another daf
@@ -118,6 +122,63 @@ export function installFakeServer() {
     live_unread_counts() {
       if (window.__LIVE_UNREAD_MISSING__) return { data: null, error: { message: 'Could not find the function public.live_unread_counts' } };
       return { data: window.__LIVE_UNREAD__ || [], error: null };
+    },
+    // ---- notifications (the real rules are in supabase/tests/live_chaburah_notifications.sql) ----
+    live_my_notification_state(p, db) {
+      if (window.__LIVE_NOTIFY_MISSING__) return { data: null, error: { message: 'Could not find the function public.live_my_notification_state' } };
+      const defaults = {
+        all_off: false, snooze_until: null, in_app_enabled: true, push_enabled: false, lvl_mine: true, lvl_daf: false,
+        lvl_everywhere: false, lvl_while_using: false, everywhere_mode: 'digest', timezone: 'UTC', batch_minutes: 5,
+        digest_enabled: false, digest_hour: 20, quiet_enabled: false, quiet_start: 22, quiet_end: 7, shabbos_pause: false,
+        shabbos_start_hour: 16, shabbos_end_hour: 22,
+      };
+      const daf = (db.live_daf_prefs || []).find((d) => d.daf_ref_key === p.p_daf_ref_key) || { following: false, muted: false };
+      return { data: {
+        prefs: { ...defaults, ...(db.live_notif_prefs || {}) },
+        daf: { following: daf.following, muted: daf.muted },
+        muted_thread_ids: (db.live_thread_mutes || []).map((m) => m.thread_id),
+        devices: (db.push_subscriptions || []).map((d) => ({ id: d.id, label: d.label, created_at: d.created_at, host: 'push.example' })),
+        unread: (db.live_notifications || []).filter((n) => !n.read_at).length,
+        daf_follows: (db.live_daf_prefs || []).filter((d) => d.following).map((d) => d.daf_ref_key),
+      }, error: null };
+    },
+    live_set_notification_prefs(p, db) {
+      const failure = fail(); if (failure) return failure;
+      db.live_notif_prefs = { ...(db.live_notif_prefs || {}), ...p.p };
+      return { data: null, error: null };
+    },
+    live_set_current_daf(p, db) { db.live_current_daf = p.p_daf_ref_key; return { data: null, error: null }; },
+    live_set_daf_pref(p, db) {
+      db.live_daf_prefs = db.live_daf_prefs || [];
+      let row = db.live_daf_prefs.find((d) => d.daf_ref_key === p.p_daf_ref_key);
+      if (!row) { row = { daf_ref_key: p.p_daf_ref_key, following: false, muted: false }; db.live_daf_prefs.push(row); }
+      if (p.p_following !== null) row.following = p.p_following;
+      if (p.p_muted !== null) row.muted = p.p_muted;
+      return { data: null, error: null };
+    },
+    live_set_thread_muted(p, db) {
+      db.live_thread_mutes = (db.live_thread_mutes || []).filter((m) => m.thread_id !== p.p_thread_id);
+      if (p.p_muted) db.live_thread_mutes.push({ thread_id: p.p_thread_id });
+      return { data: null, error: null };
+    },
+    live_list_notifications(p, db) {
+      if (window.__LIVE_NOTIFY_MISSING__) return { data: null, error: { message: 'Could not find the function' } };
+      return { data: (db.live_notifications || []).slice().sort((a, b) => (a.created_at < b.created_at ? 1 : -1)), error: null };
+    },
+    live_mark_notifications_read(p, db) {
+      const now = new Date().toISOString();
+      for (const n of db.live_notifications || []) if (!n.read_at && (p.p_all || n.thread_id === p.p_thread_id)) n.read_at = now;
+      return { data: null, error: null };
+    },
+    live_save_push_subscription(p, db) {
+      db.push_subscriptions = (db.push_subscriptions || []).filter((d) => d.endpoint !== p.p_endpoint);
+      db.push_subscriptions.push({ id: `dev-${db.push_subscriptions.length + 1}`, endpoint: p.p_endpoint, label: p.p_label, created_at: new Date().toISOString() });
+      db.live_notif_prefs = { ...(db.live_notif_prefs || {}), push_enabled: true };
+      return { data: null, error: null };
+    },
+    live_remove_push_subscription(p, db) {
+      db.push_subscriptions = (db.push_subscriptions || []).filter((d) => d.id !== p.p_device_id && d.endpoint !== p.p_endpoint);
+      return { data: null, error: null };
     },
     live_set_audience(p, db) { db.live_settings[0].audience = p.p_audience; return { data: null, error: null }; },
   };

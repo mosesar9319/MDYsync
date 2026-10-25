@@ -232,3 +232,50 @@ test('total unread across threads', () => {
   assert.equal(C.unreadTotal({ a: 1 }), 1);
   assert.equal(C.unreadTotal(null), 0);
 });
+
+// ---- phase 3: notifications ---------------------------------------------------------------------
+test('notificationText says what happened, in plain words', () => {
+  const n = (kind) => C.notificationText({ kind, actor_display_name: 'Avi', daf_ref_key: 'Bava-Kamma-2a' });
+  assert.equal(n('mention'), 'Avi mentioned you');
+  assert.equal(n('reply_to_me'), 'Avi replied to you');
+  assert.equal(n('reply_to_thread'), 'Avi replied in your discussion');
+  assert.equal(n('followed_activity'), 'Avi wrote in a discussion you follow');
+  assert.equal(n('new_thread_daf'), 'Avi started a discussion on Bava Kamma 2a');
+  assert.equal(C.notificationText({ kind: 'mention' }), 'Someone mentioned you');
+});
+
+test('groupNotifications gives one row per discussion, newest first, with counts', () => {
+  const list = [
+    { thread_id: 'a', created_at: '3', read_at: null }, { thread_id: 'b', created_at: '2', read_at: 'x' },
+    { thread_id: 'a', created_at: '1', read_at: 'x' },
+  ];
+  const groups = C.groupNotifications(list);
+  assert.deepEqual(groups.map((g) => [g.thread_id, g.count, g.unread]), [['a', 2, 1], ['b', 1, 0]]);
+  assert.equal(groups[0].latest.created_at, '3');
+  assert.equal(C.unreadNotificationCount(list), 1);
+});
+
+test('cleanPrefs keeps only known settings, in the right types', () => {
+  assert.deepEqual(C.cleanPrefs({ batch_minutes: '15', quiet_enabled: 1, evil: 'x', user_id: 'u', timezone: 'Asia/Jerusalem', snooze_until: '' }),
+    { batch_minutes: 15, quiet_enabled: true, timezone: 'Asia/Jerusalem', snooze_until: null });
+});
+
+test('hours, devices and links read well', () => {
+  assert.equal(C.hourLabel(0), 'midnight');
+  assert.equal(C.hourLabel(8), '8 am');
+  assert.equal(C.hourLabel(12), 'noon');
+  assert.equal(C.hourLabel(22), '10 pm');
+  assert.equal(C.deviceLabel('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit Version/17.0 Mobile Safari/604.1'), 'Safari on iPhone/iPad');
+  assert.equal(C.deviceLabel('Mozilla/5.0 (Windows NT 10.0) Chrome/120 Safari/537'), 'Chrome on Windows');
+  assert.equal(C.notificationUrl('https://x', { daf_ref_key: 'Chullin-89a', thread_id: 'abc' }), 'https://x/browse/?ref=Chullin%2089a&live=abc');
+});
+
+test('liveAlertApplies: only for someone else\'s new discussion on the daf you have open, if you asked', () => {
+  const on = { lvl_while_using: true, in_app_enabled: true, all_off: false };
+  const event = { dafKey: 'Chullin-89a', openDafKey: 'Chullin-89a', authorId: 'a', myId: 'me' };
+  assert.equal(C.liveAlertApplies(on, event), true);
+  assert.equal(C.liveAlertApplies({ ...on, lvl_while_using: false }, event), false);
+  assert.equal(C.liveAlertApplies({ ...on, all_off: true }, event), false);
+  assert.equal(C.liveAlertApplies(on, { ...event, authorId: 'me' }), false);
+  assert.equal(C.liveAlertApplies(on, { ...event, openDafKey: 'Chullin-90a' }), false);
+});

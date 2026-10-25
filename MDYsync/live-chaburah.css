@@ -68,7 +68,7 @@ body.live-open .live-toggle { display: none; }
 .live-unread { padding: 1px 8px; border-radius: 999px; background: var(--accent-strong); color: #fff; font-size: 11px; font-weight: 700; }
 .live-pulse { width: 8px; height: 8px; border-radius: 50%; background: #2e9d62; box-shadow: 0 0 0 3px rgba(46, 157, 98, .2); }
 
-.live-empty { padding: 18px 8px; text-align: center; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.live-empty, .live-inbox-empty { padding: 18px 8px; text-align: center; color: var(--muted); font-size: 14px; line-height: 1.5; }
 .live-empty:empty { display: none; }
 .live-empty p { margin: 0 0 8px; }
 .live-empty-title { color: var(--text); font-weight: 700; }
@@ -179,3 +179,48 @@ body.live-open .live-toggle { display: none; }
 .live-marker:hover, .live-marker:focus-visible { opacity: 1; transform: translate(50%, 2px) scale(1.15); }
 .live-marker-count { pointer-events: none; }
 body.live-open .live-marker { opacity: .8; }
+
+/* ---- Phase 3: notifications (live-chaburah-notify.js) ------------------------------------------- */
+.live-head-tools { display: flex; gap: 6px; margin-left: auto; }
+.live-bell, .live-gear { position: relative; font-size: 17px; }
+.live-bell-icon { font-size: 16px; }
+.live-bell-count {
+  position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box;
+  border-radius: 9px; background: #c2410c; color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center;
+}
+.live-bell-count[hidden] { display: none; }
+.live-toggle-alert { padding: 1px 8px; border-radius: 999px; background: #1d4ed8; color: #fff; font-size: 12px; font-weight: 700; }
+.live-toggle-alert[hidden] { display: none; }
+
+.live-daf-alerts { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 12px 2px; }
+.live-daf-alerts[hidden] { display: none; }
+.live-mute { margin-left: 2px; }
+
+.live-notices { list-style: none; margin: 0; padding: 0; }
+.live-notice { border-bottom: 1px solid var(--line); }
+.live-notice-open { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; width: 100%; padding: 12px 16px; text-align: left; background: transparent; border: 0; color: var(--text); font: inherit; cursor: pointer; }
+.live-notice-open:hover, .live-notice-open:focus-visible { background: var(--accent-soft); }
+.live-notice-head { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
+.live-notice-dot { width: 8px; height: 8px; border-radius: 50%; background: #1d4ed8; flex: none; }
+.live-notice-text { font-size: 13px; color: var(--text); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.live-notice-where { font-size: 12px; color: var(--muted); }
+.live-notice-unread { background: rgba(29, 78, 216, .05); }
+
+.live-save-status { margin-left: auto; font-size: 12px; color: var(--muted); }
+.live-settings-scroll { padding: 4px 0 24px; }
+.live-settings-group { margin: 12px 12px 0; padding: 4px 12px 10px; border: 1px solid var(--line); border-radius: 12px; }
+.live-settings-group legend { padding: 0 6px; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.live-settings-group .live-note { margin: 4px 0 6px; }
+.live-setting { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; font-size: 14px; cursor: pointer; }
+.live-setting input[type="checkbox"] { margin-top: 3px; accent-color: var(--accent-strong); }
+.live-setting-text { display: flex; flex-direction: column; gap: 2px; }
+.live-setting-label { font-weight: 600; font-size: 14px; }
+.live-setting-hint { font-size: 12px; line-height: 1.4; color: var(--muted); font-weight: 400; }
+.live-setting-select { align-items: center; justify-content: space-between; }
+.live-setting-select select { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line-strong, var(--line)); background: var(--card); color: var(--text); font: inherit; font-size: 13px; max-width: 55%; }
+.live-setting-off { opacity: .55; }
+.live-push { margin-top: 6px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.live-push .live-note { margin: 4px 0 8px; }
+.live-devices-title { margin-top: 12px; }
+.live-devices { list-style: none; margin: 6px 0 0; padding: 0; }
+.live-device { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; font-size: 13px; }

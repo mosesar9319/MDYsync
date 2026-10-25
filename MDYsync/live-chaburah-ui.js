@@ -93,6 +93,9 @@
     loadToken: 0,
   };
   const els = {};
+  // Optional extensions (the notification views attach themselves here, see live-chaburah-notify.js).
+  const hooks = {};
+  els.extraViews = {};
 
   // ---- small DOM helpers ---------------------------------------------------------------
   function el(tag, className, text) {
@@ -322,8 +325,10 @@
     });
     els.composeView.append(composeHead, els.composeQuote, els.composeBody, els.composeError, els.composeNote, els.composeActions);
 
+    els.head = head;
     els.panel.append(head, els.listView, els.chatView, els.composeView);
     document.body.append(els.toggle, els.panel);
+    hooks.built?.();
 
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape' || !L.open) return;
@@ -384,8 +389,15 @@
     els.toggle.setAttribute('aria-expanded', 'false');
     document.body.classList.remove('live-open');
     leaveThread();
-    leaveDaf();
+    if (!hooks.keepDafChannel?.()) leaveDaf();
     showView('list');
+  }
+
+  // Keeps the daf's channel joined while the panel is closed only for someone who asked for
+  // live alerts while they use the site; otherwise it is joined while the panel is open.
+  function syncDafChannel() {
+    if (L.open || !L.available) return;
+    if (hooks.keepDafChannel?.()) { if (L.dafKey) joinDaf(); } else leaveDaf();
   }
 
   function showView(view) {
@@ -393,6 +405,8 @@
     els.listView.hidden = view !== 'list';
     els.chatView.hidden = view !== 'chat';
     els.composeView.hidden = view !== 'compose';
+    for (const [name, node] of Object.entries(els.extraViews)) node.hidden = view !== name;
+    hooks.view?.(view);
   }
 
   function backToList() {
@@ -452,6 +466,7 @@
     joinDaf();
     refreshUnread();
     openDeepLinkIfAny();
+    hooks.daf?.(key, changed);
   }
 
   function joinDaf() {
@@ -459,7 +474,7 @@
     leaveDaf();
     const key = L.dafKey;
     const events = {
-      thread: (payload) => { L.threads = core.mergeThread(L.threads, payload); renderList(); },
+      thread: (payload) => { L.threads = core.mergeThread(L.threads, payload); renderList(); hooks.threadEvent?.(payload); },
       thread_updated: (payload) => {
         scheduleUnreadRefresh();
         L.threads = core.mergeThread(L.threads, payload);
@@ -676,6 +691,7 @@
     scrollToBottom(true);
     showAnchor(L.thread, { quiet: true });
     markReadNow();
+    hooks.threadOpened?.(id);
     joinThread(id);
     els.input.focus({ preventScroll: true });
   }
@@ -776,6 +792,7 @@
     els.input.disabled = !canPost;
     els.send.disabled = !canPost;
     els.input.placeholder = canPost ? 'Write a message' : 'Sign in to join this discussion';
+    hooks.chatMeta?.(thread);
     renderHeader();
   }
 
@@ -1108,6 +1125,7 @@
       if (L.pendingDeepLink) openPanel();
     }
     if (L.built) { renderAdminBar(); renderMarkers(); }
+    hooks.available?.(L.available);
   }
 
   async function refreshDafSilently() {
@@ -1120,6 +1138,8 @@
       L.markerIds = null;
       updateToggleCount();
       renderMarkers();
+      if (hooks.keepDafChannel?.()) joinDaf();
+      hooks.daf?.(key, true);
     } catch { /* the count simply stays empty */ }
   }
 
@@ -1279,6 +1299,11 @@
     refresh: refreshDaf,
     // For tests and the console.
     _state: L,
+    // What the notification views build on (live-chaburah-notify.js).
+    _ui: {
+      L, els, hooks, core, data, el, button, toast, showView, openThread, backToList, openPanel,
+      signedIn, myId, currentDafRef, updateToggleCount, refreshUnread, syncDafChannel,
+    },
   };
 
   evaluateAvailability();

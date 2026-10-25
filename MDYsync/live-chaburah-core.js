@@ -168,6 +168,7 @@
     live_cannot_delete: 'You can only delete your own messages.',
     live_root_has_replies: 'This opening question has replies, so it cannot be deleted.',
     live_thread_missing: 'This discussion is no longer available.',
+    live_too_many_dapim: 'You are following the most dapim allowed (100). Unfollow one first.',
   };
   function errorText(error) {
     const message = String(error?.message || '');
@@ -294,7 +295,110 @@
     return total;
   }
 
+
+  // ---- notifications -------------------------------------------------------------------------
+  // The settings a person who never opened the page has (the same as the database's).
+  const PREF_DEFAULTS = {
+    all_off: false, snooze_until: null, in_app_enabled: true, push_enabled: false,
+    lvl_mine: true, lvl_daf: false, lvl_everywhere: false, lvl_while_using: false,
+    everywhere_mode: 'digest', timezone: 'UTC', batch_minutes: 5, digest_enabled: false, digest_hour: 20,
+    quiet_enabled: false, quiet_start: 22, quiet_end: 7,
+    shabbos_pause: false, shabbos_start_hour: 16, shabbos_end_hour: 22,
+  };
+  const BATCH_CHOICES = [[0, 'Right away'], [5, 'Every 5 minutes'], [15, 'Every 15 minutes'], [60, 'Every hour']];
+
+  // "Bekhorot-22a" back to "Bekhorot 22a".
+  function dafLabelFromKey(key) {
+    return String(key || '').replace(/-/g, ' ');
+  }
+
+  // One line saying what happened, from a notification row.
+  function notificationText(n) {
+    const who = n.actor_display_name || 'Someone';
+    switch (n.kind) {
+      case 'mention': return `${who} mentioned you`;
+      case 'reply_to_me': return `${who} replied to you`;
+      case 'reply_to_thread': return `${who} replied in your discussion`;
+      case 'followed_activity': return `${who} wrote in a discussion you follow`;
+      case 'new_thread_daf':
+      case 'new_thread_everywhere': return `${who} started a discussion on ${dafLabelFromKey(n.daf_ref_key)}`;
+      default: return `${who} wrote something`;
+    }
+  }
+
+  // The inbox shows one row per discussion, not one per message: how many arrived, how many
+  // are unread, and the newest. Input is newest first; so is the output.
+  function groupNotifications(list) {
+    const groups = new Map();
+    for (const n of list || []) {
+      let g = groups.get(n.thread_id);
+      if (!g) {
+        g = { thread_id: n.thread_id, daf_ref_key: n.daf_ref_key, latest: n, count: 0, unread: 0, thread_preview: n.thread_preview };
+        groups.set(n.thread_id, g);
+      }
+      g.count += 1;
+      if (!n.read_at) g.unread += 1;
+    }
+    return [...groups.values()];
+  }
+
+  function unreadNotificationCount(list) {
+    return (list || []).filter((n) => !n.read_at).length;
+  }
+
+  // "8 am", "11 pm" for the hour pickers.
+  function hourLabel(hour) {
+    const h = Number(hour);
+    if (h === 0) return 'midnight';
+    if (h === 12) return 'noon';
+    return h < 12 ? `${h} am` : `${h - 12} pm`;
+  }
+
+  // The settings as the database wants them: only known keys, hours as whole numbers in range.
+  function cleanPrefs(patch) {
+    const out = {};
+    for (const [key, value] of Object.entries(patch || {})) {
+      if (!(key in PREF_DEFAULTS)) continue;
+      const kind = typeof PREF_DEFAULTS[key];
+      if (key === 'snooze_until') out[key] = value ? String(value) : null;
+      else if (kind === 'boolean') out[key] = Boolean(value);
+      else if (kind === 'number') out[key] = Math.trunc(Number(value));
+      else out[key] = String(value);
+    }
+    return out;
+  }
+
+  // A short name for a device, from its user-agent string ("Chrome on Android").
+  function deviceLabel(userAgent) {
+    const ua = String(userAgent || '');
+    const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox'
+      : /(Chrome|CriOS)\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
+    const system = /Android/.test(ua) ? 'Android' : /(iPhone|iPad|iPod)/.test(ua) ? 'iPhone/iPad'
+      : /Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : '';
+    return system ? `${browser} on ${system}` : browser;
+  }
+
+  // The link a notification opens: the right daf, with the discussion open.
+  function notificationUrl(origin, n) {
+    return `${origin}/browse/?ref=${encodeURIComponent(dafLabelFromKey(n.daf_ref_key))}&live=${encodeURIComponent(n.thread_id)}`;
+  }
+
+  // Which of today's alert settings would make a notification arrive with sound or a banner:
+  // the in-app path is always on unless the person turned everything off.
+  function alertsOn(prefs) {
+    return Boolean(prefs) && !prefs.all_off && (prefs.in_app_enabled || prefs.push_enabled);
+  }
+
+  // Whether "while I use DafSync" alerts apply to an event on `dafKey` (a discussion started
+  // on the daf the reader has open, by someone else).
+  function liveAlertApplies(prefs, { dafKey, openDafKey, authorId, myId }) {
+    return Boolean(prefs && prefs.lvl_while_using && !prefs.all_off && prefs.in_app_enabled
+      && dafKey && dafKey === openDafKey && authorId !== myId);
+  }
+
   return {
+    PREF_DEFAULTS, BATCH_CHOICES, dafLabelFromKey, notificationText, groupNotifications, unreadNotificationCount,
+    hourLabel, cleanPrefs, deviceLabel, notificationUrl, alertsOn, liveAlertApplies,
     normalizeText, matchesQuery, escapeLike, filterThreads, isHere, placeFromViewport,
     clusterMarkers, unreadTotal,
     dafKeyFromRef, dafLabelFromRef, segmentNumber, anchorOrder, placeOrder, sortThreads,

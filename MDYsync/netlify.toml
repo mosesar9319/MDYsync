@@ -154,6 +154,14 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
+# The Live Chaburah service worker (background alerts) is re-checked on every visit, so a fix to
+# it reaches people at once; it has no caching or fetch handling of its own.
+[[headers]]
+  for = "/live-sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+    Content-Type = "text/javascript; charset=utf-8"
+
 # The sitewide rule above locks camera access down everywhere by default --
 # only the player page needs it, for the "scan a printed daf page" feature
 # (see scan-daf-page.mjs). Netlify applies the most specific matching path's
