@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T01:00:55.426Z",
+  "generatedAt": "2026-10-27T07:00:58.877Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -846,13 +846,23 @@
           "videoId": "XYap0SWFMrw",
           "label": "CHAZARAH - Bechoros Daf 38 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "g268swJSXY8",
+          "label": "חזרה - בכורות דף לח | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
         }
       },
       {
         "daf": 39,
         "regularHe": {
-          "videoId": "aQbnFoFV6ro",
-          "label": "מרכז דף יומי -  בכורות דף לט. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
+          "videoId": "Pfg6BnMjOaI",
+          "label": "מרכז דף יומי - בכורות דף לט. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
+        "regularEn": {
+          "videoId": "Lx-YESWOr9M",
+          "label": "Daf Yomi Bechoros Daf 39 by R’ Eli Stefansky (unedited)",
           "amud": "a"
         }
       }
