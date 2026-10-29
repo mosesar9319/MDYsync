@@ -6,6 +6,7 @@
 // path yet, since this is a beta feature, not the default sync method.
 
 import { MAGGIDIM, maggidById } from '../../shared/maggidim.mjs';
+import { livestreamIdsAmong, MDY_CHANNEL_ID, recentUploadFeedUrl } from '../../shared/youtube-broadcast.mjs';
 
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
@@ -41,14 +42,27 @@ function sleep(ms) {
 // directly against this exact video/channel. Three tries with a short
 // backoff is cheap insurance against exactly that.
 async function isRecentUploadOfChannel(videoId, channelId) {
-  const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
+  // Mercaz Daf Yomi is checked against its Videos tab. The channel-wide
+  // uploads feed also lists the Live tab, and a livestream is not a cut
+  // this job should download.
+  const feedUrl = recentUploadFeedUrl(channelId);
   let lastStatus;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     if (attempt > 0) await sleep(500 * attempt);
     const response = await fetch(feedUrl);
     if (response.ok) {
       const xml = await response.text();
-      return xml.includes(`<yt:videoId>${videoId}</yt:videoId>`);
+      if (!xml.includes(`<yt:videoId>${videoId}</yt:videoId>`)) return false;
+      if (channelId !== MDY_CHANNEL_ID) return true;
+      try {
+        const livestreams = await livestreamIdsAmong([videoId], {
+          apiKey: Netlify.env.get('YOUTUBE_API_KEY') || '',
+          channelId,
+        });
+        return !livestreams.has(videoId);
+      } catch {
+        return true;
+      }
     }
     lastStatus = response.status;
   }

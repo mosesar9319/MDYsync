@@ -1636,9 +1636,17 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     // Used for the hero card and any other single-daf entry point that
     // doesn't already know which specific combo it wants -- the grid itself
     // now builds one card per matching combo instead of picking just one.
+    // Drop livestreams when this daf also has a finished upload, keeping
+    // COMBO_KEYS order so the automatic pick matches the player. A daf whose
+    // only recording is a livestream still uses it.
+    function withoutLivestreams(row, keys) {
+      const finished = keys.filter((key) => row[key] && !row[key].liveBroadcast);
+      return finished.length ? finished : keys;
+    }
     function bestCombo(row) {
-      return COMBO_KEYS.find((key) => row[key] && comboMatchesFilters(key))
-        || COMBO_KEYS.find((key) => row[key]);
+      const matching = COMBO_KEYS.filter((key) => row[key] && comboMatchesFilters(key));
+      const pool = matching.length ? matching : COMBO_KEYS.filter((key) => row[key]);
+      return withoutLivestreams(row, pool)[0];
     }
     function entryForCombo(row, key) {
       return {
@@ -1827,9 +1835,8 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
 
       const items = [];
       for (const row of rows) {
-        for (const combo of COMBO_KEYS) {
-          if (row[combo] && comboMatchesFilters(combo)) items.push({ row, combo });
-        }
+        const matching = COMBO_KEYS.filter((combo) => row[combo] && comboMatchesFilters(combo));
+        for (const combo of withoutLivestreams(row, matching)) items.push({ row, combo });
       }
       // A higher daf number is later *within a tractate*, but the site now
       // has more than one tractate's worth of content (see SITE_TRACTATES),
@@ -1866,7 +1873,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     }
 
     function openShiur(row, combo = bestCombo(row)) {
-      const available = COMBO_KEYS.filter((key) => row[key]);
+      const available = withoutLivestreams(row, COMBO_KEYS.filter((key) => row[key]));
       const toggle = document.querySelector("#modal-variant-toggle");
       toggle.innerHTML = available.length > 1
         ? available.map((key) => `<button type="button" data-combo="${key}">${COMBO_LABELS[key]}</button>`).join("")

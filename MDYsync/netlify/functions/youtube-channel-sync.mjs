@@ -16,9 +16,13 @@
 // under three refs, not one: the previous daf's b (if it exists) and the
 // new daf's a and b (if it exists) -- see readingsForVideo().
 //
-// This job only ever sees the 15 newest uploads, since that's all the
-// channel's RSS feed carries -- backfilling anything older is what the
-// manually-dispatched backfill-video-links workflow is for.
+// This job only ever sees the 15 newest items the RSS feed carries --
+// backfilling anything older is what the manually-dispatched
+// backfill-video-links workflow is for. For Mercaz Daf Yomi that feed is
+// the channel's Videos tab (final cuts), not the mixed uploads feed,
+// which also carries the Live tab's streams and past broadcasts. Anything
+// the Data API (or, without a key, the Live-tab feed) still marks as a
+// livestream is skipped and never replaces a finished upload.
 //
 // A link is replaced whenever a newly seen upload resolves to the same
 // ref's *primary* reading and points at a different videoId -- covering
@@ -59,6 +63,7 @@ import {
   plainRef,
 } from '../../shared/mdy-channel.mjs';
 import { MAGGIDIM, parseBornsteinTitle } from '../../shared/maggidim.mjs';
+import { livestreamIdsAmong, MDY_CHANNEL_ID, recentUploadFeedUrl } from '../../shared/youtube-broadcast.mjs';
 
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
@@ -129,7 +134,7 @@ export default async (request) => {
   const feedProblems = [];
   for (const maggid of MAGGIDIM.filter((m) => m.follow)) {
     try {
-      const response = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${maggid.channelId}`);
+      const response = await fetch(recentUploadFeedUrl(maggid.channelId));
       if (!response.ok) throw new Error(`YouTube feed returned ${response.status}`);
       for (const entry of parseFeedEntries(await response.text())) entries.push({ ...entry, maggid });
     } catch (error) {
@@ -161,8 +166,32 @@ export default async (request) => {
   const skipped = [...feedProblems];
   const catalogUpdates = []; // { tractate, daf, amud, comboKey, videoId, label }
 
+  // Livestreams and past broadcasts (the Live tab) are not shiurim to link,
+  // even when a title happens to match. The Videos-tab feed already leaves
+  // most of them out; this is the check for one that still shows up there.
+  const mdyVideoIds = entries
+    .filter((entry) => entry.maggid.channelId === MDY_CHANNEL_ID)
+    .map((entry) => entry.videoId);
+  let livestreams = new Set();
+  if (mdyVideoIds.length) {
+    try {
+      livestreams = await livestreamIdsAmong(mdyVideoIds, {
+        apiKey: Netlify.env.get('YOUTUBE_API_KEY') || '',
+        channelId: MDY_CHANNEL_ID,
+      });
+    } catch (error) {
+      // The Videos-tab feed is the primary filter. A classifier failure
+      // must not fail the hour's real uploads.
+      console.error('Could not tell livestreams from finished uploads', error);
+    }
+  }
+
   for (const entry of entries) {
     const maggid = entry.maggid;
+    if (maggid.channelId === MDY_CHANNEL_ID && livestreams.has(entry.videoId)) {
+      skipped.push({ videoId: entry.videoId, title: entry.title, reason: 'live stream or past broadcast' });
+      continue;
+    }
     const parsed = TITLE_PARSERS[maggid.id](entry.title, lookup);
     if (!parsed) {
       skipped.push({ videoId: entry.videoId, title: entry.title, reason: 'title did not match a known pattern' });
@@ -348,7 +377,10 @@ export default async (request) => {
           rows.sort((a, b) => a.daf - b.daf);
         }
         const existing = row[update.comboKey];
-        if (existing && existing.amud === 'a' && update.amud !== 'a') continue;
+        // Amud a wins over amud b when both exist, unless amud a is a
+        // livestream and amud b is a finished upload -- a live recording
+        // must not stay selected once a final cut is linked for the daf.
+        if (existing && existing.amud === 'a' && update.amud !== 'a' && !existing.liveBroadcast) continue;
         row[update.comboKey] = { videoId: update.videoId, label: update.label, amud: update.amud };
       }
       catalog.generatedAt = new Date().toISOString();

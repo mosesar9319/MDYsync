@@ -9473,10 +9473,15 @@ function videoChoicesFor(tractate, daf) {
         who: VIDEO_CHOICE_MAGGID_NAMES[source.maggid || 'default'] || source.maggid || 'Other',
         kind: kind.label,
         title: entry.label || '',
+        liveBroadcast: Boolean(entry.liveBroadcast),
       });
     }
   }
-  return choices;
+  // A livestream is not offered when the daf also has a finished upload.
+  // The only recording being a livestream (already linked, left for the
+  // owner to decide) still plays -- there is nothing else to select.
+  const finished = choices.filter((choice) => !choice.liveBroadcast);
+  return finished.length ? finished : choices;
 }
 
 // Lists them above the player when there is more than one; with one (or none) the
@@ -9539,6 +9544,23 @@ function onDafPickerChanged() {
     const pickedExplicitly = state.browseLoadExplicit;
     state.browseLoadExplicit = false;
     if (!pickedExplicitly && (state.videoChoices || []).length > 1) return;
+    // Filtering livestreams can leave one finished shiur that isn't the
+    // toggle's default (English regular). Load that one instead of the
+    // live recording the default toggle would have fetched.
+    if (!pickedExplicitly && (state.videoChoices || []).length === 1) {
+      const only = state.videoChoices[0];
+      const toggleMatches = !only.maggid
+        && only.variant === activeShiurVariant('dafShiurToggle')
+        && only.language === activeLanguage('dafLanguageToggle');
+      if (!toggleMatches) {
+        state.maggid = only.maggid;
+        setActiveShiurVariant('dafShiurToggle', only.variant);
+        setActiveLanguage('dafLanguageToggle', only.language);
+        const redirected = dafPickerRef();
+        if (redirected && state.dafRef !== redirected) loadDaf(redirected).then(() => renderVideoChoice());
+        return;
+      }
+    }
     // The Daf browser used to leave it at that -- a real report confirmed
     // the video panel just stayed empty here, unlike every other page that
     // embeds this same player DOM, where picking a daf always loads its

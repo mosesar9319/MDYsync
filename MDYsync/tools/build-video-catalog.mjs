@@ -95,7 +95,20 @@ for (const file of files) {
     // A video the maintainers are using to tune the voice models: the player
     // offers its numbered test runs (see test-runs/ on the results branch).
     ...(payload.testShiur ? { testShiur: true } : {}),
+    // Set only when a link was explicitly marked. Ingestion no longer writes
+    // livestreams; this lets a daf that already has both keep the final cut.
+    ...(payload.liveBroadcast ? { liveBroadcast: true } : {}),
   };
+}
+
+// Amud a is the natural start of the daf and wins when both amudim are
+// finished uploads. A livestream linked on amud a must not beat a finished
+// upload on amud b.
+function pickAmud(byAmud) {
+  if (byAmud.a && !byAmud.a.liveBroadcast) return { picked: byAmud.a, amud: 'a' };
+  if (byAmud.b && !byAmud.b.liveBroadcast) return { picked: byAmud.b, amud: 'b' };
+  if (byAmud.a) return { picked: byAmud.a, amud: 'a' };
+  return { picked: byAmud.b, amud: 'b' };
 }
 
 function rowsFor(byTractate) {
@@ -105,10 +118,11 @@ function rowsFor(byTractate) {
     for (const [daf, combos] of dafMap) {
       const row = { daf };
       for (const [comboKey, byAmud] of Object.entries(combos)) {
-        const picked = byAmud.a || byAmud.b;
+        const { picked, amud } = pickAmud(byAmud);
         row[comboKey] = {
-          videoId: picked.videoId, label: picked.label, amud: byAmud.a ? 'a' : 'b',
+          videoId: picked.videoId, label: picked.label, amud,
           ...(picked.testShiur ? { testShiur: true } : {}),
+          ...(picked.liveBroadcast ? { liveBroadcast: true } : {}),
         };
       }
       rows.push(row);
