@@ -151,6 +151,23 @@ test('the catalog builder files each maggid\'s videos under their own section an
   assert.equal(catalog.maggidim.bornstein.tractates.Chullin[0].daf, 100);
 });
 
+test('a livestream on amud a does not beat a finished upload on amud b', () => {
+  const dir = tmpResults();
+  fs.mkdirSync(path.join(dir, 'video-links'));
+  fs.writeFileSync(path.join(dir, 'video-links', 'Bekhorot-4a.json'), JSON.stringify({
+    videoId: 'livepast111', label: 'unedited', liveBroadcast: true,
+  }));
+  fs.writeFileSync(path.join(dir, 'video-links', 'Bekhorot-4b.json'), JSON.stringify({
+    videoId: 'finalcut111', label: 'Daf Yomi Bechoros Daf 4',
+  }));
+  execFileSync('node', [path.join(ROOT, 'tools', 'build-video-catalog.mjs'), '--results', dir], { stdio: 'pipe' });
+  const catalog = JSON.parse(fs.readFileSync(path.join(dir, 'catalog.json'), 'utf8'));
+  assert.deepEqual(catalog.tractates.Bekhorot, [{
+    daf: 4,
+    regularEn: { videoId: 'finalcut111', label: 'Daf Yomi Bechoros Daf 4', amud: 'b' },
+  }]);
+});
+
 test('a catalog with only the default maggid has no maggidim section', () => {
   const dir = tmpResults();
   fs.mkdirSync(path.join(dir, 'video-links'));
@@ -180,7 +197,11 @@ async function runSync({ mdyFeed = [], bornsteinFeed = [], bornsteinStatus = 200
     const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
     if (url.includes('talmud_index.json')) return new Response(talmud);
     if (url.includes('settings.json')) return json({});
-    if (url.includes('channel_id=UCKwQa5DB_VR98ac_r-Wyl-g')) return new Response(feedXml(mdyFeed));
+    // Mercaz Daf Yomi is polled on its Videos tab. The Live tab is consulted
+    // only when no YouTube Data API key is set; an empty feed means none of
+    // the candidates are livestreams.
+    if (url.includes('playlist_id=UULFKwQa5DB_VR98ac_r-Wyl-g') || url.includes('channel_id=UCKwQa5DB_VR98ac_r-Wyl-g')) return new Response(feedXml(mdyFeed));
+    if (url.includes('playlist_id=UULVKwQa5DB_VR98ac_r-Wyl-g')) return new Response(feedXml([]));
     if (url.includes('channel_id=UCyk5Q9nuhwqJC_-zrP2Ojcg')) return new Response(feedXml(bornsteinFeed), { status: bornsteinStatus });
     if (url.includes('/git/trees/results')) return json({ tree: Object.keys(existing).map((k) => ({ type: 'blob', path: `video-links/${k}.json` })) });
     const contents = /\/contents\/([^?]+)/.exec(url);

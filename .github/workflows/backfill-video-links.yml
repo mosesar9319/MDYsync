@@ -59,14 +59,25 @@ jobs:
             exit 1
           fi
           printf '%s' "$YOUTUBE_COOKIES" > cookies.txt
+          # Videos tab only (UULF + the channel id without "UC"). The channel
+          # URL /videos is that same tab; the Live tab (UULV...) is listed
+          # separately so a stream or past broadcast is never linked.
           yt-dlp --cookies cookies.txt \
             --flat-playlist \
             --playlist-end "$MAX_VIDEOS" \
             --print "%(id)s|||%(title)s" \
-            "https://www.youtube.com/channel/UCKwQa5DB_VR98ac_r-Wyl-g/videos" \
+            "https://www.youtube.com/playlist?list=UULFKwQa5DB_VR98ac_r-Wyl-g" \
             > channel-videos.txt
+          if ! yt-dlp --cookies cookies.txt \
+            --flat-playlist \
+            --print "%(id)s" \
+            "https://www.youtube.com/playlist?list=UULVKwQa5DB_VR98ac_r-Wyl-g" \
+            > live-ids.txt; then
+            echo "Could not list the Live tab; the Videos-tab dump is still used on its own."
+            : > live-ids.txt
+          fi
           rm -f cookies.txt
-          echo "Listed $(wc -l < channel-videos.txt) videos."
+          echo "Listed $(wc -l < channel-videos.txt) videos, $(wc -l < live-ids.txt) live."
 
       - name: Check out the results branch
         run: |
@@ -88,6 +99,7 @@ jobs:
           if [ "$DRY_RUN" = "true" ]; then EXTRA="--dry-run"; fi
           node MDYsync/tools/backfill-video-links.mjs \
             --videos channel-videos.txt \
+            --exclude live-ids.txt \
             --results /tmp/results-checkout \
             --tractate "$TRACTATE" \
             $EXTRA

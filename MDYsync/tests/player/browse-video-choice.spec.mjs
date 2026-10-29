@@ -10,11 +10,12 @@ const CATALOG = {
     Bekhorot: [
       { daf: 2, regularEn: { videoId: 'AAAAAAAAAAA', label: 'Daf Yomi Bechoros Daf 2', amud: 'a' }, regularHe: { videoId: 'BBBBBBBBBBB', label: 'מרכז דף יומי בכורות', amud: 'a' } },
       { daf: 3, regularEn: { videoId: 'CCCCCCCCCCC', label: 'Daf Yomi Bechoros Daf 3', amud: 'a' } },
+      { daf: 4, regularEn: { videoId: 'LLLLLLLLLLL', label: 'unedited live', amud: 'a', liveBroadcast: true }, regularHe: { videoId: 'FFFFFFFFFFF', label: 'finished Hebrew', amud: 'a' } },
     ],
   },
   maggidim: { bornstein: { tractates: { Bekhorot: [{ daf: 2, regularEn: { videoId: 'Zsy7oDUP6Pw', label: 'Bechoros 2', amud: 'a', testShiur: true } }] } } },
 };
-const SYNCED = { Bekhorot: { '2a': ['regularEn', 'regularHe'], '3a': ['regularEn'] } };
+const SYNCED = { Bekhorot: { '2a': ['regularEn', 'regularHe'], '3a': ['regularEn'], '4a': ['regularEn', 'regularHe'] } };
 
 async function open(page, url) {
   const asked = [];
@@ -37,7 +38,7 @@ async function open(page, url) {
     const path = new URL(route.request().url()).searchParams.get('path');
     asked.push(path);
     if (path.startsWith('video-links/')) {
-      const known = { 'video-links/Bekhorot-2a.json': link('AAAAAAAAAAA', 'Daf Yomi Bechoros Daf 2'), 'video-links/Hebrew-Bekhorot-2a.json': link('BBBBBBBBBBB', 'Hebrew'), 'video-links/Bornstein-Bekhorot-2a.json': link('Zsy7oDUP6Pw', 'Bechoros 2'), 'video-links/Bekhorot-3a.json': link('CCCCCCCCCCC', 'Daf 3') };
+      const known = { 'video-links/Bekhorot-2a.json': link('AAAAAAAAAAA', 'Daf Yomi Bechoros Daf 2'), 'video-links/Hebrew-Bekhorot-2a.json': link('BBBBBBBBBBB', 'Hebrew'), 'video-links/Bornstein-Bekhorot-2a.json': link('Zsy7oDUP6Pw', 'Bechoros 2'), 'video-links/Bekhorot-3a.json': link('CCCCCCCCCCC', 'Daf 3'), 'video-links/Bekhorot-4a.json': link('LLLLLLLLLLL', 'unedited live'), 'video-links/Hebrew-Bekhorot-4a.json': link('FFFFFFFFFFF', 'finished Hebrew') };
       if (path in known) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(known[path]) });
     }
     return route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"Not found."}' });
@@ -79,6 +80,14 @@ test.describe('Interactive Daf — a daf with several shiurim', () => {
     await expect.poll(() => asked.includes('video-links/Hebrew-Bekhorot-2a.json')).toBe(true);
     await expect.poll(() => loadedVideo(page)).toBe('BBBBBBBBBBB');
     expect(await page.evaluate(() => state.maggid)).toBeNull();
+  });
+
+  test('a livestream is not the shiur that loads when a finished upload is also linked', async ({ page }) => {
+    const asked = await open(page, '/browse/?ref=Bekhorot%204a');
+    await expect(page.locator('#videoChoice')).toBeHidden();
+    await expect.poll(() => loadedVideo(page)).toBe('FFFFFFFFFFF');
+    expect(asked).not.toContain('video-links/Bekhorot-4a.json');
+    expect(asked).toContain('video-links/Hebrew-Bekhorot-4a.json');
   });
 
   test('a daf with one shiur loads it on its own and shows no list', async ({ page }) => {

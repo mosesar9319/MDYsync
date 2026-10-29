@@ -3,6 +3,8 @@
 // hold the GitHub token that can trigger the ocr-job.yml workflow — the
 // token lives in Netlify's own environment variables, never in the browser.
 
+import { livestreamIdsAmong, MDY_CHANNEL_ID, recentUploadFeedUrl } from '../../shared/youtube-broadcast.mjs';
+
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
 const ALLOWED_ORIGINS = new Set([
@@ -19,7 +21,7 @@ const ALLOWED_ORIGINS = new Set([
 // Data API workflow for a channel the user controls" carve-out, YouTube
 // sync is restricted to recent uploads of this one channel -- the same one
 // youtube-channel-sync.mjs already trusts for auto-linking video URLs.
-const YOUTUBE_CHANNEL_ID = 'UCKwQa5DB_VR98ac_r-Wyl-g'; // @MercazDafYomi
+const YOUTUBE_CHANNEL_ID = MDY_CHANNEL_ID; // @MercazDafYomi
 
 function extractYoutubeVideoId(url) {
   const match = /^https:\/\/(?:www\.)?(?:youtube\.com\/watch\?(?:.*&)?v=|youtu\.be\/)([\w-]{11})/.exec(url);
@@ -97,14 +99,27 @@ async function isLinkedVideoForAnyRef(videoId, refs, prefix) {
 // a normal 200 with the video absent from the feed either way -- only a
 // bad HTTP status is worth retrying.
 async function isRecentUploadOfChannel(videoId) {
-  const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${YOUTUBE_CHANNEL_ID}`;
+  // Videos tab, not the mixed uploads feed: a livestream / past broadcast
+  // lives on the Live tab and is not an authorized upload to sync.
+  const feedUrl = recentUploadFeedUrl(YOUTUBE_CHANNEL_ID);
   let lastStatus;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     if (attempt > 0) await sleep(500 * attempt);
     const response = await fetch(feedUrl);
     if (response.ok) {
       const xml = await response.text();
-      return xml.includes(`<yt:videoId>${videoId}</yt:videoId>`);
+      if (!xml.includes(`<yt:videoId>${videoId}</yt:videoId>`)) return false;
+      try {
+        const livestreams = await livestreamIdsAmong([videoId], {
+          apiKey: Netlify.env.get('YOUTUBE_API_KEY') || '',
+          channelId: YOUTUBE_CHANNEL_ID,
+        });
+        return !livestreams.has(videoId);
+      } catch {
+        // The Videos-tab membership check above already excluded the Live
+        // tab. Don't fail a finished upload because the classifier didn't answer.
+        return true;
+      }
     }
     lastStatus = response.status;
   }

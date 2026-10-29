@@ -804,8 +804,12 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .daf-segment:hover { background: rgba(47, 110, 165, .12); box-shadow: 0 0 0 3px rgba(47, 110, 165,.08); }
 .daf-segment.past { color: #65748a; }
 .daf-segment.active { background: var(--highlight); color: var(--highlight-text); box-shadow: 0 0 0 4px rgba(255, 208, 84, .22); }
-.daf-segment.estimated { opacity: .72; background-image: repeating-linear-gradient(135deg, transparent, transparent 4px, rgba(19, 34, 56, .08) 4px, rgba(19, 34, 56, .08) 5px); }
-.daf-segment.estimated.active { background: rgba(255, 208, 84, .38); color: inherit; box-shadow: none; outline: 2px dashed rgba(159, 85, 0, .75); outline-offset: 1px; }
+/* Estimated timing (fillMissingDafText) stays on the segment for seeking and
+   "Not synced yet". The faded/hatched look is an admin diagnostic only, and
+   it follows body.is-admin, which auth.js toggles once the profile arrives
+   -- including when that happens after the phrases have already painted. */
+body.is-admin .daf-segment.estimated { opacity: .72; background-image: repeating-linear-gradient(135deg, transparent, transparent 4px, rgba(19, 34, 56, .08) 4px, rgba(19, 34, 56, .08) 5px); }
+body.is-admin .daf-segment.estimated.active { background: rgba(255, 208, 84, .38); color: inherit; box-shadow: none; outline: 2px dashed rgba(159, 85, 0, .75); outline-offset: 1px; }
 .reader-daf-notes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
 .reviewing-label, .not-synced-note { margin: 0; font-size: 13px; font-weight: 800; letter-spacing: .01em; color: #9a5b00; }
 .skip-to-daf-chip { border: 1px solid rgba(47, 110, 165, .45); background: rgba(47, 110, 165, .12); color: #14324f; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; }
@@ -946,8 +950,11 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
   border-radius: 999px;
   animation: vilna-highlight-in .12s ease-out;
 }
-.vilna-active-rect.estimated { background: transparent; outline: 2px dashed rgba(19, 34, 56, .75); mix-blend-mode: normal; }
-.vilna-phrase-box.estimated { outline: 1px dashed rgba(19, 34, 56, .45); outline-offset: 1px; }
+/* Same admin gate as .daf-segment.estimated above. Without it, a regular
+   reader (and anyone signed out) sees the ordinary solid blue active bar
+   and the ordinary hover, rings and all. */
+body.is-admin .vilna-active-rect.estimated { background: transparent; outline: 2px dashed rgba(19, 34, 56, .75); mix-blend-mode: normal; }
+body.is-admin .vilna-phrase-box.estimated { outline: 1px dashed rgba(19, 34, 56, .45); outline-offset: 1px; }
 /* The phrase about to be marked (vilnaMarkMode) -- same whole-line-rect
    shape as .vilna-active-rect above, but an outline instead of a fill, so
    it stays visible layered on top of .vilna-active-rect's solid yellow

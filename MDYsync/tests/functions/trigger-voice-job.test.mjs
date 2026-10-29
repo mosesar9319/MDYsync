@@ -18,8 +18,16 @@ async function trigger({ videoId, feeds = {}, linked = {}, body = {}, followBorn
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (input, init = {}) => {
     const url = String(input);
-    const feed = /channel_id=([\w-]+)/.exec(url);
-    if (feed) return new Response((feeds[feed[1]] || []).map((id) => `<yt:videoId>${id}</yt:videoId>`).join(''));
+    const channel = /[?&]channel_id=([\w-]+)/.exec(url);
+    const playlist = /[?&]playlist_id=([\w-]+)/.exec(url);
+    if (channel || playlist) {
+      const id = channel ? channel[1] : playlist[1];
+      // The Videos-tab playlist is Mercaz Daf Yomi's recent-upload feed.
+      // The Live-tab playlist is empty unless a test says otherwise.
+      const key = id === 'UULFKwQa5DB_VR98ac_r-Wyl-g' ? MDY : id === 'UULVKwQa5DB_VR98ac_r-Wyl-g' ? null : id;
+      const list = key ? (feeds[key] || []) : [];
+      return new Response(list.map((vid) => `<yt:videoId>${vid}</yt:videoId>`).join(''));
+    }
     const link = /results\/video-links\/([^/?]+)\.json/.exec(url);
     if (link) {
       const key = decodeURIComponent(link[1]);

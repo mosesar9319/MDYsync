@@ -15,6 +15,10 @@
 //        [--tractate Chullin] [--dry-run]
 //
 // <file> is one "<videoId>|||<title>" per line, newest upload first.
+// An optional third field marks a livestream ("|||was_live", "|||is_live",
+// "|||post_live", ...). --exclude <file> is video ids to skip (one per
+// line), used for the channel's Live tab so a past broadcast is never
+// linked even if it also appears in the dump.
 
 import fs from 'fs';
 import path from 'path';
@@ -37,6 +41,7 @@ function parseArgs(argv) {
     else if (a === '--results') args.results = argv[++i];
     else if (a === '--tractate') args.tractate = argv[++i];
     else if (a === '--dry-run') args.dryRun = true;
+    else if (a === '--exclude') args.exclude = argv[++i];
     else throw new Error(`Unknown argument: ${a}`);
   }
   if (!args.videos) throw new Error('--videos <file> is required');
@@ -51,6 +56,15 @@ const lookup = buildTalmudLookup(talmudIndex);
 const wantTractate = args.tractate.toLowerCase();
 const lines = fs.readFileSync(args.videos, 'utf8').split('\n').filter((l) => l.trim());
 
+const LIVE_MARKERS = new Set(['live', 'is_live', 'was_live', 'is_upcoming', 'upcoming', 'post_live']);
+const excluded = new Set();
+if (args.exclude) {
+  for (const line of fs.readFileSync(args.exclude, 'utf8').split('\n')) {
+    const id = line.trim().split(/\s+/)[0];
+    if (id) excluded.add(id);
+  }
+}
+
 // A daf's own shiur covers it in full, while the *next* daf's shiur only
 // opens on its tail -- so when both are candidates for the same reference,
 // the one whose own daf number matches wins regardless of which is newer.
@@ -63,14 +77,20 @@ const TAIL = 1;
 
 const best = new Map(); // refKey -> { rank, position, videoId, title, readings, reading }
 const unmatched = [];
+const skippedLive = [];
 let considered = 0;
 
 lines.forEach((line, position) => {
-  const sep = line.indexOf('|||');
-  if (sep < 0) return;
-  const videoId = line.slice(0, sep).trim();
-  const title = line.slice(sep + 3).trim();
+  const parts = line.split('|||');
+  if (parts.length < 2) return;
+  const videoId = parts[0].trim();
+  const title = parts[1].trim();
+  const marker = (parts[2] || '').trim().toLowerCase();
   if (!videoId || !title) return;
+  if (excluded.has(videoId) || LIVE_MARKERS.has(marker)) {
+    skippedLive.push({ videoId, title });
+    return;
+  }
 
   const parsed = parseChannelTitle(title, lookup);
   if (!parsed) {
@@ -151,7 +171,7 @@ console.log(`Scanned ${lines.length} channel videos; ${considered} matched `
   + `${wantTractate === 'all' ? 'a known tractate' : args.tractate}.`);
 console.log(`${written.length} link(s) ${args.dryRun ? 'would be written' : 'written'}, `
   + `${enriched.length} existing link(s) ${args.dryRun ? 'would gain' : 'gained'} covered refs, `
-  + `${kept.length} left alone.`);
+  + `${kept.length} left alone, ${skippedLive.length} live stream(s) skipped.`);
 
 for (const w of written.slice(0, 40)) {
   console.log(`  + ${w.key}${w.rank === TAIL ? '  (tail coverage only)' : ''}  <- ${w.videoId}`);
