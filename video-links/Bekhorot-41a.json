@@ -1,1 +1,8 @@
-{"type":"youtube","url":"https://www.youtube.com/watch?v=ABg5I4iiP2E","videoId":"ABg5I4iiP2E","label":"Daf Yomi Bechoros Daf 41 by R’ Eli Stefansky (unedited)","coveredRefs":["Bekhorot 40b","Bekhorot 41a","Bekhorot 41b"],"source":"channel-auto"}
+{
+  "label": "Daf Yomi Bechoros Daf 41 by R’ Eli Stefansky (unedited)",
+  "locked": false,
+  "source": "manual",
+  "type": "youtube",
+  "url": "https://www.youtube.com/watch?v=ABg5I4iiP2E",
+  "videoId": "ABg5I4iiP2E"
+}
