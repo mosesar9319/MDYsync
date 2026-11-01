@@ -105,6 +105,7 @@ test.describe('Unified viewing modes — the prominent selector', () => {
   test('the toolbar pill mirrors the prominent selector and stays in sync', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
+    await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/player/?ref=Chullin%2089a');
     await expect(page.locator('#splitViewButton')).toBeAttached();
     await expect(page.locator('#splitViewButton')).toHaveAttribute('aria-pressed', 'false');

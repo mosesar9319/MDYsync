@@ -233,10 +233,9 @@
   volume.appendChild($('volumeSlider'));
 
   // Speed comes out from behind the gear and into the bar as its own labelled
-  // control, the way the mockup shows it. Never an overflow candidate below
-  // (see OVERFLOW_PRIORITY) -- it's already the narrowest control .pc-tools
-  // has, so there's nothing to gain by hiding it that isn't better spent
-  // moving something wider first.
+  // control, the way the mockup shows it. It is the LAST overflow candidate
+  // (see OVERFLOW_PRIORITY): wider controls leave first, and speed only
+  // follows once a phone's 44px targets still will not fit.
   //
   // #speedSelect is a plain <button>, not a <select> -- deliberately, after
   // "the 1x button does nothing" being reported again and again, each time traced to a
@@ -581,10 +580,11 @@
   // disposable of the bunch. Split View's pill goes LAST of the three mode
   // pills -- it's the mode every page now opens in by default (see
   // setViewerMode's own initSplitView in app.js), so it stays visible longer
-  // than the other two before the bar has to hide it. Speed and Fullscreen
-  // are never in this list at all -- see their own comments above and on
-  // fitChrome below.
-  const OVERFLOW_PRIORITY = [pipStack, hasReadingMode && videoOnDafButton, dafOnVideoButton, hasSplitView && splitViewButton, settingsStack].filter(Boolean);
+  // than the other two before the bar has to hide it. Fullscreen stays in
+  // the bar (re-pinned at the end of fitChrome). Speed is last here so it
+  // leaves only after every wider control already has, which is what keeps
+  // 44px phone targets inside the frame.
+  const OVERFLOW_PRIORITY = [pipStack, hasReadingMode && videoOnDafButton, dafOnVideoButton, hasSplitView && splitViewButton, settingsStack, speedStack].filter(Boolean);
 
   // The old bar's hand-placed spacers/dividers did the job .pc-group's own
   // space-between layout now does.
@@ -931,6 +931,7 @@
   // change. Measuring what actually overflows beats a threshold guessed
   // against one snapshot of the bar.
   const TIERS = ['is-snug', 'is-compact', 'is-tiny'];
+  let fittedWidth = 0;
   // Measured directly against the real split layout (player/watch/browse all
   // float the video beside a daf column, not full-width): at the most common
   // desktop viewports (1280-1536px) the frame itself renders only 540-680px
@@ -1071,9 +1072,18 @@
     // bookkeeping getting confused by its live touch target being removed
     // and reinserted out from under it, which no headless/synthetic-touch
     // test can reproduce.
-    const alreadyInPlace = toolsMoreMenu.children.length === 0
-      && TOOLS_ORDER.length === tools.children.length
-      && TOOLS_ORDER.every((el, i) => tools.children[i] === el);
+    const parked = [...toolsMoreMenu.children];
+    const expectedBar = TOOLS_ORDER.filter((el) => !parked.includes(el));
+    const barStable = expectedBar.length === tools.children.length
+      && expectedBar.every((el, i) => tools.children[i] === el);
+    const widthNow = frame.clientWidth;
+    const widthChanged = Math.abs(widthNow - fittedWidth) > 1;
+    const fitsNow = controls.scrollWidth <= controls.clientWidth + 1;
+    // A class change on a control (the speed label, a pressed state) must
+    // not reparent a bar that already fits, including one that has already
+    // parked its extras in the menu. A real width change still resets so a
+    // wider frame can bring those extras back.
+    const alreadyInPlace = barStable && (parked.length === 0 || (fitsNow && !widthChanged));
     if (!alreadyInPlace) {
       toolsMoreStack.hidden = false;
       tools.append(...TOOLS_ORDER);
@@ -1110,6 +1120,7 @@
     // whole function can run on the very touchstart that reveals the bar)
     // is what was confirmed to leave the page unresponsive on a real device.
     if (fullscreenStack && tools.lastElementChild !== fullscreenStack) tools.appendChild(fullscreenStack);
+    fittedWidth = frame.clientWidth;
 
     if (shouldRestoreFocus && document.activeElement !== focusedBefore) focusedBefore.focus({ preventScroll: true });
 
@@ -1178,20 +1189,66 @@
     return control;
   }
   let wakePointerType = '';
-  wakeLayer.addEventListener('pointerdown', (event) => {
-    wakePointerType = event.pointerType || '';
-  });
-  wakeLayer.addEventListener('click', (event) => {
+  let wakeGesture = null;
+  let wakeHandled = false;
+  function swallowNextClick(target) {
+    const stop = (event) => {
+      document.removeEventListener('click', stop, true);
+      if (target && (event.target === target || target.contains(event.target))) {
+        event.stopImmediatePropagation();
+        event.preventDefault();
+      }
+    };
+    document.addEventListener('click', stop, true);
+    setTimeout(() => document.removeEventListener('click', stop, true), 700);
+  }
+  function activateWake(x, y, type) {
+    // Show first so a fully hidden bar is hittable for the lookup. The
+    // programmatic click runs the control; the browser's own click that
+    // follows the same tap would toggle it straight back off.
     showVideoControls();
-    const control = controlUnderPoint(event.clientX, event.clientY);
+    const control = controlUnderPoint(x, y);
     if (control) {
       control.click();
+      swallowNextClick(control);
       return;
     }
-    // First touch only reveals the bar. A mouse click on the empty picture
-    // toggles play/pause. Touch that arrives while the bar is already up
+    // First touch on the empty picture only reveals the bar. A mouse click
+    // there toggles play. A touch that lands while the bar is already up
     // is handled by .video-click-surface, not this layer.
-    if (wakePointerType === 'mouse') window.togglePlay?.();
+    if (type === 'mouse') window.togglePlay?.();
+  }
+  wakeLayer.addEventListener('pointerdown', (event) => {
+    if (event.button > 0) return;
+    wakePointerType = event.pointerType || '';
+    wakeHandled = false;
+    wakeGesture = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    // The frame's touchstart reveals the bar immediately, which drops this
+    // layer's pointer-events before click. Capture keeps pointerup here so
+    // the control under the finger runs on this same tap.
+    wakeLayer.setPointerCapture?.(event.pointerId);
+  });
+  wakeLayer.addEventListener('pointerup', (event) => {
+    if (!wakeGesture || wakeGesture.id !== event.pointerId) return;
+    const moved = Math.hypot(event.clientX - wakeGesture.x, event.clientY - wakeGesture.y) > 12;
+    const type = wakePointerType;
+    wakeGesture = null;
+    wakeHandled = true;
+    if (moved) {
+      showVideoControls();
+      return;
+    }
+    activateWake(event.clientX, event.clientY, type);
+  });
+  wakeLayer.addEventListener('pointercancel', () => { wakeGesture = null; });
+  wakeLayer.addEventListener('click', (event) => {
+    if (wakeHandled) {
+      wakeHandled = false;
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    activateWake(event.clientX, event.clientY, wakePointerType);
   });
 
   if (video) {

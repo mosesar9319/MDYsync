@@ -816,6 +816,33 @@
       .watch-layout.editing { display: block; }
       .watch-layout.editing .player-card { position: sticky; top: 104px; z-index: 10; margin-bottom: 24px; }
     }
+    /* Landscape phones are wider than 760px, so they were getting the
+       desktop sidebar (148px) plus a 104px top bar — about 170px of a
+       400px-tall screen before the video. Treat a short viewport as a
+       phone even when it is wide. */
+    @media (max-height: 520px) and (max-width: 1100px) {
+      .sidebar, .sidebar-toggle { display: none; }
+      .page { margin-left: 0; }
+      .topbar {
+        position: static;
+        height: auto;
+        min-height: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 6px 12px;
+      }
+      .search-box { display: none; }
+      .mobile-brand { display: block; }
+      main { padding: 8px 12px 16px; }
+      .breadcrumb { margin-bottom: 4px; }
+      .title-row { margin-bottom: 8px; gap: 8px; align-items: center; }
+      h1 { font-size: 20px; margin-bottom: 2px; }
+      .teacher { font-size: 13px; }
+      .viewer-mode-select { margin-bottom: 8px; }
+      .daf-header { padding: 8px 10px; gap: 8px; }
+      .daf-header h2 { font-size: 16px; }
+    }
     @media (max-width: 760px) {
       .watch-layout.editing .player-card { top: 0; margin-bottom: 16px; }
       body { padding-bottom: 78px; }
@@ -837,7 +864,20 @@
       .title-actions { margin-top: 16px; overflow-x: auto; }
       .watch-layout { gap: 16px; }
       .daf-header { padding: 15px 14px; gap: 7px; }
-      .daf-header h2 { font-size: 22px; }
+      .daf-header h2 { font-size: 18px; }
+      /* "Video on daf" beside the title was what truncated
+         "Bekhorot 30a · Chazarah". The icon keeps the control; the name
+         stays on the button for assistive tech and the title attribute. */
+      .daf-header .reading-mode-entry { position: relative; min-width: 44px; min-height: 44px; padding: 0 10px; justify-content: center; }
+      .daf-header .reading-mode-entry span {
+        position: absolute;
+        width: 1px; height: 1px;
+        padding: 0; margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
       .daf-card .view-switch button { padding: 7px 8px; font-size: 12px; }
       .daf-card[data-daf-view="page"] .vilna-placeholder { padding: 0 5px 12px; }
       .daf-card[data-daf-view="page"] .vilna-zoom-controls { top: 8px; margin-top: 9px; }
@@ -849,7 +889,7 @@
       body.reading-mode-active .title-row { padding-inline: 8px; }
       body.reading-mode-active .daf-card { height: max(620px, calc(100svh - 18px)); min-height: 620px; border-radius: 15px; }
       body.reading-mode-active .daf-card .vilna-placeholder { padding-inline: 5px; }
-      body.reading-mode-active .reading-mode-entry { min-height: 31px; padding: 6px 8px; gap: 5px; }
+      body.reading-mode-active .reading-mode-entry { min-height: 44px; min-width: 44px; padding: 0 10px; gap: 5px; }
       body.reading-mode-active .reading-video-float { border-radius: 13px; }
       .reading-mode-tip { bottom: 54px; }
       /* .mobile-nav itself is now rendered by nav.js, styled by the

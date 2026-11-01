@@ -147,8 +147,10 @@ test.describe('player-chrome.js — fitChrome() does not reparent controls needl
     await page.setViewportSize({ width: 340, height: 800 });
     await page.waitForTimeout(300);
 
-    const speedBox = await page.locator('#speedSelect').boundingBox();
-    await page.mouse.move(speedBox.x + speedBox.width / 2, speedBox.y + speedBox.height / 2);
+    // Any control still in the bar will do. Speed itself has already moved
+    // into the overflow menu once phone targets are 44px, so it has no box.
+    const playBox = await page.locator('#playButton').boundingBox();
+    await page.mouse.move(playBox.x + playBox.width / 2, playBox.y + playBox.height / 2);
     await page.mouse.down();
     const callsWhileDown = await page.evaluate(() => window.__appendCalls);
 
@@ -186,8 +188,8 @@ test.describe('player-chrome.js — fitChrome() does not reparent controls needl
     await page.setViewportSize({ width: 340, height: 800 });
     await page.waitForTimeout(300);
 
-    const speedBox = await page.locator('#speedSelect').boundingBox();
-    await page.mouse.move(speedBox.x + speedBox.width / 2, speedBox.y + speedBox.height / 2);
+    const playBox = await page.locator('#playButton').boundingBox();
+    await page.mouse.move(playBox.x + playBox.width / 2, playBox.y + playBox.height / 2);
     await page.mouse.down();
     await page.setViewportSize({ width: 320, height: 800 });
     await page.waitForTimeout(100);
