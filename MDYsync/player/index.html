@@ -828,18 +828,30 @@
         height: auto;
         min-height: 0;
         display: flex;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         gap: 8px;
-        padding: 6px 12px;
+        padding: 4px 10px;
       }
       .search-box { display: none; }
       .mobile-brand { display: block; }
-      main { padding: 8px 12px 16px; }
-      .breadcrumb { margin-bottom: 4px; }
-      .title-row { margin-bottom: 8px; gap: 8px; align-items: center; }
-      h1 { font-size: 20px; margin-bottom: 2px; }
-      .teacher { font-size: 13px; }
-      .viewer-mode-select { margin-bottom: 8px; }
+      main { padding: 4px 10px 8px; }
+      .viewer-mode-select { margin-bottom: 4px; }
+      .breadcrumb, .eyebrow, .teacher, .title-actions,
+      .player-card > .video-header,
+      .player-card > .daf-header.video-header { display: none; }
+      .title-row { display: block; margin-bottom: 4px; min-width: 0; gap: 0; }
+      .title-row > div { min-width: 0; }
+      h1 {
+        font-size: 16px;
+        line-height: 1.2;
+        margin: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .mobile-brand .brand-mark { width: 22px; height: 22px; }
+      .mobile-brand .brand-name { font-size: 16px; }
+      .back-link { font-size: 13px; }
       .daf-header { padding: 8px 10px; gap: 8px; }
       .daf-header h2 { font-size: 16px; }
     }

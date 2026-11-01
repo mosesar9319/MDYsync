@@ -244,10 +244,26 @@ test.describe('mobile player layout', () => {
       const top = document.querySelector('.topbar').getBoundingClientRect().height;
       const video = document.querySelector('#videoFrame').getBoundingClientRect();
       const buttons = [...document.querySelectorAll('.viewer-mode-button')].map((el) => el.getBoundingClientRect().top);
-      return { sidebar, top, videoTop: video.top, videoH: video.height, buttonTops: buttons };
+      const visible = Math.min(video.bottom, window.innerHeight) - Math.max(video.top, 0);
+      return {
+        sidebar,
+        top,
+        videoTop: video.top,
+        videoH: video.height,
+        buttonTops: buttons,
+        visibleRatio: visible / window.innerHeight,
+        crumb: getComputedStyle(document.querySelector('.breadcrumb')).display,
+        actions: getComputedStyle(document.querySelector('.title-actions')).display,
+        videoHeader: getComputedStyle(document.querySelector('.video-header')).display,
+      };
     });
     expect(geo.sidebar).toBe('none');
-    expect(geo.top).toBeLessThan(72);
+    expect(geo.top).toBeLessThan(56);
+    expect(geo.videoTop).toBeLessThan(160);
+    expect(geo.visibleRatio).toBeGreaterThan(0.55);
+    expect(geo.crumb).toBe('none');
+    expect(geo.actions).toBe('none');
+    expect(geo.videoHeader).toBe('none');
     expect(geo.videoH).toBeGreaterThan(140);
     expect(Math.max(...geo.buttonTops) - Math.min(...geo.buttonTops)).toBeLessThan(4);
     await shot(page, 'landscape-compact');
@@ -420,6 +436,28 @@ test.describe('mobile player layout', () => {
     await page.evaluate(() => document.exitFullscreen());
   });
 
+  test('split overlay fullscreen enters on the first tap while the bar is hidden', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'phone split fullscreen');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 400, height: 985 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeSplitButton');
+    await expect(page.locator('body')).toHaveClass(/split-view-active/);
+    const button = await page.locator('#splitFullscreenButton').boundingBox();
+    await page.evaluate(() => document.body.classList.add('split-chrome-hidden'));
+    const covered = await page.evaluate(({ x, y }) => {
+      const el = document.elementFromPoint(x, y);
+      return el?.closest?.('#splitFullscreenButton')?.id || '';
+    }, { x: button.x + button.width / 2, y: button.y + button.height / 2 });
+    expect(covered).toBe('');
+    await page.touchscreen.tap(button.x + button.width / 2, button.y + button.height / 2);
+    await page.waitForTimeout(300);
+    const opened = await page.evaluate(() => document.fullscreenElement?.className || '');
+    test.skip(!opened.includes('watch-layout'), `fullscreen unavailable (${opened})`);
+    expect(opened).toContain('split-active');
+    await page.evaluate(() => document.exitFullscreen());
+  });
+
   test('split fullscreen in landscape stays side by side', async ({ page }) => {
     test.skip(test.info().project.name !== 'mobile', 'landscape phone');
     test.setTimeout(60000);
@@ -543,8 +581,13 @@ test.describe('mobile player layout', () => {
     await page.click('#fullscreenButton');
     const opened = await page.evaluate(() => document.fullscreenElement?.id || '');
     test.skip(opened !== 'videoFrame', `fullscreen unavailable (${opened})`);
+    const exit = page.locator('#videoFullscreenExit');
+    await expect(exit).toBeVisible();
+    const exitBox = await exit.boundingBox();
+    expect(exitBox.height).toBeGreaterThanOrEqual(40);
+    expect(exitBox.y).toBeLessThan(80);
     await page.evaluate(() => window.scrollTo(0, 2200));
-    await page.evaluate(() => document.exitFullscreen());
+    await exit.click();
     await page.waitForTimeout(400);
     const y = await page.evaluate(() => window.scrollY);
     expect(y).toBeGreaterThan(120);

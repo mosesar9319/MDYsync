@@ -6444,8 +6444,11 @@ function announceViewerMode(mode) {
 
   // --- Prominent selector + Split View's own small toolbar ----------------
   $('viewerModeSplitButton')?.addEventListener('click', () => toggleSplitViewerMode());
-  $('viewerModeDafOnVideoButton')?.addEventListener('click', () => setViewerMode(state.viewerMode === 'daf-on-video' ? 'split' : 'daf-on-video'));
-  $('viewerModeVideoOnDafButton')?.addEventListener('click', () => setViewerMode(state.viewerMode === 'video-on-daf' ? 'split' : 'video-on-daf'));
+  // Tapping the mode that is already on returns to Standard. Sending that
+  // tap to Split left no way back from Daf on video / Video on daf except
+  // the Split button itself.
+  $('viewerModeDafOnVideoButton')?.addEventListener('click', () => setViewerMode(state.viewerMode === 'daf-on-video' ? 'standard' : 'daf-on-video'));
+  $('viewerModeVideoOnDafButton')?.addEventListener('click', () => setViewerMode(state.viewerMode === 'video-on-daf' ? 'standard' : 'video-on-daf'));
   $('splitExitButton')?.addEventListener('click', () => requestExitSplit());
   $('splitLayoutToggleButton')?.addEventListener('click', () => {
     state.splitViewLayout = state.splitViewLayout === 'stacked' ? 'side-by-side' : 'stacked';
@@ -6467,27 +6470,54 @@ function announceViewerMode(mode) {
     applySplitViewLayoutToDom();
     saveSplitViewPreferences();
   });
-  // A touch that misses this button hits the pinch surface and starts
-  // playback. pointerup is the gesture, and it must not fall through.
-  let splitFullscreenTouch = false;
-  const splitFullscreenButton = $('splitFullscreenButton');
-  splitFullscreenButton?.addEventListener('pointerdown', (event) => {
-    if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
-    splitFullscreenButton.setPointerCapture?.(event.pointerId);
-    event.stopPropagation();
-  });
-  splitFullscreenButton?.addEventListener('pointerup', (event) => {
-    if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
-    splitFullscreenTouch = true;
+  // The overlay bar auto-hides with pointer-events:none, and a tap on the
+  // video underneath (pinch surface, wake strip) only reveals or dismisses
+  // chrome — the click never reaches this button. Hit-test through the
+  // hidden bar on pointerdown, in the capture phase, so the first tap
+  // enters fullscreen whether the bar was showing, fading, or just revealed.
+  // pointerdown is the user gesture; waiting for click loses it once the
+  // bar's pointer-events drop mid-press.
+  let swallowSplitFullscreenClick = false;
+  function splitBarControlAt(x, y) {
+    const bar = $('viewerModeSelect');
+    if (!bar || !state.splitViewEnabled) return null;
+    const hidden = document.body.classList.contains('split-chrome-hidden');
+    const previous = hidden
+      ? { pointerEvents: bar.style.pointerEvents, visibility: bar.style.visibility }
+      : null;
+    if (previous) {
+      bar.style.pointerEvents = 'auto';
+      bar.style.visibility = 'visible';
+    }
+    const under = document.elementFromPoint(x, y);
+    if (previous) {
+      bar.style.pointerEvents = previous.pointerEvents;
+      bar.style.visibility = previous.visibility;
+    }
+    const control = under?.closest?.('button');
+    return control && bar.contains(control) ? control : null;
+  }
+  document.addEventListener('pointerdown', (event) => {
+    if (!state.splitViewEnabled || event.button > 0) return;
+    const control = splitBarControlAt(event.clientX, event.clientY);
+    if (control?.id !== 'splitFullscreenButton') return;
+    showSplitChrome();
+    swallowSplitFullscreenClick = true;
+    setTimeout(() => { swallowSplitFullscreenClick = false; }, 700);
+    toggleVilnaFullscreen();
     event.preventDefault();
     event.stopPropagation();
-    toggleVilnaFullscreen();
-    setTimeout(() => { splitFullscreenTouch = false; }, 400);
-  });
-  splitFullscreenButton?.addEventListener('click', (event) => {
+  }, true);
+  document.addEventListener('click', (event) => {
+    if (!swallowSplitFullscreenClick) return;
+    swallowSplitFullscreenClick = false;
+    event.preventDefault();
     event.stopPropagation();
-    if (splitFullscreenTouch) {
-      splitFullscreenTouch = false;
+  }, true);
+  $('splitFullscreenButton')?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (swallowSplitFullscreenClick) {
+      swallowSplitFullscreenClick = false;
       return;
     }
     toggleVilnaFullscreen();
@@ -6716,7 +6746,28 @@ function onStandardVideoFullscreenChange() {
 document.addEventListener('fullscreenchange', onStandardVideoFullscreenChange);
 document.addEventListener('webkitfullscreenchange', onStandardVideoFullscreenChange);
 
+function ensureVideoFullscreenExit() {
+  let button = $('videoFullscreenExit');
+  if (button) return button;
+  const frame = $('videoFrame');
+  if (!frame) return null;
+  button = document.createElement('button');
+  button.type = 'button';
+  button.id = 'videoFullscreenExit';
+  button.className = 'video-fullscreen-exit';
+  button.textContent = 'Exit';
+  button.title = 'Exit fullscreen';
+  button.setAttribute('aria-label', 'Exit fullscreen');
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    toggleVideoFullscreen();
+  });
+  frame.appendChild(button);
+  return button;
+}
+
 function toggleVideoFullscreen() {
+  ensureVideoFullscreenExit();
   // Split fullscreen is the shared watch surface (video and daf together,
   // with "← Daf page" still in the daf header). Fullscreening the video
   // frame alone drops the daf and the way back.
