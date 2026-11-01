@@ -143,6 +143,13 @@ body.sidebar-collapsed .app-shell { margin-left: 0; width: min(1540px, calc(100%
   .sidebar, .sidebar-toggle { display: none; }
   .app-shell { margin-left: 0; width: min(1540px, calc(100% - 32px)); }
 }
+/* A landscape phone is wider than 760px, so the rule above leaves the
+   desktop sidebar and a 100px header in place and the video is left with
+   a short band. Height is what makes it a phone here, not width. */
+@media (max-height: 520px) and (max-width: 1100px) {
+  .sidebar, .sidebar-toggle { display: none; }
+  .app-shell { margin-left: 0; width: min(1540px, calc(100% - 18px)); }
+}
 .topbar {
   min-height: 90px;
   display: flex;
@@ -283,6 +290,28 @@ h2 { margin-bottom: 0; }
    which would leave the overlay behind. Fullscreening the whole .video-frame
    container instead keeps both together. */
 .video-frame:fullscreen { width: 100vw; height: 100vh; aspect-ratio: unset; border-radius: 0; }
+/* Standard-view video fullscreen has no Esc key on a phone. The control
+   bar's own fullscreen icon hides with the chrome, so this stays on screen. */
+.video-fullscreen-exit { display: none; }
+.video-frame:fullscreen .video-fullscreen-exit,
+.video-frame:-webkit-full-screen .video-fullscreen-exit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  z-index: 30;
+  top: max(12px, env(safe-area-inset-top, 0px));
+  left: max(12px, env(safe-area-inset-left, 0px));
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgba(255,255,255,.45);
+  border-radius: 999px;
+  background: rgba(8, 17, 28, .82);
+  color: #fff;
+  font: 800 14px "Assistant", sans-serif;
+  cursor: pointer;
+}
 .video-frame:-webkit-full-screen { width: 100vw; height: 100vh; aspect-ratio: unset; border-radius: 0; }
 .overlay-controls { display: flex; align-items: center; gap: 18px; margin-bottom: 12px; flex-wrap: wrap; font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 10px 0; }
 .overlay-controls em { color: var(--muted); font-style: normal; opacity: .7; font-size: 11px; }
@@ -361,8 +390,12 @@ h2 { margin-bottom: 0; }
    button) is deliberately NOT included here; it has its own show/hide
    logic tied to playback state, not to hover. */
 .video-frame.controls-hidden .scrubber-wrap,
-.video-frame.controls-hidden .player-controls { opacity: 0; pointer-events: none; }
-.scrubber-wrap, .player-controls { transition: opacity .25s ease; }
+.video-frame.controls-hidden .player-controls,
+.video-frame.controls-hidden .player-topbar { opacity: 0; visibility: hidden; pointer-events: none; }
+.scrubber-wrap, .player-controls, .player-topbar { transition: opacity .25s ease, visibility 0s linear .25s; }
+.video-frame:not(.controls-hidden) .scrubber-wrap,
+.video-frame:not(.controls-hidden) .player-controls,
+.video-frame:not(.controls-hidden) .player-topbar { transition: opacity .25s ease, visibility 0s linear 0s; }
 .icon-button, .play-button, .vaater-button { border: 1px solid rgba(255,255,255,.25); cursor: pointer; background: rgba(255,255,255,.1); color: #fff; }
 /* display:grid + place-items:center (the same fix .video-fullscreen-button
    already had) -- without it, a native <button>'s own UA-default content
@@ -492,9 +525,10 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   height: 52px; padding: 0 16px; color: #fff;
   background: linear-gradient(to bottom, rgba(4,12,22,.9), rgba(4,12,22,0));
-  transition: opacity .25s ease;
+  transition: opacity .25s ease, visibility 0s linear .25s;
 }
-.video-frame.controls-hidden .player-topbar { opacity: 0; pointer-events: none; }
+.video-frame:not(.controls-hidden) .player-topbar { transition: opacity .25s ease, visibility 0s linear 0s; }
+.video-frame.controls-hidden .player-topbar { opacity: 0; visibility: hidden; pointer-events: none; }
 .player-topbar-group { display: flex; align-items: center; gap: 11px; min-width: 0; }
 .player-topbar-actions { flex-shrink: 0; }
 .player-topbar-rule { width: 1px; height: 20px; background: rgba(255,255,255,.22); flex-shrink: 0; }
@@ -794,6 +828,117 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .video-frame.is-tiny .speed-select { height: 22px; padding: 0 15px 0 6px; font-size: 12px; }
 .video-frame.is-tiny .player-topbar { height: 30px; padding: 0 7px; }
 
+/* Phones (and a short landscape phone, which is still wide enough to miss
+   the 760px sidebar breakpoint) need a ~44px hit target. The 22px glyphs
+   above stay for a desktop reading-mode mini-player, which shares is-tiny
+   but is not a phone. Gaps shrink so the larger targets stay on one row
+   instead of stacking over the picture. */
+@media (max-width: 760px), (max-height: 520px) and (max-width: 1100px) {
+  .video-frame.is-compact,
+  .video-frame.is-tiny { --pc-bar-h: 52px; }
+  .video-frame.is-compact .player-controls,
+  .video-frame.is-tiny .player-controls { gap: 4px; padding: 0 4px; }
+  .video-frame.is-compact .pc-transport,
+  .video-frame.is-tiny .pc-transport,
+  .video-frame.is-compact .pc-tools,
+  .video-frame.is-tiny .pc-tools,
+  .video-frame.is-compact .pc-volume,
+  .video-frame.is-tiny .pc-volume { gap: 2px; }
+  .video-frame.is-compact .pc-transport .icon-button,
+  .video-frame.is-tiny .pc-transport .icon-button,
+  .video-frame.is-compact .pc-volume .icon-button,
+  .video-frame.is-tiny .pc-volume .icon-button,
+  .video-frame.is-compact .pc-tools .icon-button,
+  .video-frame.is-tiny .pc-tools .icon-button,
+  .video-frame.is-compact .video-fullscreen-button,
+  .video-frame.is-tiny .video-fullscreen-button,
+  .video-frame.is-compact .pc-transport .play-button,
+  .video-frame.is-tiny .pc-transport .play-button,
+  .video-frame.is-compact .vaater-button,
+  .video-frame.is-tiny .vaater-button {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .video-frame.is-compact .speed-select,
+  .video-frame.is-tiny .speed-select {
+    height: 44px;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0 16px 0 8px;
+  }
+  .video-frame.is-compact .vaater-button,
+  .video-frame.is-tiny .vaater-button { padding: 0; justify-content: center; }
+  .video-frame.is-compact,
+  .video-frame.is-tiny { --pc-timeline-h: 52px; }
+  .video-frame.is-compact .scrubber,
+  .video-frame.is-tiny .scrubber {
+    height: 44px;
+    touch-action: none;
+  }
+  .video-frame.is-compact .scrubber::-webkit-slider-thumb,
+  .video-frame.is-tiny .scrubber::-webkit-slider-thumb {
+    width: 22px;
+    height: 22px;
+    margin-top: -9px;
+  }
+  .video-frame.is-compact .scrubber::-moz-range-thumb,
+  .video-frame.is-tiny .scrubber::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+  }
+  .split-toolbar .icon-button { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
+  /* The reading-mode mini player is a small float with its resize handle in
+     the bottom-right corner. 44px targets there cover that handle, so the
+     float's own fullscreen button never receives the tap. It keeps the
+     compact chrome the page already sets for the float. */
+  body.reading-mode-active .reading-video-float .video-frame.is-compact .pc-transport .icon-button,
+  body.reading-mode-active .reading-video-float .video-frame.is-tiny .pc-transport .icon-button,
+  body.reading-mode-active .reading-video-float .video-frame.is-compact .pc-volume .icon-button,
+  body.reading-mode-active .reading-video-float .video-frame.is-tiny .pc-volume .icon-button,
+  body.reading-mode-active .reading-video-float .video-frame.is-compact .pc-tools .icon-button,
+  body.reading-mode-active .reading-video-float .video-frame.is-tiny .pc-tools .icon-button,
+  body.reading-mode-active .reading-video-float .video-frame.is-compact .video-fullscreen-button,
+  body.reading-mode-active .reading-video-float .video-frame.is-tiny .video-fullscreen-button {
+    width: 22px;
+    height: 22px;
+    min-width: 0;
+    min-height: 0;
+  }
+  body.reading-mode-active .reading-video-float .video-frame.is-compact .pc-transport .play-button,
+  body.reading-mode-active .reading-video-float .video-frame.is-tiny .pc-transport .play-button {
+    width: 25px;
+    height: 25px;
+    min-width: 0;
+    min-height: 0;
+  }
+  body.reading-mode-active .reading-video-float .video-frame.is-compact .vaater-button,
+  body.reading-mode-active .reading-video-float .video-frame.is-tiny .vaater-button {
+    width: auto;
+    min-width: 0;
+    min-height: 0;
+  }
+  body.reading-mode-active .reading-video-float .video-frame.is-compact .speed-select,
+  body.reading-mode-active .reading-video-float .video-frame.is-tiny .speed-select {
+    height: 22px;
+    min-width: 0;
+    min-height: 0;
+    padding: 0 15px 0 6px;
+  }
+  body.reading-mode-active .reading-video-float .video-frame.is-compact .scrubber,
+  body.reading-mode-active .reading-video-float .video-frame.is-tiny .scrubber {
+    height: 4px;
+  }
+  body.reading-mode-active .reading-video-float .video-frame.is-compact .scrubber::-webkit-slider-thumb,
+  body.reading-mode-active .reading-video-float .video-frame.is-tiny .scrubber::-webkit-slider-thumb,
+  body.reading-mode-active .reading-video-float .video-frame.is-compact .scrubber::-moz-range-thumb,
+  body.reading-mode-active .reading-video-float .video-frame.is-tiny .scrubber::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+  }
+}
+
 .now-learning { margin-top: 17px; padding: 15px 17px; border-radius: 14px; border: 1px solid rgba(47, 110, 165,.24); background: linear-gradient(135deg, rgba(47, 110, 165,.11), rgba(82,167,255,.06)); min-height: 113px; }
 .now-label { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 5px; }
 #currentPhrase { font-family: "Frank Ruhl Libre", serif; font-weight: 600; font-size: clamp(22px, 2.3vw, 31px); color: var(--highlight); }
@@ -899,8 +1044,56 @@ body.is-admin .daf-segment.estimated.active { background: rgba(255, 208, 84, .38
 /* .daf-scroll's own overflow:auto handles panning around a zoomed-in page --
    a CSS transform's rendered footprint still contributes to a scrolling
    ancestor's scrollable area, so no extra pan logic is needed here. */
-.daf-card:fullscreen { width: 100vw; height: 100vh; border-radius: 0; }
-.daf-card:-webkit-full-screen { width: 100vw; height: 100vh; border-radius: 0; }
+.daf-card:fullscreen,
+.daf-card:-webkit-full-screen {
+  position: fixed;
+  inset: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #fff;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.daf-card:fullscreen .daf-scroll,
+.daf-card:-webkit-full-screen .daf-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  overflow: auto;
+  background: #fff;
+}
+.daf-card:fullscreen .daf-header,
+.daf-card:-webkit-full-screen .daf-header,
+.daf-card:fullscreen .card-heading.daf-heading,
+.daf-card:-webkit-full-screen .card-heading.daf-heading {
+  flex-shrink: 0;
+  background: #f4f7fb;
+}
+.daf-fullscreen-exit {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(19, 34, 56, .28);
+  background: #fff;
+  color: #132238;
+  font: 800 14px "Assistant", sans-serif;
+  cursor: pointer;
+}
+.daf-card:fullscreen .daf-fullscreen-exit,
+.daf-card:-webkit-full-screen .daf-fullscreen-exit { display: inline-flex; }
 /* Fullscreen is meant for reading the page itself, full-bleed -- the
    auto-scroll/alignment-status row (.daf-toolbar) and the segment-count/
    Sefaria-attribution row (.daf-footer) below the page just eat vertical
@@ -2460,12 +2653,22 @@ mark.daf-search-flash { background: rgba(240, 200, 90, .34); color: inherit; bor
   .viewer-mode-select { gap: 8px; }
   .viewer-mode-button { height: 44px; padding: 0 13px; font-size: 13px; }
 }
-/* Narrow enough that a 3-word label would wrap and break the pill's own
-   fixed height -- the icon plus aria-label alone (via a visually-hidden
-   span, not a dropped accessible name) still identifies each button. */
-@media (max-width: 380px) {
-  .viewer-mode-button span:not(.sr-only) { display: none; }
-  .viewer-mode-button { padding: 0 12px; }
+/* A phone in portrait is often just over 380px (the old cutoff), so
+   "Video on daf" wrapped onto its own row. Icon-only from 640px down, and
+   on a short landscape phone, keeps the three mode buttons on one row.
+   The label stays in the button for assistive tech. */
+@media (max-width: 640px), (max-height: 520px) and (max-width: 1100px) {
+  .viewer-mode-select { flex-wrap: nowrap; }
+  .viewer-mode-button span:not(.sr-only) {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .viewer-mode-button { position: relative; padding: 0 12px; min-width: 44px; }
 }
 
 /* --- Split View container: .watch-layout in its "split-active" state ---- */
@@ -2492,7 +2695,7 @@ body.split-view-active .watch-layout.split-active > .player-card {
   padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none;
 }
 body.split-view-active .watch-layout.split-active > .daf-card {
-  grid-column: 3; grid-row: 1; margin: 0; min-width: 0; min-height: 0; height: 100%; overflow: auto;
+  grid-column: 3; grid-row: 1; margin: 0; min-width: 0; min-height: 0; height: 100%; overflow: hidden;
   /* Flush with the video pane, the same way .player-card is -- no card
      padding/background/border/shadow of its own left to hold the printed
      page away from the shared edge. Unlike .player-card, nothing inside is
@@ -2511,7 +2714,14 @@ body.split-view-active .watch-layout.split-active > .daf-card {
    isn't glued to the very edge. */
 body.split-view-active .watch-layout.split-active > .daf-card .daf-scroll {
   border-radius: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
 }
+/* The header (back to the daf, Auto-scroll, the skip chip just under it)
+   used to live inside the scrolling card, so a word tap or a flick hid the
+   way back. The card itself no longer scrolls; only the page inside
+   .daf-scroll does, and the header stays put. */
 body.split-view-active .watch-layout.split-active > .daf-card > .daf-header,
 body.split-view-active .watch-layout.split-active > .daf-card > .card-heading {
   padding: 14px 16px 0;
@@ -2771,21 +2981,21 @@ body.split-view-active.split-chrome-hidden .split-chrome-wake {
   background: rgba(255,255,255,.2);
 }
 body.split-view-active .viewer-mode-bar-divider { display: block; }
-/* Auto-hide. pointer-events turn off as soon as the bar fades so it cannot
-   keep eating taps on the daf header, Auto-scroll, or Gemara words underneath
-   it. visibility follows the opacity fade so focus isn't dropped mid-transition.
-   A thin strip on the video (#splitChromeWake) and any pointer activity on
-   the daf bring it back. The always-visible "Daf page" button is the way out
-   while the bar is gone, including in fullscreen where this bar isn't inside
-   the fullscreen element. */
+/* Auto-hide. visibility follows the opacity fade, and hit-testing stays on
+   until that fade finishes, so a bar that still looks visible still receives
+   the tap. Once it is hidden, taps reach the daf header and Auto-scroll.
+   A thin strip on the video (#splitChromeWake) and a click on the daf bring
+   it back. The always-visible "Daf page" button is the way out while the
+   bar is gone, including in fullscreen where this bar isn't inside the
+   fullscreen element. */
 @media (prefers-reduced-motion: no-preference) {
   body.split-view-active .viewer-mode-select { transition: opacity .2s ease, visibility 0s linear .2s; }
   body.split-view-active:not(.split-chrome-hidden) .viewer-mode-select { transition: opacity .2s ease, visibility 0s linear 0s; }
 }
 body.split-view-active.split-chrome-hidden .viewer-mode-select {
   opacity: 0;
-  pointer-events: none;
   visibility: hidden;
+  pointer-events: none;
 }
 
 /* --- Split View's own video pinch-zoom/pan gesture surface --------------- */
@@ -2928,7 +3138,7 @@ body.split-view-active .watch-layout.split-active .video-frame #youtubePlayerHos
   body.split-view-active .watch-layout.split-active:not(.split-stacked) { --split-divider-size: 14px; }
   body.split-view-active .watch-layout.split-active.split-stacked { --split-divider-size: 14px; }
   .split-toolbar { gap: 4px; }
-  .split-toolbar .icon-button { width: 34px; height: 34px; }
+  .split-toolbar .icon-button { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
 }
 
 .sr-only {

@@ -2247,7 +2247,30 @@ async function rerenderVilnaPageForZoom() {
 // eats Esc to leave fullscreen and never delivers the key — leaves Split too.
 let suppressSplitExitOnFullscreenChange = false;
 
+function ensureDafFullscreenExit() {
+  let button = $('dafFullscreenExit');
+  if (button) return button;
+  const header = document.querySelector('#dafCard > .daf-header, #dafCard > .card-heading, #dafCard > header');
+  if (!header) return null;
+  button = document.createElement('button');
+  button.type = 'button';
+  button.id = 'dafFullscreenExit';
+  button.className = 'daf-fullscreen-exit';
+  button.textContent = 'Exit';
+  button.title = 'Exit fullscreen';
+  button.setAttribute('aria-label', 'Exit fullscreen');
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    toggleVilnaFullscreen();
+  });
+  const tools = header.querySelector('.daf-tools, .daf-heading-tools');
+  if (tools) tools.append(button);
+  else header.append(button);
+  return button;
+}
+
 function toggleVilnaFullscreen() {
+  ensureDafFullscreenExit();
   const card = document.querySelector('.daf-card');
   if (!card) return;
   // In Reading Mode and in Split View, the live player is a SIBLING of the
@@ -4846,14 +4869,21 @@ function updateVilnaOverlay() {
   // would keep matching the previous key and leave the blue rect stuck
   // showing the words the selection had already grown past.
   const selectionSignature = selection?.runs?.map((run) => `${run.ref}:${run.start}-${run.end}`).join(',') || '';
+  const pageDaf = loadedVilnaDafKey();
   const dedupKey = activeSegment
-    ? `${activeSegment.ref}:${activeSegment.w0}:${activeSegment.w1}:${activeSegment.estimated ? 1 : 0}:${selectionSignature}`
+    ? `${pageDaf}:${activeSegment.ref}:${activeSegment.w0}:${activeSegment.w1}:${activeSegment.estimated ? 1 : 0}:${selectionSignature}`
     : '';
   if (dedupKey === state.vilnaOverlayKey) return;
   state.vilnaOverlayKey = dedupKey;
 
   overlay.innerHTML = '';
   if (!activeSegment) return;
+  // A lead-in review (Bekhorot 31a spends its first minutes on 30b) must
+  // not paint a moving bar on a different daf's page map. The page image
+  // follows the segment; this only refuses a highlight whose boxes belong
+  // to another amud than the map currently loaded.
+  const segmentDaf = segmentDafKey(activeSegment.ref);
+  if (pageDaf && segmentDaf && pageDaf !== segmentDaf) return;
   const boxes = activeSegmentWordBoxes(activeSegment)
     .filter((box) => !isSelected(box.ref, box.wordIndex));
   const rectClass = activeSegment.estimated ? 'vilna-active-rect estimated' : 'vilna-active-rect';
@@ -6414,8 +6444,11 @@ function announceViewerMode(mode) {
 
   // --- Prominent selector + Split View's own small toolbar ----------------
   $('viewerModeSplitButton')?.addEventListener('click', () => toggleSplitViewerMode());
-  $('viewerModeDafOnVideoButton')?.addEventListener('click', () => setViewerMode(state.viewerMode === 'daf-on-video' ? 'split' : 'daf-on-video'));
-  $('viewerModeVideoOnDafButton')?.addEventListener('click', () => setViewerMode(state.viewerMode === 'video-on-daf' ? 'split' : 'video-on-daf'));
+  // Tapping the mode that is already on returns to Standard. Sending that
+  // tap to Split left no way back from Daf on video / Video on daf except
+  // the Split button itself.
+  $('viewerModeDafOnVideoButton')?.addEventListener('click', () => setViewerMode(state.viewerMode === 'daf-on-video' ? 'standard' : 'daf-on-video'));
+  $('viewerModeVideoOnDafButton')?.addEventListener('click', () => setViewerMode(state.viewerMode === 'video-on-daf' ? 'standard' : 'video-on-daf'));
   $('splitExitButton')?.addEventListener('click', () => requestExitSplit());
   $('splitLayoutToggleButton')?.addEventListener('click', () => {
     state.splitViewLayout = state.splitViewLayout === 'stacked' ? 'side-by-side' : 'stacked';
@@ -6437,7 +6470,58 @@ function announceViewerMode(mode) {
     applySplitViewLayoutToDom();
     saveSplitViewPreferences();
   });
-  $('splitFullscreenButton')?.addEventListener('click', toggleVilnaFullscreen);
+  // The overlay bar auto-hides with pointer-events:none, and a tap on the
+  // video underneath (pinch surface, wake strip) only reveals or dismisses
+  // chrome — the click never reaches this button. Hit-test through the
+  // hidden bar on pointerdown, in the capture phase, so the first tap
+  // enters fullscreen whether the bar was showing, fading, or just revealed.
+  // pointerdown is the user gesture; waiting for click loses it once the
+  // bar's pointer-events drop mid-press.
+  let swallowSplitFullscreenClick = false;
+  function splitBarControlAt(x, y) {
+    const bar = $('viewerModeSelect');
+    if (!bar || !state.splitViewEnabled) return null;
+    const hidden = document.body.classList.contains('split-chrome-hidden');
+    const previous = hidden
+      ? { pointerEvents: bar.style.pointerEvents, visibility: bar.style.visibility }
+      : null;
+    if (previous) {
+      bar.style.pointerEvents = 'auto';
+      bar.style.visibility = 'visible';
+    }
+    const under = document.elementFromPoint(x, y);
+    if (previous) {
+      bar.style.pointerEvents = previous.pointerEvents;
+      bar.style.visibility = previous.visibility;
+    }
+    const control = under?.closest?.('button');
+    return control && bar.contains(control) ? control : null;
+  }
+  document.addEventListener('pointerdown', (event) => {
+    if (!state.splitViewEnabled || event.button > 0) return;
+    const control = splitBarControlAt(event.clientX, event.clientY);
+    if (control?.id !== 'splitFullscreenButton') return;
+    showSplitChrome();
+    swallowSplitFullscreenClick = true;
+    setTimeout(() => { swallowSplitFullscreenClick = false; }, 700);
+    toggleVilnaFullscreen();
+    event.preventDefault();
+    event.stopPropagation();
+  }, true);
+  document.addEventListener('click', (event) => {
+    if (!swallowSplitFullscreenClick) return;
+    swallowSplitFullscreenClick = false;
+    event.preventDefault();
+    event.stopPropagation();
+  }, true);
+  $('splitFullscreenButton')?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (swallowSplitFullscreenClick) {
+      swallowSplitFullscreenClick = false;
+      return;
+    }
+    toggleVilnaFullscreen();
+  });
 
   // --- Video pinch-zoom/pan gesture surface --------------------------------
   // The YouTube iframe is cross-origin and never bubbles touch events to this
@@ -6596,10 +6680,24 @@ function announceViewerMode(mode) {
   // itself needs to via pointerover/pointerout below, for a mouse resting
   // on it without generating further mousemove.
   const dafCard = container.querySelector('.daf-card');
-  for (const target of [dafCard, viewerModeSelect].filter(Boolean)) {
-    target.addEventListener('mousemove', showSplitChrome);
-    target.addEventListener('pointerdown', showSplitChrome);
-    target.addEventListener('touchstart', showSplitChrome, { passive: true });
+  // A press that lands on a daf control (Auto-scroll, a word, the back
+  // button) has to run that control. Revealing the bar on pointerdown
+  // covered it before click, so the first tap only brought the chrome
+  // back. Empty daf space still reveals immediately.
+  const splitChromeFromDaf = (event) => {
+    const control = event.target?.closest?.('button, a, input, select, textarea, label, [role="button"]');
+    if (control && dafCard.contains(control)) return;
+    showSplitChrome();
+  };
+  if (dafCard) {
+    dafCard.addEventListener('mousemove', showSplitChrome);
+    dafCard.addEventListener('pointerdown', splitChromeFromDaf);
+    dafCard.addEventListener('touchstart', splitChromeFromDaf, { passive: true });
+    dafCard.addEventListener('click', showSplitChrome);
+  }
+  if (viewerModeSelect) {
+    viewerModeSelect.addEventListener('mousemove', showSplitChrome);
+    viewerModeSelect.addEventListener('pointerdown', showSplitChrome);
   }
   // keydown stays document-wide, unlike the pointer/touch listeners above:
   // it never fires as part of a touch gesture (nothing here is guarding
@@ -6627,7 +6725,56 @@ function announceViewerMode(mode) {
 // and requestFullscreen was undefined -- frame.requestFullscreen?.() then
 // short-circuits the whole chained .catch() too, so the click did nothing
 // at all, not even an error toast.
+// Where the page was scrolled before standard-view video fullscreen. Leaving
+// that fullscreen scrolls the document to the daf; this puts it back.
+let standardVideoFullscreenScrollY = null;
+function restoreStandardFullscreenScroll() {
+  if (standardVideoFullscreenScrollY == null) return;
+  const y = standardVideoFullscreenScrollY;
+  standardVideoFullscreenScrollY = null;
+  const apply = () => { if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y); };
+  apply();
+  requestAnimationFrame(apply);
+  setTimeout(apply, 60);
+  setTimeout(apply, 280);
+}
+function onStandardVideoFullscreenChange() {
+  const current = document.fullscreenElement || document.webkitFullscreenElement;
+  if (current) return;
+  restoreStandardFullscreenScroll();
+}
+document.addEventListener('fullscreenchange', onStandardVideoFullscreenChange);
+document.addEventListener('webkitfullscreenchange', onStandardVideoFullscreenChange);
+
+function ensureVideoFullscreenExit() {
+  let button = $('videoFullscreenExit');
+  if (button) return button;
+  const frame = $('videoFrame');
+  if (!frame) return null;
+  button = document.createElement('button');
+  button.type = 'button';
+  button.id = 'videoFullscreenExit';
+  button.className = 'video-fullscreen-exit';
+  button.textContent = 'Exit';
+  button.title = 'Exit fullscreen';
+  button.setAttribute('aria-label', 'Exit fullscreen');
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    toggleVideoFullscreen();
+  });
+  frame.appendChild(button);
+  return button;
+}
+
 function toggleVideoFullscreen() {
+  ensureVideoFullscreenExit();
+  // Split fullscreen is the shared watch surface (video and daf together,
+  // with "← Daf page" still in the daf header). Fullscreening the video
+  // frame alone drops the daf and the way back.
+  if (state.viewerMode === 'split') {
+    toggleVilnaFullscreen();
+    return;
+  }
   const frame = $('videoFrame');
   const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
   if (fullscreenElement === frame) {
@@ -6637,7 +6784,11 @@ function toggleVideoFullscreen() {
   }
   const request = frame.requestFullscreen || frame.webkitRequestFullscreen;
   if (!request) return showToast('Fullscreen is not available in this browser.', 'error');
-  Promise.resolve(request.call(frame)).catch((error) => showToast(`Fullscreen not available: ${error.message}`, 'error'));
+  standardVideoFullscreenScrollY = window.scrollY;
+  Promise.resolve(request.call(frame)).catch((error) => {
+    standardVideoFullscreenScrollY = null;
+    showToast(`Fullscreen not available: ${error.message}`, 'error');
+  });
 }
 
 // The daf text itself needs no per-tick work any more -- .daf-segment.active
@@ -6699,6 +6850,12 @@ function paintRequestedDafSkeleton(fullRef) {
 function segmentDafKey(ref) {
   const parsed = parseDafRef(ref);
   return parsed ? `${parsed.tractate} ${parsed.daf}${parsed.amud}` : '';
+}
+
+function loadedVilnaDafKey() {
+  const map = state.vilnaPageMap;
+  if (!map || map.daf == null || !map.amud) return '';
+  return segmentDafKey(`${map.tractate || ''} ${map.daf}${map.amud}`);
 }
 
 function ownContentStartTime() {
@@ -6788,6 +6945,40 @@ function updateReaderNotes(time, index) {
   }
 }
 
+// The daf's own scroller, when it actually scrolls. On a phone in the
+// standard layout the daf grows the page, so the only scroller is the
+// document — scrollIntoView({block:'center'}) then yanks that page until
+// the phrase is centered and the video is gone. A tap on the video must
+// not do that. Follow the phrase only inside a pane that already scrolls
+// on its own (desktop column, Split).
+function dafScrollContainer(node) {
+  const dafScroll = $('dafScroll');
+  const dafCard = $('dafCard');
+  const candidates = [];
+  if (dafScroll?.contains(node)) candidates.push(dafScroll);
+  if (dafCard?.contains(node)) candidates.push(dafCard);
+  for (const el of candidates) {
+    const overflow = getComputedStyle(el).overflowY;
+    const scrolls = (overflow === 'auto' || overflow === 'scroll' || overflow === 'overlay')
+      && el.scrollHeight > el.clientHeight + 2;
+    if (scrolls) return el;
+  }
+  return null;
+}
+
+function scrollChildIntoScroller(scroller, node, behavior) {
+  const scrollerRect = scroller.getBoundingClientRect();
+  const nodeRect = node.getBoundingClientRect();
+  const delta = nodeRect.top - scrollerRect.top - (scroller.clientHeight - nodeRect.height) / 2;
+  if (Math.abs(delta) < 2) return;
+  const top = Math.max(0, scroller.scrollTop + delta);
+  if (behavior === 'smooth' && typeof scroller.scrollTo === 'function') {
+    scroller.scrollTo({ top, behavior: 'smooth' });
+  } else {
+    scroller.scrollTop = top;
+  }
+}
+
 function scrollActiveIntoView(force) {
   const autoScroll = $('autoScroll');
   if (!autoScroll?.checked) return;
@@ -6797,8 +6988,10 @@ function scrollActiveIntoView(force) {
     ? document.querySelector('#vilnaActiveOverlay .vilna-active-rect')
     : document.querySelector(`.daf-segment[data-index="${state.activeIndex}"]`);
   if (!node) return;
+  const scroller = dafScrollContainer(node);
+  if (!scroller) return;
   state.programmaticScrollUntil = performance.now() + (force ? 80 : 900);
-  node.scrollIntoView({ block: 'center', behavior: force ? 'auto' : 'smooth' });
+  scrollChildIntoScroller(scroller, node, force ? 'auto' : 'smooth');
 }
 
 function updateActiveSegment(force = false, timeOverride = null) {
@@ -7101,6 +7294,8 @@ async function togglePlay() {
         state.youtubePlayer.pauseVideo();
       } else if (isPaused()) {
         state.wantPlaying = true;
+        pausedFrameSuppressPlay = false;
+        pauseAnchor = null;
         state.playRetryUsed = false;
         debugPlayLog('calling youtubePlayer.playVideo()');
         state.youtubePlayer.playVideo();
@@ -7108,6 +7303,7 @@ async function togglePlay() {
       } else {
         state.wantPlaying = false;
         clearPlayWatchdog();
+        pauseAnchor = getCurrentTime();
         debugPlayLog('calling youtubePlayer.pauseVideo()');
         state.youtubePlayer.pauseVideo();
       }
@@ -7157,6 +7353,13 @@ let seekGeneration = 0;
 let pausedFrameToken = 0;
 let pausedFrameTimer = null;
 let pausedFrameTarget = null;
+// The blip's PLAYING event can arrive after the token is already cleared.
+// Treating that late event as a real play is what resumed a paused Vaater.
+let pausedFrameSuppressPlay = false;
+let pausedFrameLastTarget = null;
+// Time shown when the reader hit pause. YouTube often reports the previous
+// keyframe (~1s earlier) once playback stops; a slip that small is put back.
+let pauseAnchor = null;
 // YouTube often updates currentTime on a paused seekTo without painting the
 // new frame. A muted blip of playback is the reliable way to force that
 // paint; it is skipped while the reader actually wants the video playing.
@@ -7174,7 +7377,14 @@ function finishPausedFrameRefresh(token) {
   if (player && target != null && !state.wantPlaying) {
     const actual = Number(player.getCurrentTime?.()) || 0;
     if (Math.abs(actual - target) > 0.35) player.seekTo?.(target, true);
+    // Arm before pause. A PLAYING notification from the blip can land after
+    // this token is cleared; the pause handler must not treat it as Play.
+    pausedFrameLastTarget = target;
+    pausedFrameSuppressPlay = true;
+    pauseAnchor = null;
     player.pauseVideo?.();
+  } else {
+    pausedFrameSuppressPlay = false;
   }
   if (player && !state.muted) player.unMute?.();
   if (target != null) {
@@ -8184,6 +8394,20 @@ async function ensureYouTubePlayer(videoId) {
               if (event.data === 1) finishPausedFrameRefresh(state.pausedFrameRefresh);
               return;
             }
+            if (event.data === 1 && pausedFrameSuppressPlay) {
+              pausedFrameSuppressPlay = false;
+              if (!state.wantPlaying) {
+                const hold = pausedFrameLastTarget;
+                const actual = Number(event.target?.getCurrentTime?.()) || 0;
+                if (hold != null && Math.abs(actual - hold) > 0.35) {
+                  try { event.target?.seekTo?.(hold, true); } catch { /* player gone */ }
+                  armPendingSeek(hold);
+                  paintSeekUi(hold);
+                }
+                try { event.target?.pauseVideo?.(); } catch { /* already paused */ }
+                return;
+              }
+            }
             if (event.data === 1) {
               state.wantPlaying = true;
               state.playRetryUsed = false;
@@ -8192,6 +8416,20 @@ async function ensureYouTubePlayer(videoId) {
             } else if (event.data === 2) {
               state.wantPlaying = false;
               clearPlayWatchdog();
+              const anchor = pauseAnchor;
+              pauseAnchor = null;
+              if (anchor != null) {
+                const actual = Number(event.target?.getCurrentTime?.()) || 0;
+                const slip = anchor - actual;
+                // A real rewind (scrub, media key, Vaater) moves much further
+                // than one keyframe. Only a sub-1.5s backward step on the
+                // pause itself is put back, so 3:48 does not become 3:47.
+                if (slip > 0.25 && slip < 1.5) {
+                  try { event.target?.seekTo?.(anchor, true); } catch { /* player gone */ }
+                  armPendingSeek(anchor);
+                  paintSeekUi(anchor);
+                }
+              }
             }
             updatePlayUi();
             updateVaaterButtonUi();
@@ -9431,6 +9669,48 @@ function handleScrubChange(event) {
 for (const el of scrubberEls) {
   el.addEventListener('input', handleScrubInput);
   el.addEventListener('change', handleScrubChange);
+}
+// The thumb is drawn outside the input's old 4px box, so a touch drag that
+// starts on the thumb never hits the range and never seeks. A captured
+// pointer drag seeks from the finger's x for touch and pen. Mouse keeps
+// the native range behavior.
+function scrubTimeFromClientX(el, clientX) {
+  const rect = el.getBoundingClientRect();
+  const span = Math.max(1, rect.width);
+  const fraction = Math.min(1, Math.max(0, (clientX - rect.left) / span));
+  const min = Number(el.min) || 0;
+  const max = Number(el.max) || 0;
+  const step = Number(el.step) > 0 ? Number(el.step) : 0.01;
+  const stepped = Math.round((min + (max - min) * fraction) / step) * step;
+  return Math.min(max, Math.max(min, stepped));
+}
+for (const el of scrubberEls) {
+  el.addEventListener('pointerdown', (event) => {
+    if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+    el.setPointerCapture?.(event.pointerId);
+    const seekAt = (clientX, commit) => {
+      const time = scrubTimeFromClientX(el, clientX);
+      el.value = String(time);
+      el.dispatchEvent(new Event(commit ? 'change' : 'input', { bubbles: true }));
+    };
+    seekAt(event.clientX, false);
+    const move = (ev) => {
+      if (ev.pointerId !== event.pointerId) return;
+      seekAt(ev.clientX, false);
+      ev.preventDefault();
+    };
+    const end = (ev) => {
+      if (ev.pointerId !== event.pointerId) return;
+      seekAt(ev.clientX, true);
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', end);
+      el.removeEventListener('pointercancel', end);
+    };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+    event.preventDefault();
+  });
 }
 scrubber.addEventListener('pointermove', handleScrubPointer);
 scrubber.addEventListener('pointerenter', handleScrubPointer);

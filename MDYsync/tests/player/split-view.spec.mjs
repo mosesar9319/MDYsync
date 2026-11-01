@@ -91,6 +91,24 @@ test.describe('Unified viewing modes — the prominent selector', () => {
     expect(stillSameNode).toBe(true);
   });
 
+  test('tapping the active daf-on-video or video-on-daf button returns to standard', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await dismissErrorBanner(page);
+    await page.click('#viewerModeDafOnVideoButton');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('daf-on-video');
+    await page.click('#viewerModeDafOnVideoButton');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
+    await expect(page.locator('#viewerModeDafOnVideoButton')).toHaveAttribute('aria-pressed', 'false');
+    await page.click('#viewerModeVideoOnDafButton');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('video-on-daf');
+    await page.click('#viewerModeVideoOnDafButton');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
+    await expect(page.locator('#viewerModeVideoOnDafButton')).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('body')).not.toHaveClass(/split-view-active/);
+  });
+
   test('watch/index.html only offers Split View and Daf on video (no Reading Mode there)', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
@@ -105,6 +123,7 @@ test.describe('Unified viewing modes — the prominent selector', () => {
   test('the toolbar pill mirrors the prominent selector and stays in sync', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
+    await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/player/?ref=Chullin%2089a');
     await expect(page.locator('#splitViewButton')).toBeAttached();
     await expect(page.locator('#splitViewButton')).toHaveAttribute('aria-pressed', 'false');
