@@ -234,6 +234,29 @@ h2 { margin-bottom: 0; }
 .large-play { position: absolute; inset: 0; margin: auto; width: 74px; height: 74px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25); background: rgba(4,14,27,.72); color: white; display: grid; place-items: center; cursor: pointer; backdrop-filter: blur(10px); transition: .2s ease; }
 .large-play:hover { transform: scale(1.05); background: rgba(47, 110, 165,.85); color: #fff; }
 .large-play svg { width: 38px; height: 38px; }
+.large-play.is-loading,
+#playButton.is-loading { cursor: progress; }
+.large-play.is-loading > *,
+#playButton.is-loading > * { visibility: hidden; }
+.large-play.is-loading::after,
+#playButton.is-loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 3px solid rgba(255,255,255,.35);
+  border-top-color: #fff;
+  animation: dafsync-play-spin .8s linear infinite;
+}
+#playButton.is-loading { position: relative; }
+@media (prefers-reduced-motion: reduce) {
+  .large-play.is-loading::after,
+  #playButton.is-loading::after { animation: none; }
+}
+@keyframes dafsync-play-spin { to { transform: rotate(360deg); } }
 
 /* Covers the whole video frame -- the bottom used to stop short by
    calc(var(--pc-bar-h) + var(--pc-timeline-h)) to stay clear of the docked
@@ -451,6 +474,16 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
    showing, so it changes nothing about normal use; live only once they have
    hidden. z-index 2 puts it above the iframe but below the Vilna overlay (3)
    and the centre play button (4), both of which stay directly clickable. */
+.video-click-surface {
+  display: none;
+  position: absolute;
+  inset: 0 0 calc(var(--pc-bar-h, 68px) + var(--pc-timeline-h, 74px));
+  z-index: 2;
+  background: transparent;
+  cursor: pointer;
+}
+.video-frame.youtube-active .video-click-surface { display: block; }
+.video-frame.controls-hidden .video-click-surface { pointer-events: none; }
 .player-wake-layer { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
 .video-frame.controls-hidden .player-wake-layer { pointer-events: auto; }
 
@@ -810,7 +843,19 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
    -- including when that happens after the phrases have already painted. */
 body.is-admin .daf-segment.estimated { opacity: .72; background-image: repeating-linear-gradient(135deg, transparent, transparent 4px, rgba(19, 34, 56, .08) 4px, rgba(19, 34, 56, .08) 5px); }
 body.is-admin .daf-segment.estimated.active { background: rgba(255, 208, 84, .38); color: inherit; box-shadow: none; outline: 2px dashed rgba(159, 85, 0, .75); outline-offset: 1px; }
-.reader-daf-notes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.reader-daf-notes {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  min-height: 32px;
+  max-height: 32px;
+  margin: 0;
+  padding: 0 18px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
 .reviewing-label, .not-synced-note { margin: 0; font-size: 13px; font-weight: 800; letter-spacing: .01em; color: #9a5b00; }
 .skip-to-daf-chip { border: 1px solid rgba(47, 110, 165, .45); background: rgba(47, 110, 165, .12); color: #14324f; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; }
 .skip-to-daf-chip:hover { background: rgba(47, 110, 165, .2); }
@@ -2477,8 +2522,8 @@ body.split-view-active .watch-layout.split-active.split-stacked > .daf-card { gr
 body.split-view-active .watch-layout.split-active.split-stacked .split-divider { grid-column: 1; grid-row: 2; }
 body.split-view-active .watch-layout.split-active.split-video-end > .player-card { grid-column: 3; }
 body.split-view-active .watch-layout.split-active.split-video-end > .daf-card { grid-column: 1; }
-body.split-view-active .watch-layout.split-active.split-stacked.split-video-end > .player-card { grid-row: 3; }
-body.split-view-active .watch-layout.split-active.split-stacked.split-video-end > .daf-card { grid-row: 1; }
+body.split-view-active .watch-layout.split-active.split-stacked.split-video-end > .player-card { grid-column: 1; grid-row: 3; }
+body.split-view-active .watch-layout.split-active.split-stacked.split-video-end > .daf-card { grid-column: 1; grid-row: 1; }
 /* .player-card carries page-specific chrome around the video that differs
    by page (player/index.html's own small .daf-header.video-header vs.
    browse/watch's larger .card-heading, plus .now-learning and
@@ -2535,8 +2580,15 @@ body.split-view-active main { padding: 0; max-width: none; }
 body.split-view-active .viewer-mode-select {
   position: fixed;
   top: max(10px, env(safe-area-inset-top, 0px));
-  left: 50%;
-  transform: translateX(-50%);
+  /* Anchored to the video pane, not the viewport center. A centered bar
+     sits on the daf's Auto-scroll row. The width cap matches the video
+     column (the ratio is published on the root because this bar is not
+     inside .watch-layout) so a wrap stays over the picture. The picture
+     already clears this bar via --viewer-mode-bar-h. */
+  left: max(10px, env(safe-area-inset-left, 0px));
+  right: auto;
+  transform: none;
+  box-sizing: border-box;
   z-index: 502;
   margin: 0;
   padding: 8px;
@@ -2544,8 +2596,23 @@ body.split-view-active .viewer-mode-select {
   background: rgba(8,17,28,.82);
   border: 1px solid rgba(255,255,255,.14);
   backdrop-filter: blur(6px);
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  width: max-content;
+  max-width: calc((100vw - var(--split-divider-size, 10px)) * var(--split-video-ratio, .5) - 20px);
+}
+body.split-view-active.split-video-at-end:not(.split-layout-stacked) .viewer-mode-select {
+  left: auto;
+  right: max(10px, env(safe-area-inset-right, 0px));
+}
+body.split-view-active.split-layout-stacked .viewer-mode-select {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
   max-width: calc(100vw - 20px);
+}
+body.split-view-active.split-layout-stacked.split-video-at-end .viewer-mode-select {
+  top: calc((100dvh - var(--split-divider-size, 10px)) * var(--split-video-ratio, .4) + var(--split-divider-size, 10px) + max(10px, env(safe-area-inset-top, 0px)));
 }
 /* Icon-only in this specific overlay placement BELOW 680px (not the general
    <380px rule further down, which also applies to the normal in-flow
@@ -2664,7 +2731,38 @@ body.split-view-active .split-toolbar { display: flex; }
 }
 .split-toolbar .icon-button:hover { background: rgba(255,255,255,.12); color: #fff; }
 .split-toolbar .icon-button[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
-.split-toolbar .icon-button svg { width: 19px; height: 19px; }
+.split-back-to-daf {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-inline-end: 8px;
+  border: 1px solid rgba(19, 34, 56, .28);
+  background: #fff;
+  color: #132238;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font: 800 13px "Assistant", sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.split-back-to-daf:hover { background: #e7eef6; }
+.split-back-to-daf[hidden] { display: none !important; }
+.split-chrome-wake {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 28px;
+  z-index: 14;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+body.split-view-active.split-chrome-hidden .split-chrome-wake {
+  display: block;
+}
 .viewer-mode-bar-divider {
   display: none;
   width: 1px;
@@ -2673,26 +2771,21 @@ body.split-view-active .split-toolbar { display: flex; }
   background: rgba(255,255,255,.2);
 }
 body.split-view-active .viewer-mode-bar-divider { display: block; }
-/* Auto-hide: opacity only (never display:none, which would drop focus if a
-   reader tabbed into the bar right as it faded) -- and only while the bar is
-   actually the floating Split View overlay; in the other two modes
-   #viewerModeSelect sits in normal document flow and is never hidden this
-   way. Deliberately NOT pointer-events:none: this bar's own reveal listeners
-   (mousemove/pointerdown/touchstart -> showSplitChrome() in app.js) are
-   registered on the bar itself, so cutting its pointer input the moment it
-   fades cuts off the one thing meant to bring it back by tapping it directly
-   -- confirmed directly as the real cause behind "the buttons don't work"
-   reports: every tap landed on an already-faded, now pointer-events:none
-   bar and reached nothing at all, not even the reveal. Leaving pointer
-   events on means the very first tap after a fade both reveals the bar AND
-   fires the tapped button's own click in the same gesture -- pointer-events
-   only gates hit-testing, it never blocks the fade animation or the
-   underlying opacity. */
+/* Auto-hide. pointer-events turn off as soon as the bar fades so it cannot
+   keep eating taps on the daf header, Auto-scroll, or Gemara words underneath
+   it. visibility follows the opacity fade so focus isn't dropped mid-transition.
+   A thin strip on the video (#splitChromeWake) and any pointer activity on
+   the daf bring it back. The always-visible "Daf page" button is the way out
+   while the bar is gone, including in fullscreen where this bar isn't inside
+   the fullscreen element. */
 @media (prefers-reduced-motion: no-preference) {
-  body.split-view-active .viewer-mode-select { transition: opacity .2s ease; }
+  body.split-view-active .viewer-mode-select { transition: opacity .2s ease, visibility 0s linear .2s; }
+  body.split-view-active:not(.split-chrome-hidden) .viewer-mode-select { transition: opacity .2s ease, visibility 0s linear 0s; }
 }
 body.split-view-active.split-chrome-hidden .viewer-mode-select {
   opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
 }
 
 /* --- Split View's own video pinch-zoom/pan gesture surface --------------- */

@@ -467,7 +467,10 @@
   // video over (player/ and browse/); watch/ and studio/ have no
   // #readingModeButton to proxy to, so there's nothing to offer there.
   if ($('readingModeButton')) tools.appendChild(videoOnDafButton);
-  splitViewButton.addEventListener('click', () => window.setViewerMode?.('split'));
+  splitViewButton.addEventListener('click', () => {
+    if (typeof window.toggleSplitViewerMode === 'function') window.toggleSplitViewerMode();
+    else window.setViewerMode?.('split');
+  });
   if (!hasSplitView) splitViewButton.hidden = true;
 
   const pipButton = document.createElement('button');
@@ -1137,6 +1140,23 @@
   // tap on it brings them back, the way every video player behaves. It sits
   // below the Vilna overlay's own z-index so dragging that still works, and
   // below the big centre play button so that stays clickable.
+  const clickSurface = document.createElement('div');
+  clickSurface.className = 'video-click-surface';
+  clickSurface.setAttribute('aria-hidden', 'true');
+  frame.appendChild(clickSurface);
+  let picturePointerType = '';
+  clickSurface.addEventListener('pointerdown', (event) => {
+    picturePointerType = event.pointerType || '';
+  });
+  clickSurface.addEventListener('click', () => {
+    // This surface is inert while the controls are hidden (the wake layer
+    // owns that). A click here means they were already showing.
+    if (picturePointerType === 'mouse' || picturePointerType === 'touch') {
+      showVideoControls();
+      window.togglePlay?.();
+    }
+  });
+
   const wakeLayer = document.createElement('div');
   wakeLayer.className = 'player-wake-layer';
   wakeLayer.setAttribute('aria-hidden', 'true');
@@ -1157,10 +1177,21 @@
     if (!control || control === wakeLayer || !frame.contains(control)) return null;
     return control;
   }
+  let wakePointerType = '';
+  wakeLayer.addEventListener('pointerdown', (event) => {
+    wakePointerType = event.pointerType || '';
+  });
   wakeLayer.addEventListener('click', (event) => {
     showVideoControls();
     const control = controlUnderPoint(event.clientX, event.clientY);
-    if (control) control.click();
+    if (control) {
+      control.click();
+      return;
+    }
+    // First touch only reveals the bar. A mouse click on the empty picture
+    // toggles play/pause. Touch that arrives while the bar is already up
+    // is handled by .video-click-surface, not this layer.
+    if (wakePointerType === 'mouse') window.togglePlay?.();
   });
 
   if (video) {

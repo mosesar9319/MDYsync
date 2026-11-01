@@ -194,6 +194,76 @@ test.describe('Split View — divider and layout', () => {
     await expect(page.locator('.watch-layout')).toHaveClass(/split-video-end/);
   });
 
+  test('the split bar stays over the video pane and off the daf Auto-scroll row', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+    await dismissErrorBanner(page);
+
+    const overlap = await page.evaluate(() => {
+      const bar = document.getElementById('viewerModeSelect').getBoundingClientRect();
+      const video = document.querySelector('.watch-layout.split-active > .player-card').getBoundingClientRect();
+      const auto = document.querySelector('.header-auto-scroll').getBoundingClientRect();
+      const intersects = (a, b) => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
+      return {
+        barRight: bar.right,
+        videoRight: video.right,
+        barLeft: bar.left,
+        videoLeft: video.left,
+        coversAuto: intersects(bar, auto),
+        insideVideo: bar.left >= video.left - 2 && bar.right <= video.right + 2 && bar.top >= video.top - 2,
+      };
+    });
+    expect(overlap.coversAuto).toBe(false);
+    expect(overlap.insideVideo).toBe(true);
+
+    await page.click('#splitSwapButton');
+    await expect.poll(() => page.evaluate(() => document.body.classList.contains('split-video-at-end'))).toBe(true);
+    const swapped = await page.evaluate(() => {
+      const bar = document.getElementById('viewerModeSelect').getBoundingClientRect();
+      const video = document.querySelector('.watch-layout.split-active > .player-card').getBoundingClientRect();
+      const auto = document.querySelector('.header-auto-scroll').getBoundingClientRect();
+      const coversAuto = bar.left < auto.right - 1 && bar.right > auto.left + 1 && bar.top < auto.bottom - 1 && bar.bottom > auto.top + 1;
+      return {
+        coversAuto,
+        insideVideo: bar.left >= video.left - 2 && bar.right <= video.right + 2,
+      };
+    });
+    expect(swapped.coversAuto).toBe(false);
+    expect(swapped.insideVideo).toBe(true);
+  });
+
+  test('exiting fullscreen without a key also exits Split; the fullscreen button keeps it', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+    const fullscreen = await page.evaluate(async () => {
+      try {
+        await document.querySelector('.watch-layout').requestFullscreen();
+        return document.fullscreenElement?.className || '';
+      } catch (error) {
+        return `error:${error.message}`;
+      }
+    });
+    test.skip(!String(fullscreen).includes('watch-layout'), `fullscreen unavailable (${fullscreen})`);
+
+    // Chrome consumes Esc and only tells the page via fullscreenchange.
+    await page.evaluate(() => document.exitFullscreen());
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
+    await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBeFalsy();
+
+    await page.click('#viewerModeSplitButton');
+    await dismissErrorBanner(page);
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+    await page.evaluate(async () => { await document.querySelector('.watch-layout').requestFullscreen(); });
+    await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(true);
+    await page.evaluate(() => toggleVilnaFullscreen());
+    await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBeFalsy();
+    expect(await page.evaluate(() => state.viewerMode)).toBe('split');
+  });
+
   test('Escape exits Split View to standard, and the exit button does the same', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
@@ -610,14 +680,10 @@ test.describe('Split View — the daf pane is flush, and the combined bar auto-h
     expect(await page.evaluate(() => document.body.classList.contains('split-chrome-hidden'))).toBe(false);
   });
 
-  // Regression test for a real bug found while investigating "the buttons
-  // don't work" reports: the faded bar used to also get pointer-events:none,
-  // which meant its own reveal listeners (registered on the bar itself,
-  // relying on a pointerdown/touchstart actually reaching it) could never
-  // fire once it had already faded -- a real .click() (real hit-testing,
-  // unlike dispatchEvent above which bypasses pointer-events entirely) is
-  // the only way this suite can actually catch that class of bug.
-  test('a real click on the bar still reaches its button after it has auto-hidden', async ({ page }) => {
+  // The faded bar must not sit on top of the daf. A real hit-test at the
+  // daf header lands on the daf, and the always-visible back button — not
+  // a button inside the hidden bar — is what leaves Split view.
+  test('a hidden split bar does not intercept taps, and Back to daf leaves split view', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
     await page.goto('/player/?ref=Chullin%2089a');
@@ -628,8 +694,27 @@ test.describe('Split View — the daf pane is flush, and the combined bar auto-h
       timeout: 4000,
     }).toBe(true);
 
-    await page.click('#viewerModeDafOnVideoButton');
-    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('daf-on-video');
+    const hit = await page.evaluate(() => {
+      const bar = document.getElementById('viewerModeSelect');
+      const back = document.getElementById('splitBackToDaf');
+      back.scrollIntoView({ block: 'center', inline: 'center' });
+      const barStyle = getComputedStyle(bar);
+      const backRect = back.getBoundingClientRect();
+      const top = document.elementFromPoint(backRect.left + backRect.width / 2, backRect.top + backRect.height / 2);
+      return {
+        pointerEvents: barStyle.pointerEvents,
+        visibility: barStyle.visibility,
+        hitIsBar: Boolean(top?.closest?.('#viewerModeSelect')),
+        hitIsBack: Boolean(top?.closest?.('#splitBackToDaf')),
+      };
+    });
+    expect(hit.pointerEvents).toBe('none');
+    expect(hit.visibility).toBe('hidden');
+    expect(hit.hitIsBar).toBe(false);
+    expect(hit.hitIsBack).toBe(true);
+
+    await page.click('#splitBackToDaf');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
   });
 
   test('a keyboard Tab into the page still brings the bar back, even from outside the player/daf area', async ({ page }) => {
