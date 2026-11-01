@@ -139,6 +139,55 @@ test.describe('player bugfixes on live Bekhorot', () => {
     await shot(page, 'vaater-30a');
   });
 
+  test('a paused Vaater jump updates the time and highlight before YouTube catches up', async ({ page }) => {
+    test.setTimeout(60000);
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    const immediate = await page.evaluate(() => {
+      const real = state.segments.findIndex((segment) => !segment.estimated && segment.end - segment.start > 1);
+      const start = state.segments[real].start + 0.2;
+      window.__yt._time = start;
+      window.__yt._state = 2;
+      state.youtubeState = 2;
+      state.wantPlaying = false;
+      state.pendingSeek = null;
+      state.phrasePin = null;
+      updateActiveSegment(true, start);
+      // A paused YouTube seekTo reports the old clock until playback
+      // actually flushes it, which is why the first click looked dead.
+      window.__yt.seekTo = (time) => {
+        window.__yt._asked = time;
+        setTimeout(() => { window.__yt._time = time; }, 700);
+      };
+      window.__yt.playVideo = () => {
+        window.__yt._played = true;
+        window.__yt._state = 1;
+      };
+      window.__yt.pauseVideo = () => { window.__yt._state = 2; };
+      const target = nextReadingTime(start);
+      document.getElementById('vaaterButton').click();
+      const landed = state.segments[state.activeIndex];
+      return {
+        target,
+        clock: window.__yt._time,
+        asked: window.__yt._asked,
+        played: Boolean(window.__yt._played),
+        expectedLabel: formatTime(target),
+        label: document.getElementById('currentTime').textContent,
+        scrubber: Number(document.getElementById('scrubber').value),
+        landedStart: landed?.start ?? null,
+        active: document.querySelector('.daf-segment.active')?.dataset.start ?? null,
+      };
+    });
+    expect(immediate.target).not.toBeNull();
+    expect(immediate.clock).toBeLessThan(immediate.target - 0.5);
+    expect(immediate.asked).toBeCloseTo(immediate.target, 1);
+    expect(immediate.played).toBe(true);
+    expect(immediate.label).toBe(immediate.expectedLabel);
+    expect(immediate.scrubber).toBeCloseTo(immediate.target, 1);
+    expect(immediate.landedStart).toBeCloseTo(immediate.target, 1);
+    expect(Number(immediate.active)).toBeCloseTo(immediate.target, 1);
+  });
+
   test('Bekhorot 31a intro does not highlight the packed 30b phrases', async ({ page }) => {
     test.setTimeout(60000);
     await openLive(page, '/player/?ref=Bekhorot+31a&variant=chazarah');

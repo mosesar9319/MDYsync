@@ -1170,7 +1170,18 @@ function getCurrentTime() {
   if (!pending) return readPlayerTime();
   const actual = readPlayerTime();
   const age = performance.now() - pending.issuedAt;
-  if (Math.abs(actual - pending.time) <= 0.45 || age > 2500) {
+  // A paused-frame blip plays for a moment so YouTube will paint. During
+  // that blip the clock is still the pre-seek time; reporting it makes a
+  // Vaater jump look like it did nothing.
+  if (state.pausedFrameRefresh) return pending.time;
+  if (Math.abs(actual - pending.time) <= 0.45) {
+    state.pendingSeek = null;
+    return actual;
+  }
+  // Keep the requested time on screen until the player actually arrives.
+  // Releasing the hold on a timer and falling back to the old clock is
+  // what snapped the readout backwards after a paused seek.
+  if (age > 4000) {
     state.pendingSeek = null;
     return actual;
   }
@@ -2231,6 +2242,11 @@ async function rerenderVilnaPageForZoom() {
   window.dispatchEvent(new CustomEvent('dafsync:vilna-page', { detail: { reason: 'raster' } }));
 }
 
+// Set when Split should survive leaving fullscreen (the fullscreen button,
+// or an Esc that a menu already consumed). A bare fullscreenchange — Chrome
+// eats Esc to leave fullscreen and never delivers the key — leaves Split too.
+let suppressSplitExitOnFullscreenChange = false;
+
 function toggleVilnaFullscreen() {
   const card = document.querySelector('.daf-card');
   if (!card) return;
@@ -2247,7 +2263,13 @@ function toggleVilnaFullscreen() {
   const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
   if (fullscreenElement) {
     const exit = document.exitFullscreen || document.webkitExitFullscreen;
-    if (exit) Promise.resolve(exit.call(document)).catch((error) => showToast(`Could not exit fullscreen: ${error.message}`, 'error'));
+    if (state.viewerMode === 'split') suppressSplitExitOnFullscreenChange = true;
+    if (exit) {
+      Promise.resolve(exit.call(document)).catch((error) => {
+        suppressSplitExitOnFullscreenChange = false;
+        showToast(`Could not exit fullscreen: ${error.message}`, 'error');
+      });
+    }
     return;
   }
   const request = target.requestFullscreen || target.webkitRequestFullscreen;
@@ -5997,9 +6019,18 @@ function splitViewRatioOrDefault() {
 function applySplitViewLayoutToDom() {
   const container = splitViewContainer();
   if (!container) return;
-  container.classList.toggle('split-stacked', state.splitViewLayout === 'stacked');
-  container.classList.toggle('split-video-end', state.splitViewVideoPosition === 'end');
-  container.style.setProperty('--split-video-ratio', String(splitViewRatioOrDefault()));
+  const stacked = state.splitViewLayout === 'stacked';
+  const videoAtEnd = state.splitViewVideoPosition === 'end';
+  container.classList.toggle('split-stacked', stacked);
+  container.classList.toggle('split-video-end', videoAtEnd);
+  const ratio = String(splitViewRatioOrDefault());
+  container.style.setProperty('--split-video-ratio', ratio);
+  // The mode bar is a sibling of this container, so it cannot see a
+  // variable set only here. Publishing it on the root lets the bar size
+  // itself to the video pane instead of covering the daf.
+  document.documentElement.style.setProperty('--split-video-ratio', ratio);
+  document.body.classList.toggle('split-layout-stacked', state.splitViewEnabled && stacked);
+  document.body.classList.toggle('split-video-at-end', state.splitViewEnabled && videoAtEnd);
   updateSplitViewToolbarUi();
 }
 function updateSplitViewToolbarUi() {
@@ -6046,7 +6077,8 @@ function setSplitView(enabled) {
 
   const popSplitHistory = !splitHistoryQuiet && Boolean(history.state?.split);
   state.splitViewEnabled = false;
-  document.body.classList.remove('split-view-active', 'split-chrome-hidden');
+  document.body.classList.remove('split-view-active', 'split-chrome-hidden', 'split-layout-stacked', 'split-video-at-end');
+  document.documentElement.style.removeProperty('--split-video-ratio');
   clearTimeout(splitChromeHideTimer);
   pointerRestingOnSplitChrome = false;
   container.classList.remove('split-active', 'split-stacked', 'split-video-end');
@@ -6079,8 +6111,12 @@ function exitFullscreenIfActive() {
 
 function requestExitSplit() {
   if (state.viewerMode !== 'split') return;
+  // This exit already leaves Split. fullscreenchange must not do it again
+  // (a second history.back) when the browser finishes leaving fullscreen.
+  if (document.fullscreenElement || document.webkitFullscreenElement) suppressSplitExitOnFullscreenChange = true;
   exitFullscreenIfActive();
   setViewerMode('standard');
+  if (!(document.fullscreenElement || document.webkitFullscreenElement)) suppressSplitExitOnFullscreenChange = false;
 }
 
 function toggleSplitViewerMode() {
@@ -6336,7 +6372,9 @@ function announceViewerMode(mode) {
   }
   function setRatioLive(ratio) {
     state.splitViewRatio = ratio;
-    container.style.setProperty('--split-video-ratio', String(ratio));
+    const value = String(ratio);
+    container.style.setProperty('--split-video-ratio', value);
+    document.documentElement.style.setProperty('--split-video-ratio', value);
     updateSplitViewToolbarUi();
   }
 
@@ -6516,6 +6554,24 @@ function announceViewerMode(mode) {
     event.preventDefault();
     requestExitSplit();
   });
+  // Chrome (and other browsers) handle Esc themselves while an element is
+  // fullscreen: the page never sees the key, and only fullscreenchange
+  // fires. That used to leave Split on, so a second Esc was required.
+  const onSplitFullscreenChange = () => {
+    const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
+    if (fullscreenElement) return;
+    const keepSplit = suppressSplitExitOnFullscreenChange;
+    suppressSplitExitOnFullscreenChange = false;
+    if (keepSplit || state.viewerMode !== 'split' || overlayConsumesEscape()) return;
+    setViewerMode('standard');
+  };
+  document.addEventListener('fullscreenchange', onSplitFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', onSplitFullscreenChange);
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !overlayConsumesEscape()) return;
+    suppressSplitExitOnFullscreenChange = true;
+    setTimeout(() => { suppressSplitExitOnFullscreenChange = false; }, 80);
+  }, true);
   window.addEventListener('popstate', () => {
     const wantsSplit = Boolean(history.state?.split);
     if (wantsSplit === (state.viewerMode === 'split')) return;
@@ -7099,34 +7155,54 @@ async function togglePlay() {
 // looked like: not a missing retry, just not enough of it.
 let seekGeneration = 0;
 let pausedFrameToken = 0;
+let pausedFrameTimer = null;
+let pausedFrameTarget = null;
 // YouTube often updates currentTime on a paused seekTo without painting the
 // new frame. A muted blip of playback is the reliable way to force that
 // paint; it is skipped while the reader actually wants the video playing.
-function repaintPausedYouTubeFrame() {
+// The blip used to run for 250ms from whatever frame was already up, so the
+// clock and the highlight stayed on the phrase just left until the player
+// caught up on its own.
+function finishPausedFrameRefresh(token) {
+  if (state.pausedFrameRefresh !== token) return;
+  const target = pausedFrameTarget;
+  const player = state.youtubePlayer;
+  state.pausedFrameRefresh = 0;
+  pausedFrameTarget = null;
+  clearTimeout(pausedFrameTimer);
+  pausedFrameTimer = null;
+  if (player && target != null && !state.wantPlaying) {
+    const actual = Number(player.getCurrentTime?.()) || 0;
+    if (Math.abs(actual - target) > 0.35) player.seekTo?.(target, true);
+    player.pauseVideo?.();
+  }
+  if (player && !state.muted) player.unMute?.();
+  if (target != null) {
+    armPendingSeek(target);
+    paintSeekUi(target);
+  }
+  updateMuteIcons();
+  updatePlayUi();
+}
+function repaintPausedYouTubeFrame(targetTime) {
   const player = state.youtubePlayer;
   if (!player || state.wantPlaying || state.pausedFrameRefresh) return;
   const live = player.getPlayerState?.();
   if (live === 1 || live === 3) return;
   const token = ++pausedFrameToken;
   state.pausedFrameRefresh = token;
-  const wasMuted = state.muted;
-  if (!wasMuted) player.mute?.();
+  pausedFrameTarget = targetTime;
+  if (!state.muted) player.mute?.();
   player.playVideo?.();
-  setTimeout(() => {
-    if (state.pausedFrameRefresh !== token) return;
-    if (!state.wantPlaying) player.pauseVideo?.();
-    if (!wasMuted) player.unMute?.();
-    state.muted = wasMuted;
-    state.pausedFrameRefresh = 0;
-    updateMuteIcons();
-    updatePlayUi();
-  }, 250);
+  if (state.pausedFrameRefresh !== token) return;
+  clearTimeout(pausedFrameTimer);
+  pausedFrameTimer = setTimeout(() => finishPausedFrameRefresh(token), 160);
 }
 function seekYouTubePlayer(time, allowSeekAhead, attempt = 0, generation = ++seekGeneration) {
   const player = state.youtubePlayer;
   if (!player?.seekTo) return;
   player.seekTo(time, allowSeekAhead);
-  if (attempt === 0 && allowSeekAhead) repaintPausedYouTubeFrame();
+  if (attempt === 0 && allowSeekAhead) repaintPausedYouTubeFrame(time);
   if (attempt >= 20) return;
   setTimeout(() => {
     if (generation !== seekGeneration) return; // superseded by a newer seek request
@@ -7172,10 +7248,35 @@ function flushQueuedSeek() {
   armPendingSeek(queued.time);
 }
 
+function paintSeekUi(time) {
+  if (!Number.isFinite(time)) return;
+  scrubberEls.forEach((el) => { el.value = String(time); });
+  const label = $('currentTime');
+  if (label) label.textContent = formatTime(time);
+  updateScrubberFill();
+  updateActiveSegment(true, time);
+  scrollActiveIntoView(true);
+}
+
 function seek(time, allowSeekAhead = true) {
   const max = getDuration() || Number(scrubber.max) || 0;
   const clamped = Math.max(0, Math.min(time, max || time));
-  if (!state.phrasePin || Math.abs(clamped - state.phrasePin.seekTarget) > 0.08) state.phrasePin = null;
+  // A tap pins the phrase it landed on, then seeks a fraction early so the
+  // opening isn't clipped. That pin's target matches `clamped`; replacing
+  // it with findSegmentAt would light the previous phrase. Every other
+  // seek (Vaater, ±10s, the scrubber) pins the phrase that actually
+  // contains the landing time so a stale paused clock can't keep the old one.
+  const pinnedHere = state.phrasePin && Math.abs(clamped - state.phrasePin.seekTarget) <= 0.08;
+  if (!pinnedHere) {
+    const landing = findSegmentAt(clamped);
+    state.phrasePin = landing >= 0
+      ? { index: landing, until: pinReleaseTime(landing), seekTarget: clamped }
+      : null;
+  }
+  // Before the player call. The paused-frame blip fires state events
+  // synchronously on some players, and those must not paint the old clock.
+  armPendingSeek(clamped);
+  state.lastObservedTime = clamped;
 
   if (state.playerType === 'youtube') {
     if (state.youtubeReady && state.youtubePlayer?.seekTo) seekYouTubePlayer(clamped, allowSeekAhead);
@@ -7183,12 +7284,8 @@ function seek(time, allowSeekAhead = true) {
   } else {
     seekHtmlVideo(clamped);
   }
-  armPendingSeek(clamped);
 
-  scrubberEls.forEach((el) => { el.value = String(clamped); });
-  if ($('currentTime')) $('currentTime').textContent = formatTime(clamped);
-  updateScrubberFill();
-  updateActiveSegment(true, clamped);
+  paintSeekUi(clamped);
 }
 
 function seekToSegment(index) {
@@ -8081,7 +8178,12 @@ async function ensureYouTubePlayer(videoId) {
             // new frame has even seeked. Running the highlight off that
             // event used the pre-seek clock, which expired the tap pin and
             // left the previous phrase lit.
-            if (nudgingFrame) return;
+            if (nudgingFrame) {
+              // Playing means a frame is up. Freeze it on the requested
+              // time instead of letting the blip run on the old clock.
+              if (event.data === 1) finishPausedFrameRefresh(state.pausedFrameRefresh);
+              return;
+            }
             if (event.data === 1) {
               state.wantPlaying = true;
               state.playRetryUsed = false;
@@ -9301,17 +9403,18 @@ function showVideoControls() {
 
 let scrubSeekTimer = 0;
 function applyScrubSeek(time, allowSeekAhead) {
+  armPendingSeek(time);
   if (state.playerType === 'youtube') {
     if (state.youtubeReady && state.youtubePlayer?.seekTo) seekYouTubePlayer(time, allowSeekAhead);
     else state.queuedSeek = { time, allowSeekAhead };
   } else if (htmlVideo.readyState >= 1) {
     htmlVideo.currentTime = time;
   }
-  armPendingSeek(time);
 }
 function handleScrubInput(event) {
   state.seeking = true;
   const time = Number(event.target.value);
+  armPendingSeek(time);
   scrubberEls.forEach((el) => { if (el !== event.target) el.value = event.target.value; });
   $('currentTime').textContent = formatTime(time);
   updateScrubberFill();
@@ -9322,9 +9425,8 @@ function handleScrubInput(event) {
 function handleScrubChange(event) {
   const time = Number(event.target.value);
   window.clearTimeout(scrubSeekTimer);
-  applyScrubSeek(time, true);
   state.seeking = false;
-  updateTimeline();
+  seek(time, true);
 }
 for (const el of scrubberEls) {
   el.addEventListener('input', handleScrubInput);

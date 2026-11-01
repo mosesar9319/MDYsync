@@ -2522,8 +2522,8 @@ body.split-view-active .watch-layout.split-active.split-stacked > .daf-card { gr
 body.split-view-active .watch-layout.split-active.split-stacked .split-divider { grid-column: 1; grid-row: 2; }
 body.split-view-active .watch-layout.split-active.split-video-end > .player-card { grid-column: 3; }
 body.split-view-active .watch-layout.split-active.split-video-end > .daf-card { grid-column: 1; }
-body.split-view-active .watch-layout.split-active.split-stacked.split-video-end > .player-card { grid-row: 3; }
-body.split-view-active .watch-layout.split-active.split-stacked.split-video-end > .daf-card { grid-row: 1; }
+body.split-view-active .watch-layout.split-active.split-stacked.split-video-end > .player-card { grid-column: 1; grid-row: 3; }
+body.split-view-active .watch-layout.split-active.split-stacked.split-video-end > .daf-card { grid-column: 1; grid-row: 1; }
 /* .player-card carries page-specific chrome around the video that differs
    by page (player/index.html's own small .daf-header.video-header vs.
    browse/watch's larger .card-heading, plus .now-learning and
@@ -2580,8 +2580,15 @@ body.split-view-active main { padding: 0; max-width: none; }
 body.split-view-active .viewer-mode-select {
   position: fixed;
   top: max(10px, env(safe-area-inset-top, 0px));
-  left: 50%;
-  transform: translateX(-50%);
+  /* Anchored to the video pane, not the viewport center. A centered bar
+     sits on the daf's Auto-scroll row. The width cap matches the video
+     column (the ratio is published on the root because this bar is not
+     inside .watch-layout) so a wrap stays over the picture. The picture
+     already clears this bar via --viewer-mode-bar-h. */
+  left: max(10px, env(safe-area-inset-left, 0px));
+  right: auto;
+  transform: none;
+  box-sizing: border-box;
   z-index: 502;
   margin: 0;
   padding: 8px;
@@ -2589,8 +2596,23 @@ body.split-view-active .viewer-mode-select {
   background: rgba(8,17,28,.82);
   border: 1px solid rgba(255,255,255,.14);
   backdrop-filter: blur(6px);
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  width: max-content;
+  max-width: calc((100vw - var(--split-divider-size, 10px)) * var(--split-video-ratio, .5) - 20px);
+}
+body.split-view-active.split-video-at-end:not(.split-layout-stacked) .viewer-mode-select {
+  left: auto;
+  right: max(10px, env(safe-area-inset-right, 0px));
+}
+body.split-view-active.split-layout-stacked .viewer-mode-select {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
   max-width: calc(100vw - 20px);
+}
+body.split-view-active.split-layout-stacked.split-video-at-end .viewer-mode-select {
+  top: calc((100dvh - var(--split-divider-size, 10px)) * var(--split-video-ratio, .4) + var(--split-divider-size, 10px) + max(10px, env(safe-area-inset-top, 0px)));
 }
 /* Icon-only in this specific overlay placement BELOW 680px (not the general
    <380px rule further down, which also applies to the normal in-flow
