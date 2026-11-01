@@ -111,29 +111,45 @@ function boxesOverlap(a, b) {
 }
 
 test.describe('mobile player layout', () => {
-  test('phone control buttons are 44px and do not overlap', async ({ page }) => {
+  test('phone control buttons stay compact and do not overlap', async ({ page }) => {
     test.skip(test.info().project.name !== 'mobile', 'measured on the touch viewport');
     test.setTimeout(60000);
-    await page.setViewportSize({ width: 400, height: 985 });
+    await page.setViewportSize({ width: 412, height: 915 });
     await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
     await page.locator('#videoFrame').evaluate((frame) => frame.classList.remove('controls-hidden'));
-    const ids = ['backButton', 'playButton', 'forwardButton', 'vaaterButton', 'muteButton', 'fullscreenButton'];
+    const ids = ['backButton', 'playButton', 'forwardButton', 'muteButton', 'fullscreenButton'];
     const boxes = {};
     for (const id of ids) {
       const box = await page.locator(`#${id}`).boundingBox();
       boxes[id] = box;
       expect(box, id).toBeTruthy();
-      expect(box.width, id).toBeGreaterThanOrEqual(44);
-      expect(box.height, id).toBeGreaterThanOrEqual(44);
+      expect(box.height, id).toBeGreaterThanOrEqual(32);
+      expect(box.height, id).toBeLessThanOrEqual(36);
+      expect(box.width, id).toBeGreaterThanOrEqual(32);
+      expect(box.width, id).toBeLessThanOrEqual(36);
     }
+    const chrome = await page.evaluate(() => {
+      const bar = getComputedStyle(document.querySelector('.player-controls'));
+      const scrub = document.querySelector('.scrubber-wrap').getBoundingClientRect();
+      const controls = document.querySelector('.player-controls').getBoundingClientRect();
+      const mute = getComputedStyle(document.getElementById('muteButton'));
+      return {
+        barBg: bar.backgroundColor,
+        bottom: Math.round(controls.bottom - scrub.top),
+        muteBorder: mute.borderTopWidth,
+      };
+    });
+    expect(chrome.barBg).toBe('rgba(0, 0, 0, 0)');
+    expect(chrome.bottom).toBeLessThanOrEqual(64);
+    expect(chrome.muteBorder).toBe('0px');
     const speedHome = await page.evaluate(() => {
       const speed = document.getElementById('speedSelect');
       return speed?.closest('#toolsMoreMenu') ? 'menu' : 'bar';
     });
     if (speedHome === 'bar') {
       const speed = await page.locator('#speedSelect').boundingBox();
-      expect(speed.height).toBeGreaterThanOrEqual(44);
-      expect(speed.width).toBeGreaterThanOrEqual(44);
+      expect(speed.height).toBeGreaterThanOrEqual(30);
+      expect(speed.height).toBeLessThanOrEqual(36);
       boxes.speed = speed;
     }
     const order = Object.keys(boxes);
@@ -315,7 +331,7 @@ test.describe('mobile player layout', () => {
     expect(geo.tiny).toBe(false);
     // At 1440px the sidebar and daf column leave the video frame in the
     // compact tier, whose desktop play control is 30px. Snug is 38, full is
-    // 46. The phone 44px target must not replace any of those.
+    // 46. The phone control size must not replace any of those.
     const expected = geo.compact ? 30 : geo.snug ? 38 : 46;
     expect(Math.abs(geo.playW - expected)).toBeLessThan(2);
     expect(Math.abs(geo.playH - expected)).toBeLessThan(2);
@@ -608,7 +624,8 @@ test.describe('mobile player layout', () => {
       state.seeking = false;
     });
     const box = await page.locator('#scrubber').boundingBox();
-    expect(box.height).toBeGreaterThanOrEqual(40);
+    expect(box.height).toBeGreaterThanOrEqual(24);
+    expect(box.height).toBeLessThanOrEqual(36);
     const client = await page.context().newCDPSession(page);
     const y = box.y + box.height / 2;
     const startX = box.x + 8;

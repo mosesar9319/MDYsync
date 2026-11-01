@@ -253,7 +253,7 @@ test.describe('Split View — divider and layout', () => {
     expect(swapped.insideVideo).toBe(true);
   });
 
-  test('exiting fullscreen without a key also exits Split; the fullscreen button keeps it', async ({ page }) => {
+  test('leaving split fullscreen keeps Split on', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
     await page.goto('/player/?ref=Chullin%2089a');
@@ -269,18 +269,38 @@ test.describe('Split View — divider and layout', () => {
     test.skip(!String(fullscreen).includes('watch-layout'), `fullscreen unavailable (${fullscreen})`);
 
     // Chrome consumes Esc and only tells the page via fullscreenchange.
+    // That leaves fullscreen only. Split stays on.
     await page.evaluate(() => document.exitFullscreen());
-    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
     await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBeFalsy();
+    expect(await page.evaluate(() => state.viewerMode)).toBe('split');
 
-    await page.click('#viewerModeSplitButton');
-    await dismissErrorBanner(page);
-    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
     await page.evaluate(async () => { await document.querySelector('.watch-layout').requestFullscreen(); });
     await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(true);
     await page.evaluate(() => toggleVilnaFullscreen());
     await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBeFalsy();
     expect(await page.evaluate(() => state.viewerMode)).toBe('split');
+  });
+
+  test('a tap that starts on the video does not turn Split off', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+    await page.evaluate(() => document.body.classList.remove('split-chrome-hidden'));
+    const stayed = await page.evaluate(() => {
+      const surface = document.getElementById('splitVideoPinchSurface');
+      const pressPicture = () => surface.dispatchEvent(new PointerEvent('pointerdown', {
+        bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX: 40, clientY: 180,
+      }));
+      pressPicture();
+      document.getElementById('viewerModeSplitButton').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      pressPicture();
+      document.getElementById('splitExitButton').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      return state.viewerMode;
+    });
+    expect(stayed).toBe('split');
+    await page.click('#splitExitButton');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
   });
 
   test('Escape exits Split View to standard, and the exit button does the same', async ({ page }) => {

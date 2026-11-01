@@ -659,7 +659,7 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
    exactly what made choosing a speed do nothing while Split View was
    active -- the menu was genuinely there, just invisible and unclickable
    underneath the real video and daf pane. */
-.speed-menu { position: fixed; z-index: 600; min-width: 92px; margin: 0; padding: 4px; list-style: none; border-radius: 10px; background: rgba(10,20,32,.96); border: 1px solid rgba(255,255,255,.15); box-shadow: 0 14px 38px rgba(0,0,0,.45); }
+.speed-menu { position: fixed; z-index: 710; min-width: 92px; margin: 0; padding: 4px; list-style: none; border-radius: 10px; background: rgba(10,20,32,.96); border: 1px solid rgba(255,255,255,.15); box-shadow: 0 14px 38px rgba(0,0,0,.45); }
 .speed-menu:focus { outline: none; }
 .speed-menu li { padding: 8px 10px; border-radius: 7px; font-size: 13px; font-weight: 600; color: rgba(255,255,255,.85); cursor: pointer; }
 .speed-menu li:hover, .speed-menu li.is-active { background: rgba(255,255,255,.12); color: #fff; }
@@ -708,6 +708,7 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
    rules elsewhere in this file without fighting their specificity: those are
    all scoped through .video-frame, which this tray is no longer a
    descendant of once moved here. */
+.pc-tools-menu .pc-label { pointer-events: none; }
 .pc-tools-menu .pc-stack,
 .pc-tools-menu .pc-pill {
   flex-direction: row;
@@ -829,21 +830,51 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .video-frame.is-tiny .player-topbar { height: 30px; padding: 0 7px; }
 
 /* Phones (and a short landscape phone, which is still wide enough to miss
-   the 760px sidebar breakpoint) need a ~44px hit target. The 22px glyphs
-   above stay for a desktop reading-mode mini-player, which shares is-tiny
-   but is not a phone. Gaps shrink so the larger targets stay on one row
-   instead of stacking over the picture. */
+   the 760px sidebar breakpoint). The controls stay big enough to tap, but
+   they read like a phone player: ~34px glyphs, no filled boxes, and a short
+   light fade behind the title row and the control row instead of a tall
+   dark slab over the picture. The reading-mode mini player below keeps its
+   own smaller chrome so its resize handle stays reachable. */
 @media (max-width: 760px), (max-height: 520px) and (max-width: 1100px) {
   .video-frame.is-compact,
-  .video-frame.is-tiny { --pc-bar-h: 52px; }
+  .video-frame.is-tiny { --pc-bar-h: 36px; --pc-timeline-h: 22px; }
+  .video-frame.is-compact .player-topbar,
+  .video-frame.is-tiny .player-topbar {
+    height: 44px;
+    padding: 0 8px;
+    background: linear-gradient(to bottom, rgba(4,12,22,.4), rgba(4,12,22,0));
+  }
   .video-frame.is-compact .player-controls,
-  .video-frame.is-tiny .player-controls { gap: 4px; padding: 0 4px; }
+  .video-frame.is-tiny .player-controls {
+    gap: 2px;
+    padding: 0 4px;
+    background: transparent;
+    border-top: 0;
+    backdrop-filter: none;
+  }
+  .video-frame.is-compact .player-controls::before,
+  .video-frame.is-tiny .player-controls::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 58px;
+    background: linear-gradient(to top, rgba(4,14,27,.5), rgba(4,14,27,0));
+    pointer-events: none;
+    z-index: -1;
+  }
+  .video-frame.is-compact .scrubber-wrap,
+  .video-frame.is-tiny .scrubber-wrap {
+    background: none;
+    padding: 0 8px 0;
+  }
   .video-frame.is-compact .pc-transport,
   .video-frame.is-tiny .pc-transport,
   .video-frame.is-compact .pc-tools,
   .video-frame.is-tiny .pc-tools,
   .video-frame.is-compact .pc-volume,
-  .video-frame.is-tiny .pc-volume { gap: 2px; }
+  .video-frame.is-tiny .pc-volume { gap: 0; }
   .video-frame.is-compact .pc-transport .icon-button,
   .video-frame.is-tiny .pc-transport .icon-button,
   .video-frame.is-compact .pc-volume .icon-button,
@@ -851,44 +882,86 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
   .video-frame.is-compact .pc-tools .icon-button,
   .video-frame.is-tiny .pc-tools .icon-button,
   .video-frame.is-compact .video-fullscreen-button,
-  .video-frame.is-tiny .video-fullscreen-button,
+  .video-frame.is-tiny .video-fullscreen-button {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .video-frame.is-compact .pc-transport .icon-button svg,
+  .video-frame.is-tiny .pc-transport .icon-button svg,
+  .video-frame.is-compact .pc-volume .icon-button svg,
+  .video-frame.is-tiny .pc-volume .icon-button svg,
+  .video-frame.is-compact .pc-tools .icon-button svg,
+  .video-frame.is-tiny .pc-tools .icon-button svg,
+  .video-frame.is-compact .video-fullscreen-button svg,
+  .video-frame.is-tiny .video-fullscreen-button svg,
+  .video-frame.is-compact .vaater-button svg,
+  .video-frame.is-tiny .vaater-button svg {
+    width: 22px;
+    height: 22px;
+  }
   .video-frame.is-compact .pc-transport .play-button,
-  .video-frame.is-tiny .pc-transport .play-button,
+  .video-frame.is-tiny .pc-transport .play-button {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    background: none;
+    border: 1.5px solid rgba(255,255,255,.88);
+    color: #fff;
+  }
+  .video-frame.is-compact .pc-transport .play-button svg,
+  .video-frame.is-tiny .pc-transport .play-button svg { width: 16px; height: 16px; }
   .video-frame.is-compact .vaater-button,
   .video-frame.is-tiny .vaater-button {
-    width: 44px;
-    height: 44px;
-    min-width: 44px;
-    min-height: 44px;
+    width: auto;
+    height: 32px;
+    min-width: 0;
+    min-height: 32px;
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    font-size: 13px;
+    gap: 2px;
   }
   .video-frame.is-compact .speed-select,
   .video-frame.is-tiny .speed-select {
-    height: 44px;
-    min-height: 44px;
-    min-width: 44px;
-    padding: 0 16px 0 8px;
+    height: 32px;
+    min-height: 32px;
+    min-width: 0;
+    padding: 0 14px 0 4px;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
   }
-  .video-frame.is-compact .vaater-button,
-  .video-frame.is-tiny .vaater-button { padding: 0; justify-content: center; }
-  .video-frame.is-compact,
-  .video-frame.is-tiny { --pc-timeline-h: 52px; }
+  .video-frame.is-compact .pc-tools .icon-button[aria-pressed="true"],
+  .video-frame.is-tiny .pc-tools .icon-button[aria-pressed="true"] {
+    color: var(--accent);
+    background: transparent;
+  }
   .video-frame.is-compact .scrubber,
   .video-frame.is-tiny .scrubber {
-    height: 44px;
+    height: 28px;
     touch-action: none;
   }
   .video-frame.is-compact .scrubber::-webkit-slider-thumb,
   .video-frame.is-tiny .scrubber::-webkit-slider-thumb {
-    width: 22px;
-    height: 22px;
-    margin-top: -9px;
+    width: 14px;
+    height: 14px;
+    margin-top: -5px;
   }
   .video-frame.is-compact .scrubber::-moz-range-thumb,
   .video-frame.is-tiny .scrubber::-moz-range-thumb {
-    width: 22px;
-    height: 22px;
+    width: 14px;
+    height: 14px;
   }
-  .split-toolbar .icon-button { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
+  .split-toolbar .icon-button { width: 36px; height: 36px; min-width: 36px; min-height: 36px; }
   /* The reading-mode mini player is a small float with its resize handle in
      the bottom-right corner. 44px targets there cover that handle, so the
      float's own fullscreen button never receives the tap. It keeps the
@@ -937,6 +1010,11 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
     width: 16px;
     height: 16px;
   }
+  body.reading-mode-active .reading-video-float .video-frame .player-controls {
+    background: rgba(6,15,26,.93);
+    border-top: 1px solid rgba(255,255,255,.07);
+  }
+  body.reading-mode-active .reading-video-float .video-frame .player-controls::before { content: none; }
 }
 
 .now-learning { margin-top: 17px; padding: 15px 17px; border-radius: 14px; border: 1px solid rgba(47, 110, 165,.24); background: linear-gradient(135deg, rgba(47, 110, 165,.11), rgba(82,167,255,.06)); min-height: 113px; }
@@ -3060,6 +3138,16 @@ body.split-view-active .watch-layout.split-active .video-frame .player-topbar::b
   height: calc(max(10px, env(safe-area-inset-top, 0px)) + var(--viewer-mode-bar-h, 74px));
   background: rgba(4,12,22,.9);
   pointer-events: none;
+}
+/* On a phone the solid fill above the shifted title row, stacked on the
+   control-bar scrim, covered most of a short split video. A short fade is
+   enough to hide the embed's own title without painting the picture. */
+@media (max-width: 760px), (max-height: 520px) and (max-width: 1100px) {
+  body.split-view-active .watch-layout.split-active .video-frame .player-topbar::before {
+    top: -48px;
+    height: 48px;
+    background: linear-gradient(to bottom, rgba(4,12,22,.35), rgba(4,12,22,0));
+  }
 }
 /* Applied to the video PICTURE only (#video / #youtubePlayerHost -- exactly
    one is visible at a time, see app.js's own source-switch code) -- NOT to

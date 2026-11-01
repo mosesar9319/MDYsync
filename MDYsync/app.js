@@ -6633,21 +6633,23 @@ function announceViewerMode(mode) {
     resetSplitVideoZoom({ announce: false });
     scheduleVilnaPageLayoutRefresh(120);
   });
+  // Esc while Split is fullscreen only leaves fullscreen. Chrome often
+  // swallows the key and only fires fullscreenchange; when it also delivers
+  // the key, that arrives after fullscreen is already gone. Either way Split
+  // stays on. Esc while Split is not fullscreen still leaves Split.
+  let leftSplitFullscreenAt = -Infinity;
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape' || state.viewerMode !== 'split' || overlayConsumesEscape()) return;
+    if (document.fullscreenElement || document.webkitFullscreenElement) return;
+    if (performance.now() - leftSplitFullscreenAt < 500) return;
     event.preventDefault();
     requestExitSplit();
   });
-  // Chrome (and other browsers) handle Esc themselves while an element is
-  // fullscreen: the page never sees the key, and only fullscreenchange
-  // fires. That used to leave Split on, so a second Esc was required.
   const onSplitFullscreenChange = () => {
     const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
     if (fullscreenElement) return;
-    const keepSplit = suppressSplitExitOnFullscreenChange;
+    leftSplitFullscreenAt = performance.now();
     suppressSplitExitOnFullscreenChange = false;
-    if (keepSplit || state.viewerMode !== 'split' || overlayConsumesEscape()) return;
-    setViewerMode('standard');
   };
   document.addEventListener('fullscreenchange', onSplitFullscreenChange);
   document.addEventListener('webkitfullscreenchange', onSplitFullscreenChange);
@@ -6664,6 +6666,30 @@ function announceViewerMode(mode) {
     finally { splitHistoryQuiet = false; }
   });
   ensureSplitChromeWake();
+
+  // A tap that starts on the picture must not land on the overlay toolbar.
+  // The bar sits on the video and can appear or shift under the finger, and
+  // the click that follows was reaching Split view / the X and leaving Split.
+  let splitPicturePointerDown = false;
+  document.addEventListener('pointerdown', (event) => {
+    if (!state.splitViewEnabled || event.button > 0) {
+      splitPicturePointerDown = false;
+      return;
+    }
+    const frame = $('videoFrame');
+    // The pinch surface is role=button so a tap can zoom it. It is still the
+    // picture: a click that follows must not hit the mode bar or the X.
+    const picture = event.target?.closest?.('#splitVideoPinchSurface, #video, .video-click-surface, .player-wake-layer, #youtubePlayerHost');
+    splitPicturePointerDown = Boolean(frame && picture && frame.contains(picture));
+  }, true);
+  document.addEventListener('click', (event) => {
+    if (!splitPicturePointerDown) return;
+    splitPicturePointerDown = false;
+    const bar = event.target?.closest?.('#viewerModeSelect, #splitToolbar');
+    if (!bar) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }, true);
 
   // --- Bringing the combined bar back once it has faded out --------------
   // Scoped to the daf pane and the bar itself -- NOT the whole document,
@@ -7575,6 +7601,63 @@ function setPlaybackRate(rate) {
   }
 }
 
+// Captions stay off until the reader turns them on. YouTube's cc_load_policy
+// is not enough on its own: automatic captions come back when playback
+// starts, so the preference is applied again there. The choice is remembered
+// on this device.
+const CAPTIONS_STORAGE_KEY = 'dafsync-captions';
+function captionsWanted() {
+  try { return localStorage.getItem(CAPTIONS_STORAGE_KEY) === 'on'; }
+  catch { return false; }
+}
+function updateCaptionsButton() {
+  const button = $('captionsButton');
+  if (!button) return;
+  const on = captionsWanted();
+  button.setAttribute('aria-pressed', String(on));
+  button.setAttribute('aria-label', on ? 'Captions on' : 'Captions off');
+  button.title = on ? 'Captions on' : 'Captions off';
+}
+function applyYouTubeCaptions(player, on) {
+  if (!player) return;
+  const run = () => {
+    try {
+      if (!on) {
+        try { player.setOption('captions', 'track', {}); } catch { /* module not loaded */ }
+        try { player.unloadModule('captions'); } catch { /* already off */ }
+        return;
+      }
+      try { player.loadModule('captions'); } catch { /* player not ready */ }
+      let tracks = [];
+      try { tracks = player.getOption('captions', 'tracklist') || []; } catch { tracks = []; }
+      const track = tracks.find((item) => item.languageCode === 'en') || tracks[0];
+      if (track) player.setOption('captions', 'track', track);
+    } catch { /* captions module unavailable */ }
+  };
+  run();
+  if (!on) {
+    window.setTimeout(() => {
+      if (!captionsWanted()) run();
+    }, 500);
+  }
+}
+function applyHtmlCaptions(on) {
+  const tracks = htmlVideo?.textTracks;
+  if (!tracks) return;
+  for (const track of tracks) track.mode = on ? 'showing' : 'disabled';
+}
+function applyCaptionsPreference() {
+  const on = captionsWanted();
+  updateCaptionsButton();
+  if (state.playerType === 'youtube' && state.youtubeReady) applyYouTubeCaptions(state.youtubePlayer, on);
+  else applyHtmlCaptions(on);
+}
+function setCaptionsEnabled(on) {
+  try { localStorage.setItem(CAPTIONS_STORAGE_KEY, on ? 'on' : 'off'); }
+  catch { /* private mode */ }
+  applyCaptionsPreference();
+}
+
 // Video-quality selection, YouTube only -- a direct-link <video> has no
 // server-side rendition ladder to pick from, so #qualityControl just stays
 // hidden for that source. YouTube's own getAvailableQualityLevels() often
@@ -8168,6 +8251,7 @@ function handleVideoFile(file) {
   // all and setPlaybackRate never got called. Matches what the YouTube path
   // already does after cueVideoById -- see waitForYouTubeMetadata's caller.
   setPlaybackRate(Number($('speedSelect').value));
+  applyCaptionsPreference();
   $('videoFileName').textContent = file.name;
   $('lectureTitle').textContent = file.name.replace(/\.[^.]+$/, '');
   setSourceBadge('Local file');
@@ -8346,10 +8430,10 @@ async function ensureYouTubePlayer(videoId) {
         // own fullscreen button (below) fullscreens the whole video-frame
         // container instead, so it covers both.
         fs: 0,
-        // Captions are permanently off, with no UI to turn them on -- a
-        // reader already has this daf's own text/translation on screen and
-        // doesn't need YouTube's own (frequently auto-generated, un-vetted)
-        // captions burned on top of it.
+        // Captions start off. cc_load_policy 0 asks YouTube not to show
+        // them; applyCaptionsPreference() also unloads the captions module
+        // because automatic captions otherwise come back when playback
+        // starts. The CC button can turn them on later.
         cc_load_policy: 0,
         iv_load_policy: 3
       };
@@ -8379,6 +8463,7 @@ async function ensureYouTubePlayer(videoId) {
             startPausedDriftWatch();
             syncVolumeUi();
             showVideoControls();
+            applyCaptionsPreference();
             settleResolve();
           },
           onStateChange: (event) => {
@@ -8443,6 +8528,9 @@ async function ensureYouTubePlayer(videoId) {
             // (buffering) or 1 (playing) is the first reliable point real
             // levels show up, not onReady (see refreshQualityOptions).
             if (event.data === 3 || event.data === 1) refreshQualityOptions();
+            // Automatic captions come back when the video starts. Re-apply
+            // the reader's saved choice (off, unless they turned them on).
+            if (event.data === 1 || event.data === 5) applyCaptionsPreference();
           },
           onPlaybackQualityChange: () => refreshQualityOptions(),
           onError: (event) => {
@@ -8463,6 +8551,7 @@ async function ensureYouTubePlayer(videoId) {
   }
 
   setPlaybackRate(Number($('speedSelect').value));
+  applyCaptionsPreference();
   waitForYouTubeMetadata();
 }
 
@@ -8569,6 +8658,7 @@ function loadDirectVideoUrl(url, saveRefs = null, locked = false) {
   // Re-syncs the real rate after .load() resets it to 1 -- see the matching
   // comment in handleVideoFile above.
   setPlaybackRate(Number($('speedSelect').value));
+  applyCaptionsPreference();
   $('lectureTitle').textContent = titleFromUrl(parsed.href);
   setSourceBadge('Direct link');
   setSourcePanel('linkSourcePanel');
