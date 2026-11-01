@@ -58,6 +58,23 @@ const state = {
   youtubeReady: false,
   youtubeState: -1,
   youtubePollTimer: null,
+  // The reader's play/pause intent, separate from YouTube's live state.
+  // Buffering (3), cued (5) and unstarted (-1) are not "paused": treating
+  // them that way made the Play button look dead and a second click just
+  // call playVideo() again. wantPlaying stays true until playback actually
+  // starts or the reader cancels.
+  wantPlaying: false,
+  playStallTimer: null,
+  playRetryUsed: false,
+  ytErrTimer: null,
+  // Mute UI source of truth. youtubePlayer.isMuted() stays stale until the
+  // next player message, so reading it immediately after mute() mislabels
+  // the button.
+  muted: false,
+  pausedFrameRefresh: 0,
+  // Hold the Vilna PDF raster while a YouTube player is still being cued,
+  // so the first play isn't competing with that download.
+  deferVilnaRaster: false,
   usingDefaultAlignment: true,
   editingIndex: 0,
   phraseEditMode: false,
@@ -759,6 +776,14 @@ function dropStrayContextMatches(data) {
 // through the lead-in, instead of sitting dead until the video reaches its
 // own daf. Timestamps only mean anything against the recording they were
 // measured from, so this is fetched BY that recording, never by ref alone.
+// optional=1 asks get-results-file to answer a missing file with 200 null
+// instead of 404. Voice alignments, video links and test-run indexes are
+// absent for most shiurim; a 404 there is the normal answer, and the
+// browser logs every one of them.
+function resultsFileUrl(path, optional = false) {
+  return `/api/get-results-file?path=${encodeURIComponent(path)}${optional ? '&optional=1' : ''}`;
+}
+
 async function fetchAlignmentForVideo(videoId, ref, { voice = false } = {}) {
   if (!videoId) return null;
   try {
@@ -767,7 +792,7 @@ async function fetchAlignmentForVideo(videoId, ref, { voice = false } = {}) {
       + maggidKeyPrefix(parsed?.maggid)
       + (parsed?.language === 'he' ? HEBREW_KEY_PREFIX : '')
       + (parsed?.variant === 'chazarah' ? CHAZARAH_KEY_PREFIX : '');
-    const url = `/api/get-results-file?path=${encodeURIComponent(`by-video/${prefix}${videoId}.json`)}`;
+    const url = resultsFileUrl(`by-video/${prefix}${videoId}.json`, true);
     const response = await fetch(url);
     if (!response.ok) return null;
     const data = await response.json();
@@ -806,7 +831,7 @@ async function fetchServerAlignment(ref, { voice = false } = {}) {
     // Proxied through get-results-file.mjs, not fetched straight from
     // raw.githubusercontent.com -- see that function's own comment for why
     // (a real reader hit a 429 on exactly this class of fetch).
-    const url = `/api/get-results-file?path=${encodeURIComponent(`by-ref/${refKey(ref, { voice })}.json`)}`;
+    const url = resultsFileUrl(`by-ref/${refKey(ref, { voice })}.json`, true);
     const response = await fetch(url);
     if (!response.ok) return null;
     // Deliberately NOT scoped to just this ref (past versions of this
@@ -850,7 +875,7 @@ async function fetchServerAlignment(ref, { voice = false } = {}) {
 async function fetchServerVideoLink(ref) {
   try {
     // Proxied through get-results-file.mjs -- see fetchServerAlignment above.
-    const url = `/api/get-results-file?path=${encodeURIComponent(`video-links/${refKey(ref)}.json`)}`;
+    const url = resultsFileUrl(`video-links/${refKey(ref)}.json`, true);
     const response = await fetch(url);
     if (!response.ok) return null;
     return await response.json();
@@ -964,41 +989,58 @@ function isExplanationPaced(entry) {
 }
 
 // Either check disqualifies a candidate on its own -- see the two failure
-// modes documented above nextReadingTime.
-function isSkippableEntry(timeline, index) {
-  return isIsolatedHit(timeline, index) || isExplanationPaced(timeline[index]);
+// modes documented above nextReadingTime. Applied to phrase segments now,
+// not to the OCR caption frames wordTimeline is made of.
+function isSkippableSegment(index) {
+  const segment = state.segments[index];
+  if (!segment || segment.estimated) return true;
+  const duration = Number(segment.end) - Number(segment.start);
+  if (!Number.isFinite(duration) || duration < 0.2) return true;
+  return isIsolatedHit(state.segments, index) || isExplanationPaced(segment);
 }
 
-// Where the Vaater button would jump to from `time`, or null when there's
-// nothing word-level to go on, or nothing further ahead to skip to.
-function nextReadingTime(time) {
-  const timeline = state.wordTimeline;
-  if (!timeline.length) return null;
-  // -1 when time is before the first entry (findWordTimelineIndexAt's own
-  // "no entry started yet" value) -- candidateIndex below then starts at
-  // 0, the first entry, exactly like starting from any other position.
-  const index = time < timeline[0].start ? -1 : findWordTimelineIndexAt(time);
-  for (let candidateIndex = index + 1; candidateIndex < timeline.length; candidateIndex++) {
-    if (!isSkippableEntry(timeline, candidateIndex)) return timeline[candidateIndex].start;
+function samePhrase(a, b) {
+  return Boolean(a && b && a.ref === b.ref && a.w0 === b.w0 && a.w1 === b.w1);
+}
+
+// Where Vaater jumps from `time`: the start of the next real synced phrase.
+// wordTimeline is an OCR caption frame about every 0.34s, mostly repeating
+// the phrase already on screen, so stepping through it barely moved.
+// Estimated placeholders, zero-length gaps and the phrase already showing
+// are not landing spots. Null when nothing further ahead qualifies.
+function nextReadingTime(time = getCurrentTime()) {
+  const segments = state.segments;
+  if (!segments.length) return null;
+  const current = segments[state.activeIndex];
+  let startIndex = state.activeIndex >= 0 ? state.activeIndex + 1 : 0;
+  if (current && samePhrase(current, segments[startIndex])) startIndex += 1;
+  for (let index = Math.max(0, startIndex); index < segments.length; index++) {
+    const segment = segments[index];
+    if (samePhrase(segment, current)) continue;
+    if (!(Number(segment.start) > time + 0.02)) continue;
+    if (isSkippableSegment(index)) continue;
+    return Number(segment.start);
   }
   return null;
 }
 
 function updateVaaterButtonUi(time = getCurrentTime()) {
   const target = nextReadingTime(time);
+  const available = state.segments.some((segment) => segment && !segment.estimated && Number.isFinite(Number(segment.start)));
   for (const button of vaaterButtonEls) {
-    button.hidden = !state.wordTimeline.length;
+    button.hidden = !available;
     button.disabled = target === null;
     button.title = target === null
       ? 'Nothing further ahead to skip to'
-      : "Vaater -- skip ahead to the daf's next aligned word";
+      : 'Vaater — skip ahead to the next synced phrase';
   }
 }
 
 function skipToNextReading() {
   const target = nextReadingTime(getCurrentTime());
   if (target === null) return;
-  seek(target + 0.03, true);
+  seek(target, true);
+  updateVaaterButtonUi(target);
 }
 
 function saveVideoLinkToServer(ref, videoSource) {
@@ -1202,10 +1244,26 @@ function switchPlayerType(type) {
   updatePlayUi();
 }
 
+// First timestamp that came from a real sync, not a gap-fill placeholder.
+// Null when the whole daf is still estimated, so those pages keep highlighting.
+function firstRealSegmentStart(segments = state.segments) {
+  for (const segment of segments) {
+    if (segment && !segment.estimated && Number.isFinite(Number(segment.start))) return Number(segment.start);
+  }
+  return null;
+}
+
 function findSegmentAt(time) {
   if (state.liveFollow?.active) return state.liveFollow.activeIndex;
   const segments = state.segments;
   if (!segments.length) return -1;
+  // Estimated placeholders packed in front of the first real anchor are not
+  // the phrase being read. Bekhorot 31a stores 30b:1–14 that way, in the
+  // first ~1.4s, and activating them highlighted the previous daf (often as
+  // two boxes) during the intro. An all-estimated daf has no anchor and
+  // keeps the previous behavior.
+  const anchor = firstRealSegmentStart(segments);
+  if (anchor != null && time < anchor - 0.001) return -1;
   // Starts are sorted when an alignment is loaded (loadAlignmentData /
   // fillMissingDafText). Binary search for the rightmost start still at or
   // before `time`. A run of identical starts used to resolve to the later
@@ -1833,6 +1891,7 @@ async function renderVilnaPage() {
   // skip entirely rather than sizing the canvas off a bogus 0 width;
   // closeEditorButton re-calls this once the card is visible again.
   if (!canvas || !view || view.hidden || $('dafCard')?.hidden) return;
+  if (state.deferVilnaRaster) return;
 
   // Follow the daf the video is actually on, not just whichever ref the
   // player started with -- a synced video can span more than one daf
@@ -5639,6 +5698,7 @@ function setReadingMode(enabled) {
   }
   pinchSurface.addEventListener('pointerdown', (event) => {
     if (!state.readingModeEnabled || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    const controlsHidden = $('videoFrame')?.classList.contains('controls-hidden');
     showVideoControls();
     clearTimeout(readingVideoGestureSaveTimer);
     readingVideoNativeGesture = null;
@@ -5647,7 +5707,12 @@ function setReadingMode(enabled) {
     if (readingVideoPinchPointers.size === 1) {
       const pos = readingVideoPosition();
       readingVideoDrag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, left: pos.left, top: pos.top, moved: false };
-      readingVideoTap = { pointerId: event.pointerId, startedAt: performance.now() };
+      readingVideoTap = {
+        pointerId: event.pointerId,
+        startedAt: performance.now(),
+        pointerType: event.pointerType || '',
+        controlsHidden,
+      };
     } else if (readingVideoPinchPointers.size === 2) {
       beginReadingVideoPinch();
     }
@@ -5716,7 +5781,7 @@ function setReadingMode(enabled) {
       // toggle. Calling togglePlay() unconditionally manufactured a "tap
       // anywhere pauses it" behavior Reading Mode's floating mini player
       // never had for a YouTube video outside this mode.
-      if (state.playerType !== 'youtube' && travel < 10 && performance.now() - tap.startedAt < 450) togglePlay();
+      if (travel < 10 && performance.now() - tap.startedAt < 450) handleVideoPictureTap(tap);
     }
     if (readingVideoPinchPointers.size === 0) readingVideoTap = null;
   }
@@ -5967,6 +6032,11 @@ function setSplitView(enabled) {
     applySplitViewLayoutToDom();
     applySplitVideoTransform();
     showSplitChrome();
+    ensureSplitBackButton();
+    if (!splitHistoryQuiet && !history.state?.split) {
+      try { history.pushState({ ...(history.state || {}), split: true }, ''); }
+      catch { /* ignore a non-cloneable existing state */ }
+    }
     // Double rAF, matching restoreReadingVideoPlacement's own reasoning: one
     // frame for the class change to take effect, a second so the resulting
     // layout is what gets measured.
@@ -5974,6 +6044,7 @@ function setSplitView(enabled) {
     return;
   }
 
+  const popSplitHistory = !splitHistoryQuiet && Boolean(history.state?.split);
   state.splitViewEnabled = false;
   document.body.classList.remove('split-view-active', 'split-chrome-hidden');
   clearTimeout(splitChromeHideTimer);
@@ -5982,6 +6053,76 @@ function setSplitView(enabled) {
   container.style.removeProperty('--split-video-ratio');
   resetSplitVideoZoom({ announce: false });
   scheduleVilnaPageLayoutRefresh(0);
+  if (popSplitHistory) history.back();
+}
+
+// True while a popstate is applying the history entry, so setSplitView does
+// not push or pop a second time.
+let splitHistoryQuiet = false;
+
+function overlayConsumesEscape() {
+  if (document.querySelector('dialog[open]')) return true;
+  const speedMenu = $('speedMenu');
+  if (speedMenu && !speedMenu.hidden) return true;
+  const toolsMenu = document.querySelector('.pc-tools-menu');
+  if (toolsMenu && !toolsMenu.hidden) return true;
+  if ($('videoSettings')?.open) return true;
+  return false;
+}
+
+function exitFullscreenIfActive() {
+  const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
+  if (!fullscreenElement) return;
+  const exit = document.exitFullscreen || document.webkitExitFullscreen;
+  if (exit) Promise.resolve(exit.call(document)).catch(() => {});
+}
+
+function requestExitSplit() {
+  if (state.viewerMode !== 'split') return;
+  exitFullscreenIfActive();
+  setViewerMode('standard');
+}
+
+function toggleSplitViewerMode() {
+  if (state.viewerMode === 'split') requestExitSplit();
+  else setViewerMode('split');
+}
+
+function ensureSplitBackButton() {
+  let button = $('splitBackToDaf');
+  if (button) return button;
+  const header = document.querySelector('#dafCard > .daf-header, #dafCard > .card-heading, #dafCard > header');
+  if (!header) return null;
+  button = document.createElement('button');
+  button.type = 'button';
+  button.id = 'splitBackToDaf';
+  button.className = 'split-back-to-daf';
+  button.textContent = '← Daf page';
+  button.title = 'Back to the daf page';
+  button.setAttribute('aria-label', 'Back to the daf page');
+  button.hidden = state.viewerMode !== 'split';
+  button.addEventListener('click', () => requestExitSplit());
+  const tools = header.querySelector('.daf-tools, .daf-heading-tools, .view-switch');
+  if (tools) tools.prepend(button);
+  else header.append(button);
+  return button;
+}
+
+function ensureSplitChromeWake() {
+  const frame = $('videoFrame');
+  if (!frame || $('splitChromeWake')) return;
+  const wake = document.createElement('button');
+  wake.type = 'button';
+  wake.id = 'splitChromeWake';
+  wake.className = 'split-chrome-wake';
+  wake.tabIndex = -1;
+  wake.setAttribute('aria-label', 'Show split view controls');
+  wake.addEventListener('pointerdown', (event) => {
+    showSplitChrome();
+    event.preventDefault();
+    event.stopPropagation();
+  });
+  frame.appendChild(wake);
 }
 
 // Only appears on cursor movement or a tap, then fades -- mirroring
@@ -6110,6 +6251,8 @@ function updateViewerModeUi() {
   }
   const exitButton = $('splitExitButton');
   if (exitButton) exitButton.hidden = mode !== 'split';
+  const back = ensureSplitBackButton();
+  if (back) back.hidden = mode !== 'split';
 }
 
 function announceViewerMode(mode) {
@@ -6232,10 +6375,10 @@ function announceViewerMode(mode) {
   });
 
   // --- Prominent selector + Split View's own small toolbar ----------------
-  $('viewerModeSplitButton')?.addEventListener('click', () => setViewerMode('split'));
+  $('viewerModeSplitButton')?.addEventListener('click', () => toggleSplitViewerMode());
   $('viewerModeDafOnVideoButton')?.addEventListener('click', () => setViewerMode(state.viewerMode === 'daf-on-video' ? 'split' : 'daf-on-video'));
   $('viewerModeVideoOnDafButton')?.addEventListener('click', () => setViewerMode(state.viewerMode === 'video-on-daf' ? 'split' : 'video-on-daf'));
-  $('splitExitButton')?.addEventListener('click', () => setViewerMode('standard'));
+  $('splitExitButton')?.addEventListener('click', () => requestExitSplit());
   $('splitLayoutToggleButton')?.addEventListener('click', () => {
     state.splitViewLayout = state.splitViewLayout === 'stacked' ? 'side-by-side' : 'stacked';
     state.splitViewLayoutExplicit = true;
@@ -6287,7 +6430,12 @@ function announceViewerMode(mode) {
         splitVideoPinch = state.splitVideoZoom > 1.001
           ? { pan: true, startX: event.clientX, startY: event.clientY, startPanX: state.splitVideoPanX, startPanY: state.splitVideoPanY }
           : null;
-        splitVideoTap = { pointerId: event.pointerId, startedAt: performance.now() };
+        splitVideoTap = {
+          pointerId: event.pointerId,
+          startedAt: performance.now(),
+          pointerType: event.pointerType || '',
+          controlsHidden: $('videoFrame')?.classList.contains('controls-hidden'),
+        };
       }
     });
     pinchSurface.addEventListener('pointermove', (event) => {
@@ -6341,7 +6489,7 @@ function announceViewerMode(mode) {
           splitVideoLastTapAt = 0;
         } else {
           splitVideoLastTapAt = now;
-          if (state.playerType !== 'youtube' && performance.now() - splitVideoTap.startedAt < 450) togglePlay();
+          if (performance.now() - splitVideoTap.startedAt < 450) handleVideoPictureTap(splitVideoTap);
         }
       }
       splitVideoTap = null;
@@ -6364,10 +6512,18 @@ function announceViewerMode(mode) {
     scheduleVilnaPageLayoutRefresh(120);
   });
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && state.viewerMode === 'split' && !document.fullscreenElement && !document.querySelector('dialog[open]')) {
-      setViewerMode('standard');
-    }
+    if (event.key !== 'Escape' || state.viewerMode !== 'split' || overlayConsumesEscape()) return;
+    event.preventDefault();
+    requestExitSplit();
   });
+  window.addEventListener('popstate', () => {
+    const wantsSplit = Boolean(history.state?.split);
+    if (wantsSplit === (state.viewerMode === 'split')) return;
+    splitHistoryQuiet = true;
+    try { setViewerMode(wantsSplit ? 'split' : 'standard'); }
+    finally { splitHistoryQuiet = false; }
+  });
+  ensureSplitChromeWake();
 
   // --- Bringing the combined bar back once it has faded out --------------
   // Scoped to the daf pane and the bar itself -- NOT the whole document,
@@ -6511,7 +6667,9 @@ function ensureReaderNotes() {
   wrap.innerHTML = '<p class="reviewing-label" id="reviewingLabel" hidden></p>'
     + '<button type="button" class="skip-to-daf-chip" id="skipToDafChip" hidden></button>'
     + '<p class="not-synced-note" id="notSyncedNote" hidden>Not synced yet</p>';
-  header.appendChild(wrap);
+  // Outside the header, in its own fixed-height row. Toggling the chips
+  // inside the header wrapped it onto another line and shifted the daf.
+  header.insertAdjacentElement('afterend', wrap);
   $('skipToDafChip')?.addEventListener('click', () => {
     const start = ownContentStartTime();
     if (start == null) return;
@@ -6529,11 +6687,13 @@ function updateReaderNotes(time, index) {
   const active = state.segments[index];
   const activeLabel = active ? segmentDafKey(active.ref) : '';
   const requested = requestedDafLabel();
+  const anchor = firstRealSegmentStart();
+  const inPreAnchor = anchor != null && time < anchor - 0.05;
   const beforeFirst = state.segments.length > 0 && time < state.segments[0].start - 0.05 && index < 0;
   let refText = requested || 'No daf loaded';
   let reviewing = '';
   if (!state.segments.length) refText = state.dafRef ? `Loading ${requested}…` : 'No daf loaded';
-  else if (beforeFirst) refText = 'Intro';
+  else if (beforeFirst || inPreAnchor) refText = 'Intro';
   else if (index < 0) refText = 'Between phrases';
   else if (inLeadIn && activeLabel && activeLabel !== realDafRef(state.dafRef)) {
     reviewing = `Reviewing ${activeLabel}`;
@@ -6713,9 +6873,68 @@ function updateScrubberFill() {
   }
 }
 
+const PLAY_STALL_MS = 8000;
+function clearPlayWatchdog() {
+  clearTimeout(state.playStallTimer);
+  state.playStallTimer = null;
+}
+function youtubeLiveState() {
+  return state.youtubePlayer?.getPlayerState?.() ?? state.youtubeState;
+}
+// Buffering, cued and unstarted while the reader has asked to play.
+function isPlayLoading() {
+  if (!state.wantPlaying || state.playerType !== 'youtube') return false;
+  return youtubeLiveState() !== 1;
+}
+function armPlayWatchdog() {
+  clearPlayWatchdog();
+  state.playStallTimer = setTimeout(() => {
+    state.playStallTimer = null;
+    if (!state.wantPlaying || state.playerType !== 'youtube') return;
+    if (youtubeLiveState() === 1) return;
+    if (!state.playRetryUsed) {
+      state.playRetryUsed = true;
+      const time = getCurrentTime();
+      try {
+        state.youtubePlayer?.seekTo?.(time, true);
+        state.youtubePlayer?.playVideo?.();
+      } catch (error) {
+        console.warn('[yt] play retry failed', error);
+      }
+      armPlayWatchdog();
+      return;
+    }
+    state.wantPlaying = false;
+    updatePlayUi();
+    showToast('Video is slow to start — tap to retry', 'error');
+  }, PLAY_STALL_MS);
+}
+const deferredPlaybackWork = [];
+function scheduleNonEssential(fn) {
+  let ran = false;
+  const attempt = () => {
+    if (ran) return;
+    if (state.wantPlaying && state.playerType === 'youtube' && youtubeLiveState() !== 1) {
+      deferredPlaybackWork.push(attempt);
+      return;
+    }
+    ran = true;
+    try { fn(); } catch (error) { console.error(error); }
+  };
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(attempt, { timeout: 1200 });
+  else setTimeout(attempt, 350);
+}
+function flushDeferredPlaybackWork() {
+  const queued = deferredPlaybackWork.splice(0);
+  for (const fn of queued) {
+    try { fn(); } catch (error) { console.error(error); }
+  }
+}
+
 let largePlayHiddenLastLogged = null;
 function updatePlayUi() {
   const paused = isPaused();
+  const loading = isPlayLoading();
   // toggleAttribute, not `.hidden = `: reported directly (and confirmed
   // live in a real browser) that the play/pause icon never actually
   // switched, no matter what isPaused() returned. Root cause -- SVGElement
@@ -6728,8 +6947,8 @@ function updatePlayUi() {
   // state. toggleAttribute operates on the actual attribute directly (it's
   // defined on Element, not HTMLElement-specific reflection), so it works
   // correctly on an <svg> the same as any other element.
-  document.querySelectorAll('.play-icon').forEach((el) => { el.toggleAttribute('hidden', !paused); });
-  document.querySelectorAll('.pause-icon').forEach((el) => { el.toggleAttribute('hidden', paused); });
+  document.querySelectorAll('.play-icon').forEach((el) => { el.toggleAttribute('hidden', !paused || loading); });
+  document.querySelectorAll('.pause-icon').forEach((el) => { el.toggleAttribute('hidden', paused || loading); });
   // Reported directly: the big center button only ever worked once, right
   // as a video first began playing -- after that it never came back, and
   // on the rare occasion it did reappear (loading a new video resets it
@@ -6745,13 +6964,25 @@ function updatePlayUi() {
   // during playback (see its caller's own comment), same as the small
   // button's own icon swap right below, so there's no staleness risk in
   // tracking `paused` alone the same way that one already does.
-  const largePlayHidden = !state.videoSource || !paused;
+  const largePlayHidden = !state.videoSource || (!paused && !loading);
   if (largePlayHidden !== largePlayHiddenLastLogged) {
     largePlayHiddenLastLogged = largePlayHidden;
-    debugPlayLog(`updatePlayUi(): paused=${paused} videoSource=${Boolean(state.videoSource)} -> largePlay.hidden=${largePlayHidden}`);
+    debugPlayLog(`updatePlayUi(): paused=${paused} loading=${loading} videoSource=${Boolean(state.videoSource)} -> largePlay.hidden=${largePlayHidden}`);
   }
-  $('largePlay').hidden = largePlayHidden;
-  $('playButton').setAttribute('aria-label', paused ? 'Play' : 'Pause');
+  const largePlay = $('largePlay');
+  const playButton = $('playButton');
+  if (largePlay) {
+    largePlay.hidden = largePlayHidden;
+    largePlay.classList.toggle('is-loading', loading);
+    largePlay.setAttribute('aria-busy', String(loading));
+    largePlay.setAttribute('aria-label', loading ? 'Loading video' : 'Play video');
+  }
+  if (playButton) {
+    playButton.classList.toggle('is-loading', loading);
+    playButton.setAttribute('aria-busy', String(loading));
+    playButton.setAttribute('aria-label', loading ? 'Loading video' : (paused ? 'Play' : 'Pause'));
+  }
+  updateVaaterButtonUi();
 }
 
 // TEMPORARY diagnostic for the big center play/pause button, reported as
@@ -6785,24 +7016,58 @@ function debugPlayLog(line) {
   panel.scrollTop = panel.scrollHeight;
 }
 
+// A tap on the video picture. Direct video always toggles. YouTube only
+// toggles for a real mouse click, or for a touch that lands while the
+// controls are already showing — the first touch only wakes the bar
+// (the frame's touchstart listener). A typeless synthetic tap does not
+// toggle YouTube: the pinch surfaces used to pause every YouTube video
+// because they treated those the same as a finger.
+function handleVideoPictureTap(tap) {
+  const type = tap?.pointerType || '';
+  if (state.playerType !== 'youtube') {
+    togglePlay();
+    return;
+  }
+  if (type === 'mouse' || (type === 'touch' && !tap.controlsHidden)) togglePlay();
+}
+
 async function togglePlay() {
-  debugPlayLog(`togglePlay() called -- playerType=${state.playerType} youtubeReady=${state.youtubeReady} isPaused()=${isPaused()}`);
+  debugPlayLog(`togglePlay() called -- playerType=${state.playerType} youtubeReady=${state.youtubeReady} isPaused()=${isPaused()} wantPlaying=${state.wantPlaying} loading=${isPlayLoading()}`);
   try {
     if (state.playerType === 'youtube') {
       if (!state.youtubeReady) throw new Error('The YouTube player is not ready yet.');
-      if (isPaused()) {
+      // A second click while the first play is still buffering cancels it.
+      // playVideo() again is a no-op, which is why both Play buttons looked dead.
+      if (isPlayLoading()) {
+        state.wantPlaying = false;
+        clearPlayWatchdog();
+        debugPlayLog('cancelling in-flight play');
+        state.youtubePlayer.pauseVideo();
+      } else if (isPaused()) {
+        state.wantPlaying = true;
+        state.playRetryUsed = false;
         debugPlayLog('calling youtubePlayer.playVideo()');
         state.youtubePlayer.playVideo();
+        armPlayWatchdog();
       } else {
+        state.wantPlaying = false;
+        clearPlayWatchdog();
         debugPlayLog('calling youtubePlayer.pauseVideo()');
         state.youtubePlayer.pauseVideo();
       }
+      updatePlayUi();
     } else if (htmlVideo.paused) {
+      state.wantPlaying = true;
       await htmlVideo.play();
+      state.wantPlaying = false;
     } else {
+      state.wantPlaying = false;
       htmlVideo.pause();
     }
   } catch (error) {
+    state.wantPlaying = false;
+    clearPlayWatchdog();
+    updatePlayUi();
     debugPlayLog(`togglePlay() threw: ${error?.message || error}`);
     showToast(error.message || 'The browser could not play this video.', 'error');
   }
@@ -6833,10 +7098,35 @@ async function togglePlay() {
 // which is exactly what "tapping a word just plays from the beginning"
 // looked like: not a missing retry, just not enough of it.
 let seekGeneration = 0;
+let pausedFrameToken = 0;
+// YouTube often updates currentTime on a paused seekTo without painting the
+// new frame. A muted blip of playback is the reliable way to force that
+// paint; it is skipped while the reader actually wants the video playing.
+function repaintPausedYouTubeFrame() {
+  const player = state.youtubePlayer;
+  if (!player || state.wantPlaying || state.pausedFrameRefresh) return;
+  const live = player.getPlayerState?.();
+  if (live === 1 || live === 3) return;
+  const token = ++pausedFrameToken;
+  state.pausedFrameRefresh = token;
+  const wasMuted = state.muted;
+  if (!wasMuted) player.mute?.();
+  player.playVideo?.();
+  setTimeout(() => {
+    if (state.pausedFrameRefresh !== token) return;
+    if (!state.wantPlaying) player.pauseVideo?.();
+    if (!wasMuted) player.unMute?.();
+    state.muted = wasMuted;
+    state.pausedFrameRefresh = 0;
+    updateMuteIcons();
+    updatePlayUi();
+  }, 250);
+}
 function seekYouTubePlayer(time, allowSeekAhead, attempt = 0, generation = ++seekGeneration) {
   const player = state.youtubePlayer;
   if (!player?.seekTo) return;
   player.seekTo(time, allowSeekAhead);
+  if (attempt === 0 && allowSeekAhead) repaintPausedYouTubeFrame();
   if (attempt >= 20) return;
   setTimeout(() => {
     if (generation !== seekGeneration) return; // superseded by a newer seek request
@@ -7023,7 +7313,7 @@ function isMuted() {
 }
 
 function updateMuteIcons() {
-  const muted = isMuted();
+  const muted = Boolean(state.muted);
   for (const button of muteButtonEls) {
     const volumeIcon = button.querySelector('.volume-icon');
     const mutedIcon = button.querySelector('.muted-icon');
@@ -7031,15 +7321,17 @@ function updateMuteIcons() {
     // fixed in updatePlayUi above; these icons are <svg> too.
     if (volumeIcon) volumeIcon.toggleAttribute('hidden', muted);
     if (mutedIcon) mutedIcon.toggleAttribute('hidden', !muted);
+    button.setAttribute('aria-pressed', String(muted));
     button.setAttribute('aria-label', muted ? 'Unmute' : 'Mute');
   }
 }
 
 function setMuted(muted) {
+  state.muted = Boolean(muted);
   if (state.playerType === 'youtube') {
-    if (state.youtubeReady) { if (muted) state.youtubePlayer.mute(); else state.youtubePlayer.unMute(); }
+    if (state.youtubeReady) { if (state.muted) state.youtubePlayer.mute(); else state.youtubePlayer.unMute(); }
   } else {
-    htmlVideo.muted = muted;
+    htmlVideo.muted = state.muted;
   }
   updateMuteIcons();
 }
@@ -7069,6 +7361,8 @@ function syncVolumeUi() {
   if (volume != null && Number.isFinite(volume)) {
     for (const el of volumeSliderEls) el.value = String(volume);
   }
+  if (state.playerType === 'youtube' && state.youtubeReady) state.muted = Boolean(state.youtubePlayer.isMuted?.());
+  else state.muted = Boolean(htmlVideo.muted);
   updateMuteIcons();
 }
 
@@ -7370,19 +7664,34 @@ async function loadDaf(refOverride = null, options = {}) {
   // knows immediately whether there's a choice to offer, not just whichever
   // one happens to load first.
   const localSaved = loadProjectForRef(ref);
-  const [ocrAlignment, voiceAlignment, syncSettings, preferredVideoSource] = await Promise.all([
+  // Voice is a second full alignment and is absent for most shiurim. It
+  // only blocks the first paint when it is the alignment we would actually
+  // play; otherwise it loads after the video has had a chance to start.
+  const [ocrAlignment, syncSettings, preferredVideoSource] = await Promise.all([
     fetchServerAlignment(ref),
-    fetchServerAlignment(ref, { voice: true }),
     // Proxied through get-results-file.mjs, same as the autoSyncToggle
     // fetch further down -- see save-settings.mjs for why this lives
     // per-ref inside the same site-wide settings.json rather than its own
-    // file.
-    fetch('/api/get-results-file?path=settings.json')
+    // file. optional=1: a missing settings file is normal.
+    fetch(resultsFileUrl('settings.json', true))
       .then((response) => (response.ok ? response.json() : null))
       .catch(() => null),
     resolvePreferredVideoSource(ref, localSaved),
   ]);
+  const preferredMethodEarly = syncSettings?.preferredSyncMethod?.[ref];
+  const voiceNeededNow = preferredMethodEarly === 'voice' || !ocrAlignment;
+  const voiceAlignment = voiceNeededNow ? await fetchServerAlignment(ref, { voice: true }) : null;
   state.availableSyncMethods = { ocr: ocrAlignment, voice: voiceAlignment };
+  if (!voiceNeededNow) {
+    const voiceRef = ref;
+    scheduleNonEssential(() => {
+      fetchServerAlignment(voiceRef, { voice: true }).then((voice) => {
+        if (state.dafRef !== voiceRef) return;
+        state.availableSyncMethods.voice = voice;
+        updateSyncMethodSwitchUi(voiceRef);
+      }).catch((error) => console.error(error));
+    });
+  }
   state.syncMethodSettings = syncSettings?.preferredSyncMethod || {};
   const preferredMethod = state.syncMethodSettings[ref];
   state.activeSyncMethod =
@@ -7434,11 +7743,11 @@ async function loadDaf(refOverride = null, options = {}) {
     const loadedRef = ref;
     const loadedVideoId = preferredVideoSource?.videoId || null;
     const voice = state.activeSyncMethod === 'voice';
-    setTimeout(() => {
+    scheduleNonEssential(() => {
       if (state.dafRef !== loadedRef) return;
       attachForwardAlignment(loadedRef, loadedVideoId, voice).catch((error) => console.error(error));
       fillLoadedDafText(loadedRef).catch((error) => console.error(error));
-    }, 0);
+    });
     if (!options.silent) showToast(`Loaded the synced alignment for ${ref} from the server.`);
     return;
   }
@@ -7667,7 +7976,9 @@ function attemptLoadYouTubeApi() {
 
 function youtubeErrorMessage(code) {
   const messages = {
-    2: 'This YouTube link is invalid.',
+    // Code 2 also fires for a moment on videos that then play fine. The
+    // wording used to blame the link itself.
+    2: "YouTube couldn't load this video.",
     5: 'This video cannot be played in the HTML5 YouTube player.',
     100: 'This YouTube video was not found or is private.',
     101: 'The owner does not allow this video to be embedded.',
@@ -7676,8 +7987,29 @@ function youtubeErrorMessage(code) {
   return messages[code] || `YouTube player error ${code}.`;
 }
 
+function scheduleYouTubeError(code, player, videoId, { reject, resolve, settled }) {
+  const message = youtubeErrorMessage(code);
+  console.warn('[yt] onError', code, videoId, player?.getPlayerState?.());
+  clearTimeout(state.ytErrTimer);
+  state.ytErrTimer = setTimeout(() => {
+    const live = player?.getPlayerState?.();
+    let sameVideo = true;
+    try { sameVideo = !player?.getVideoData || player.getVideoData()?.video_id === videoId; } catch { sameVideo = true; }
+    // YouTube emits code 2 about 100ms after a successful cue, then re-cues
+    // itself (-1 → 5). If playback is actually usable, the toast is a lie.
+    if (state.youtubeCueId && state.youtubeCueId !== videoId) return;
+    if (sameVideo && [1, 2, 3, 5].includes(live)) {
+      if (!settled()) resolve();
+      return;
+    }
+    if (!settled()) reject(new Error(message));
+    else showToast(message, 'error');
+  }, 1500);
+}
+
 async function ensureYouTubePlayer(videoId) {
   await loadYouTubeApi();
+  state.youtubeCueId = videoId;
   switchPlayerType('youtube');
 
   if (!state.youtubePlayer) {
@@ -7711,7 +8043,8 @@ async function ensureYouTubePlayer(videoId) {
         // reader already has this daf's own text/translation on screen and
         // doesn't need YouTube's own (frequently auto-generated, un-vetted)
         // captions burned on top of it.
-        cc_load_policy: 0
+        cc_load_policy: 0,
+        iv_load_policy: 3
       };
       if (location.protocol === 'http:' || location.protocol === 'https:') playerVars.origin = location.origin;
 
@@ -7722,6 +8055,10 @@ async function ensureYouTubePlayer(videoId) {
       // a known video" into "and now it's playing, unasked". cueVideoById
       // in onReady loads the same video without starting it, matching the
       // already-has-a-player branch below.
+      let playerSettled = false;
+      const settled = () => playerSettled;
+      const settleResolve = () => { if (!playerSettled) { playerSettled = true; resolve(); } };
+      const settleReject = (error) => { if (!playerSettled) { playerSettled = true; reject(error); } };
       state.youtubePlayer = new window.YT.Player('youtubePlayer', {
         width: '100%',
         height: '100%',
@@ -7735,11 +8072,27 @@ async function ensureYouTubePlayer(videoId) {
             startPausedDriftWatch();
             syncVolumeUi();
             showVideoControls();
-            resolve();
+            settleResolve();
           },
           onStateChange: (event) => {
+            const nudgingFrame = Boolean(state.pausedFrameRefresh);
             state.youtubeState = event.data;
+            // A paused-seek repaint briefly reports "playing" before the
+            // new frame has even seeked. Running the highlight off that
+            // event used the pre-seek clock, which expired the tap pin and
+            // left the previous phrase lit.
+            if (nudgingFrame) return;
+            if (event.data === 1) {
+              state.wantPlaying = true;
+              state.playRetryUsed = false;
+              clearPlayWatchdog();
+              flushDeferredPlaybackWork();
+            } else if (event.data === 2) {
+              state.wantPlaying = false;
+              clearPlayWatchdog();
+            }
             updatePlayUi();
+            updateVaaterButtonUi();
             if (event.data === 1 && !document.hidden) startYouTubePoll();
             else stopYouTubePoll();
             updateTimeline();
@@ -7753,9 +8106,11 @@ async function ensureYouTubePlayer(videoId) {
           },
           onPlaybackQualityChange: () => refreshQualityOptions(),
           onError: (event) => {
-            const message = youtubeErrorMessage(event.data);
-            showToast(message, 'error');
-            reject(new Error(message));
+            scheduleYouTubeError(event.data, event.target, videoId, {
+              reject: settleReject,
+              resolve: settleResolve,
+              settled,
+            });
           }
         }
       });
@@ -7843,7 +8198,7 @@ async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs =
   seek(0);
   saveProjectForRef(state.dafRef, { videoSource: state.videoSource });
   saveVideoLinkForCoveredRefs(state.videoSource, saveRefs);
-  refreshTestRuns(videoId);
+  scheduleNonEssential(() => refreshTestRuns(videoId));
   showToast('YouTube video connected to the synchronized timeline.');
 }
 
@@ -8114,6 +8469,8 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
   state.editingIndex = Math.min(Number(data.editingIndex) || 0, state.segments.length - 1);
   state.usingDefaultAlignment = false;
   updateAlignmentStatus();
+  const deferPage = Boolean(restoreSource && data.videoSource?.type === 'youtube');
+  if (deferPage) state.deferVilnaRaster = true;
   $('dafRef').value = state.dafRef;
   syncDafPickerFromRef(state.dafRef);
   $('dafTitle').textContent = state.dafRef;
@@ -8147,6 +8504,10 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
       ? reattachVariantLanguage(data.primaryRefs, state.dafRef)
       : null;
     await restoreVideoSource(data.videoSource, primaryRefs);
+  }
+  if (deferPage) {
+    state.deferVilnaRaster = false;
+    scheduleNonEssential(() => renderVilnaPage());
   }
   // The video's heading gets the video's own real YouTube title, never
   // data.title -- that's the alignment job's internal label ("Caption OCR
@@ -8243,7 +8604,7 @@ async function refreshTestRuns(videoId) {
   if (!/^[A-Za-z0-9_-]{11}$/.test(String(videoId || ''))) return;
   let index = null;
   try {
-    const response = await fetch(`/api/get-results-file?path=${encodeURIComponent(`test-runs/${videoId}/index.json`)}`);
+    const response = await fetch(resultsFileUrl(`test-runs/${videoId}/index.json`, true));
     if (response.ok) index = await response.json();
   } catch {
     // No test runs for this video (the usual case), or no way to reach them.
@@ -8396,13 +8757,23 @@ function autoAlignTranscript(transcript) {
   seek(0);
 }
 
+function hideScrubPreview() {
+  const preview = $('scrubPreview');
+  if (preview) preview.hidden = true;
+}
 function handleScrubPointer(event) {
+  const dragging = event.buttons > 0 || state.seeking;
+  if (event.pointerType && event.pointerType !== 'mouse' && !dragging) {
+    hideScrubPreview();
+    return;
+  }
   const rect = scrubber.getBoundingClientRect();
   const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
   const time = ratio * Number(scrubber.max || 0);
   const index = findSegmentAt(time);
   const segment = state.segments[index];
   const preview = $('scrubPreview');
+  if (!preview) return;
   preview.hidden = false;
   preview.style.left = `${ratio * 100}%`;
   $('previewTime').textContent = formatTime(time);
@@ -8897,6 +9268,7 @@ function showVideoControls() {
   const tick = () => {
     if (controlsShouldStayVisible()) { controlsHideTimer = setTimeout(tick, CONTROLS_AUTO_HIDE_MS); return; }
     frame.classList.add('controls-hidden');
+    hideScrubPreview();
   };
   controlsHideTimer = setTimeout(tick, CONTROLS_AUTO_HIDE_MS);
 }
@@ -8960,9 +9332,15 @@ for (const el of scrubberEls) {
 }
 scrubber.addEventListener('pointermove', handleScrubPointer);
 scrubber.addEventListener('pointerenter', handleScrubPointer);
-scrubber.addEventListener('pointerleave', () => { $('scrubPreview').hidden = true; });
+scrubber.addEventListener('pointerleave', hideScrubPreview);
+scrubber.addEventListener('pointerup', hideScrubPreview);
+scrubber.addEventListener('pointercancel', hideScrubPreview);
+scrubber.addEventListener('blur', hideScrubPreview);
+for (const el of scrubberEls) {
+  el.addEventListener('change', hideScrubPreview);
+}
 for (const el of volumeSliderEls) el.addEventListener('input', (event) => setVolume(Number(event.target.value)));
-for (const button of muteButtonEls) button.addEventListener('click', () => setMuted(!isMuted()));
+for (const button of muteButtonEls) button.addEventListener('click', () => setMuted(!state.muted));
 for (const button of vaaterButtonEls) button.addEventListener('click', skipToNextReading);
 
 function switchDafView(mode) {
@@ -9108,6 +9486,21 @@ $('helpDialog').addEventListener('click', (event) => {
   if (outside) event.currentTarget.close();
 });
 
+function keyboardTargetBlocksPlayback(el) {
+  if (!el || el === document.body || el === document.documentElement) return false;
+  if (el.isContentEditable || el.getAttribute?.('contenteditable') === 'true') return true;
+  const tag = el.tagName;
+  if (tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  if (tag === 'INPUT') {
+    const type = (el.getAttribute('type') || 'text').toLowerCase();
+    // Buttons are not typing. Checkboxes, radios and sliders keep their
+    // own keys. Space/k still play when a player <button> is focused.
+    return !['button', 'submit', 'reset', 'file'].includes(type);
+  }
+  const role = el.getAttribute?.('role');
+  return role === 'slider' || role === 'separator';
+}
+
 function keyFocusIsInteractive(event) {
   const el = event.target;
   if (!el || el === document.body || el === document.documentElement) return false;
@@ -9119,16 +9512,29 @@ function canMarkTimestamps() {
 }
 
 document.addEventListener('keydown', (event) => {
-  if (keyFocusIsInteractive(event)) return;
   if (event.metaKey || event.ctrlKey || event.altKey) return;
-  if (event.code === 'Space') { event.preventDefault(); togglePlay(); }
+  if (keyboardTargetBlocksPlayback(event.target)) return;
+  const key = event.key.length === 1 ? event.key.toLowerCase() : '';
+  if (event.code === 'Space' || key === 'k') {
+    event.preventDefault();
+    event.stopPropagation();
+    togglePlay();
+    return;
+  }
+  if (key === 'j' || key === 'l') {
+    event.preventDefault();
+    event.stopPropagation();
+    seek(getCurrentTime() + (key === 'j' ? -10 : 10));
+    return;
+  }
+  if (keyFocusIsInteractive(event)) return;
   if (event.code === 'ArrowLeft') { event.preventDefault(); seek(getCurrentTime() - 5); }
   if (event.code === 'ArrowRight') { event.preventDefault(); seek(getCurrentTime() + 5); }
   if (!canMarkTimestamps()) return;
-  if (event.key.toLowerCase() === 'm') { event.preventDefault(); markHereAndAdvance(); }
+  if (key === 'm') { event.preventDefault(); markHereAndAdvance(); }
   if (event.key === '[') selectEditingIndex(state.editingIndex - 1);
   if (event.key === ']') selectEditingIndex(state.editingIndex + 1);
-});
+}, true);
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) stopYouTubePoll();
@@ -9136,6 +9542,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 renderDaf();
+ensureReaderNotes();
 updateAlignmentStatus();
 updateScrubberFill();
 updatePlayUi();

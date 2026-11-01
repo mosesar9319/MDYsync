@@ -53,6 +53,20 @@ export default async (request) => {
     // the 502 below, so callers' existing `if (!response.ok)` checks keep
     // meaning exactly what they already assume.
     if (upstream.status === 404) {
+      // optional=1: callers already treat a missing optional file as "nothing
+      // here". A 200 null avoids a console 404 for voice alignments, video
+      // links and test-run indexes that are absent on most shiurim. pages/
+      // is never requested with optional=1 — a 404 there still means "not
+      // OCR'd" and must stay a real 404.
+      if (url.searchParams.get('optional') === '1') {
+        return new Response('null', {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'public, max-age=15, s-maxage=30',
+          },
+        });
+      }
       return Response.json({ error: 'Not found.' }, { status: 404 });
     }
     if (!upstream.ok) {

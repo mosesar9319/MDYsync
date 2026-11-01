@@ -610,14 +610,10 @@ test.describe('Split View — the daf pane is flush, and the combined bar auto-h
     expect(await page.evaluate(() => document.body.classList.contains('split-chrome-hidden'))).toBe(false);
   });
 
-  // Regression test for a real bug found while investigating "the buttons
-  // don't work" reports: the faded bar used to also get pointer-events:none,
-  // which meant its own reveal listeners (registered on the bar itself,
-  // relying on a pointerdown/touchstart actually reaching it) could never
-  // fire once it had already faded -- a real .click() (real hit-testing,
-  // unlike dispatchEvent above which bypasses pointer-events entirely) is
-  // the only way this suite can actually catch that class of bug.
-  test('a real click on the bar still reaches its button after it has auto-hidden', async ({ page }) => {
+  // The faded bar must not sit on top of the daf. A real hit-test at the
+  // daf header lands on the daf, and the always-visible back button — not
+  // a button inside the hidden bar — is what leaves Split view.
+  test('a hidden split bar does not intercept taps, and Back to daf leaves split view', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
     await page.goto('/player/?ref=Chullin%2089a');
@@ -628,8 +624,27 @@ test.describe('Split View — the daf pane is flush, and the combined bar auto-h
       timeout: 4000,
     }).toBe(true);
 
-    await page.click('#viewerModeDafOnVideoButton');
-    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('daf-on-video');
+    const hit = await page.evaluate(() => {
+      const bar = document.getElementById('viewerModeSelect');
+      const back = document.getElementById('splitBackToDaf');
+      back.scrollIntoView({ block: 'center', inline: 'center' });
+      const barStyle = getComputedStyle(bar);
+      const backRect = back.getBoundingClientRect();
+      const top = document.elementFromPoint(backRect.left + backRect.width / 2, backRect.top + backRect.height / 2);
+      return {
+        pointerEvents: barStyle.pointerEvents,
+        visibility: barStyle.visibility,
+        hitIsBar: Boolean(top?.closest?.('#viewerModeSelect')),
+        hitIsBack: Boolean(top?.closest?.('#splitBackToDaf')),
+      };
+    });
+    expect(hit.pointerEvents).toBe('none');
+    expect(hit.visibility).toBe('hidden');
+    expect(hit.hitIsBar).toBe(false);
+    expect(hit.hitIsBack).toBe(true);
+
+    await page.click('#splitBackToDaf');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
   });
 
   test('a keyboard Tab into the page still brings the bar back, even from outside the player/daf area', async ({ page }) => {
