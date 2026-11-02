@@ -3197,11 +3197,16 @@ body:not(.split-view-active) .split-divider,
     height: auto;
   }
   body.split-tools-phone.split-tools-open .watch-layout.split-active .vilna-zoom-controls {
+    position: relative;
+    top: auto;
     display: flex;
     flex-wrap: wrap;
     overflow: visible;
     height: auto;
-    margin: 0;
+    width: auto;
+    max-width: calc(100% - 16px);
+    margin: 8px auto 10px;
+    z-index: 2;
   }
 }
 

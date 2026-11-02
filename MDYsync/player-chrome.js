@@ -62,11 +62,38 @@
   function chromeMenuHost() {
     return document.fullscreenElement || document.webkitFullscreenElement || document.body;
   }
-  // One id per finger press. A touch can synthesize a second click in that
-  // same press; a later tap is a new press. Menus ignore the extra click
-  // and still close on the next real one.
-  let chromeGesture = 0;
-  document.addEventListener('pointerdown', () => { chromeGesture += 1; }, true);
+  // A phone tap often never delivers the click (the bar reflows between
+  // pointerup and the synthesized click). Toggle on pointerup, and ignore
+  // the click that follows so a ghost click can't undo the press. A later
+  // tap is a new pointerup, so the same button still toggles closed.
+  // Keyboard activation has no pointerup and still arrives as a click.
+  let closeSpeedMenu = () => {};
+  function bindPressToggle(anchor, isOpen, setOpen) {
+    let swallowUntil = 0;
+    let press = null;
+    anchor.addEventListener('pointerdown', (event) => {
+      if (event.button > 0) return;
+      press = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    });
+    anchor.addEventListener('pointerup', (event) => {
+      if (!press || event.pointerId !== press.id) return;
+      const moved = Math.hypot(event.clientX - press.x, event.clientY - press.y);
+      press = null;
+      if (moved > 10) return;
+      swallowUntil = performance.now() + 700;
+      setOpen(!isOpen());
+    });
+    anchor.addEventListener('pointercancel', () => { press = null; });
+    anchor.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (performance.now() < swallowUntil) return;
+      setOpen(!isOpen());
+    });
+  }
+  function pointerInside(event, node) {
+    const target = event.target;
+    return Boolean(node && target instanceof Node && (node === target || node.contains(target)));
+  }
   function attachChromeMenu(menu) {
     if (!menu) return;
     const host = chromeMenuHost();
@@ -173,6 +200,7 @@
   }
   if (!moreItems.length) $('playerMoreButton').hidden = true;
 
+  let topbarOpenedAt = 0;
   function closeMenus(except = null) {
     for (const [menuId, buttonId] of [['playerDafMenu', 'playerDafButton'], ['playerMoreMenu', 'playerMoreButton']]) {
       if (menuId === except) continue;
@@ -180,17 +208,28 @@
       $(buttonId).setAttribute('aria-expanded', 'false');
     }
   }
-  function toggleMenu(menuId, buttonId) {
-    const menu = $(menuId);
-    const opening = menu.hidden;
-    closeMenus(opening ? menuId : null);
-    menu.hidden = !opening;
-    $(buttonId).setAttribute('aria-expanded', String(opening));
+  function setTopbarMenu(menuId, buttonId, open) {
+    closeMenus(open ? menuId : null);
+    $(menuId).hidden = !open;
+    $(buttonId).setAttribute('aria-expanded', String(open));
+    if (open) topbarOpenedAt = performance.now();
   }
-  $('playerDafButton').addEventListener('click', () => toggleMenu('playerDafMenu', 'playerDafButton'));
-  $('playerMoreButton').addEventListener('click', () => toggleMenu('playerMoreMenu', 'playerMoreButton'));
+  bindPressToggle($('playerDafButton'), () => !$('playerDafMenu').hidden, (open) => setTopbarMenu('playerDafMenu', 'playerDafButton', open));
+  bindPressToggle($('playerMoreButton'), () => !$('playerMoreMenu').hidden, (open) => setTopbarMenu('playerMoreMenu', 'playerMoreButton', open));
+  function topbarMenuEventInside(event) {
+    return ['playerDafMenu', 'playerMoreMenu', 'playerDafButton', 'playerMoreButton'].some((id) => pointerInside(event, $(id)));
+  }
+  document.addEventListener('pointerdown', (event) => {
+    const dafOpen = !$('playerDafMenu').hidden;
+    const moreOpen = !$('playerMoreMenu').hidden;
+    if (!dafOpen && !moreOpen) return;
+    if (topbarMenuEventInside(event)) return;
+    closeMenus();
+  }, true);
   document.addEventListener('click', (event) => {
-    if (!topbar.contains(event.target)) closeMenus();
+    if (topbarMenuEventInside(event)) return;
+    if (performance.now() - topbarOpenedAt < 600) return;
+    closeMenus();
   });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeMenus();
@@ -424,7 +463,7 @@
       placeChromeMenu(speedMenu, speedButton, 'start');
     }
     let speedPointer = 'mouse';
-    let speedOpenedGesture = -1;
+    let speedOpenedAt = 0;
     speedButton.addEventListener('pointerdown', (event) => {
       speedPointer = event.pointerType || 'mouse';
     }, true);
@@ -432,20 +471,19 @@
       positionSpeedMenu();
       speedMenu.hidden = false;
       speedButton.setAttribute('aria-expanded', 'true');
-      speedOpenedGesture = chromeGesture;
+      speedOpenedAt = performance.now();
       setActiveOption(speedMenu.querySelector(`[data-value="${CSS.escape(speedButton.value)}"]`) || speedMenu.firstElementChild);
       // Focusing the list on a touch phone scrolls the page and can swallow
       // the tap. Keyboard use still moves focus in so the arrows work.
       if (speedPointer !== 'touch') speedMenu.focus({ preventScroll: true });
     }
-    function closeSpeedMenu() {
+    closeSpeedMenu = function () {
       speedMenu.hidden = true;
       speedButton.setAttribute('aria-expanded', 'false');
-    }
-    speedButton.addEventListener('click', (event) => {
-      event.stopPropagation();
-      if (speedMenu.hidden) openSpeedMenu();
-      else if (chromeGesture !== speedOpenedGesture) closeSpeedMenu();
+    };
+    bindPressToggle(speedStack, () => !speedMenu.hidden, (open) => {
+      if (open) openSpeedMenu();
+      else closeSpeedMenu();
     });
     speedMenu.addEventListener('keydown', (event) => {
       const items = [...speedMenu.children];
@@ -466,9 +504,16 @@
         closeSpeedMenu();
       }
     });
+    function speedEventInside(event) {
+      return pointerInside(event, speedMenu) || pointerInside(event, speedStack) || pointerInside(event, speedButton);
+    }
+    document.addEventListener('pointerdown', (event) => {
+      if (speedMenu.hidden || speedEventInside(event)) return;
+      closeSpeedMenu();
+    }, true);
     document.addEventListener('click', (event) => {
-      if (speedMenu.hidden || speedMenu.contains(event.target) || speedButton.contains(event.target)) return;
-      if (chromeGesture === speedOpenedGesture) return;
+      if (speedMenu.hidden || speedEventInside(event)) return;
+      if (performance.now() - speedOpenedAt < 600) return;
       closeSpeedMenu();
     });
     // A safety net, not the primary close path (openSpeedMenu moves focus
@@ -591,15 +636,12 @@
   function positionToolsMenu() {
     placeChromeMenu(toolsMoreMenu, toolsMoreButton, 'end');
   }
-  let toolsOpenedGesture = -1;
-  toolsMoreButton.addEventListener('click', (event) => {
-    event.stopPropagation();
-    const opening = toolsMoreMenu.hidden;
-    if (!opening && chromeGesture === toolsOpenedGesture) return;
-    toolsMoreMenu.hidden = !opening;
-    toolsMoreButton.setAttribute('aria-expanded', String(opening));
-    if (opening) {
-      toolsOpenedGesture = chromeGesture;
+  let toolsOpenedAt = 0;
+  bindPressToggle(toolsMoreStack, () => !toolsMoreMenu.hidden, (open) => {
+    toolsMoreMenu.hidden = !open;
+    toolsMoreButton.setAttribute('aria-expanded', String(open));
+    if (open) {
+      toolsOpenedAt = performance.now();
       positionToolsMenu();
     }
   });
@@ -625,15 +667,30 @@
     }
     closeToolsMenu();
   });
+  function toolsEventInside(event) {
+    if (pointerInside(event, toolsMoreMenu) || pointerInside(event, toolsMoreStack) || pointerInside(event, toolsMoreButton)) return true;
+    const target = event.target;
+    return Boolean(target instanceof Element && target.closest('#speedMenu, .video-settings-body-portal, #videoSettings'));
+  }
+  document.addEventListener('pointerdown', (event) => {
+    if (toolsMoreMenu.hidden || toolsEventInside(event)) return;
+    closeToolsMenu();
+  }, true);
   document.addEventListener('click', (event) => {
-    if (toolsMoreMenu.hidden || toolsMoreMenu.contains(event.target) || toolsMoreButton.contains(event.target)) return;
-    if (event.target.closest?.('#speedMenu')) return;
-    if (chromeGesture === toolsOpenedGesture) return;
+    if (toolsMoreMenu.hidden || toolsEventInside(event)) return;
+    if (performance.now() - toolsOpenedAt < 600) return;
     closeToolsMenu();
   });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeToolsMenu();
   });
+  window.closePlayerChromeMenus = function () {
+    closeMenus();
+    closeToolsMenu();
+    closeSpeedMenu();
+    const settings = $('videoSettings');
+    if (settings?.open) settings.open = false;
+  };
   window.addEventListener('resize', () => { if (!toolsMoreMenu.hidden) positionToolsMenu(); });
 
   // videoOnDafButton is always a real element (built unconditionally by

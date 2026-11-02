@@ -52,6 +52,7 @@ window.YT.Player = function (id, options) {
     getVideoData() { return { video_id: 'stubvid0001' }; },
     addEventListener() {},
     destroy() {},
+    _events: options.events,
   };
   window.__yt = self;
   setTimeout(() => options.events.onReady({ target: self }), 0);
@@ -186,6 +187,60 @@ test.describe('player bugfixes on live Bekhorot', () => {
     expect(immediate.scrubber).toBeCloseTo(immediate.target, 1);
     expect(immediate.landedStart).toBeCloseTo(immediate.target, 1);
     expect(Number(immediate.active)).toBeCloseTo(immediate.target, 1);
+  });
+
+  test('Vaater while playing at 1.5× seeks forward and a pause blip does not undo it', async ({ page }) => {
+    test.setTimeout(60000);
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    const result = await page.evaluate(() => {
+      const real = state.segments.findIndex((segment) => !segment.estimated && segment.end - segment.start > 1);
+      const start = state.segments[real].start + 0.2;
+      window.__yt._time = start;
+      window.__yt._state = 1;
+      window.__yt._plays = 0;
+      window.__yt._pauses = 0;
+      state.youtubeState = 1;
+      state.wantPlaying = true;
+      state.playerType = 'youtube';
+      state.pendingSeek = null;
+      state.phrasePin = null;
+      document.getElementById('speedSelect').value = '1.5';
+      setPlaybackRate(1.5);
+      updateActiveSegment(true, start);
+      updateVaaterButtonUi(start);
+      const asked = [];
+      window.__yt.seekTo = (time) => { asked.push(Number(time)); };
+      window.__yt.playVideo = () => { window.__yt._plays += 1; };
+      window.__yt.pauseVideo = () => { window.__yt._pauses += 1; window.__yt._state = 2; };
+      const before = getCurrentTime();
+      const target = nextReadingTime(before);
+      const button = document.getElementById('vaaterButton');
+      button.click();
+      // YouTube reports PAUSED then PLAYING while a seek buffers. The clock
+      // is still the pre-seek time until the player catches up.
+      window.__yt._events.onStateChange({ data: 2, target: window.__yt });
+      window.__yt._events.onStateChange({ data: 1, target: window.__yt });
+      return {
+        before,
+        target,
+        after: getCurrentTime(),
+        asked,
+        plays: window.__yt._plays,
+        pauses: window.__yt._pauses,
+        wantPlaying: state.wantPlaying,
+        enabled: !button.disabled && !button.hidden,
+        rate: document.getElementById('speedSelect').value,
+      };
+    });
+    expect(result.enabled).toBe(true);
+    expect(result.rate).toBe('1.5');
+    expect(result.target).not.toBeNull();
+    expect(result.target).toBeGreaterThan(result.before + 0.4);
+    expect(result.asked[0]).toBeCloseTo(result.target, 1);
+    expect(result.after).toBeCloseTo(result.target, 1);
+    expect(result.plays).toBeGreaterThan(0);
+    expect(result.pauses).toBe(0);
+    expect(result.wantPlaying).toBe(true);
   });
 
   test('Bekhorot 31a intro does not highlight the packed 30b phrases', async ({ page }) => {

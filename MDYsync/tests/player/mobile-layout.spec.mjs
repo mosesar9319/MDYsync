@@ -964,6 +964,20 @@ test.describe('mobile player layout', () => {
     expect(opened.title).toContain('Bekhorot');
     expect(opened.titleOverflow).toBeLessThan(2);
     if (opened.chipRight != null) expect(opened.chipRight).toBeLessThanOrEqual(opened.viewW + 1);
+    const zoom = await page.evaluate(() => {
+      const bar = document.getElementById('vilnaZoomControls');
+      const next = bar?.nextElementSibling;
+      const barBox = bar.getBoundingClientRect();
+      const nextBox = next?.getBoundingClientRect();
+      return {
+        position: getComputedStyle(bar).position,
+        gap: nextBox ? nextBox.top - barBox.bottom : null,
+        overlaps: nextBox ? nextBox.top < barBox.bottom - 1 : false,
+      };
+    });
+    expect(zoom.position).toBe('relative');
+    expect(zoom.overlaps).toBe(false);
+    expect(zoom.gap).toBeGreaterThanOrEqual(6);
     await page.click('#splitDivider');
     await expect(page.locator('body')).not.toHaveClass(/split-tools-open/);
 

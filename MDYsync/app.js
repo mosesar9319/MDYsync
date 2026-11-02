@@ -6514,6 +6514,9 @@ function setViewerMode(mode) {
   const nextMode = VIEWER_MODES.includes(mode) ? mode : 'standard';
   if (nextMode === state.viewerMode) return;
   state.viewerMode = nextMode;
+  // An open daf picker is positioned against the split video. Leaving Split
+  // (or switching mode) used to leave that panel stuck over the picture.
+  window.closePlayerChromeMenus?.();
   // Order matters only a little here (see each function's own early-return
   // guard, which makes calling one already at its target value a no-op) --
   // Split View settles the shared container's own layout first, then each
@@ -6746,6 +6749,7 @@ function announceViewerMode(mode) {
     document.addEventListener(type, swallowSplitExitFollowup, true);
   }
   $('splitLayoutToggleButton')?.addEventListener('click', () => {
+    window.closePlayerChromeMenus?.();
     state.splitViewLayout = state.splitViewLayout === 'stacked' ? 'side-by-side' : 'stacked';
     state.splitViewLayoutExplicit = true;
     state.splitViewRatio = null; // the new layout's own default, not the old one's
@@ -6755,11 +6759,13 @@ function announceViewerMode(mode) {
     announceViewerMode('split');
   });
   $('splitSwapButton')?.addEventListener('click', () => {
+    window.closePlayerChromeMenus?.();
     state.splitViewVideoPosition = state.splitViewVideoPosition === 'end' ? 'start' : 'end';
     applySplitViewLayoutToDom();
     saveSplitViewPreferences();
   });
   $('splitResetButton')?.addEventListener('click', () => {
+    window.closePlayerChromeMenus?.();
     state.splitViewRatio = null;
     state.splitViewVideoPosition = 'start';
     applySplitViewLayoutToDom();
@@ -7796,6 +7802,17 @@ function seekYouTubePlayer(time, allowSeekAhead, attempt = 0, generation = ++see
   const player = state.youtubePlayer;
   if (!player?.seekTo) return;
   player.seekTo(time, allowSeekAhead);
+  // A seek while the shiur is already playing can leave YouTube paused on
+  // the old frame, which is what made Vaater look like a no-op at 1.5×.
+  // Ask it to keep going from the new time. A paused seek must not do this:
+  // that path uses the muted frame blip below instead.
+  if (state.wantPlaying && !state.pausedFrameRefresh) {
+    try { player.playVideo?.(); } catch { /* already playing */ }
+    const rate = Number($('speedSelect')?.value);
+    if (rate && rate !== 1) {
+      try { player.setPlaybackRate?.(rate); } catch { /* rate list not ready */ }
+    }
+  }
   if (attempt === 0 && allowSeekAhead) repaintPausedYouTubeFrame(time);
   if (attempt >= 20) return;
   setTimeout(() => {
@@ -7873,6 +7890,7 @@ function seek(time, allowSeekAhead = true) {
   state.lastObservedTime = clamped;
 
   if (state.playerType === 'youtube') {
+    coverYouTubeSeek();
     if (state.youtubeReady && state.youtubePlayer?.seekTo) seekYouTubePlayer(clamped, allowSeekAhead);
     else state.queuedSeek = { time: clamped, allowSeekAhead };
   } else {
@@ -7998,6 +8016,12 @@ function captionTrackChoice(tracks) {
     || null;
 }
 let captionApplyToken = 0;
+// True once captions have actually been requested this session. The first
+// paint stays unload-only: loading the module just to turn captions off is
+// what flashed English auto-captions on a fresh open. After the reader has
+// turned them on, turning them off has to clear the live track first —
+// unload alone leaves the line YouTube put back up in fullscreen.
+let captionsEverOn = false;
 function applyYouTubeCaptions(player, on) {
   if (!player) return;
   const token = ++captionApplyToken;
@@ -8005,11 +8029,16 @@ function applyYouTubeCaptions(player, on) {
     if (token !== captionApplyToken) return;
     try {
       if (!on) {
-        try { player.setOption('captions', 'track', {}); } catch { /* module not loaded */ }
+        if (captionsEverOn) {
+          try { player.loadModule('captions'); } catch { /* player not ready */ }
+          try { player.loadModule('cc'); } catch { /* same module, other name */ }
+          try { player.setOption('captions', 'track', {}); } catch { /* module not loaded */ }
+        }
         try { player.unloadModule('captions'); } catch { /* already off */ }
         try { player.unloadModule('cc'); } catch { /* already off */ }
         return;
       }
+      captionsEverOn = true;
       // MDY uploads usually have only YouTube's automatic English track.
       // The track list is often empty until the module finishes loading, so
       // an English request is sent even when nothing is listed yet, and
@@ -8031,7 +8060,7 @@ function applyYouTubeCaptions(player, on) {
     } catch { /* captions module unavailable */ }
   };
   run();
-  const delays = on ? [400, 900, 1800, 3200] : [500, 1500];
+  const delays = on ? [400, 900, 1800, 3200] : [400, 900, 1600, 2800];
   for (const delay of delays) {
     window.setTimeout(() => {
       if (token !== captionApplyToken) return;
@@ -8052,10 +8081,17 @@ function applyCaptionsPreference() {
   else applyHtmlCaptions(on);
 }
 function setCaptionsEnabled(on) {
+  if (on) captionsEverOn = true;
   try { localStorage.setItem(CAPTIONS_STORAGE_KEY, on ? 'on' : 'off'); }
   catch { /* private mode */ }
   applyCaptionsPreference();
 }
+document.addEventListener('fullscreenchange', () => {
+  if (state.playerType === 'youtube' && state.youtubeReady) applyCaptionsPreference();
+});
+document.addEventListener('webkitfullscreenchange', () => {
+  if (state.playerType === 'youtube' && state.youtubeReady) applyCaptionsPreference();
+});
 
 // Video-quality selection, YouTube only -- a direct-link <video> has no
 // server-side rendition ladder to pick from, so #qualityControl just stays
@@ -8803,7 +8839,12 @@ function scheduleYouTubeError(code, player, videoId, { reject, resolve, settled 
 // own if the reader hasn't touched the picture. The poster covers that
 // opening. It is not replaced by a band over the picture afterwards.
 const YT_REVEAL_MS = 4500;
+// A seek while the picture is already up flashes the logo, share icon and
+// "More videos" row for about a second. Cover it, but don't make the reader
+// wait out the full opening delay on every scrub.
+const YT_SEEK_REVEAL_MS = 1500;
 let ytRevealTimer = null;
+let ytRevealDelay = YT_REVEAL_MS;
 function ensureYouTubeShield() {
   const existing = $('ytShield');
   if (existing) return existing;
@@ -8837,12 +8878,24 @@ function scheduleYouTubeReveal() {
   if (!frame || state.youtubeState !== 1) return;
   if (frame.classList.contains('yt-playing') && !frame.classList.contains('yt-hold')) return;
   clearTimeout(ytRevealTimer);
+  const delay = ytRevealDelay;
   ytRevealTimer = setTimeout(() => {
     ytRevealTimer = null;
+    ytRevealDelay = YT_REVEAL_MS;
     if (state.youtubeState !== 1) return;
     frame.classList.add('yt-playing', 'yt-started');
     frame.classList.remove('yt-hold');
-  }, YT_REVEAL_MS);
+  }, delay);
+}
+// Poster back up for a seek that happens while the shiur is playing.
+// Paused seeks already hold the poster from the pause itself.
+function coverYouTubeSeek() {
+  if (state.playerType !== 'youtube') return;
+  const live = state.youtubeState;
+  if (!state.wantPlaying && live !== 1 && live !== 3) return;
+  ytRevealDelay = YT_SEEK_REVEAL_MS;
+  holdYouTubeChrome();
+  if (state.youtubeState === 1) scheduleYouTubeReveal();
 }
 
 async function ensureYouTubePlayer(videoId) {
@@ -8951,6 +9004,14 @@ async function ensureYouTubePlayer(videoId) {
                 return;
               }
             }
+            if (event.data === 2 && state.wantPlaying && state.pendingSeek && performance.now() - state.pendingSeek.issuedAt < 1600) {
+              // A seek while playback is running reports PAUSED for a
+              // moment. That is not the reader pausing. Treating it as one
+              // made the following PLAYING event stop the shiur, so Vaater
+              // and a scrub looked like they never moved the clock.
+              updatePlayUi();
+              return;
+            }
             if (event.data === 1 && !state.wantPlaying) {
               // A pause puts the clock back with seekTo, and a paused-frame
               // repaint calls playVideo. Both report PLAYING. Treating that
@@ -8974,10 +9035,21 @@ async function ensureYouTubePlayer(videoId) {
               // a few seconds. YouTube paints its title, share icon and
               // red play button over the spinner for longer than a second.
               scheduleYouTubeReveal();
-            } else if (event.data === 3 && $('videoFrame')?.classList.contains('yt-hold')) {
-              clearTimeout(ytRevealTimer);
-              ytRevealTimer = null;
+            } else if (event.data === 3) {
+              const frame = $('videoFrame');
+              // Buffering after the picture is already up is the seek flash:
+              // logo, share, and the More videos row. Cover it the same way
+              // a pause does, and lift it again once playback resumes.
+              // The opening buffer is already covered and keeps the long delay.
+              if (frame?.classList.contains('yt-started') && !frame.classList.contains('yt-hold') && state.wantPlaying) {
+                ytRevealDelay = YT_SEEK_REVEAL_MS;
+                holdYouTubeChrome();
+              } else if (frame?.classList.contains('yt-hold')) {
+                clearTimeout(ytRevealTimer);
+                ytRevealTimer = null;
+              }
             } else if (event.data === 2) {
+              ytRevealDelay = YT_REVEAL_MS;
               state.wantPlaying = false;
               // Paused YouTube chrome (title, share, red play, logo) comes
               // back on top of the frozen frame. Our poster covers it.
@@ -9010,9 +9082,10 @@ async function ensureYouTubePlayer(videoId) {
             // (buffering) or 1 (playing) is the first reliable point real
             // levels show up, not onReady (see refreshQualityOptions).
             if (event.data === 3 || event.data === 1) refreshQualityOptions();
-            // Automatic captions come back when the video starts. Re-apply
-            // the reader's saved choice (off, unless they turned them on).
-            if (event.data === 1 || event.data === 5) applyCaptionsPreference();
+            // Automatic captions come back when the video starts, and again
+            // when it buffers or enters fullscreen. Re-apply the reader's
+            // saved choice (off, unless they turned them on).
+            if (event.data === 1 || event.data === 3 || event.data === 5) applyCaptionsPreference();
           },
           onPlaybackQualityChange: () => refreshQualityOptions(),
           onError: (event) => {
@@ -10225,6 +10298,7 @@ let scrubSeekTimer = 0;
 function applyScrubSeek(time, allowSeekAhead) {
   armPendingSeek(time);
   if (state.playerType === 'youtube') {
+    coverYouTubeSeek();
     if (state.youtubeReady && state.youtubePlayer?.seekTo) seekYouTubePlayer(time, allowSeekAhead);
     else state.queuedSeek = { time, allowSeekAhead };
   } else if (htmlVideo.readyState >= 1) {

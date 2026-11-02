@@ -186,6 +186,99 @@ test.describe('phone speed, more menu, and captions', () => {
     await expect(page.locator('#toolsMoreMenu')).toBeHidden();
   });
 
+  test('the More menu toggles closed on a second tap and on a tap outside', async ({ page }, testInfo) => {
+    await openPlayer(page);
+    await page.setViewportSize({ width: 280, height: 700 });
+    await revealChrome(page);
+    const tap = async (selector) => {
+      const target = page.locator(selector);
+      await expect(target).toBeVisible();
+      if (testInfo.project.name === 'mobile') await target.tap();
+      else await target.click();
+    };
+    await expect.poll(() => page.locator('#toolsMoreButton').isVisible()).toBe(true);
+    await tap('#toolsMoreButton');
+    await expect(page.locator('#toolsMoreMenu')).toBeVisible();
+    await tap('#toolsMoreButton');
+    await expect(page.locator('#toolsMoreMenu')).toBeHidden();
+    await tap('#toolsMoreButton');
+    await expect(page.locator('#toolsMoreMenu')).toBeVisible();
+    await page.mouse.click(12, 70);
+    await expect(page.locator('#toolsMoreMenu')).toBeHidden();
+
+    const topMore = page.locator('#playerMoreButton');
+    if (await topMore.isVisible()) {
+      await tap('#playerMoreButton');
+      await expect(page.locator('#playerMoreMenu')).toBeVisible();
+      await tap('#playerMoreButton');
+      await expect(page.locator('#playerMoreMenu')).toBeHidden();
+    }
+  });
+
+  test('closing Split or changing its layout hides an open daf picker', async ({ page }) => {
+    await openPlayer(page);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await revealChrome(page);
+    await page.click('#viewerModeSplitButton');
+    await dismissErrorBanner(page);
+    await revealChrome(page);
+    await page.click('#playerDafButton');
+    await expect(page.locator('#playerDafMenu')).toBeVisible();
+    await page.click('#splitExitButton');
+    await expect(page.locator('#playerDafMenu')).toBeHidden();
+    await expect(page.locator('body')).not.toHaveClass(/split-view-active/);
+    // The Split X swallows the next click so it cannot land on Sign in.
+    await page.waitForTimeout(600);
+
+    await page.click('#viewerModeSplitButton');
+    await revealChrome(page);
+    await page.click('#playerDafButton');
+    await expect(page.locator('#playerDafMenu')).toBeVisible();
+    await page.click('#splitLayoutToggleButton');
+    await expect(page.locator('#playerDafMenu')).toBeHidden();
+  });
+
+  test('a seek while playing keeps the YouTube cover up through buffering', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.route('https://www.youtube.com/**', (route) => route.abort());
+    await page.route('https://www.youtube.com/iframe_api*', (route) => {
+      route.fulfill({ status: 200, contentType: 'text/javascript', body: YT_STUB });
+    });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await page.evaluate(() => ensureYouTubePlayer('stubvid0001'));
+    await page.waitForFunction(() => window.__yt);
+    const during = await page.evaluate(() => {
+      state.wantPlaying = true;
+      state.youtubeState = 1;
+      window.__yt._state = 1;
+      const frame = document.getElementById('videoFrame');
+      frame.classList.add('youtube-active', 'yt-playing', 'yt-started');
+      frame.classList.remove('yt-hold');
+      seek(80, true);
+      return {
+        hold: frame.classList.contains('yt-hold'),
+        playing: frame.classList.contains('yt-playing'),
+      };
+    });
+    expect(during.hold).toBe(true);
+    expect(during.playing).toBe(false);
+    const buffering = await page.evaluate(() => {
+      window.__yt._state = 3;
+      window.__yt._events.onStateChange({ data: 3, target: window.__yt });
+      return document.getElementById('videoFrame').classList.contains('yt-hold');
+    });
+    expect(buffering).toBe(true);
+    await page.evaluate(() => {
+      window.__yt._state = 1;
+      window.__yt._events.onStateChange({ data: 1, target: window.__yt });
+    });
+    await expect.poll(() => page.evaluate(() => {
+      const frame = document.getElementById('videoFrame');
+      return frame.classList.contains('yt-playing') && !frame.classList.contains('yt-hold');
+    }), { timeout: 3000 }).toBe(true);
+  });
+
   test('captions stay off until turned on, and the choice is remembered', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
@@ -243,6 +336,25 @@ test.describe('phone speed, more menu, and captions', () => {
     expect(forced.some((call) => call[3]?.languageCode === 'en' && !call[3]?.kind)).toBe(true);
     expect(await page.locator('#captionsButton').getAttribute('aria-pressed')).toBe('true');
     expect(await page.locator('#captionsStack .pc-label').textContent()).toBe('Captions on');
+
+    const turnedOff = await page.evaluate(() => {
+      window.__ytCalls.length = 0;
+      setCaptionsEnabled(false);
+      return window.__ytCalls.filter((call) => call[1] === 'captions').map((call) => call[0]);
+    });
+    expect(turnedOff).toContain('unload');
+    expect(turnedOff.at(-1)).toBe('unload');
+    expect(turnedOff.lastIndexOf('unload')).toBeGreaterThan(turnedOff.lastIndexOf('load'));
+    expect(await page.locator('#captionsButton').getAttribute('aria-pressed')).toBe('false');
+
+    const afterFullscreen = await page.evaluate(() => {
+      window.__ytCalls.length = 0;
+      document.dispatchEvent(new Event('fullscreenchange'));
+      return window.__ytCalls.filter((call) => call[1] === 'captions').map((call) => call[0]);
+    });
+    expect(afterFullscreen).toContain('unload');
+    expect(afterFullscreen.at(-1)).toBe('unload');
+    expect(afterFullscreen.lastIndexOf('unload')).toBeGreaterThan(afterFullscreen.lastIndexOf('load'));
   });
 
   test('a fresh profile and a legacy captions value stay off', async ({ page }) => {
