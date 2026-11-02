@@ -840,14 +840,34 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
   .video-frame.is-tiny { --pc-bar-h: 36px; --pc-timeline-h: 22px; }
   .video-frame.is-compact .player-topbar,
   .video-frame.is-tiny .player-topbar {
-    height: 44px;
+    height: 40px;
     padding: 0 8px;
-    background: linear-gradient(to bottom, rgba(4,12,22,.4), rgba(4,12,22,0));
+    /* The fade ends at the bottom of the title row. It does not continue
+       down over the picture. */
+    background: linear-gradient(to bottom, rgba(4,12,22,.42), rgba(4,12,22,0));
+  }
+  /* YouTube's own title bar sits in the top of the iframe. An opaque band
+     the height of that row covers it; the rest of the frame stays clear. */
+  .video-frame.youtube-active.is-compact .player-topbar,
+  .video-frame.youtube-active.is-tiny .player-topbar {
+    background: linear-gradient(to bottom, rgba(4,12,22,.9) 0 26px, rgba(4,12,22,0) 40px);
+  }
+  .video-frame.youtube-active.yt-started.controls-hidden.is-compact::after,
+  .video-frame.youtube-active.yt-started.controls-hidden.is-tiny::after {
+    content: "";
+    position: absolute;
+    z-index: 4;
+    top: 0;
+    left: 0;
+    width: 112px;
+    height: 28px;
+    background: linear-gradient(to right, rgba(2,8,18,.82), rgba(2,8,18,0));
+    pointer-events: none;
   }
   .video-frame.is-compact .player-controls,
   .video-frame.is-tiny .player-controls {
-    gap: 2px;
-    padding: 0 4px;
+    gap: 6px;
+    padding: 0 8px;
     background: transparent;
     border-top: 0;
     backdrop-filter: none;
@@ -859,8 +879,10 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
     left: 0;
     right: 0;
     bottom: 0;
-    height: 58px;
-    background: linear-gradient(to top, rgba(4,14,27,.5), rgba(4,14,27,0));
+    /* The control row only. A 58px fade covered the timeline and a band of
+       picture above it — about half of a short Split video. */
+    height: 36px;
+    background: linear-gradient(to top, rgba(4,14,27,.4), rgba(4,14,27,0));
     pointer-events: none;
     z-index: -1;
   }
@@ -874,7 +896,7 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
   .video-frame.is-compact .pc-tools,
   .video-frame.is-tiny .pc-tools,
   .video-frame.is-compact .pc-volume,
-  .video-frame.is-tiny .pc-volume { gap: 0; }
+  .video-frame.is-tiny .pc-volume { gap: 4px; }
   .video-frame.is-compact .pc-transport .icon-button,
   .video-frame.is-tiny .pc-transport .icon-button,
   .video-frame.is-compact .pc-volume .icon-button,
@@ -2006,6 +2028,14 @@ input[type="url"] { width: 100%; border: 1px solid var(--line-strong); color: va
 input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0 3px rgba(47, 110, 165,.1); }
 .youtube-player-host { position: absolute; inset: 0; background: #000; }
 .youtube-player-host iframe, #youtubePlayer { width: 100%; height: 100%; display: block; border: 0; }
+/* YouTube paints its own title, Watch-on-YouTube row, share icon, play
+   button, and corner badge inside the iframe. controls=0 does not remove
+   them. The iframe is not a hit target (taps stay on our chrome), and it
+   stays invisible until the first real play so the cued poster never
+   shows through. */
+.video-frame.youtube-active .youtube-player-host,
+.video-frame.youtube-active .youtube-player-host iframe { pointer-events: none; }
+.video-frame.youtube-active:not(.yt-started) .youtube-player-host { visibility: hidden; }
 .video-source-badge { position: absolute; left: 10px; top: 10px; z-index: 3; padding: 5px 8px; border: 1px solid rgba(255,255,255,.2); border-radius: 999px; background: rgba(2,8,18,.72); color: #d9e5ee; font-size: 11px; font-weight: 700; backdrop-filter: blur(8px); pointer-events: none; }
 /* z-index 13, not 4: in Split View, #splitVideoPinchSurface (z-index 11,
    see its own construction in app.js) sits directly over the video picture
@@ -3144,9 +3174,36 @@ body.split-view-active .watch-layout.split-active .video-frame .player-topbar::b
    enough to hide the embed's own title without painting the picture. */
 @media (max-width: 760px), (max-height: 520px) and (max-width: 1100px) {
   body.split-view-active .watch-layout.split-active .video-frame .player-topbar::before {
-    top: -48px;
-    height: 48px;
-    background: linear-gradient(to bottom, rgba(4,12,22,.35), rgba(4,12,22,0));
+    top: -10px;
+    height: 10px;
+    background: linear-gradient(to bottom, rgba(4,12,22,.28), rgba(4,12,22,0));
+  }
+  /* One row, over the video only while the player chrome is up. Two wrapped
+     rows of 44px buttons were covering the top ~40% of a short Split video. */
+  body.split-view-active .viewer-mode-select {
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 3px;
+    border-radius: 12px;
+    max-width: calc(100vw - 12px);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  body.split-view-active .viewer-mode-select::-webkit-scrollbar { display: none; }
+  body.split-view-active .viewer-mode-select .viewer-mode-button {
+    height: 32px;
+    min-width: 32px;
+    padding: 0 8px;
+  }
+  body.split-view-active .split-toolbar { gap: 2px; }
+  body.split-view-active .split-toolbar .icon-button {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+  }
+  body.split-view-active.split-chrome-hidden .watch-layout.split-active .video-frame .player-topbar {
+    top: 0;
   }
 }
 /* Applied to the video PICTURE only (#video / #youtubePlayerHost -- exactly

@@ -137,11 +137,26 @@ test.describe('mobile player layout', () => {
         barBg: bar.backgroundColor,
         bottom: Math.round(controls.bottom - scrub.top),
         muteBorder: mute.borderTopWidth,
+        fade: Math.round(parseFloat(getComputedStyle(document.querySelector('.player-controls'), '::before').height) || 0),
       };
     });
     expect(chrome.barBg).toBe('rgba(0, 0, 0, 0)');
     expect(chrome.bottom).toBeLessThanOrEqual(64);
+    expect(chrome.fade).toBeLessThanOrEqual(40);
     expect(chrome.muteBorder).toBe('0px');
+    const youtube = await page.evaluate(() => {
+      const host = document.getElementById('youtubePlayerHost');
+      const frame = document.getElementById('videoFrame');
+      return {
+        pointer: getComputedStyle(host).pointerEvents,
+        hidden: getComputedStyle(host).visibility,
+        started: frame.classList.contains('yt-started'),
+        branding: window.__playerVars?.modestbranding ?? window.__ytVars?.modestbranding,
+      };
+    });
+    expect(youtube.pointer).toBe('none');
+    expect(youtube.hidden).toBe('hidden');
+    expect(youtube.started).toBe(false);
     const speedHome = await page.evaluate(() => {
       const speed = document.getElementById('speedSelect');
       return speed?.closest('#toolsMoreMenu') ? 'menu' : 'bar';

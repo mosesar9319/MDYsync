@@ -9,8 +9,16 @@ import { preparePage } from '../support/harness.mjs';
 const LIVE = 'https://dafsync.netlify.app/api/get-results-file?path=';
 const FILES = [
   'by-ref/Bekhorot-34a.json',
+  'by-ref/Bekhorot-44a.json',
+  'by-ref/Chazarah-Daf-Bekhorot-44a.json',
+  'by-ref/Bekhorot-30a.json',
+  'by-ref/Bekhorot-31a.json',
   'by-ref/Chazarah-Daf-Bekhorot-30a.json',
   'video-links/Bekhorot-34a.json',
+  'video-links/Bekhorot-44a.json',
+  'video-links/Chazarah-Daf-Bekhorot-44a.json',
+  'video-links/Bekhorot-30a.json',
+  'video-links/Bekhorot-31a.json',
   'video-links/Chazarah-Daf-Bekhorot-30a.json',
 ];
 const SHOTS = '/opt/cursor/artifacts/player-follow';
@@ -118,6 +126,7 @@ test.describe('live alignments follow taps, the intro, and gaps', () => {
       chipHidden: document.getElementById('skipToDafChip')?.hidden,
       own: ownContentStartTime(),
       disablekb: window.__playerVars?.disablekb,
+      modestbranding: window.__playerVars?.modestbranding,
     }));
     expect(intro.active).toBe(-1);
     expect(intro.ref).toBe('Intro');
@@ -127,6 +136,7 @@ test.describe('live alignments follow taps, the intro, and gaps', () => {
     expect(intro.own).toBeGreaterThan(140);
     expect(intro.own).toBeLessThan(170);
     expect(intro.disablekb).toBe(1);
+    expect(intro.modestbranding).toBe(1);
     await shot(page, 'bekhorot-30-chazarah-intro');
 
     const reviewing = await page.evaluate(() => {
@@ -282,6 +292,81 @@ test.describe('live alignments follow taps, the intro, and gaps', () => {
     expect(gap).toBe(-1);
     await shot(page, 'bekhorot-34a-gap');
   });
+});
+
+test.describe('the daf page does not chase every phrase and gap', () => {
+  // Bekhorot 44a reviews 43b in short phrases separated by 1–7s gaps, and
+  // estimated fillers jump to 44b and back. Following the active phrase
+  // turned the Vilna page on every one of those (about 80 times). The same
+  // shape is in the Chazarah recording and in 30a/31a.
+  const CASES = [
+    ['/player/?ref=Bekhorot+44a', 'Bekhorot 44a'],
+    ['/player/?ref=Bekhorot+44a&variant=chazarah', 'Bekhorot 44a Chazarah'],
+    ['/player/?ref=Bekhorot+30a', 'Bekhorot 30a'],
+    ['/player/?ref=Bekhorot+31a', 'Bekhorot 31a'],
+  ];
+
+  for (const [url, label] of CASES) {
+    test(`${label}: gaps and one-off phrases do not turn the page`, async ({ page }) => {
+      test.setTimeout(90000);
+      await openLiveDaf(page, url);
+      const counts = await page.evaluate(() => {
+        resetVilnaFollow(state.dafRef);
+        const loaded = vilnaKeyFromRef(state.dafRef);
+        let raw = 0;
+        let follow = 0;
+        let prevRaw = null;
+        let prevFollow = null;
+        const end = Number(state.segments.at(-1)?.end) || 0;
+        for (let t = 0; t <= end; t += 1) {
+          const index = findSegmentAt(t);
+          const ref = index >= 0 ? state.segments[index].ref : state.dafRef;
+          const rawKey = vilnaKeyFromRef(ref) || loaded;
+          if (prevRaw && rawKey !== prevRaw) raw += 1;
+          prevRaw = rawKey;
+          state.pendingSeek = null;
+          state.phrasePin = null;
+          updateActiveSegment(false, t);
+          const followKey = currentVilnaPageKey().key;
+          if (prevFollow && followKey !== prevFollow) follow += 1;
+          prevFollow = followKey;
+        }
+        // A real phrase, then one second into the silence after it.
+        let held = null;
+        for (let i = 0; i < state.segments.length; i += 1) {
+          const segment = state.segments[i];
+          if (segment.estimated) continue;
+          const end = Number(segment.end);
+          if (!Number.isFinite(end)) continue;
+          // Idle starts 3s after the phrase. The hold lasts until end+4s, so
+          // this is the short "Between phrases" flash the status used to show.
+          const gapAt = end + 3.2;
+          if (findSegmentAt(segment.start + 0.15) !== i) continue;
+          if (findSegmentAt(gapAt) !== -1) continue;
+          state.pendingSeek = null;
+          state.phrasePin = null;
+          updateActiveSegment(false, segment.start + 0.15);
+          const during = document.getElementById('currentRef').textContent;
+          const pageDuring = currentVilnaPageKey().key;
+          updateActiveSegment(false, gapAt);
+          held = {
+            during,
+            gap: document.getElementById('currentRef').textContent,
+            pageSame: currentVilnaPageKey().key === pageDuring,
+          };
+          break;
+        }
+        return { raw, follow, held, loaded };
+      });
+      expect(counts.raw, `${label} raw amud changes`).toBeGreaterThan(8);
+      expect(counts.follow, `${label} page turns ${counts.follow} vs raw ${counts.raw}`).toBeLessThan(counts.raw / 3);
+      expect(counts.follow).toBeLessThan(12);
+      expect(counts.held, `${label} has a short gap`).toBeTruthy();
+      expect(counts.held.gap).toBe(counts.held.during);
+      expect(counts.held.gap).not.toBe('Between phrases');
+      expect(counts.held.pageSame).toBe(true);
+    });
+  }
 });
 
 test.describe('player labels, keys, and the wake layer', () => {

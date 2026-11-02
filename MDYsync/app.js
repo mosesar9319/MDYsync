@@ -115,6 +115,16 @@ const state = {
   lastManualScrollAt: 0,
   alignmentDuration: 0,
   vilnaPageKey: null,
+  // The amud actually on screen. Playback does not assign this from the
+  // phrase that happens to be active this instant — see noteVilnaFollow.
+  vilnaFollowKey: null,
+  vilnaFollowCandidate: null,
+  vilnaFollowCount: 0,
+  vilnaFollowSince: 0,
+  vilnaFollowPhrase: -1,
+  statusHoldText: '',
+  statusHoldUntil: 0,
+  dafWindowAnchor: 0,
   vilnaPageMap: null,
   vilnaPagePollTimer: null,
   vilnaOverlayKey: '',
@@ -343,6 +353,13 @@ const PHRASE_SEEK_LEAD = 0.4;
 // After a phrase's own end, keep the highlight briefly, then go idle so a
 // sponsor slide or explanation doesn't stay lit for minutes.
 const GAP_IDLE_AFTER_END = 3;
+// A one- or two-second silence is not a new place in the shiur. The status
+// line keeps the last amud until the gap has lasted this long.
+const STATUS_GAP_HOLD_S = 4;
+// The Vilna page turns only once a different amud has been the phrase for
+// two real phrases, or for this long without a break. One estimated blip,
+// or a gap, does not turn it.
+const VILNA_FOLLOW_HOLD_S = 3.5;
 const MIN_ESTIMATED_VISIBLE = 0.8;
 
 const $ = (id) => document.getElementById(id);
@@ -1398,7 +1415,10 @@ function renderDafWindow() {
     dafPage.appendChild(note);
     return;
   }
-  const anchor = state.activeIndex >= 0 ? state.activeIndex : 0;
+  // A gap (no phrase) used to snap the window back to segment 0 and rebuild
+  // the pane. Keep the last real phrase's window; only the highlight moves.
+  const anchor = state.activeIndex >= 0 ? state.activeIndex : (state.dafWindowAnchor || 0);
+  if (state.activeIndex >= 0) state.dafWindowAnchor = state.activeIndex;
   const lo = Math.max(0, anchor - DAF_WINDOW_BEFORE);
   const hi = Math.min(state.segments.length - 1, anchor + DAF_WINDOW_AFTER);
   const windowKey = `${lo}:${hi}:${state.segments.length}`;
@@ -1835,12 +1855,84 @@ function stabilizeEstimatedSegments(segments) {
   return out.sort((a, b) => a.start - b.start);
 }
 
-function setVilnaPageStatus(message) {
+function setVilnaPageStatus(message, { keepCanvas = false } = {}) {
   const status = $('vilnaPageStatus');
   const text = $('vilnaPageStatusText');
   if (text) text.textContent = message;
-  if (status) status.hidden = false;
-  $('vilnaPageCanvas').hidden = true;
+  if (status) status.hidden = keepCanvas;
+  // Replacing a page that is already on screen keeps that image up until
+  // the next raster is ready. Hiding it here was the grey skeleton flash
+  // every time the amud key flickered.
+  if (!keepCanvas) $('vilnaPageCanvas').hidden = true;
+}
+
+function vilnaKeyFromRef(ref) {
+  const parsed = parseDafRef(ref);
+  return parsed ? `${parsed.tractate}|${parsed.daf}|${parsed.amud}` : null;
+}
+
+function resetVilnaFollow(ref = state.dafRef) {
+  state.vilnaFollowKey = vilnaKeyFromRef(ref);
+  state.vilnaFollowCandidate = null;
+  state.vilnaFollowCount = 0;
+  state.vilnaFollowSince = 0;
+  state.vilnaFollowPhrase = -1;
+  state.statusHoldText = '';
+  state.statusHoldUntil = 0;
+  state.dafWindowAnchor = 0;
+}
+
+// Real phrases only. Estimated fillers are what sprinkle the other amud
+// through a run (Bekhorot 44a has 132 of them) and must not turn the page.
+function segmentVilnaKey(segment) {
+  if (!segment || segment.estimated) return null;
+  return vilnaKeyFromRef(segment.ref);
+}
+
+// Bekhorot 44a (and 30a/31a, regular and Chazarah) review the previous amud
+// in short phrases with 1–7s gaps. findSegmentAt goes idle in those gaps,
+// and the page key used to fall back to the loaded daf — 43b, then 44a,
+// then 43b, about once a phrase. A gap never turns the page. A new amud
+// turns it after two real phrases, or after one phrase has been current
+// for VILNA_FOLLOW_HOLD_S. A seek (immediate) turns at once.
+// Returns true when the committed page changed.
+function noteVilnaFollow(index, time, immediate) {
+  if (!state.vilnaFollowKey) state.vilnaFollowKey = vilnaKeyFromRef(state.dafRef);
+  if (index < 0) return false;
+  const key = segmentVilnaKey(state.segments[index]);
+  if (!key) return false;
+  if (key === state.vilnaFollowKey) {
+    state.vilnaFollowCandidate = null;
+    state.vilnaFollowCount = 0;
+    state.vilnaFollowPhrase = -1;
+    return false;
+  }
+  if (immediate) {
+    state.vilnaFollowKey = key;
+    state.vilnaFollowCandidate = null;
+    state.vilnaFollowCount = 0;
+    state.vilnaFollowPhrase = -1;
+    return true;
+  }
+  if (state.vilnaFollowCandidate !== key) {
+    state.vilnaFollowCandidate = key;
+    state.vilnaFollowCount = 1;
+    state.vilnaFollowSince = time;
+    state.vilnaFollowPhrase = index;
+    return false;
+  }
+  if (index !== state.vilnaFollowPhrase) {
+    state.vilnaFollowCount += 1;
+    state.vilnaFollowPhrase = index;
+  }
+  if (state.vilnaFollowCount >= 2 || time - state.vilnaFollowSince >= VILNA_FOLLOW_HOLD_S) {
+    state.vilnaFollowKey = key;
+    state.vilnaFollowCandidate = null;
+    state.vilnaFollowCount = 0;
+    state.vilnaFollowPhrase = -1;
+    return true;
+  }
+  return false;
 }
 
 // The daf shown can change mid-flight (a user seeking back and forth across
@@ -1853,10 +1945,21 @@ function setVilnaPageStatus(message) {
 // to the new amud's word positions, landing highlights in blank space that
 // belonged on a page that was no longer the one on screen.
 function currentVilnaPageKey() {
-  const activeRef = state.browsePageRef || state.segments[state.activeIndex]?.ref || state.dafRef;
-  const parsed = parseDafRef(activeRef);
-  if (!parsed) return { parsed: null, key: null };
-  return { parsed, key: `${parsed.tractate}|${parsed.daf}|${parsed.amud}` };
+  // The daf browser pins a page explicitly. Playback uses the committed
+  // follow key, not whichever phrase (or gap) is active this tick.
+  if (state.browsePageRef) {
+    const pinned = parseDafRef(state.browsePageRef);
+    if (!pinned) return { parsed: null, key: null };
+    return { parsed: pinned, key: `${pinned.tractate}|${pinned.daf}|${pinned.amud}` };
+  }
+  const key = state.vilnaFollowKey || vilnaKeyFromRef(state.dafRef);
+  if (!key) return { parsed: null, key: null };
+  const [tractate, daf, amud] = key.split('|');
+  const base = parseDafRef(state.dafRef) || {};
+  return {
+    parsed: { ...base, tractate, daf: Number(daf), amud },
+    key,
+  };
 }
 
 // The source PDF (proxied as-is from shas.org) is real vector text -- ~50
@@ -1932,7 +2035,8 @@ async function renderVilnaPage() {
   state.vilnaPageLoadingKey = key;
   const stillWanted = () => currentVilnaPageKey().key === key;
 
-  setVilnaPageStatus(`Loading the Vilna page for ${parsed.tractate} ${parsed.daf}${parsed.amud}…`);
+  const keepCanvas = Boolean(state.vilnaPageKey) && !canvas.hidden;
+  setVilnaPageStatus(`Loading the Vilna page for ${parsed.tractate} ${parsed.daf}${parsed.amud}…`, { keepCanvas });
   try {
     const [lib, response] = await Promise.all([
       loadPdfJs(),
@@ -6222,6 +6326,9 @@ document.addEventListener('pointerup', onSplitChromePointerSettle, { capture: tr
 document.addEventListener('pointercancel', onSplitChromePointerSettle, { capture: true });
 function splitChromeShouldStayVisible() {
   if (pointerRestingOnSplitChrome || splitDividerDrag) return true;
+  // Stay up for as long as the player bar is up, and leave with it.
+  const frame = $('videoFrame');
+  if (frame && !frame.classList.contains('controls-hidden')) return true;
   const active = document.activeElement;
   return !!(active && active.closest?.('#viewerModeSelect') && active.matches(':focus-visible'));
 }
@@ -6932,12 +7039,28 @@ function updateReaderNotes(time, index) {
   let refText = requested || 'No daf loaded';
   let reviewing = '';
   if (!state.segments.length) refText = state.dafRef ? `Loading ${requested}…` : 'No daf loaded';
-  else if (beforeFirst || inPreAnchor) refText = 'Intro';
-  else if (index < 0) refText = 'Between phrases';
-  else if (inLeadIn && activeLabel && activeLabel !== realDafRef(state.dafRef)) {
+  else if (beforeFirst || inPreAnchor) {
+    refText = 'Intro';
+    state.statusHoldText = refText;
+    state.statusHoldUntil = 0;
+  } else if (index < 0) {
+    // Bekhorot 44a flips this line every second or two (25:24, then 25:25)
+    // because phrases end a few seconds before the next one starts. The
+    // hold is armed only by the phrase just shown, so a seek into a later
+    // silence still reads "Between phrases".
+    refText = state.statusHoldText && time < state.statusHoldUntil
+      ? state.statusHoldText
+      : 'Between phrases';
+  } else if (inLeadIn && activeLabel && activeLabel !== realDafRef(state.dafRef)) {
     reviewing = `Reviewing ${activeLabel}`;
     refText = reviewing;
-  } else refText = requested;
+    state.statusHoldText = refText;
+    state.statusHoldUntil = (Number(active?.end) || time) + STATUS_GAP_HOLD_S;
+  } else {
+    refText = requested;
+    state.statusHoldText = refText;
+    state.statusHoldUntil = (Number(active?.end) || time) + STATUS_GAP_HOLD_S;
+  }
   const currentRef = $('currentRef');
   if (currentRef) currentRef.textContent = refText;
   const reviewingLabel = $('reviewingLabel');
@@ -7023,9 +7146,11 @@ function scrollActiveIntoView(force) {
 function updateActiveSegment(force = false, timeOverride = null) {
   const time = timeOverride ?? getCurrentTime();
   let jumpedBack = false;
+  let jumpedForward = false;
   if (timeOverride == null) {
     const previous = state.lastObservedTime;
     jumpedBack = previous != null && time < previous - 1;
+    jumpedForward = previous != null && time > previous + 2;
     state.lastObservedTime = time;
     // A real rewind (media keys, a seek this page didn't pin) must drop the
     // tap pin so the highlight can follow. The landing of a tap's own seek
@@ -7056,10 +7181,14 @@ function updateActiveSegment(force = false, timeOverride = null) {
       return;
     }
   }
+  // A seek, or a clock jump the poll didn't take one tick at a time, shows
+  // the amud under the playhead immediately. Steady playback waits.
+  const turned = noteVilnaFollow(index, time, Boolean(force) || jumpedBack || jumpedForward);
   if (!force && index === state.activeIndex) {
     updateActiveWords(time);
     updateVaaterButtonUi(time);
     updateReaderNotes(time, index);
+    if (turned) renderVilnaPage();
     return;
   }
   state.activeIndex = index;
@@ -8176,6 +8305,7 @@ async function loadDaf(refOverride = null, options = {}) {
     const { heRef, paragraphs } = await fetchSefariaParagraphs(sefariaRef);
 
     state.dafRef = ref;
+    resetVilnaFollow(ref);
     state.wordTimeline = [];
     const duration = getDuration() || Number(scrubber.max) || 48;
     const length = duration / paragraphs.length;
@@ -8402,6 +8532,7 @@ async function ensureYouTubePlayer(videoId) {
   await loadYouTubeApi();
   state.youtubeCueId = videoId;
   switchPlayerType('youtube');
+  $('videoFrame')?.classList.remove('yt-started');
 
   if (!state.youtubePlayer) {
     await new Promise((resolve, reject) => {
@@ -8435,7 +8566,11 @@ async function ensureYouTubePlayer(videoId) {
         // because automatic captions otherwise come back when playback
         // starts. The CC button can turn them on later.
         cc_load_policy: 0,
-        iv_load_policy: 3
+        iv_load_policy: 3,
+        // Drops the big YouTube logo in the control bar. The cued poster,
+        // the corner badge, and the touch title bar are covered in CSS
+        // (the iframe is not hit-testable, and it stays hidden until play).
+        modestbranding: 1
       };
       if (location.protocol === 'http:' || location.protocol === 'https:') playerVars.origin = location.origin;
 
@@ -8498,6 +8633,10 @@ async function ensureYouTubePlayer(videoId) {
               state.playRetryUsed = false;
               clearPlayWatchdog();
               flushDeferredPlaybackWork();
+              // First real playback. Until then the iframe stays covered so
+              // YouTube's poster (title, Watch on YouTube, share, its own
+              // play button) never shows through our controls.
+              $('videoFrame')?.classList.add('yt-started');
             } else if (event.data === 2) {
               state.wantPlaying = false;
               clearPlayWatchdog();
@@ -8885,6 +9024,7 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
     : [];
   state.alignmentDuration = Number(data.duration) || 0;
   state.dafRef = dafRefOverride || data.dafRef || state.dafRef;
+  resetVilnaFollow(state.dafRef);
   // A voice-recognition-sourced alignment's segments are the engine's own
   // rough guess (see voice_align.py) -- retaining a copy of exactly what it
   // guessed, before any admin edits touch state.segments, is what lets
@@ -9687,6 +9827,7 @@ function showVideoControls() {
   const frame = $('videoFrame');
   if (!frame) return;
   frame.classList.remove('controls-hidden');
+  if (state.splitViewEnabled) showSplitChrome();
   if (controlsHideTimer) clearTimeout(controlsHideTimer);
   // Re-arm rather than abandon the timer while something is holding the bar
   // open. Every one of those conditions ends without necessarily producing
@@ -9699,6 +9840,11 @@ function showVideoControls() {
     if (controlsShouldStayVisible()) { controlsHideTimer = setTimeout(tick, CONTROLS_AUTO_HIDE_MS); return; }
     frame.classList.add('controls-hidden');
     hideScrubPreview();
+    // The Split mode row covers the top of a short phone video. It leaves
+    // with the player chrome instead of staying parked on the picture.
+    if (state.splitViewEnabled && !splitChromeShouldStayVisible()) {
+      document.body.classList.add('split-chrome-hidden');
+    }
   };
   controlsHideTimer = setTimeout(tick, CONTROLS_AUTO_HIDE_MS);
 }
