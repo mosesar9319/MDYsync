@@ -407,6 +407,29 @@ test.describe('the daf page does not chase every phrase and gap', () => {
         expect(counts.reviewGap.label).toContain('Reviewing');
         expect(counts.reviewGap.hidden).toBe(false);
       }
+      if (label.includes('44a') && label.includes('Chazarah')) {
+        const stolen = await page.evaluate(() => {
+          const bad = [];
+          for (const t of [88, 90, 96]) {
+            const index = findSegmentAt(t);
+            const active = state.segments[index];
+            const covering = state.segments.find((segment) => segment
+              && !segment.estimated
+              && Number(segment.start) <= t + 0.001
+              && t < Number(segment.end));
+            if (!covering) continue;
+            if (!active || active.estimated || !segmentStrictlyCovers(active, t)) {
+              bad.push({
+                t,
+                active: active ? `${active.ref} w${active.w0}-${active.w1}${active.estimated ? ' est' : ''}` : 'none',
+                covering: `${covering.ref} w${covering.w0}-${covering.w1}`,
+              });
+            }
+          }
+          return bad;
+        });
+        expect(stolen, 'estimated or later blips stole a real phrase').toEqual([]);
+      }
       if (label.includes('44a') && label.includes('Chazarah') && counts.reviewGap) {
         await page.evaluate(() => {
           const own = ownContentStartTime();

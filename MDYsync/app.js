@@ -1281,6 +1281,43 @@ function firstRealSegmentStart(segments = state.segments) {
   return null;
 }
 
+// A real phrase still on the clock. Zero-length marks do not count: they
+// are a single timestamp, and treating them as a span let a later blip
+// cover the phrase that was actually playing.
+function segmentStrictlyCovers(segment, time) {
+  if (!segment || segment.estimated) return false;
+  const start = Number(segment.start);
+  const end = Number(segment.end);
+  if (!Number.isFinite(start)) return false;
+  const effectiveEnd = Number.isFinite(end) ? end : start;
+  if (effectiveEnd <= start + 0.05) return false;
+  return time >= start - 0.001 && time < effectiveEnd;
+}
+
+// The real phrase that owns `time`: one whose interval still contains it,
+// or, if none does, the latest real phrase that has not yet gone idle.
+// Estimated fillers published inside that interval must not take the
+// highlight (Bekhorot 44a Chazarah, ~81–95s: 43b:7 and 43b:5 were painted
+// while 43b:13 was still the phrase on screen).
+function owningRealSegment(segments, time) {
+  let strict = -1;
+  let hold = -1;
+  for (let i = 0; i < segments.length; i += 1) {
+    const segment = segments[i];
+    if (!segment || segment.estimated) continue;
+    const start = Number(segment.start);
+    if (!Number.isFinite(start) || start > time + 0.001) continue;
+    if (segmentStrictlyCovers(segment, time)) {
+      if (strict < 0 || start >= Number(segments[strict].start)) strict = i;
+      continue;
+    }
+    const end = Number(segment.end);
+    const effectiveEnd = Number.isFinite(end) ? end : start;
+    if (time < effectiveEnd + GAP_IDLE_AFTER_END && (hold < 0 || start >= Number(segments[hold].start))) hold = i;
+  }
+  return strict >= 0 ? strict : hold;
+}
+
 function findSegmentAt(time) {
   if (state.liveFollow?.active) return state.liveFollow.activeIndex;
   const segments = state.segments;
@@ -1329,6 +1366,8 @@ function findSegmentAt(time) {
     best = i;
   }
   const segment = segments[best];
+  const owner = owningRealSegment(segments, time);
+  if (owner >= 0 && (!segment || segment.estimated || !segmentStrictlyCovers(segment, time))) return owner;
   const end = Number(segment.end);
   const effectiveEnd = Number.isFinite(end) ? end : segment.start;
   let nextStart = Infinity;
@@ -6147,8 +6186,84 @@ function applySplitViewDefaultLayout() {
   if (!state.splitViewLayoutExplicit) state.splitViewLayout = preferredSplitViewLayoutForViewport();
 }
 function splitViewRatioOrDefault() {
-  if (Number.isFinite(state.splitViewRatio)) return state.splitViewRatio;
-  return state.splitViewLayout === 'stacked' ? 0.4 : 0.5;
+  const ratio = Number.isFinite(state.splitViewRatio)
+    ? state.splitViewRatio
+    : (state.splitViewLayout === 'stacked' ? 0.4 : 0.5);
+  return clampSplitRatio(ratio);
+}
+// The divider used to follow the finger as a fraction of the whole screen,
+// and the YouTube picture was shifted up by a fixed crop. Past a point,
+// shrinking the video walked its top edge off the viewport. The ratio now
+// keeps a real minimum and maximum pane, in pixels, in both orientations.
+const SPLIT_VIDEO_MIN_PX = 112;
+const SPLIT_OTHER_MIN_PX = 148;
+function clampSplitRatio(ratio) {
+  const fallback = clampReadingValue(ratio, SPLIT_VIEW_MIN_RATIO, SPLIT_VIEW_MAX_RATIO);
+  const container = splitViewContainer();
+  if (!container) return fallback;
+  const rect = container.getBoundingClientRect();
+  const stacked = state.splitViewLayout === 'stacked';
+  const size = stacked ? rect.height : rect.width;
+  if (!size || size < 80) return fallback;
+  const dividerSize = parseFloat(getComputedStyle(container).getPropertyValue('--split-divider-size')) || 10;
+  const minVideo = Math.min(SPLIT_VIDEO_MIN_PX, size * 0.42);
+  const minOther = Math.min(SPLIT_OTHER_MIN_PX, size * 0.28);
+  const minRatio = minVideo / size;
+  const maxRatio = (size - dividerSize - minOther) / size;
+  if (!(maxRatio > minRatio + 0.02)) return fallback;
+  return clampReadingValue(ratio, minRatio, maxRatio);
+}
+function phoneSplitToolsActive() {
+  return Boolean(state.splitViewEnabled)
+    && state.splitViewLayout === 'stacked'
+    && window.matchMedia('(max-width: 760px)').matches;
+}
+function ensureSplitToolsPanel() {
+  const card = $('dafCard');
+  if (!card) return null;
+  let panel = $('splitToolsPanel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'splitToolsPanel';
+    panel.className = 'split-tools-panel';
+    panel.hidden = true;
+    card.insertBefore(panel, card.firstChild);
+  }
+  const divider = $('splitDivider');
+  if (divider && !$('splitToolsHint')) {
+    const hint = document.createElement('span');
+    hint.id = 'splitToolsHint';
+    hint.className = 'split-tools-hint';
+    hint.hidden = true;
+    hint.setAttribute('aria-hidden', 'true');
+    divider.appendChild(hint);
+  }
+  return panel;
+}
+function setSplitToolsOpen(open) {
+  const want = Boolean(open) && phoneSplitToolsActive();
+  document.body.classList.toggle('split-tools-open', want);
+  const panel = $('splitToolsPanel');
+  if (panel) panel.hidden = !want;
+  const divider = $('splitDivider');
+  if (divider && phoneSplitToolsActive()) divider.setAttribute('aria-expanded', String(want));
+}
+function syncPhoneSplitTools() {
+  const panel = ensureSplitToolsPanel();
+  const topbar = $('playerTopbar');
+  const frame = $('videoFrame');
+  const active = phoneSplitToolsActive();
+  document.body.classList.toggle('split-tools-phone', active);
+  if (!panel || !topbar || !frame) return;
+  if (active) {
+    if (topbar.parentElement !== panel) panel.prepend(topbar);
+    if (!document.body.classList.contains('split-tools-open')) panel.hidden = true;
+  } else {
+    if (topbar.parentElement !== frame) frame.appendChild(topbar);
+    document.body.classList.remove('split-tools-open');
+    panel.hidden = true;
+    $('splitDivider')?.setAttribute('aria-expanded', 'false');
+  }
 }
 function applySplitViewLayoutToDom() {
   const container = splitViewContainer();
@@ -6166,6 +6281,7 @@ function applySplitViewLayoutToDom() {
   document.body.classList.toggle('split-layout-stacked', state.splitViewEnabled && stacked);
   document.body.classList.toggle('split-video-at-end', state.splitViewEnabled && videoAtEnd);
   updateSplitViewToolbarUi();
+  syncPhoneSplitTools();
 }
 function updateSplitViewToolbarUi() {
   const stacked = state.splitViewLayout === 'stacked';
@@ -6180,6 +6296,9 @@ function updateSplitViewToolbarUi() {
   if (divider) {
     divider.setAttribute('aria-orientation', stacked ? 'horizontal' : 'vertical');
     divider.setAttribute('aria-valuenow', String(Math.round(splitViewRatioOrDefault() * 100)));
+    divider.setAttribute('aria-label', phoneSplitToolsActive()
+      ? 'Resize video and daf. Tap to show daf controls.'
+      : 'Resize video and daf panels');
   }
 }
 
@@ -6211,7 +6330,8 @@ function setSplitView(enabled) {
 
   const popSplitHistory = !splitHistoryQuiet && Boolean(history.state?.split);
   state.splitViewEnabled = false;
-  document.body.classList.remove('split-view-active', 'split-chrome-hidden', 'split-layout-stacked', 'split-video-at-end');
+  document.body.classList.remove('split-view-active', 'split-chrome-hidden', 'split-layout-stacked', 'split-video-at-end', 'split-tools-phone', 'split-tools-open');
+  syncPhoneSplitTools();
   document.documentElement.style.removeProperty('--split-video-ratio');
   clearTimeout(splitChromeHideTimer);
   pointerRestingOnSplitChrome = false;
@@ -6505,7 +6625,7 @@ function announceViewerMode(mode) {
     const offset = stacked ? clientY - rect.top : clientX - rect.left;
     let fraction = offset / size;
     if (state.splitViewVideoPosition === 'end') fraction = 1 - fraction;
-    return clampReadingValue(fraction, SPLIT_VIEW_MIN_RATIO, SPLIT_VIEW_MAX_RATIO);
+    return clampSplitRatio(fraction);
   }
   function setRatioLive(ratio) {
     state.splitViewRatio = ratio;
@@ -6515,23 +6635,46 @@ function announceViewerMode(mode) {
     updateSplitViewToolbarUi();
   }
 
+  // A tap opens the phone controls. A drag resizes. The two share one
+  // gesture, so a few pixels of movement — more than a finger's jitter —
+  // is what decides. Opening on pointerdown made every resize also pop
+  // the panel.
+  const SPLIT_DIVIDER_TAP_PX = 8;
   divider.addEventListener('pointerdown', (event) => {
     if (!state.splitViewEnabled || (event.pointerType === 'mouse' && event.button !== 0)) return;
-    splitDividerDrag = { pointerId: event.pointerId };
+    splitDividerDrag = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      moved: false,
+    };
     divider.setPointerCapture?.(event.pointerId);
-    divider.classList.add('is-dragging');
     event.preventDefault();
   });
   divider.addEventListener('pointermove', (event) => {
     if (!splitDividerDrag || splitDividerDrag.pointerId !== event.pointerId) return;
+    const dx = event.clientX - splitDividerDrag.x;
+    const dy = event.clientY - splitDividerDrag.y;
+    if (!splitDividerDrag.moved && Math.hypot(dx, dy) < SPLIT_DIVIDER_TAP_PX) return;
+    if (!splitDividerDrag.moved) {
+      splitDividerDrag.moved = true;
+      divider.classList.add('is-dragging');
+    }
     setRatioLive(ratioFromPoint(event.clientX, event.clientY));
     event.preventDefault();
   });
   function endDividerDrag(event) {
     if (!splitDividerDrag || (event && splitDividerDrag.pointerId !== event.pointerId)) return;
+    const moved = splitDividerDrag.moved;
     splitDividerDrag = null;
     divider.classList.remove('is-dragging');
-    saveSplitViewPreferences();
+    if (moved) {
+      saveSplitViewPreferences();
+      return;
+    }
+    if (event?.type === 'pointerup' && phoneSplitToolsActive()) {
+      setSplitToolsOpen(!document.body.classList.contains('split-tools-open'));
+    }
   }
   divider.addEventListener('pointerup', endDividerDrag);
   divider.addEventListener('pointercancel', endDividerDrag);
@@ -6545,8 +6688,14 @@ function announceViewerMode(mode) {
     const step = event.shiftKey ? 0.08 : 0.04;
     const sign = event.key === growKey ? 1 : -1;
     const directional = state.splitViewVideoPosition === 'end' ? -sign : sign;
-    setRatioLive(clampReadingValue(splitViewRatioOrDefault() + directional * step, SPLIT_VIEW_MIN_RATIO, SPLIT_VIEW_MAX_RATIO));
+    setRatioLive(clampSplitRatio(splitViewRatioOrDefault() + directional * step));
     saveSplitViewPreferences();
+  });
+  divider.addEventListener('keydown', (event) => {
+    if (!phoneSplitToolsActive()) return;
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    setSplitToolsOpen(!document.body.classList.contains('split-tools-open'));
   });
 
   // --- Prominent selector + Split View's own small toolbar ----------------
@@ -6779,6 +6928,9 @@ function announceViewerMode(mode) {
     resetSplitVideoZoom({ announce: false });
     scheduleVilnaPageLayoutRefresh(120);
   });
+  // player-chrome.js builds the top bar after this file. Pick it up once
+  // that script has run, so a phone split entered later can move it.
+  setTimeout(syncPhoneSplitTools, 0);
   // Esc while Split is fullscreen only leaves fullscreen. Chrome often
   // swallows the key and only fires fullscreenchange; when it also delivers
   // the key, that arrives after fullscreen is already gone. Either way Split
@@ -7131,10 +7283,16 @@ function updateReaderNotes(time, index) {
     reviewingLabel.textContent = reviewing;
   }
   const chip = $('skipToDafChip');
+  const showSkip = Boolean(inLeadIn && ownStart > 0.5);
   if (chip) {
-    const show = Boolean(inLeadIn && ownStart > 0.5);
-    chip.hidden = !show;
-    if (show) chip.textContent = `Skip to ${realDafRef(state.dafRef)} (${formatTime(ownStart)})`;
+    chip.hidden = !showSkip;
+    if (showSkip) chip.textContent = `Skip to ${realDafRef(state.dafRef)} (${formatTime(ownStart)})`;
+  }
+  const toolsHint = $('splitToolsHint');
+  if (toolsHint) {
+    const showHint = phoneSplitToolsActive() && Boolean(reviewing || showSkip);
+    toolsHint.hidden = !showHint;
+    toolsHint.title = reviewing || (showSkip ? chip?.textContent || '' : '');
   }
   const note = $('notSyncedNote');
   if (note) {
@@ -7238,9 +7396,15 @@ function updateActiveSegment(force = false, timeOverride = null) {
     // clock by more than a second and is allowed through. Idle (-1) is also
     // allowed: dimming in a gap is not "moving backward."
     if (!force && !jumpedBack && index !== -1 && state.activeIndex >= 0 && index < state.activeIndex) {
-      updateActiveWords(time);
-      updateVaaterButtonUi(time);
-      return;
+      // A later estimated (or zero-length) row can win the binary search
+      // while an earlier real phrase still contains this time. That move
+      // is a correction, not the clock jitter this guard is for.
+      const chosen = state.segments[index];
+      if (!segmentStrictlyCovers(chosen, time)) {
+        updateActiveWords(time);
+        updateVaaterButtonUi(time);
+        return;
+      }
     }
   }
   // A seek, or a clock jump the poll didn't take one tick at a time, shows

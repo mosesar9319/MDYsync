@@ -488,10 +488,15 @@ test.describe('Split View — its overlays never cover the player chrome', () =>
     await page.goto('/player/?ref=Chullin%2089a');
     await enterSplitView(page);
     await dismissErrorBanner(page);
+    if (await page.evaluate(() => document.body.classList.contains('split-tools-phone'))) {
+      await page.click('#splitDivider');
+      await expect(page.locator('body')).toHaveClass(/split-tools-open/);
+    }
 
     const elAtDafButton = await page.evaluate(() => {
       const btn = document.getElementById('playerDafButton');
       const r = btn.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) return false;
       const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
       return el?.closest('#playerDafButton') != null;
     });
@@ -544,15 +549,27 @@ test.describe('Split View — its overlays never cover the player chrome', () =>
 
     const gap = await page.evaluate(() => {
       const topbar = document.querySelector('.player-topbar');
+      const frame = document.getElementById('videoFrame');
       const r = topbar.getBoundingClientRect();
       const before = getComputedStyle(topbar, '::before');
       const narrow = window.matchMedia('(max-width: 760px), (max-height: 520px) and (max-width: 1100px)').matches;
-      return { topbarTop: r.top, beforeHeight: parseFloat(before.height), beforeBackground: before.backgroundColor, narrow };
+      const phoneTools = document.body.classList.contains('split-tools-phone');
+      return {
+        topbarTop: r.top,
+        beforeHeight: parseFloat(before.height),
+        beforeBackground: before.backgroundColor,
+        narrow,
+        phoneTools,
+        inFrame: frame.contains(topbar),
+        overVideo: r.height > 0 && r.top < frame.getBoundingClientRect().bottom && r.bottom > frame.getBoundingClientRect().top,
+      };
     });
-    // Desktop fills the whole vacated strip with the topbar's own color.
-    // A phone video is short, so that strip is only a 10px fade — a solid
-    // fill stacked on the control scrim was covering the picture.
-    if (gap.narrow) {
+    // A phone in stacked Split keeps the picker in the divider's panel,
+    // off the picture. Desktop fills the vacated strip under the mode bar.
+    if (gap.phoneTools) {
+      expect(gap.inFrame).toBe(false);
+      expect(gap.overVideo).toBe(false);
+    } else if (gap.narrow) {
       expect(gap.beforeHeight).toBeLessThanOrEqual(12);
       expect(gap.beforeHeight).toBeGreaterThan(0);
     } else {
@@ -581,13 +598,24 @@ test.describe('Split View — its overlays never cover the player chrome', () =>
     const measurements = await page.evaluate(() => {
       const bar = document.getElementById('viewerModeSelect');
       const topbar = document.querySelector('.player-topbar');
+      const frame = document.getElementById('videoFrame');
       const barRect = bar.getBoundingClientRect();
       const topbarRect = topbar.getBoundingClientRect();
       const cssVar = getComputedStyle(document.documentElement).getPropertyValue('--viewer-mode-bar-h').trim();
-      return { barBottom: barRect.bottom, topbarTop: topbarRect.top, cssVar: parseFloat(cssVar) };
+      return {
+        barBottom: barRect.bottom,
+        topbarTop: topbarRect.top,
+        cssVar: parseFloat(cssVar),
+        phoneTools: document.body.classList.contains('split-tools-phone'),
+        inFrame: frame.contains(topbar),
+      };
     });
     expect(measurements.cssVar).toBeGreaterThan(0);
-    expect(Math.abs(measurements.topbarTop - measurements.barBottom)).toBeLessThanOrEqual(2);
+    if (measurements.phoneTools) {
+      expect(measurements.inFrame).toBe(false);
+    } else {
+      expect(Math.abs(measurements.topbarTop - measurements.barBottom)).toBeLessThanOrEqual(2);
+    }
   });
 
   // An identity transform still promotes the element to its own composited
@@ -761,6 +789,10 @@ test.describe('Split View — the daf pane is flush, and the combined bar auto-h
     // turn the class appears still says "visible".
     await expect.poll(() => page.evaluate(() => getComputedStyle(document.getElementById('viewerModeSelect')).visibility)).toBe('hidden');
 
+    if (await page.evaluate(() => document.body.classList.contains('split-tools-phone'))) {
+      await page.click('#splitDivider');
+      await expect(page.locator('body')).toHaveClass(/split-tools-open/);
+    }
     const hit = await page.evaluate(() => {
       const bar = document.getElementById('viewerModeSelect');
       const back = document.getElementById('splitBackToDaf');

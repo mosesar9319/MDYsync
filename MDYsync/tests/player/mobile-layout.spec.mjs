@@ -162,7 +162,11 @@ test.describe('mobile player layout', () => {
     expect(youtube.started).toBe(false);
     expect(youtube.hold).toBe(true);
     expect(youtube.shield).toBe('block');
-    expect(youtube.crop).toBeLessThan(-40);
+    // The embed used to be shifted up by 72px. On a short phone that crop
+    // took the top of the picture with it. The picture now starts at the
+    // top of its frame.
+    expect(youtube.crop).toBeGreaterThanOrEqual(-1);
+    expect(youtube.crop).toBeLessThan(2);
     const speedHome = await page.evaluate(() => {
       const speed = document.getElementById('speedSelect');
       return speed?.closest('#toolsMoreMenu') ? 'menu' : 'bar';
@@ -434,6 +438,8 @@ test.describe('mobile player layout', () => {
     await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
     await page.click('#viewerModeSplitButton');
     await expect(page.locator('body')).toHaveClass(/split-view-active/);
+    await page.click('#splitDivider');
+    await expect(page.locator('body')).toHaveClass(/split-tools-open/);
     await page.evaluate(() => {
       const scroll = document.getElementById('dafScroll');
       const stretch = document.createElement('div');
@@ -465,7 +471,9 @@ test.describe('mobile player layout', () => {
     });
     expect(geo.scrollTop).toBeGreaterThan(200);
     expect(geo.headerTop).toBeGreaterThanOrEqual(geo.cardTop - 2);
-    expect(geo.headerBottom).toBeLessThanOrEqual(geo.cardTop + 160);
+    // The phone tools panel (picker, then the header) sits above the page.
+    // It stays pinned to the card; it does not scroll away with the daf.
+    expect(geo.headerBottom).toBeLessThanOrEqual(geo.cardTop + 260);
     expect(geo.backTop).toBeGreaterThanOrEqual(geo.cardTop - 2);
     expect(geo.autoTop).toBeGreaterThanOrEqual(geo.cardTop - 2);
     expect(geo.autoTop).toBeLessThan(geo.cardBottom);
@@ -655,6 +663,8 @@ test.describe('mobile player layout', () => {
     expect(after.daf).toBe(true);
     expect(after.video).toBe(true);
     expect(after.back).toBe(true);
+    await page.click('#splitDivider');
+    await expect(page.locator('body')).toHaveClass(/split-tools-open/);
     const panes = await page.evaluate(() => {
       const video = document.querySelector('.watch-layout.split-active > .player-card').getBoundingClientRect();
       const daf = document.getElementById('dafCard').getBoundingClientRect();
@@ -774,6 +784,8 @@ test.describe('mobile player layout', () => {
     await page.setViewportSize({ width: 400, height: 985 });
     await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
     await page.click('#viewerModeSplitButton');
+    await page.click('#splitDivider');
+    await expect(page.locator('body')).toHaveClass(/split-tools-open/);
     await page.evaluate(() => document.body.classList.add('split-chrome-hidden'));
     await page.waitForTimeout(350);
     const before = await page.evaluate(() => document.getElementById('autoScroll').checked);
@@ -911,5 +923,156 @@ test.describe('mobile player layout', () => {
     expect(result.chip).toContain('31a');
     expect(result.mismatched).toBe(0);
     expect(result.matched).toBeGreaterThan(0);
+  });
+
+  test('a tap on the split bar opens the controls and a drag keeps the video on screen', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'portrait phone');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeSplitButton');
+    await expect(page.locator('body')).toHaveClass(/split-tools-phone/);
+    const closed = await page.evaluate(() => {
+      const frame = document.getElementById('videoFrame');
+      const topbar = document.getElementById('playerTopbar');
+      const header = document.querySelector('#dafCard .daf-header');
+      return {
+        open: document.body.classList.contains('split-tools-open'),
+        inFrame: frame.contains(topbar),
+        header: getComputedStyle(header).display,
+      };
+    });
+    expect(closed.open).toBe(false);
+    expect(closed.inFrame).toBe(false);
+    expect(closed.header).toBe('none');
+
+    await page.click('#splitDivider');
+    await expect(page.locator('body')).toHaveClass(/split-tools-open/);
+    const opened = await page.evaluate(() => {
+      const title = document.getElementById('dafTitle');
+      const chip = document.getElementById('skipToDafChip');
+      const titleBox = title.getBoundingClientRect();
+      const chipBox = chip && !chip.hidden ? chip.getBoundingClientRect() : null;
+      return {
+        title: title.textContent,
+        titleOverflow: title.scrollWidth - title.clientWidth,
+        chipText: chip?.textContent || '',
+        chipRight: chipBox ? chipBox.right : null,
+        viewW: window.innerWidth,
+      };
+    });
+    expect(opened.title).toContain('Bekhorot');
+    expect(opened.titleOverflow).toBeLessThan(2);
+    if (opened.chipRight != null) expect(opened.chipRight).toBeLessThanOrEqual(opened.viewW + 1);
+    await page.click('#splitDivider');
+    await expect(page.locator('body')).not.toHaveClass(/split-tools-open/);
+
+    const divider = await page.locator('#splitDivider').boundingBox();
+    const startX = divider.x + divider.width / 2;
+    const startY = divider.y + divider.height / 2;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX, Math.max(24, startY - 220), { steps: 10 });
+    await page.mouse.up();
+    const dragged = await page.evaluate(() => {
+      const layout = document.querySelector('.watch-layout.split-active').getBoundingClientRect();
+      const frame = document.getElementById('videoFrame').getBoundingClientRect();
+      const frameEl = document.getElementById('videoFrame');
+      frameEl.classList.add('youtube-active');
+      const hostEl = document.getElementById('youtubePlayerHost');
+      hostEl.hidden = false;
+      const host = hostEl.getBoundingClientRect();
+      const embed = document.querySelector('#youtubePlayerHost iframe, #youtubePlayer');
+      const shieldEl = document.getElementById('ytShield');
+      const shield = shieldEl.getBoundingClientRect();
+      const shieldCs = getComputedStyle(shieldEl);
+      const fitted = Math.min(frame.height, frame.width * 9 / 16);
+      return {
+        open: document.body.classList.contains('split-tools-open'),
+        layoutTop: layout.top,
+        frameTop: frame.top,
+        frameH: frame.height,
+        frameW: frame.width,
+        frameBottom: frame.bottom,
+        layoutBottom: layout.bottom,
+        hostTop: host.top,
+        hostBottom: host.bottom,
+        hostH: host.height,
+        iframeTop: embed ? getComputedStyle(embed).top : '0px',
+        shieldTop: shield.top,
+        shieldH: shield.height,
+        shieldW: shield.width,
+        shieldBottom: shield.bottom,
+        shieldLeft: shield.left,
+        shieldRight: shield.right,
+        frameLeft: frame.left,
+        frameRight: frame.right,
+        fitted,
+        bgSize: shieldCs.backgroundSize,
+        bgPos: shieldCs.backgroundPosition,
+      };
+    });
+    expect(dragged.open).toBe(false);
+    expect(dragged.frameTop).toBeGreaterThanOrEqual(dragged.layoutTop - 1);
+    expect(dragged.frameH).toBeGreaterThanOrEqual(108);
+    expect(dragged.frameBottom).toBeLessThanOrEqual(dragged.layoutBottom + 1);
+    expect(dragged.hostTop).toBeGreaterThanOrEqual(dragged.frameTop - 1);
+    expect(dragged.hostBottom).toBeLessThanOrEqual(dragged.frameBottom + 1);
+    expect(parseFloat(dragged.iframeTop)).toBeGreaterThanOrEqual(-1);
+    // The poster shares the top-locked 16:9 box. It scales; it does not crop upward.
+    expect(dragged.bgSize).toBe('contain');
+    expect(dragged.bgPos).toMatch(/0%|top/);
+    expect(dragged.shieldTop).toBeGreaterThanOrEqual(dragged.frameTop - 1);
+    expect(dragged.shieldTop).toBeLessThanOrEqual(dragged.frameTop + 2);
+    expect(Math.abs(dragged.shieldH - dragged.fitted)).toBeLessThan(3);
+    expect(dragged.shieldBottom).toBeLessThanOrEqual(dragged.frameBottom + 1);
+    expect(dragged.shieldLeft).toBeGreaterThanOrEqual(dragged.frameLeft - 1);
+    expect(dragged.shieldRight).toBeLessThanOrEqual(dragged.frameRight + 1);
+    await shot(page, 'phone-split-tools');
+  });
+
+  test('landscape split keeps the video inside the screen when the bar is dragged', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'landscape phone');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 900, height: 400 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeSplitButton');
+    const divider = await page.locator('#splitDivider').boundingBox();
+    const y = divider.y + divider.height / 2;
+    await page.mouse.move(divider.x + 4, y);
+    await page.mouse.down();
+    await page.mouse.move(40, y, { steps: 8 });
+    await page.mouse.up();
+    const geo = await page.evaluate(() => {
+      const layout = document.querySelector('.watch-layout.split-active').getBoundingClientRect();
+      const frame = document.getElementById('videoFrame').getBoundingClientRect();
+      document.getElementById('videoFrame').classList.add('youtube-active');
+      const hostEl = document.getElementById('youtubePlayerHost');
+      hostEl.hidden = false;
+      const host = hostEl.getBoundingClientRect();
+      return {
+        stacked: document.body.classList.contains('split-layout-stacked'),
+        tools: document.body.classList.contains('split-tools-phone'),
+        layoutTop: layout.top,
+        layoutLeft: layout.left,
+        layoutRight: layout.right,
+        frameTop: frame.top,
+        frameLeft: frame.left,
+        frameRight: frame.right,
+        frameW: frame.width,
+        hostTop: host.top,
+        hostLeft: host.left,
+        hostRight: host.right,
+      };
+    });
+    expect(geo.stacked).toBe(false);
+    expect(geo.tools).toBe(false);
+    expect(geo.frameTop).toBeGreaterThanOrEqual(geo.layoutTop - 1);
+    expect(geo.frameLeft).toBeGreaterThanOrEqual(geo.layoutLeft - 1);
+    expect(geo.frameRight).toBeLessThanOrEqual(geo.layoutRight + 1);
+    expect(geo.frameW).toBeGreaterThanOrEqual(100);
+    expect(geo.hostTop).toBeGreaterThanOrEqual(geo.frameTop - 1);
+    expect(geo.hostLeft).toBeGreaterThanOrEqual(geo.frameLeft - 1);
+    expect(geo.hostRight).toBeLessThanOrEqual(geo.frameRight + 1);
   });
 });

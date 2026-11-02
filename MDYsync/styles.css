@@ -235,7 +235,7 @@ h2 { margin-bottom: 0; }
    whatever the element itself computes. */
 .video-frame { --pc-bar-h: 68px; --pc-timeline-h: 74px; --accent: #2f6ea5; --accent-soft: rgba(47, 110, 165,.16); position: relative; background: #020812; overflow: hidden; border-radius: 15px; aspect-ratio: 16/9; border: 1px solid var(--line); flex-shrink: 0; }
 .video-frame.is-compact { --pc-bar-h: 40px; --pc-timeline-h: 30px; }
-.video-frame video { width: 100%; height: 100%; display: block; object-fit: contain; background: #030914; }
+.video-frame video { width: 100%; height: 100%; display: block; object-fit: contain; object-position: center top; background: #030914; }
 .video-empty { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; color: var(--muted); }
 .empty-icon { font-size: 32px; color: var(--accent); }
 .large-play { position: absolute; inset: 0; margin: auto; width: 74px; height: 74px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25); background: rgba(4,14,27,.72); color: white; display: grid; place-items: center; cursor: pointer; backdrop-filter: blur(10px); transition: .2s ease; }
@@ -2036,16 +2036,33 @@ input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0
 .video-frame.youtube-active .youtube-stage { display: block; }
 .youtube-player-host { position: absolute; inset: 0; z-index: 0; background: #000; overflow: hidden; }
 .youtube-player-host iframe, #youtubePlayer { width: 100%; height: 100%; display: block; border: 0; }
+/* The picture stays inside the frame, pinned to the top. A fixed -72px
+   shift used to hide YouTube's title, and once the split pane was shorter
+   than 16:9 that shift walked the top of the picture off the screen as
+   the divider moved. The host is the largest 16:9 box that fits; extra
+   room is a letterbox below (or beside) it, never a translation. */
+.video-frame.youtube-active { container-type: size; }
+.video-frame.youtube-active .youtube-player-host {
+  inset: auto;
+  top: 0;
+  bottom: auto;
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  width: min(100cqw, calc(100cqh * 16 / 9));
+  height: min(100cqh, calc(100cqw * 9 / 16));
+  max-width: 100%;
+  max-height: 100%;
+}
 /* YouTube paints its title, share icon, play button, and corner badge
    inside the iframe. controls=0 does not remove them, and shifting the
    iframe up does not either: the player parks that chrome in the part of
    the iframe that is actually on screen. The poster (.yt-shield) is in the
    HTML so it covers the embed from the first paint, stays up through the
    opening buffer, and comes back whenever playback stops. While the
-   picture is showing, the iframe is still shifted up (title bar clipped,
-   captions kept at the bottom). The poster stays up until YouTube has
-   hidden that opening chrome. Nothing keeps a band over the picture
-   after that. */
+   picture is showing, the embed fills its box from the top of the frame.
+   The poster stays up until YouTube has hidden that opening chrome.
+   Nothing keeps a band over the picture after that. */
 .video-frame.youtube-active .youtube-player-host,
 .video-frame.youtube-active .youtube-player-host iframe { pointer-events: none; }
 .video-frame.youtube-active:not(.yt-started) .youtube-player-host { visibility: hidden; opacity: 0; }
@@ -2053,9 +2070,9 @@ input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0
 .video-frame.youtube-active #youtubePlayer {
   position: absolute !important;
   left: 0 !important;
-  top: -72px !important;
+  top: 0 !important;
   width: 100% !important;
-  height: calc(100% + 72px) !important;
+  height: 100% !important;
   max-width: none !important;
   /* Opacity under 1 keeps Android Chrome from promoting the cross-origin
      iframe onto a video overlay plane that paints above every sibling,
@@ -2072,9 +2089,24 @@ input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0
   pointer-events: none;
   transform: translateZ(0);
   background-color: #07111c;
-  background-position: center;
-  background-size: cover;
+  background-position: center top;
+  background-size: contain;
   background-repeat: no-repeat;
+}
+/* Same top-locked 16:9 box as the embed. cover + center used to crop the
+   thumbnail from the top as the split pane shrank, which read as the
+   picture sliding off the screen. The poster now scales inside the box. */
+.video-frame.youtube-active .yt-shield {
+  inset: auto;
+  top: 0;
+  bottom: auto;
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  width: min(100cqw, calc(100cqh * 16 / 9));
+  height: min(100cqh, calc(100cqw * 9 / 16));
+  max-width: 100%;
+  max-height: 100%;
 }
 .yt-shield::after {
   content: "";
@@ -2850,7 +2882,7 @@ body.split-view-active .watch-layout.split-active.split-stacked {
 }
 body.split-view-active .watch-layout.split-active > .player-card {
   grid-column: 1; grid-row: 1; margin: 0; min-width: 0; min-height: 0; height: 100%;
-  display: flex; flex-direction: column;
+  display: flex; flex-direction: column; justify-content: flex-start; overflow: hidden;
   /* Flush with the daf pane, and showing nothing but the video itself (see
      the child rule below) -- no card padding/background/border/shadow left
      to draw a frame around it. */
@@ -3015,6 +3047,7 @@ body.split-view-active .watch-layout.split-active {
   position: fixed;
   inset: 0;
   z-index: 500;
+  overflow: hidden;
   height: 100vh;
   height: 100dvh;
   padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
@@ -3070,6 +3103,107 @@ body.split-view-active .watch-layout.split-active.split-stacked .split-divider::
 body.split-view-active .watch-layout.split-active.split-stacked .split-divider::after { width: 34px; height: 4px; }
 body:not(.split-view-active) .split-divider,
 .watch-layout:not(.split-active) .split-divider { display: none; }
+
+/* Phone stacked Split keeps the daf picker and the strip under the video
+   out of the picture. They live in a panel the divider opens on tap.
+   Collapsed, only the thin bar shows, so the video and the daf get the
+   height back. Desktop and side-by-side keep the old chrome. */
+.split-tools-panel { display: none; }
+.split-tools-hint {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  width: 7px;
+  height: 7px;
+  margin-top: -3px;
+  border-radius: 50%;
+  background: #c4840a;
+  box-shadow: 0 0 0 2px rgba(255,255,255,.85);
+  pointer-events: none;
+}
+.split-tools-hint[hidden] { display: none; }
+@media (max-width: 760px) {
+  body.split-tools-phone .watch-layout.split-active .video-frame > #playerTopbar {
+    display: none !important;
+  }
+  body.split-tools-phone:not(.split-tools-open) .watch-layout.split-active > .daf-card > .daf-header,
+  body.split-tools-phone:not(.split-tools-open) .watch-layout.split-active > .daf-card > .card-heading,
+  body.split-tools-phone:not(.split-tools-open) .watch-layout.split-active > .daf-card > #readerDafNotes,
+  body.split-tools-phone:not(.split-tools-open) .watch-layout.split-active .vilna-zoom-controls {
+    display: none !important;
+  }
+  body.split-tools-phone.split-tools-open #splitToolsPanel {
+    display: block;
+    position: relative;
+    z-index: 6;
+    background: #102033;
+    color: #fff;
+  }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .player-topbar {
+    position: relative;
+    top: 0;
+    height: auto;
+    min-height: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    padding: 8px 10px;
+    background: #102033;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .player-topbar::before { content: none; }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .player-topbar-group { flex-wrap: wrap; min-width: 0; }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .player-daf-button,
+  body.split-tools-phone.split-tools-open #splitToolsPanel .player-daf-hebrew,
+  body.split-tools-phone.split-tools-open #splitToolsPanel .player-chrome-button {
+    white-space: normal;
+    height: auto;
+  }
+  body.split-tools-phone.split-tools-open .watch-layout.split-active > .daf-card > .daf-header,
+  body.split-tools-phone.split-tools-open .watch-layout.split-active > .daf-card > .card-heading {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 10px 6px;
+    height: auto;
+  }
+  body.split-tools-phone.split-tools-open .watch-layout.split-active > .daf-card > .daf-header > div:first-child,
+  body.split-tools-phone.split-tools-open .watch-layout.split-active > .daf-card > .card-heading > div:first-child {
+    overflow: visible;
+    flex: 1 1 180px;
+    min-width: 0;
+  }
+  body.split-tools-phone.split-tools-open .watch-layout.split-active #dafTitle,
+  body.split-tools-phone.split-tools-open .watch-layout.split-active .daf-header h2 {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+  body.split-tools-phone.split-tools-open .watch-layout.split-active > .daf-card > #readerDafNotes {
+    display: flex;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    flex-wrap: wrap;
+    overflow: visible;
+    padding: 2px 10px 8px;
+  }
+  body.split-tools-phone.split-tools-open .watch-layout.split-active .skip-to-daf-chip {
+    white-space: normal;
+    text-align: center;
+    max-width: 100%;
+    height: auto;
+  }
+  body.split-tools-phone.split-tools-open .watch-layout.split-active .vilna-zoom-controls {
+    display: flex;
+    flex-wrap: wrap;
+    overflow: visible;
+    height: auto;
+    margin: 0;
+  }
+}
 
 /* Split View's own small toolbar (layout toggle, swap, reset, fullscreen,
    exit) -- merged into ONE combined bar with the prominent selector rather
@@ -3311,10 +3445,28 @@ body.split-view-active .watch-layout.split-active .video-frame.split-video-zoome
   transform: scale(var(--split-video-zoom, 1)) translate(var(--split-video-pan-x, 0px), var(--split-video-pan-y, 0px));
   transform-origin: center center;
 }
-body.split-view-active .watch-layout.split-active .video-frame #video,
-body.split-view-active .watch-layout.split-active .video-frame #youtubePlayerHost {
+body.split-view-active .watch-layout.split-active .video-frame #video {
   width: 100%;
   height: 100%;
+  object-position: center top;
+}
+body.split-view-active .watch-layout.split-active .video-frame.youtube-active #youtubePlayerHost {
+  /* Same top-locked 16:9 box as outside Split. The generic rule below
+     used to stretch this host to the whole pane, and the iframe's upward
+     crop then slid the picture off the top as the pane shrank. */
+  inset: auto;
+  top: 0;
+  bottom: auto;
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  width: min(100cqw, calc(100cqh * 16 / 9));
+  height: min(100cqh, calc(100cqw * 9 / 16));
+  max-width: 100%;
+  max-height: 100%;
+}
+body.split-view-active .watch-layout.split-active .video-frame #video,
+body.split-view-active .watch-layout.split-active .video-frame #youtubePlayerHost {
   /* The pinch surface above is the ONE deliberate tap-to-play/pinch/pan
      handler for this picture in Split View, precisely because (per its own
      comment) it would otherwise "silently swallow" a tap meant for the
