@@ -555,13 +555,14 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .player-chrome-menu { position: absolute; top: calc(100% - 4px); z-index: 9; min-width: 210px; padding: 12px; border-radius: 13px; background: rgba(9,19,32,.98); border: 1px solid rgba(255,255,255,.16); box-shadow: 0 22px 54px rgba(0,0,0,.5); }
 .player-daf-menu { left: 16px; }
 .player-more-menu { right: 16px; display: flex; flex-direction: column; gap: 2px; padding: 8px; }
-.player-chrome-menu-item { text-align: left; padding: 9px 11px; border: 0; border-radius: 8px; background: none; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; }
-.player-chrome-menu-item:hover { background: rgba(255,255,255,.1); }
+.player-chrome-menu-item { text-align: left; padding: 9px 11px; border: 0; border-radius: 8px; background: none; color: #f4f7fb; font: inherit; font-size: 13px; cursor: pointer; }
+.player-chrome-menu-item:hover { background: rgba(255,255,255,.12); color: #fff; }
 /* The page's real daf picker is moved in here rather than duplicated, so it
    arrives with the setup strip's own layout classes and needs re-fitting to
    a narrow popover. */
 .player-daf-menu .setup-field { display: flex; flex-direction: column; gap: 9px; }
-.player-daf-menu .setup-field > label { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.player-daf-menu .setup-field > label { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #c5d4e4; }
+.player-daf-menu select { color: #f4f7fb; background-color: rgba(4, 14, 27, .85); }
 .player-daf-menu .daf-picker-row, .player-daf-menu .picker-toggle-row { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
 .player-daf-menu select { min-width: 0; }
 
@@ -3132,12 +3133,33 @@ body:not(.split-view-active) .split-divider,
   body.split-tools-phone:not(.split-tools-open) .watch-layout.split-active .vilna-zoom-controls {
     display: none !important;
   }
+  body.split-tools-phone .watch-layout.split-active > .daf-card { position: relative; }
+  /* A dropdown over the top of the daf pane. It does not take a row in the
+     card, so opening it leaves the page its full height. The card clips the
+     shadow to the pane; the panel scrolls when the controls run long. */
   body.split-tools-phone.split-tools-open #splitToolsPanel {
-    display: block;
-    position: relative;
-    z-index: 6;
-    background: #102033;
-    color: #fff;
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 40;
+    max-height: min(62%, 440px);
+    /* Visible so the daf picker and ••• menu can drop past the top bar.
+       The rows under the bar scroll in .split-tools-scroll. */
+    overflow: visible;
+    background: #f4f7fb;
+    color: #132238;
+    box-shadow: 0 18px 42px rgba(8, 17, 28, .38);
+    border-bottom: 1px solid rgba(19, 34, 56, .14);
+  }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .split-tools-scroll {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   body.split-tools-phone.split-tools-open #splitToolsPanel .player-topbar {
     position: relative;
@@ -3161,27 +3183,28 @@ body:not(.split-view-active) .split-divider,
     white-space: normal;
     height: auto;
   }
-  body.split-tools-phone.split-tools-open .watch-layout.split-active > .daf-card > .daf-header,
-  body.split-tools-phone.split-tools-open .watch-layout.split-active > .daf-card > .card-heading {
+  body.split-tools-phone.split-tools-open #splitToolsPanel .daf-header,
+  body.split-tools-phone.split-tools-open #splitToolsPanel .card-heading {
     flex-wrap: wrap;
     align-items: flex-start;
     gap: 8px;
     padding: 8px 10px 6px;
     height: auto;
+    background: transparent;
   }
-  body.split-tools-phone.split-tools-open .watch-layout.split-active > .daf-card > .daf-header > div:first-child,
-  body.split-tools-phone.split-tools-open .watch-layout.split-active > .daf-card > .card-heading > div:first-child {
+  body.split-tools-phone.split-tools-open #splitToolsPanel .daf-header > div:first-child,
+  body.split-tools-phone.split-tools-open #splitToolsPanel .card-heading > div:first-child {
     overflow: visible;
     flex: 1 1 180px;
     min-width: 0;
   }
-  body.split-tools-phone.split-tools-open .watch-layout.split-active #dafTitle,
-  body.split-tools-phone.split-tools-open .watch-layout.split-active .daf-header h2 {
+  body.split-tools-phone.split-tools-open #splitToolsPanel #dafTitle,
+  body.split-tools-phone.split-tools-open #splitToolsPanel .daf-header h2 {
     white-space: normal;
     overflow: visible;
     text-overflow: clip;
   }
-  body.split-tools-phone.split-tools-open .watch-layout.split-active > .daf-card > #readerDafNotes {
+  body.split-tools-phone.split-tools-open #splitToolsPanel #readerDafNotes {
     display: flex;
     height: auto;
     min-height: 0;
@@ -3189,23 +3212,28 @@ body:not(.split-view-active) .split-divider,
     flex-wrap: wrap;
     overflow: visible;
     padding: 2px 10px 8px;
+    background: transparent;
   }
-  body.split-tools-phone.split-tools-open .watch-layout.split-active .skip-to-daf-chip {
+  body.split-tools-phone.split-tools-open #splitToolsPanel .skip-to-daf-chip {
     white-space: normal;
     text-align: center;
     max-width: 100%;
     height: auto;
   }
-  body.split-tools-phone.split-tools-open .watch-layout.split-active .vilna-zoom-controls {
+  body.split-tools-phone.split-tools-open #splitToolsPanel .vilna-zoom-controls {
     position: relative;
     top: auto;
     display: flex;
     flex-wrap: wrap;
+    align-self: stretch;
     overflow: visible;
     height: auto;
     width: auto;
-    max-width: calc(100% - 16px);
-    margin: 8px auto 10px;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    margin: 4px 10px 12px;
+    border-radius: 12px;
     z-index: 2;
   }
 }

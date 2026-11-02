@@ -213,6 +213,11 @@ test.describe('phone speed, more menu, and captions', () => {
       await tap('#playerMoreButton');
       await expect(page.locator('#playerMoreMenu')).toBeHidden();
     }
+    const menuColor = await page.evaluate(() => {
+      const item = document.querySelector('#playerMoreMenu .player-chrome-menu-item');
+      return item ? getComputedStyle(item).color : null;
+    });
+    if (menuColor) expect(menuColor).toBe('rgb(244, 247, 251)');
   });
 
   test('closing Split or changing its layout hides an open daf picker', async ({ page }) => {

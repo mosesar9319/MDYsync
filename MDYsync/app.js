@@ -2393,7 +2393,7 @@ let suppressSplitExitOnFullscreenChange = false;
 function ensureDafFullscreenExit() {
   let button = $('dafFullscreenExit');
   if (button) return button;
-  const header = document.querySelector('#dafCard > .daf-header, #dafCard > .card-heading, #dafCard > header');
+  const header = document.querySelector('#dafCard .daf-header, #dafCard .card-heading, #dafCard > header');
   if (!header) return null;
   button = document.createElement('button');
   button.type = 'button';
@@ -6229,6 +6229,11 @@ function ensureSplitToolsPanel() {
     panel.hidden = true;
     card.insertBefore(panel, card.firstChild);
   }
+  if (!panel.querySelector(':scope > .split-tools-scroll')) {
+    const scroller = document.createElement('div');
+    scroller.className = 'split-tools-scroll';
+    panel.appendChild(scroller);
+  }
   const divider = $('splitDivider');
   if (divider && !$('splitToolsHint')) {
     const hint = document.createElement('span');
@@ -6240,6 +6245,85 @@ function ensureSplitToolsPanel() {
   }
   return panel;
 }
+// Where a node lived before the open phone panel borrowed it. A comment
+// marker stays in the card so closing the panel puts the header, notes, and
+// zoom bar back as direct children — the collapsed rules only hide those.
+const phoneToolsHome = new WeakMap();
+function rememberPhoneToolsHome(node) {
+  if (!node || phoneToolsHome.has(node)) return;
+  const marker = document.createComment('phone-tools-home');
+  node.before(marker);
+  phoneToolsHome.set(node, marker);
+}
+function restorePhoneToolsHome(node) {
+  const marker = node && phoneToolsHome.get(node);
+  if (!marker?.parentNode) return false;
+  marker.after(node);
+  return true;
+}
+function phoneSplitPageView() {
+  const placeholder = $('vilnaPlaceholder');
+  return Boolean(placeholder && !placeholder.hidden);
+}
+// The open panel is a dropdown over the daf, not a row that steals its
+// height. The picker, the daf header, the review/skip row, and the zoom
+// bar all live in that dropdown while it is open, then go home on close.
+function mountPhoneSplitOverlay() {
+  const panel = $('splitToolsPanel');
+  const card = $('dafCard');
+  if (!panel || !card || !phoneSplitToolsActive()) return;
+  const topbar = $('playerTopbar');
+  if (topbar && topbar.parentElement !== panel) panel.prepend(topbar);
+  const scroller = panel.querySelector(':scope > .split-tools-scroll');
+  if (!scroller) return;
+  const header = card.querySelector('.daf-header, .card-heading')
+    || panel.querySelector('.daf-header, .card-heading');
+  const notes = $('readerDafNotes');
+  const zoom = $('vilnaZoomControls');
+  const pageView = phoneSplitPageView();
+  const parked = (node) => node && node.parentElement !== scroller;
+  if (header && parked(header)) {
+    rememberPhoneToolsHome(header);
+    scroller.appendChild(header);
+  }
+  if (notes && parked(notes)) {
+    rememberPhoneToolsHome(notes);
+    scroller.appendChild(notes);
+  }
+  if (zoom && pageView && parked(zoom)) {
+    rememberPhoneToolsHome(zoom);
+    scroller.appendChild(zoom);
+  } else if (zoom && !pageView && panel.contains(zoom)) {
+    if (!restorePhoneToolsHome(zoom)) $('vilnaPlaceholder')?.prepend(zoom);
+  }
+  for (const node of [header, notes, pageView ? zoom : null]) {
+    if (node && panel.contains(node)) scroller.appendChild(node);
+  }
+  panel.appendChild(scroller);
+}
+function unmountPhoneSplitOverlay() {
+  const panel = $('splitToolsPanel');
+  const card = $('dafCard');
+  if (!panel || !card) return;
+  const header = panel.querySelector('.daf-header, .card-heading');
+  const notes = $('readerDafNotes');
+  const zoom = $('vilnaZoomControls');
+  if (header) {
+    if (!restorePhoneToolsHome(header)) {
+      card.insertBefore(header, card.querySelector('.daf-scroll') || null);
+    }
+  }
+  if (notes && panel.contains(notes)) {
+    if (!restorePhoneToolsHome(notes)) {
+      const home = card.querySelector(':scope > .daf-header, :scope > .card-heading');
+      if (home) home.insertAdjacentElement('afterend', notes);
+      else card.insertBefore(notes, card.querySelector('.daf-scroll') || null);
+    }
+  }
+  if (zoom && panel.contains(zoom)) {
+    if (!restorePhoneToolsHome(zoom)) $('vilnaPlaceholder')?.prepend(zoom);
+  }
+}
 function setSplitToolsOpen(open) {
   const want = Boolean(open) && phoneSplitToolsActive();
   document.body.classList.toggle('split-tools-open', want);
@@ -6247,6 +6331,8 @@ function setSplitToolsOpen(open) {
   if (panel) panel.hidden = !want;
   const divider = $('splitDivider');
   if (divider && phoneSplitToolsActive()) divider.setAttribute('aria-expanded', String(want));
+  if (want) mountPhoneSplitOverlay();
+  else unmountPhoneSplitOverlay();
 }
 function syncPhoneSplitTools() {
   const panel = ensureSplitToolsPanel();
@@ -6257,8 +6343,15 @@ function syncPhoneSplitTools() {
   if (!panel || !topbar || !frame) return;
   if (active) {
     if (topbar.parentElement !== panel) panel.prepend(topbar);
-    if (!document.body.classList.contains('split-tools-open')) panel.hidden = true;
+    if (document.body.classList.contains('split-tools-open')) {
+      panel.hidden = false;
+      mountPhoneSplitOverlay();
+    } else {
+      unmountPhoneSplitOverlay();
+      panel.hidden = true;
+    }
   } else {
+    unmountPhoneSplitOverlay();
     if (topbar.parentElement !== frame) frame.appendChild(topbar);
     document.body.classList.remove('split-tools-open');
     panel.hidden = true;
@@ -6381,7 +6474,7 @@ function toggleSplitViewerMode() {
 function ensureSplitBackButton() {
   let button = $('splitBackToDaf');
   if (button) return button;
-  const header = document.querySelector('#dafCard > .daf-header, #dafCard > .card-heading, #dafCard > header');
+  const header = document.querySelector('#dafCard .daf-header, #dafCard .card-heading, #dafCard > header');
   if (!header) return null;
   button = document.createElement('button');
   button.type = 'button';
@@ -10390,6 +10483,7 @@ function switchDafView(mode) {
   dafPage.hidden = mode !== 'text';
   const vilnaPlaceholder = $('vilnaPlaceholder');
   if (vilnaPlaceholder) vilnaPlaceholder.hidden = mode !== 'page';
+  if (document.body.classList.contains('split-tools-open')) mountPhoneSplitOverlay();
   const scanPlaceholder = $('scanPlaceholder');
   if (scanPlaceholder) scanPlaceholder.hidden = mode !== 'scan';
   if (mode === 'page') renderVilnaPage();

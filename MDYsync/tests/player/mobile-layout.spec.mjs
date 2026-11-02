@@ -966,18 +966,67 @@ test.describe('mobile player layout', () => {
     if (opened.chipRight != null) expect(opened.chipRight).toBeLessThanOrEqual(opened.viewW + 1);
     const zoom = await page.evaluate(() => {
       const bar = document.getElementById('vilnaZoomControls');
-      const next = bar?.nextElementSibling;
-      const barBox = bar.getBoundingClientRect();
-      const nextBox = next?.getBoundingClientRect();
-      return {
+      const select = document.getElementById('vilnaSelectTextModeButton');
+      const panel = document.getElementById('splitToolsPanel');
+      const card = document.getElementById('dafCard');
+      const scroll = document.getElementById('dafScroll');
+      const notes = document.getElementById('readerDafNotes');
+      const chip = document.getElementById('skipToDafChip');
+      const label = document.getElementById('reviewingLabel');
+      if (label) {
+        label.hidden = false;
+        label.textContent = 'Reviewing Bekhorot 43b';
+      }
+      if (chip) {
+        chip.hidden = false;
+        chip.textContent = 'Skip to Bekhorot 44a (7:28)';
+      }
+      const fits = (el) => {
+        if (!el) return false;
+        el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        const box = el.getBoundingClientRect();
+        const pane = panel.getBoundingClientRect();
+        return box.height > 8
+          && box.top >= pane.top - 1
+          && box.bottom <= pane.bottom + 1
+          && box.left >= pane.left - 1
+          && box.right <= pane.right + 1;
+      };
+      const cardBox = card.getBoundingClientRect();
+      const scrollBox = scroll.getBoundingClientRect();
+      const panelBox = panel.getBoundingClientRect();
+      const layout = {
         position: getComputedStyle(bar).position,
-        gap: nextBox ? nextBox.top - barBox.bottom : null,
-        overlaps: nextBox ? nextBox.top < barBox.bottom - 1 : false,
+        panelPos: getComputedStyle(panel).position,
+        inPanel: panel.contains(bar),
+        barH: bar.getBoundingClientRect().height,
+        notesClip: notes ? notes.scrollHeight - notes.clientHeight : 0,
+        panelH: panelBox.height,
+        cardH: cardBox.height,
+        scrollH: scrollBox.height,
+        scrollTop: scrollBox.top,
+        cardTop: cardBox.top,
+      };
+      return {
+        ...layout,
+        selectFits: fits(select),
+        chipFits: fits(chip),
+        labelFits: fits(label),
       };
     });
     expect(zoom.position).toBe('relative');
-    expect(zoom.overlaps).toBe(false);
-    expect(zoom.gap).toBeGreaterThanOrEqual(6);
+    expect(zoom.panelPos).toBe('absolute');
+    expect(zoom.inPanel).toBe(true);
+    expect(zoom.barH).toBeGreaterThan(20);
+    expect(zoom.selectFits).toBe(true);
+    expect(zoom.chipFits).toBe(true);
+    expect(zoom.labelFits).toBe(true);
+    expect(zoom.notesClip).toBeLessThanOrEqual(1);
+    expect(zoom.panelH).toBeLessThan(zoom.cardH * 0.75);
+    // The toolbar and footer stay in the card. The page scroll still fills
+    // the rest, instead of collapsing under an in-flow panel.
+    expect(zoom.scrollH).toBeGreaterThan(zoom.cardH * 0.7);
+    expect(Math.abs(zoom.scrollTop - zoom.cardTop)).toBeLessThan(8);
     await page.click('#splitDivider');
     await expect(page.locator('body')).not.toHaveClass(/split-tools-open/);
 
