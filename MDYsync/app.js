@@ -6561,6 +6561,10 @@ function announceViewerMode(mode) {
   // tap: while the bar is fading it already has pointer-events:none, so the
   // finger falls through to the video and the gesture only hides the chrome.
   // The button's box still counts when the bar is hidden or mid-fade.
+  // Closing moves the header's Sign in button under that same point, and
+  // the click the browser synthesizes after touchend lands on it. The rest
+  // of this gesture, and any click in the next half second, is swallowed.
+  let splitExitSwallowUntil = 0;
   function splitExitButtonHit(x, y) {
     const button = $('splitExitButton');
     if (!button || button.hidden || state.viewerMode !== 'split') return false;
@@ -6568,13 +6572,30 @@ function announceViewerMode(mode) {
     if (rect.width < 8 || rect.height < 8) return false;
     return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
   }
-  document.addEventListener('pointerdown', (event) => {
-    if (event.button > 0) return;
-    if (!splitExitButtonHit(event.clientX, event.clientY)) return;
+  function closeSplitFromExit(event) {
+    splitExitSwallowUntil = performance.now() + 500;
     requestExitSplit();
     event.preventDefault();
     event.stopImmediatePropagation();
+  }
+  function swallowSplitExitFollowup(event) {
+    if (performance.now() > splitExitSwallowUntil) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+  document.addEventListener('touchstart', (event) => {
+    const touch = event.changedTouches && event.changedTouches[0];
+    if (!touch || !splitExitButtonHit(touch.clientX, touch.clientY)) return;
+    closeSplitFromExit(event);
+  }, { capture: true, passive: false });
+  document.addEventListener('pointerdown', (event) => {
+    if (event.button > 0) return;
+    if (!splitExitButtonHit(event.clientX, event.clientY)) return;
+    closeSplitFromExit(event);
   }, true);
+  for (const type of ['pointerup', 'pointercancel', 'touchend', 'touchcancel', 'mouseup', 'click']) {
+    document.addEventListener(type, swallowSplitExitFollowup, true);
+  }
   $('splitLayoutToggleButton')?.addEventListener('click', () => {
     state.splitViewLayout = state.splitViewLayout === 'stacked' ? 'side-by-side' : 'stacked';
     state.splitViewLayoutExplicit = true;
@@ -7553,6 +7574,9 @@ let pausedFrameTarget = null;
 // Treating that late event as a real play is what resumed a paused Vaater.
 let pausedFrameSuppressPlay = false;
 let pausedFrameLastTarget = null;
+// pauseVideo from the unwanted-PLAYING guard can itself report PLAYING
+// before the player has stopped. That second event must not pause again.
+let suppressingUnwantedPlay = false;
 // Time shown when the reader hit pause. YouTube often reports the previous
 // keyframe (~1s earlier) once playback stops; a slip that small is put back.
 let pauseAnchor = null;
@@ -8610,7 +8634,11 @@ function scheduleYouTubeError(code, player, videoId, { reject, resolve, settled 
   }, 1500);
 }
 
-const YT_REVEAL_MS = 2800;
+// YouTube's own title, share icon, and corner logo stay up for about
+// three seconds after playback is actually running, then hide on their
+// own if the reader hasn't touched the picture. The poster covers that
+// opening. It is not replaced by a band over the picture afterwards.
+const YT_REVEAL_MS = 4500;
 let ytRevealTimer = null;
 function ensureYouTubeShield() {
   const existing = $('ytShield');
@@ -8758,6 +8786,20 @@ async function ensureYouTubePlayer(videoId) {
                 try { event.target?.pauseVideo?.(); } catch { /* already paused */ }
                 return;
               }
+            }
+            if (event.data === 1 && !state.wantPlaying) {
+              // A pause puts the clock back with seekTo, and a paused-frame
+              // repaint calls playVideo. Both report PLAYING. Treating that
+              // as the reader pressing Play is what started the shiur again
+              // a moment after they paused it.
+              if (!suppressingUnwantedPlay) {
+                suppressingUnwantedPlay = true;
+                try { event.target?.pauseVideo?.(); } catch { /* already paused */ }
+                suppressingUnwantedPlay = false;
+              }
+              holdYouTubeChrome();
+              updatePlayUi();
+              return;
             }
             if (event.data === 1) {
               state.wantPlaying = true;

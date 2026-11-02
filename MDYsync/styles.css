@@ -2043,8 +2043,9 @@ input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0
    HTML so it covers the embed from the first paint, stays up through the
    opening buffer, and comes back whenever playback stops. While the
    picture is showing, the iframe is still shifted up (title bar clipped,
-   captions kept at the bottom) and .yt-chrome-mask covers the top of the
-   visible picture, including the badge that survives the crop. */
+   captions kept at the bottom). The poster stays up until YouTube has
+   hidden that opening chrome. Nothing keeps a band over the picture
+   after that. */
 .video-frame.youtube-active .youtube-player-host,
 .video-frame.youtube-active .youtube-player-host iframe { pointer-events: none; }
 .video-frame.youtube-active:not(.yt-started) .youtube-player-host { visibility: hidden; opacity: 0; }
@@ -2082,19 +2083,6 @@ input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0
   background: rgba(4, 10, 18, .38);
 }
 .video-frame.youtube-active:not(.yt-playing) .yt-shield { display: block; }
-.yt-chrome-mask {
-  display: none;
-  position: absolute;
-  z-index: 3;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 64px;
-  pointer-events: none;
-  transform: translateZ(0);
-  background: linear-gradient(to bottom, #020812 0 46px, rgba(2, 8, 18, 0) 64px);
-}
-.video-frame.youtube-active.yt-playing .yt-chrome-mask { display: block; }
 .video-frame.youtube-active .player-topbar {
   background: #07111c;
 }

@@ -219,24 +219,25 @@ test.describe('mobile player layout', () => {
     await expect.poll(() => page.evaluate(() => {
       const frame = document.getElementById('videoFrame');
       return !frame.classList.contains('yt-hold') && frame.classList.contains('yt-started');
-    }), { timeout: 4500 }).toBe(true);
+    }), { timeout: 7000 }).toBe(true);
     const playing = await page.evaluate(() => {
       const frame = document.getElementById('videoFrame');
       const badge = document.getElementById('videoSourceBadge');
       badge.hidden = false;
       badge.textContent = 'YouTube';
+      const mask = frame.querySelector('.yt-chrome-mask');
       return {
         hold: frame.classList.contains('yt-hold'),
         started: frame.classList.contains('yt-started'),
         shield: getComputedStyle(document.getElementById('ytShield')).display,
-        mask: getComputedStyle(frame.querySelector('.yt-chrome-mask')).display,
+        mask: mask ? getComputedStyle(mask).display : 'none',
         badge: getComputedStyle(badge).display,
       };
     });
     expect(playing.hold).toBe(false);
     expect(playing.started).toBe(true);
     expect(playing.shield).toBe('none');
-    expect(playing.mask).toBe('block');
+    expect(playing.mask).toBe('none');
     expect(playing.badge).toBe('none');
     await page.evaluate(() => togglePlay());
     const paused = await page.evaluate(() => {
@@ -329,6 +330,67 @@ test.describe('mobile player layout', () => {
     await page.touchscreen.tap(point.x, point.y);
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
     await expect(page.locator('body')).not.toHaveClass(/split-view-active/);
+    expect(await page.evaluate(() => document.getElementById('authDialog').open)).toBe(false);
+  });
+
+  test('a touch on the Split close button does not open Sign in', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'phone touch');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 412, height: 915 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeSplitButton');
+    await expect(page.locator('body')).toHaveClass(/split-view-active/);
+    const point = await page.evaluate(() => {
+      const exit = document.getElementById('splitExitButton');
+      const rect = exit.getBoundingClientRect();
+      const signIn = document.getElementById('signInButton');
+      signIn.style.position = 'fixed';
+      signIn.style.left = `${rect.left}px`;
+      signIn.style.top = `${rect.top}px`;
+      signIn.style.width = `${Math.max(rect.width, 44)}px`;
+      signIn.style.height = `${Math.max(rect.height, 44)}px`;
+      signIn.style.zIndex = '1';
+      signIn.style.margin = '0';
+      signIn.style.pointerEvents = 'auto';
+      window.__signInClicks = 0;
+      signIn.addEventListener('click', () => { window.__signInClicks += 1; });
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    });
+    await page.touchscreen.tap(point.x, point.y);
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
+    await page.waitForTimeout(50);
+    const after = await page.evaluate(() => ({
+      clicks: window.__signInClicks,
+      open: document.getElementById('authDialog').open,
+    }));
+    expect(after.clicks).toBe(0);
+    expect(after.open).toBe(false);
+  });
+
+  test('a pause stays paused when YouTube reports playing again', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'phone player');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 412, height: 915 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.waitForFunction(() => state.youtubeReady);
+    await page.evaluate(() => togglePlay());
+    await page.evaluate(() => togglePlay());
+    const result = await page.evaluate(() => {
+      const before = window.__yt._pauseCount || 0;
+      state.wantPlaying = false;
+      window.__yt._state = 1;
+      window.__yt._events.onStateChange({ data: 1, target: window.__yt });
+      return {
+        want: state.wantPlaying,
+        pauses: (window.__yt._pauseCount || 0) - before,
+        hold: document.getElementById('videoFrame').classList.contains('yt-hold'),
+        state: window.__yt.getPlayerState(),
+      };
+    });
+    expect(result.want).toBe(false);
+    expect(result.pauses).toBeGreaterThan(0);
+    expect(result.hold).toBe(true);
+    expect(result.state).toBe(2);
   });
 
   test('tapping the video does not scroll the page down to the daf', async ({ page }) => {
