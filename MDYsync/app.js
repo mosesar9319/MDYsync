@@ -6557,6 +6557,38 @@ function announceViewerMode(mode) {
   $('viewerModeDafOnVideoButton')?.addEventListener('click', () => setViewerMode(state.viewerMode === 'daf-on-video' ? 'standard' : 'daf-on-video'));
   $('viewerModeVideoOnDafButton')?.addEventListener('click', () => setViewerMode(state.viewerMode === 'video-on-daf' ? 'standard' : 'video-on-daf'));
   $('splitExitButton')?.addEventListener('click', () => requestExitSplit());
+  // A tap on the X has to leave Split even when a later guard swallows the
+  // click (the bar sits on the picture, and a press that began on the video
+  // must not be allowed to hit this button by accident — that guard also
+  // ate a real tap on the X). The press is recorded here and the exit runs
+  // on click, ahead of that guard. A faded/hidden bar does not count: the
+  // daf's Back button is the way out then.
+  let splitExitPress = false;
+  function splitExitButtonHit(x, y) {
+    const button = $('splitExitButton');
+    if (!button || button.hidden || state.viewerMode !== 'split') return false;
+    if (document.body.classList.contains('split-chrome-hidden')) return false;
+    const style = getComputedStyle(button);
+    if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return false;
+    const rect = button.getBoundingClientRect();
+    if (rect.width < 8 || rect.height < 8) return false;
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+  }
+  document.addEventListener('pointerdown', (event) => {
+    if (event.button > 0) { splitExitPress = false; return; }
+    splitExitPress = splitExitButtonHit(event.clientX, event.clientY);
+  }, true);
+  document.addEventListener('click', (event) => {
+    const pressed = splitExitPress;
+    splitExitPress = false;
+    if (!pressed) return;
+    const onButton = Boolean(event.target?.closest?.('#splitExitButton'))
+      || splitExitButtonHit(event.clientX, event.clientY);
+    if (!onButton) return;
+    requestExitSplit();
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
   $('splitLayoutToggleButton')?.addEventListener('click', () => {
     state.splitViewLayout = state.splitViewLayout === 'stacked' ? 'side-by-side' : 'stacked';
     state.splitViewLayoutExplicit = true;
@@ -7026,16 +7058,38 @@ function ensureReaderNotes() {
   });
 }
 
+// The review of the previous amud (Bekhorot 44a reviews 43b until 7:28) is
+// one span, not a label that exists only while a phrase is the active one.
+// Gaps of 7–9s inside that span used to clear "Reviewing …" after 4s.
+function reviewAmudAt(time) {
+  const wanted = realDafRef(state.dafRef);
+  if (!wanted) return '';
+  let label = '';
+  let labelStart = -1;
+  for (const segment of state.segments) {
+    if (segment.estimated) continue;
+    const start = Number(segment.start);
+    if (!Number.isFinite(start) || start > time + 0.05) continue;
+    const key = segmentDafKey(segment.ref);
+    if (!key || key === wanted) continue;
+    if (start >= labelStart) {
+      labelStart = start;
+      label = key;
+    }
+  }
+  return label;
+}
+
 function updateReaderNotes(time, index) {
   ensureReaderNotes();
   const ownStart = ownContentStartTime();
   const inLeadIn = ownStart != null && time + 0.05 < ownStart;
   const active = state.segments[index];
-  const activeLabel = active ? segmentDafKey(active.ref) : '';
   const requested = requestedDafLabel();
   const anchor = firstRealSegmentStart();
   const inPreAnchor = anchor != null && time < anchor - 0.05;
   const beforeFirst = state.segments.length > 0 && time < state.segments[0].start - 0.05 && index < 0;
+  const reviewKey = inLeadIn && !beforeFirst && !inPreAnchor ? reviewAmudAt(time) : '';
   let refText = requested || 'No daf loaded';
   let reviewing = '';
   if (!state.segments.length) refText = state.dafRef ? `Loading ${requested}…` : 'No daf loaded';
@@ -7043,19 +7097,20 @@ function updateReaderNotes(time, index) {
     refText = 'Intro';
     state.statusHoldText = refText;
     state.statusHoldUntil = 0;
+  } else if (reviewKey) {
+    reviewing = `Reviewing ${reviewKey}`;
+    refText = reviewing;
+    state.statusHoldText = refText;
+    state.statusHoldUntil = ownStart;
   } else if (index < 0) {
     // Bekhorot 44a flips this line every second or two (25:24, then 25:25)
     // because phrases end a few seconds before the next one starts. The
     // hold is armed only by the phrase just shown, so a seek into a later
-    // silence still reads "Between phrases".
+    // silence still reads "Between phrases". A gap inside the review span
+    // never reaches this branch — reviewKey stays set until the daf itself.
     refText = state.statusHoldText && time < state.statusHoldUntil
       ? state.statusHoldText
       : 'Between phrases';
-  } else if (inLeadIn && activeLabel && activeLabel !== realDafRef(state.dafRef)) {
-    reviewing = `Reviewing ${activeLabel}`;
-    refText = reviewing;
-    state.statusHoldText = refText;
-    state.statusHoldUntil = (Number(active?.end) || time) + STATUS_GAP_HOLD_S;
   } else {
     refText = requested;
     state.statusHoldText = refText;
@@ -7746,28 +7801,61 @@ function updateCaptionsButton() {
   button.setAttribute('aria-pressed', String(on));
   button.setAttribute('aria-label', on ? 'Captions on' : 'Captions off');
   button.title = on ? 'Captions on' : 'Captions off';
+  const stack = button.closest('.pc-stack');
+  stack?.classList.toggle('is-on', on);
+  const label = stack?.querySelector('.pc-label');
+  if (label) label.textContent = on ? 'Captions on' : 'Captions off';
 }
+function captionTrackChoice(tracks) {
+  const list = Array.isArray(tracks) ? tracks : [];
+  return list.find((item) => item?.languageCode === 'en' && item.kind !== 'asr')
+    || list.find((item) => /^en/i.test(item?.languageCode || '') && item.kind !== 'asr')
+    || list.find((item) => item?.languageCode === 'en')
+    || list.find((item) => /^en/i.test(item?.languageCode || ''))
+    || list[0]
+    || null;
+}
+let captionApplyToken = 0;
 function applyYouTubeCaptions(player, on) {
   if (!player) return;
+  const token = ++captionApplyToken;
   const run = () => {
+    if (token !== captionApplyToken) return;
     try {
       if (!on) {
         try { player.setOption('captions', 'track', {}); } catch { /* module not loaded */ }
         try { player.unloadModule('captions'); } catch { /* already off */ }
+        try { player.unloadModule('cc'); } catch { /* already off */ }
         return;
       }
+      // MDY uploads usually have only YouTube's automatic English track.
+      // The track list is often empty until the module finishes loading, so
+      // an English request is sent even when nothing is listed yet, and
+      // again once the asr track shows up.
       try { player.loadModule('captions'); } catch { /* player not ready */ }
+      try { player.loadModule('cc'); } catch { /* same module, other name */ }
       let tracks = [];
       try { tracks = player.getOption('captions', 'tracklist') || []; } catch { tracks = []; }
-      const track = tracks.find((item) => item.languageCode === 'en') || tracks[0];
-      if (track) player.setOption('captions', 'track', track);
+      const listed = captionTrackChoice(tracks);
+      const choices = [
+        listed,
+        { languageCode: 'en', kind: 'asr' },
+        { languageCode: 'en' },
+      ].filter(Boolean);
+      for (const track of choices) {
+        try { player.setOption('captions', 'track', track); } catch { /* try the next shape */ }
+      }
+      try { player.setOption('captions', 'reload', true); } catch { /* optional */ }
     } catch { /* captions module unavailable */ }
   };
   run();
-  if (!on) {
+  const delays = on ? [400, 900, 1800, 3200] : [500, 1500];
+  for (const delay of delays) {
     window.setTimeout(() => {
-      if (!captionsWanted()) run();
-    }, 500);
+      if (token !== captionApplyToken) return;
+      if (on !== captionsWanted()) return;
+      run();
+    }, delay);
   }
 }
 function applyHtmlCaptions(on) {
@@ -8528,11 +8616,54 @@ function scheduleYouTubeError(code, player, videoId, { reject, resolve, settled 
   }, 1500);
 }
 
+const YT_REVEAL_MS = 1000;
+let ytRevealTimer = null;
+function ensureYouTubeShield() {
+  const frame = $('videoFrame');
+  if (!frame || $('ytShield')) return $('ytShield');
+  const shield = document.createElement('div');
+  shield.id = 'ytShield';
+  shield.className = 'yt-shield';
+  shield.setAttribute('aria-hidden', 'true');
+  const host = $('youtubePlayerHost');
+  if (host) host.insertAdjacentElement('afterend', shield);
+  else frame.appendChild(shield);
+  return shield;
+}
+function setYouTubePoster(videoId) {
+  const shield = ensureYouTubeShield();
+  if (!shield) return;
+  const id = String(videoId || '').replace(/[^A-Za-z0-9_-]/g, '');
+  shield.style.backgroundImage = id ? `url("https://i.ytimg.com/vi/${id}/hqdefault.jpg")` : '';
+}
+function holdYouTubeChrome() {
+  clearTimeout(ytRevealTimer);
+  ytRevealTimer = null;
+  const frame = $('videoFrame');
+  if (!frame) return;
+  frame.classList.add('yt-hold');
+  frame.classList.remove('yt-playing');
+}
+function scheduleYouTubeReveal() {
+  const frame = $('videoFrame');
+  if (!frame || state.youtubeState !== 1) return;
+  if (frame.classList.contains('yt-playing') && !frame.classList.contains('yt-hold')) return;
+  clearTimeout(ytRevealTimer);
+  ytRevealTimer = setTimeout(() => {
+    ytRevealTimer = null;
+    if (state.youtubeState !== 1) return;
+    frame.classList.add('yt-playing', 'yt-started');
+    frame.classList.remove('yt-hold');
+  }, YT_REVEAL_MS);
+}
+
 async function ensureYouTubePlayer(videoId) {
   await loadYouTubeApi();
   state.youtubeCueId = videoId;
   switchPlayerType('youtube');
-  $('videoFrame')?.classList.remove('yt-started');
+  $('videoFrame')?.classList.remove('yt-started', 'yt-playing');
+  holdYouTubeChrome();
+  setYouTubePoster(videoId);
 
   if (!state.youtubePlayer) {
     await new Promise((resolve, reject) => {
@@ -8566,10 +8697,13 @@ async function ensureYouTubePlayer(videoId) {
         // because automatic captions otherwise come back when playback
         // starts. The CC button can turn them on later.
         cc_load_policy: 0,
+        cc_lang_pref: 'en',
         iv_load_policy: 3,
         // Drops the big YouTube logo in the control bar. The cued poster,
-        // the corner badge, and the touch title bar are covered in CSS
-        // (the iframe is not hit-testable, and it stays hidden until play).
+        // the corner badge, and the pause chrome are covered by .yt-shield
+        // until playback has been playing for a second, and again whenever
+        // the video is paused. The iframe is also shifted up so the badge
+        // sits outside the frame while the picture is showing.
         modestbranding: 1
       };
       if (location.protocol === 'http:' || location.protocol === 'https:') playerVars.origin = location.origin;
@@ -8633,12 +8767,15 @@ async function ensureYouTubePlayer(videoId) {
               state.playRetryUsed = false;
               clearPlayWatchdog();
               flushDeferredPlaybackWork();
-              // First real playback. Until then the iframe stays covered so
-              // YouTube's poster (title, Watch on YouTube, share, its own
-              // play button) never shows through our controls.
-              $('videoFrame')?.classList.add('yt-started');
+              // Keep our poster over the iframe until PLAYING has lasted
+              // about a second. YouTube paints its title, share icon and
+              // red play button for those first moments otherwise.
+              scheduleYouTubeReveal();
             } else if (event.data === 2) {
               state.wantPlaying = false;
+              // Paused YouTube chrome (title, share, red play, logo) comes
+              // back on top of the frozen frame. Our poster covers it.
+              holdYouTubeChrome();
               clearPlayWatchdog();
               const anchor = pauseAnchor;
               pauseAnchor = null;
@@ -8685,6 +8822,9 @@ async function ensureYouTubePlayer(videoId) {
   } else {
     state.youtubePlayer.cueVideoById(videoId);
     state.youtubeState = 5;
+    $('videoFrame')?.classList.remove('yt-started', 'yt-playing');
+    holdYouTubeChrome();
+    setYouTubePoster(videoId);
     flushQueuedSeek();
     showVideoControls();
   }

@@ -226,8 +226,22 @@ test.describe('phone speed, more menu, and captions', () => {
     await page.reload();
     await page.waitForSelector('#captionsButton');
     expect(await page.locator('#captionsButton').getAttribute('aria-pressed')).toBe('true');
+    expect(await page.locator('#captionsStack .pc-label').textContent()).toBe('Captions on');
     await page.evaluate(() => ensureYouTubePlayer('stubvid0001'));
     await page.waitForFunction(() => window.__yt);
     await expect.poll(() => page.evaluate(() => window.__ytCalls.some((call) => call[0] === 'load' && call[1] === 'captions'))).toBe(true);
+
+    // MDY uploads often list no caption tracks until later. English, including
+    // the automatic track, is still requested.
+    const forced = await page.evaluate(() => {
+      window.__yt.getOption = () => [];
+      window.__ytCalls.length = 0;
+      setCaptionsEnabled(true);
+      return window.__ytCalls.filter((call) => call[0] === 'set' && call[1] === 'captions' && call[2] === 'track');
+    });
+    expect(forced.some((call) => call[3]?.languageCode === 'en' && call[3]?.kind === 'asr')).toBe(true);
+    expect(forced.some((call) => call[3]?.languageCode === 'en' && !call[3]?.kind)).toBe(true);
+    expect(await page.locator('#captionsButton').getAttribute('aria-pressed')).toBe('true');
+    expect(await page.locator('#captionsStack .pc-label').textContent()).toBe('Captions on');
   });
 });

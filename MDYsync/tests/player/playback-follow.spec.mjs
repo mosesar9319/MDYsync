@@ -204,12 +204,16 @@ test.describe('live alignments follow taps, the intro, and gaps', () => {
     const gap = await page.evaluate(() => {
       // A phrase can share its start with a longer neighbor, so "3s after
       // this phrase's end" is only a gap when no other phrase still covers it.
+      // Gaps before the requested amud itself are the review span and stay
+      // on "Reviewing …", not "Between phrases".
+      const own = ownContentStartTime();
       const segments = state.segments;
       for (let i = 0; i < segments.length; i += 1) {
         const end = Number(segments[i].end);
         if (!Number.isFinite(end)) continue;
         const time = end + 3.5;
         if (time <= segments[0].start || findSegmentAt(time) !== -1) continue;
+        if (own != null && time < own) continue;
         state.pendingSeek = null;
         state.phrasePin = null;
         updateActiveSegment(true, time);
@@ -276,12 +280,14 @@ test.describe('live alignments follow taps, the intro, and gaps', () => {
     expect(lead.chip).toBe(false);
 
     const gap = await page.evaluate(() => {
+      const own = ownContentStartTime();
       const segments = state.segments;
       for (let i = 0; i < segments.length; i += 1) {
         const end = Number(segments[i].end);
         if (!Number.isFinite(end)) continue;
         const time = end + 3.5;
         if (time <= segments[0].start || findSegmentAt(time) !== -1) continue;
+        if (own != null && time < own) continue;
         state.pendingSeek = null;
         state.phrasePin = null;
         updateActiveSegment(true, time);
@@ -356,7 +362,34 @@ test.describe('the daf page does not chase every phrase and gap', () => {
           };
           break;
         }
-        return { raw, follow, held, loaded };
+        // A long gap inside the review span (past the 4s status hold) must
+        // keep "Reviewing …" until the requested amud actually starts.
+        let reviewGap = null;
+        const own = ownContentStartTime();
+        if (own > 1) {
+          for (let i = 0; i < state.segments.length; i += 1) {
+            const segment = state.segments[i];
+            if (segment.estimated) continue;
+            const key = segmentDafKey(segment.ref);
+            if (!key || key === loaded) continue;
+            const gapAt = Number(segment.end) + 6.5;
+            if (!(gapAt < own - 0.2) || findSegmentAt(gapAt) !== -1) continue;
+            state.pendingSeek = null;
+            state.phrasePin = null;
+            updateActiveSegment(false, segment.start + 0.2);
+            const during = document.getElementById('currentRef').textContent;
+            updateActiveSegment(false, gapAt);
+            const labelEl = document.getElementById('reviewingLabel');
+            reviewGap = {
+              during,
+              gap: document.getElementById('currentRef').textContent,
+              label: labelEl?.textContent || '',
+              hidden: Boolean(labelEl?.hidden),
+            };
+            break;
+          }
+        }
+        return { raw, follow, held, loaded, reviewGap };
       });
       expect(counts.raw, `${label} raw amud changes`).toBeGreaterThan(8);
       expect(counts.follow, `${label} page turns ${counts.follow} vs raw ${counts.raw}`).toBeLessThan(counts.raw / 3);
@@ -365,6 +398,27 @@ test.describe('the daf page does not chase every phrase and gap', () => {
       expect(counts.held.gap).toBe(counts.held.during);
       expect(counts.held.gap).not.toBe('Between phrases');
       expect(counts.held.pageSame).toBe(true);
+      if (label.includes('44a')) {
+        expect(counts.reviewGap, `${label} review span`).toBeTruthy();
+      }
+      if (counts.reviewGap) {
+        expect(counts.reviewGap.during).toContain('Reviewing');
+        expect(counts.reviewGap.gap).toBe(counts.reviewGap.during);
+        expect(counts.reviewGap.label).toContain('Reviewing');
+        expect(counts.reviewGap.hidden).toBe(false);
+      }
+      if (label.includes('44a') && label.includes('Chazarah') && counts.reviewGap) {
+        await page.evaluate(() => {
+          const own = ownContentStartTime();
+          updateActiveSegment(true, Math.max(0, own - 8));
+        });
+        await shot(page, 'review-span-held');
+        if (test.info().project.name === 'mobile') {
+          await page.setViewportSize({ width: 412, height: 915 });
+          await page.locator('#reviewingLabel').scrollIntoViewIfNeeded();
+          await page.screenshot({ path: '/opt/cursor/artifacts/mobile-layout/review-span-held.png' });
+        }
+      }
     });
   }
 });

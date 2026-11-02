@@ -484,9 +484,9 @@
   captionsButton.id = 'captionsButton';
   captionsButton.setAttribute('aria-pressed', 'false');
   captionsButton.setAttribute('aria-label', 'Captions off');
-  captionsButton.title = 'Captions';
+  captionsButton.title = 'Captions off';
   captionsButton.innerHTML = ICONS.captions;
-  const captionsStack = stack(captionsButton, 'Captions');
+  const captionsStack = stack(captionsButton, 'Captions off');
   captionsStack.id = 'captionsStack';
   tools.appendChild(captionsStack);
   captionsButton.addEventListener('click', (event) => {
@@ -612,6 +612,8 @@
     const control = event.target.closest('button, .speed-select, summary');
     if (control && toolsMoreMenu.contains(control)) {
       if (control.id === 'speedSelect' || control.id === 'videoSettings' || control.closest('.video-settings')) return;
+      // Leave the tray open so the Captions row can show On versus Off.
+      if (control.id === 'captionsButton') return;
       closeToolsMenu();
       return;
     }

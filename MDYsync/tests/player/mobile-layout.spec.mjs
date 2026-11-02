@@ -151,12 +151,18 @@ test.describe('mobile player layout', () => {
         pointer: getComputedStyle(host).pointerEvents,
         hidden: getComputedStyle(host).visibility,
         started: frame.classList.contains('yt-started'),
+        hold: frame.classList.contains('yt-hold'),
+        shield: getComputedStyle(document.getElementById('ytShield')).display,
+        crop: parseFloat(getComputedStyle(document.getElementById('youtubePlayer')).top),
         branding: window.__playerVars?.modestbranding ?? window.__ytVars?.modestbranding,
       };
     });
     expect(youtube.pointer).toBe('none');
     expect(youtube.hidden).toBe('hidden');
     expect(youtube.started).toBe(false);
+    expect(youtube.hold).toBe(true);
+    expect(youtube.shield).toBe('block');
+    expect(youtube.crop).toBeLessThan(-40);
     const speedHome = await page.evaluate(() => {
       const speed = document.getElementById('speedSelect');
       return speed?.closest('#toolsMoreMenu') ? 'menu' : 'bar';
@@ -180,6 +186,102 @@ test.describe('mobile player layout', () => {
       expect(box.x + box.width, id).toBeLessThanOrEqual(frame.x + frame.width + 1);
     }
     await shot(page, 'phone-controls');
+    const more = page.locator('#toolsMoreButton');
+    if (await more.isVisible()) await more.tap();
+    await expect(page.locator('#toolsMoreMenu')).toBeVisible();
+    await expect(page.locator('#captionsStack .pc-label')).toHaveText('Captions off');
+    await shot(page, 'captions-off');
+    await page.locator('#captionsButton').tap();
+    await expect(page.locator('#captionsStack .pc-label')).toHaveText('Captions on');
+    await expect(page.locator('#captionsButton')).toHaveAttribute('aria-pressed', 'true');
+    await shot(page, 'captions-on');
+  });
+
+  test('the poster stays up through the first second of playback and returns when paused', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'phone player');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 412, height: 915 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    const before = await page.evaluate(() => ({
+      hold: document.getElementById('videoFrame').classList.contains('yt-hold'),
+      shield: getComputedStyle(document.getElementById('ytShield')).display,
+    }));
+    expect(before.hold).toBe(true);
+    expect(before.shield).toBe('block');
+    await shot(page, 'youtube-cover-before-play');
+    // togglePlay() is the real Play path. Calling playVideo() on the stub
+    // while a paused-frame blip is still armed is treated as that blip and
+    // paused again before the cover can lift.
+    await page.waitForFunction(() => state.youtubeReady);
+    await page.evaluate(() => togglePlay());
+    const warming = await page.evaluate(() => document.getElementById('videoFrame').classList.contains('yt-hold'));
+    expect(warming).toBe(true);
+    await expect.poll(() => page.evaluate(() => {
+      const frame = document.getElementById('videoFrame');
+      return !frame.classList.contains('yt-hold') && frame.classList.contains('yt-started');
+    }), { timeout: 2500 }).toBe(true);
+    const playing = await page.evaluate(() => {
+      const frame = document.getElementById('videoFrame');
+      return {
+        hold: frame.classList.contains('yt-hold'),
+        started: frame.classList.contains('yt-started'),
+        shield: getComputedStyle(document.getElementById('ytShield')).display,
+      };
+    });
+    expect(playing.hold).toBe(false);
+    expect(playing.started).toBe(true);
+    expect(playing.shield).toBe('none');
+    await page.evaluate(() => togglePlay());
+    const paused = await page.evaluate(() => {
+      const frame = document.getElementById('videoFrame');
+      return {
+        hold: frame.classList.contains('yt-hold'),
+        shield: getComputedStyle(document.getElementById('ytShield')).display,
+        play: document.getElementById('largePlay').hidden,
+      };
+    });
+    expect(paused.hold).toBe(true);
+    expect(paused.shield).toBe('block');
+    expect(paused.play).toBe(false);
+    await shot(page, 'youtube-cover-paused');
+  });
+
+  test('split close is a solid enabled button and leaves split view', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'phone split');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 412, height: 915 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeSplitButton');
+    await expect(page.locator('body')).toHaveClass(/split-view-active/);
+    await page.evaluate(() => document.body.classList.remove('split-chrome-hidden'));
+    const look = await page.evaluate(() => {
+      const button = document.getElementById('splitExitButton');
+      const style = getComputedStyle(button);
+      const rect = button.getBoundingClientRect();
+      return {
+        opacity: style.opacity,
+        color: style.color,
+        bg: style.backgroundColor,
+        disabled: button.disabled,
+        pointer: style.pointerEvents,
+        hidden: button.hidden,
+        w: rect.width,
+        h: rect.height,
+      };
+    });
+    expect(look.hidden).toBe(false);
+    expect(look.disabled).toBe(false);
+    expect(look.opacity).toBe('1');
+    expect(look.pointer).not.toBe('none');
+    expect(look.bg).toBe('rgb(255, 255, 255)');
+    expect(look.color).toBe('rgb(16, 32, 51)');
+    expect(look.w).toBeGreaterThanOrEqual(40);
+    expect(look.h).toBeGreaterThanOrEqual(40);
+    await shot(page, 'split-exit-enabled');
+    const box = await page.locator('#splitExitButton').boundingBox();
+    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2).catch(() => {});
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
+    await expect(page.locator('body')).not.toHaveClass(/split-view-active/);
   });
 
   test('tapping the video does not scroll the page down to the daf', async ({ page }) => {

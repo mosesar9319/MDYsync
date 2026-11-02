@@ -405,6 +405,8 @@ h2 { margin-bottom: 0; }
    skewed by the button's own default padding on one side. */
 .icon-button { width: 30px; height: 30px; padding: 0; border-radius: 8px; font-size: 10px; font-weight: 700; display: grid; place-items: center; }
 .icon-button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.pc-tools-menu .pc-stack.is-on { background: rgba(47, 110, 165, .42); }
+.pc-tools-menu .pc-stack.is-on .pc-label { color: #fff; font-weight: 800; }
 /* Wider than .icon-button on purpose -- named for the word it needs to fit
    ("Vaater"), not sized to it after the fact. The skip-forward glyph (two
    triangles + a bar, the same shape this control used before it grew a
@@ -851,18 +853,6 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
   .video-frame.youtube-active.is-compact .player-topbar,
   .video-frame.youtube-active.is-tiny .player-topbar {
     background: linear-gradient(to bottom, rgba(4,12,22,.9) 0 26px, rgba(4,12,22,0) 40px);
-  }
-  .video-frame.youtube-active.yt-started.controls-hidden.is-compact::after,
-  .video-frame.youtube-active.yt-started.controls-hidden.is-tiny::after {
-    content: "";
-    position: absolute;
-    z-index: 4;
-    top: 0;
-    left: 0;
-    width: 112px;
-    height: 28px;
-    background: linear-gradient(to right, rgba(2,8,18,.82), rgba(2,8,18,0));
-    pointer-events: none;
   }
   .video-frame.is-compact .player-controls,
   .video-frame.is-tiny .player-controls {
@@ -2026,16 +2016,46 @@ dialog ol { color: #d8e2eb; padding-left: 21px; line-height: 1.6; }
 .lock-video-row { margin-top: 8px; }
 input[type="url"] { width: 100%; border: 1px solid var(--line-strong); color: var(--text); background: rgba(4,14,27,.7); border-radius: 11px; padding: 9px 11px; outline: none; }
 input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0 3px rgba(47, 110, 165,.1); }
-.youtube-player-host { position: absolute; inset: 0; background: #000; }
+.youtube-player-host { position: absolute; inset: 0; background: #000; overflow: hidden; }
 .youtube-player-host iframe, #youtubePlayer { width: 100%; height: 100%; display: block; border: 0; }
 /* YouTube paints its own title, Watch-on-YouTube row, share icon, play
    button, and corner badge inside the iframe. controls=0 does not remove
-   them. The iframe is not a hit target (taps stay on our chrome), and it
-   stays invisible until the first real play so the cued poster never
-   shows through. */
+   them. The iframe is not a hit target. It stays invisible until playback
+   has been playing for about a second, and .yt-shield (our poster) covers
+   it again whenever the video is paused. While the picture is showing, the
+   iframe is shifted up so the top ~60px — the badge and title bar — sits
+   outside the frame. The bottom of the iframe stays on the bottom of the
+   frame, so captions are not pushed out. */
 .video-frame.youtube-active .youtube-player-host,
 .video-frame.youtube-active .youtube-player-host iframe { pointer-events: none; }
 .video-frame.youtube-active:not(.yt-started) .youtube-player-host { visibility: hidden; }
+.video-frame.youtube-active .youtube-player-host iframe,
+.video-frame.youtube-active #youtubePlayer {
+  position: absolute !important;
+  left: 0 !important;
+  top: -60px !important;
+  width: 100% !important;
+  height: calc(100% + 60px) !important;
+  max-width: none !important;
+}
+.yt-shield {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  background-color: #07111c;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+.yt-shield::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 10, 18, .38);
+}
+.video-frame.youtube-active.yt-hold .yt-shield { display: block; }
 .video-source-badge { position: absolute; left: 10px; top: 10px; z-index: 3; padding: 5px 8px; border: 1px solid rgba(255,255,255,.2); border-radius: 999px; background: rgba(2,8,18,.72); color: #d9e5ee; font-size: 11px; font-weight: 700; backdrop-filter: blur(8px); pointer-events: none; }
 /* z-index 13, not 4: in Split View, #splitVideoPinchSurface (z-index 11,
    see its own construction in app.js) sits directly over the video picture
@@ -3048,6 +3068,18 @@ body.split-view-active .split-toolbar { display: flex; }
   cursor: pointer;
 }
 .split-toolbar .icon-button:hover { background: rgba(255,255,255,.12); color: #fff; }
+body.split-view-active .split-toolbar #splitExitButton {
+  opacity: 1;
+  color: #102033;
+  background: #fff;
+  border: 1px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .45);
+  cursor: pointer;
+}
+body.split-view-active .split-toolbar #splitExitButton:hover {
+  background: #fff;
+  color: #102033;
+}
 .split-toolbar .icon-button[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
 .split-back-to-daf {
   display: inline-flex;
@@ -3201,6 +3233,23 @@ body.split-view-active .watch-layout.split-active .video-frame .player-topbar::b
     height: 32px;
     min-width: 32px;
     min-height: 32px;
+  }
+  /* The close control was the same faint stroke as the other icons, and on
+     a phone it read as disabled. A solid chip stays obviously tappable. */
+  body.split-view-active .split-toolbar #splitExitButton {
+    width: 40px;
+    height: 40px;
+    min-width: 44px;
+    min-height: 44px;
+    opacity: 1;
+    color: #102033;
+    background: #fff;
+    border: 1px solid #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .45);
+  }
+  body.split-view-active .split-toolbar #splitExitButton svg {
+    width: 18px;
+    height: 18px;
   }
   body.split-view-active.split-chrome-hidden .watch-layout.split-active .video-frame .player-topbar {
     top: 0;

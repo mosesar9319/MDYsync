@@ -40,6 +40,21 @@ async function enterSplitView(page) {
   await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
 }
 
+// Playwright's click leaves the mouse on the mode button. A resting mouse
+// keeps the bar up on purpose. Clear that, then start the player-chrome
+// idle timer — the mode row hides with those controls, not on its own.
+async function settleSplitChrome(page) {
+  await page.evaluate(() => {
+    document.getElementById('viewerModeSelect')?.dispatchEvent(new PointerEvent('pointerout', { pointerType: 'mouse', bubbles: true }));
+    document.getElementById('videoFrame')?.dispatchEvent(new PointerEvent('pointerout', {
+      pointerType: 'mouse',
+      bubbles: true,
+      relatedTarget: document.body,
+    }));
+    document.getElementById('videoFrame')?.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+  });
+}
+
 test.describe('Unified viewing modes — the prominent selector', () => {
   test('the page loads into standard mode, not Split View, exactly as before this feature existed', async ({ page }) => {
     failOnPageError(page);
@@ -531,15 +546,19 @@ test.describe('Split View — its overlays never cover the player chrome', () =>
       const topbar = document.querySelector('.player-topbar');
       const r = topbar.getBoundingClientRect();
       const before = getComputedStyle(topbar, '::before');
-      return { topbarTop: r.top, beforeHeight: parseFloat(before.height), beforeBackground: before.backgroundColor };
+      const narrow = window.matchMedia('(max-width: 760px), (max-height: 520px) and (max-width: 1100px)').matches;
+      return { topbarTop: r.top, beforeHeight: parseFloat(before.height), beforeBackground: before.backgroundColor, narrow };
     });
-    // The pseudo-element's own height should span from the very top of the
-    // frame down to the (now repositioned) topbar's own top edge -- not a
-    // fixed guess, so it stays correct if that offset ever changes. A
-    // couple of pixels of slack absorbs calc()-vs-getBoundingClientRect
-    // subpixel rounding, not a meaningful gap.
-    expect(Math.abs(gap.beforeHeight - gap.topbarTop)).toBeLessThanOrEqual(2);
-    expect(gap.beforeBackground).toBe('rgba(4, 12, 22, 0.9)');
+    // Desktop fills the whole vacated strip with the topbar's own color.
+    // A phone video is short, so that strip is only a 10px fade — a solid
+    // fill stacked on the control scrim was covering the picture.
+    if (gap.narrow) {
+      expect(gap.beforeHeight).toBeLessThanOrEqual(12);
+      expect(gap.beforeHeight).toBeGreaterThan(0);
+    } else {
+      expect(Math.abs(gap.beforeHeight - gap.topbarTop)).toBeLessThanOrEqual(2);
+      expect(gap.beforeBackground).toBe('rgba(4, 12, 22, 0.9)');
+    }
   });
 
   // The topbar's own offset is driven by --viewer-mode-bar-h, a CSS var kept
@@ -691,27 +710,32 @@ test.describe('Split View — the daf pane is flush, and the combined bar auto-h
     expect(merged.hasDivider).toBe(true);
   });
 
-  test('the combined bar auto-hides after inactivity, and only the daf pane or the bar itself bring it back -- never the video control bar', async ({ page }) => {
+  test('the combined bar auto-hides with the player chrome, and a daf tap brings it back', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
     await page.goto('/player/?ref=Chullin%2089a');
     await enterSplitView(page);
+    await settleSplitChrome(page);
 
     await expect.poll(() => page.evaluate(() => document.body.classList.contains('split-chrome-hidden')), {
-      timeout: 4000,
+      timeout: 6000,
     }).toBe(true);
 
-    // The video's own control bar must NOT bring it back -- that bar has
-    // its own, separate auto-hide/reveal system, and this one has nothing
-    // to do with it.
+    // The mode row leaves with the player bar and comes back with it. A
+    // touch on the video controls is a touch on the frame, which shows both.
     await page.evaluate(() => {
       document.querySelector('.player-controls').dispatchEvent(new Event('touchstart', { bubbles: true }));
     });
     await page.waitForTimeout(100);
-    expect(await page.evaluate(() => document.body.classList.contains('split-chrome-hidden'))).toBe(true);
+    expect(await page.evaluate(() => document.body.classList.contains('split-chrome-hidden'))).toBe(false);
+
+    await settleSplitChrome(page);
+    await expect.poll(() => page.evaluate(() => document.body.classList.contains('split-chrome-hidden')), {
+      timeout: 6000,
+    }).toBe(true);
 
     // The daf pane -- the one place in Split View this bar's absence isn't
-    // covered by anything else -- must bring it back.
+    // covered by the player chrome -- must bring it back.
     await page.evaluate(() => {
       document.querySelector('.daf-card').dispatchEvent(new Event('touchstart', { bubbles: true }));
     });
@@ -728,10 +752,14 @@ test.describe('Split View — the daf pane is flush, and the combined bar auto-h
     await page.goto('/player/?ref=Chullin%2089a');
     await enterSplitView(page);
     await dismissErrorBanner(page);
+    await settleSplitChrome(page);
 
     await expect.poll(() => page.evaluate(() => document.body.classList.contains('split-chrome-hidden')), {
-      timeout: 4000,
+      timeout: 6000,
     }).toBe(true);
+    // visibility lags the class by the 200ms fade, so a read in the same
+    // turn the class appears still says "visible".
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.getElementById('viewerModeSelect')).visibility)).toBe('hidden');
 
     const hit = await page.evaluate(() => {
       const bar = document.getElementById('viewerModeSelect');
@@ -761,9 +789,10 @@ test.describe('Split View — the daf pane is flush, and the combined bar auto-h
     await preparePage(page, { user: null });
     await page.goto('/player/?ref=Chullin%2089a');
     await enterSplitView(page);
+    await settleSplitChrome(page);
 
     await expect.poll(() => page.evaluate(() => document.body.classList.contains('split-chrome-hidden')), {
-      timeout: 4000,
+      timeout: 6000,
     }).toBe(true);
 
     await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true })));
