@@ -6557,34 +6557,20 @@ function announceViewerMode(mode) {
   $('viewerModeDafOnVideoButton')?.addEventListener('click', () => setViewerMode(state.viewerMode === 'daf-on-video' ? 'standard' : 'daf-on-video'));
   $('viewerModeVideoOnDafButton')?.addEventListener('click', () => setViewerMode(state.viewerMode === 'video-on-daf' ? 'standard' : 'video-on-daf'));
   $('splitExitButton')?.addEventListener('click', () => requestExitSplit());
-  // A tap on the X has to leave Split even when a later guard swallows the
-  // click (the bar sits on the picture, and a press that began on the video
-  // must not be allowed to hit this button by accident — that guard also
-  // ate a real tap on the X). The press is recorded here and the exit runs
-  // on click, ahead of that guard. A faded/hidden bar does not count: the
-  // daf's Back button is the way out then.
-  let splitExitPress = false;
+  // The X leaves Split on the press itself. Waiting for click loses the
+  // tap: while the bar is fading it already has pointer-events:none, so the
+  // finger falls through to the video and the gesture only hides the chrome.
+  // The button's box still counts when the bar is hidden or mid-fade.
   function splitExitButtonHit(x, y) {
     const button = $('splitExitButton');
     if (!button || button.hidden || state.viewerMode !== 'split') return false;
-    if (document.body.classList.contains('split-chrome-hidden')) return false;
-    const style = getComputedStyle(button);
-    if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return false;
     const rect = button.getBoundingClientRect();
     if (rect.width < 8 || rect.height < 8) return false;
     return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
   }
   document.addEventListener('pointerdown', (event) => {
-    if (event.button > 0) { splitExitPress = false; return; }
-    splitExitPress = splitExitButtonHit(event.clientX, event.clientY);
-  }, true);
-  document.addEventListener('click', (event) => {
-    const pressed = splitExitPress;
-    splitExitPress = false;
-    if (!pressed) return;
-    const onButton = Boolean(event.target?.closest?.('#splitExitButton'))
-      || splitExitButtonHit(event.clientX, event.clientY);
-    if (!onButton) return;
+    if (event.button > 0) return;
+    if (!splitExitButtonHit(event.clientX, event.clientY)) return;
     requestExitSplit();
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -7790,9 +7776,17 @@ function setPlaybackRate(rate) {
 // starts, so the preference is applied again there. The choice is remembered
 // on this device.
 const CAPTIONS_STORAGE_KEY = 'dafsync-captions';
+// Older builds stored a boolean under these names. None of them mean the
+// reader turned captions on. Only the exact string "on" does.
+const CAPTION_LEGACY_KEYS = ['dafsync-cc', 'dafsync.captions', 'captions', 'youtube-captions', 'cc'];
 function captionsWanted() {
-  try { return localStorage.getItem(CAPTIONS_STORAGE_KEY) === 'on'; }
-  catch { return false; }
+  try {
+    for (const key of CAPTION_LEGACY_KEYS) localStorage.removeItem(key);
+    const value = localStorage.getItem(CAPTIONS_STORAGE_KEY);
+    if (value === 'on') return true;
+    if (value != null && value !== 'off') localStorage.removeItem(CAPTIONS_STORAGE_KEY);
+    return false;
+  } catch { return false; }
 }
 function updateCaptionsButton() {
   const button = $('captionsButton');
@@ -8616,17 +8610,19 @@ function scheduleYouTubeError(code, player, videoId, { reject, resolve, settled 
   }, 1500);
 }
 
-const YT_REVEAL_MS = 1000;
+const YT_REVEAL_MS = 2800;
 let ytRevealTimer = null;
 function ensureYouTubeShield() {
+  const existing = $('ytShield');
+  if (existing) return existing;
   const frame = $('videoFrame');
-  if (!frame || $('ytShield')) return $('ytShield');
+  if (!frame) return null;
   const shield = document.createElement('div');
   shield.id = 'ytShield';
   shield.className = 'yt-shield';
   shield.setAttribute('aria-hidden', 'true');
-  const host = $('youtubePlayerHost');
-  if (host) host.insertAdjacentElement('afterend', shield);
+  const stage = $('youtubeStage') || $('youtubePlayerHost');
+  if (stage) stage.insertAdjacentElement(stage.id === 'youtubeStage' ? 'beforeend' : 'afterend', shield);
   else frame.appendChild(shield);
   return shield;
 }
@@ -8660,10 +8656,12 @@ function scheduleYouTubeReveal() {
 async function ensureYouTubePlayer(videoId) {
   await loadYouTubeApi();
   state.youtubeCueId = videoId;
-  switchPlayerType('youtube');
+  // Cover first, then reveal the host. Unhiding the iframe before the
+  // poster is in the DOM is the flash of YouTube's title bar on load.
   $('videoFrame')?.classList.remove('yt-started', 'yt-playing');
   holdYouTubeChrome();
   setYouTubePoster(videoId);
+  switchPlayerType('youtube');
 
   if (!state.youtubePlayer) {
     await new Promise((resolve, reject) => {
@@ -8697,7 +8695,6 @@ async function ensureYouTubePlayer(videoId) {
         // because automatic captions otherwise come back when playback
         // starts. The CC button can turn them on later.
         cc_load_policy: 0,
-        cc_lang_pref: 'en',
         iv_load_policy: 3,
         // Drops the big YouTube logo in the control bar. The cued poster,
         // the corner badge, and the pause chrome are covered by .yt-shield
@@ -8768,9 +8765,12 @@ async function ensureYouTubePlayer(videoId) {
               clearPlayWatchdog();
               flushDeferredPlaybackWork();
               // Keep our poster over the iframe until PLAYING has lasted
-              // about a second. YouTube paints its title, share icon and
-              // red play button for those first moments otherwise.
+              // a few seconds. YouTube paints its title, share icon and
+              // red play button over the spinner for longer than a second.
               scheduleYouTubeReveal();
+            } else if (event.data === 3 && $('videoFrame')?.classList.contains('yt-hold')) {
+              clearTimeout(ytRevealTimer);
+              ytRevealTimer = null;
             } else if (event.data === 2) {
               state.wantPlaying = false;
               // Paused YouTube chrome (title, share, red play, logo) comes

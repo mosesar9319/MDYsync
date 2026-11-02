@@ -244,4 +244,31 @@ test.describe('phone speed, more menu, and captions', () => {
     expect(await page.locator('#captionsButton').getAttribute('aria-pressed')).toBe('true');
     expect(await page.locator('#captionsStack .pc-label').textContent()).toBe('Captions on');
   });
+
+  test('a fresh profile and a legacy captions value stay off', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.route('https://www.youtube.com/**', (route) => route.abort());
+    await page.route('https://www.youtube.com/iframe_api*', (route) => {
+      route.fulfill({ status: 200, contentType: 'text/javascript', body: YT_STUB });
+    });
+    await page.addInitScript(() => {
+      localStorage.setItem('dafsync-captions', 'true');
+      localStorage.setItem('dafsync-cc', 'on');
+      localStorage.setItem('captions', '1');
+    });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await page.waitForSelector('#captionsButton');
+    expect(await page.locator('#captionsButton').getAttribute('aria-pressed')).toBe('false');
+    expect(await page.locator('#captionsStack .pc-label').textContent()).toBe('Captions off');
+    expect(await page.evaluate(() => localStorage.getItem('dafsync-captions'))).toBeNull();
+    expect(await page.evaluate(() => localStorage.getItem('dafsync-cc'))).toBeNull();
+    await page.evaluate(() => ensureYouTubePlayer('stubvid0001'));
+    await page.waitForFunction(() => window.__yt);
+    await page.waitForTimeout(400);
+    const calls = await page.evaluate(() => window.__ytCalls.filter((call) => call[1] === 'captions').map((call) => call[0]));
+    expect(calls).toContain('unload');
+    expect(calls).not.toContain('load');
+    expect(await page.evaluate(() => window.__ytVars.cc_lang_pref)).toBeUndefined();
+  });
 });

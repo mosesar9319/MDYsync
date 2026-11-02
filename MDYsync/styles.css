@@ -848,11 +848,12 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
        down over the picture. */
     background: linear-gradient(to bottom, rgba(4,12,22,.42), rgba(4,12,22,0));
   }
-  /* YouTube's own title bar sits in the top of the iframe. An opaque band
-     the height of that row covers it; the rest of the frame stays clear. */
+  /* The phone title row used to fade out, and YouTube's own title and
+     icons sat in that transparent band, behind our controls. Keep this
+     row solid for a YouTube shiur. The picture below it stays clear. */
   .video-frame.youtube-active.is-compact .player-topbar,
   .video-frame.youtube-active.is-tiny .player-topbar {
-    background: linear-gradient(to bottom, rgba(4,12,22,.9) 0 26px, rgba(4,12,22,0) 40px);
+    background: #07111c;
   }
   .video-frame.is-compact .player-controls,
   .video-frame.is-tiny .player-controls {
@@ -2016,27 +2017,51 @@ dialog ol { color: #d8e2eb; padding-left: 21px; line-height: 1.6; }
 .lock-video-row { margin-top: 8px; }
 input[type="url"] { width: 100%; border: 1px solid var(--line-strong); color: var(--text); background: rgba(4,14,27,.7); border-radius: 11px; padding: 9px 11px; outline: none; }
 input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0 3px rgba(47, 110, 165,.1); }
-.youtube-player-host { position: absolute; inset: 0; background: #000; overflow: hidden; }
+/* The stage is its own stacking context (isolation + a transform). A
+   YouTube iframe on Android Chrome otherwise paints over later siblings
+   once an ancestor is position:fixed — which is Split view and fullscreen —
+   so the pause poster never covered the embed there. */
+.youtube-stage {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  isolation: isolate;
+  transform: translateZ(0);
+  background: #07111c;
+  pointer-events: none;
+  contain: paint;
+}
+.video-frame.youtube-active .youtube-stage { display: block; }
+.youtube-player-host { position: absolute; inset: 0; z-index: 0; background: #000; overflow: hidden; }
 .youtube-player-host iframe, #youtubePlayer { width: 100%; height: 100%; display: block; border: 0; }
-/* YouTube paints its own title, Watch-on-YouTube row, share icon, play
-   button, and corner badge inside the iframe. controls=0 does not remove
-   them. The iframe is not a hit target. It stays invisible until playback
-   has been playing for about a second, and .yt-shield (our poster) covers
-   it again whenever the video is paused. While the picture is showing, the
-   iframe is shifted up so the top ~60px — the badge and title bar — sits
-   outside the frame. The bottom of the iframe stays on the bottom of the
-   frame, so captions are not pushed out. */
+/* YouTube paints its title, share icon, play button, and corner badge
+   inside the iframe. controls=0 does not remove them, and shifting the
+   iframe up does not either: the player parks that chrome in the part of
+   the iframe that is actually on screen. The poster (.yt-shield) is in the
+   HTML so it covers the embed from the first paint, stays up through the
+   opening buffer, and comes back whenever playback stops. While the
+   picture is showing, the iframe is still shifted up (title bar clipped,
+   captions kept at the bottom) and .yt-chrome-mask covers the top of the
+   visible picture, including the badge that survives the crop. */
 .video-frame.youtube-active .youtube-player-host,
 .video-frame.youtube-active .youtube-player-host iframe { pointer-events: none; }
-.video-frame.youtube-active:not(.yt-started) .youtube-player-host { visibility: hidden; }
+.video-frame.youtube-active:not(.yt-started) .youtube-player-host { visibility: hidden; opacity: 0; }
 .video-frame.youtube-active .youtube-player-host iframe,
 .video-frame.youtube-active #youtubePlayer {
   position: absolute !important;
   left: 0 !important;
-  top: -60px !important;
+  top: -72px !important;
   width: 100% !important;
-  height: calc(100% + 60px) !important;
+  height: calc(100% + 72px) !important;
   max-width: none !important;
+  /* Opacity under 1 keeps Android Chrome from promoting the cross-origin
+     iframe onto a video overlay plane that paints above every sibling,
+     which is how the title bar and the corner badge stayed visible on top
+     of the poster and the top mask. A transform on this element freezes
+     the picture on phones, so the opacity is the containment. */
+  opacity: 0.99 !important;
 }
 .yt-shield {
   display: none;
@@ -2044,6 +2069,7 @@ input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0
   inset: 0;
   z-index: 4;
   pointer-events: none;
+  transform: translateZ(0);
   background-color: #07111c;
   background-position: center;
   background-size: cover;
@@ -2055,7 +2081,28 @@ input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0
   inset: 0;
   background: rgba(4, 10, 18, .38);
 }
-.video-frame.youtube-active.yt-hold .yt-shield { display: block; }
+.video-frame.youtube-active:not(.yt-playing) .yt-shield { display: block; }
+.yt-chrome-mask {
+  display: none;
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  pointer-events: none;
+  transform: translateZ(0);
+  background: linear-gradient(to bottom, #020812 0 46px, rgba(2, 8, 18, 0) 64px);
+}
+.video-frame.youtube-active.yt-playing .yt-chrome-mask { display: block; }
+.video-frame.youtube-active .player-topbar {
+  background: #07111c;
+}
+/* Our own "YouTube" pill sits at the top-left of the picture, above the
+   stage, so shifting the iframe never covered it. It is the grey badge
+   that stays up once the topbar fades. The lecture title already names
+   the shiur. */
+.video-frame.youtube-active .video-source-badge { display: none !important; }
 .video-source-badge { position: absolute; left: 10px; top: 10px; z-index: 3; padding: 5px 8px; border: 1px solid rgba(255,255,255,.2); border-radius: 999px; background: rgba(2,8,18,.72); color: #d9e5ee; font-size: 11px; font-weight: 700; backdrop-filter: blur(8px); pointer-events: none; }
 /* z-index 13, not 4: in Split View, #splitVideoPinchSurface (z-index 11,
    see its own construction in app.js) sits directly over the video picture
@@ -2073,7 +2120,6 @@ input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0
    further down) for the same reason -- the daf picker/bookmark/notes/More
    buttons up there had the exact same problem. */
 .video-frame .large-play { z-index: 13; }
-.video-frame.youtube-active .video-source-badge { left: 12px; top: 12px; }
 
 @media (max-width: 700px) {
   .source-tabs { width: 100%; }

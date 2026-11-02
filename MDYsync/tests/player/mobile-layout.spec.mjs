@@ -219,18 +219,25 @@ test.describe('mobile player layout', () => {
     await expect.poll(() => page.evaluate(() => {
       const frame = document.getElementById('videoFrame');
       return !frame.classList.contains('yt-hold') && frame.classList.contains('yt-started');
-    }), { timeout: 2500 }).toBe(true);
+    }), { timeout: 4500 }).toBe(true);
     const playing = await page.evaluate(() => {
       const frame = document.getElementById('videoFrame');
+      const badge = document.getElementById('videoSourceBadge');
+      badge.hidden = false;
+      badge.textContent = 'YouTube';
       return {
         hold: frame.classList.contains('yt-hold'),
         started: frame.classList.contains('yt-started'),
         shield: getComputedStyle(document.getElementById('ytShield')).display,
+        mask: getComputedStyle(frame.querySelector('.yt-chrome-mask')).display,
+        badge: getComputedStyle(badge).display,
       };
     });
     expect(playing.hold).toBe(false);
     expect(playing.started).toBe(true);
     expect(playing.shield).toBe('none');
+    expect(playing.mask).toBe('block');
+    expect(playing.badge).toBe('none');
     await page.evaluate(() => togglePlay());
     const paused = await page.evaluate(() => {
       const frame = document.getElementById('videoFrame');
@@ -244,6 +251,20 @@ test.describe('mobile player layout', () => {
     expect(paused.shield).toBe('block');
     expect(paused.play).toBe(false);
     await shot(page, 'youtube-cover-paused');
+    await page.click('#viewerModeSplitButton');
+    await expect(page.locator('body')).toHaveClass(/split-view-active/);
+    const splitCover = await page.evaluate(() => {
+      const frame = document.getElementById('videoFrame');
+      return {
+        hold: frame.classList.contains('yt-hold'),
+        shield: getComputedStyle(document.getElementById('ytShield')).display,
+        stage: getComputedStyle(document.getElementById('youtubeStage')).display,
+      };
+    });
+    expect(splitCover.hold).toBe(true);
+    expect(splitCover.shield).toBe('block');
+    expect(splitCover.stage).toBe('block');
+    await shot(page, 'youtube-cover-split-paused');
   });
 
   test('split close is a solid enabled button and leaves split view', async ({ page }) => {
@@ -279,7 +300,33 @@ test.describe('mobile player layout', () => {
     expect(look.h).toBeGreaterThanOrEqual(40);
     await shot(page, 'split-exit-enabled');
     const box = await page.locator('#splitExitButton').boundingBox();
-    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2).catch(() => {});
+    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
+    await expect(page.locator('body')).not.toHaveClass(/split-view-active/);
+  });
+
+  test('a touch on the Split close button leaves split while the bar is hidden', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'phone touch');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 412, height: 915 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeSplitButton');
+    await expect(page.locator('body')).toHaveClass(/split-view-active/);
+    const point = await page.evaluate(() => {
+      document.body.classList.add('split-chrome-hidden');
+      const button = document.getElementById('splitExitButton');
+      const bar = document.getElementById('viewerModeSelect');
+      const rect = button.getBoundingClientRect();
+      return {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+        w: rect.width,
+        barPointer: getComputedStyle(bar).pointerEvents,
+      };
+    });
+    expect(point.w).toBeGreaterThan(8);
+    expect(point.barPointer).toBe('none');
+    await page.touchscreen.tap(point.x, point.y);
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
     await expect(page.locator('body')).not.toHaveClass(/split-view-active/);
   });
