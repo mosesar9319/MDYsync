@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-02T16:01:03.661Z",
+  "generatedAt": "2026-11-03T08:00:57.980Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -1011,6 +1011,14 @@
         "chazarahHe": {
           "videoId": "9GOrH9MrkR0",
           "label": "חזרה - בכורות דף מה | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        }
+      },
+      {
+        "daf": 46,
+        "regularHe": {
+          "videoId": "90CuUTe-5ts",
+          "label": "מרכז דף יומי - בכורות דף מו. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       }
