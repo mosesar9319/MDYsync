@@ -1602,4 +1602,84 @@ test.describe('mobile player layout', () => {
     }
     await expect.poll(() => page.evaluate(() => document.getElementById('videoFrame').classList.contains('yt-mask')), { timeout: 2500 }).toBe(false);
   });
+
+  test('desktop regular player crops the YouTube title and logo out of the picture', async ({ page }) => {
+    test.skip(test.info().project.name !== 'desktop', '1280 regular player');
+    test.setTimeout(90000);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await expect(page.locator('body')).not.toHaveClass(/split-view-active/);
+    await page.evaluate(() => {
+      const style = document.createElement('style');
+      style.textContent = '#youtubePlayerHost{background:#e85d4c !important}#youtubePlayerHost iframe{opacity:.12 !important}';
+      document.head.appendChild(style);
+      const tag = document.createElement('div');
+      tag.id = 'holdMark';
+      tag.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;background:#fff;color:#111;font:700 16px sans-serif;padding:4px 8px';
+      document.body.appendChild(tag);
+    });
+    const shotAt = async (since, ms, name) => {
+      const left = ms - (Date.now() - since);
+      if (left > 0) await page.waitForTimeout(left);
+      const info = await page.evaluate((name) => {
+        document.getElementById('holdMark').textContent = name;
+        const frameEl = document.getElementById('videoFrame');
+        const frame = frameEl.getBoundingClientRect();
+        const host = document.getElementById('youtubePlayerHost').getBoundingClientRect();
+        return {
+          mask: frameEl.classList.contains('yt-mask'),
+          topOver: frame.top - host.top,
+          bottomOver: host.bottom - frame.bottom,
+          sideOver: (host.width - frame.width) / 2,
+          ratio: host.width / host.height,
+        };
+      }, name);
+      await shot(page, name);
+      return info;
+    };
+    const expectCrop = (info, name) => {
+      expect(info.topOver, `${name} title row`).toBeGreaterThanOrEqual(52);
+      expect(info.bottomOver, `${name} logo row`).toBeGreaterThanOrEqual(20);
+      expect(info.bottomOver, `${name} caption line`).toBeLessThanOrEqual(36);
+      expect(info.sideOver).toBeGreaterThan(40);
+      expect(info.ratio).toBeGreaterThan(1.7);
+      expect(info.ratio).toBeLessThan(1.85);
+    };
+    await page.waitForFunction(() => state.youtubeReady);
+    await page.evaluate(() => togglePlay());
+    await page.waitForFunction(() => document.getElementById('videoFrame').classList.contains('yt-started'));
+    await page.evaluate(() => {
+      const word = document.querySelector('.vilna-phrase-box');
+      if (word) word.click();
+      else seek(48, true);
+    });
+    let since = Date.now();
+    for (const ms of [500, 3000, 5000, 8000]) {
+      const name = `desktop-crop-word-${ms < 1000 ? '0.5s' : `${ms / 1000}s`}`;
+      const info = await shotAt(since, ms, name);
+      expectCrop(info, name);
+      expect(info.mask, name).toBe(ms <= 3000);
+    }
+    const lag = await page.evaluate(() => {
+      const player = window.__yt;
+      const orig = player.playVideo.bind(player);
+      player.playVideo = (...args) => {
+        player.__playCalledAt = performance.now();
+        return orig(...args);
+      };
+      togglePlay();
+      const started = performance.now();
+      togglePlay();
+      return player.__playCalledAt - started;
+    });
+    expect(lag).toBeGreaterThanOrEqual(0);
+    expect(lag).toBeLessThan(80);
+    since = Date.now();
+    for (const ms of [500, 3000, 5000, 8000]) {
+      const name = `desktop-crop-resume-${ms < 1000 ? '0.5s' : `${ms / 1000}s`}`;
+      const info = await shotAt(since, ms, name);
+      expectCrop(info, name);
+      expect(info.mask, name).toBe(ms <= 3000);
+    }
+  });
 });

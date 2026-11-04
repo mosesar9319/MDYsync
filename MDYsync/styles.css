@@ -2165,6 +2165,28 @@ input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0
   height: clamp(36px, 14%, 52px);
   background: #07111c;
 }
+/* Desktop regular player (not Split). The pane is 16:9, so YouTube's title
+   row and the corner logo sit inside the picture and stay there after the
+   pause bands lift. The iframe stays 16:9 and grows past the frame: the
+   title hangs above the clip and the logo row hangs below it. The bottom
+   overhang is a short strip so the burned-in caption line stays in view.
+   overflow:hidden on .video-frame is the clip. The mask stays on the
+   visible box. */
+@media (min-width: 900px) {
+  body:not(.split-view-active) .video-frame.youtube-active .youtube-player-host,
+  body:not(.split-view-active) .video-frame.youtube-active .yt-shield {
+    --yt-crop-top: 60px;
+    --yt-crop-bottom: 28px;
+    width: calc((100cqh + var(--yt-crop-top) + var(--yt-crop-bottom)) * 16 / 9);
+    height: calc(100cqh + var(--yt-crop-top) + var(--yt-crop-bottom));
+    max-width: none;
+    max-height: none;
+    top: calc(var(--yt-crop-top) * -1);
+    left: calc((100cqw - (100cqh + var(--yt-crop-top) + var(--yt-crop-bottom)) * 16 / 9) / 2);
+    right: auto;
+    margin-inline: 0;
+  }
+}
 .video-frame.youtube-active .player-topbar {
   background: #07111c;
 }
