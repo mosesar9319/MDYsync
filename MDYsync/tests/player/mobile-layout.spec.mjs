@@ -201,7 +201,7 @@ test.describe('mobile player layout', () => {
     await shot(page, 'captions-on');
   });
 
-  test('the poster stays up through the first second of playback and returns when paused', async ({ page }) => {
+  test('the opening poster lifts within a second and a pause keeps the frame', async ({ page }) => {
     test.skip(test.info().project.name !== 'mobile', 'phone player');
     test.setTimeout(60000);
     await page.setViewportSize({ width: 412, height: 915 });
@@ -246,28 +246,52 @@ test.describe('mobile player layout', () => {
     await page.evaluate(() => togglePlay());
     const paused = await page.evaluate(() => {
       const frame = document.getElementById('videoFrame');
+      const layer = frame.querySelector('.yt-mask-layer');
+      const edge = frame.querySelector('.yt-edge-top');
+      const bottom = frame.querySelector('.yt-edge-bottom');
+      const layerBox = layer ? layer.getBoundingClientRect() : { height: 0 };
+      const edgeBox = edge ? edge.getBoundingClientRect() : { height: 0 };
+      const bottomBox = bottom ? bottom.getBoundingClientRect() : { height: 0 };
       return {
         hold: frame.classList.contains('yt-hold'),
+        started: frame.classList.contains('yt-started'),
+        mask: frame.classList.contains('yt-mask'),
         shield: getComputedStyle(document.getElementById('ytShield')).display,
+        layer: layer ? getComputedStyle(layer).display : 'none',
+        edgeH: edgeBox.height,
+        bottomH: bottomBox.height,
+        layerH: layerBox.height,
         play: document.getElementById('largePlay').hidden,
       };
     });
-    expect(paused.hold).toBe(true);
-    expect(paused.shield).toBe('block');
+    expect(paused.hold).toBe(false);
+    expect(paused.started).toBe(true);
+    expect(paused.mask).toBe(true);
+    expect(paused.shield).toBe('none');
+    expect(paused.layer).toBe('block');
+    expect(paused.layerH).toBeGreaterThan(120);
+    expect(paused.edgeH).toBeGreaterThan(20);
+    expect(paused.edgeH).toBeLessThan(paused.layerH * 0.35);
+    expect(paused.bottomH).toBeLessThan(paused.layerH * 0.35);
     expect(paused.play).toBe(false);
     await shot(page, 'youtube-cover-paused');
     await page.click('#viewerModeSplitButton');
     await expect(page.locator('body')).toHaveClass(/split-view-active/);
     const splitCover = await page.evaluate(() => {
       const frame = document.getElementById('videoFrame');
+      const layer = frame.querySelector('.yt-mask-layer');
       return {
         hold: frame.classList.contains('yt-hold'),
+        mask: frame.classList.contains('yt-mask'),
         shield: getComputedStyle(document.getElementById('ytShield')).display,
+        layer: layer ? getComputedStyle(layer).display : 'none',
         stage: getComputedStyle(document.getElementById('youtubeStage')).display,
       };
     });
-    expect(splitCover.hold).toBe(true);
-    expect(splitCover.shield).toBe('block');
+    expect(splitCover.hold).toBe(false);
+    expect(splitCover.mask).toBe(true);
+    expect(splitCover.shield).toBe('none');
+    expect(splitCover.layer).toBe('block');
     expect(splitCover.stage).toBe('block');
     await shot(page, 'youtube-cover-split-paused');
   });
@@ -384,16 +408,22 @@ test.describe('mobile player layout', () => {
       state.wantPlaying = false;
       window.__yt._state = 1;
       window.__yt._events.onStateChange({ data: 1, target: window.__yt });
+      const frame = document.getElementById('videoFrame');
       return {
         want: state.wantPlaying,
         pauses: (window.__yt._pauseCount || 0) - before,
-        hold: document.getElementById('videoFrame').classList.contains('yt-hold'),
+        hold: frame.classList.contains('yt-hold'),
+        mask: frame.classList.contains('yt-mask'),
+        shield: getComputedStyle(document.getElementById('ytShield')).display,
         state: window.__yt.getPlayerState(),
       };
     });
     expect(result.want).toBe(false);
     expect(result.pauses).toBeGreaterThan(0);
-    expect(result.hold).toBe(true);
+    // Still covered: the opening poster if playback never revealed, otherwise
+    // the edge mask. The thumbnail does not replace a frame that already showed.
+    if (result.hold) expect(result.shield).toBe('block');
+    else expect(result.mask).toBe(true);
     expect(result.state).toBe(2);
   });
 
@@ -936,15 +966,23 @@ test.describe('mobile player layout', () => {
       const frame = document.getElementById('videoFrame');
       const topbar = document.getElementById('playerTopbar');
       const header = document.querySelector('#dafCard .daf-header');
+      const divider = document.getElementById('splitDivider').getBoundingClientRect();
+      const card = document.getElementById('dafCard').getBoundingClientRect();
+      const scroll = document.getElementById('dafScroll').getBoundingClientRect();
       return {
         open: document.body.classList.contains('split-tools-open'),
         inFrame: frame.contains(topbar),
         header: getComputedStyle(header).display,
+        gap: card.top - divider.bottom,
+        scrollGap: scroll.top - divider.bottom,
       };
     });
     expect(closed.open).toBe(false);
     expect(closed.inFrame).toBe(false);
     expect(closed.header).toBe('none');
+    expect(Math.abs(closed.gap)).toBeLessThan(4);
+    expect(Math.abs(closed.scrollGap)).toBeLessThan(8);
+    await shot(page, 'phone-split-closed-flush');
 
     await page.click('#splitDivider');
     await expect(page.locator('body')).toHaveClass(/split-tools-open/);
@@ -1027,6 +1065,42 @@ test.describe('mobile player layout', () => {
     // the rest, instead of collapsing under an in-flow panel.
     expect(zoom.scrollH).toBeGreaterThan(zoom.cardH * 0.7);
     expect(Math.abs(zoom.scrollTop - zoom.cardTop)).toBeLessThan(8);
+    const openBar = await page.evaluate(() => {
+      const divider = document.getElementById('splitDivider').getBoundingClientRect();
+      const card = document.getElementById('dafCard').getBoundingClientRect();
+      const panel = document.getElementById('splitToolsPanel').getBoundingClientRect();
+      const more = document.getElementById('playerMoreButton');
+      const notes = document.getElementById('playerNotesButton');
+      const hit = (el) => {
+        if (!el || el.hidden) return null;
+        const box = el.getBoundingClientRect();
+        const x = box.left + Math.min(box.width / 2, 18);
+        const y = box.top + box.height / 2;
+        const top = document.elementFromPoint(x, y);
+        return {
+          h: box.height,
+          inPanel: box.top >= panel.top - 1 && box.bottom <= panel.bottom + 1,
+          hit: top === el || el.contains(top),
+        };
+      };
+      return {
+        gap: card.top - divider.bottom,
+        panelGap: panel.top - card.top,
+        more: hit(more),
+        notes: hit(notes),
+      };
+    });
+    expect(Math.abs(openBar.gap)).toBeLessThan(4);
+    expect(Math.abs(openBar.panelGap)).toBeLessThan(2);
+    expect(openBar.more?.h).toBeGreaterThan(8);
+    expect(openBar.more?.inPanel).toBe(true);
+    expect(openBar.more?.hit).toBe(true);
+    if (openBar.notes) {
+      expect(openBar.notes.h).toBeGreaterThan(8);
+      expect(openBar.notes.inPanel).toBe(true);
+      expect(openBar.notes.hit).toBe(true);
+    }
+    await shot(page, 'phone-split-open-flush');
     await page.click('#splitDivider');
     await expect(page.locator('body')).not.toHaveClass(/split-tools-open/);
 

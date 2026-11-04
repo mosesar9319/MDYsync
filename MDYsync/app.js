@@ -1054,8 +1054,22 @@ function updateVaaterButtonUi(time = getCurrentTime()) {
 }
 
 function skipToNextReading() {
-  const target = nextReadingTime(getCurrentTime());
-  if (target === null) return;
+  // A second press while the first jump is still buffering used to read the
+  // pre-seek clock and ask for the same phrase again. Step from the time
+  // already in flight, and step once more if that still lands on it.
+  let base = getCurrentTime();
+  if (state.pendingSeek && Number.isFinite(state.pendingSeek.time)) {
+    base = Math.max(base, state.pendingSeek.time);
+  }
+  let target = nextReadingTime(base);
+  if (
+    target != null
+    && state.pendingSeek
+    && Math.abs(target - state.pendingSeek.time) <= 0.05
+  ) {
+    target = nextReadingTime(Math.max(target, state.pendingSeek.time) + 0.03);
+  }
+  if (target == null) return;
   seek(target, true);
   updateVaaterButtonUi(target);
 }
@@ -1192,6 +1206,11 @@ function getCurrentTime() {
   // Vaater jump look like it did nothing.
   if (state.pausedFrameRefresh) return pending.time;
   if (Math.abs(actual - pending.time) <= 0.45) {
+    // Buffering reports a time near the ask before the frame has loaded.
+    // Dropping the pending target there made a second Vaater press repeat
+    // the jump that was already in flight.
+    const live = state.playerType === 'youtube' ? Number(state.youtubeState) : 1;
+    if (live === 3 || live === -1) return pending.time;
     state.pendingSeek = null;
     return actual;
   }
@@ -7912,7 +7931,12 @@ function seekYouTubePlayer(time, allowSeekAhead, attempt = 0, generation = ++see
     if (generation !== seekGeneration) return; // superseded by a newer seek request
     if (state.playerType !== 'youtube' || state.youtubePlayer !== player) return; // moved on since
     const actual = Number(player.getCurrentTime?.()) || 0;
-    if (Math.abs(actual - time) > 2) seekYouTubePlayer(time, allowSeekAhead, attempt + 1, generation);
+    // A phrase under 2s ahead used to look "landed" while the player was
+    // still on the previous jump, so the retry gave up and a rapid second
+    // Vaater never moved. Re-issue until the clock is actually there.
+    // Buffering that already reports this target is left alone so the
+    // retry does not keep restarting a seek that took.
+    if (Math.abs(actual - time) > 0.5) seekYouTubePlayer(time, allowSeekAhead, attempt + 1, generation);
   }, 400);
 }
 
@@ -8927,21 +8951,32 @@ function scheduleYouTubeError(code, player, videoId, { reject, resolve, settled 
   }, 1500);
 }
 
-// YouTube's own title, share icon, and corner logo stay up for about
-// three seconds after playback is actually running, then hide on their
-// own if the reader hasn't touched the picture. The poster covers that
-// opening. It is not replaced by a band over the picture afterwards.
-const YT_REVEAL_MS = 4500;
-// A seek while the picture is already up flashes the logo, share icon and
-// "More videos" row for about a second. Cover it, but don't make the reader
-// wait out the full opening delay on every scrub.
-const YT_SEEK_REVEAL_MS = 1500;
+// The thumbnail covers only the opening, and only until the first PLAYING
+// has lasted about a second. After that, pause and seek keep the real
+// frame. Thin edge masks hide YouTube's title row, More videos strip, and
+// corner logo, and they lift within 200ms of PLAYING.
+const YT_OPENING_REVEAL_MS = 1000;
+const YT_LIFT_MS = 200;
 let ytRevealTimer = null;
-let ytRevealDelay = YT_REVEAL_MS;
+function ensureYouTubeMask(frame) {
+  if (!frame || frame.querySelector('.yt-mask-layer')) return;
+  const layer = document.createElement('div');
+  layer.className = 'yt-mask-layer';
+  layer.setAttribute('aria-hidden', 'true');
+  layer.innerHTML = '<div class="yt-edge yt-edge-top"></div><div class="yt-edge yt-edge-bottom"></div><div class="yt-edge yt-edge-logo"></div>';
+  const stage = $('youtubeStage');
+  const shield = $('ytShield');
+  if (stage) stage.appendChild(layer);
+  else if (shield) shield.insertAdjacentElement('afterend', layer);
+  else frame.appendChild(layer);
+}
 function ensureYouTubeShield() {
   const existing = $('ytShield');
-  if (existing) return existing;
   const frame = $('videoFrame');
+  if (existing) {
+    if (frame) ensureYouTubeMask(frame);
+    return existing;
+  }
   if (!frame) return null;
   const shield = document.createElement('div');
   shield.id = 'ytShield';
@@ -8950,6 +8985,7 @@ function ensureYouTubeShield() {
   const stage = $('youtubeStage') || $('youtubePlayerHost');
   if (stage) stage.insertAdjacentElement(stage.id === 'youtubeStage' ? 'beforeend' : 'afterend', shield);
   else frame.appendChild(shield);
+  ensureYouTubeMask(frame);
   return shield;
 }
 function setYouTubePoster(videoId) {
@@ -8958,36 +8994,50 @@ function setYouTubePoster(videoId) {
   const id = String(videoId || '').replace(/[^A-Za-z0-9_-]/g, '');
   shield.style.backgroundImage = id ? `url("https://i.ytimg.com/vi/${id}/hqdefault.jpg")` : '';
 }
+// Opening poster only. Once a frame has been shown, this does not swap
+// the picture for the thumbnail.
 function holdYouTubeChrome() {
   clearTimeout(ytRevealTimer);
   ytRevealTimer = null;
   const frame = $('videoFrame');
-  if (!frame) return;
+  if (!frame || frame.classList.contains('yt-started')) return;
   frame.classList.add('yt-hold');
-  frame.classList.remove('yt-playing');
+  frame.classList.remove('yt-playing', 'yt-mask');
+}
+function maskYouTubeEdges() {
+  const frame = $('videoFrame');
+  if (!frame?.classList.contains('yt-started')) return;
+  ensureYouTubeMask(frame);
+  frame.classList.add('yt-mask', 'yt-playing');
+  frame.classList.remove('yt-hold');
 }
 function scheduleYouTubeReveal() {
   const frame = $('videoFrame');
   if (!frame || state.youtubeState !== 1) return;
-  if (frame.classList.contains('yt-playing') && !frame.classList.contains('yt-hold')) return;
+  if (
+    frame.classList.contains('yt-playing')
+    && !frame.classList.contains('yt-hold')
+    && !frame.classList.contains('yt-mask')
+  ) return;
   clearTimeout(ytRevealTimer);
-  const delay = ytRevealDelay;
+  const opening = !frame.classList.contains('yt-started');
+  const delay = opening ? YT_OPENING_REVEAL_MS : YT_LIFT_MS;
   ytRevealTimer = setTimeout(() => {
     ytRevealTimer = null;
-    ytRevealDelay = YT_REVEAL_MS;
     if (state.youtubeState !== 1) return;
     frame.classList.add('yt-playing', 'yt-started');
-    frame.classList.remove('yt-hold');
+    frame.classList.remove('yt-hold', 'yt-mask');
   }, delay);
 }
-// Poster back up for a seek that happens while the shiur is playing.
-// Paused seeks already hold the poster from the pause itself.
+// Word taps, Vaater, and the scrubber all come through here. After the
+// first frame, cover the chrome YouTube flashes on a jump without putting
+// the thumbnail back. A seek that is already playing starts the short
+// lift; buffering cancels it until PLAYING.
 function coverYouTubeSeek() {
   if (state.playerType !== 'youtube') return;
-  const live = state.youtubeState;
-  if (!state.wantPlaying && live !== 1 && live !== 3) return;
-  ytRevealDelay = YT_SEEK_REVEAL_MS;
-  holdYouTubeChrome();
+  const frame = $('videoFrame');
+  if (!frame?.classList.contains('yt-started')) return;
+  maskYouTubeEdges();
   if (state.youtubeState === 1) scheduleYouTubeReveal();
 }
 
@@ -9034,11 +9084,9 @@ async function ensureYouTubePlayer(videoId) {
         // starts. The CC button can turn them on later.
         cc_load_policy: 0,
         iv_load_policy: 3,
-        // Drops the big YouTube logo in the control bar. The cued poster,
-        // the corner badge, and the pause chrome are covered by .yt-shield
-        // until playback has been playing for a second, and again whenever
-        // the video is paused. The iframe is also shifted up so the badge
-        // sits outside the frame while the picture is showing.
+        // Drops the big YouTube logo in the control bar. The poster covers
+        // the opening only. After the first frame, pause and seek keep
+        // the picture and mask the title row, More videos strip, and logo.
         modestbranding: 1
       };
       if (location.protocol === 'http:' || location.protocol === 'https:') playerVars.origin = location.origin;
@@ -9102,6 +9150,11 @@ async function ensureYouTubePlayer(videoId) {
               // moment. That is not the reader pausing. Treating it as one
               // made the following PLAYING event stop the shiur, so Vaater
               // and a scrub looked like they never moved the clock.
+              // Keep the edge mask over the chrome that flash shows, and
+              // don't lift it until playback is actually running again.
+              maskYouTubeEdges();
+              clearTimeout(ytRevealTimer);
+              ytRevealTimer = null;
               updatePlayUi();
               return;
             }
@@ -9115,7 +9168,8 @@ async function ensureYouTubePlayer(videoId) {
                 try { event.target?.pauseVideo?.(); } catch { /* already paused */ }
                 suppressingUnwantedPlay = false;
               }
-              holdYouTubeChrome();
+              if ($('videoFrame')?.classList.contains('yt-started')) maskYouTubeEdges();
+              else holdYouTubeChrome();
               updatePlayUi();
               return;
             }
@@ -9124,29 +9178,31 @@ async function ensureYouTubePlayer(videoId) {
               state.playRetryUsed = false;
               clearPlayWatchdog();
               flushDeferredPlaybackWork();
-              // Keep our poster over the iframe until PLAYING has lasted
-              // a few seconds. YouTube paints its title, share icon and
-              // red play button over the spinner for longer than a second.
+              // Opening poster lifts within a second of the first PLAYING.
+              // After that, edge masks lift within 200ms.
               scheduleYouTubeReveal();
             } else if (event.data === 3) {
               const frame = $('videoFrame');
-              // Buffering after the picture is already up is the seek flash:
-              // logo, share, and the More videos row. Cover it the same way
-              // a pause does, and lift it again once playback resumes.
-              // The opening buffer is already covered and keeps the long delay.
-              if (frame?.classList.contains('yt-started') && !frame.classList.contains('yt-hold') && state.wantPlaying) {
-                ytRevealDelay = YT_SEEK_REVEAL_MS;
-                holdYouTubeChrome();
+              // Buffering after the picture is up is the seek flash: title,
+              // share, logo, and the More videos row. Mask the edges and
+              // hold them until PLAYING. The opening poster stays up on
+              // its own and is not swapped in here.
+              if (frame?.classList.contains('yt-started') && state.wantPlaying) {
+                maskYouTubeEdges();
+                clearTimeout(ytRevealTimer);
+                ytRevealTimer = null;
               } else if (frame?.classList.contains('yt-hold')) {
                 clearTimeout(ytRevealTimer);
                 ytRevealTimer = null;
               }
             } else if (event.data === 2) {
-              ytRevealDelay = YT_REVEAL_MS;
               state.wantPlaying = false;
-              // Paused YouTube chrome (title, share, red play, logo) comes
-              // back on top of the frozen frame. Our poster covers it.
-              holdYouTubeChrome();
+              clearTimeout(ytRevealTimer);
+              ytRevealTimer = null;
+              // Paused chrome comes back on the frozen frame. Cover the
+              // edges only. The frame itself stays; the poster does not.
+              if ($('videoFrame')?.classList.contains('yt-started')) maskYouTubeEdges();
+              else holdYouTubeChrome();
               clearPlayWatchdog();
               const anchor = pauseAnchor;
               pauseAnchor = null;

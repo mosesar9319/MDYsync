@@ -243,6 +243,58 @@ test.describe('player bugfixes on live Bekhorot', () => {
     expect(result.wantPlaying).toBe(true);
   });
 
+  test('a second Vaater press while the first jump is still loading seeks further', async ({ page }) => {
+    test.setTimeout(60000);
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    const result = await page.evaluate(() => {
+      const real = state.segments.findIndex((segment) => !segment.estimated && segment.end - segment.start > 1);
+      const start = state.segments[real].start + 0.2;
+      window.__yt._time = start;
+      window.__yt._state = 1;
+      window.__yt._plays = 0;
+      window.__yt._pauses = 0;
+      state.youtubeState = 1;
+      state.wantPlaying = true;
+      state.playerType = 'youtube';
+      state.pendingSeek = null;
+      state.phrasePin = null;
+      document.getElementById('speedSelect').value = '1.5';
+      setPlaybackRate(1.5);
+      updateActiveSegment(true, start);
+      const asked = [];
+      window.__yt.seekTo = (time) => { asked.push(Number(time)); };
+      window.__yt.playVideo = () => { window.__yt._plays += 1; };
+      window.__yt.pauseVideo = () => { window.__yt._pauses += 1; };
+      window.__yt.getPlayerState = () => window.__yt._state;
+      const button = document.getElementById('vaaterButton');
+      button.click();
+      // The player reports the first target while it is still buffering,
+      // then the clock snaps back. A second press has to leave that target.
+      const first = asked[0];
+      window.__yt._time = first;
+      window.__yt._state = 3;
+      state.youtubeState = 3;
+      getCurrentTime();
+      window.__yt._time = start;
+      updateActiveSegment();
+      button.click();
+      return {
+        first,
+        second: asked[1],
+        asked: asked.length,
+        pauses: window.__yt._pauses,
+        wantPlaying: state.wantPlaying,
+        plays: window.__yt._plays,
+      };
+    });
+    expect(result.first).toBeGreaterThan(0);
+    expect(result.asked).toBeGreaterThanOrEqual(2);
+    expect(result.second).toBeGreaterThan(result.first + 0.4);
+    expect(result.pauses).toBe(0);
+    expect(result.wantPlaying).toBe(true);
+    expect(result.plays).toBeGreaterThan(0);
+  });
+
   test('Bekhorot 31a intro does not highlight the packed 30b phrases', async ({ page }) => {
     test.setTimeout(60000);
     await openLive(page, '/player/?ref=Bekhorot+31a&variant=chazarah');

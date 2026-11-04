@@ -2056,14 +2056,11 @@ input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0
   max-height: 100%;
 }
 /* YouTube paints its title, share icon, play button, and corner badge
-   inside the iframe. controls=0 does not remove them, and shifting the
-   iframe up does not either: the player parks that chrome in the part of
-   the iframe that is actually on screen. The poster (.yt-shield) is in the
-   HTML so it covers the embed from the first paint, stays up through the
-   opening buffer, and comes back whenever playback stops. While the
-   picture is showing, the embed fills its box from the top of the frame.
-   The poster stays up until YouTube has hidden that opening chrome.
-   Nothing keeps a band over the picture after that. */
+   inside the iframe. controls=0 does not remove them. The poster
+   (.yt-shield) covers only the opening, before the first frame. Once
+   playback has started, pause and seek keep that frame and cover just
+   the edges (.yt-mask-layer): a short fade on the title row, a short
+   fade on the More videos row, and a small blur over the corner logo. */
 .video-frame.youtube-active .youtube-player-host,
 .video-frame.youtube-active .youtube-player-host iframe { pointer-events: none; }
 .video-frame.youtube-active:not(.yt-started) .youtube-player-host { visibility: hidden; opacity: 0; }
@@ -2115,7 +2112,50 @@ input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0
   inset: 0;
   background: rgba(4, 10, 18, .38);
 }
-.video-frame.youtube-active:not(.yt-playing) .yt-shield { display: block; }
+.video-frame.youtube-active:not(.yt-started) .yt-shield { display: block; }
+/* Edge masks sit on the same top-locked 16:9 box as the embed. The
+   middle of the picture stays clear, so a pause still shows the frame. */
+.yt-mask-layer {
+  display: none;
+  position: absolute;
+  inset: auto;
+  top: 0;
+  bottom: auto;
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  width: min(100cqw, calc(100cqh * 16 / 9));
+  height: min(100cqh, calc(100cqw * 9 / 16));
+  max-width: 100%;
+  max-height: 100%;
+  z-index: 6;
+  pointer-events: none;
+}
+.video-frame.youtube-active.yt-started.yt-mask .yt-mask-layer { display: block; }
+.yt-edge { position: absolute; pointer-events: none; }
+.yt-edge-top {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 42px;
+  background: linear-gradient(to bottom, rgba(7, 17, 28, .94), rgba(7, 17, 28, 0));
+}
+.yt-edge-bottom {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 54px;
+  background: linear-gradient(to top, rgba(7, 17, 28, .94), rgba(7, 17, 28, 0));
+}
+.yt-edge-logo {
+  right: 8px;
+  bottom: 8px;
+  width: 72px;
+  height: 26px;
+  border-radius: 4px;
+  background: rgba(7, 17, 28, .5);
+  backdrop-filter: blur(8px);
+}
 .video-frame.youtube-active .player-topbar {
   background: #07111c;
 }
@@ -2895,7 +2935,16 @@ body.split-view-active .watch-layout.split-active > .daf-card {
      padding/background/border/shadow of its own left to hold the printed
      page away from the shared edge. Unlike .player-card, nothing inside is
      hidden: the daf stays fully interactive (header, zoom toolbar, the page
-     itself, the status bar), just flush to the pane instead of inset in it. */
+     itself, the status bar), just flush to the pane instead of inset in it.
+     position:relative is the phone panel's containing block. top/left must
+     stay auto: the page stylesheet's sticky top:128px is ignored while the
+     card is static, and turning it relative (below 1120px) was shifting the
+     whole pane — and the dropdown — about 128px below the divider. */
+  position: relative;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
   padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none;
 }
 /* .daf-scroll already manages its own internal spacing independently of
@@ -3133,7 +3182,13 @@ body:not(.split-view-active) .split-divider,
   body.split-tools-phone:not(.split-tools-open) .watch-layout.split-active .vilna-zoom-controls {
     display: none !important;
   }
-  body.split-tools-phone .watch-layout.split-active > .daf-card { position: relative; }
+  body.split-tools-phone .watch-layout.split-active > .daf-card {
+    position: relative;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+  }
   /* A dropdown over the top of the daf pane. It does not take a row in the
      card, so opening it leaves the page its full height. The card clips the
      shadow to the pane; the panel scrolls when the controls run long. */
@@ -3162,10 +3217,11 @@ body:not(.split-view-active) .split-divider,
     -webkit-overflow-scrolling: touch;
   }
   body.split-tools-phone.split-tools-open #splitToolsPanel .player-topbar {
-    position: relative;
-    top: 0;
-    height: auto;
+    position: relative !important;
+    top: auto !important;
+    height: auto !important;
     min-height: 0;
+    flex: 0 0 auto;
     flex-wrap: wrap;
     align-items: center;
     gap: 6px 10px;

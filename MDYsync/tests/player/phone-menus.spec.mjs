@@ -243,7 +243,7 @@ test.describe('phone speed, more menu, and captions', () => {
     await expect(page.locator('#playerDafMenu')).toBeHidden();
   });
 
-  test('a seek while playing keeps the YouTube cover up through buffering', async ({ page }) => {
+  test('a word-tap seek masks YouTube chrome and lifts it once playback resumes', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
     await page.route('https://www.youtube.com/**', (route) => route.abort());
@@ -259,29 +259,49 @@ test.describe('phone speed, more menu, and captions', () => {
       window.__yt._state = 1;
       const frame = document.getElementById('videoFrame');
       frame.classList.add('youtube-active', 'yt-playing', 'yt-started');
-      frame.classList.remove('yt-hold');
+      frame.classList.remove('yt-hold', 'yt-mask');
+      // The same seek() a daf word uses. The scrubber's coverYouTubeSeek
+      // is this function too.
       seek(80, true);
+      const layer = frame.querySelector('.yt-mask-layer');
       return {
         hold: frame.classList.contains('yt-hold'),
         playing: frame.classList.contains('yt-playing'),
+        mask: frame.classList.contains('yt-mask'),
+        shield: getComputedStyle(document.getElementById('ytShield')).display,
+        layer: layer ? getComputedStyle(layer).display : 'none',
       };
     });
-    expect(during.hold).toBe(true);
-    expect(during.playing).toBe(false);
+    expect(during.hold).toBe(false);
+    expect(during.playing).toBe(true);
+    expect(during.mask).toBe(true);
+    expect(during.shield).toBe('none');
+    expect(during.layer).toBe('block');
     const buffering = await page.evaluate(() => {
       window.__yt._state = 3;
       window.__yt._events.onStateChange({ data: 3, target: window.__yt });
-      return document.getElementById('videoFrame').classList.contains('yt-hold');
+      const frame = document.getElementById('videoFrame');
+      return {
+        mask: frame.classList.contains('yt-mask'),
+        shield: getComputedStyle(document.getElementById('ytShield')).display,
+        hold: frame.classList.contains('yt-hold'),
+      };
     });
-    expect(buffering).toBe(true);
+    expect(buffering.mask).toBe(true);
+    expect(buffering.shield).toBe('none');
+    expect(buffering.hold).toBe(false);
     await page.evaluate(() => {
       window.__yt._state = 1;
       window.__yt._events.onStateChange({ data: 1, target: window.__yt });
     });
     await expect.poll(() => page.evaluate(() => {
       const frame = document.getElementById('videoFrame');
-      return frame.classList.contains('yt-playing') && !frame.classList.contains('yt-hold');
-    }), { timeout: 3000 }).toBe(true);
+      const shield = getComputedStyle(document.getElementById('ytShield')).display;
+      return frame.classList.contains('yt-playing')
+        && !frame.classList.contains('yt-mask')
+        && !frame.classList.contains('yt-hold')
+        && shield === 'none';
+    }), { timeout: 500 }).toBe(true);
   });
 
   test('captions stay off until turned on, and the choice is remembered', async ({ page }) => {
