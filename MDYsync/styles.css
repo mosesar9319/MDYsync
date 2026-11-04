@@ -2037,15 +2037,12 @@ input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0
 .video-frame.youtube-active .youtube-stage { display: block; }
 .youtube-player-host { position: absolute; inset: 0; z-index: 0; background: #000; overflow: hidden; }
 .youtube-player-host iframe, #youtubePlayer { width: 100%; height: 100%; display: block; border: 0; }
-/* The picture stays inside the frame, pinned to the top. A fixed -72px
-   shift used to hide YouTube's title, and once the split pane was shorter
-   than 16:9 that shift walked the top of the picture off the screen as
-   the divider moved. While the pane is at least as wide as 16:9, the host
-   is the largest 16:9 box that fits (contain), top-pinned, with letterbox
-   beside it. A taller pane covers: the box grows to the pane height and
-   the sides crop, so dragging the divider down enlarges the picture
-   instead of leaving a black band under a width-limited 16:9. No
-   transform — one on the iframe freezes the picture on phones. */
+/* The picture is a 16:9 box clipped by the frame. A taller pane covers
+   (full height, sides cropped). A short pane used to contain that box and
+   letterbox the sides, which left YouTube's title and logo inside the
+   strip. Both shapes now grow the iframe past the frame so those rows hang
+   outside the clip. The short-pane crop scales with the pane. No transform
+   — one on the iframe freezes the picture on phones. */
 .video-frame.youtube-active { container-type: size; container-name: yt-frame; }
 .video-frame.youtube-active .youtube-player-host {
   inset: auto;
@@ -3748,6 +3745,54 @@ body.split-view-active .watch-layout.split-active .video-frame.youtube-active #y
   .video-frame.youtube-active .yt-mask-layer .yt-edge-logo {
     width: clamp(100px, 32%, 160px);
     height: clamp(44px, 16%, 64px);
+  }
+}
+/* Pane at most 16:9 tall (divider dragged up, or a short default). The
+   contained box used to be exactly the pane height, so the title row,
+   channel line, and More videos sat inside the strip. The iframe stays
+   16:9 and grows past the pane, the same idea as the desktop player, with
+   the crop scaled to the pane: about 40% of a short strip, and the same
+   60/28 as desktop once the pane is a full 16:9. The mask is the visible
+   picture, not the oversized box, so the bands and the corner land on the
+   chrome that remains. */
+@container yt-frame (aspect-ratio >= 16 / 9) {
+  body.split-view-active .watch-layout.split-active .video-frame.youtube-active #youtubePlayerHost,
+  body.split-view-active .watch-layout.split-active .video-frame.youtube-active .yt-shield {
+    --yt-crop-top: clamp(36px, 40cqh, 60px);
+    --yt-crop-bottom: clamp(12px, 12cqh, 28px);
+    width: calc((100cqh + var(--yt-crop-top) + var(--yt-crop-bottom)) * 16 / 9);
+    height: calc(100cqh + var(--yt-crop-top) + var(--yt-crop-bottom));
+    max-width: none;
+    max-height: none;
+    top: calc(var(--yt-crop-top) * -1);
+    left: calc((100cqw - (100cqh + var(--yt-crop-top) + var(--yt-crop-bottom)) * 16 / 9) / 2);
+    right: auto;
+    bottom: auto;
+    margin-inline: 0;
+  }
+  body.split-view-active .watch-layout.split-active .video-frame.youtube-active .yt-mask-layer {
+    --yt-crop-top: clamp(36px, 40cqh, 60px);
+    --yt-crop-bottom: clamp(12px, 12cqh, 28px);
+    --yt-picture-w: calc((100cqh + var(--yt-crop-top) + var(--yt-crop-bottom)) * 16 / 9);
+    top: 0;
+    bottom: auto;
+    left: max(0px, calc((100cqw - var(--yt-picture-w)) / 2));
+    right: auto;
+    margin: 0;
+    width: min(100cqw, var(--yt-picture-w));
+    height: 100cqh;
+    max-width: none;
+    max-height: none;
+  }
+  body.split-view-active .watch-layout.split-active .video-frame.youtube-active .yt-mask-layer .yt-edge-top {
+    height: clamp(32px, 46cqh, 100px);
+  }
+  body.split-view-active .watch-layout.split-active .video-frame.youtube-active .yt-mask-layer .yt-edge-bottom {
+    height: clamp(28px, 38cqh, 140px);
+  }
+  body.split-view-active .watch-layout.split-active .video-frame.youtube-active.yt-started.yt-corner:not(.yt-mask) .yt-mask-layer::after {
+    height: clamp(26px, 38cqh, 48px);
+    width: min(78%, max(30%, 156px));
   }
 }
 /* Divider dragged far down (picture much taller than it is wide). A

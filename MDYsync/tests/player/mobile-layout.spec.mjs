@@ -1499,14 +1499,18 @@ test.describe('mobile player layout', () => {
     await page.mouse.up();
     const short = await picture();
     expect(short.frame.height).toBeLessThan(short.frame.width * 9 / 16 - 4);
-    expect(Math.abs(short.host.top - short.frame.top)).toBeLessThan(2);
-    expect(Math.abs(short.host.height - short.frame.height)).toBeLessThan(3);
-    expect(short.host.width).toBeLessThan(short.frame.width - 8);
-    expect(short.host.left).toBeGreaterThanOrEqual(short.frame.left - 1);
-    expect(short.host.right).toBeLessThanOrEqual(short.frame.right + 1);
-    expect(Math.abs(short.host.bottom - short.frame.bottom)).toBeLessThan(2);
-    expect(Math.abs(short.shield.top - short.frame.top)).toBeLessThan(2);
-    expect(short.shield.left).toBeGreaterThanOrEqual(short.frame.left - 1);
+    expect(short.host.top).toBeLessThan(short.frame.top - 28);
+    expect(short.host.bottom).toBeGreaterThan(short.frame.bottom + 8);
+    expect(short.host.width / short.host.height).toBeGreaterThan(1.7);
+    expect(short.host.width / short.host.height).toBeLessThan(1.85);
+    expect(Math.abs(short.mask.top - short.frame.top)).toBeLessThan(2);
+    expect(Math.abs(short.mask.bottom - short.frame.bottom)).toBeLessThan(2);
+    expect(short.mask.left).toBeGreaterThanOrEqual(short.frame.left - 1);
+    expect(short.mask.right).toBeLessThanOrEqual(short.frame.right + 1);
+    expect(short.topEdge).toBeGreaterThan(24);
+    expect(short.topEdge).toBeLessThanOrEqual(short.frame.height + 1);
+    expect(Math.abs(short.shield.top - short.host.top)).toBeLessThan(3);
+    expect(Math.abs(short.shield.left - short.host.left)).toBeLessThan(3);
   });
 
   test('play and a word click keep the YouTube bands up for about three seconds', async ({ page }) => {
@@ -1754,6 +1758,115 @@ test.describe('mobile player layout', () => {
         expect(info.bottom, name).toBe('0px');
         expect(info.right, name).toBe('0px');
         expect(Math.abs(info.layerRight - info.frameRight), name).toBeLessThan(3);
+      }
+    }
+  });
+
+  test('phone split keeps the crop, bands, and corner at three pane heights', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', '412 portrait phone');
+    test.setTimeout(180000);
+    await page.setViewportSize({ width: 412, height: 915 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeSplitButton');
+    await expect(page.locator('body')).toHaveClass(/split-view-active/);
+    await page.evaluate(() => {
+      const style = document.createElement('style');
+      style.textContent = '#youtubePlayerHost{background:#e85d4c !important}#youtubePlayerHost iframe{opacity:.12 !important}.toast{display:none !important}.video-frame .player-controls,.video-frame .scrubber-wrap,.video-frame .player-topbar{opacity:0 !important;visibility:hidden !important}';
+      document.head.appendChild(style);
+      const tag = document.createElement('div');
+      tag.id = 'holdMark';
+      tag.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;background:#fff;color:#111;font:700 14px sans-serif;padding:4px 8px';
+      document.body.appendChild(tag);
+    });
+    await page.waitForFunction(() => state.youtubeReady);
+    await page.evaluate(() => togglePlay());
+    await page.waitForFunction(() => document.getElementById('videoFrame').classList.contains('yt-started'));
+    const setPane = (mode) => page.evaluate((mode) => {
+      const container = document.querySelector('.watch-layout.split-active');
+      const size = container.getBoundingClientRect().height || 1;
+      const target = mode === 'short' ? 80 : mode === 'tall' ? 460 : size * 0.4;
+      state.splitViewRatio = target / size;
+      applySplitViewLayoutToDom();
+    }, mode);
+    let seekTo = 36;
+    for (const label of ['default', 'short', 'tall']) {
+      await setPane(label);
+      seekTo += 40;
+      await page.evaluate((time) => {
+        window.__paneT0 = performance.now();
+        seek(time, true);
+      }, seekTo);
+      for (let ms = 500; ms <= 8000; ms += 500) {
+        await page.waitForFunction((target) => performance.now() - window.__paneT0 >= target, ms);
+        const name = `phone-${label}-${ms / 1000}s`;
+        const info = await page.evaluate((name) => {
+          document.getElementById('holdMark').textContent = name;
+          const frameEl = document.getElementById('videoFrame');
+          const frame = frameEl.getBoundingClientRect();
+          const host = document.getElementById('youtubePlayerHost').getBoundingClientRect();
+          const layer = frameEl.querySelector('.yt-mask-layer');
+          const layerBox = layer ? layer.getBoundingClientRect() : null;
+          const top = layer?.querySelector('.yt-edge-top');
+          const bottom = layer?.querySelector('.yt-edge-bottom');
+          const after = layer ? getComputedStyle(layer, '::after') : null;
+          return {
+            mask: frameEl.classList.contains('yt-mask'),
+            corner: frameEl.classList.contains('yt-corner'),
+            frameH: frame.height,
+            frameW: frame.width,
+            topOver: frame.top - host.top,
+            bottomOver: host.bottom - frame.bottom,
+            ratio: host.width / host.height,
+            maskTop: layerBox ? layerBox.top - frame.top : 99,
+            maskBottom: layerBox ? frame.bottom - layerBox.bottom : 99,
+            maskInside: layerBox ? layerBox.left >= frame.left - 1 && layerBox.right <= frame.right + 1 : false,
+            topH: top ? top.getBoundingClientRect().height : 0,
+            bottomH: bottom ? bottom.getBoundingClientRect().height : 0,
+            content: after ? after.content : 'none',
+            cornerH: after ? parseFloat(after.height) : 0,
+            cornerW: after ? parseFloat(after.width) : 0,
+            layerW: layerBox ? layerBox.width : 0,
+            bg: after ? after.backgroundColor : '',
+          };
+        }, name);
+        await shot(page, name);
+        expect(info.frameH, name).toBeGreaterThan(70);
+        expect(info.topOver, name).toBeGreaterThanOrEqual(28);
+        expect(info.bottomOver, name).toBeGreaterThanOrEqual(8);
+        expect(info.bottomOver, name).toBeLessThanOrEqual(40);
+        expect(info.ratio, name).toBeGreaterThan(1.7);
+        expect(info.ratio, name).toBeLessThan(1.85);
+        const aspect = info.frameW / info.frameH;
+        if (info.mask || info.corner) {
+          expect(Math.abs(info.maskTop), name).toBeLessThan(3);
+          expect(Math.abs(info.maskBottom), name).toBeLessThan(3);
+          expect(info.maskInside, name).toBe(true);
+        }
+        if (label === 'short') expect(aspect, name).toBeGreaterThan(16 / 9);
+        if (label === 'tall') {
+          expect(aspect, name).toBeLessThan(16 / 9);
+          expect(aspect, name).toBeGreaterThan(2 / 3);
+        }
+        if (ms <= 3000) expect(info.mask, name).toBe(true);
+        if (ms >= 4000) expect(info.mask, name).toBe(false);
+        if (ms <= 5500) expect(info.corner, name).toBe(true);
+        if (ms >= 7500) expect(info.corner, name).toBe(false);
+        if (info.mask) {
+          if (aspect >= 16 / 9) {
+            expect(info.topH, name).toBeGreaterThanOrEqual(28);
+            expect(info.bottomH, name).toBeGreaterThanOrEqual(24);
+          } else {
+            expect(info.topH, name).toBeGreaterThanOrEqual(64);
+            expect(info.bottomH, name).toBeGreaterThanOrEqual(100);
+          }
+        }
+        if (ms >= 4000 && ms <= 5500) {
+          expect(info.content, name).not.toBe('none');
+          expect(info.cornerH, name).toBeGreaterThanOrEqual(22);
+          expect(info.cornerH, name).toBeLessThan(info.frameH * 0.6);
+          expect(info.cornerW / info.layerW, name).toBeGreaterThan(0.28);
+          expect(info.bg, name).toBe('rgb(244, 241, 234)');
+        }
       }
     }
   });
