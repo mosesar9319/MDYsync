@@ -1508,4 +1508,98 @@ test.describe('mobile player layout', () => {
     expect(Math.abs(short.shield.top - short.frame.top)).toBeLessThan(2);
     expect(short.shield.left).toBeGreaterThanOrEqual(short.frame.left - 1);
   });
+
+  test('play and a word click keep the YouTube bands up for about three seconds', async ({ page }) => {
+    test.setTimeout(90000);
+    const phone = test.info().project.name === 'mobile';
+    const label = phone ? 'phone' : 'desktop';
+    await page.setViewportSize(phone ? { width: 412, height: 915 } : { width: 1280, height: 800 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    if (phone) {
+      await page.click('#viewerModeSplitButton');
+      await expect(page.locator('body')).toHaveClass(/split-view-active/);
+    }
+    await page.evaluate(() => {
+      const style = document.createElement('style');
+      style.textContent = '#youtubePlayerHost{background:#e85d4c !important}#youtubePlayerHost iframe{opacity:.12 !important}';
+      document.head.appendChild(style);
+      const tag = document.createElement('div');
+      tag.id = 'holdMark';
+      tag.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;background:#fff;color:#111;font:700 16px sans-serif;padding:4px 8px';
+      document.body.appendChild(tag);
+    });
+    const sample = async (name) => {
+      const info = await page.evaluate((name) => {
+        document.getElementById('holdMark').textContent = name;
+        const frame = document.getElementById('videoFrame');
+        const host = document.getElementById('youtubePlayerHost');
+        const layer = frame.querySelector('.yt-mask-layer');
+        const top = layer?.querySelector('.yt-edge-top');
+        const bottom = layer?.querySelector('.yt-edge-bottom');
+        const box = (el) => {
+          if (!el) return null;
+          const r = el.getBoundingClientRect();
+          return { top: r.top, left: r.left, width: r.width, height: r.height, bottom: r.bottom };
+        };
+        const frameBox = box(frame);
+        const hostBox = box(host);
+        const topBox = box(top);
+        const bottomBox = box(bottom);
+        const picture = hostBox && frameBox ? {
+          top: Math.max(hostBox.top, frameBox.top),
+          left: Math.max(hostBox.left, frameBox.left),
+          right: Math.min(hostBox.left + hostBox.width, frameBox.left + frameBox.width),
+          bottom: Math.min(hostBox.top + hostBox.height, frameBox.top + frameBox.height),
+        } : null;
+        const pictureW = picture ? picture.right - picture.left : 0;
+        const scale = hostBox && pictureW ? hostBox.width / pictureW : 1;
+        const crop = hostBox && picture ? picture.top - hostBox.top : 0;
+        return {
+          mask: frame.classList.contains('yt-mask'),
+          layer: layer ? getComputedStyle(layer).display : 'none',
+          topH: topBox?.height || 0,
+          bottomH: bottomBox?.height || 0,
+          needed: 48 * scale - crop,
+          topCovers: Boolean(topBox && picture && topBox.top <= picture.top + 2 && topBox.left <= picture.left + 2 && topBox.left + topBox.width >= picture.right - 2 && topBox.height >= 48),
+          bottomCovers: Boolean(bottomBox && picture && bottomBox.bottom >= picture.bottom - 2 && bottomBox.left <= picture.left + 2 && bottomBox.left + bottomBox.width >= picture.right - 2),
+        };
+      }, name);
+      await shot(page, name);
+      return info;
+    };
+    const at = async (since, ms) => {
+      const left = ms - (Date.now() - since);
+      if (left > 0) await page.waitForTimeout(left);
+    };
+    await page.waitForFunction(() => state.youtubeReady);
+    let since = Date.now();
+    await page.evaluate(() => togglePlay());
+    for (const ms of [500, 1500, 3000]) {
+      await at(since, ms);
+      const info = await sample(`${label}-play-${ms === 500 ? '0.5s' : ms === 1500 ? '1.5s' : '3s'}`);
+      expect(info.mask, `${label} play ${ms}ms`).toBe(true);
+      expect(info.layer).toBe('block');
+      expect(info.topCovers).toBe(true);
+      expect(info.topH).toBeGreaterThanOrEqual(info.needed - 1);
+      expect(info.bottomCovers).toBe(true);
+      if (phone) expect(info.bottomH).toBeGreaterThanOrEqual(100);
+    }
+    await expect.poll(() => page.evaluate(() => document.getElementById('videoFrame').classList.contains('yt-mask')), { timeout: 2500 }).toBe(false);
+
+    since = Date.now();
+    await page.evaluate(() => {
+      const word = document.querySelector('.vilna-phrase-box');
+      if (word) word.click();
+      else seek(48, true);
+    });
+    for (const ms of [500, 1500, 3000]) {
+      await at(since, ms);
+      const info = await sample(`${label}-word-${ms === 500 ? '0.5s' : ms === 1500 ? '1.5s' : '3s'}`);
+      expect(info.mask, `${label} word ${ms}ms`).toBe(true);
+      expect(info.layer).toBe('block');
+      expect(info.topCovers).toBe(true);
+      expect(info.bottomCovers).toBe(true);
+    }
+    await expect.poll(() => page.evaluate(() => document.getElementById('videoFrame').classList.contains('yt-mask')), { timeout: 2500 }).toBe(false);
+  });
 });

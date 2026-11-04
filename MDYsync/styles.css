@@ -2146,15 +2146,17 @@ input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0
   top: 0;
   left: 0;
   right: 0;
-  height: clamp(60px, 22%, 84px);
-  background: linear-gradient(to bottom, #07111c 0%, #07111c 78%, rgba(7, 17, 28, 0) 100%);
+  /* YouTube's title and channel line are about 48px at the top of the
+     iframe. The solid run covers that row; only the inner edge fades. */
+  height: clamp(76px, 20%, 100px);
+  background: linear-gradient(to bottom, #07111c 0, #07111c calc(100% - 12px), rgba(7, 17, 28, 0) 100%);
 }
 .yt-edge-bottom {
   left: 0;
   right: 0;
   bottom: 0;
   height: clamp(96px, 38%, 220px);
-  background: linear-gradient(to top, #07111c 0%, #07111c 72%, rgba(7, 17, 28, 0) 100%);
+  background: linear-gradient(to top, #07111c 0, #07111c calc(100% - 16px), rgba(7, 17, 28, 0) 100%);
 }
 .yt-edge-logo {
   right: 0;
@@ -3663,7 +3665,8 @@ body.split-view-active .watch-layout.split-active .video-frame.youtube-active #y
 @container yt-frame (aspect-ratio < 16 / 9) {
   body.split-view-active .watch-layout.split-active .video-frame.youtube-active #youtubePlayerHost,
   .video-frame.youtube-active .youtube-player-host,
-  .video-frame.youtube-active .yt-shield {
+  .video-frame.youtube-active .yt-shield,
+  .video-frame.youtube-active .yt-mask-layer {
     --yt-crop-top: clamp(36px, 8cqh, 84px);
     --yt-crop-bottom: clamp(16px, 3cqh, 32px);
     width: calc((100cqh + var(--yt-crop-top) + var(--yt-crop-bottom)) * 16 / 9);
@@ -3688,7 +3691,10 @@ body.split-view-active .watch-layout.split-active .video-frame.youtube-active #y
     max-height: none;
   }
   .video-frame.youtube-active .yt-mask-layer .yt-edge-top {
-    height: clamp(68px, 18cqh, 96px);
+    /* 48px of the iframe, scaled by how far the cover box is enlarged
+       past the pane, then brought back by the crop. The band is at least
+       that tall so the byline cannot sit above the toolbar. */
+    height: max(80px, calc(48px * ((100cqh + var(--yt-crop-top) + var(--yt-crop-bottom)) * 16 / 9) / 100cqw - var(--yt-crop-top)));
   }
   .video-frame.youtube-active .yt-mask-layer .yt-edge-bottom {
     height: clamp(124px, 36cqh, 188px);

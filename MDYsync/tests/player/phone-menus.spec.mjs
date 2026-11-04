@@ -309,6 +309,8 @@ test.describe('phone speed, more menu, and captions', () => {
       const start = performance.now();
       window.__yt.getCurrentTime = () => 200 + (performance.now() - start) / 1000;
     });
+    await page.waitForTimeout(1200);
+    expect(await page.evaluate(() => document.getElementById('videoFrame').classList.contains('yt-mask'))).toBe(true);
     await expect.poll(() => page.evaluate(() => {
       const frame = document.getElementById('videoFrame');
       const shield = getComputedStyle(document.getElementById('ytShield')).display;
@@ -316,7 +318,7 @@ test.describe('phone speed, more menu, and captions', () => {
         && !frame.classList.contains('yt-mask')
         && !frame.classList.contains('yt-hold')
         && shield === 'none';
-    }), { timeout: 1200 }).toBe(true);
+    }), { timeout: 5000 }).toBe(true);
   });
 
   test('a word-tap seek keeps the bands up until the new time is the one moving', async ({ page }) => {
@@ -350,10 +352,12 @@ test.describe('phone speed, more menu, and captions', () => {
       const start = performance.now();
       window.__yt.getCurrentTime = () => 80 + (performance.now() - start) / 1000;
     });
+    await page.waitForTimeout(1200);
+    expect(await page.evaluate(() => document.getElementById('videoFrame').classList.contains('yt-mask'))).toBe(true);
     await expect.poll(() => page.evaluate(() => {
       const frame = document.getElementById('videoFrame');
       return frame.classList.contains('yt-playing') && !frame.classList.contains('yt-mask');
-    }), { timeout: 1200 }).toBe(true);
+    }), { timeout: 5000 }).toBe(true);
 
     const paused = await page.evaluate(async () => {
       state.wantPlaying = false;

@@ -9020,11 +9020,21 @@ function scheduleYouTubeError(code, player, videoId, { reject, resolve, settled 
 
 // The thumbnail covers only the opening. After the first frame, opaque
 // bands hide the title row, share and watch-later icons, the logo, and the
-// More videos shelf whenever that chrome can show. The bands stay until the
-// playhead has actually been moving for a third of a second. A fixed delay
-// lifted them while YouTube was still painting the logo.
+// More videos shelf. YouTube keeps that overlay up for about three seconds
+// after a play, a seek, or a resume, so the bands stay at least that long
+// and also until the playhead is really moving. They drop sooner only when
+// nothing just asked YouTube to paint the overlay.
 const YT_ADVANCE_MS = 300;
+const YT_CHROME_HOLD_MS = 3400;
 let ytRevealTimer = null;
+let ytChromeHoldUntil = 0;
+let ytChromeHoldAfterPause = false;
+function armYouTubeChromeHold() {
+  ytChromeHoldUntil = performance.now() + YT_CHROME_HOLD_MS;
+}
+function youtubeOverlayRisk(now = performance.now()) {
+  return now < ytChromeHoldUntil;
+}
 function ensureYouTubeMask(frame) {
   if (!frame) return;
   let layer = frame.querySelector(':scope > .yt-mask-layer');
@@ -9140,14 +9150,16 @@ function scheduleYouTubeReveal() {
     const span = last && first ? last.t - first.t : 0;
     const moved = last && first ? last.time - first.time : 0;
     const expected = (span / 1000) * rate;
-    if (
-      last && first && mid
+    const moving = last && first && mid
       && span >= YT_ADVANCE_MS
       && moved > Math.max(0.04, expected * 0.45)
       && moved < expected * 2.5 + 0.12
       && last.time > mid.time + Math.max(0.015, expected * 0.15)
-      && mid.time >= first.time - 0.02
-    ) {
+      && mid.time >= first.time - 0.02;
+    // No play, seek, or resume in the overlay window: the title is not
+    // coming back, so a moving playhead can drop the bands now. Otherwise
+    // they stay through the ~3s YouTube keeps the title and More videos up.
+    if (moving && !youtubeOverlayRisk(t)) {
       frame.classList.add('yt-playing', 'yt-started');
       frame.classList.remove('yt-hold', 'yt-mask');
       return;
@@ -9164,10 +9176,13 @@ function coverYouTubeSeek() {
   if (state.playerType !== 'youtube') return;
   const frame = $('videoFrame');
   if (!frame?.classList.contains('yt-started')) return;
+  // Word taps, Vaater, and the scrubber all restart the overlay hold.
+  // YouTube paints the title again on the jump.
+  armYouTubeChromeHold();
   maskYouTubeEdges();
   // A paused seek, including the frame-refresh blip, keeps the bands up.
   // Only a shiur the reader actually has playing may start the lift, and
-  // that lift waits until the new time is the one moving.
+  // that lift waits out the overlay and a real playhead.
   if (state.youtubeState === 1 && state.wantPlaying) scheduleYouTubeReveal();
   else stopYouTubeAdvanceWatch();
 }
@@ -9312,9 +9327,14 @@ async function ensureYouTubePlayer(videoId) {
               state.playRetryUsed = false;
               clearPlayWatchdog();
               flushDeferredPlaybackWork();
-              // Bands stay up until the playhead is moving, including the
-              // first Play. A timer from the PLAYING event lifted them
-              // while the title and the logo were still on screen.
+              const playingFrame = $('videoFrame');
+              const firstPlay = !playingFrame?.classList.contains('yt-started')
+                || playingFrame.classList.contains('yt-hold');
+              // A resume and the first Play ask YouTube for the title row.
+              // A later PLAYING echo during a seek does not restart it;
+              // coverYouTubeSeek already did.
+              if (ytChromeHoldAfterPause || firstPlay) armYouTubeChromeHold();
+              ytChromeHoldAfterPause = false;
               scheduleYouTubeReveal();
             } else if (event.data === 5 || event.data === -1) {
               if ($('videoFrame')?.classList.contains('yt-started')) maskYouTubeEdges();
@@ -9334,6 +9354,7 @@ async function ensureYouTubePlayer(videoId) {
               }
             } else if (event.data === 2) {
               state.wantPlaying = false;
+              ytChromeHoldAfterPause = true;
               stopYouTubeAdvanceWatch();
               // Paused chrome comes back on the frozen frame. Cover the
               // edges only. The frame itself stays; the poster does not.
