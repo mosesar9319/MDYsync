@@ -1031,14 +1031,27 @@ function nextReadingTime(time = getCurrentTime()) {
   const current = segments[state.activeIndex];
   let startIndex = state.activeIndex >= 0 ? state.activeIndex + 1 : 0;
   if (current && samePhrase(current, segments[startIndex])) startIndex += 1;
+  // Several rows can share a start (a zero-length twin beside the real
+  // phrase). Keep the longer real one so Vaater does not land on the blip.
+  let best = null;
   for (let index = Math.max(0, startIndex); index < segments.length; index++) {
     const segment = segments[index];
     if (samePhrase(segment, current)) continue;
-    if (!(Number(segment.start) > time + 0.02)) continue;
+    const start = Number(segment.start);
+    if (!(start > time + 0.02)) continue;
     if (isSkippableSegment(index)) continue;
-    return Number(segment.start);
+    const dur = Number(segment.end) - start;
+    if (!best) {
+      best = { start, dur };
+      continue;
+    }
+    if (start <= best.start + 0.05) {
+      if (dur > best.dur) best = { start, dur };
+      continue;
+    }
+    return best.start;
   }
-  return null;
+  return best ? best.start : null;
 }
 
 function updateVaaterButtonUi(time = getCurrentTime()) {
@@ -6233,8 +6246,16 @@ function clampSplitRatio(ratio) {
   return clampReadingValue(ratio, minRatio, maxRatio);
 }
 function phoneSplitToolsActive() {
-  return Boolean(state.splitViewEnabled)
-    && state.splitViewLayout === 'stacked'
+  if (!state.splitViewEnabled) return false;
+  // A landscape phone is side-by-side and about 900px wide, so the portrait
+  // width cap never matches it and the picker stays painted on the video.
+  // Coarse or touch landscape uses the divider panel at any width. A mouse
+  // in a wide window keeps the desktop chrome.
+  const touchLandscape = window.matchMedia(
+    '(pointer: coarse) and (orientation: landscape), (hover: none) and (orientation: landscape)'
+  ).matches;
+  if (touchLandscape) return true;
+  return state.splitViewLayout === 'stacked'
     && window.matchMedia('(max-width: 760px)').matches;
 }
 function ensureSplitToolsPanel() {
@@ -6770,7 +6791,11 @@ function announceViewerMode(mode) {
     if (!splitDividerDrag || splitDividerDrag.pointerId !== event.pointerId) return;
     const dx = event.clientX - splitDividerDrag.x;
     const dy = event.clientY - splitDividerDrag.y;
-    if (!splitDividerDrag.moved && Math.hypot(dx, dy) < SPLIT_DIVIDER_TAP_PX) return;
+    // A drag resizes across the bar. Sliding along it is how a finger
+    // lands a tap, especially on the thin vertical bar in landscape, so
+    // only the cross-axis counts toward the 8px threshold.
+    const across = state.splitViewLayout === 'stacked' ? Math.abs(dy) : Math.abs(dx);
+    if (!splitDividerDrag.moved && across < SPLIT_DIVIDER_TAP_PX) return;
     if (!splitDividerDrag.moved) {
       splitDividerDrag.moved = true;
       divider.classList.add('is-dragging');
@@ -6793,6 +6818,13 @@ function announceViewerMode(mode) {
   }
   divider.addEventListener('pointerup', endDividerDrag);
   divider.addEventListener('pointercancel', endDividerDrag);
+  // A drag that loses capture still has to commit. A tap waits for
+  // pointerup: releasing capture can fire this first, and treating it as
+  // the tap would swallow the toggle.
+  divider.addEventListener('lostpointercapture', (event) => {
+    if (!splitDividerDrag?.moved || splitDividerDrag.pointerId !== event.pointerId) return;
+    endDividerDrag(event);
+  });
   divider.addEventListener('keydown', (event) => {
     if (!state.splitViewEnabled) return;
     const stacked = state.splitViewLayout === 'stacked';
@@ -8951,24 +8983,26 @@ function scheduleYouTubeError(code, player, videoId, { reject, resolve, settled 
   }, 1500);
 }
 
-// The thumbnail covers only the opening, and only until the first PLAYING
-// has lasted about a second. After that, pause and seek keep the real
-// frame. Thin edge masks hide YouTube's title row, More videos strip, and
-// corner logo, and they lift within 200ms of PLAYING.
-const YT_OPENING_REVEAL_MS = 1000;
+// The thumbnail covers only the opening. Once PLAYING is steady the cover
+// lifts in under 300ms — YouTube's own chrome otherwise sits there for
+// about three seconds, which read as our cover. After the first frame,
+// opaque bands hide the title row, share and watch-later icons, the logo,
+// and the More videos shelf whenever that chrome can show.
+const YT_OPENING_REVEAL_MS = 250;
 const YT_LIFT_MS = 200;
 let ytRevealTimer = null;
 function ensureYouTubeMask(frame) {
-  if (!frame || frame.querySelector('.yt-mask-layer')) return;
-  const layer = document.createElement('div');
-  layer.className = 'yt-mask-layer';
-  layer.setAttribute('aria-hidden', 'true');
-  layer.innerHTML = '<div class="yt-edge yt-edge-top"></div><div class="yt-edge yt-edge-bottom"></div><div class="yt-edge yt-edge-logo"></div>';
-  const stage = $('youtubeStage');
-  const shield = $('ytShield');
-  if (stage) stage.appendChild(layer);
-  else if (shield) shield.insertAdjacentElement('afterend', layer);
-  else frame.appendChild(layer);
+  if (!frame) return;
+  let layer = frame.querySelector(':scope > .yt-mask-layer');
+  if (!layer) {
+    const stranded = frame.querySelector('.yt-mask-layer');
+    if (stranded) stranded.remove();
+    layer = document.createElement('div');
+    layer.className = 'yt-mask-layer';
+    layer.setAttribute('aria-hidden', 'true');
+    layer.innerHTML = '<div class="yt-edge yt-edge-top"></div><div class="yt-edge yt-edge-bottom"></div><div class="yt-edge yt-edge-logo"></div>';
+    frame.appendChild(layer);
+  }
 }
 function ensureYouTubeShield() {
   const existing = $('ytShield');
@@ -9178,9 +9212,12 @@ async function ensureYouTubePlayer(videoId) {
               state.playRetryUsed = false;
               clearPlayWatchdog();
               flushDeferredPlaybackWork();
-              // Opening poster lifts within a second of the first PLAYING.
-              // After that, edge masks lift within 200ms.
+              // Opening poster and the edge bands both lift in under 300ms
+              // of PLAYING. Waiting out YouTube's own ~3s chrome timeout
+              // is what left the title and More videos up on the phone.
               scheduleYouTubeReveal();
+            } else if (event.data === 5 || event.data === -1) {
+              if ($('videoFrame')?.classList.contains('yt-started')) maskYouTubeEdges();
             } else if (event.data === 3) {
               const frame = $('videoFrame');
               // Buffering after the picture is up is the seek flash: title,

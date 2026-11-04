@@ -295,6 +295,42 @@ test.describe('player bugfixes on live Bekhorot', () => {
     expect(result.plays).toBeGreaterThan(0);
   });
 
+  test('Vaater from a gap lands on the next real phrase, then the one after it', async ({ page }) => {
+    test.setTimeout(60000);
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    const result = await page.evaluate(() => {
+      // Bekhorot 44a around 2:14: the previous real phrase has ended, a
+      // zero-length row and an estimated blip share the next timestamp
+      // with the real phrase at 2:16, and the phrase after that is 2:24.
+      state.segments = [
+        { ref: 'Bekhorot 43b:14', start: 127.67, end: 129.67, estimated: false, w0: 9, w1: 21, he: 'a' },
+        { ref: 'Bekhorot 43b:14', start: 130.67, end: 130.67, estimated: false, w0: 12, w1: 23, he: 'b' },
+        { ref: 'Bekhorot 43b:14', start: 136, end: 136.02, estimated: true, w0: 24, w1: 25, he: 'c' },
+        { ref: 'Bekhorot 43b:14', start: 136, end: 143.67, estimated: false, w0: 26, w1: 33, he: 'd' },
+        { ref: 'Bekhorot 43b:14', start: 144, end: 150.67, estimated: false, w0: 31, w1: 32, he: 'e' },
+      ];
+      state.activeIndex = 0;
+      state.pendingSeek = null;
+      state.phrasePin = null;
+      state.youtubeState = 1;
+      state.wantPlaying = true;
+      window.__yt._time = 134;
+      window.__yt._state = 1;
+      const asked = [];
+      window.__yt.seekTo = (time) => { asked.push(Number(time)); };
+      window.__yt.playVideo = () => {};
+      window.__yt.pauseVideo = () => {};
+      const first = nextReadingTime(134);
+      document.getElementById('vaaterButton').click();
+      document.getElementById('vaaterButton').click();
+      return { first, asked };
+    });
+    expect(result.first).toBeCloseTo(136, 1);
+    expect(result.asked[0]).toBeCloseTo(136, 1);
+    expect(result.asked[1]).toBeCloseTo(144, 1);
+    expect(result.asked[1]).toBeGreaterThan(result.asked[0] + 5);
+  });
+
   test('Bekhorot 31a intro does not highlight the packed 30b phrases', async ({ page }) => {
     test.setTimeout(60000);
     await openLive(page, '/player/?ref=Bekhorot+31a&variant=chazarah');
