@@ -9024,10 +9024,11 @@ function scheduleYouTubeError(code, player, videoId, { reject, resolve, settled 
 // after a play, a seek, or a resume, so the bands stay at least that long
 // and also until the playhead is really moving. They drop sooner only when
 // nothing just asked YouTube to paint the overlay.
-// The bottom-right card (More videos, the logo) autohides with YouTube's
-// controls, later than the title row. A corner stays over that spot until
-// playback has been steady for six seconds. It is not a deeper crop: the
-// caption line stays in the picture.
+// The bottom-right card (More videos, the logo) and the bottom-left share
+// icon autohide with YouTube's controls, later than the title row. Both
+// chips go up with the title band — on a seek, a play, a resume, and a
+// pause — and stay until playback has been steady for six seconds. They
+// are not a deeper crop: the caption line stays in the picture.
 const YT_ADVANCE_MS = 300;
 const YT_CHROME_HOLD_MS = 3400;
 const YT_CORNER_STEADY_MS = 6000;
@@ -9050,8 +9051,12 @@ function ensureYouTubeMask(frame) {
     layer = document.createElement('div');
     layer.className = 'yt-mask-layer';
     layer.setAttribute('aria-hidden', 'true');
-    layer.innerHTML = '<div class="yt-edge yt-edge-top"></div><div class="yt-edge yt-edge-bottom"></div><div class="yt-edge yt-edge-logo"></div>';
+    layer.innerHTML = '<div class="yt-edge yt-edge-top"></div><div class="yt-edge yt-edge-bottom"></div><div class="yt-edge yt-edge-logo"></div><div class="yt-edge yt-edge-share"></div>';
     frame.appendChild(layer);
+  } else if (!layer.querySelector('.yt-edge-share')) {
+    const share = document.createElement('div');
+    share.className = 'yt-edge yt-edge-share';
+    layer.appendChild(share);
   }
 }
 function ensureYouTubeShield() {
@@ -9381,6 +9386,10 @@ async function ensureYouTubePlayer(videoId) {
               // coverYouTubeSeek already did.
               if (ytChromeHoldAfterPause || firstPlay) armYouTubeChromeHold();
               ytChromeHoldAfterPause = false;
+              // The chips have to be up on the same turn as Play. Waiting
+              // for the reveal watch left the More videos card bare for
+              // the first frames of a resume.
+              if (playingFrame?.classList.contains('yt-started')) maskYouTubeEdges();
               scheduleYouTubeReveal();
             } else if (event.data === 5 || event.data === -1) {
               if ($('videoFrame')?.classList.contains('yt-started')) maskYouTubeEdges();
