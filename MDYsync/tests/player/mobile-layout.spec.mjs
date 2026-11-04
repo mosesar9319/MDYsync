@@ -1682,4 +1682,79 @@ test.describe('mobile player layout', () => {
       expect(info.mask, name).toBe(ms <= 3000);
     }
   });
+
+  test('desktop corner mask covers the bottom-right card for six steady seconds', async ({ page }) => {
+    test.skip(test.info().project.name !== 'desktop', 'desktop word click');
+    test.setTimeout(90000);
+    await page.setViewportSize({ width: 1920, height: 1200 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await expect(page.locator('body')).not.toHaveClass(/split-view-active/);
+    await page.evaluate(() => {
+      const style = document.createElement('style');
+      style.textContent = '#youtubePlayerHost{background:#e85d4c !important}#youtubePlayerHost iframe{opacity:.12 !important}.toast{display:none !important}.video-frame .player-controls,.video-frame .scrubber-wrap,.video-frame .player-topbar{opacity:0 !important;visibility:hidden !important}';
+      document.head.appendChild(style);
+      const tag = document.createElement('div');
+      tag.id = 'holdMark';
+      tag.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;background:#fff;color:#111;font:700 16px sans-serif;padding:4px 8px';
+      document.body.appendChild(tag);
+    });
+    await page.waitForFunction(() => state.youtubeReady);
+    await page.evaluate(() => togglePlay());
+    await page.waitForFunction(() => document.getElementById('videoFrame').classList.contains('yt-started'));
+    await page.evaluate(() => {
+      window.__cornerT0 = performance.now();
+      const word = document.querySelector('.vilna-phrase-box');
+      if (word) word.click();
+      else seek(48, true);
+    });
+    const times = [];
+    for (let ms = 500; ms <= 10000; ms += 500) times.push(ms);
+    for (const ms of times) {
+      await page.waitForFunction((target) => performance.now() - window.__cornerT0 >= target, ms);
+      const name = `desktop-corner-${ms / 1000}s`;
+      const info = await page.evaluate((name) => {
+        document.getElementById('holdMark').textContent = name;
+        const frameEl = document.getElementById('videoFrame');
+        const frame = frameEl.getBoundingClientRect();
+        const host = document.getElementById('youtubePlayerHost').getBoundingClientRect();
+        const layer = frameEl.querySelector('.yt-mask-layer');
+        const after = layer ? getComputedStyle(layer, '::after') : null;
+        const layerBox = layer ? layer.getBoundingClientRect() : null;
+        return {
+          mask: frameEl.classList.contains('yt-mask'),
+          corner: frameEl.classList.contains('yt-corner'),
+          topOver: frame.top - host.top,
+          bottomOver: host.bottom - frame.bottom,
+          content: after ? after.content : 'none',
+          cornerW: after ? parseFloat(after.width) : 0,
+          cornerH: after ? parseFloat(after.height) : 0,
+          layerW: layerBox ? layerBox.width : 0,
+          layerRight: layerBox ? layerBox.right : 0,
+          frameRight: frame.right,
+          bg: after ? after.backgroundColor : '',
+          bottom: after ? after.bottom : '',
+          right: after ? after.right : '',
+        };
+      }, name);
+      await shot(page, name);
+      expect(info.topOver, name).toBeGreaterThanOrEqual(52);
+      expect(info.bottomOver, name).toBeGreaterThanOrEqual(20);
+      expect(info.bottomOver, name).toBeLessThanOrEqual(36);
+      if (ms <= 3000) expect(info.mask, name).toBe(true);
+      if (ms >= 4000) expect(info.mask, name).toBe(false);
+      if (ms <= 5500) expect(info.corner, name).toBe(true);
+      if (ms >= 7500) expect(info.corner, name).toBe(false);
+      if (ms >= 4000 && ms <= 5500) {
+        expect(info.content, name).not.toBe('none');
+        expect(info.cornerH, name).toBeGreaterThanOrEqual(47);
+        expect(info.cornerH, name).toBeLessThanOrEqual(56);
+        expect(info.cornerW / info.layerW, name).toBeGreaterThan(0.28);
+        expect(info.cornerW / info.layerW, name).toBeLessThan(0.33);
+        expect(info.bg, name).toBe('rgb(244, 241, 234)');
+        expect(info.bottom, name).toBe('0px');
+        expect(info.right, name).toBe('0px');
+        expect(Math.abs(info.layerRight - info.frameRight), name).toBeLessThan(3);
+      }
+    }
+  });
 });

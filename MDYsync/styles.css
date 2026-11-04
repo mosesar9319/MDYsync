@@ -2165,6 +2165,25 @@ input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0
   height: clamp(36px, 14%, 52px);
   background: #07111c;
 }
+/* After the full bands lift, YouTube's More videos card and logo still sit
+   in the bottom-right of the visible picture, over the caption line. The
+   corner covers the right 30% by about 48px of the iframe's control row
+   (scaled with the cover box, and at least that tall on screen). It is the
+   caption bar's own paper colour, opaque, so the card does not read as a
+   black block and the rest of the burned-in line stays visible. The bottom
+   crop is unchanged. Shown only once the full bands have lifted. */
+.video-frame.youtube-active.yt-started.yt-corner:not(.yt-mask) .yt-mask-layer { display: block; }
+.video-frame.youtube-active.yt-started.yt-corner:not(.yt-mask) .yt-edge { display: none; }
+.video-frame.youtube-active.yt-started.yt-corner:not(.yt-mask) .yt-mask-layer::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 30%;
+  height: max(48px, calc(48px * ((100cqh + var(--yt-crop-top, 0px) + var(--yt-crop-bottom, 0px)) * 16 / 9) / 100cqw - var(--yt-crop-bottom, 0px)));
+  background: #f4f1ea;
+  pointer-events: none;
+}
 /* Desktop regular player (not Split). The pane is 16:9, so YouTube's title
    row and the corner logo sit inside the picture and stay there after the
    pause bands lift. The iframe stays 16:9 and grows past the frame: the
@@ -2173,6 +2192,10 @@ input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0
    overflow:hidden on .video-frame is the clip. The mask stays on the
    visible box. */
 @media (min-width: 900px) {
+  body:not(.split-view-active) .video-frame.youtube-active {
+    --yt-crop-top: 60px;
+    --yt-crop-bottom: 28px;
+  }
   body:not(.split-view-active) .video-frame.youtube-active .youtube-player-host,
   body:not(.split-view-active) .video-frame.youtube-active .yt-shield {
     --yt-crop-top: 60px;

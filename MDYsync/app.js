@@ -9024,8 +9024,13 @@ function scheduleYouTubeError(code, player, videoId, { reject, resolve, settled 
 // after a play, a seek, or a resume, so the bands stay at least that long
 // and also until the playhead is really moving. They drop sooner only when
 // nothing just asked YouTube to paint the overlay.
+// The bottom-right card (More videos, the logo) autohides with YouTube's
+// controls, later than the title row. A corner stays over that spot until
+// playback has been steady for six seconds. It is not a deeper crop: the
+// caption line stays in the picture.
 const YT_ADVANCE_MS = 300;
 const YT_CHROME_HOLD_MS = 3400;
+const YT_CORNER_STEADY_MS = 6000;
 let ytRevealTimer = null;
 let ytChromeHoldUntil = 0;
 let ytChromeHoldAfterPause = false;
@@ -9080,13 +9085,13 @@ function holdYouTubeChrome() {
   const frame = $('videoFrame');
   if (!frame || frame.classList.contains('yt-started')) return;
   frame.classList.add('yt-hold');
-  frame.classList.remove('yt-playing', 'yt-mask');
+  frame.classList.remove('yt-playing', 'yt-mask', 'yt-corner');
 }
 function maskYouTubeEdges() {
   const frame = $('videoFrame');
   if (!frame?.classList.contains('yt-started')) return;
   ensureYouTubeMask(frame);
-  frame.classList.add('yt-mask', 'yt-playing');
+  frame.classList.add('yt-mask', 'yt-corner', 'yt-playing');
   frame.classList.remove('yt-hold');
 }
 function stopYouTubeAdvanceWatch() {
@@ -9102,15 +9107,19 @@ function youtubePlayRate() {
 function scheduleYouTubeReveal() {
   const frame = $('videoFrame');
   if (!frame || state.youtubeState !== 1 || !state.wantPlaying) return;
-  if (
-    frame.classList.contains('yt-playing')
+  const uncovered = frame.classList.contains('yt-playing')
     && frame.classList.contains('yt-started')
     && !frame.classList.contains('yt-hold')
-    && !frame.classList.contains('yt-mask')
-  ) return;
+    && !frame.classList.contains('yt-mask');
+  // A later PLAYING echo during steady playback must not restart the hold.
+  // A corner that is already counting down keeps its watch. A corner left
+  // up with no watch (the timer was cleared) starts again below.
+  if (uncovered && !frame.classList.contains('yt-corner')) return;
+  if (uncovered && ytRevealTimer) return;
   stopYouTubeAdvanceWatch();
   const samples = [];
   let seekArrived = false;
+  let steadySince = 0;
   const watch = () => {
     ytRevealTimer = null;
     if (!frame.isConnected) return;
@@ -9120,7 +9129,7 @@ function scheduleYouTubeReveal() {
     // iframe here is the title, the share icon, and More videos. Re-assert
     // every tick so a seek jump cannot uncover that chrome early.
     ensureYouTubeMask(frame);
-    frame.classList.add('yt-started', 'yt-playing', 'yt-mask');
+    frame.classList.add('yt-started', 'yt-playing', 'yt-corner');
     frame.classList.remove('yt-hold');
     const pending = state.pendingSeek;
     const time = readPlayerTime();
@@ -9132,6 +9141,8 @@ function scheduleYouTubeReveal() {
     // has shown up, later motion is playback and must not re-arm this hold.
     if (!seekArrived && pending && t - pending.issuedAt < 2000 && Math.abs(time - pending.time) > 0.45) {
       samples.length = 0;
+      steadySince = 0;
+      frame.classList.add('yt-mask');
       ytRevealTimer = setTimeout(watch, 50);
       return;
     }
@@ -9141,6 +9152,7 @@ function scheduleYouTubeReveal() {
     // A seek steps the clock once. That step is not the playhead advancing.
     if (prev && Math.abs(time - prev.time) > Math.max(0.35, wall * rate * 3 + 0.05)) {
       samples.length = 0;
+      steadySince = 0;
     }
     samples.push({ t, time });
     while (samples.length && t - samples[0].t > 480) samples.shift();
@@ -9156,12 +9168,21 @@ function scheduleYouTubeReveal() {
       && moved < expected * 2.5 + 0.12
       && last.time > mid.time + Math.max(0.015, expected * 0.15)
       && mid.time >= first.time - 0.02;
-    // No play, seek, or resume in the overlay window: the title is not
-    // coming back, so a moving playhead can drop the bands now. Otherwise
-    // they stay through the ~3s YouTube keeps the title and More videos up.
-    if (moving && !youtubeOverlayRisk(t)) {
-      frame.classList.add('yt-playing', 'yt-started');
-      frame.classList.remove('yt-hold', 'yt-mask');
+    // Bands cover the title through YouTube's short overlay. The corner
+    // stays until the playhead has been moving smoothly for 6s, which is
+    // when the bottom-right card autohides. A jump or a stall starts that
+    // stretch over.
+    if (!moving) {
+      steadySince = 0;
+      frame.classList.add('yt-mask');
+      ytRevealTimer = setTimeout(watch, 50);
+      return;
+    }
+    if (!steadySince) steadySince = first.t;
+    if (youtubeOverlayRisk(t)) frame.classList.add('yt-mask');
+    else frame.classList.remove('yt-mask');
+    if (t - steadySince >= YT_CORNER_STEADY_MS && !youtubeOverlayRisk(t)) {
+      frame.classList.remove('yt-hold', 'yt-mask', 'yt-corner');
       return;
     }
     ytRevealTimer = setTimeout(watch, 50);
@@ -9192,7 +9213,7 @@ async function ensureYouTubePlayer(videoId) {
   state.youtubeCueId = videoId;
   // Cover first, then reveal the host. Unhiding the iframe before the
   // poster is in the DOM is the flash of YouTube's title bar on load.
-  $('videoFrame')?.classList.remove('yt-started', 'yt-playing');
+  $('videoFrame')?.classList.remove('yt-started', 'yt-playing', 'yt-mask', 'yt-corner');
   holdYouTubeChrome();
   setYouTubePoster(videoId);
   switchPlayerType('youtube');
@@ -9407,7 +9428,7 @@ async function ensureYouTubePlayer(videoId) {
   } else {
     state.youtubePlayer.cueVideoById(videoId);
     state.youtubeState = 5;
-    $('videoFrame')?.classList.remove('yt-started', 'yt-playing');
+    $('videoFrame')?.classList.remove('yt-started', 'yt-playing', 'yt-mask', 'yt-corner');
     holdYouTubeChrome();
     setYouTubePoster(videoId);
     flushQueuedSeek();
