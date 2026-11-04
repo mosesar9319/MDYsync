@@ -7945,6 +7945,10 @@ function finishPausedFrameRefresh(token) {
     pausedFrameSuppressPlay = true;
     pauseAnchor = null;
     player.pauseVideo?.();
+    // The blip's PLAYING event returns before the bands are touched. Put
+    // them back now so a paused seek cannot leave the title up.
+    if ($('videoFrame')?.classList.contains('yt-started')) maskYouTubeEdges();
+    stopYouTubeAdvanceWatch();
   } else {
     pausedFrameSuppressPlay = false;
   }
@@ -9079,9 +9083,15 @@ function stopYouTubeAdvanceWatch() {
   clearTimeout(ytRevealTimer);
   ytRevealTimer = null;
 }
+function youtubePlayRate() {
+  const fromPlayer = Number(state.youtubePlayer?.getPlaybackRate?.());
+  if (fromPlayer > 0.2) return fromPlayer;
+  const fromUi = Number($('speedSelect')?.value);
+  return fromUi > 0.2 ? fromUi : 1;
+}
 function scheduleYouTubeReveal() {
   const frame = $('videoFrame');
-  if (!frame || state.youtubeState !== 1) return;
+  if (!frame || state.youtubeState !== 1 || !state.wantPlaying) return;
   if (
     frame.classList.contains('yt-playing')
     && frame.classList.contains('yt-started')
@@ -9090,29 +9100,52 @@ function scheduleYouTubeReveal() {
   ) return;
   stopYouTubeAdvanceWatch();
   const samples = [];
+  let seekArrived = false;
   const watch = () => {
     ytRevealTimer = null;
-    if (state.youtubeState !== 1 || !frame.isConnected) return;
+    if (!frame.isConnected) return;
+    // Pause, or a seek that has not resumed. Leave the bands where they are.
+    if (state.youtubeState !== 1 || !state.wantPlaying) return;
     // First play included: the picture comes out under the bands. A bare
-    // iframe here is the title, the share icon, and More videos.
-    if (!frame.classList.contains('yt-started') || frame.classList.contains('yt-hold')) {
-      ensureYouTubeMask(frame);
-      frame.classList.add('yt-started', 'yt-playing', 'yt-mask');
-      frame.classList.remove('yt-hold');
-    }
+    // iframe here is the title, the share icon, and More videos. Re-assert
+    // every tick so a seek jump cannot uncover that chrome early.
+    ensureYouTubeMask(frame);
+    frame.classList.add('yt-started', 'yt-playing', 'yt-mask');
+    frame.classList.remove('yt-hold');
+    const pending = state.pendingSeek;
     const time = readPlayerTime();
     const t = performance.now();
+    if (pending && Math.abs(time - pending.time) <= 0.45) seekArrived = true;
+    // The clock is still on the phrase just left. Counting that motion
+    // lifted the bands before the word-tap seek had landed, which is the
+    // flash of YouTube's title on a desktop daf click. Once the new time
+    // has shown up, later motion is playback and must not re-arm this hold.
+    if (!seekArrived && pending && t - pending.issuedAt < 2000 && Math.abs(time - pending.time) > 0.45) {
+      samples.length = 0;
+      ytRevealTimer = setTimeout(watch, 50);
+      return;
+    }
+    const prev = samples[samples.length - 1];
+    const wall = prev ? Math.max(0.05, (t - prev.t) / 1000) : 0.05;
+    const rate = youtubePlayRate();
+    // A seek steps the clock once. That step is not the playhead advancing.
+    if (prev && Math.abs(time - prev.time) > Math.max(0.35, wall * rate * 3 + 0.05)) {
+      samples.length = 0;
+    }
     samples.push({ t, time });
-    while (samples.length && t - samples[0].t > 420) samples.shift();
+    while (samples.length && t - samples[0].t > 480) samples.shift();
     const first = samples[0];
     const last = samples[samples.length - 1];
     const mid = samples[Math.floor(samples.length / 2)];
-    // A seek jumps once and then sits. That step is not playback. The
-    // playhead has to keep increasing through the second half of the window.
+    const span = last && first ? last.t - first.t : 0;
+    const moved = last && first ? last.time - first.time : 0;
+    const expected = (span / 1000) * rate;
     if (
       last && first && mid
-      && last.t - first.t >= YT_ADVANCE_MS
-      && last.time > mid.time + 0.04
+      && span >= YT_ADVANCE_MS
+      && moved > Math.max(0.04, expected * 0.45)
+      && moved < expected * 2.5 + 0.12
+      && last.time > mid.time + Math.max(0.015, expected * 0.15)
       && mid.time >= first.time - 0.02
     ) {
       frame.classList.add('yt-playing', 'yt-started');
@@ -9132,7 +9165,10 @@ function coverYouTubeSeek() {
   const frame = $('videoFrame');
   if (!frame?.classList.contains('yt-started')) return;
   maskYouTubeEdges();
-  if (state.youtubeState === 1) scheduleYouTubeReveal();
+  // A paused seek, including the frame-refresh blip, keeps the bands up.
+  // Only a shiur the reader actually has playing may start the lift, and
+  // that lift waits until the new time is the one moving.
+  if (state.youtubeState === 1 && state.wantPlaying) scheduleYouTubeReveal();
   else stopYouTubeAdvanceWatch();
 }
 
@@ -9237,6 +9273,9 @@ async function ensureYouTubePlayer(videoId) {
                   paintSeekUi(hold);
                 }
                 try { event.target?.pauseVideo?.(); } catch { /* already paused */ }
+                if ($('videoFrame')?.classList.contains('yt-started')) maskYouTubeEdges();
+                else holdYouTubeChrome();
+                stopYouTubeAdvanceWatch();
                 return;
               }
             }

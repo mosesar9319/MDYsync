@@ -299,9 +299,15 @@ test.describe('phone speed, more menu, and captions', () => {
       return document.getElementById('videoFrame').classList.contains('yt-mask');
     });
     expect(frozen).toBe(true);
+    const jumped = await page.evaluate(async () => {
+      window.__yt.getCurrentTime = () => 200;
+      await new Promise((resolve) => setTimeout(resolve, 450));
+      return document.getElementById('videoFrame').classList.contains('yt-mask');
+    });
+    expect(jumped).toBe(true);
     await page.evaluate(() => {
       const start = performance.now();
-      window.__yt.getCurrentTime = () => 80 + (performance.now() - start) / 1000;
+      window.__yt.getCurrentTime = () => 200 + (performance.now() - start) / 1000;
     });
     await expect.poll(() => page.evaluate(() => {
       const frame = document.getElementById('videoFrame');
@@ -311,6 +317,65 @@ test.describe('phone speed, more menu, and captions', () => {
         && !frame.classList.contains('yt-hold')
         && shield === 'none';
     }), { timeout: 1200 }).toBe(true);
+  });
+
+  test('a word-tap seek keeps the bands up until the new time is the one moving', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.route('https://www.youtube.com/**', (route) => route.abort());
+    await page.route('https://www.youtube.com/iframe_api*', (route) => {
+      route.fulfill({ status: 200, contentType: 'text/javascript', body: YT_STUB });
+    });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await page.evaluate(() => ensureYouTubePlayer('stubvid0001'));
+    await page.waitForFunction(() => window.__yt);
+    const early = await page.evaluate(async () => {
+      state.wantPlaying = true;
+      state.youtubeState = 1;
+      window.__yt._state = 1;
+      window.__yt._time = 10;
+      const frame = document.getElementById('videoFrame');
+      frame.classList.add('youtube-active', 'yt-playing', 'yt-started');
+      frame.classList.remove('yt-hold', 'yt-mask');
+      // The player has not landed yet. The old clock keeps running.
+      window.__yt.seekTo = () => {};
+      const start = performance.now();
+      window.__yt.getCurrentTime = () => 10 + (performance.now() - start) / 1000;
+      seek(80, true);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return document.getElementById('videoFrame').classList.contains('yt-mask');
+    });
+    expect(early).toBe(true);
+    await page.evaluate(() => {
+      const start = performance.now();
+      window.__yt.getCurrentTime = () => 80 + (performance.now() - start) / 1000;
+    });
+    await expect.poll(() => page.evaluate(() => {
+      const frame = document.getElementById('videoFrame');
+      return frame.classList.contains('yt-playing') && !frame.classList.contains('yt-mask');
+    }), { timeout: 1200 }).toBe(true);
+
+    const paused = await page.evaluate(async () => {
+      state.wantPlaying = false;
+      state.youtubeState = 2;
+      window.__yt._state = 2;
+      window.__yt._time = 80;
+      window.__yt.getCurrentTime = () => 80;
+      const frame = document.getElementById('videoFrame');
+      frame.classList.add('yt-started', 'yt-playing', 'yt-mask');
+      seek(140, true);
+      const start = performance.now();
+      window.__yt.getCurrentTime = () => 140 + (performance.now() - start) / 1000;
+      window.__yt._state = 1;
+      window.__yt._events.onStateChange({ data: 1, target: window.__yt });
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      return {
+        mask: frame.classList.contains('yt-mask'),
+        want: state.wantPlaying,
+      };
+    });
+    expect(paused.want).toBe(false);
+    expect(paused.mask).toBe(true);
   });
 
   test('captions stay off until turned on, and the choice is remembered', async ({ page }) => {

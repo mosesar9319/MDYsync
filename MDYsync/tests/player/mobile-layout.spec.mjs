@@ -1457,10 +1457,12 @@ test.describe('mobile player layout', () => {
     expect(Math.abs(tall.mask.right - tall.frame.right)).toBeLessThan(2);
     expect(Math.abs(tall.mask.top - tall.frame.top)).toBeLessThan(2);
     expect(Math.abs(tall.mask.bottom - tall.frame.bottom)).toBeLessThan(2);
-    expect(tall.topEdge).toBeGreaterThan(8);
-    expect(tall.topEdge).toBeLessThan(48);
-    expect(tall.bottomEdge).toBeLessThan(22);
-    expect(tall.bottomEdge).toBeLessThan(tall.frame.height * 0.12);
+    // Normal Split height is taller than 16:9 and still has to cover the
+    // byline and the More videos shelf. Only a far drag thins the bands.
+    expect(tall.frame.width / tall.frame.height).toBeGreaterThan(2 / 3);
+    expect(tall.topEdge).toBeGreaterThanOrEqual(64);
+    expect(tall.bottomEdge).toBeGreaterThanOrEqual(110);
+    expect(tall.bottomEdge).toBeLessThan(tall.frame.height * 0.5);
     expect(Math.abs(tall.shield.left - tall.host.left)).toBeLessThan(2);
     expect(Math.abs(tall.shield.top - tall.host.top)).toBeLessThan(2);
     expect(Math.abs(tall.shield.bottom - tall.host.bottom)).toBeLessThan(2);
@@ -1470,17 +1472,21 @@ test.describe('mobile player layout', () => {
     const divider = await page.locator('#splitDivider').boundingBox();
     const x = divider.x + divider.width / 2;
     const y = divider.y + divider.height / 2;
+    const far = Math.max(220, tall.frame.width / (2 / 3) - tall.frame.height + 48);
     await page.mouse.move(x, y);
     await page.mouse.down();
-    await page.mouse.move(x, y + 160, { steps: 8 });
+    await page.mouse.move(x, y + far, { steps: 12 });
     await page.mouse.up();
     const lower = await picture();
     expect(lower.frame.height).toBeGreaterThan(tall.frame.height + 40);
+    expect(lower.frame.width / lower.frame.height).toBeLessThan(2 / 3);
     expect(lower.host.width).toBeGreaterThan(tall.host.width + 20);
     expect(lower.host.top).toBeLessThan(lower.frame.top - 24);
     expect(lower.host.bottom).toBeGreaterThan(lower.frame.bottom + 8);
     expect(lower.host.width).toBeGreaterThan(lower.frame.width + 8);
     expect(Math.abs(lower.mask.bottom - lower.frame.bottom)).toBeLessThan(2);
+    expect(lower.topEdge).toBeGreaterThan(8);
+    expect(lower.topEdge).toBeLessThan(48);
     expect(lower.bottomEdge).toBeLessThan(22);
     await shot(page, 'phone-split-cover');
 
