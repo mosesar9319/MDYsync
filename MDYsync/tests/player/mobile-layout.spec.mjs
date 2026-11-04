@@ -14,6 +14,48 @@ const FILES = [
 ];
 const SHOTS = '/opt/cursor/artifacts/mobile-layout';
 
+// YouTube's bottom row, in the iframe's own box: the More videos card is
+// x 55%–90%, the logo continues to the right edge, and the share icon is
+// the first 96px. Project that onto the screen and clip it to the pane.
+function rowSlice(iframe, frame, x0, x1) {
+  const left = iframe.left + iframe.width * x0;
+  const right = iframe.left + iframe.width * x1;
+  const top = iframe.bottom - 52;
+  const bottom = iframe.bottom;
+  const l = Math.max(left, frame.left);
+  const r = Math.min(right, frame.right);
+  const t = Math.max(top, frame.top);
+  const b = Math.min(bottom, frame.bottom);
+  return { left: l, right: r, top: t, bottom: b, width: Math.max(0, r - l), height: Math.max(0, b - t) };
+}
+function expectChipCovers(chip, target, frame, name) {
+  if (target.width < 1 || target.height < 1) return;
+  expect(chip.right, `${name} chip inside`).toBeLessThanOrEqual(frame.right + 2);
+  expect(chip.left, `${name} chip inside`).toBeGreaterThanOrEqual(frame.left - 2);
+  expect(chip.left, `${name} covers left`).toBeLessThanOrEqual(target.left + 2);
+  expect(chip.right, `${name} covers right`).toBeGreaterThanOrEqual(target.right - 2);
+  expect(chip.top, `${name} covers top`).toBeLessThanOrEqual(target.top + 2);
+  expect(chip.bottom, `${name} covers bottom`).toBeGreaterThanOrEqual(target.bottom - 2);
+}
+function expectBottomRow(iframe, frame, logo, share, name) {
+  const card = rowSlice(iframe, frame, 0.55, 0.9);
+  const logoSlice = rowSlice(iframe, frame, 0.9, 1);
+  const shareSlice = rowSlice(iframe, frame, 0, Math.min(1, 96 / Math.max(iframe.width, 1)));
+  if (card.width >= 1) {
+    const mid = ((card.left + card.right) / 2 - frame.left) / frame.width;
+    console.log(`CARD ${name} x=${((card.left - frame.left) / frame.width).toFixed(2)}-${((card.right - frame.left) / frame.width).toFixed(2)} mid=${mid.toFixed(2)} w=${card.width.toFixed(0)}`);
+  } else {
+    console.log(`CARD ${name} offscreen`);
+  }
+  if (card.width < 1 && logoSlice.width < 1) expect(logo.width, `${name} card offscreen`).toBeLessThan(2);
+  else {
+    expectChipCovers(logo, card, frame, `${name} more-videos`);
+    expectChipCovers(logo, logoSlice, frame, `${name} logo`);
+  }
+  if (shareSlice.width < 1) expect(share.width, `${name} share offscreen`).toBeLessThan(2);
+  else expectChipCovers(share, shareSlice, frame, `${name} share`);
+}
+
 const YT_STUB = `
 window.YT = window.YT || {};
 window.YT.Player = function (id, options) {
@@ -1428,7 +1470,7 @@ test.describe('mobile player layout', () => {
     await page.click('#viewerModeSplitButton');
     const picture = (hidden) => page.evaluate((hidden) => {
       const frameEl = document.getElementById('videoFrame');
-      frameEl.classList.add('youtube-active', 'yt-started', 'yt-mask');
+      frameEl.classList.add('youtube-active', 'yt-started', 'yt-mask', 'yt-corner');
       frameEl.classList.toggle('controls-hidden', !!hidden);
       const hostEl = document.getElementById('youtubePlayerHost');
       hostEl.hidden = false;
@@ -1457,10 +1499,12 @@ test.describe('mobile player layout', () => {
       const scrubber = box(document.querySelector('.scrubber-wrap'));
       const embedEl = document.querySelector('#youtubePlayerHost iframe, #youtubePlayer');
       const embed = embedEl ? box(embedEl) : null;
+      const logo = box(layer.querySelector('.yt-edge-logo'));
+      const share = box(layer.querySelector('.yt-edge-share'));
       return {
         frame, host, mask, shield, topEdge, bottomEdge, controlsBottom: controls.bottom,
         scrubberTop: scrubber.top,
-        embed,
+        embed, logo, share,
         hidden: frameEl.classList.contains('controls-hidden'),
         transform: embedEl ? getComputedStyle(embedEl).transform : 'none',
       };
@@ -1470,15 +1514,12 @@ test.describe('mobile player layout', () => {
       const iframeVsFrame = info.embed ? info.embed.bottom - info.frame.bottom : hostVsFrame;
       const hostVsBar = info.host.bottom - info.scrubberTop;
       console.log(`DELTA ${name} hidden=${info.hidden} host-vs-frame=${hostVsFrame.toFixed(2)} iframe-vs-frame=${iframeVsFrame.toFixed(2)} host-vs-scrubber=${hostVsBar.toFixed(2)}`);
-      if (info.hidden) {
-        expect(Math.abs(hostVsFrame), `${name} flush`).toBeLessThan(2);
-        expect(Math.abs(info.mask.bottom - info.frame.bottom), `${name} mask`).toBeLessThan(2);
-      } else {
-        expect(Math.abs(hostVsBar), `${name} above the control bar`).toBeLessThan(2);
-        expect(hostVsFrame, `${name} not under the bar`).toBeLessThan(-30);
-        expect(Math.abs(info.mask.bottom - info.host.bottom), `${name} mask`).toBeLessThan(2);
+      expect(Math.abs(hostVsFrame), `${name} flush`).toBeLessThan(2);
+      expect(Math.abs(info.mask.bottom - info.frame.bottom), `${name} mask`).toBeLessThan(2);
+      if (info.embed) {
+        expect(Math.abs(info.embed.bottom - info.host.bottom), `${name} iframe`).toBeLessThan(2);
+        expectBottomRow(info.embed, info.frame, info.logo, info.share, name);
       }
-      if (info.embed) expect(Math.abs(info.embed.bottom - info.host.bottom), `${name} iframe`).toBeLessThan(2);
     };
     const tall = await picture(false);
     expect(tall.frame.height).toBeGreaterThan(tall.frame.width * 9 / 16 + 8);
@@ -1518,6 +1559,8 @@ test.describe('mobile player layout', () => {
     const lowerHidden = await picture(true);
     expect(lowerHidden.frame.width / lowerHidden.frame.height).toBeLessThan(2 / 3);
     expectBottom(lowerHidden, 'phone-tall-hidden');
+    expect(Math.abs(lower.host.bottom - lowerHidden.host.bottom), 'the bar does not move the picture').toBeLessThan(2);
+    expect(Math.abs(lower.host.top - lowerHidden.host.top), 'the bar does not move the picture').toBeLessThan(2);
     expect(lowerHidden.host.top).toBeLessThan(lowerHidden.frame.top - 24);
     expect(lower.topEdge).toBeGreaterThan(8);
     expect(lower.topEdge).toBeLessThan(48);
@@ -1754,7 +1797,10 @@ test.describe('mobile player layout', () => {
         document.getElementById('holdMark').textContent = name;
         const frameEl = document.getElementById('videoFrame');
         const frame = frameEl.getBoundingClientRect();
-        const host = document.getElementById('youtubePlayerHost').getBoundingClientRect();
+        const hostEl = document.getElementById('youtubePlayerHost');
+        const host = hostEl.getBoundingClientRect();
+        const embedEl = hostEl.querySelector('iframe') || document.getElementById('youtubePlayer');
+        const embed = embedEl.getBoundingClientRect();
         const layer = frameEl.querySelector('.yt-mask-layer');
         const layerBox = layer ? layer.getBoundingClientRect() : null;
         const logo = layer?.querySelector('.yt-edge-logo');
@@ -1768,6 +1814,10 @@ test.describe('mobile player layout', () => {
           corner: frameEl.classList.contains('yt-corner'),
           topOver: frame.top - host.top,
           bottomOver: host.bottom - frame.bottom,
+          frameBox: { left: frame.left, right: frame.right, top: frame.top, bottom: frame.bottom, width: frame.width },
+          embedBox: { left: embed.left, right: embed.right, top: embed.top, bottom: embed.bottom, width: embed.width, height: embed.height },
+          logoBox: logoBox ? { left: logoBox.left, right: logoBox.right, top: logoBox.top, bottom: logoBox.bottom, width: logoBox.width } : null,
+          shareBox: shareBox ? { left: shareBox.left, right: shareBox.right, top: shareBox.top, bottom: shareBox.bottom, width: shareBox.width } : null,
           logoDisplay: logoCs ? logoCs.display : 'missing',
           logoH: logoBox ? logoBox.height : 0,
           logoW: logoBox ? logoBox.width : 0,
@@ -1799,20 +1849,11 @@ test.describe('mobile player layout', () => {
       }
       if (info.elapsed <= 5400) {
         expect(info.logoDisplay, name).toBe('block');
-        expect(info.logoH, name).toBeGreaterThanOrEqual(50);
-        expect(info.logoH, name).toBeLessThanOrEqual(54);
-        expect(info.logoW / info.layerW, name).toBeGreaterThan(0.3);
-        expect(info.logoW / info.layerW, name).toBeLessThan(0.42);
-        expect(Math.abs(info.logoRight - info.layerRight), name).toBeLessThan(2);
-        expect(Math.abs(info.logoBottom - info.layerBottom), name).toBeLessThan(2);
         expect(info.shareDisplay, name).toBe('block');
-        expect(info.shareH, name).toBeGreaterThanOrEqual(50);
-        expect(info.shareW, name).toBeGreaterThanOrEqual(80);
-        expect(info.shareW, name).toBeLessThanOrEqual(100);
-        expect(Math.abs(info.shareLeft - info.layerLeft), name).toBeLessThan(2);
         expect(info.bg, name).toBe('rgb(14, 16, 20)');
         expect(info.opacity, name).toBe('1');
         expect(Math.abs(info.layerRight - info.frameRight), name).toBeLessThan(3);
+        expectBottomRow(info.embedBox, info.frameBox, info.logoBox, info.shareBox, name);
       }
     }
   });
@@ -1889,10 +1930,10 @@ test.describe('mobile player layout', () => {
             topCss: top ? getComputedStyle(top).height : 'missing',
             bottomH: bottom ? bottom.getBoundingClientRect().height : 0,
             logoDisplay: logoCs ? logoCs.display : 'missing',
-            logoH: logoBox ? logoBox.height : 0,
-            logoW: logoBox ? logoBox.width : 0,
-            shareW: shareBox ? shareBox.width : 0,
-            layerW: layerBox ? layerBox.width : 0,
+            frameBox: { left: frame.left, right: frame.right, top: frame.top, bottom: frame.bottom, width: frame.width },
+            embedBox: { left: embedBox.left, right: embedBox.right, top: embedBox.top, bottom: embedBox.bottom, width: embedBox.width, height: embedBox.height },
+            logoBox: logoBox ? { left: logoBox.left, right: logoBox.right, top: logoBox.top, bottom: logoBox.bottom, width: logoBox.width } : null,
+            shareBox: shareBox ? { left: shareBox.left, right: shareBox.right, top: shareBox.top, bottom: shareBox.bottom, width: shareBox.width } : null,
             bg: logoCs ? logoCs.backgroundColor : '',
             elapsed: performance.now() - window.__paneT0,
           };
@@ -1928,19 +1969,34 @@ test.describe('mobile player layout', () => {
         }
         if (info.elapsed <= 5400) {
           expect(info.logoDisplay, name).toBe('block');
-          expect(info.logoH, name).toBeGreaterThanOrEqual(50);
-          expect(info.logoH, name).toBeLessThanOrEqual(54);
-          expect(info.logoW, name).toBeLessThanOrEqual(info.layerW * 0.45 + 1);
-          if (label !== 'tall') {
-            expect(info.logoW, name).toBeGreaterThan(40);
-            expect(info.logoW / info.layerW, name).toBeGreaterThan(0.2);
-          }
           expect(info.bg, name).toBe('rgb(14, 16, 20)');
-          if (label === 'short') {
-            expect(info.shareW, name).toBeGreaterThanOrEqual(80);
-            expect(info.shareW, name).toBeLessThanOrEqual(100);
-          }
-          if (label === 'default') expect(info.shareW, name).toBeGreaterThan(20);
+          expectBottomRow(info.embedBox, info.frameBox, info.logoBox, info.shareBox, `${name} hidden`);
+        }
+        if (ms === 500) {
+          const open = await page.evaluate(() => {
+            const frameEl = document.getElementById('videoFrame');
+            frameEl.classList.remove('controls-hidden');
+            const frame = frameEl.getBoundingClientRect();
+            const hostEl = document.getElementById('youtubePlayerHost');
+            const host = hostEl.getBoundingClientRect();
+            const embedEl = hostEl.querySelector('iframe') || document.getElementById('youtubePlayer');
+            const embed = embedEl.getBoundingClientRect();
+            const layer = frameEl.querySelector('.yt-mask-layer');
+            const logo = layer.querySelector('.yt-edge-logo').getBoundingClientRect();
+            const share = layer.querySelector('.yt-edge-share').getBoundingClientRect();
+            frameEl.classList.add('controls-hidden');
+            return {
+              hostBottom: host.bottom,
+              frameBottom: frame.bottom,
+              frameBox: { left: frame.left, right: frame.right, top: frame.top, bottom: frame.bottom, width: frame.width },
+              embedBox: { left: embed.left, right: embed.right, top: embed.top, bottom: embed.bottom, width: embed.width, height: embed.height },
+              logoBox: { left: logo.left, right: logo.right, top: logo.top, bottom: logo.bottom, width: logo.width },
+              shareBox: { left: share.left, right: share.right, top: share.top, bottom: share.bottom, width: share.width },
+            };
+          });
+          expect(Math.abs(open.hostBottom - open.frameBottom), `${name} open still flush`).toBeLessThan(2);
+          expect(Math.abs(open.embedBox.bottom - info.embedBox.bottom), `${name} bar does not move the picture`).toBeLessThan(2);
+          expectBottomRow(open.embedBox, open.frameBox, open.logoBox, open.shareBox, `${name} open`);
         }
       }
     }

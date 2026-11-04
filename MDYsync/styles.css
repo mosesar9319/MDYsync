@@ -2155,15 +2155,25 @@ input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0
   height: clamp(96px, 38%, 220px);
   background: linear-gradient(to top, #07111c 0, #07111c calc(100% - 16px), rgba(7, 17, 28, 0) 100%);
 }
-/* YouTube's pause chrome, measured on the iframe itself: the control row is
-   about 48px plus a little padding, and on an 800px-wide frame the More
-   videos card plus the logo occupy the right ~36% of that row. The share
-   icon sits in the same row on the left. Both chips are real elements so
-   they paint with the title band, not after it. They do not fade upward
-   onto the caption line. A full-width bottom band is never drawn. */
+/* YouTube lays the bottom row out in the iframe's own box: the More videos
+   card is about x 55%–90% of that box, the logo runs to the iframe's right
+   edge, and the share icon is a short span at the left. The iframe is often
+   wider than the pane, so those fractions are not the pane's corners. The
+   chips are the on-screen part of that row (52px: the control row plus
+   padding) and nothing outside the mask. A full-width bottom band is never
+   drawn. The picture is not lifted when our bar opens — the bar is
+   translucent and sits on the bottom edge. */
 .video-frame.youtube-active .yt-mask-layer {
+  overflow: hidden;
   --yt-iframe-w: calc((100cqh + var(--yt-crop-top, 0px)) * 16 / 9);
-  --yt-side: max(0px, calc((var(--yt-iframe-w) - 100cqw) / 2));
+  --yt-iframe-left: calc((100cqw - var(--yt-iframe-w)) / 2);
+  --yt-mask-left: max(0px, var(--yt-iframe-left));
+  --yt-origin: calc(var(--yt-iframe-left) - var(--yt-mask-left));
+  --yt-clip: min(100cqw, var(--yt-iframe-w));
+  --yt-card-l: max(0px, calc(var(--yt-origin) + 0.55 * var(--yt-iframe-w)));
+  --yt-card-r: min(var(--yt-clip), max(0px, calc(var(--yt-origin) + var(--yt-iframe-w))));
+  --yt-share-l: max(0px, var(--yt-origin));
+  --yt-share-r: min(var(--yt-clip), max(0px, calc(var(--yt-origin) + 96px)));
 }
 .yt-edge-logo,
 .yt-edge-share {
@@ -2175,15 +2185,13 @@ input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0
   opacity: 1;
 }
 .yt-edge-logo {
-  right: 0;
-  /* The card is ~38% of the iframe. Side crop already removes whatever
-     hangs past the pane, so the chip is only the part still on screen.
-     On an 800px desktop frame that is the right ~36%. */
-  width: max(0px, calc(0.38 * var(--yt-iframe-w, 100cqw) - var(--yt-side, 0px) - max(0px, var(--yt-side, 0px) - 180px)));
+  left: var(--yt-card-l, 0px);
+  right: auto;
+  width: max(0px, calc(var(--yt-card-r, 0px) - var(--yt-card-l, 0px)));
 }
 .yt-edge-share {
-  left: 0;
-  width: max(0px, min(96px, calc(250px - var(--yt-side, 0px))));
+  left: var(--yt-share-l, 0px);
+  width: max(0px, calc(var(--yt-share-r, 0px) - var(--yt-share-l, 0px)));
 }
 .video-frame.youtube-active.yt-started.yt-corner:not(.yt-mask) .yt-mask-layer { display: block; }
 .video-frame.youtube-active.yt-started.yt-corner:not(.yt-mask) .yt-edge:not(.yt-edge-logo):not(.yt-edge-share) { display: none; }
@@ -3792,20 +3800,6 @@ body.split-view-active .watch-layout.split-active .video-frame.youtube-active #y
     height: clamp(18px, 4cqh, 36px);
   }
 }
-/* While our own bar is on screen it sits on the bottom of the pane. The
-   picture, the poster, and the chips lift to the top of that stack so the
-   burned-in line is not under the bar or its fade. Hidden chrome lets the
-   picture sit on the pane edge again. Landscape non-split sets its own
-   bottom below and wins there. */
-body.split-view-active .watch-layout.split-active .video-frame.youtube-active:not(.controls-hidden) #youtubePlayerHost,
-body.split-view-active .watch-layout.split-active .video-frame.youtube-active:not(.controls-hidden) .yt-shield {
-  bottom: calc(var(--pc-bar-h, 68px) + var(--pc-timeline-h, 74px));
-}
-body.split-view-active .watch-layout.split-active .video-frame.youtube-active:not(.controls-hidden) .yt-mask-layer {
-  top: 0;
-  bottom: auto;
-  height: calc(100cqh - var(--pc-bar-h, 68px) - var(--pc-timeline-h, 74px));
-}
 /* Touch landscape, Split off. The daf picker is a row of the bottom chrome,
    and the picture ends above it. In Split the same bar lives in the divider
    panel; a mouse keeps it across the top of the video. */
@@ -3824,6 +3818,13 @@ body.split-view-active .watch-layout.split-active .video-frame.youtube-active:no
   body:not(.split-view-active) .video-frame.youtube-active .yt-shield,
   body:not(.split-view-active) .video-frame.youtube-active .yt-mask-layer {
     --chrome-h: calc(var(--pc-bar-h, 68px) + var(--pc-timeline-h, 74px) + var(--phone-picker-h, 40px));
+    /* This slot is the contained picture, not the oversized crop. The
+       chips have to use this box or they land on the wrong fraction. */
+    --yt-iframe-w: min(100cqw, calc((100cqh - var(--chrome-h)) * 16 / 9));
+    --yt-iframe-left: 0px;
+    --yt-mask-left: 0px;
+    --yt-origin: 0px;
+    --yt-clip: var(--yt-iframe-w);
     top: 0;
     bottom: auto;
     left: 0;
