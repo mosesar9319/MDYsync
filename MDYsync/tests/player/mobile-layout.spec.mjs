@@ -1450,7 +1450,7 @@ test.describe('mobile player layout', () => {
     const tall = await picture();
     expect(tall.frame.height).toBeGreaterThan(tall.frame.width * 9 / 16 + 8);
     expect(tall.host.top).toBeLessThan(tall.frame.top - 24);
-    expect(tall.host.bottom).toBeGreaterThan(tall.frame.bottom + 8);
+    expect(Math.abs(tall.host.bottom - tall.frame.bottom)).toBeLessThan(4);
     expect(tall.host.width).toBeGreaterThan(tall.frame.width + 8);
     expect(Math.abs((tall.host.left + tall.host.right) / 2 - (tall.frame.left + tall.frame.right) / 2)).toBeLessThan(3);
     expect(Math.abs(tall.mask.left - tall.frame.left)).toBeLessThan(2);
@@ -1482,7 +1482,7 @@ test.describe('mobile player layout', () => {
     expect(lower.frame.width / lower.frame.height).toBeLessThan(2 / 3);
     expect(lower.host.width).toBeGreaterThan(tall.host.width + 20);
     expect(lower.host.top).toBeLessThan(lower.frame.top - 24);
-    expect(lower.host.bottom).toBeGreaterThan(lower.frame.bottom + 8);
+    expect(Math.abs(lower.host.bottom - lower.frame.bottom)).toBeLessThan(4);
     expect(lower.host.width).toBeGreaterThan(lower.frame.width + 8);
     expect(Math.abs(lower.mask.bottom - lower.frame.bottom)).toBeLessThan(2);
     expect(lower.topEdge).toBeGreaterThan(8);
@@ -1500,7 +1500,7 @@ test.describe('mobile player layout', () => {
     const short = await picture();
     expect(short.frame.height).toBeLessThan(short.frame.width * 9 / 16 - 4);
     expect(short.host.top).toBeLessThan(short.frame.top - 28);
-    expect(short.host.bottom).toBeGreaterThan(short.frame.bottom + 8);
+    expect(Math.abs(short.host.bottom - short.frame.bottom)).toBeLessThan(4);
     expect(short.host.width / short.host.height).toBeGreaterThan(1.7);
     expect(short.host.width / short.host.height).toBeLessThan(1.85);
     expect(Math.abs(short.mask.top - short.frame.top)).toBeLessThan(2);
@@ -1643,8 +1643,7 @@ test.describe('mobile player layout', () => {
     };
     const expectCrop = (info, name) => {
       expect(info.topOver, `${name} title row`).toBeGreaterThanOrEqual(52);
-      expect(info.bottomOver, `${name} logo row`).toBeGreaterThanOrEqual(20);
-      expect(info.bottomOver, `${name} caption line`).toBeLessThanOrEqual(36);
+      expect(Math.abs(info.bottomOver), `${name} caption lines`).toBeLessThan(4);
       expect(info.sideOver).toBeGreaterThan(40);
       expect(info.ratio).toBeGreaterThan(1.7);
       expect(info.ratio).toBeLessThan(1.85);
@@ -1738,23 +1737,23 @@ test.describe('mobile player layout', () => {
           bg: after ? after.backgroundColor : '',
           bottom: after ? after.bottom : '',
           right: after ? after.right : '',
+          elapsed: performance.now() - window.__cornerT0,
         };
       }, name);
       await shot(page, name);
       expect(info.topOver, name).toBeGreaterThanOrEqual(52);
-      expect(info.bottomOver, name).toBeGreaterThanOrEqual(20);
-      expect(info.bottomOver, name).toBeLessThanOrEqual(36);
-      if (ms <= 3000) expect(info.mask, name).toBe(true);
-      if (ms >= 4000) expect(info.mask, name).toBe(false);
-      if (ms <= 5500) expect(info.corner, name).toBe(true);
-      if (ms >= 7500) expect(info.corner, name).toBe(false);
-      if (ms >= 4000 && ms <= 5500) {
+      expect(Math.abs(info.bottomOver), name).toBeLessThan(4);
+      if (info.elapsed <= 3200) expect(info.mask, name).toBe(true);
+      if (info.elapsed >= 4200) expect(info.mask, name).toBe(false);
+      if (info.elapsed <= 5400) expect(info.corner, name).toBe(true);
+      if (info.elapsed >= 7800) expect(info.corner, name).toBe(false);
+      if (info.elapsed >= 4200 && info.elapsed <= 5400) {
         expect(info.content, name).not.toBe('none');
-        expect(info.cornerH, name).toBeGreaterThanOrEqual(47);
-        expect(info.cornerH, name).toBeLessThanOrEqual(56);
-        expect(info.cornerW / info.layerW, name).toBeGreaterThan(0.28);
-        expect(info.cornerW / info.layerW, name).toBeLessThan(0.33);
-        expect(info.bg, name).toBe('rgb(244, 241, 234)');
+        expect(info.cornerH, name).toBeGreaterThanOrEqual(38);
+        expect(info.cornerH, name).toBeLessThanOrEqual(46);
+        expect(info.cornerW, name).toBeGreaterThanOrEqual(120);
+        expect(info.cornerW, name).toBeLessThanOrEqual(186);
+        expect(info.bg, name).toBe('rgba(24, 28, 34, 0.78)');
         expect(info.bottom, name).toBe('0px');
         expect(info.right, name).toBe('0px');
         expect(Math.abs(info.layerRight - info.frameRight), name).toBeLessThan(3);
@@ -1827,13 +1826,13 @@ test.describe('mobile player layout', () => {
             cornerW: after ? parseFloat(after.width) : 0,
             layerW: layerBox ? layerBox.width : 0,
             bg: after ? after.backgroundColor : '',
+            elapsed: performance.now() - window.__paneT0,
           };
         }, name);
         await shot(page, name);
         expect(info.frameH, name).toBeGreaterThan(70);
         expect(info.topOver, name).toBeGreaterThanOrEqual(28);
-        expect(info.bottomOver, name).toBeGreaterThanOrEqual(8);
-        expect(info.bottomOver, name).toBeLessThanOrEqual(40);
+        expect(Math.abs(info.bottomOver), name).toBeLessThan(4);
         expect(info.ratio, name).toBeGreaterThan(1.7);
         expect(info.ratio, name).toBeLessThan(1.85);
         const aspect = info.frameW / info.frameH;
@@ -1847,10 +1846,10 @@ test.describe('mobile player layout', () => {
           expect(aspect, name).toBeLessThan(16 / 9);
           expect(aspect, name).toBeGreaterThan(2 / 3);
         }
-        if (ms <= 3000) expect(info.mask, name).toBe(true);
-        if (ms >= 4000) expect(info.mask, name).toBe(false);
-        if (ms <= 5500) expect(info.corner, name).toBe(true);
-        if (ms >= 7500) expect(info.corner, name).toBe(false);
+        if (info.elapsed <= 3200) expect(info.mask, name).toBe(true);
+        if (info.elapsed >= 4200) expect(info.mask, name).toBe(false);
+        if (info.elapsed <= 5400) expect(info.corner, name).toBe(true);
+        if (info.elapsed >= 7800) expect(info.corner, name).toBe(false);
         if (info.mask) {
           if (aspect >= 16 / 9) {
             expect(info.topH, name).toBeGreaterThanOrEqual(28);
@@ -1860,12 +1859,13 @@ test.describe('mobile player layout', () => {
             expect(info.bottomH, name).toBeGreaterThanOrEqual(100);
           }
         }
-        if (ms >= 4000 && ms <= 5500) {
+        if (info.elapsed >= 4200 && info.elapsed <= 5400) {
           expect(info.content, name).not.toBe('none');
-          expect(info.cornerH, name).toBeGreaterThanOrEqual(22);
-          expect(info.cornerH, name).toBeLessThan(info.frameH * 0.6);
-          expect(info.cornerW / info.layerW, name).toBeGreaterThan(0.28);
-          expect(info.bg, name).toBe('rgb(244, 241, 234)');
+          expect(info.cornerH, name).toBeGreaterThanOrEqual(38);
+          expect(info.cornerH, name).toBeLessThanOrEqual(46);
+          expect(info.cornerW, name).toBeGreaterThanOrEqual(80);
+          expect(info.cornerW, name).toBeLessThanOrEqual(186);
+          expect(info.bg, name).toBe('rgba(24, 28, 34, 0.78)');
         }
       }
     }

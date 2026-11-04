@@ -9032,6 +9032,7 @@ const YT_ADVANCE_MS = 300;
 const YT_CHROME_HOLD_MS = 3400;
 const YT_CORNER_STEADY_MS = 6000;
 let ytRevealTimer = null;
+let ytCornerFadeTimer = null;
 let ytChromeHoldUntil = 0;
 let ytChromeHoldAfterPause = false;
 function armYouTubeChromeHold() {
@@ -9079,18 +9080,40 @@ function setYouTubePoster(videoId) {
 }
 // Opening poster only. Once a frame has been shown, this does not swap
 // the picture for the thumbnail.
+function cancelYouTubeCornerFade() {
+  clearTimeout(ytCornerFadeTimer);
+  ytCornerFadeTimer = null;
+}
+function dropYouTubeCorner(frame) {
+  cancelYouTubeCornerFade();
+  frame?.classList.remove('yt-corner', 'yt-corner-out');
+}
+// The chip fades out instead of popping off. A new mask cancels the fade
+// so a seek during it cannot remove the corner a moment later.
+function releaseYouTubeCorner(frame) {
+  if (!frame?.classList.contains('yt-corner') || frame.classList.contains('yt-corner-out')) return;
+  frame.classList.add('yt-corner-out');
+  cancelYouTubeCornerFade();
+  ytCornerFadeTimer = setTimeout(() => {
+    ytCornerFadeTimer = null;
+    frame.classList.remove('yt-corner', 'yt-corner-out');
+  }, 420);
+}
 function holdYouTubeChrome() {
   clearTimeout(ytRevealTimer);
   ytRevealTimer = null;
   const frame = $('videoFrame');
   if (!frame || frame.classList.contains('yt-started')) return;
   frame.classList.add('yt-hold');
-  frame.classList.remove('yt-playing', 'yt-mask', 'yt-corner');
+  frame.classList.remove('yt-playing', 'yt-mask');
+  dropYouTubeCorner(frame);
 }
 function maskYouTubeEdges() {
   const frame = $('videoFrame');
   if (!frame?.classList.contains('yt-started')) return;
   ensureYouTubeMask(frame);
+  cancelYouTubeCornerFade();
+  frame.classList.remove('yt-corner-out');
   frame.classList.add('yt-mask', 'yt-corner', 'yt-playing');
   frame.classList.remove('yt-hold');
 }
@@ -9182,7 +9205,8 @@ function scheduleYouTubeReveal() {
     if (youtubeOverlayRisk(t)) frame.classList.add('yt-mask');
     else frame.classList.remove('yt-mask');
     if (t - steadySince >= YT_CORNER_STEADY_MS && !youtubeOverlayRisk(t)) {
-      frame.classList.remove('yt-hold', 'yt-mask', 'yt-corner');
+      frame.classList.remove('yt-hold', 'yt-mask');
+      releaseYouTubeCorner(frame);
       return;
     }
     ytRevealTimer = setTimeout(watch, 50);
@@ -9213,7 +9237,8 @@ async function ensureYouTubePlayer(videoId) {
   state.youtubeCueId = videoId;
   // Cover first, then reveal the host. Unhiding the iframe before the
   // poster is in the DOM is the flash of YouTube's title bar on load.
-  $('videoFrame')?.classList.remove('yt-started', 'yt-playing', 'yt-mask', 'yt-corner');
+  cancelYouTubeCornerFade();
+  $('videoFrame')?.classList.remove('yt-started', 'yt-playing', 'yt-mask', 'yt-corner', 'yt-corner-out');
   holdYouTubeChrome();
   setYouTubePoster(videoId);
   switchPlayerType('youtube');
@@ -9428,7 +9453,8 @@ async function ensureYouTubePlayer(videoId) {
   } else {
     state.youtubePlayer.cueVideoById(videoId);
     state.youtubeState = 5;
-    $('videoFrame')?.classList.remove('yt-started', 'yt-playing', 'yt-mask', 'yt-corner');
+    cancelYouTubeCornerFade();
+    $('videoFrame')?.classList.remove('yt-started', 'yt-playing', 'yt-mask', 'yt-corner', 'yt-corner-out');
     holdYouTubeChrome();
     setYouTubePoster(videoId);
     flushQueuedSeek();
