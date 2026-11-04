@@ -289,13 +289,11 @@ test.describe('mobile player layout', () => {
     expect(paused.shield).toBe('none');
     expect(paused.layer).toBe('block');
     expect(paused.layerH).toBeGreaterThan(120);
-    // Solid bands: the title row, and the More videos shelf (about the
-    // bottom third on a short picture). The middle of the frame stays open.
+    // The title row is still covered. The caption lines are not: there is
+    // no full-width bottom band.
     expect(paused.edgeH).toBeGreaterThanOrEqual(48);
-    expect(paused.bottomH).toBeGreaterThanOrEqual(72);
+    expect(paused.bottomH).toBe(0);
     expect(paused.edgeH).toBeLessThan(paused.layerH * 0.45);
-    expect(paused.bottomH).toBeGreaterThan(paused.layerH * 0.28);
-    expect(paused.edgeH + paused.bottomH).toBeLessThan(paused.layerH * 0.92);
     expect(paused.play).toBe(false);
     await shot(page, 'youtube-cover-paused');
     await page.click('#viewerModeSplitButton');
@@ -1209,16 +1207,14 @@ test.describe('mobile player layout', () => {
     expect(dragged.frameTop).toBeGreaterThanOrEqual(dragged.layoutTop - 1);
     expect(dragged.frameH).toBeGreaterThanOrEqual(108);
     expect(dragged.frameBottom).toBeLessThanOrEqual(dragged.layoutBottom + 1);
-    expect(dragged.hostTop).toBeGreaterThanOrEqual(dragged.frameTop - 1);
-    expect(dragged.hostBottom).toBeLessThanOrEqual(dragged.frameBottom + 1);
+    expect(dragged.hostTop).toBeLessThan(dragged.frameTop - 24);
+    expect(Math.abs(dragged.hostBottom - dragged.frameBottom)).toBeLessThan(2);
     expect(parseFloat(dragged.iframeTop)).toBeGreaterThanOrEqual(-1);
-    // The poster shares the top-locked 16:9 box. It scales; it does not crop upward.
+    // The poster follows the cropped host: title off the top, bottom flush.
     expect(dragged.bgSize).toBe('contain');
     expect(dragged.bgPos).toMatch(/0%|top/);
-    expect(dragged.shieldTop).toBeGreaterThanOrEqual(dragged.frameTop - 1);
-    expect(dragged.shieldTop).toBeLessThanOrEqual(dragged.frameTop + 2);
-    expect(Math.abs(dragged.shieldH - dragged.fitted)).toBeLessThan(3);
-    expect(dragged.shieldBottom).toBeLessThanOrEqual(dragged.frameBottom + 1);
+    expect(dragged.shieldTop).toBeLessThan(dragged.frameTop - 24);
+    expect(Math.abs(dragged.shieldBottom - dragged.frameBottom)).toBeLessThan(2);
     expect(dragged.shieldLeft).toBeGreaterThanOrEqual(dragged.frameLeft - 1);
     expect(dragged.shieldRight).toBeLessThanOrEqual(dragged.frameRight + 1);
     await shot(page, 'phone-split-tools');
@@ -1402,7 +1398,9 @@ test.describe('mobile player layout', () => {
     });
     expect(geo.inFrame).toBe(true);
     expect(geo.topbarH).toBeGreaterThan(28);
-    expect(geo.hostBottom).toBeLessThanOrEqual(geo.topbarTop + 2);
+    expect(Math.abs(geo.hostBottom - geo.topbarTop), `landscape slot delta ${geo.hostBottom - geo.topbarTop}`).toBeLessThan(2);
+    expect(geo.hostBottom).toBeLessThanOrEqual(geo.frameBottom + 1);
+    console.log(`DELTA landscape host-vs-frame=${(geo.hostBottom - geo.frameBottom).toFixed(2)} host-vs-picker=${(geo.hostBottom - geo.topbarTop).toFixed(2)}`);
     expect(geo.topbarBottom).toBeLessThanOrEqual(geo.controlsTop + 2);
     expect(geo.topbarTop).toBeGreaterThan(geo.hostTop + 40);
     await shot(page, 'phone-landscape-picker-in-controls');
@@ -1450,7 +1448,8 @@ test.describe('mobile player layout', () => {
     const tall = await picture();
     expect(tall.frame.height).toBeGreaterThan(tall.frame.width * 9 / 16 + 8);
     expect(tall.host.top).toBeLessThan(tall.frame.top - 24);
-    expect(Math.abs(tall.host.bottom - tall.frame.bottom)).toBeLessThan(4);
+    expect(Math.abs(tall.host.bottom - tall.frame.bottom), `default host bottom delta ${tall.host.bottom - tall.frame.bottom}`).toBeLessThan(1);
+    console.log(`DELTA phone-default-open host=${(tall.host.bottom - tall.frame.bottom).toFixed(2)}`);
     expect(tall.host.width).toBeGreaterThan(tall.frame.width + 8);
     expect(Math.abs((tall.host.left + tall.host.right) / 2 - (tall.frame.left + tall.frame.right) / 2)).toBeLessThan(3);
     expect(Math.abs(tall.mask.left - tall.frame.left)).toBeLessThan(2);
@@ -1461,8 +1460,7 @@ test.describe('mobile player layout', () => {
     // byline and the More videos shelf. Only a far drag thins the bands.
     expect(tall.frame.width / tall.frame.height).toBeGreaterThan(2 / 3);
     expect(tall.topEdge).toBeGreaterThanOrEqual(64);
-    expect(tall.bottomEdge).toBeGreaterThanOrEqual(110);
-    expect(tall.bottomEdge).toBeLessThan(tall.frame.height * 0.5);
+    expect(tall.bottomEdge).toBe(0);
     expect(Math.abs(tall.shield.left - tall.host.left)).toBeLessThan(2);
     expect(Math.abs(tall.shield.top - tall.host.top)).toBeLessThan(2);
     expect(Math.abs(tall.shield.bottom - tall.host.bottom)).toBeLessThan(2);
@@ -1482,12 +1480,13 @@ test.describe('mobile player layout', () => {
     expect(lower.frame.width / lower.frame.height).toBeLessThan(2 / 3);
     expect(lower.host.width).toBeGreaterThan(tall.host.width + 20);
     expect(lower.host.top).toBeLessThan(lower.frame.top - 24);
-    expect(Math.abs(lower.host.bottom - lower.frame.bottom)).toBeLessThan(4);
+    expect(Math.abs(lower.host.bottom - lower.frame.bottom), `tall host bottom delta ${lower.host.bottom - lower.frame.bottom}`).toBeLessThan(1);
+    console.log(`DELTA phone-tall host=${(lower.host.bottom - lower.frame.bottom).toFixed(2)}`);
     expect(lower.host.width).toBeGreaterThan(lower.frame.width + 8);
     expect(Math.abs(lower.mask.bottom - lower.frame.bottom)).toBeLessThan(2);
     expect(lower.topEdge).toBeGreaterThan(8);
     expect(lower.topEdge).toBeLessThan(48);
-    expect(lower.bottomEdge).toBeLessThan(22);
+    expect(lower.bottomEdge).toBe(0);
     await shot(page, 'phone-split-cover');
 
     const div2 = await page.locator('#splitDivider').boundingBox();
@@ -1500,7 +1499,8 @@ test.describe('mobile player layout', () => {
     const short = await picture();
     expect(short.frame.height).toBeLessThan(short.frame.width * 9 / 16 - 4);
     expect(short.host.top).toBeLessThan(short.frame.top - 28);
-    expect(Math.abs(short.host.bottom - short.frame.bottom)).toBeLessThan(4);
+    expect(Math.abs(short.host.bottom - short.frame.bottom), `short host bottom delta ${short.host.bottom - short.frame.bottom}`).toBeLessThan(1);
+    console.log(`DELTA phone-short host=${(short.host.bottom - short.frame.bottom).toFixed(2)}`);
     expect(short.host.width / short.host.height).toBeGreaterThan(1.7);
     expect(short.host.width / short.host.height).toBeLessThan(1.85);
     expect(Math.abs(short.mask.top - short.frame.top)).toBeLessThan(2);
@@ -1585,8 +1585,8 @@ test.describe('mobile player layout', () => {
       expect(info.layer).toBe('block');
       expect(info.topCovers).toBe(true);
       expect(info.topH).toBeGreaterThanOrEqual(info.needed - 1);
-      expect(info.bottomCovers).toBe(true);
-      if (phone) expect(info.bottomH).toBeGreaterThanOrEqual(100);
+      expect(info.bottomCovers).toBe(false);
+      expect(info.bottomH).toBe(0);
     }
     await expect.poll(() => page.evaluate(() => document.getElementById('videoFrame').classList.contains('yt-mask')), { timeout: 2500 }).toBe(false);
 
@@ -1602,7 +1602,8 @@ test.describe('mobile player layout', () => {
       expect(info.mask, `${label} word ${ms}ms`).toBe(true);
       expect(info.layer).toBe('block');
       expect(info.topCovers).toBe(true);
-      expect(info.bottomCovers).toBe(true);
+      expect(info.bottomCovers).toBe(false);
+      expect(info.bottomH).toBe(0);
     }
     await expect.poll(() => page.evaluate(() => document.getElementById('videoFrame').classList.contains('yt-mask')), { timeout: 2500 }).toBe(false);
   });
@@ -1643,7 +1644,8 @@ test.describe('mobile player layout', () => {
     };
     const expectCrop = (info, name) => {
       expect(info.topOver, `${name} title row`).toBeGreaterThanOrEqual(52);
-      expect(Math.abs(info.bottomOver), `${name} caption lines`).toBeLessThan(4);
+      expect(Math.abs(info.bottomOver), `${name} caption lines delta ${info.bottomOver}`).toBeLessThan(2);
+      if (name.endsWith('0.5s')) console.log(`DELTA ${name} host=${info.bottomOver.toFixed(2)}`);
       expect(info.sideOver).toBeGreaterThan(40);
       expect(info.ratio).toBeGreaterThan(1.7);
       expect(info.ratio).toBeLessThan(1.85);
@@ -1749,11 +1751,12 @@ test.describe('mobile player layout', () => {
       if (info.elapsed >= 7800) expect(info.corner, name).toBe(false);
       if (info.elapsed >= 4200 && info.elapsed <= 5400) {
         expect(info.content, name).not.toBe('none');
-        expect(info.cornerH, name).toBeGreaterThanOrEqual(38);
-        expect(info.cornerH, name).toBeLessThanOrEqual(46);
-        expect(info.cornerW, name).toBeGreaterThanOrEqual(120);
-        expect(info.cornerW, name).toBeLessThanOrEqual(186);
-        expect(info.bg, name).toBe('rgba(24, 28, 34, 0.78)');
+        expect(info.cornerH, name).toBeGreaterThanOrEqual(26);
+        expect(info.cornerH, name).toBeLessThanOrEqual(30);
+        expect(info.cornerW, name).toBeGreaterThanOrEqual(100);
+        expect(info.cornerW, name).toBeLessThanOrEqual(136);
+        expect(info.cornerW, name).toBeLessThanOrEqual(info.layerW * 0.32);
+        expect(info.bg, name).toBe('rgba(14, 16, 20, 0.94)');
         expect(info.bottom, name).toBe('0px');
         expect(info.right, name).toBe('0px');
         expect(Math.abs(info.layerRight - info.frameRight), name).toBeLessThan(3);
@@ -1802,7 +1805,10 @@ test.describe('mobile player layout', () => {
           document.getElementById('holdMark').textContent = name;
           const frameEl = document.getElementById('videoFrame');
           const frame = frameEl.getBoundingClientRect();
-          const host = document.getElementById('youtubePlayerHost').getBoundingClientRect();
+          const hostEl = document.getElementById('youtubePlayerHost');
+          const host = hostEl.getBoundingClientRect();
+          const embed = hostEl.querySelector('iframe') || document.getElementById('youtubePlayer');
+          const embedBox = embed.getBoundingClientRect();
           const layer = frameEl.querySelector('.yt-mask-layer');
           const layerBox = layer ? layer.getBoundingClientRect() : null;
           const top = layer?.querySelector('.yt-edge-top');
@@ -1815,11 +1821,14 @@ test.describe('mobile player layout', () => {
             frameW: frame.width,
             topOver: frame.top - host.top,
             bottomOver: host.bottom - frame.bottom,
+            iframeBottomOver: embedBox.bottom - frame.bottom,
             ratio: host.width / host.height,
             maskTop: layerBox ? layerBox.top - frame.top : 99,
             maskBottom: layerBox ? frame.bottom - layerBox.bottom : 99,
             maskInside: layerBox ? layerBox.left >= frame.left - 1 && layerBox.right <= frame.right + 1 : false,
             topH: top ? top.getBoundingClientRect().height : 0,
+            topDisplay: top ? getComputedStyle(top).display : 'missing',
+            topCss: top ? getComputedStyle(top).height : 'missing',
             bottomH: bottom ? bottom.getBoundingClientRect().height : 0,
             content: after ? after.content : 'none',
             cornerH: after ? parseFloat(after.height) : 0,
@@ -1832,7 +1841,9 @@ test.describe('mobile player layout', () => {
         await shot(page, name);
         expect(info.frameH, name).toBeGreaterThan(70);
         expect(info.topOver, name).toBeGreaterThanOrEqual(28);
-        expect(Math.abs(info.bottomOver), name).toBeLessThan(4);
+        expect(Math.abs(info.bottomOver), `${name} host bottom delta ${info.bottomOver}`).toBeLessThan(1);
+        expect(Math.abs(info.iframeBottomOver), `${name} iframe bottom delta ${info.iframeBottomOver}`).toBeLessThan(1);
+        if (ms === 500) console.log(`DELTA ${name} host=${info.bottomOver.toFixed(2)} iframe=${info.iframeBottomOver.toFixed(2)} top=${info.topOver.toFixed(2)}`);
         expect(info.ratio, name).toBeGreaterThan(1.7);
         expect(info.ratio, name).toBeLessThan(1.85);
         const aspect = info.frameW / info.frameH;
@@ -1851,21 +1862,19 @@ test.describe('mobile player layout', () => {
         if (info.elapsed <= 5400) expect(info.corner, name).toBe(true);
         if (info.elapsed >= 7800) expect(info.corner, name).toBe(false);
         if (info.mask) {
-          if (aspect >= 16 / 9) {
-            expect(info.topH, name).toBeGreaterThanOrEqual(28);
-            expect(info.bottomH, name).toBeGreaterThanOrEqual(24);
-          } else {
-            expect(info.topH, name).toBeGreaterThanOrEqual(64);
-            expect(info.bottomH, name).toBeGreaterThanOrEqual(100);
-          }
+          expect(info.bottomH, name).toBe(0);
+          if (aspect >= 16 / 9) expect(info.topH, name).toBeGreaterThanOrEqual(28);
+          else if (aspect < 2 / 3) expect(info.topH, name).toBeGreaterThan(8);
+          else expect(info.topH, `${name} top band ${info.topDisplay} ${info.topCss}`).toBeGreaterThanOrEqual(64);
         }
         if (info.elapsed >= 4200 && info.elapsed <= 5400) {
           expect(info.content, name).not.toBe('none');
-          expect(info.cornerH, name).toBeGreaterThanOrEqual(38);
-          expect(info.cornerH, name).toBeLessThanOrEqual(46);
-          expect(info.cornerW, name).toBeGreaterThanOrEqual(80);
-          expect(info.cornerW, name).toBeLessThanOrEqual(186);
-          expect(info.bg, name).toBe('rgba(24, 28, 34, 0.78)');
+          expect(info.cornerH, name).toBeGreaterThanOrEqual(26);
+          expect(info.cornerH, name).toBeLessThanOrEqual(30);
+          expect(info.cornerW, name).toBeGreaterThan(24);
+          expect(info.cornerW, name).toBeLessThanOrEqual(136);
+          expect(info.cornerW, name).toBeLessThanOrEqual(info.layerW * 0.32 + 1);
+          expect(info.bg, name).toBe('rgba(14, 16, 20, 0.94)');
         }
       }
     }

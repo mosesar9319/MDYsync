@@ -2162,28 +2162,25 @@ input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0
   height: clamp(36px, 14%, 52px);
   background: #07111c;
 }
-/* After the full bands lift, YouTube's More videos card and logo can still
-   sit in the bottom-right, on the caption lines. The chip is only that
-   footprint: about 180 by 42, feathered so it is not a slab, and it fades
-   in and out. The bottom of the picture is not cropped, so both burned-in
-   lines stay in the frame. */
+/* The only mask on the caption lines is this bottom-right chip. It is the
+   More videos card and the logo: at most 30% of the picture, and only as
+   tall as that row. It does not fade upward onto the line above. A full-width
+   bottom band is never drawn. The chip fades in and out as a whole. */
 .video-frame.youtube-active.yt-started.yt-corner:not(.yt-mask) .yt-mask-layer { display: block; }
 .video-frame.youtube-active.yt-started.yt-corner:not(.yt-mask) .yt-edge { display: none; }
-.video-frame.youtube-active.yt-started.yt-corner:not(.yt-mask) .yt-mask-layer::after {
+.video-frame.youtube-active.yt-started.yt-corner .yt-mask-layer::after {
   content: "";
   position: absolute;
   right: 0;
   bottom: 0;
-  width: min(180px, 46%);
-  height: 42px;
+  width: min(30%, 132px);
+  height: 28px;
   pointer-events: none;
-  background-color: rgba(24, 28, 34, 0.78);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  -webkit-mask-image: linear-gradient(to top, #000 72%, transparent), linear-gradient(to left, #000 78%, transparent);
-  -webkit-mask-composite: source-in;
-  mask-image: linear-gradient(to top, #000 72%, transparent), linear-gradient(to left, #000 78%, transparent);
-  mask-composite: intersect;
+  background-color: rgba(14, 16, 20, 0.94);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  -webkit-mask-image: linear-gradient(to left, #000 84%, transparent);
+  mask-image: linear-gradient(to left, #000 84%, transparent);
   opacity: 1;
   animation: yt-corner-in .35s ease;
 }
@@ -2193,26 +2190,27 @@ input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0
   transition: opacity .35s ease;
 }
 @keyframes yt-corner-in { from { opacity: 0; } to { opacity: 1; } }
+/* No full-width strip over the burned-in lines, including while the title
+   band is up. The corner chip above is the bottom mask. */
+.video-frame.youtube-active .yt-edge-bottom,
+.video-frame.youtube-active .yt-edge-logo { display: none; }
 /* Desktop regular player (not Split). The pane is 16:9, so YouTube's title
-   row sits inside the picture. The iframe stays 16:9 and grows past the
-   top of the frame. Nothing hangs below it: both burned-in caption lines
-   stay in the visible box. The logo and More videos are the small corner
-   chip, not a bottom crop. */
+   row sits inside the picture. The iframe stays 16:9, its bottom edge is
+   the pane's bottom edge, and the extra height hangs off the top only. */
 @media (min-width: 900px) {
   body:not(.split-view-active) .video-frame.youtube-active {
     --yt-crop-top: 60px;
-    --yt-crop-bottom: 0px;
   }
   body:not(.split-view-active) .video-frame.youtube-active .youtube-player-host,
   body:not(.split-view-active) .video-frame.youtube-active .yt-shield {
     --yt-crop-top: 60px;
-    --yt-crop-bottom: 0px;
-    width: calc((100cqh + var(--yt-crop-top) + var(--yt-crop-bottom)) * 16 / 9);
-    height: calc(100cqh + var(--yt-crop-top) + var(--yt-crop-bottom));
+    width: calc((100cqh + var(--yt-crop-top)) * 16 / 9);
+    height: calc(100cqh + var(--yt-crop-top));
     max-width: none;
     max-height: none;
-    top: calc(var(--yt-crop-top) * -1);
-    left: calc((100cqw - (100cqh + var(--yt-crop-top) + var(--yt-crop-bottom)) * 16 / 9) / 2);
+    top: auto;
+    bottom: 0;
+    left: calc((100cqw - (100cqh + var(--yt-crop-top)) * 16 / 9) / 2);
     right: auto;
     margin-inline: 0;
   }
@@ -3707,29 +3705,28 @@ body.split-view-active .watch-layout.split-active .video-frame.youtube-active #y
   max-width: 100%;
   max-height: 100%;
 }
-/* Pane taller than 16:9. The picture scales past the pane: sides crop,
-   and the title row hangs above the clip. The bottom of the iframe lines
-   up with the pane so both burned-in caption lines stay whole. The mask
-   is the visible pane, not the oversized box. A phone's normal Split
-   height is already in this range. The bands stay chrome-sized. */
+/* Pane taller than 16:9 (cover). The picture scales past the pane. The
+   iframe is pinned to the pane's bottom edge, so the extra height — and
+   the title row — can only hang off the top. Sides crop. Nothing hangs
+   below. The mask is the visible pane. A phone's normal Split height is
+   already in this range. */
 @container yt-frame (aspect-ratio < 16 / 9) {
   body.split-view-active .watch-layout.split-active .video-frame.youtube-active #youtubePlayerHost,
   .video-frame.youtube-active .youtube-player-host,
-  .video-frame.youtube-active .yt-shield,
-  .video-frame.youtube-active .yt-mask-layer {
+  .video-frame.youtube-active .yt-shield {
     --yt-crop-top: clamp(36px, 8cqh, 84px);
-    --yt-crop-bottom: 0px;
-    width: calc((100cqh + var(--yt-crop-top) + var(--yt-crop-bottom)) * 16 / 9);
-    height: calc(100cqh + var(--yt-crop-top) + var(--yt-crop-bottom));
+    width: calc((100cqh + var(--yt-crop-top)) * 16 / 9);
+    height: calc(100cqh + var(--yt-crop-top));
     max-width: none;
     max-height: none;
-    top: calc(var(--yt-crop-top) * -1);
-    left: calc((100cqw - (100cqh + var(--yt-crop-top) + var(--yt-crop-bottom)) * 16 / 9) / 2);
+    top: auto;
+    bottom: 0;
+    left: calc((100cqw - (100cqh + var(--yt-crop-top)) * 16 / 9) / 2);
     right: auto;
     margin-inline: 0;
-    bottom: auto;
   }
   .video-frame.youtube-active .yt-mask-layer {
+    --yt-crop-top: clamp(36px, 8cqh, 84px);
     top: 0;
     left: 0;
     right: auto;
@@ -3744,41 +3741,29 @@ body.split-view-active .watch-layout.split-active .video-frame.youtube-active #y
     /* 48px of the iframe, scaled by how far the cover box is enlarged
        past the pane, then brought back by the crop. The band is at least
        that tall so the byline cannot sit above the toolbar. */
-    height: max(80px, calc(48px * ((100cqh + var(--yt-crop-top) + var(--yt-crop-bottom)) * 16 / 9) / 100cqw - var(--yt-crop-top)));
-  }
-  .video-frame.youtube-active .yt-mask-layer .yt-edge-bottom {
-    height: clamp(124px, 36cqh, 188px);
-    background: linear-gradient(to top, #07111c 0%, #07111c 88%, rgba(7, 17, 28, 0) 100%);
-  }
-  .video-frame.youtube-active .yt-mask-layer .yt-edge-logo {
-    width: clamp(100px, 32%, 160px);
-    height: clamp(44px, 16%, 64px);
+    height: max(80px, calc(48px * ((100cqh + var(--yt-crop-top)) * 16 / 9) / 100cqw - var(--yt-crop-top)));
   }
 }
-/* Pane at most 16:9 tall (divider dragged up, or a short default). The
-   contained box used to be exactly the pane height, so the title row,
-   channel line, and More videos sat inside the strip. The iframe stays
-   16:9 and grows past the top of the pane. The bottom stays flush so the
-   caption lines are not clipped. The mask is the visible picture. */
+/* Pane at most 16:9 tall (divider dragged up). The iframe stays 16:9 and
+   is pinned to the pane bottom, so the title row hangs off the top and the
+   caption lines stay whole. The mask is the visible picture. */
 @container yt-frame (aspect-ratio >= 16 / 9) {
   body.split-view-active .watch-layout.split-active .video-frame.youtube-active #youtubePlayerHost,
   body.split-view-active .watch-layout.split-active .video-frame.youtube-active .yt-shield {
     --yt-crop-top: clamp(36px, 40cqh, 60px);
-    --yt-crop-bottom: 0px;
-    width: calc((100cqh + var(--yt-crop-top) + var(--yt-crop-bottom)) * 16 / 9);
-    height: calc(100cqh + var(--yt-crop-top) + var(--yt-crop-bottom));
+    width: calc((100cqh + var(--yt-crop-top)) * 16 / 9);
+    height: calc(100cqh + var(--yt-crop-top));
     max-width: none;
     max-height: none;
-    top: calc(var(--yt-crop-top) * -1);
-    left: calc((100cqw - (100cqh + var(--yt-crop-top) + var(--yt-crop-bottom)) * 16 / 9) / 2);
+    top: auto;
+    bottom: 0;
+    left: calc((100cqw - (100cqh + var(--yt-crop-top)) * 16 / 9) / 2);
     right: auto;
-    bottom: auto;
     margin-inline: 0;
   }
   body.split-view-active .watch-layout.split-active .video-frame.youtube-active .yt-mask-layer {
     --yt-crop-top: clamp(36px, 40cqh, 60px);
-    --yt-crop-bottom: 0px;
-    --yt-picture-w: calc((100cqh + var(--yt-crop-top) + var(--yt-crop-bottom)) * 16 / 9);
+    --yt-picture-w: calc((100cqh + var(--yt-crop-top)) * 16 / 9);
     top: 0;
     bottom: auto;
     left: max(0px, calc((100cqw - var(--yt-picture-w)) / 2));
@@ -3792,25 +3777,13 @@ body.split-view-active .watch-layout.split-active .video-frame.youtube-active #y
   body.split-view-active .watch-layout.split-active .video-frame.youtube-active .yt-mask-layer .yt-edge-top {
     height: clamp(32px, 46cqh, 100px);
   }
-  body.split-view-active .watch-layout.split-active .video-frame.youtube-active .yt-mask-layer .yt-edge-bottom {
-    height: clamp(28px, 38cqh, 140px);
-  }
 }
-/* Divider dragged far down (picture much taller than it is wide). A
-   chrome-sized percentage of that pane is a dark slab over the burned-in
-   line. The crop above has already put the title and the corner logo
-   outside, so the visible bands stay a hairline. */
+/* Divider dragged far down. The title crop is already off the top. The
+   top band stays a hairline so it does not become a slab. The bottom of
+   the picture is left clear for the caption lines. */
 @container yt-frame (aspect-ratio < 2 / 3) {
   .video-frame.youtube-active .yt-mask-layer .yt-edge-top {
     height: clamp(18px, 4cqh, 36px);
-  }
-  .video-frame.youtube-active .yt-mask-layer .yt-edge-bottom {
-    height: 14px;
-    background: linear-gradient(to top, rgba(7, 17, 28, .72), rgba(7, 17, 28, 0));
-  }
-  .video-frame.youtube-active .yt-mask-layer .yt-edge-logo {
-    width: 84px;
-    height: 22px;
   }
 }
 /* Touch landscape, Split off. The daf picker is a row of the bottom chrome,
@@ -3840,6 +3813,15 @@ body.split-view-active .watch-layout.split-active .video-frame.youtube-active #y
     height: min(calc(100cqh - var(--chrome-h)), calc(100cqw * 9 / 16));
     max-width: 100%;
     max-height: calc(100cqh - var(--chrome-h));
+  }
+  /* The picture fills the slot above the picker. Its own bottom edge is
+     that slot's bottom edge, so the caption lines are not cropped and the
+     iframe does not run under the controls. */
+  body:not(.split-view-active) .video-frame.youtube-active .youtube-player-host,
+  body:not(.split-view-active) .video-frame.youtube-active .yt-shield,
+  body:not(.split-view-active) .video-frame.youtube-active .yt-mask-layer {
+    top: auto;
+    bottom: var(--chrome-h);
   }
 }
 body.split-view-active .watch-layout.split-active .video-frame #video,
