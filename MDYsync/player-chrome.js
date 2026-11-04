@@ -52,7 +52,78 @@
     // View glyph above the player (see viewer-mode-select's markup).
     splitView: svg(`<rect x="2.5" y="4.5" width="8.5" height="15" rx="2" ${STROKE}/><rect x="13" y="4.5" width="8.5" height="15" rx="2" ${STROKE}/>`),
     pip: svg(`<rect x="2.5" y="4.5" width="19" height="15" rx="2.2" ${STROKE}/><rect x="12" y="11.5" width="8" height="6.5" rx="1.4" fill="currentColor"/>`),
+    captions: svg(`<rect x="2" y="5" width="20" height="14" rx="2.2" ${STROKE}/><path d="M7 10.2h2.2a1.4 1.4 0 0 1 0 2.8H7M13.2 10.2H16a1.4 1.4 0 0 1 0 2.8h-2.8" ${STROKE}/>`),
   };
+
+  // Menus are portaled out of .player-controls so the scrubber can't cover
+  // them. In native fullscreen only the fullscreen element is painted, so
+  // a menu left on <body> opens and the reader sees nothing. The host is
+  // the fullscreen element while one is active, and <body> otherwise.
+  function chromeMenuHost() {
+    return document.fullscreenElement || document.webkitFullscreenElement || document.body;
+  }
+  // A phone tap often never delivers the click (the bar reflows between
+  // pointerup and the synthesized click). Toggle on pointerup, and ignore
+  // the click that follows so a ghost click can't undo the press. A later
+  // tap is a new pointerup, so the same button still toggles closed.
+  // Keyboard activation has no pointerup and still arrives as a click.
+  let closeSpeedMenu = () => {};
+  function bindPressToggle(anchor, isOpen, setOpen) {
+    let swallowUntil = 0;
+    let press = null;
+    anchor.addEventListener('pointerdown', (event) => {
+      if (event.button > 0) return;
+      press = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    });
+    anchor.addEventListener('pointerup', (event) => {
+      if (!press || event.pointerId !== press.id) return;
+      const moved = Math.hypot(event.clientX - press.x, event.clientY - press.y);
+      press = null;
+      if (moved > 10) return;
+      swallowUntil = performance.now() + 700;
+      setOpen(!isOpen());
+    });
+    anchor.addEventListener('pointercancel', () => { press = null; });
+    anchor.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (performance.now() < swallowUntil) return;
+      setOpen(!isOpen());
+    });
+  }
+  function pointerInside(event, node) {
+    const target = event.target;
+    return Boolean(node && target instanceof Node && (node === target || node.contains(target)));
+  }
+  function attachChromeMenu(menu) {
+    if (!menu) return;
+    const host = chromeMenuHost();
+    if (menu.parentElement !== host) host.appendChild(menu);
+  }
+  function placeChromeMenu(menu, anchor, align) {
+    attachChromeMenu(menu);
+    const wasHidden = menu.hidden;
+    menu.hidden = false;
+    menu.style.position = 'fixed';
+    menu.style.visibility = 'hidden';
+    const r = anchor.getBoundingClientRect();
+    const vv = window.visualViewport;
+    const viewTop = vv ? vv.offsetTop : 0;
+    const viewLeft = vv ? vv.offsetLeft : 0;
+    const viewH = vv ? vv.height : window.innerHeight;
+    const viewW = vv ? vv.width : window.innerWidth;
+    const mh = menu.offsetHeight || 40;
+    const mw = menu.offsetWidth || 40;
+    let top = r.top - mh - 8;
+    if (top < viewTop + 8) top = Math.min(r.bottom + 8, viewTop + viewH - mh - 8);
+    let left = align === 'end' ? r.right - mw : r.left;
+    left = Math.max(viewLeft + 8, Math.min(left, viewLeft + viewW - mw - 8));
+    menu.style.top = `${Math.round(top)}px`;
+    menu.style.left = `${Math.round(left)}px`;
+    menu.style.right = 'auto';
+    menu.style.bottom = 'auto';
+    menu.style.visibility = '';
+    if (wasHidden) menu.hidden = true;
+  }
 
   // --- The bar across the top of the video ---------------------------------
   // Absolutely positioned inside .video-frame (not above it in page flow) for
@@ -129,6 +200,7 @@
   }
   if (!moreItems.length) $('playerMoreButton').hidden = true;
 
+  let topbarOpenedAt = 0;
   function closeMenus(except = null) {
     for (const [menuId, buttonId] of [['playerDafMenu', 'playerDafButton'], ['playerMoreMenu', 'playerMoreButton']]) {
       if (menuId === except) continue;
@@ -136,17 +208,34 @@
       $(buttonId).setAttribute('aria-expanded', 'false');
     }
   }
-  function toggleMenu(menuId, buttonId) {
+  function setTopbarMenu(menuId, buttonId, open) {
+    closeMenus(open ? menuId : null);
     const menu = $(menuId);
-    const opening = menu.hidden;
-    closeMenus(opening ? menuId : null);
-    menu.hidden = !opening;
-    $(buttonId).setAttribute('aria-expanded', String(opening));
+    const button = $(buttonId);
+    menu.hidden = !open;
+    button.setAttribute('aria-expanded', String(open));
+    if (!open) return;
+    topbarOpenedAt = performance.now();
+    // Fixed, and above the button when the bar sits in the bottom chrome.
+    // A menu that opens downward from that row is clipped by the frame.
+    placeChromeMenu(menu, button, menuId === 'playerMoreMenu' ? 'end' : 'start');
   }
-  $('playerDafButton').addEventListener('click', () => toggleMenu('playerDafMenu', 'playerDafButton'));
-  $('playerMoreButton').addEventListener('click', () => toggleMenu('playerMoreMenu', 'playerMoreButton'));
+  bindPressToggle($('playerDafButton'), () => !$('playerDafMenu').hidden, (open) => setTopbarMenu('playerDafMenu', 'playerDafButton', open));
+  bindPressToggle($('playerMoreButton'), () => !$('playerMoreMenu').hidden, (open) => setTopbarMenu('playerMoreMenu', 'playerMoreButton', open));
+  function topbarMenuEventInside(event) {
+    return ['playerDafMenu', 'playerMoreMenu', 'playerDafButton', 'playerMoreButton'].some((id) => pointerInside(event, $(id)));
+  }
+  document.addEventListener('pointerdown', (event) => {
+    const dafOpen = !$('playerDafMenu').hidden;
+    const moreOpen = !$('playerMoreMenu').hidden;
+    if (!dafOpen && !moreOpen) return;
+    if (topbarMenuEventInside(event)) return;
+    closeMenus();
+  }, true);
   document.addEventListener('click', (event) => {
-    if (!topbar.contains(event.target)) closeMenus();
+    if (topbarMenuEventInside(event)) return;
+    if (performance.now() - topbarOpenedAt < 600) return;
+    closeMenus();
   });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeMenus();
@@ -303,7 +392,7 @@
     // .scrubber-wrap's z-index no matter how high it's set, and
     // .video-frame's own overflow:hidden would clip it outright in the
     // reading-mode mini player specifically.
-    document.body.appendChild(speedMenu);
+    attachChromeMenu(speedMenu);
     speedButton.setAttribute('aria-controls', 'speedMenu');
     // Clicking an option is a MOUSEDOWN-then-mouseup-then-click sequence, and
     // mousedown's own default action is to focus the nearest focusable
@@ -377,28 +466,30 @@
     // bottom of the frame with nothing under it, the same placement
     // positionToolsMenu below uses for the same reason.
     function positionSpeedMenu() {
-      const r = speedButton.getBoundingClientRect();
-      speedMenu.style.position = 'fixed';
-      speedMenu.style.left = `${Math.max(8, r.left)}px`;
-      speedMenu.style.bottom = `${Math.max(8, window.innerHeight - r.top + 8)}px`;
+      placeChromeMenu(speedMenu, speedButton, 'start');
     }
+    let speedPointer = 'mouse';
+    let speedOpenedAt = 0;
+    speedButton.addEventListener('pointerdown', (event) => {
+      speedPointer = event.pointerType || 'mouse';
+    }, true);
     function openSpeedMenu() {
       positionSpeedMenu();
       speedMenu.hidden = false;
       speedButton.setAttribute('aria-expanded', 'true');
+      speedOpenedAt = performance.now();
       setActiveOption(speedMenu.querySelector(`[data-value="${CSS.escape(speedButton.value)}"]`) || speedMenu.firstElementChild);
-      // preventScroll: this is already on screen (a fixed-position element
-      // inside the viewport) -- nothing here should cause the page itself to
-      // jump just because a listbox took focus.
-      speedMenu.focus({ preventScroll: true });
+      // Focusing the list on a touch phone scrolls the page and can swallow
+      // the tap. Keyboard use still moves focus in so the arrows work.
+      if (speedPointer !== 'touch') speedMenu.focus({ preventScroll: true });
     }
-    function closeSpeedMenu() {
+    closeSpeedMenu = function () {
       speedMenu.hidden = true;
       speedButton.setAttribute('aria-expanded', 'false');
-    }
-    speedButton.addEventListener('click', (event) => {
-      event.stopPropagation();
-      if (speedMenu.hidden) openSpeedMenu(); else closeSpeedMenu();
+    };
+    bindPressToggle(speedStack, () => !speedMenu.hidden, (open) => {
+      if (open) openSpeedMenu();
+      else closeSpeedMenu();
     });
     speedMenu.addEventListener('keydown', (event) => {
       const items = [...speedMenu.children];
@@ -419,8 +510,16 @@
         closeSpeedMenu();
       }
     });
+    function speedEventInside(event) {
+      return pointerInside(event, speedMenu) || pointerInside(event, speedStack) || pointerInside(event, speedButton);
+    }
+    document.addEventListener('pointerdown', (event) => {
+      if (speedMenu.hidden || speedEventInside(event)) return;
+      closeSpeedMenu();
+    }, true);
     document.addEventListener('click', (event) => {
-      if (speedMenu.hidden || speedMenu.contains(event.target) || speedButton.contains(event.target)) return;
+      if (speedMenu.hidden || speedEventInside(event)) return;
+      if (performance.now() - speedOpenedAt < 600) return;
       closeSpeedMenu();
     });
     // A safety net, not the primary close path (openSpeedMenu moves focus
@@ -430,6 +529,23 @@
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !speedMenu.hidden) closeSpeedMenu(); });
     window.addEventListener('resize', () => { if (!speedMenu.hidden) positionSpeedMenu(); });
   }
+  const captionsButton = document.createElement('button');
+  captionsButton.type = 'button';
+  captionsButton.className = 'icon-button';
+  captionsButton.id = 'captionsButton';
+  captionsButton.setAttribute('aria-pressed', 'false');
+  captionsButton.setAttribute('aria-label', 'Captions off');
+  captionsButton.title = 'Captions off';
+  captionsButton.innerHTML = ICONS.captions;
+  const captionsStack = stack(captionsButton, 'Captions off');
+  captionsStack.id = 'captionsStack';
+  tools.appendChild(captionsStack);
+  captionsButton.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const next = captionsButton.getAttribute('aria-pressed') !== 'true';
+    if (typeof window.setCaptionsEnabled === 'function') window.setCaptionsEnabled(next);
+  });
+
   const settingsStack = $('videoSettings') ? stack($('videoSettings'), 'Settings') : null;
   if (settingsStack) tools.appendChild(settingsStack);
   const fullscreenStack = $('fullscreenButton') ? stack($('fullscreenButton'), 'Fullscreen') : null;
@@ -517,44 +633,70 @@
   toolsMoreMenu.className = 'pc-tools-menu';
   toolsMoreMenu.id = 'toolsMoreMenu';
   toolsMoreMenu.hidden = true;
-  document.body.appendChild(toolsMoreMenu);
+  attachChromeMenu(toolsMoreMenu);
 
   function closeToolsMenu() {
     toolsMoreMenu.hidden = true;
     toolsMoreButton.setAttribute('aria-expanded', 'false');
   }
-  // Anchored from the button's own live screen position, exactly like
-  // positionSettingsPanel below -- opens UPWARD (bottom-anchored), since
-  // this bar sits at the very bottom of the frame with nothing under it.
   function positionToolsMenu() {
-    const r = toolsMoreButton.getBoundingClientRect();
-    toolsMoreMenu.style.position = 'fixed';
-    toolsMoreMenu.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
-    toolsMoreMenu.style.bottom = `${Math.max(8, window.innerHeight - r.top + 8)}px`;
+    placeChromeMenu(toolsMoreMenu, toolsMoreButton, 'end');
   }
-  toolsMoreButton.addEventListener('click', (event) => {
-    event.stopPropagation();
-    const opening = toolsMoreMenu.hidden;
-    toolsMoreMenu.hidden = !opening;
-    toolsMoreButton.setAttribute('aria-expanded', String(opening));
-    if (opening) positionToolsMenu();
+  let toolsOpenedAt = 0;
+  bindPressToggle(toolsMoreStack, () => !toolsMoreMenu.hidden, (open) => {
+    toolsMoreMenu.hidden = !open;
+    toolsMoreButton.setAttribute('aria-expanded', String(open));
+    if (open) {
+      toolsOpenedAt = performance.now();
+      positionToolsMenu();
+    }
   });
-  // Clicking an item closes the tray, the way any other overflow menu does
-  // -- except Settings, whose click just opens ITS OWN panel (the
-  // reparented .video-settings-body below) without dismissing the tray it's
-  // currently sitting in; that panel already has its own outside-click
-  // handling, so leaving the tray open behind it is harmless.
+  // A tap on the row's caption (the word next to the icon) is not the
+  // button itself. Send it to the control. Settings keeps the tray open
+  // because its own panel replaces it; every other control closes the tray
+  // after it runs, except speed, whose list has to stay reachable on top.
   toolsMoreMenu.addEventListener('click', (event) => {
-    if (event.target.closest('.video-settings')) return;
+    if (event.target.closest('.video-settings, #speedMenu')) return;
+    const control = event.target.closest('button, .speed-select, summary');
+    if (control && toolsMoreMenu.contains(control)) {
+      if (control.id === 'speedSelect' || control.id === 'videoSettings' || control.closest('.video-settings')) return;
+      // Leave the tray open so the Captions row can show On versus Off.
+      if (control.id === 'captionsButton') return;
+      closeToolsMenu();
+      return;
+    }
+    const stack = event.target.closest('.pc-stack');
+    const inner = stack?.querySelector('button, .speed-select');
+    if (inner) {
+      inner.click();
+      return;
+    }
     closeToolsMenu();
   });
+  function toolsEventInside(event) {
+    if (pointerInside(event, toolsMoreMenu) || pointerInside(event, toolsMoreStack) || pointerInside(event, toolsMoreButton)) return true;
+    const target = event.target;
+    return Boolean(target instanceof Element && target.closest('#speedMenu, .video-settings-body-portal, #videoSettings'));
+  }
+  document.addEventListener('pointerdown', (event) => {
+    if (toolsMoreMenu.hidden || toolsEventInside(event)) return;
+    closeToolsMenu();
+  }, true);
   document.addEventListener('click', (event) => {
-    if (toolsMoreMenu.hidden || toolsMoreMenu.contains(event.target) || toolsMoreButton.contains(event.target)) return;
+    if (toolsMoreMenu.hidden || toolsEventInside(event)) return;
+    if (performance.now() - toolsOpenedAt < 600) return;
     closeToolsMenu();
   });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeToolsMenu();
   });
+  window.closePlayerChromeMenus = function () {
+    closeMenus();
+    closeToolsMenu();
+    closeSpeedMenu();
+    const settings = $('videoSettings');
+    if (settings?.open) settings.open = false;
+  };
   window.addEventListener('resize', () => { if (!toolsMoreMenu.hidden) positionToolsMenu(); });
 
   // videoOnDafButton is always a real element (built unconditionally by
@@ -571,7 +713,7 @@
   // so a resize that frees up room brings a control back to exactly where
   // it started rather than leaving it stranded in the menu from a previous,
   // narrower pass.
-  const TOOLS_ORDER = [speedStack, settingsStack, hasSplitView && splitViewButton, dafOnVideoButton, hasReadingMode && videoOnDafButton, pipStack, toolsMoreStack, fullscreenStack].filter(Boolean);
+  const TOOLS_ORDER = [speedStack, captionsStack, settingsStack, hasSplitView && splitViewButton, dafOnVideoButton, hasReadingMode && videoOnDafButton, pipStack, toolsMoreStack, fullscreenStack].filter(Boolean);
   // Overflow priority, most disposable first -- the mirror image of
   // TOOLS_ORDER's own tail: PiP is a pure convenience, the two older pills
   // exist because reading mode/the overlay each have their own separate,
@@ -583,8 +725,8 @@
   // than the other two before the bar has to hide it. Fullscreen stays in
   // the bar (re-pinned at the end of fitChrome). Speed is last here so it
   // leaves only after every wider control already has, which is what keeps
-  // 44px phone targets inside the frame.
-  const OVERFLOW_PRIORITY = [pipStack, hasReadingMode && videoOnDafButton, dafOnVideoButton, hasSplitView && splitViewButton, settingsStack, speedStack].filter(Boolean);
+  // the phone bar inside the frame.
+  const OVERFLOW_PRIORITY = [pipStack, hasReadingMode && videoOnDafButton, dafOnVideoButton, hasSplitView && splitViewButton, settingsStack, captionsStack, speedStack].filter(Boolean);
 
   // The old bar's hand-placed spacers/dividers did the job .pc-group's own
   // space-between layout now does.
@@ -721,15 +863,11 @@
     const frameAccent = getComputedStyle(frame);
     settingsBody.style.setProperty('--accent', frameAccent.getPropertyValue('--accent'));
     settingsBody.style.setProperty('--accent-soft', frameAccent.getPropertyValue('--accent-soft'));
-    document.body.appendChild(settingsBody);
+    attachChromeMenu(settingsBody);
     settingsBody.hidden = true;
 
     function positionSettingsPanel() {
-      const r = settingsDetails.getBoundingClientRect();
-      settingsBody.style.position = 'fixed';
-      settingsBody.style.left = 'auto';
-      settingsBody.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
-      settingsBody.style.bottom = `${Math.max(8, window.innerHeight - r.top + 8)}px`;
+      placeChromeMenu(settingsBody, settingsDetails, 'end');
     }
     settingsDetails.addEventListener('toggle', () => {
       settingsBody.hidden = !settingsDetails.open;
@@ -766,6 +904,21 @@
       if (event.key === 'Escape' && settingsDetails.open) settingsDetails.open = false;
     });
   }
+
+  function repositionOpenChromeMenus() {
+    const speed = $('speedMenu');
+    const toolsMenu = $('toolsMoreMenu');
+    const panel = document.querySelector('.video-settings-body-portal');
+    attachChromeMenu(speed);
+    attachChromeMenu(toolsMenu);
+    attachChromeMenu(panel);
+    if (speed && !speed.hidden && $('speedSelect')) placeChromeMenu(speed, $('speedSelect'), 'start');
+    if (toolsMenu && !toolsMenu.hidden && $('toolsMoreButton')) placeChromeMenu(toolsMenu, $('toolsMoreButton'), 'end');
+    const gear = $('videoSettings');
+    if (panel && gear?.open) placeChromeMenu(panel, gear, 'end');
+  }
+  document.addEventListener('fullscreenchange', repositionOpenChromeMenus);
+  document.addEventListener('webkitfullscreenchange', repositionOpenChromeMenus);
 
   // --- Picture in picture --------------------------------------------------
   // Real PiP, which the browser only offers for the <video> element -- a
@@ -1262,4 +1415,5 @@
   // to know the chrome exists.
   window.DafSyncPlayerChrome = { refreshChapterMarkers, refreshDafIdentity };
   refreshChapterMarkers();
+  if (typeof window.applyCaptionsPreference === 'function') window.applyCaptionsPreference();
 })();

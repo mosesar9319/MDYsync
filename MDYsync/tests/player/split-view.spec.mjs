@@ -40,6 +40,21 @@ async function enterSplitView(page) {
   await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
 }
 
+// Playwright's click leaves the mouse on the mode button. A resting mouse
+// keeps the bar up on purpose. Clear that, then start the player-chrome
+// idle timer — the mode row hides with those controls, not on its own.
+async function settleSplitChrome(page) {
+  await page.evaluate(() => {
+    document.getElementById('viewerModeSelect')?.dispatchEvent(new PointerEvent('pointerout', { pointerType: 'mouse', bubbles: true }));
+    document.getElementById('videoFrame')?.dispatchEvent(new PointerEvent('pointerout', {
+      pointerType: 'mouse',
+      bubbles: true,
+      relatedTarget: document.body,
+    }));
+    document.getElementById('videoFrame')?.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+  });
+}
+
 test.describe('Unified viewing modes — the prominent selector', () => {
   test('the page loads into standard mode, not Split View, exactly as before this feature existed', async ({ page }) => {
     failOnPageError(page);
@@ -253,7 +268,7 @@ test.describe('Split View — divider and layout', () => {
     expect(swapped.insideVideo).toBe(true);
   });
 
-  test('exiting fullscreen without a key also exits Split; the fullscreen button keeps it', async ({ page }) => {
+  test('leaving split fullscreen keeps Split on', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
     await page.goto('/player/?ref=Chullin%2089a');
@@ -269,18 +284,38 @@ test.describe('Split View — divider and layout', () => {
     test.skip(!String(fullscreen).includes('watch-layout'), `fullscreen unavailable (${fullscreen})`);
 
     // Chrome consumes Esc and only tells the page via fullscreenchange.
+    // That leaves fullscreen only. Split stays on.
     await page.evaluate(() => document.exitFullscreen());
-    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
     await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBeFalsy();
+    expect(await page.evaluate(() => state.viewerMode)).toBe('split');
 
-    await page.click('#viewerModeSplitButton');
-    await dismissErrorBanner(page);
-    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
     await page.evaluate(async () => { await document.querySelector('.watch-layout').requestFullscreen(); });
     await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(true);
     await page.evaluate(() => toggleVilnaFullscreen());
     await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBeFalsy();
     expect(await page.evaluate(() => state.viewerMode)).toBe('split');
+  });
+
+  test('a tap that starts on the video does not turn Split off', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await enterSplitView(page);
+    await page.evaluate(() => document.body.classList.remove('split-chrome-hidden'));
+    const stayed = await page.evaluate(() => {
+      const surface = document.getElementById('splitVideoPinchSurface');
+      const pressPicture = () => surface.dispatchEvent(new PointerEvent('pointerdown', {
+        bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX: 40, clientY: 180,
+      }));
+      pressPicture();
+      document.getElementById('viewerModeSplitButton').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      pressPicture();
+      document.getElementById('splitExitButton').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      return state.viewerMode;
+    });
+    expect(stayed).toBe('split');
+    await page.click('#splitExitButton');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
   });
 
   test('Escape exits Split View to standard, and the exit button does the same', async ({ page }) => {
@@ -453,10 +488,15 @@ test.describe('Split View — its overlays never cover the player chrome', () =>
     await page.goto('/player/?ref=Chullin%2089a');
     await enterSplitView(page);
     await dismissErrorBanner(page);
+    if (await page.evaluate(() => document.body.classList.contains('split-tools-phone'))) {
+      await page.click('#splitDivider');
+      await expect(page.locator('body')).toHaveClass(/split-tools-open/);
+    }
 
     const elAtDafButton = await page.evaluate(() => {
       const btn = document.getElementById('playerDafButton');
       const r = btn.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) return false;
       const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
       return el?.closest('#playerDafButton') != null;
     });
@@ -509,17 +549,33 @@ test.describe('Split View — its overlays never cover the player chrome', () =>
 
     const gap = await page.evaluate(() => {
       const topbar = document.querySelector('.player-topbar');
+      const frame = document.getElementById('videoFrame');
       const r = topbar.getBoundingClientRect();
       const before = getComputedStyle(topbar, '::before');
-      return { topbarTop: r.top, beforeHeight: parseFloat(before.height), beforeBackground: before.backgroundColor };
+      const narrow = window.matchMedia('(max-width: 760px), (max-height: 520px) and (max-width: 1100px)').matches;
+      const phoneTools = document.body.classList.contains('split-tools-phone');
+      return {
+        topbarTop: r.top,
+        beforeHeight: parseFloat(before.height),
+        beforeBackground: before.backgroundColor,
+        narrow,
+        phoneTools,
+        inFrame: frame.contains(topbar),
+        overVideo: r.height > 0 && r.top < frame.getBoundingClientRect().bottom && r.bottom > frame.getBoundingClientRect().top,
+      };
     });
-    // The pseudo-element's own height should span from the very top of the
-    // frame down to the (now repositioned) topbar's own top edge -- not a
-    // fixed guess, so it stays correct if that offset ever changes. A
-    // couple of pixels of slack absorbs calc()-vs-getBoundingClientRect
-    // subpixel rounding, not a meaningful gap.
-    expect(Math.abs(gap.beforeHeight - gap.topbarTop)).toBeLessThanOrEqual(2);
-    expect(gap.beforeBackground).toBe('rgba(4, 12, 22, 0.9)');
+    // A phone in stacked Split keeps the picker in the divider's panel,
+    // off the picture. Desktop fills the vacated strip under the mode bar.
+    if (gap.phoneTools) {
+      expect(gap.inFrame).toBe(false);
+      expect(gap.overVideo).toBe(false);
+    } else if (gap.narrow) {
+      expect(gap.beforeHeight).toBeLessThanOrEqual(12);
+      expect(gap.beforeHeight).toBeGreaterThan(0);
+    } else {
+      expect(Math.abs(gap.beforeHeight - gap.topbarTop)).toBeLessThanOrEqual(2);
+      expect(gap.beforeBackground).toBe('rgba(4, 12, 22, 0.9)');
+    }
   });
 
   // The topbar's own offset is driven by --viewer-mode-bar-h, a CSS var kept
@@ -542,13 +598,24 @@ test.describe('Split View — its overlays never cover the player chrome', () =>
     const measurements = await page.evaluate(() => {
       const bar = document.getElementById('viewerModeSelect');
       const topbar = document.querySelector('.player-topbar');
+      const frame = document.getElementById('videoFrame');
       const barRect = bar.getBoundingClientRect();
       const topbarRect = topbar.getBoundingClientRect();
       const cssVar = getComputedStyle(document.documentElement).getPropertyValue('--viewer-mode-bar-h').trim();
-      return { barBottom: barRect.bottom, topbarTop: topbarRect.top, cssVar: parseFloat(cssVar) };
+      return {
+        barBottom: barRect.bottom,
+        topbarTop: topbarRect.top,
+        cssVar: parseFloat(cssVar),
+        phoneTools: document.body.classList.contains('split-tools-phone'),
+        inFrame: frame.contains(topbar),
+      };
     });
     expect(measurements.cssVar).toBeGreaterThan(0);
-    expect(Math.abs(measurements.topbarTop - measurements.barBottom)).toBeLessThanOrEqual(2);
+    if (measurements.phoneTools) {
+      expect(measurements.inFrame).toBe(false);
+    } else {
+      expect(Math.abs(measurements.topbarTop - measurements.barBottom)).toBeLessThanOrEqual(2);
+    }
   });
 
   // An identity transform still promotes the element to its own composited
@@ -671,27 +738,32 @@ test.describe('Split View — the daf pane is flush, and the combined bar auto-h
     expect(merged.hasDivider).toBe(true);
   });
 
-  test('the combined bar auto-hides after inactivity, and only the daf pane or the bar itself bring it back -- never the video control bar', async ({ page }) => {
+  test('the combined bar auto-hides with the player chrome, and a daf tap brings it back', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
     await page.goto('/player/?ref=Chullin%2089a');
     await enterSplitView(page);
+    await settleSplitChrome(page);
 
     await expect.poll(() => page.evaluate(() => document.body.classList.contains('split-chrome-hidden')), {
-      timeout: 4000,
+      timeout: 6000,
     }).toBe(true);
 
-    // The video's own control bar must NOT bring it back -- that bar has
-    // its own, separate auto-hide/reveal system, and this one has nothing
-    // to do with it.
+    // The mode row leaves with the player bar and comes back with it. A
+    // touch on the video controls is a touch on the frame, which shows both.
     await page.evaluate(() => {
       document.querySelector('.player-controls').dispatchEvent(new Event('touchstart', { bubbles: true }));
     });
     await page.waitForTimeout(100);
-    expect(await page.evaluate(() => document.body.classList.contains('split-chrome-hidden'))).toBe(true);
+    expect(await page.evaluate(() => document.body.classList.contains('split-chrome-hidden'))).toBe(false);
+
+    await settleSplitChrome(page);
+    await expect.poll(() => page.evaluate(() => document.body.classList.contains('split-chrome-hidden')), {
+      timeout: 6000,
+    }).toBe(true);
 
     // The daf pane -- the one place in Split View this bar's absence isn't
-    // covered by anything else -- must bring it back.
+    // covered by the player chrome -- must bring it back.
     await page.evaluate(() => {
       document.querySelector('.daf-card').dispatchEvent(new Event('touchstart', { bubbles: true }));
     });
@@ -708,11 +780,19 @@ test.describe('Split View — the daf pane is flush, and the combined bar auto-h
     await page.goto('/player/?ref=Chullin%2089a');
     await enterSplitView(page);
     await dismissErrorBanner(page);
+    await settleSplitChrome(page);
 
     await expect.poll(() => page.evaluate(() => document.body.classList.contains('split-chrome-hidden')), {
-      timeout: 4000,
+      timeout: 6000,
     }).toBe(true);
+    // visibility lags the class by the 200ms fade, so a read in the same
+    // turn the class appears still says "visible".
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.getElementById('viewerModeSelect')).visibility)).toBe('hidden');
 
+    if (await page.evaluate(() => document.body.classList.contains('split-tools-phone'))) {
+      await page.click('#splitDivider');
+      await expect(page.locator('body')).toHaveClass(/split-tools-open/);
+    }
     const hit = await page.evaluate(() => {
       const bar = document.getElementById('viewerModeSelect');
       const back = document.getElementById('splitBackToDaf');
@@ -741,9 +821,10 @@ test.describe('Split View — the daf pane is flush, and the combined bar auto-h
     await preparePage(page, { user: null });
     await page.goto('/player/?ref=Chullin%2089a');
     await enterSplitView(page);
+    await settleSplitChrome(page);
 
     await expect.poll(() => page.evaluate(() => document.body.classList.contains('split-chrome-hidden')), {
-      timeout: 4000,
+      timeout: 6000,
     }).toBe(true);
 
     await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true })));
