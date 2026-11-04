@@ -3653,25 +3653,77 @@ body.split-view-active .watch-layout.split-active .video-frame.youtube-active #y
   max-width: 100%;
   max-height: 100%;
 }
-/* Pane taller than 16:9 (dragging the divider down on a phone). The host,
-   the poster, and the chrome bands share one box: pane height, width
-   height×16/9, centered with a negative left. The frame clips the sides.
-   Top and bottom stay on the pane edges, so captions at the bottom of the
-   picture stay in view and the masks sit on the same picture. */
-@container yt-frame (max-aspect-ratio: 16 / 9) {
+/* Pane taller than 16:9 (the divider dragged down). The picture scales past
+   the pane: sides crop, and a short strip of the iframe hangs above and
+   below so YouTube's title row and the corner logo fall outside. The mask
+   is the visible pane, not that oversized box — a band sized to the whole
+   iframe was a dark slab over the burned-in line. */
+@container yt-frame (aspect-ratio < 16 / 9) {
   body.split-view-active .watch-layout.split-active .video-frame.youtube-active #youtubePlayerHost,
   .video-frame.youtube-active .youtube-player-host,
-  .video-frame.youtube-active .yt-shield,
+  .video-frame.youtube-active .yt-shield {
+    --yt-crop-top: clamp(36px, 8cqh, 84px);
+    --yt-crop-bottom: clamp(16px, 3cqh, 32px);
+    width: calc((100cqh + var(--yt-crop-top) + var(--yt-crop-bottom)) * 16 / 9);
+    height: calc(100cqh + var(--yt-crop-top) + var(--yt-crop-bottom));
+    max-width: none;
+    max-height: none;
+    top: calc(var(--yt-crop-top) * -1);
+    left: calc((100cqw - (100cqh + var(--yt-crop-top) + var(--yt-crop-bottom)) * 16 / 9) / 2);
+    right: auto;
+    margin-inline: 0;
+    bottom: auto;
+  }
   .video-frame.youtube-active .yt-mask-layer {
-    width: calc(100cqh * 16 / 9);
+    top: 0;
+    left: 0;
+    right: auto;
+    bottom: auto;
+    margin: 0;
+    width: 100cqw;
     height: 100cqh;
     max-width: none;
     max-height: none;
-    left: calc((100cqw - (100cqh * 16 / 9)) / 2);
-    right: auto;
-    margin-inline: 0;
+  }
+  .video-frame.youtube-active .yt-mask-layer .yt-edge-top {
+    height: clamp(18px, 4cqh, 36px);
+  }
+  .video-frame.youtube-active .yt-mask-layer .yt-edge-bottom {
+    height: 14px;
+    background: linear-gradient(to top, rgba(7, 17, 28, .72), rgba(7, 17, 28, 0));
+  }
+  .video-frame.youtube-active .yt-mask-layer .yt-edge-logo {
+    width: 84px;
+    height: 22px;
+  }
+}
+/* Touch landscape, Split off. The daf picker is a row of the bottom chrome,
+   and the picture ends above it. In Split the same bar lives in the divider
+   panel; a mouse keeps it across the top of the video. */
+@media (pointer: coarse) and (orientation: landscape),
+       (hover: none) and (orientation: landscape) {
+  body:not(.split-view-active) .video-frame { --phone-picker-h: 40px; }
+  body:not(.split-view-active) .video-frame > #playerTopbar {
+    top: auto;
+    bottom: calc(var(--pc-bar-h, 68px) + var(--pc-timeline-h, 74px));
+    height: var(--phone-picker-h);
+    padding: 0 10px;
+    background: #07111c;
+    z-index: 8;
+  }
+  body:not(.split-view-active) .video-frame.youtube-active .youtube-player-host,
+  body:not(.split-view-active) .video-frame.youtube-active .yt-shield,
+  body:not(.split-view-active) .video-frame.youtube-active .yt-mask-layer {
+    --chrome-h: calc(var(--pc-bar-h, 68px) + var(--pc-timeline-h, 74px) + var(--phone-picker-h, 40px));
     top: 0;
     bottom: auto;
+    left: 0;
+    right: auto;
+    margin-inline: auto;
+    width: min(100cqw, calc((100cqh - var(--chrome-h)) * 16 / 9));
+    height: min(calc(100cqh - var(--chrome-h)), calc(100cqw * 9 / 16));
+    max-width: 100%;
+    max-height: calc(100cqh - var(--chrome-h));
   }
 }
 body.split-view-active .watch-layout.split-active .video-frame #video,

@@ -1068,22 +1068,30 @@ function updateVaaterButtonUi(time = getCurrentTime()) {
 
 function skipToNextReading() {
   // A second press while the first jump is still buffering used to read the
-  // pre-seek clock and ask for the same phrase again. Step from the time
-  // already in flight, and step once more if that still lands on it.
-  let base = getCurrentTime();
-  if (state.pendingSeek && Number.isFinite(state.pendingSeek.time)) {
-    base = Math.max(base, state.pendingSeek.time);
-  }
-  let target = nextReadingTime(base);
-  if (
-    target != null
-    && state.pendingSeek
-    && Math.abs(target - state.pendingSeek.time) <= 0.05
-  ) {
-    target = nextReadingTime(Math.max(target, state.pendingSeek.time) + 0.03);
-  }
+  // pre-seek clock and ask for the same phrase again. Chain from the end of
+  // the phrase already targeted, and keep that end even after the pending
+  // clock is dropped — YouTube can report the target and then snap back.
+  const now = performance.now();
+  const chain = state.vaaterChain;
+  const pending = state.pendingSeek;
+  let base = readPlayerTime();
+  const chainEnd = chain && now - chain.issuedAt < 2500 ? Number(chain.phraseEnd) : NaN;
+  const pendingEnd = pending ? Number(pending.phraseEnd) : NaN;
+  const pendingTime = pending ? Number(pending.time) : NaN;
+  if (Number.isFinite(chainEnd)) base = Math.max(base, chainEnd);
+  else if (Number.isFinite(pendingEnd) && pendingEnd > (Number.isFinite(pendingTime) ? pendingTime : pendingEnd - 1)) {
+    base = Math.max(base, pendingEnd);
+  } else if (Number.isFinite(pendingTime)) base = Math.max(base, pendingTime);
+  const target = nextReadingTime(base);
   if (target == null) return;
   seek(target, true);
+  const phraseEnd = phraseEndCovering(target);
+  state.vaaterChain = {
+    time: target,
+    phraseEnd: Number.isFinite(phraseEnd) ? phraseEnd : target,
+    issuedAt: performance.now(),
+  };
+  if (state.pendingSeek) state.pendingSeek.phraseEnd = state.vaaterChain.phraseEnd;
   updateVaaterButtonUi(target);
 }
 
@@ -1202,8 +1210,28 @@ function readPlayerTime() {
   return Number(htmlVideo.currentTime) || 0;
 }
 
+// The end of the real phrase a Vaater press lands on. A second press chains
+// from here, so it cannot stop on a word that shares the landing second.
+function phraseEndCovering(time) {
+  let end = null;
+  const segments = state.segments || [];
+  for (let index = 0; index < segments.length; index++) {
+    if (isSkippableSegment(index)) continue;
+    const segment = segments[index];
+    const start = Number(segment.start);
+    const segEnd = Number(segment.end);
+    if (!Number.isFinite(start) || !Number.isFinite(segEnd) || !(segEnd > start)) continue;
+    if (Math.abs(start - time) <= 0.05 && (end == null || segEnd > end)) end = segEnd;
+  }
+  return end;
+}
 function armPendingSeek(time) {
-  state.pendingSeek = { time, issuedAt: performance.now() };
+  const phraseEnd = phraseEndCovering(time);
+  state.pendingSeek = {
+    time,
+    issuedAt: performance.now(),
+    phraseEnd: Number.isFinite(phraseEnd) ? phraseEnd : null,
+  };
 }
 
 // Until the player catches up (or the request is clearly abandoned), report
@@ -8019,6 +8047,9 @@ function paintSeekUi(time) {
 }
 
 function seek(time, allowSeekAhead = true) {
+  // A scrub or a word tap is a new landing. Vaater puts its chain back
+  // after this returns, so a rapid second press still sees the phrase end.
+  state.vaaterChain = null;
   const max = getDuration() || Number(scrubber.max) || 0;
   const clamped = Math.max(0, Math.min(time, max || time));
   // A tap pins the phrase it landed on, then seeks a fraction early so the
@@ -8983,13 +9014,12 @@ function scheduleYouTubeError(code, player, videoId, { reject, resolve, settled 
   }, 1500);
 }
 
-// The thumbnail covers only the opening. Once PLAYING is steady the cover
-// lifts in under 300ms — YouTube's own chrome otherwise sits there for
-// about three seconds, which read as our cover. After the first frame,
-// opaque bands hide the title row, share and watch-later icons, the logo,
-// and the More videos shelf whenever that chrome can show.
-const YT_OPENING_REVEAL_MS = 250;
-const YT_LIFT_MS = 200;
+// The thumbnail covers only the opening. After the first frame, opaque
+// bands hide the title row, share and watch-later icons, the logo, and the
+// More videos shelf whenever that chrome can show. The bands stay until the
+// playhead has actually been moving for a third of a second. A fixed delay
+// lifted them while YouTube was still painting the logo.
+const YT_ADVANCE_MS = 300;
 let ytRevealTimer = null;
 function ensureYouTubeMask(frame) {
   if (!frame) return;
@@ -9045,23 +9075,53 @@ function maskYouTubeEdges() {
   frame.classList.add('yt-mask', 'yt-playing');
   frame.classList.remove('yt-hold');
 }
+function stopYouTubeAdvanceWatch() {
+  clearTimeout(ytRevealTimer);
+  ytRevealTimer = null;
+}
 function scheduleYouTubeReveal() {
   const frame = $('videoFrame');
   if (!frame || state.youtubeState !== 1) return;
   if (
     frame.classList.contains('yt-playing')
+    && frame.classList.contains('yt-started')
     && !frame.classList.contains('yt-hold')
     && !frame.classList.contains('yt-mask')
   ) return;
-  clearTimeout(ytRevealTimer);
-  const opening = !frame.classList.contains('yt-started');
-  const delay = opening ? YT_OPENING_REVEAL_MS : YT_LIFT_MS;
-  ytRevealTimer = setTimeout(() => {
+  stopYouTubeAdvanceWatch();
+  const samples = [];
+  const watch = () => {
     ytRevealTimer = null;
-    if (state.youtubeState !== 1) return;
-    frame.classList.add('yt-playing', 'yt-started');
-    frame.classList.remove('yt-hold', 'yt-mask');
-  }, delay);
+    if (state.youtubeState !== 1 || !frame.isConnected) return;
+    // First play included: the picture comes out under the bands. A bare
+    // iframe here is the title, the share icon, and More videos.
+    if (!frame.classList.contains('yt-started') || frame.classList.contains('yt-hold')) {
+      ensureYouTubeMask(frame);
+      frame.classList.add('yt-started', 'yt-playing', 'yt-mask');
+      frame.classList.remove('yt-hold');
+    }
+    const time = readPlayerTime();
+    const t = performance.now();
+    samples.push({ t, time });
+    while (samples.length && t - samples[0].t > 420) samples.shift();
+    const first = samples[0];
+    const last = samples[samples.length - 1];
+    const mid = samples[Math.floor(samples.length / 2)];
+    // A seek jumps once and then sits. That step is not playback. The
+    // playhead has to keep increasing through the second half of the window.
+    if (
+      last && first && mid
+      && last.t - first.t >= YT_ADVANCE_MS
+      && last.time > mid.time + 0.04
+      && mid.time >= first.time - 0.02
+    ) {
+      frame.classList.add('yt-playing', 'yt-started');
+      frame.classList.remove('yt-hold', 'yt-mask');
+      return;
+    }
+    ytRevealTimer = setTimeout(watch, 50);
+  };
+  ytRevealTimer = setTimeout(watch, 0);
 }
 // Word taps, Vaater, and the scrubber all come through here. After the
 // first frame, cover the chrome YouTube flashes on a jump without putting
@@ -9073,6 +9133,7 @@ function coverYouTubeSeek() {
   if (!frame?.classList.contains('yt-started')) return;
   maskYouTubeEdges();
   if (state.youtubeState === 1) scheduleYouTubeReveal();
+  else stopYouTubeAdvanceWatch();
 }
 
 async function ensureYouTubePlayer(videoId) {
@@ -9212,9 +9273,9 @@ async function ensureYouTubePlayer(videoId) {
               state.playRetryUsed = false;
               clearPlayWatchdog();
               flushDeferredPlaybackWork();
-              // Opening poster and the edge bands both lift in under 300ms
-              // of PLAYING. Waiting out YouTube's own ~3s chrome timeout
-              // is what left the title and More videos up on the phone.
+              // Bands stay up until the playhead is moving, including the
+              // first Play. A timer from the PLAYING event lifted them
+              // while the title and the logo were still on screen.
               scheduleYouTubeReveal();
             } else if (event.data === 5 || event.data === -1) {
               if ($('videoFrame')?.classList.contains('yt-started')) maskYouTubeEdges();
@@ -9234,8 +9295,7 @@ async function ensureYouTubePlayer(videoId) {
               }
             } else if (event.data === 2) {
               state.wantPlaying = false;
-              clearTimeout(ytRevealTimer);
-              ytRevealTimer = null;
+              stopYouTubeAdvanceWatch();
               // Paused chrome comes back on the frozen frame. Cover the
               // edges only. The frame itself stays; the poster does not.
               if ($('videoFrame')?.classList.contains('yt-started')) maskYouTubeEdges();

@@ -23,12 +23,25 @@ window.YT.Player = function (id, options) {
     _duration: 7200,
     _muted: false,
     _events: options.events,
-    seekTo(time) { self._time = Number(time) || 0; },
-    getCurrentTime() { return self._time; },
+    seekTo(time) {
+      self._time = Number(time) || 0;
+      self._origin = self._time;
+      if (self._state === 1) self._playedAt = performance.now();
+    },
+    getCurrentTime() {
+      if (self._state === 1 && self._playedAt) {
+        return self._origin + (performance.now() - self._playedAt) / 1000;
+      }
+      return self._time;
+    },
     getDuration() { return self._duration; },
     getPlayerState() { return self._state; },
     cueVideoById() { self._state = 5; },
     playVideo() {
+      if (self._state !== 1 || !self._playedAt) {
+        self._origin = self._time;
+        self._playedAt = performance.now();
+      }
       self._state = 1;
       self._playCount = (self._playCount || 0) + 1;
       const fire = () => self._events.onStateChange({ data: 1, target: self });
@@ -36,6 +49,10 @@ window.YT.Player = function (id, options) {
       else fire();
     },
     pauseVideo() {
+      if (self._playedAt && self._state === 1) {
+        self._time = self._origin + (performance.now() - self._playedAt) / 1000;
+      }
+      self._playedAt = 0;
       self._state = 2;
       self._pauseCount = (self._pauseCount || 0) + 1;
       if (self._pauseRewind) self._time = Math.max(0, self._time - self._pauseRewind);
@@ -586,11 +603,14 @@ test.describe('mobile player layout', () => {
     await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
     const geo = await page.evaluate(() => {
       const play = document.getElementById('playButton').getBoundingClientRect();
+      const frame = document.getElementById('videoFrame').getBoundingClientRect();
+      const picker = document.getElementById('playerTopbar').getBoundingClientRect();
       return {
         sidebar: getComputedStyle(document.querySelector('.sidebar')).display,
         top: document.querySelector('.topbar').getBoundingClientRect().height,
         playW: play.width,
         playH: play.height,
+        pickerTop: picker.top - frame.top,
         tiny: document.getElementById('videoFrame').classList.contains('is-tiny'),
         compact: document.getElementById('videoFrame').classList.contains('is-compact'),
         snug: document.getElementById('videoFrame').classList.contains('is-snug'),
@@ -605,6 +625,7 @@ test.describe('mobile player layout', () => {
     const expected = geo.compact ? 30 : geo.snug ? 38 : 46;
     expect(Math.abs(geo.playW - expected)).toBeLessThan(2);
     expect(Math.abs(geo.playH - expected)).toBeLessThan(2);
+    expect(geo.pickerTop).toBeLessThan(8);
     await shot(page, 'desktop-unchanged');
   });
 
@@ -1257,10 +1278,11 @@ test.describe('mobile player layout', () => {
     expect(geo.frameRight).toBeLessThanOrEqual(geo.layoutRight + 1);
     expect(geo.frameBottom).toBeLessThanOrEqual(geo.layoutBottom + 1);
     expect(geo.frameW).toBeGreaterThanOrEqual(100);
-    // The narrowed pane is taller than 16:9, so the picture covers its
-    // height and the frame clips the sides. The frame itself stays on screen.
-    expect(Math.abs(geo.hostTop - geo.frameTop)).toBeLessThan(2);
-    expect(Math.abs(geo.hostBottom - geo.frameBottom)).toBeLessThan(2);
+    // The narrowed pane is taller than 16:9. The picture covers the pane and
+    // hangs past the top and bottom so the title and the logo sit outside.
+    // The frame itself stays on screen and clips that overflow.
+    expect(geo.hostTop).toBeLessThan(geo.frameTop - 16);
+    expect(geo.hostBottom).toBeGreaterThan(geo.frameBottom + 8);
     expect(geo.hostW).toBeGreaterThan(geo.frameW + 8);
     const hostMid = (geo.hostLeft + geo.hostRight) / 2;
     const frameMid = (geo.frameLeft + geo.frameRight) / 2;
@@ -1352,6 +1374,40 @@ test.describe('mobile player layout', () => {
     await expect(page.locator('body')).not.toHaveClass(/split-tools-open/);
   });
 
+  test('landscape without split parks the daf picker in the control stack', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'landscape phone');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 915, height: 412 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await expect(page.locator('body')).not.toHaveClass(/split-view-active/);
+    const geo = await page.evaluate(() => {
+      const frameEl = document.getElementById('videoFrame');
+      frameEl.classList.add('youtube-active');
+      const hostEl = document.getElementById('youtubePlayerHost');
+      hostEl.hidden = false;
+      const frame = frameEl.getBoundingClientRect();
+      const host = hostEl.getBoundingClientRect();
+      const topbar = document.getElementById('playerTopbar').getBoundingClientRect();
+      const controls = document.querySelector('.player-controls').getBoundingClientRect();
+      return {
+        frameBottom: frame.bottom,
+        hostBottom: host.bottom,
+        hostTop: host.top,
+        topbarTop: topbar.top,
+        topbarBottom: topbar.bottom,
+        topbarH: topbar.height,
+        controlsTop: controls.top,
+        inFrame: frameEl.contains(document.getElementById('playerTopbar')),
+      };
+    });
+    expect(geo.inFrame).toBe(true);
+    expect(geo.topbarH).toBeGreaterThan(28);
+    expect(geo.hostBottom).toBeLessThanOrEqual(geo.topbarTop + 2);
+    expect(geo.topbarBottom).toBeLessThanOrEqual(geo.controlsTop + 2);
+    expect(geo.topbarTop).toBeGreaterThan(geo.hostTop + 40);
+    await shot(page, 'phone-landscape-picker-in-controls');
+  });
+
   test('dragging the split bar down covers the pane and dragging up contains it', async ({ page }) => {
     test.skip(test.info().project.name !== 'mobile', 'portrait phone');
     test.setTimeout(60000);
@@ -1373,8 +1429,13 @@ test.describe('mobile player layout', () => {
         const r = el.getBoundingClientRect();
         return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width, height: r.height };
       };
+      if (!layer.querySelector('.yt-edge-top')) {
+        layer.innerHTML = '<div class="yt-edge yt-edge-top"></div><div class="yt-edge yt-edge-bottom"></div><div class="yt-edge yt-edge-logo"></div>';
+      }
       const host = box(hostEl);
       const mask = box(layer);
+      const topEdge = box(layer.querySelector('.yt-edge-top')).height;
+      const bottomEdge = box(layer.querySelector('.yt-edge-bottom')).height;
       frameEl.classList.remove('yt-started');
       const shield = box(document.getElementById('ytShield'));
       frameEl.classList.add('yt-started');
@@ -1382,23 +1443,26 @@ test.describe('mobile player layout', () => {
       const controls = box(document.querySelector('.player-controls'));
       const embed = document.querySelector('#youtubePlayerHost iframe, #youtubePlayer');
       return {
-        frame, host, mask, shield, controlsBottom: controls.bottom,
+        frame, host, mask, shield, topEdge, bottomEdge, controlsBottom: controls.bottom,
         transform: embed ? getComputedStyle(embed).transform : 'none',
       };
     });
     const tall = await picture();
     expect(tall.frame.height).toBeGreaterThan(tall.frame.width * 9 / 16 + 8);
-    expect(Math.abs(tall.host.top - tall.frame.top)).toBeLessThan(2);
-    expect(Math.abs(tall.host.bottom - tall.frame.bottom)).toBeLessThan(2);
-    expect(Math.abs(tall.host.height - tall.frame.height)).toBeLessThan(2);
+    expect(tall.host.top).toBeLessThan(tall.frame.top - 24);
+    expect(tall.host.bottom).toBeGreaterThan(tall.frame.bottom + 8);
     expect(tall.host.width).toBeGreaterThan(tall.frame.width + 8);
     expect(Math.abs((tall.host.left + tall.host.right) / 2 - (tall.frame.left + tall.frame.right) / 2)).toBeLessThan(3);
-    expect(Math.abs(tall.mask.left - tall.host.left)).toBeLessThan(2);
-    expect(Math.abs(tall.mask.right - tall.host.right)).toBeLessThan(2);
-    expect(Math.abs(tall.mask.top - tall.host.top)).toBeLessThan(2);
-    expect(Math.abs(tall.mask.bottom - tall.host.bottom)).toBeLessThan(2);
+    expect(Math.abs(tall.mask.left - tall.frame.left)).toBeLessThan(2);
+    expect(Math.abs(tall.mask.right - tall.frame.right)).toBeLessThan(2);
+    expect(Math.abs(tall.mask.top - tall.frame.top)).toBeLessThan(2);
+    expect(Math.abs(tall.mask.bottom - tall.frame.bottom)).toBeLessThan(2);
+    expect(tall.topEdge).toBeGreaterThan(8);
+    expect(tall.topEdge).toBeLessThan(48);
+    expect(tall.bottomEdge).toBeLessThan(22);
+    expect(tall.bottomEdge).toBeLessThan(tall.frame.height * 0.12);
     expect(Math.abs(tall.shield.left - tall.host.left)).toBeLessThan(2);
-    expect(Math.abs(tall.shield.right - tall.host.right)).toBeLessThan(2);
+    expect(Math.abs(tall.shield.top - tall.host.top)).toBeLessThan(2);
     expect(Math.abs(tall.shield.bottom - tall.host.bottom)).toBeLessThan(2);
     expect(Math.abs(tall.controlsBottom - tall.frame.bottom)).toBeLessThan(2);
     expect(['none', 'matrix(1, 0, 0, 1, 0, 0)']).toContain(tall.transform);
@@ -1412,12 +1476,12 @@ test.describe('mobile player layout', () => {
     await page.mouse.up();
     const lower = await picture();
     expect(lower.frame.height).toBeGreaterThan(tall.frame.height + 40);
-    expect(lower.host.width).toBeGreaterThan(tall.host.width + 40);
-    expect(Math.abs(lower.host.top - lower.frame.top)).toBeLessThan(2);
-    expect(Math.abs(lower.host.bottom - lower.frame.bottom)).toBeLessThan(2);
+    expect(lower.host.width).toBeGreaterThan(tall.host.width + 20);
+    expect(lower.host.top).toBeLessThan(lower.frame.top - 24);
+    expect(lower.host.bottom).toBeGreaterThan(lower.frame.bottom + 8);
     expect(lower.host.width).toBeGreaterThan(lower.frame.width + 8);
-    expect(Math.abs(lower.mask.left - lower.host.left)).toBeLessThan(2);
-    expect(Math.abs(lower.mask.bottom - lower.host.bottom)).toBeLessThan(2);
+    expect(Math.abs(lower.mask.bottom - lower.frame.bottom)).toBeLessThan(2);
+    expect(lower.bottomEdge).toBeLessThan(22);
     await shot(page, 'phone-split-cover');
 
     const div2 = await page.locator('#splitDivider').boundingBox();

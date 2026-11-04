@@ -210,9 +210,15 @@
   }
   function setTopbarMenu(menuId, buttonId, open) {
     closeMenus(open ? menuId : null);
-    $(menuId).hidden = !open;
-    $(buttonId).setAttribute('aria-expanded', String(open));
-    if (open) topbarOpenedAt = performance.now();
+    const menu = $(menuId);
+    const button = $(buttonId);
+    menu.hidden = !open;
+    button.setAttribute('aria-expanded', String(open));
+    if (!open) return;
+    topbarOpenedAt = performance.now();
+    // Fixed, and above the button when the bar sits in the bottom chrome.
+    // A menu that opens downward from that row is clipped by the frame.
+    placeChromeMenu(menu, button, menuId === 'playerMoreMenu' ? 'end' : 'start');
   }
   bindPressToggle($('playerDafButton'), () => !$('playerDafMenu').hidden, (open) => setTopbarMenu('playerDafMenu', 'playerDafButton', open));
   bindPressToggle($('playerMoreButton'), () => !$('playerMoreMenu').hidden, (open) => setTopbarMenu('playerMoreMenu', 'playerMoreButton', open));

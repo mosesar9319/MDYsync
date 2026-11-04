@@ -290,9 +290,18 @@ test.describe('phone speed, more menu, and captions', () => {
     expect(buffering.mask).toBe(true);
     expect(buffering.shield).toBe('none');
     expect(buffering.hold).toBe(false);
-    await page.evaluate(() => {
+    const frozen = await page.evaluate(async () => {
       window.__yt._state = 1;
+      window.__yt._time = 80;
+      window.__yt.getCurrentTime = () => 80;
       window.__yt._events.onStateChange({ data: 1, target: window.__yt });
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return document.getElementById('videoFrame').classList.contains('yt-mask');
+    });
+    expect(frozen).toBe(true);
+    await page.evaluate(() => {
+      const start = performance.now();
+      window.__yt.getCurrentTime = () => 80 + (performance.now() - start) / 1000;
     });
     await expect.poll(() => page.evaluate(() => {
       const frame = document.getElementById('videoFrame');
@@ -301,7 +310,7 @@ test.describe('phone speed, more menu, and captions', () => {
         && !frame.classList.contains('yt-mask')
         && !frame.classList.contains('yt-hold')
         && shield === 'none';
-    }), { timeout: 500 }).toBe(true);
+    }), { timeout: 1200 }).toBe(true);
   });
 
   test('captions stay off until turned on, and the choice is remembered', async ({ page }) => {

@@ -243,6 +243,47 @@ test.describe('player bugfixes on live Bekhorot', () => {
     expect(result.wantPlaying).toBe(true);
   });
 
+  test('a rapid second Vaater press chains from the end of the phrase already targeted', async ({ page }) => {
+    test.setTimeout(60000);
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    const result = await page.evaluate(() => {
+      state.segments = [
+        { ref: 'Bekhorot 44a:1', start: 589, end: 594, estimated: false, he: 'one', w0: 0, w1: 2 },
+        { ref: 'Bekhorot 44a:2', start: 594, end: 600, estimated: false, he: 'two', w0: 0, w1: 3 },
+        { ref: 'Bekhorot 44a:3', start: 600.2, end: 606, estimated: false, he: 'three', w0: 0, w1: 3 },
+      ];
+      state.activeIndex = 0;
+      state.phrasePin = null;
+      state.pendingSeek = null;
+      state.vaaterChain = null;
+      state.youtubeState = 1;
+      state.wantPlaying = true;
+      state.playerType = 'youtube';
+      window.__yt._time = 590;
+      window.__yt._state = 1;
+      const asked = [];
+      window.__yt.seekTo = (time) => { asked.push(Number(time)); };
+      window.__yt.playVideo = () => {};
+      window.__yt.pauseVideo = () => {};
+      window.__yt.getCurrentTime = () => window.__yt._time;
+      const button = document.getElementById('vaaterButton');
+      button.click();
+      // The player reports the landing time, the pending clock is dropped,
+      // then the readout snaps back to where the press started.
+      state.pendingSeek = null;
+      window.__yt._time = 590;
+      button.click();
+      return {
+        first: asked[0],
+        second: asked[1],
+        chainEnd: state.vaaterChain && state.vaaterChain.phraseEnd,
+      };
+    });
+    expect(result.first).toBeCloseTo(594, 1);
+    expect(result.second).toBeGreaterThan(599);
+    expect(result.chainEnd).toBeGreaterThan(result.second);
+  });
+
   test('a second Vaater press while the first jump is still loading seeks further', async ({ page }) => {
     test.setTimeout(60000);
     await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
