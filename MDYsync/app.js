@@ -215,6 +215,10 @@ const state = {
   // split axis. Null means "use the mode's own default" (0.5 side-by-side,
   // 0.4 stacked) -- see splitViewRatioOrDefault().
   splitViewRatio: null,
+  // The divider position each layout last had, so a phone rotated to
+  // landscape and back gets its portrait divider back (and vice versa)
+  // instead of one shared fraction that means different things per axis.
+  splitViewRatios: {},
   // 'start' (video left/top, the default) or 'end' (swapped).
   splitViewVideoPosition: 'start',
   // Pinch/pan/wheel zoom on the video pane's own picture while in Split View
@@ -6211,16 +6215,27 @@ function loadSplitViewPreferences() {
     if (typeof saved.layoutExplicit === 'boolean') state.splitViewLayoutExplicit = saved.layoutExplicit;
     if (Number.isFinite(saved.ratio)) state.splitViewRatio = clampReadingValue(saved.ratio, SPLIT_VIEW_MIN_RATIO, SPLIT_VIEW_MAX_RATIO);
     if (saved.videoPosition === 'start' || saved.videoPosition === 'end') state.splitViewVideoPosition = saved.videoPosition;
+    if (saved.ratios && typeof saved.ratios === 'object') {
+      for (const layout of ['side-by-side', 'stacked']) {
+        const value = saved.ratios[layout];
+        if (Number.isFinite(value)) state.splitViewRatios[layout] = clampReadingValue(value, SPLIT_VIEW_MIN_RATIO, SPLIT_VIEW_MAX_RATIO);
+      }
+    } else if (Number.isFinite(state.splitViewRatio)) {
+      state.splitViewRatios[state.splitViewLayout] = state.splitViewRatio;
+    }
   } catch {
     // A malformed preference should never keep the viewer from opening.
   }
 }
 function saveSplitViewPreferences() {
+  if (Number.isFinite(state.splitViewRatio)) state.splitViewRatios[state.splitViewLayout] = state.splitViewRatio;
+  else delete state.splitViewRatios[state.splitViewLayout];
   try {
     localStorage.setItem(SPLIT_VIEW_PREFS_KEY, JSON.stringify({
       layout: state.splitViewLayout,
       layoutExplicit: state.splitViewLayoutExplicit,
       ratio: state.splitViewRatio,
+      ratios: state.splitViewRatios,
       videoPosition: state.splitViewVideoPosition,
     }));
   } catch {
@@ -6238,12 +6253,37 @@ function splitViewContainer() {
 function preferredSplitViewLayoutForViewport() {
   return window.innerWidth >= window.innerHeight ? 'side-by-side' : 'stacked';
 }
-// Only ever picks a default while the reader has never explicitly chosen a
-// layout themselves (see the toolbar's own layout-toggle handler below,
-// which is the only place splitViewLayoutExplicit is ever set true) -- once
-// they have, this never overrides that choice on resize/rotate again.
+// With a mouse, this only picks a default while the reader has never
+// explicitly chosen a layout (the toolbar's layout toggle below is the only
+// place splitViewLayoutExplicit is set true); once they have, a window
+// resize never overrides it.
+// A phone or tablet follows the way it is held: portrait is video on top,
+// daf below; landscape is video on the left, daf on the right. That is
+// applied on the first Split of a page load (whatever was saved before)
+// and again on every rotation. Between rotations the toolbar's layout and
+// swap buttons still work; the next rotation hands the layout back to the
+// orientation. A mouse-driven window keeps the old rule: an explicit
+// choice sticks through resizes.
+function splitFollowsOrientation() {
+  return window.matchMedia('(pointer: coarse), (hover: none)').matches;
+}
+let splitAppliedOrientation = null;
 function applySplitViewDefaultLayout() {
-  if (!state.splitViewLayoutExplicit) state.splitViewLayout = preferredSplitViewLayoutForViewport();
+  const orientationLayout = preferredSplitViewLayoutForViewport();
+  if (!splitFollowsOrientation()) {
+    if (!state.splitViewLayoutExplicit) state.splitViewLayout = orientationLayout;
+    return false;
+  }
+  if (orientationLayout === splitAppliedOrientation) return false;
+  if (splitAppliedOrientation && Number.isFinite(state.splitViewRatio)) {
+    state.splitViewRatios[state.splitViewLayout] = state.splitViewRatio;
+  }
+  splitAppliedOrientation = orientationLayout;
+  state.splitViewLayout = orientationLayout;
+  state.splitViewVideoPosition = 'start';
+  const remembered = state.splitViewRatios[orientationLayout];
+  state.splitViewRatio = Number.isFinite(remembered) ? remembered : null;
+  return true;
 }
 function splitViewRatioOrDefault() {
   const ratio = Number.isFinite(state.splitViewRatio)
@@ -6641,6 +6681,34 @@ function applySplitVideoTransform() {
   frame.style.setProperty('--split-video-pan-y', `${state.splitVideoPanY}px`);
   const zoomed = state.splitVideoZoom > 1.001;
   frame.classList.toggle('split-video-zoomed', zoomed);
+  const fit = ensureSplitVideoFitButton();
+  if (fit) fit.hidden = !(zoomed && state.splitViewEnabled);
+}
+// Pinch zoom crops the picture on purpose. While it is zoomed, a visible
+// button says so and puts the whole frame back in one tap -- a double-tap
+// on the picture does the same, but nothing on screen told anyone that.
+function ensureSplitVideoFitButton() {
+  let button = $('splitVideoFitButton');
+  if (button) return button;
+  const frame = $('videoFrame');
+  if (!frame) return null;
+  button = document.createElement('button');
+  button.type = 'button';
+  button.id = 'splitVideoFitButton';
+  button.className = 'split-video-fit-button';
+  button.hidden = true;
+  button.title = 'Show the whole picture';
+  button.setAttribute('aria-label', 'Zoom out to the full frame');
+  button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Full frame</span>';
+  // The pinch surface sits under this button. Stop the press here so it
+  // never becomes the start of a pan or a play/pause tap underneath.
+  button.addEventListener('pointerdown', (event) => event.stopPropagation());
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    resetSplitVideoZoom({ announce: false });
+  });
+  frame.appendChild(button);
+  return button;
 }
 function showSplitVideoZoomIndicator() {
   const indicator = $('splitVideoZoomIndicator');
@@ -7099,13 +7167,33 @@ function announceViewerMode(mode) {
     }, { passive: false });
   }
 
-  window.addEventListener('resize', () => {
+  // Rotation is a resize. Only the layout classes and the ratio variable
+  // change -- the iframe and the daf are never moved -- so playback, the
+  // current daf, and the highlight carry straight through. Some phones
+  // report the new innerWidth/innerHeight a frame after the orientation
+  // media query flips, so the orientation listener re-checks on the next
+  // frames as well.
+  function onSplitViewportChange() {
     if (!state.splitViewEnabled) return;
-    applySplitViewDefaultLayout();
+    const rotated = applySplitViewDefaultLayout();
+    if (rotated) {
+      window.closePlayerChromeMenus?.();
+      if (document.body.classList.contains('split-tools-open')) setSplitToolsOpen(false);
+    }
     applySplitViewLayoutToDom();
     resetSplitVideoZoom({ announce: false });
     scheduleVilnaPageLayoutRefresh(120);
-  });
+    if (rotated) announceViewerMode('split');
+  }
+  window.addEventListener('resize', onSplitViewportChange);
+  const orientationQuery = window.matchMedia('(orientation: portrait)');
+  const onOrientationFlip = () => {
+    onSplitViewportChange();
+    requestAnimationFrame(() => requestAnimationFrame(onSplitViewportChange));
+    setTimeout(onSplitViewportChange, 300);
+  };
+  if (orientationQuery.addEventListener) orientationQuery.addEventListener('change', onOrientationFlip);
+  else orientationQuery.addListener?.(onOrientationFlip);
   // player-chrome.js builds the top bar after this file. Pick it up once
   // that script has run, so a phone split entered later can move it.
   setTimeout(syncPhoneSplitTools, 0);
@@ -7677,7 +7765,13 @@ function updateScrubberFill() {
     // what it's already shown) -- clamps against rounding/staleness between
     // this and the poll/timeupdate tick that last refreshed loadedPercent.
     const bufferedPercent = Math.max(playedPercent, loadedPercent);
-    el.style.background = `linear-gradient(to right, var(--accent) 0%, var(--accent) ${playedPercent}%, rgba(255,255,255,.4) ${playedPercent}%, rgba(255,255,255,.4) ${bufferedPercent}%, rgba(255,255,255,.14) ${bufferedPercent}%, rgba(255,255,255,.14) 100%)`;
+    // Painted by the track pseudo-element only (styles.css .scrubber). On the
+    // input itself it would fill the whole tall touch box, not the thin bar.
+    el.style.setProperty('--scrub-played-f', String(playedPercent / 100));
+    el.style.setProperty('--scrub-buffered-f', String(bufferedPercent / 100));
+    // Screen readers otherwise announce the raw seconds ("1834.27").
+    const valueText = `${formatTime(Number(el.value) || 0)} of ${formatTime(Number(el.max) || 0)}`;
+    if (el.getAttribute('aria-valuetext') !== valueText) el.setAttribute('aria-valuetext', valueText);
   }
 }
 
@@ -10692,15 +10786,56 @@ for (const el of scrubberEls) {
 // starts on the thumb never hits the range and never seeks. A captured
 // pointer drag seeks from the finger's x for touch and pen. Mouse keeps
 // the native range behavior.
+// The native range centres its thumb between thumb/2 and width - thumb/2,
+// and mouse input uses that mapping. Touch uses the same one, and the red
+// fill in styles.css ends at the same point, so the place pressed is where
+// the thumb lands and where the played portion ends, on every input.
+function scrubThumbPx(el) {
+  const value = parseFloat(getComputedStyle(el).getPropertyValue('--scrub-thumb'));
+  return Number.isFinite(value) ? value : 15;
+}
 function scrubTimeFromClientX(el, clientX) {
   const rect = el.getBoundingClientRect();
-  const span = Math.max(1, rect.width);
-  const fraction = Math.min(1, Math.max(0, (clientX - rect.left) / span));
+  const inset = Math.min(rect.width / 4, scrubThumbPx(el) / 2);
+  const span = Math.max(1, rect.width - inset * 2);
+  const fraction = Math.min(1, Math.max(0, (clientX - rect.left - inset) / span));
   const min = Number(el.min) || 0;
   const max = Number(el.max) || 0;
   const step = Number(el.step) > 0 ? Number(el.step) : 0.01;
   const stepped = Math.round((min + (max - min) * fraction) / step) * step;
   return Math.min(max, Math.max(min, stepped));
+}
+// The track thickens and the thumb grows while a drag is in progress, the
+// way YouTube's does, for mouse and touch alike.
+for (const el of scrubberEls) {
+  el.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    el.classList.add('is-scrubbing');
+    const done = (ev) => {
+      if (ev.pointerId !== event.pointerId) return;
+      el.classList.remove('is-scrubbing');
+      document.removeEventListener('pointerup', done, true);
+      document.removeEventListener('pointercancel', done, true);
+    };
+    document.addEventListener('pointerup', done, true);
+    document.addEventListener('pointercancel', done, true);
+  });
+  // Arrow keys on a native range move one `step` (0.01s here), which did
+  // nothing a reader could see. Seek in steps a listener can use instead.
+  el.addEventListener('keydown', (event) => {
+    const steps = { ArrowRight: 5, ArrowUp: 5, ArrowLeft: -5, ArrowDown: -5, PageUp: 10, PageDown: -10 };
+    const max = Number(el.max) || 0;
+    let time;
+    if (event.key in steps) time = (Number(el.value) || 0) + steps[event.key] * (event.shiftKey ? 2 : 1);
+    else if (event.key === 'Home') time = 0;
+    else if (event.key === 'End') time = Math.max(0, max - 1);
+    else return;
+    event.preventDefault();
+    showVideoControls();
+    el.value = String(Math.min(max, Math.max(0, time)));
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
 }
 for (const el of scrubberEls) {
   el.addEventListener('pointerdown', (event) => {

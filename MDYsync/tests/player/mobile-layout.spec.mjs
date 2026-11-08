@@ -1264,14 +1264,19 @@ test.describe('mobile player layout', () => {
     expect(dragged.frameTop).toBeGreaterThanOrEqual(dragged.layoutTop - 1);
     expect(dragged.frameH).toBeGreaterThanOrEqual(108);
     expect(dragged.frameBottom).toBeLessThanOrEqual(dragged.layoutBottom + 1);
-    expect(dragged.hostTop).toBeLessThan(dragged.frameTop - 24);
-    expect(Math.abs(dragged.hostBottom - dragged.frameBottom)).toBeLessThan(2);
+    // The whole 16:9 picture, fitted inside the shortened pane: its top edge
+    // stays on the pane's top edge (it shrinks, it does not slide off), and
+    // nothing hangs past any edge.
+    expect(Math.abs(dragged.hostTop - dragged.frameTop)).toBeLessThan(1.5);
+    expect(dragged.hostBottom).toBeLessThanOrEqual(dragged.frameBottom + 1);
+    expect(Math.abs(dragged.hostH - dragged.fitted)).toBeLessThan(1.5);
     expect(parseFloat(dragged.iframeTop)).toBeGreaterThanOrEqual(-1);
-    // The poster follows the cropped host: title off the top, bottom flush.
+    // The poster uses the same box, scaled inside it.
     expect(dragged.bgSize).toBe('contain');
     expect(dragged.bgPos).toMatch(/0%|top/);
-    expect(dragged.shieldTop).toBeLessThan(dragged.frameTop - 24);
-    expect(Math.abs(dragged.shieldBottom - dragged.frameBottom)).toBeLessThan(2);
+    expect(Math.abs(dragged.shieldTop - dragged.hostTop)).toBeLessThan(1.5);
+    expect(Math.abs(dragged.shieldBottom - dragged.hostBottom)).toBeLessThan(1.5);
+    expect(Math.abs(dragged.shieldW / dragged.shieldH - 16 / 9)).toBeLessThan(0.02);
     expect(dragged.shieldLeft).toBeGreaterThanOrEqual(dragged.frameLeft - 1);
     expect(dragged.shieldRight).toBeLessThanOrEqual(dragged.frameRight + 1);
     await shot(page, 'phone-split-tools');
@@ -1331,14 +1336,14 @@ test.describe('mobile player layout', () => {
     expect(geo.frameRight).toBeLessThanOrEqual(geo.layoutRight + 1);
     expect(geo.frameBottom).toBeLessThanOrEqual(geo.layoutBottom + 1);
     expect(geo.frameW).toBeGreaterThanOrEqual(100);
-    // The narrowed pane is taller than 16:9. The title hangs off the top.
-    // The caption edge stays on the pane: nothing hangs below the frame.
-    expect(geo.hostTop).toBeLessThan(geo.frameTop - 16);
-    expect(Math.abs(geo.hostBottom - geo.frameBottom), `landscape split bottom ${geo.hostBottom - geo.frameBottom}`).toBeLessThan(2);
-    expect(geo.hostW).toBeGreaterThan(geo.frameW + 8);
-    const hostMid = (geo.hostLeft + geo.hostRight) / 2;
-    const frameMid = (geo.frameLeft + geo.frameRight) / 2;
-    expect(Math.abs(hostMid - frameMid)).toBeLessThan(3);
+    // The narrowed pane is taller than 16:9. The whole picture fits across
+    // it, top edge on the pane's top edge; nothing is cropped at the sides.
+    expect(Math.abs(geo.hostTop - geo.frameTop)).toBeLessThan(1.5);
+    expect(geo.hostBottom).toBeLessThanOrEqual(geo.frameBottom + 1);
+    expect(geo.hostLeft).toBeGreaterThanOrEqual(geo.frameLeft - 1);
+    expect(geo.hostRight).toBeLessThanOrEqual(geo.frameRight + 1);
+    expect(Math.abs(geo.hostW - geo.frameW)).toBeLessThan(1.5);
+    expect(Math.abs(geo.hostW / (geo.hostBottom - geo.hostTop) - 16 / 9)).toBeLessThan(0.02);
   });
 
   test('a landscape divider tap opens the daf panel and a cross-bar drag does not', async ({ page }) => {
@@ -1462,7 +1467,7 @@ test.describe('mobile player layout', () => {
     await shot(page, 'phone-landscape-picker-in-controls');
   });
 
-  test('dragging the split bar down covers the pane and dragging up contains it', async ({ page }) => {
+  test('split shows the whole picture at every divider position and never crops it', async ({ page }) => {
     test.skip(test.info().project.name !== 'mobile', 'portrait phone');
     test.setTimeout(60000);
     await page.setViewportSize({ width: 412, height: 915 });
@@ -1480,113 +1485,107 @@ test.describe('mobile player layout', () => {
         layer.className = 'yt-mask-layer';
         frameEl.appendChild(layer);
       }
+      if (!layer.querySelector('.yt-edge-top')) {
+        layer.innerHTML = '<div class="yt-edge yt-edge-top"></div><div class="yt-edge yt-edge-bottom"></div><div class="yt-edge yt-edge-logo"></div><div class="yt-edge yt-edge-share"></div>';
+      }
       const box = (el) => {
         const r = el.getBoundingClientRect();
         return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width, height: r.height };
       };
-      if (!layer.querySelector('.yt-edge-top')) {
-        layer.innerHTML = '<div class="yt-edge yt-edge-top"></div><div class="yt-edge yt-edge-bottom"></div><div class="yt-edge yt-edge-logo"></div><div class="yt-edge yt-edge-share"></div>';
-      }
-      const host = box(hostEl);
-      const mask = box(layer);
-      const topEdge = box(layer.querySelector('.yt-edge-top')).height;
-      const bottomEdge = box(layer.querySelector('.yt-edge-bottom')).height;
       frameEl.classList.remove('yt-started');
       const shield = box(document.getElementById('ytShield'));
       frameEl.classList.add('yt-started');
-      const frame = box(frameEl);
-      const controls = box(document.querySelector('.player-controls'));
-      const scrubber = box(document.querySelector('.scrubber-wrap'));
       const embedEl = document.querySelector('#youtubePlayerHost iframe, #youtubePlayer');
-      const embed = embedEl ? box(embedEl) : null;
-      const logo = box(layer.querySelector('.yt-edge-logo'));
-      const share = box(layer.querySelector('.yt-edge-share'));
+      const shown = (el) => getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().width > 0;
       return {
-        frame, host, mask, shield, topEdge, bottomEdge, controlsBottom: controls.bottom,
-        scrubberTop: scrubber.top,
-        embed, logo, share,
-        hidden: frameEl.classList.contains('controls-hidden'),
+        frame: box(frameEl),
+        host: box(hostEl),
+        mask: box(layer),
+        shield,
+        embed: embedEl ? box(embedEl) : null,
+        topEdge: box(layer.querySelector('.yt-edge-top')).height,
+        chips: ['.yt-edge-logo', '.yt-edge-share', '.yt-edge-bottom'].filter((s) => shown(layer.querySelector(s))),
         transform: embedEl ? getComputedStyle(embedEl).transform : 'none',
+        hidden: frameEl.classList.contains('controls-hidden'),
       };
     }, hidden);
-    const expectBottom = (info, name) => {
-      const hostVsFrame = info.host.bottom - info.frame.bottom;
-      const iframeVsFrame = info.embed ? info.embed.bottom - info.frame.bottom : hostVsFrame;
-      const hostVsBar = info.host.bottom - info.scrubberTop;
-      console.log(`DELTA ${name} hidden=${info.hidden} host-vs-frame=${hostVsFrame.toFixed(2)} iframe-vs-frame=${iframeVsFrame.toFixed(2)} host-vs-scrubber=${hostVsBar.toFixed(2)}`);
-      expect(Math.abs(hostVsFrame), `${name} flush`).toBeLessThan(2);
-      expect(Math.abs(info.mask.bottom - info.frame.bottom), `${name} mask`).toBeLessThan(2);
-      if (info.embed) {
-        expect(Math.abs(info.embed.bottom - info.host.bottom), `${name} iframe`).toBeLessThan(2);
-        expectBottomRow(info.embed, info.frame, info.logo, info.share, name);
+    // The largest 16:9 box that fits the pane, top edge on the pane's top
+    // edge, centered across. Iframe, poster, and mask all share it.
+    const expectWhole = (info, name) => {
+      const { frame, host } = info;
+      const fitH = Math.min(frame.height, frame.width * 9 / 16);
+      expect(Math.abs(host.width / host.height - 16 / 9), `${name} 16:9`).toBeLessThan(0.02);
+      expect(Math.abs(host.height - fitH), `${name} as large as fits`).toBeLessThan(1.5);
+      expect(Math.abs(host.top - frame.top), `${name} top anchored`).toBeLessThan(1.5);
+      expect(host.left, `${name} not cropped left`).toBeGreaterThanOrEqual(frame.left - 1);
+      expect(host.right, `${name} not cropped right`).toBeLessThanOrEqual(frame.right + 1);
+      expect(host.bottom, `${name} not cropped below`).toBeLessThanOrEqual(frame.bottom + 1);
+      expect(Math.abs((host.left + host.right) / 2 - (frame.left + frame.right) / 2), `${name} centered`).toBeLessThan(1.5);
+      for (const key of ['mask', 'shield', 'embed']) {
+        const other = info[key];
+        if (!other) continue;
+        expect(Math.abs(other.top - host.top), `${name} ${key} top`).toBeLessThan(1.5);
+        expect(Math.abs(other.bottom - host.bottom), `${name} ${key} bottom`).toBeLessThan(1.5);
+        expect(Math.abs(other.left - host.left), `${name} ${key} left`).toBeLessThan(1.5);
+        expect(Math.abs(other.right - host.right), `${name} ${key} right`).toBeLessThan(1.5);
       }
+      // The title band covers YouTube's title block only; no bottom chips sit
+      // on the burned-in caption lines.
+      expect(info.topEdge, `${name} title band`).toBeLessThanOrEqual(Math.min(60, host.height * 0.26) + 1);
+      expect(info.topEdge, `${name} title band`).toBeGreaterThan(Math.min(24, host.height * 0.26 - 1));
+      expect(info.chips, `${name} no caption chips`).toEqual([]);
+      expect(['none', 'matrix(1, 0, 0, 1, 0, 0)']).toContain(info.transform);
+      console.log(`FIT ${name} pane=${frame.width.toFixed(0)}x${frame.height.toFixed(0)} picture=${host.width.toFixed(0)}x${host.height.toFixed(0)}@${(host.left - frame.left).toFixed(0)},${(host.top - frame.top).toFixed(0)}`);
     };
-    const tall = await picture(false);
-    expect(tall.frame.height).toBeGreaterThan(tall.frame.width * 9 / 16 + 8);
-    expect(tall.host.top).toBeLessThan(tall.frame.top - 24);
-    expectBottom(tall, 'phone-default-open');
-    expect(tall.host.width).toBeGreaterThan(tall.frame.width + 8);
-    expect(Math.abs((tall.host.left + tall.host.right) / 2 - (tall.frame.left + tall.frame.right) / 2)).toBeLessThan(3);
-    expect(Math.abs(tall.mask.left - tall.frame.left)).toBeLessThan(2);
-    expect(Math.abs(tall.mask.right - tall.frame.right)).toBeLessThan(2);
-    expect(Math.abs(tall.mask.top - tall.frame.top)).toBeLessThan(2);
-    // Normal Split height is taller than 16:9 and still has to cover the
-    // byline and the More videos shelf. Only a far drag thins the bands.
-    expect(tall.frame.width / tall.frame.height).toBeGreaterThan(2 / 3);
-    expect(tall.topEdge).toBeGreaterThanOrEqual(64);
-    expect(tall.bottomEdge).toBe(0);
-    expect(Math.abs(tall.shield.left - tall.host.left)).toBeLessThan(2);
-    expect(Math.abs(tall.shield.top - tall.host.top)).toBeLessThan(2);
-    expect(Math.abs(tall.shield.bottom - tall.host.bottom)).toBeLessThan(2);
-    expect(Math.abs(tall.controlsBottom - tall.frame.bottom)).toBeLessThan(2);
-    expect(['none', 'matrix(1, 0, 0, 1, 0, 0)']).toContain(tall.transform);
+
+    const normal = await picture(false);
+    expectWhole(normal, 'default');
+    // Portrait default: the picture spans the full width.
+    expect(Math.abs(normal.host.width - normal.frame.width)).toBeLessThan(1.5);
+    await shot(page, 'phone-split-fit-default');
 
     const divider = await page.locator('#splitDivider').boundingBox();
     const x = divider.x + divider.width / 2;
     const y = divider.y + divider.height / 2;
-    const far = Math.max(220, tall.frame.width / (2 / 3) - tall.frame.height + 48);
     await page.mouse.move(x, y);
     await page.mouse.down();
-    await page.mouse.move(x, y + far, { steps: 12 });
+    await page.mouse.move(x, y + 600, { steps: 12 });
     await page.mouse.up();
-    const lower = await picture(false);
-    expect(lower.frame.height).toBeGreaterThan(tall.frame.height + 40);
-    expect(lower.frame.width / lower.frame.height).toBeLessThan(2 / 3);
-    expect(lower.host.width).toBeGreaterThan(tall.host.width + 20);
-    expect(lower.host.top).toBeLessThan(lower.frame.top - 24);
-    expectBottom(lower, 'phone-tall-open');
-    expect(lower.host.width).toBeGreaterThan(lower.frame.width + 8);
-    const lowerHidden = await picture(true);
-    expect(lowerHidden.frame.width / lowerHidden.frame.height).toBeLessThan(2 / 3);
-    expectBottom(lowerHidden, 'phone-tall-hidden');
-    expect(Math.abs(lower.host.bottom - lowerHidden.host.bottom), 'the bar does not move the picture').toBeLessThan(2);
-    expect(Math.abs(lower.host.top - lowerHidden.host.top), 'the bar does not move the picture').toBeLessThan(2);
-    expect(lowerHidden.host.top).toBeLessThan(lowerHidden.frame.top - 24);
-    expect(lower.topEdge).toBeGreaterThan(8);
-    expect(lower.topEdge).toBeLessThan(48);
-    expect(lower.bottomEdge).toBe(0);
-    await shot(page, 'phone-split-cover');
+    const tall = await picture(false);
+    expect(tall.frame.height).toBeGreaterThan(normal.frame.height + 40);
+    expectWhole(tall, 'tall');
+    // Taller than the full-width picture needs: it stays full width and
+    // letterboxes below rather than zooming in.
+    expect(Math.abs(tall.host.width - normal.host.width)).toBeLessThan(1.5);
+    const tallHidden = await picture(true);
+    expectWhole(tallHidden, 'tall-hidden');
+    expect(Math.abs(tall.host.top - tallHidden.host.top), 'the bar does not move the picture').toBeLessThan(1.5);
+    expect(Math.abs(tall.host.bottom - tallHidden.host.bottom), 'the bar does not move the picture').toBeLessThan(1.5);
+    await shot(page, 'phone-split-fit-tall');
 
     const div2 = await page.locator('#splitDivider').boundingBox();
     const x2 = div2.x + div2.width / 2;
     const y2 = div2.y + div2.height / 2;
     await page.mouse.move(x2, y2);
     await page.mouse.down();
-    await page.mouse.move(x2, Math.max(24, y2 - 520), { steps: 12 });
+    await page.mouse.move(x2, Math.max(24, y2 - 900), { steps: 12 });
     await page.mouse.up();
     const short = await picture(false);
     expect(short.frame.height).toBeLessThan(short.frame.width * 9 / 16 - 4);
-    expect(short.host.top).toBeLessThan(short.frame.top - 28);
-    expectBottom(short, 'phone-short-open');
-    expect(short.host.width / short.host.height).toBeGreaterThan(1.7);
-    expect(short.host.width / short.host.height).toBeLessThan(1.85);
-    expect(Math.abs(short.mask.top - short.frame.top)).toBeLessThan(2);
-    expect(short.mask.left).toBeGreaterThanOrEqual(short.frame.left - 1);
-    expect(short.mask.right).toBeLessThanOrEqual(short.frame.right + 1);
-    expect(short.topEdge).toBeGreaterThan(24);
-    expect(short.topEdge).toBeLessThanOrEqual(short.frame.height + 1);
-    expect(Math.abs(short.shield.top - short.host.top)).toBeLessThan(3);
-    expect(Math.abs(short.shield.left - short.host.left)).toBeLessThan(3);
+    expectWhole(short, 'short');
+    // Shorter than 16:9: the picture shrinks from its top-anchored box and
+    // grows back as the pane grows.
+    expect(short.host.width).toBeLessThan(short.frame.width - 8);
+    expect(short.host.height).toBeGreaterThanOrEqual(short.frame.height - 1.5);
+    await shot(page, 'phone-split-fit-short');
+
+    // Pinch zoom is still there; a visible button gives the whole frame back.
+    await page.evaluate(() => setSplitVideoZoom(2));
+    await expect(page.locator('#splitVideoFitButton')).toBeVisible();
+    await expect(page.locator('#splitVideoFitButton')).toContainText('Full frame');
+    await page.locator('#splitVideoFitButton').click();
+    expect(await page.evaluate(() => state.splitVideoZoom)).toBe(1);
+    await expect(page.locator('#splitVideoFitButton')).toBeHidden();
   });
 
   test('play and a word click keep the YouTube bands up for about three seconds', async ({ page }) => {
@@ -1858,7 +1857,7 @@ test.describe('mobile player layout', () => {
     }
   });
 
-  test('phone split keeps the crop, bands, and corner at three pane heights', async ({ page }) => {
+  test('phone split keeps the whole picture and a title-only band at three pane heights', async ({ page }) => {
     test.skip(test.info().project.name !== 'mobile', '412 portrait phone');
     test.setTimeout(180000);
     await page.setViewportSize({ width: 412, height: 915 });
@@ -1902,103 +1901,355 @@ test.describe('mobile player layout', () => {
           const frame = frameEl.getBoundingClientRect();
           const hostEl = document.getElementById('youtubePlayerHost');
           const host = hostEl.getBoundingClientRect();
-          const embed = hostEl.querySelector('iframe') || document.getElementById('youtubePlayer');
-          const embedBox = embed.getBoundingClientRect();
+          const embed = (hostEl.querySelector('iframe') || document.getElementById('youtubePlayer')).getBoundingClientRect();
           const layer = frameEl.querySelector('.yt-mask-layer');
           const layerBox = layer ? layer.getBoundingClientRect() : null;
           const top = layer?.querySelector('.yt-edge-top');
-          const bottom = layer?.querySelector('.yt-edge-bottom');
-          const logo = layer?.querySelector('.yt-edge-logo');
-          const share = layer?.querySelector('.yt-edge-share');
-          const logoBox = logo ? logo.getBoundingClientRect() : null;
-          const shareBox = share ? share.getBoundingClientRect() : null;
-          const logoCs = logo ? getComputedStyle(logo) : null;
+          const shown = (sel) => {
+            const el = layer?.querySelector(sel);
+            return Boolean(el) && getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().width > 0;
+          };
           return {
             mask: frameEl.classList.contains('yt-mask'),
             corner: frameEl.classList.contains('yt-corner'),
-            frameH: frame.height,
-            frameW: frame.width,
-            topOver: frame.top - host.top,
-            bottomOver: host.bottom - frame.bottom,
-            iframeBottomOver: embedBox.bottom - frame.bottom,
-            ratio: host.width / host.height,
-            maskTop: layerBox ? layerBox.top - frame.top : 99,
-            maskBottom: layerBox ? frame.bottom - layerBox.bottom : 99,
-            maskInside: layerBox ? layerBox.left >= frame.left - 1 && layerBox.right <= frame.right + 1 : false,
+            frame: { top: frame.top, bottom: frame.bottom, left: frame.left, right: frame.right, width: frame.width, height: frame.height },
+            host: { top: host.top, bottom: host.bottom, left: host.left, right: host.right, width: host.width, height: host.height },
+            embed: { top: embed.top, bottom: embed.bottom, left: embed.left, right: embed.right },
+            layer: layerBox ? { top: layerBox.top, bottom: layerBox.bottom, left: layerBox.left, right: layerBox.right } : null,
             topH: top ? top.getBoundingClientRect().height : 0,
-            topDisplay: top ? getComputedStyle(top).display : 'missing',
-            topCss: top ? getComputedStyle(top).height : 'missing',
-            bottomH: bottom ? bottom.getBoundingClientRect().height : 0,
-            logoDisplay: logoCs ? logoCs.display : 'missing',
-            frameBox: { left: frame.left, right: frame.right, top: frame.top, bottom: frame.bottom, width: frame.width },
-            embedBox: { left: embedBox.left, right: embedBox.right, top: embedBox.top, bottom: embedBox.bottom, width: embedBox.width, height: embedBox.height },
-            logoBox: logoBox ? { left: logoBox.left, right: logoBox.right, top: logoBox.top, bottom: logoBox.bottom, width: logoBox.width } : null,
-            shareBox: shareBox ? { left: shareBox.left, right: shareBox.right, top: shareBox.top, bottom: shareBox.bottom, width: shareBox.width } : null,
-            bg: logoCs ? logoCs.backgroundColor : '',
+            chips: ['.yt-edge-logo', '.yt-edge-share', '.yt-edge-bottom'].filter(shown),
             elapsed: performance.now() - window.__paneT0,
           };
         }, name);
         await shot(page, name);
-        expect(info.frameH, name).toBeGreaterThan(70);
-        expect(info.topOver, name).toBeGreaterThanOrEqual(28);
-        expect(Math.abs(info.bottomOver), `${name} host bottom delta ${info.bottomOver}`).toBeLessThan(1);
-        expect(Math.abs(info.iframeBottomOver), `${name} iframe bottom delta ${info.iframeBottomOver}`).toBeLessThan(1);
-        if (ms === 500) console.log(`DELTA ${name} host=${info.bottomOver.toFixed(2)} iframe=${info.iframeBottomOver.toFixed(2)} top=${info.topOver.toFixed(2)}`);
-        expect(info.ratio, name).toBeGreaterThan(1.7);
-        expect(info.ratio, name).toBeLessThan(1.85);
-        const aspect = info.frameW / info.frameH;
-        if (info.mask || info.corner) {
-          expect(Math.abs(info.maskTop), name).toBeLessThan(3);
-          expect(Math.abs(info.maskBottom), name).toBeLessThan(3);
-          expect(info.maskInside, name).toBe(true);
+        const { frame, host } = info;
+        expect(frame.height, name).toBeGreaterThan(70);
+        // The whole frame: 16:9, inside the pane, top-anchored, as large as fits.
+        expect(Math.abs(host.width / host.height - 16 / 9), name).toBeLessThan(0.02);
+        expect(Math.abs(host.height - Math.min(frame.height, frame.width * 9 / 16)), name).toBeLessThan(1.5);
+        expect(Math.abs(host.top - frame.top), `${name} top`).toBeLessThan(1);
+        expect(host.bottom, `${name} bottom`).toBeLessThanOrEqual(frame.bottom + 1);
+        expect(host.left, name).toBeGreaterThanOrEqual(frame.left - 1);
+        expect(host.right, name).toBeLessThanOrEqual(frame.right + 1);
+        for (const edge of ['top', 'bottom', 'left', 'right']) {
+          expect(Math.abs(info.embed[edge] - host[edge]), `${name} iframe ${edge}`).toBeLessThan(1);
+          if (info.layer && (info.mask || info.corner)) expect(Math.abs(info.layer[edge] - host[edge]), `${name} mask ${edge}`).toBeLessThan(1.5);
         }
+        if (ms === 500) console.log(`FIT ${name} pane=${frame.width.toFixed(0)}x${frame.height.toFixed(0)} picture=${host.width.toFixed(0)}x${host.height.toFixed(0)}`);
+        const aspect = frame.width / frame.height;
         if (label === 'short') expect(aspect, name).toBeGreaterThan(16 / 9);
-        if (label === 'tall') {
-          expect(aspect, name).toBeLessThan(16 / 9);
-          expect(aspect, name).toBeGreaterThan(2 / 3);
-        }
+        if (label === 'tall') expect(aspect, name).toBeLessThan(16 / 9);
+        // Hold timing is unchanged: bands through YouTube's title overlay,
+        // the corner state until playback has been steady.
         if (info.elapsed <= 3200) expect(info.mask, name).toBe(true);
         if (info.elapsed >= 4200) expect(info.mask, name).toBe(false);
         if (info.elapsed <= 5400) expect(info.corner, name).toBe(true);
         if (info.elapsed >= 7800) expect(info.corner, name).toBe(false);
         if (info.mask) {
-          expect(info.bottomH, name).toBe(0);
-          if (aspect >= 16 / 9) expect(info.topH, name).toBeGreaterThanOrEqual(28);
-          else if (aspect < 2 / 3) expect(info.topH, name).toBeGreaterThan(8);
-          else expect(info.topH, `${name} top band ${info.topDisplay} ${info.topCss}`).toBeGreaterThanOrEqual(64);
+          expect(info.topH, `${name} title band`).toBeLessThanOrEqual(Math.min(60, host.height * 0.26) + 1);
+          expect(info.topH, `${name} title band`).toBeGreaterThan(Math.min(20, host.height * 0.26 - 1));
         }
-        if (info.elapsed <= 5400) {
-          expect(info.logoDisplay, name).toBe('block');
-          expect(info.bg, name).toBe('rgb(14, 16, 20)');
-          expectBottomRow(info.embedBox, info.frameBox, info.logoBox, info.shareBox, `${name} hidden`);
-        }
+        // Nothing opaque over the caption lines, in any state.
+        expect(info.chips, `${name} caption chips`).toEqual([]);
         if (ms === 500) {
           const open = await page.evaluate(() => {
             const frameEl = document.getElementById('videoFrame');
             frameEl.classList.remove('controls-hidden');
-            const frame = frameEl.getBoundingClientRect();
-            const hostEl = document.getElementById('youtubePlayerHost');
-            const host = hostEl.getBoundingClientRect();
-            const embedEl = hostEl.querySelector('iframe') || document.getElementById('youtubePlayer');
-            const embed = embedEl.getBoundingClientRect();
-            const layer = frameEl.querySelector('.yt-mask-layer');
-            const logo = layer.querySelector('.yt-edge-logo').getBoundingClientRect();
-            const share = layer.querySelector('.yt-edge-share').getBoundingClientRect();
+            const host = document.getElementById('youtubePlayerHost').getBoundingClientRect();
             frameEl.classList.add('controls-hidden');
-            return {
-              hostBottom: host.bottom,
-              frameBottom: frame.bottom,
-              frameBox: { left: frame.left, right: frame.right, top: frame.top, bottom: frame.bottom, width: frame.width },
-              embedBox: { left: embed.left, right: embed.right, top: embed.top, bottom: embed.bottom, width: embed.width, height: embed.height },
-              logoBox: { left: logo.left, right: logo.right, top: logo.top, bottom: logo.bottom, width: logo.width },
-              shareBox: { left: share.left, right: share.right, top: share.top, bottom: share.bottom, width: share.width },
-            };
+            return { top: host.top, bottom: host.bottom };
           });
-          expect(Math.abs(open.hostBottom - open.frameBottom), `${name} open still flush`).toBeLessThan(2);
-          expect(Math.abs(open.embedBox.bottom - info.embedBox.bottom), `${name} bar does not move the picture`).toBeLessThan(2);
-          expectBottomRow(open.embedBox, open.frameBox, open.logoBox, open.shareBox, `${name} open`);
+          expect(Math.abs(open.top - host.top), `${name} bar does not move the picture`).toBeLessThan(1);
+          expect(Math.abs(open.bottom - host.bottom), `${name} bar does not move the picture`).toBeLessThan(1);
         }
       }
     }
+  });
+
+  test('a phone follows its orientation in Split and keeps playing through rotations', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'touch phone');
+    test.setTimeout(90000);
+    // A stale explicit choice from an older session: side by side, swapped.
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem('dafsync-immersive-split-v1', JSON.stringify({ layout: 'side-by-side', layoutExplicit: true, ratio: 0.6, videoPosition: 'end' }));
+      } catch { /* storage denied */ }
+    });
+    await page.setViewportSize({ width: 412, height: 915 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeSplitButton');
+    const layout = () => page.evaluate(() => {
+      const frame = document.getElementById('videoFrame').getBoundingClientRect();
+      const daf = document.getElementById('dafCard').getBoundingClientRect();
+      return {
+        stacked: document.body.classList.contains('split-layout-stacked'),
+        videoEnd: document.body.classList.contains('split-video-at-end'),
+        videoAbove: frame.bottom <= daf.top + 1,
+        videoLeft: frame.right <= daf.left + 1,
+        ratio: state.splitViewRatio,
+        playing: state.youtubeState === 1,
+        time: readPlayerTime(),
+        active: state.activeIndex,
+        mode: state.viewerMode,
+        title: document.getElementById('dafTitle')?.textContent,
+      };
+    });
+    // Portrait load: video on top, daf below, whatever was saved before.
+    let now = await layout();
+    expect(now.stacked).toBe(true);
+    expect(now.videoEnd).toBe(false);
+    expect(now.videoAbove).toBe(true);
+    await shot(page, 'orientation-portrait');
+
+    await page.evaluate(() => togglePlay());
+    await page.waitForFunction(() => state.youtubeState === 1);
+    await page.evaluate(() => seek(600, true));
+    await page.waitForTimeout(300);
+    const before = await page.evaluate(() => ({
+      plays: window.__yt._playCount,
+      active: state.activeIndex,
+      title: document.getElementById('dafTitle')?.textContent,
+      iframes: document.querySelectorAll('#youtubePlayerHost iframe, #youtubePlayer').length,
+    }));
+    // A portrait divider position to come back to.
+    await page.evaluate(() => {
+      const size = document.querySelector('.watch-layout.split-active').getBoundingClientRect().height;
+      state.splitViewRatio = 300 / size;
+      applySplitViewLayoutToDom();
+      saveSplitViewPreferences();
+    });
+    const portraitRatio = await page.evaluate(() => state.splitViewRatio);
+
+    for (let round = 1; round <= 3; round += 1) {
+      const t0 = await page.evaluate(() => readPlayerTime());
+      await page.setViewportSize({ width: 915, height: 412 });
+      await page.waitForTimeout(450);
+      now = await layout();
+      expect(now.stacked, `round ${round} landscape`).toBe(false);
+      expect(now.videoEnd, `round ${round} landscape`).toBe(false);
+      expect(now.videoLeft, `round ${round} video left of daf`).toBe(true);
+      expect(now.mode).toBe('split');
+      expect(now.playing, `round ${round} still playing`).toBe(true);
+      expect(now.time, `round ${round} clock kept going`).toBeGreaterThanOrEqual(t0);
+      if (round === 1) await shot(page, 'orientation-landscape');
+      await page.setViewportSize({ width: 412, height: 915 });
+      await page.waitForTimeout(450);
+      now = await layout();
+      expect(now.stacked, `round ${round} portrait`).toBe(true);
+      expect(now.videoAbove, `round ${round} video above daf`).toBe(true);
+      expect(now.ratio, `round ${round} portrait divider restored`).toBeCloseTo(portraitRatio, 3);
+      expect(now.playing).toBe(true);
+    }
+    const after = await page.evaluate(() => ({
+      plays: window.__yt._playCount,
+      active: state.activeIndex,
+      title: document.getElementById('dafTitle')?.textContent,
+      iframes: document.querySelectorAll('#youtubePlayerHost iframe, #youtubePlayer').length,
+    }));
+    // No reload, no re-play, same player, same daf, highlight carried on.
+    expect(after.plays).toBe(before.plays);
+    expect(after.iframes).toBe(before.iframes);
+    expect(after.title).toBe(before.title);
+    expect(after.active).toBeGreaterThanOrEqual(before.active);
+
+    // The toolbar toggle still works between rotations...
+    await page.evaluate(() => document.getElementById('splitLayoutToggleButton').click());
+    expect((await layout()).stacked).toBe(false);
+    // ...and the next rotation hands the layout back to the orientation.
+    await page.setViewportSize({ width: 915, height: 412 });
+    await page.waitForTimeout(450);
+    await page.setViewportSize({ width: 412, height: 915 });
+    await page.waitForTimeout(450);
+    now = await layout();
+    expect(now.stacked).toBe(true);
+    expect(now.videoAbove).toBe(true);
+  });
+
+  test('a landscape page load opens Split side by side with the video on the left', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'touch phone');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 915, height: 412 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeSplitButton');
+    const geo = await page.evaluate(() => {
+      const frame = document.getElementById('videoFrame').getBoundingClientRect();
+      const daf = document.getElementById('dafCard').getBoundingClientRect();
+      return {
+        stacked: document.body.classList.contains('split-layout-stacked'),
+        videoLeft: frame.right <= daf.left + 1,
+      };
+    });
+    expect(geo.stacked).toBe(false);
+    expect(geo.videoLeft).toBe(true);
+  });
+
+  test('each view mode shows its name under its icon, on one row', async ({ page }) => {
+    test.setTimeout(60000);
+    const phone = test.info().project.name === 'mobile';
+    const sizes = phone ? [{ width: 360, height: 780 }, { width: 412, height: 915 }, { width: 915, height: 412 }] : [{ width: 1440, height: 900 }];
+    await page.setViewportSize(sizes[0]);
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    const read = () => page.evaluate(() => {
+      const bar = document.getElementById('viewerModeSelect');
+      const buttons = [...bar.querySelectorAll('.viewer-mode-button')];
+      return {
+        overflow: bar.scrollWidth - bar.clientWidth,
+        barRight: bar.getBoundingClientRect().right,
+        viewW: window.innerWidth,
+        rows: new Set(buttons.map((b) => Math.round(b.getBoundingClientRect().top))).size,
+        items: buttons.map((b) => {
+          const icon = b.querySelector('svg').getBoundingClientRect();
+          const label = b.querySelector('span');
+          const box = label.getBoundingClientRect();
+          const cs = getComputedStyle(label);
+          const own = b.getBoundingClientRect();
+          return {
+            text: label.textContent.trim(),
+            under: box.top >= icon.bottom - 1,
+            centered: Math.abs((box.left + box.right) / 2 - (icon.left + icon.right) / 2) < 3,
+            visible: box.width > 10 && box.height > 6 && cs.clip === 'auto' && cs.visibility === 'visible',
+            inside: box.left >= own.left - 0.5 && box.right <= own.right + 0.5 && box.bottom <= own.bottom + 0.5
+              && label.scrollWidth <= label.clientWidth + 1,
+            fontPx: parseFloat(cs.fontSize),
+            tap: Math.min(own.width, own.height),
+          };
+        }),
+      };
+    });
+    const expectLabels = (info, name) => {
+      expect(info.items.map((i) => i.text), name).toEqual(['Split view', 'Daf on video', 'Video on daf']);
+      for (const item of info.items) {
+        expect(item.visible, `${name} ${item.text} visible`).toBe(true);
+        expect(item.under, `${name} ${item.text} under its icon`).toBe(true);
+        expect(item.centered, `${name} ${item.text} centered`).toBe(true);
+        expect(item.inside, `${name} ${item.text} not clipped`).toBe(true);
+        expect(item.fontPx, `${name} ${item.text} readable`).toBeGreaterThanOrEqual(10);
+        expect(item.tap, `${name} ${item.text} tap target`).toBeGreaterThanOrEqual(40);
+      }
+      expect(info.rows, `${name} one row`).toBe(1);
+      expect(info.overflow, `${name} no sideways scroll`).toBeLessThanOrEqual(1);
+      expect(info.barRight, `${name} on screen`).toBeLessThanOrEqual(info.viewW + 1);
+    };
+    for (const size of sizes) {
+      await page.setViewportSize(size);
+      await page.waitForTimeout(200);
+      if (await page.evaluate(() => state.viewerMode === 'split')) await page.evaluate(() => setViewerMode('standard'));
+      await page.waitForTimeout(150);
+      expectLabels(await read(), `standard ${size.width}x${size.height}`);
+      await page.evaluate(() => setViewerMode('split'));
+      await page.evaluate(() => showSplitChrome());
+      await page.waitForTimeout(300);
+      expectLabels(await read(), `split ${size.width}x${size.height}`);
+      await shot(page, `mode-labels-${test.info().project.name}-${size.width}`);
+      await page.evaluate(() => setViewerMode('standard'));
+    }
+  });
+
+  test('the timeline seeks to the point pressed and steps by keyboard', async ({ page }) => {
+    test.setTimeout(60000);
+    const phone = test.info().project.name === 'mobile';
+    await page.setViewportSize(phone ? { width: 412, height: 915 } : { width: 1280, height: 800 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    if (phone) await page.click('#viewerModeSplitButton');
+    // This test is about the timeline, not auto-hide: keep the bar up so a
+    // tap is never spent revealing it.
+    await page.addStyleTag({ content: '.video-frame.controls-hidden .scrubber-wrap,.video-frame.controls-hidden .player-controls{opacity:1!important;visibility:visible!important;pointer-events:auto!important}' });
+    await page.evaluate(() => showVideoControls());
+    const scrubber = page.locator('#scrubber');
+    await expect(scrubber).toBeVisible();
+    const box = await scrubber.boundingBox();
+    const dur = await page.evaluate(() => getDuration());
+    const thumb = await scrubber.evaluate((el) => parseFloat(getComputedStyle(el).getPropertyValue('--scrub-thumb')));
+    // What is painted (slider pseudo-elements have no computed style to read):
+    // half played, then count red and grey pixels down three columns.
+    await page.mouse.move(1, 1);
+    await page.evaluate((t) => { seek(t, true); showVideoControls(); }, dur / 2);
+    await page.waitForTimeout(250);
+    const { Jimp } = await import('jimp');
+    const png = await Jimp.read(await scrubber.screenshot());
+    const scale = png.bitmap.width / box.width;
+    const column = (fx) => {
+      const x = Math.round(png.bitmap.width * fx);
+      let red = 0;
+      let grey = 0;
+      for (let yy = 0; yy < png.bitmap.height; yy += 1) {
+        const i = (yy * png.bitmap.width + x) * 4;
+        const [r, g, b] = [png.bitmap.data[i], png.bitmap.data[i + 1], png.bitmap.data[i + 2]];
+        if (r > 190 && g < 90 && b < 110) red += 1;
+        else if (Math.abs(r - g) < 14 && Math.abs(g - b) < 14 && r > 60) grey += 1;
+      }
+      return { red: red / scale, grey: grey / scale };
+    };
+    const played = column(0.25);
+    const atThumb = column(0.5);
+    const remaining = column(0.8);
+    // Thin red played track, round red thumb in the middle, muted rest, and
+    // a hit box much taller than what is drawn.
+    expect(played.red, 'played track is red and thin').toBeGreaterThan(1.5);
+    expect(played.red, 'played track is red and thin').toBeLessThanOrEqual(4);
+    expect(atThumb.red, 'round red thumb').toBeGreaterThanOrEqual(9);
+    expect(remaining.red, 'remaining is not red').toBe(0);
+    expect(remaining.grey, 'remaining is a muted track').toBeGreaterThan(1.5);
+    expect(remaining.grey, 'remaining is a muted track').toBeLessThanOrEqual(4);
+    expect(box.height).toBeGreaterThanOrEqual(phone ? 28 : 20);
+    expect(await scrubber.evaluate((el) => getComputedStyle(el).touchAction)).toBe('none');
+    const expectAt = (x) => Math.min(1, Math.max(0, (x - box.x - thumb / 2) / (box.width - thumb))) * dur;
+    const tol = 2 * dur / (box.width - thumb); // two pixels
+    const y = box.y + box.height / 2;
+    const read = () => page.evaluate(() => Number(document.getElementById('scrubber').value));
+    const tapAt = async (x, dy = 0) => {
+      if (phone) {
+        const cdp = await page.context().newCDPSession(page);
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y: y + dy }] });
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      } else {
+        await page.mouse.click(x, y + dy);
+      }
+      await page.waitForTimeout(250);
+    };
+    // A tap a few pixels off the painted 3px bar still lands.
+    for (const f of [0.1, 0.5, 0.9]) {
+      const x = box.x + box.width * f;
+      await tapAt(x, phone ? -8 : -6);
+      const got = await read();
+      expect(Math.abs(got - expectAt(x)), `tap at ${f}: want ${expectAt(x).toFixed(1)} got ${got.toFixed(1)}`).toBeLessThanOrEqual(tol);
+    }
+    // A drag that wanders vertically still follows x, and ends where released.
+    const from = box.x + box.width * 0.2;
+    const to = box.x + box.width * 0.75;
+    if (phone) {
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: from, y }] });
+      for (let i = 1; i <= 10; i += 1) {
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: from + (to - from) * i / 10, y: y + (i % 2 ? 9 : -9) }] });
+      }
+      expect(await scrubber.evaluate((el) => el.classList.contains('is-scrubbing'))).toBe(true);
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    } else {
+      await page.mouse.move(from, y);
+      await page.mouse.down();
+      for (let i = 1; i <= 10; i += 1) await page.mouse.move(from + (to - from) * i / 10, y);
+      expect(await scrubber.evaluate((el) => el.classList.contains('is-scrubbing'))).toBe(true);
+      await page.mouse.up();
+    }
+    await page.waitForTimeout(250);
+    expect(Math.abs((await read()) - expectAt(to))).toBeLessThanOrEqual(tol);
+    expect(await scrubber.evaluate((el) => el.classList.contains('is-scrubbing'))).toBe(false);
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    // The seek reached the player and the highlight followed it.
+    const synced = await page.evaluate(() => ({ player: window.__yt.getCurrentTime(), value: Number(document.getElementById('scrubber').value), active: state.activeIndex }));
+    expect(Math.abs(synced.player - synced.value)).toBeLessThan(1.5);
+    // Keyboard: arrows step 5s, Home/End go to the ends, with a readable value.
+    await scrubber.focus();
+    const k0 = await read();
+    await page.keyboard.press('ArrowRight');
+    expect((await read()) - k0).toBeCloseTo(5, 0);
+    await page.keyboard.press('ArrowLeft');
+    await page.keyboard.press('ArrowLeft');
+    expect((await read()) - k0).toBeCloseTo(-5, 0);
+    await page.keyboard.press('Home');
+    expect(await read()).toBe(0);
+    await expect(scrubber).toHaveAttribute('aria-valuetext', /^0:00 of \d+:\d\d(:\d\d)?$/);
+    await shot(page, `scrubber-${test.info().project.name}`);
   });
 });
