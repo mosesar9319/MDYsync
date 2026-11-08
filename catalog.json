@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-08T13:01:00.549Z",
+  "generatedAt": "2026-11-08T14:00:56.025Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -1144,6 +1144,11 @@
         "regularEn": {
           "videoId": "R-TU3NmUzB0",
           "label": "Daf Yomi Bechoros Daf 51 by R' Eli Stefansky",
+          "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "jMdfveBc2XM",
+          "label": "חזרה - בכורות דף נא | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
         }
       }
