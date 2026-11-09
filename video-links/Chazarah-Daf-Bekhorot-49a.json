@@ -1,1 +1,8 @@
-{"type":"youtube","url":"https://www.youtube.com/watch?v=I6drEMPPPqM","videoId":"I6drEMPPPqM","label":"CHAZARAH - Bechoros Daf 49 | \"Nothing but the Daf\" with R' Eli Stefansky","coveredRefs":["Bekhorot 48b","Bekhorot 49a","Bekhorot 49b"],"source":"channel-auto"}
+{
+  "label": "CHAZARAH - Bechoros Daf 49 | \"Nothing but the Daf\" with R' Eli Stefansky",
+  "locked": false,
+  "source": "manual",
+  "type": "youtube",
+  "url": "https://www.youtube.com/watch?v=I6drEMPPPqM",
+  "videoId": "I6drEMPPPqM"
+}
