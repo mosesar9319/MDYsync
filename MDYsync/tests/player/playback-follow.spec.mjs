@@ -453,8 +453,9 @@ test.describe('player labels, keys, and the wake layer', () => {
     await expect(page.locator('#dafTitle')).toContainText('Bekhorot 34a');
     await expect(page.locator('#lectureTitle')).toContainText('Bekhorot 34a');
     await expect(page.locator('#currentRef')).toContainText('Loading');
-    await expect(page.locator('.detail-pill', { hasText: 'Phrase-level sync' })).toBeVisible();
-    await expect(page.locator('.detail-pill', { hasText: 'Word-level sync' })).toHaveCount(0);
+    // The "About this shiur" card (with its sync pills) is gone.
+    await expect(page.locator('.about-card')).toHaveCount(0);
+    await expect(page.getByText('Word-level sync')).toHaveCount(0);
     await expect(page.locator('#autoScroll')).toBeChecked();
     await expect(page.locator('#alignmentStatus')).toBeHidden();
     await expect(page.locator('#currentTranslation')).toBeHidden();

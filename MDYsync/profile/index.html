@@ -126,6 +126,20 @@
             </div>
           </form>
 
+          <section class="pf-viewing" aria-labelledby="pfViewingTitle">
+            <div class="eyebrow" id="pfViewingTitle">Viewing</div>
+            <label class="sync-field">
+              <span>Open a shiur from the home page in</span>
+              <select id="pfDefaultView">
+                <option value="split">Split view: the video and the daf side by side</option>
+                <option value="standard">The regular player</option>
+                <option value="daf-on-video">Daf on video</option>
+                <option value="video-on-daf">Video on daf</option>
+              </select>
+            </label>
+            <span class="field-note" id="pfViewStatus" aria-live="polite"></span>
+          </section>
+
           <div class="pf-preview-card">
             <div class="eyebrow">How this appears in Cloud Chaburah</div>
             <div class="pf-preview-post">

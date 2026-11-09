@@ -95,9 +95,20 @@ function positionMenu(x, y) {
   el.style.top = `${top}px`;
 }
 
+// In fullscreen the browser draws only the fullscreen element, so a menu
+// left under <body> opened out of sight -- a long press in fullscreen Split
+// seemed to do nothing. The menu (and the hints below) go wherever is on
+// screen.
+function overlayHost() {
+  return document.fullscreenElement || document.webkitFullscreenElement || document.body;
+}
+
 function openDafMenu(target, x, y) {
   menuTarget = target;
+  markDafMenuFound();
   const el = ensureMenuEl();
+  const host = overlayHost();
+  if (el.parentNode !== host) host.appendChild(el);
   renderMenuItems(buildMenuItems(target));
   el.hidden = false;
   positionMenu(x, y);
@@ -575,6 +586,104 @@ function buildMenuItems(target) {
   return items;
 }
 
+// --- Helping readers find the menu ---------------------------------------------
+// The menu is only ever a right-click or a long press away, which nothing on
+// screen says. Three small aids, each shown sparingly:
+//   * while a finger rests on a word, a ring grows under it until the menu
+//     opens, so a press that is held reads as doing something;
+//   * the first time a daf is open on this device, a one-time hint;
+//   * after a reader has tapped words three times without ever opening the
+//     menu, a one-time tip.
+// Once the menu has been opened, none of the hints is shown again.
+
+const PRESS_RING_DELAY_MS = 120;
+const MENU_FOUND_KEY = 'dafsync.dafMenu.found';
+const MENU_HINT_KEY = 'dafsync.dafMenu.hintShown';
+const MENU_TIP_KEY = 'dafsync.dafMenu.tipShown';
+const WORD_TAPS_KEY = 'dafsync.dafMenu.wordTaps';
+const MENU_HINT_MS = 9000;
+
+function readFlag(key) {
+  try { return window.localStorage.getItem(key); } catch { return null; }
+}
+function writeFlag(key, value) {
+  try { window.localStorage.setItem(key, String(value)); } catch { /* not remembered */ }
+}
+const touchFirst = () => window.matchMedia('(pointer: coarse), (hover: none)').matches;
+const menuGesture = () => (touchFirst() ? 'Hold' : 'Right-click');
+
+let pressRing = null;
+function showPressRing(x, y, durationMs) {
+  hidePressRing();
+  pressRing = document.createElement('div');
+  pressRing.className = 'daf-press-ring';
+  pressRing.style.left = `${x}px`;
+  pressRing.style.top = `${y}px`;
+  pressRing.style.setProperty('--press-ms', `${Math.max(80, durationMs)}ms`);
+  overlayHost().appendChild(pressRing);
+  // Next frame, so the transition runs from the small start size.
+  requestAnimationFrame(() => pressRing?.classList.add('is-growing'));
+}
+function hidePressRing() {
+  pressRing?.remove();
+  pressRing = null;
+}
+
+function markDafMenuFound() {
+  writeFlag(MENU_FOUND_KEY, '1');
+  hideDafMenuHint();
+}
+
+let menuHintEl = null;
+let menuHintTimer = null;
+function hideDafMenuHint() {
+  clearTimeout(menuHintTimer);
+  menuHintEl?.remove();
+  menuHintEl = null;
+}
+// The one-time hint, at the bottom of the daf pane.
+function showDafMenuHint() {
+  if (readFlag(MENU_FOUND_KEY) || readFlag(MENU_HINT_KEY) || menuHintEl) return;
+  const card = $('dafCard');
+  if (!card) return;
+  const rect = card.getBoundingClientRect();
+  if (!(rect.width > 120 && rect.height > 120)) return;
+  writeFlag(MENU_HINT_KEY, '1');
+  menuHintEl = document.createElement('div');
+  menuHintEl.className = 'daf-menu-hint';
+  menuHintEl.setAttribute('role', 'status');
+  const text = document.createElement('span');
+  text.textContent = `${menuGesture()} any word for more: look it up, add a note, copy, or start a discussion.`;
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'daf-menu-hint-close';
+  close.setAttribute('aria-label', 'Dismiss the tip');
+  close.textContent = '×';
+  close.addEventListener('click', (event) => { event.stopPropagation(); hideDafMenuHint(); });
+  menuHintEl.append(text, close);
+  const width = Math.min(rect.width - 24, 420);
+  menuHintEl.style.width = `${width}px`;
+  menuHintEl.style.left = `${rect.left + (rect.width - width) / 2}px`;
+  menuHintEl.style.top = `${Math.min(rect.bottom, window.innerHeight) - 16}px`;
+  overlayHost().appendChild(menuHintEl);
+  menuHintTimer = setTimeout(hideDafMenuHint, MENU_HINT_MS);
+}
+
+// Called for each tap on a word (app.js's hapticTap). The third one, if the
+// menu has never been opened, brings a one-time tip.
+function noteDafWordTap() {
+  if (readFlag(MENU_FOUND_KEY) || readFlag(MENU_TIP_KEY)) return;
+  const taps = (Number(readFlag(WORD_TAPS_KEY)) || 0) + 1;
+  writeFlag(WORD_TAPS_KEY, taps);
+  if (taps < 3) return;
+  writeFlag(MENU_TIP_KEY, '1');
+  hideDafMenuHint();
+  if (typeof showToast === 'function') {
+    showToast(`Tip: ${menuGesture().toLowerCase()} a word to look it up, add a note, or start a discussion.`);
+  }
+}
+window.noteDafWordTap = noteDafWordTap;
+
 // --- Wiring ----------------------------------------------------------------
 
 function handleDafContextMenu(event, resolve) {
@@ -589,9 +698,13 @@ function attachLongPress(el, resolve) {
   let startX = 0;
   let startY = 0;
 
+  let ringTimer = null;
   const cancel = () => {
     if (timer) clearTimeout(timer);
     timer = null;
+    if (ringTimer) clearTimeout(ringTimer);
+    ringTimer = null;
+    hidePressRing();
   };
 
   el.addEventListener('touchstart', (event) => {
@@ -600,8 +713,13 @@ function attachLongPress(el, resolve) {
     startX = touch.clientX;
     startY = touch.clientY;
     cancel();
+    ringTimer = setTimeout(() => {
+      ringTimer = null;
+      if (resolve(startX, startY)) showPressRing(startX, startY, LONG_PRESS_MS - PRESS_RING_DELAY_MS);
+    }, PRESS_RING_DELAY_MS);
     timer = setTimeout(() => {
       timer = null;
+      hidePressRing();
       const target = resolve(startX, startY);
       if (!target) return;
       // The browser may still synthesize a click at the end of this touch --
@@ -662,6 +780,14 @@ function initDafContextMenu() {
   });
   window.addEventListener('resize', closeDafMenu);
   window.addEventListener('scroll', closeDafMenu, true);
+  window.addEventListener('resize', hideDafMenuHint);
+
+  // The one-time hint waits until the printed page has its words (the menu
+  // needs them), then gives the reader a moment to look at the daf first.
+  window.addEventListener('dafsync:vilna-page', (event) => {
+    if (event.detail?.reason !== 'map') return;
+    setTimeout(showDafMenuHint, 1500);
+  });
 }
 
 window.DafContextMenu = { close: closeDafMenu };

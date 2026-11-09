@@ -1578,7 +1578,17 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       if (entry.variant === "chazarah") params.set("variant", "chazarah");
       if (entry.language === "he") params.set("language", "hebrew");
       if (entry.maggid && entry.maggid !== DEFAULT_MAGGID) params.set("maggid", entry.maggid);
+      const mode = defaultViewMode();
+      if (mode !== "standard") params.set("mode", mode);
       return `/player/?${params.toString()}`;
+    }
+
+    // How a shiur opened from here starts: the reader's own choice from their
+    // account page (saved on their account), Split view until they choose.
+    const VIEW_MODES = ["split", "standard", "daf-on-video", "video-on-daf"];
+    function defaultViewMode() {
+      const chosen = window.DafSyncAuth?.getUser?.()?.user_metadata?.default_view_mode;
+      return VIEW_MODES.includes(chosen) ? chosen : "split";
     }
 
     // One row per real (tractate, daf) -- see tools/build-video-catalog.mjs

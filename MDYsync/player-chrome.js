@@ -1308,11 +1308,19 @@
   clickSurface.className = 'video-click-surface';
   clickSurface.setAttribute('aria-hidden', 'true');
   frame.appendChild(clickSurface);
-  let picturePointerType = '';
+  // The press that this click ends. A tap that starts on the wake layer can
+  // finish with its click landing here, once the controls it revealed have
+  // made that layer step aside; that click is not a tap on this surface, and
+  // acting on it hid the controls a split second after they appeared.
+  let pictureDown = null;
   clickSurface.addEventListener('pointerdown', (event) => {
-    picturePointerType = event.pointerType || '';
+    pictureDown = { type: event.pointerType || '', at: performance.now() };
   });
   clickSurface.addEventListener('click', () => {
+    const down = pictureDown;
+    pictureDown = null;
+    if (!down || performance.now() - down.at > 1000) return;
+    const picturePointerType = down.type;
     // This surface is inert while the controls are hidden (the wake layer
     // owns that). A click here means they were already showing. A mouse
     // click plays or pauses (YouTube's desktop player); a finger tap only
@@ -1330,7 +1338,7 @@
   wakeLayer.className = 'player-wake-layer';
   wakeLayer.setAttribute('aria-hidden', 'true');
   frame.appendChild(wakeLayer);
-  wakeLayer.addEventListener('mousemove', () => showVideoControls(), { passive: true });
+  wakeLayer.addEventListener('mousemove', () => { if (!window.mouseEventFromTouch?.()) showVideoControls(); }, { passive: true });
   // The first press on a faded bar used to die on this layer. pointerdown
   // revealed the controls, which dropped this layer's pointer-events before
   // mouseup, so the click that followed was retargeted onto an ancestor and

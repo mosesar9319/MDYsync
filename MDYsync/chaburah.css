@@ -698,6 +698,12 @@ a.cc-doc-citation:hover { border-color: var(--cc-accent); }
   margin-top: 24px; padding: 16px; border: 1px solid var(--cc-border);
   border-radius: 14px; background: var(--cc-surface);
 }
+.pf-viewing {
+  margin-top: 24px; padding: 16px; border: 1px solid var(--cc-border);
+  border-radius: 14px; background: var(--cc-surface);
+}
+.pf-viewing .sync-field { margin-top: 8px; }
+.pf-viewing select { width: 100%; max-width: 420px; }
 .pf-preview-post { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
 .pf-preview-post strong { font-size: 14px; }
 .pf-preview-post .field-note { display: block; margin-top: 2px; }
