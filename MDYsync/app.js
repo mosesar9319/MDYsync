@@ -2516,6 +2516,7 @@ function toggleVilnaFullscreen() {
 // that needs feature-specific handling per call site.
 function hapticTap() {
   navigator.vibrate?.(15);
+  window.noteDafWordTap?.();
 }
 
 // Renders one clickable region per PHRASE (segment) rather than per word --

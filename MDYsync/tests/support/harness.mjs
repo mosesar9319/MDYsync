@@ -103,14 +103,19 @@ export async function preparePage(page, options = {}) {
   });
 
   await page.addInitScript(
-    ({ dbJson, sessionJson, controlJson }) => {
+    ({ dbJson, sessionJson, controlJson, menuHints }) => {
       window.__DAFSYNC_TEST_DB__ = JSON.parse(dbJson);
       window.__DAFSYNC_TEST_SESSION__ = JSON.parse(sessionJson);
       window.__DAFSYNC_TEST_CONTROL__ = JSON.parse(controlJson);
       window.__DAFSYNC_TEST_CALLS__ = [];
       window.__DAFSYNC_TEST_QUERIES__ = [];
+      // The daf menu's one-time hints (daf-context-menu.js) would otherwise
+      // pop up over the daf in every test; specs about them opt back in.
+      if (!menuHints) {
+        try { window.localStorage.setItem('dafsync.dafMenu.found', '1'); } catch { /* storage blocked */ }
+      }
     },
-    { dbJson: JSON.stringify(db), sessionJson: JSON.stringify(session), controlJson: JSON.stringify(control) }
+    { dbJson: JSON.stringify(db), sessionJson: JSON.stringify(session), controlJson: JSON.stringify(control), menuHints: Boolean(options.menuHints) }
   );
 
   return { db, session, control };

@@ -4140,3 +4140,60 @@ body.split-view-active.split-layout-stacked.split-video-at-end:not(.split-chrome
 /* The Interactive Daf page keeps the daf picker on the page (see player-chrome.js);
    for a reader, who sees no admin fields, it is the strip's only field. */
 body[data-page="browse"]:not(.is-admin) .setup-strip { grid-template-columns: 1fr; }
+
+/* Helping readers find the daf's long-press / right-click menu
+   (daf-context-menu.js). The ring grows under a finger held on a word until
+   the menu opens; the hint is shown once per device. */
+.daf-press-ring {
+  position: fixed;
+  z-index: 650;
+  width: 64px;
+  height: 64px;
+  margin: -32px 0 0 -32px;
+  border-radius: 50%;
+  background: rgba(47, 110, 165, .22);
+  border: 2px solid rgba(47, 110, 165, .55);
+  pointer-events: none;
+  transform: scale(.25);
+  opacity: .4;
+}
+.daf-press-ring.is-growing {
+  transform: scale(1);
+  opacity: 1;
+  transition: transform var(--press-ms, 380ms) linear, opacity var(--press-ms, 380ms) linear;
+}
+.daf-menu-hint {
+  position: fixed;
+  z-index: 640;
+  box-sizing: border-box;
+  transform: translateY(-100%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px 10px 14px;
+  border-radius: 12px;
+  background: #132238;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.35;
+  box-shadow: 0 8px 24px rgba(19, 34, 56, .3);
+  /* Never in the way of the daf under it; only its close button takes taps. */
+  pointer-events: none;
+}
+.daf-menu-hint span { flex: 1; }
+.daf-menu-hint-close {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .14);
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .daf-press-ring.is-growing { transition: none; }
+}
