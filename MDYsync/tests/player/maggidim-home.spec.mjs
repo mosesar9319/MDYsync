@@ -71,6 +71,8 @@ test.describe('Home page — every maggid side by side', () => {
   test('the masechta filter offers a tractate only one maggid has', async ({ page }) => {
     await open(page);
     await expect(page.locator('#tractate-filter option')).toHaveText(['All', 'Chullin', 'Bekhorot']);
+    // On a phone the filters sit behind the button at the end of the chips.
+    if (await page.locator('#chipFilters').isVisible()) await page.locator('#chipFilters').click();
     await page.locator('#tractate-filter').selectOption('Chullin');
     await expect(cards(page)).toHaveCount(1);
     await expect(cards(page).first()).toContainText('Chulin 100');

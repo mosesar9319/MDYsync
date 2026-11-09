@@ -12627,6 +12627,8 @@ if (!state.browseMode && bootParams.get('view') !== 'scan') {
     loadDaf(bootRef).then(() => {
       if (seekWord !== null && !Number.isNaN(Number(seekWord))) {
         seekToVilnaWord(realDafRef(bootRef), Number(seekWord));
+      } else {
+        resumeFromSearch(bootParams);
       }
     });
   }
@@ -12695,6 +12697,8 @@ loadTalmudIndex().then(() => {
     const seekWord = params.get('seekWord');
     if (seekWord !== null && !Number.isNaN(Number(seekWord))) {
       seekToVilnaWord(realDafRef(fullRef), Number(seekWord));
+    } else {
+      resumeFromSearch(params);
     }
   });
 });
@@ -12735,3 +12739,49 @@ document.querySelectorAll('.sync-tab').forEach((tab) => {
     if (tab.dataset.syncPanel === 'syncYoutubePanel' || tab.dataset.syncPanel === 'syncVoicePanel') prefillYoutubeSyncTab();
   });
 });
+
+// --- Watch history: the home page's "Continue learning" row ------------------
+// Where the reader is in each shiur they watch, on this device only: the
+// player's own link (daf, variant, language, maggid), the video, the time
+// reached and the length. Written every few seconds while a shiur plays and
+// when the page is left; ?t=<seconds> on a link from that row resumes there.
+const WATCH_HISTORY_KEY = 'dafsync.watchHistory';
+const WATCH_HISTORY_MAX = 30;
+const WATCH_HISTORY_PARAMS = ['ref', 'variant', 'language', 'maggid'];
+
+function recordWatchProgress() {
+  if (!/^\/(player|watch)\//.test(location.pathname)) return;
+  const source = state.videoSource;
+  if (source?.type !== 'youtube' || !source.videoId) return;
+  const time = getCurrentTime();
+  if (!(time > 5)) return;
+  const search = new URLSearchParams(location.search);
+  const link = new URLSearchParams();
+  for (const name of WATCH_HISTORY_PARAMS) if (search.get(name)) link.set(name, search.get(name));
+  if (!link.get('ref')) return;
+  const entry = {
+    key: link.toString(),
+    url: `/player/?${link.toString()}`,
+    ref: link.get('ref'),
+    videoId: source.videoId,
+    time: Math.floor(time),
+    duration: Math.floor(getDuration() || 0),
+    updatedAt: Date.now(),
+  };
+  try {
+    const list = JSON.parse(localStorage.getItem(WATCH_HISTORY_KEY) || '[]');
+    const rest = Array.isArray(list) ? list.filter((item) => item?.key !== entry.key) : [];
+    localStorage.setItem(WATCH_HISTORY_KEY, JSON.stringify([entry, ...rest].slice(0, WATCH_HISTORY_MAX)));
+  } catch { /* not remembered */ }
+}
+
+function resumeFromSearch(params) {
+  const at = Number(params.get('t'));
+  if (Number.isFinite(at) && at > 0) seek(at);
+}
+
+setInterval(() => {
+  if (!document.hidden && !isPaused()) recordWatchProgress();
+}, 8000);
+window.addEventListener('pagehide', recordWatchProgress);
+document.addEventListener('visibilitychange', () => { if (document.hidden) recordWatchProgress(); });

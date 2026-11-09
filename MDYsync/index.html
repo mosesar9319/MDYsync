@@ -7,6 +7,16 @@
   <meta name="description" content="Browse Daf Yomi shiurim by daf and maggid shiur.">
   <link rel="icon" href="/assets/dafsync-mark.png" type="image/png">
   <title>DafSync — Daily Daf Yomi Shiurim</title>
+  <script>
+    // Light or dark, before the page paints: the reader's own choice on this
+    // device, else the system's. Only the phone layout has a dark look.
+    try {
+      const saved = localStorage.getItem("dafsync.theme");
+      document.documentElement.dataset.theme = saved === "dark" || saved === "light"
+        ? saved
+        : (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    } catch { document.documentElement.dataset.theme = "light"; }
+  </script>
   <style>
 
 /* Recolored to Cloud Chaburah's editorial-blue palette (see chaburah.css's
@@ -1284,6 +1294,527 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
 .auth-form-actions { align-items: center; display: flex; flex-direction: column; gap: 10px; }
 .auth-form-actions .primary-action { justify-content: center; width: 100%; }
 .auth-switch-button { background: transparent; border: 0; color: var(--gold); cursor: pointer; font-size: 13px; }
+
+/* ---------------------------------------------------------------------
+   Phone home, laid out like a video app's feed: a slim top bar (search
+   behind an icon, light/dark, account), one row of chips, then one
+   full-width card after another. Desktop keeps the layout above.
+   --------------------------------------------------------------------- */
+.top-icon,
+.feed-chips,
+.feed-more,
+.card-avatar,
+.card-meta-phone,
+.thumb-badge {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  :root {
+    --feed-bg: #f4f7fb;
+    --feed-surface: #ffffff;
+    --feed-chip: #e6ebf2;
+    --feed-chip-text: #132238;
+    --feed-chip-active: #132238;
+    --feed-chip-active-text: #ffffff;
+    --feed-title: #132238;
+    --feed-meta: #5f6d80;
+    --feed-line: #d9e1eb;
+  }
+  html[data-theme="dark"] {
+    --ivory: #0f1115;
+    --paper: #1b1e24;
+    --navy: #eef2f7;
+    --navy-soft: #c9d2de;
+    --ink: #eef2f7;
+    --muted: #a3acb9;
+    --line: #2b3039;
+    --feed-bg: #0f1115;
+    --feed-surface: #1b1e24;
+    --feed-chip: #262a32;
+    --feed-chip-text: #eef2f7;
+    --feed-chip-active: #eef2f7;
+    --feed-chip-active-text: #0f1115;
+    --feed-title: #eef2f7;
+    --feed-meta: #a3acb9;
+    --feed-line: #2b3039;
+    color-scheme: dark;
+  }
+
+  html,
+  body {
+    background: var(--feed-bg);
+  }
+
+  body {
+    color: var(--feed-title);
+  }
+
+  /* The slim top bar. */
+  .topbar {
+    background: var(--feed-bg);
+    backdrop-filter: none;
+    border-bottom: 0;
+    flex-wrap: nowrap;
+    gap: 4px;
+    height: 56px;
+    padding: 0 8px 0 14px;
+    position: sticky;
+    top: 0;
+  }
+
+  .mobile-brand .brand-emblem {
+    height: 32px;
+    width: 32px;
+  }
+
+  .mobile-brand .brand-name {
+    font-size: 23px;
+    letter-spacing: -1px;
+  }
+
+  .top-icon {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: 50%;
+    color: var(--feed-title);
+    cursor: pointer;
+    display: flex;
+    flex: 0 0 auto;
+    height: 40px;
+    justify-content: center;
+    padding: 0;
+    width: 40px;
+  }
+
+  .top-icon:active {
+    background: var(--feed-chip);
+  }
+
+  .top-icon.search-close,
+  .topbar .search-box {
+    display: none;
+  }
+
+  .topbar.search-open .mobile-brand,
+  .topbar.search-open .search-toggle,
+  .topbar.search-open .theme-toggle,
+  .topbar.search-open .auth-widget {
+    display: none;
+  }
+
+  .topbar.search-open .search-close {
+    display: flex;
+  }
+
+  .topbar.search-open .search-box {
+    background: var(--feed-chip);
+    border: 0;
+    color: var(--feed-meta);
+    display: flex;
+    flex: 1;
+    gap: 10px;
+    height: 40px;
+    order: 0;
+    padding: 0 6px 0 14px;
+  }
+
+  .topbar.search-open .search-box input {
+    color: var(--feed-title);
+  }
+
+  .topbar.search-open .search-box input::placeholder {
+    color: var(--feed-meta);
+  }
+
+  .auth-widget {
+    margin-left: 2px;
+  }
+
+  .auth-button,
+  .account-trigger {
+    background: transparent;
+    border-color: var(--feed-line);
+    color: var(--feed-title);
+    font-size: 13px;
+    height: 34px;
+    padding: 0 12px;
+  }
+
+  #accountEmailLabel {
+    display: inline-block;
+    max-width: 92px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+  }
+
+  .account-dropdown {
+    background: var(--feed-surface);
+    border-color: var(--feed-line);
+  }
+
+  .account-dropdown-item {
+    color: var(--feed-title);
+  }
+
+  /* The chips: one row, sideways scrolling, under the top bar. */
+  main {
+    padding: 0 0 92px;
+  }
+
+  .feed-chips {
+    background: var(--feed-bg);
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding: 4px 12px 10px;
+    position: sticky;
+    scrollbar-width: none;
+    top: 56px;
+    z-index: 14;
+  }
+
+  .feed-chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .feed-chips button {
+    align-items: center;
+    background: var(--feed-chip);
+    border: 0;
+    border-radius: 8px;
+    color: var(--feed-chip-text);
+    cursor: pointer;
+    display: flex;
+    flex: 0 0 auto;
+    font-size: 14px;
+    font-weight: 600;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px;
+    white-space: nowrap;
+  }
+
+  .feed-chips button.active {
+    background: var(--feed-chip-active);
+    color: var(--feed-chip-active-text);
+  }
+
+  .feed-chips .chip-filters {
+    padding: 0 9px;
+  }
+
+  .feed-chips .chip-filters.open {
+    outline: 2px solid var(--feed-chip-active);
+    outline-offset: -2px;
+  }
+
+  /* What the chips replace. */
+  .filters,
+  .today-section {
+    display: none;
+  }
+
+  .subfilters {
+    display: none;
+  }
+
+  body.phone-filters-open .subfilters {
+    display: flex;
+    gap: 10px 14px;
+    margin: 0;
+    padding: 2px 14px 14px;
+  }
+
+  .subfilter-field {
+    color: var(--feed-meta);
+  }
+
+  .subfilter-field select {
+    background: var(--feed-surface);
+    border-color: var(--feed-line);
+    color: var(--feed-title);
+  }
+
+  .learning-section {
+    margin-top: 0;
+  }
+
+  .learning-section:not(.is-searching) > .section-heading {
+    display: none;
+  }
+
+  .learning-section > .section-heading {
+    padding: 4px 14px 0;
+  }
+
+  .section-heading h2 {
+    color: var(--feed-title);
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0;
+  }
+
+  .maggid-back {
+    margin: 4px 14px 10px;
+  }
+
+  /* The feed: one card after another, the picture edge to edge. */
+  .card-grid {
+    gap: 20px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shiur-card,
+  .shiur-card:hover {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    transform: none;
+  }
+
+  .shiur-card .thumbnail {
+    border-radius: 0;
+  }
+
+  .shiur-card .thumbnail-play {
+    display: none;
+  }
+
+  .thumb-badge {
+    background: rgba(9, 19, 27, 0.86);
+    border-radius: 4px;
+    bottom: 8px;
+    color: #fff;
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 3px 6px;
+    position: absolute;
+    right: 8px;
+    z-index: 3;
+  }
+
+  .thumb-badge.is-today {
+    background: #2f6ea5;
+  }
+
+  .card-copy {
+    column-gap: 12px;
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr);
+    min-height: 0;
+    padding: 12px 14px 0;
+  }
+
+  .card-copy > span:nth-child(2) {
+    display: none;
+  }
+
+  .card-avatar {
+    align-items: center;
+    background: var(--avatar, #2f6ea5);
+    border-radius: 50%;
+    color: #fff;
+    display: flex;
+    font-size: 13px;
+    font-weight: 700;
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    height: 36px;
+    justify-content: center;
+    width: 36px;
+  }
+
+  .card-copy strong {
+    color: var(--feed-title);
+    display: -webkit-box;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    grid-column: 2;
+    line-height: 1.3;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .card-meta-phone {
+    color: var(--feed-meta);
+    display: block;
+    font-size: 12.5px;
+    grid-column: 2;
+    margin-top: 3px;
+  }
+
+  .feed-more {
+    display: block;
+    height: 1px;
+  }
+
+  .empty-state {
+    border-color: var(--feed-line);
+    margin: 12px 14px;
+  }
+
+  /* Continue learning: its own sideways row in the feed. */
+  .continue-shelf {
+    border-bottom: 6px solid var(--feed-chip);
+    border-top: 6px solid var(--feed-chip);
+    padding: 12px 0 14px;
+  }
+
+  .continue-shelf h2 {
+    color: var(--feed-title);
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    margin: 0 14px 10px;
+  }
+
+  .continue-row {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding: 0 14px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  .continue-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .continue-card {
+    color: var(--feed-title);
+    flex: 0 0 168px;
+    scroll-snap-align: start;
+    text-decoration: none;
+  }
+
+  .continue-card .thumbnail {
+    border-radius: 8px;
+  }
+
+  .continue-progress {
+    background: rgba(255, 255, 255, 0.35);
+    bottom: 0;
+    height: 3px;
+    left: 0;
+    position: absolute;
+    right: 0;
+    z-index: 3;
+  }
+
+  .continue-progress span {
+    background: #e62117;
+    display: block;
+    height: 100%;
+  }
+
+  .continue-card strong {
+    display: -webkit-box;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.3;
+    margin-top: 7px;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .continue-card small {
+    color: var(--feed-meta);
+    display: block;
+    font-size: 12px;
+    margin-top: 2px;
+  }
+
+  /* "Continue watching" chip: the same history, as full cards. */
+  .continue-card.is-wide {
+    display: block;
+    flex: none;
+  }
+
+  .continue-card.is-wide .thumbnail {
+    border-radius: 0;
+  }
+
+  .continue-card.is-wide .card-copy strong {
+    margin-top: 0;
+  }
+
+  /* Bottom tabs: plain icons and labels. */
+  .mobile-nav {
+    background: var(--feed-bg);
+    border-top: 1px solid var(--feed-line);
+    box-shadow: none;
+    gap: 0;
+    padding-top: 6px;
+  }
+
+  .mobile-nav button,
+  .mobile-nav a {
+    color: var(--feed-meta);
+    min-width: 66px;
+  }
+
+  .mobile-nav button.active,
+  .mobile-nav a.active {
+    color: var(--feed-title);
+    font-weight: 700;
+  }
+
+  /* Other sections and the shiur window in the dark. */
+  .maggid-card,
+  .maggid-other-list a {
+    background: var(--feed-surface);
+    border-color: var(--feed-line);
+    color: var(--feed-title);
+  }
+
+  .maggidim-section,
+  .maggid-other {
+    padding: 0 14px;
+  }
+
+  .maggid-other-list small {
+    color: var(--feed-meta);
+  }
+
+  .shiur-modal {
+    background: var(--feed-surface);
+  }
+
+  .modal-copy h2 {
+    color: var(--feed-title);
+  }
+
+  .modal-variant-toggle button {
+    background: var(--feed-surface);
+    border-color: var(--feed-line);
+    color: var(--feed-title);
+  }
+
+  html[data-theme="dark"] dialog#authDialog,
+  html[data-theme="dark"] .google-auth-button {
+    background: var(--feed-surface);
+    color: var(--feed-title);
+  }
+
+  html[data-theme="dark"] .maggid-back {
+    background: var(--feed-surface);
+    border-color: var(--feed-line);
+    color: var(--feed-title);
+  }
+}
 </style>
 </head>
 <body>
@@ -1303,12 +1834,15 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
             <span class="brand-name"><span class="brand-daf">Daf</span><span class="brand-sync">Sync</span></span>
           </a>
         </div>
+        <button class="top-icon search-close" id="searchClose" type="button" aria-label="Close search"><span data-icon="back"></span></button>
         <label class="search-box">
           <span class="sr-only">Search shiurim</span>
           <span data-icon="search"></span>
           <input id="search" placeholder="Search shiurim or maggidei shiur" type="search">
           <button aria-label="Clear search" class="clear-search" id="clear-search" hidden type="button"></button>
         </label>
+        <button class="top-icon search-toggle" id="searchToggle" type="button" aria-label="Search" aria-expanded="false"><span data-icon="search"></span></button>
+        <button class="top-icon theme-toggle" id="themeToggle" type="button" aria-label="Dark mode" aria-pressed="false"></button>
         <div class="auth-widget" id="authWidget">
           <button class="auth-button" id="signInButton" type="button">Sign in</button>
           <div class="account-menu" id="accountMenu" hidden>
@@ -1326,6 +1860,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       </header>
 
       <main>
+        <div class="feed-chips" id="feedChips" role="toolbar" aria-label="Filter shiurim"></div>
         <div class="filters" id="filters" aria-label="Browse filters"></div>
 
         <section class="today-section" id="today-section">
@@ -1381,6 +1916,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
             </label>
           </div>
           <div class="card-grid" id="card-grid"></div>
+          <div class="feed-more" id="feedMore" aria-hidden="true"></div>
           <div class="empty-state" id="empty-state" hidden>
             <span data-icon="search"></span>
             <h3 id="empty-title">No shiurim found</h3>
@@ -1481,7 +2017,11 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       chevron: '<path d="m9 6 6 6-6 6"/>',
       camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
       bookOpen: '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
-      chaburah: '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h.79a4.5 4.5 0 1 1 0 9z"/>'
+      chaburah: '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h.79a4.5 4.5 0 1 1 0 9z"/>',
+      back: '<path d="M19 12H5M11 18l-6-6 6-6"/>',
+      moon: '<path d="M20.5 14.2A8.5 8.5 0 1 1 9.8 3.5a6.8 6.8 0 0 0 10.7 10.7Z"/>',
+      sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>',
+      sliders: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>'
     };
 
     const icon = (name, size = 22) =>
@@ -1722,6 +2262,8 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       // beside the default maggid's. maggidFilter is a maggid id while that
       // maggid's own page is open, else null (everyone's, side by side).
       maggidRows: [], maggidFilter: null, maggidVideos: {},
+      // The phone's "Continue watching" chip: this device's watch history.
+      showContinue: false, maggidPage: false,
       // catalogLoading distinguishes "haven't heard back yet" from a
       // genuinely empty result, and catalogFailed distinguishes a real fetch
       // failure from "this daf/search really has nothing" -- collapsing
@@ -1778,6 +2320,13 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
           // own dedicated section instead of filtering the video grid (see
           // renderCards' maggidimActive branch).
           if (state.activeNav === "Home") { state.filter = "All Shiurim"; state.query = ""; state.maggidFilter = null; }
+          // The phone's tabs also clear its chips (All, or Today's Daf).
+          state.showContinue = false;
+          if (phoneLayout.matches && state.activeNav !== "Maggidei Shiurim") {
+            state.variant = state.language = "all";
+            variantFilter.value = languageFilter.value = "all";
+            state.maggidFilter = null;
+          }
           search.value = state.query;
           render();
           window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1813,16 +2362,184 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       return rowMaggid(row) === DEFAULT_MAGGID ? "" : ` · ${escapeHtml(maggidName(rowMaggid(row)))}`;
     }
 
+    // The phone feed's extras on each card (hidden on desktop): the maggid's
+    // initials, a "maggid · daf · language" line, and a Today badge.
+    const MAGGID_COLORS = { stefansky: "#2f6ea5", bornstein: "#8a5a2b" };
+    function maggidInitials(id) {
+      return maggidName(id).replace(/^R[’']\s*/, "").split(/\s+/).map((word) => word[0] || "").join("").slice(0, 2).toUpperCase();
+    }
+    function avatarMarkup(id) {
+      return `<span class="card-avatar" aria-hidden="true" style="--avatar:${MAGGID_COLORS[id] || "#2f6ea5"}">${escapeHtml(maggidInitials(id))}</span>`;
+    }
+    const isTodayRow = (row) => Boolean(state.today) && row.tractate === state.today.tractate && row.daf === state.today.daf;
+
     function cardMarkup(item, index) {
       const { row, combo } = item;
       const videoId = row[combo].videoId;
+      const maggid = rowMaggid(row);
       return `<button class="shiur-card" data-card="${index}" type="button">
         <span class="thumbnail">
           <img class="thumb-img" src="${thumbUrl(videoId)}" alt="" loading="lazy" />
           <span class="thumbnail-play">${icon("play", 20)}</span>
+          ${isTodayRow(row) ? `<span class="thumb-badge is-today">Today</span>` : ""}
         </span>
-        <span class="card-copy"><strong>${escapeHtml(videoLabel(row, combo))}</strong><span>${dafLabel(row)} · ${COMBO_LABELS[combo]}${maggidTag(row)}</span></span>
+        <span class="card-copy"><strong dir="auto">${escapeHtml(videoLabel(row, combo))}</strong><span>${dafLabel(row)} · ${COMBO_LABELS[combo]}${maggidTag(row)}</span><span class="card-meta-phone">${escapeHtml(maggidName(maggid))} · ${dafLabel(row)} · ${COMBO_LABELS[combo]}</span>${avatarMarkup(maggid)}</span>
       </button>`;
+    }
+
+    // -----------------------------------------------------------------
+    // The phone feed: chips, today's daf first, the Continue learning row,
+    // then everything newest first, a page at a time as the reader scrolls.
+    // -----------------------------------------------------------------
+    const phoneLayout = window.matchMedia("(max-width: 760px)");
+    const FEED_PAGE = 12;
+    const WATCH_HISTORY_KEY = "dafsync.watchHistory";
+
+    // Single-select chips over the same state the desktop filters use.
+    const CHIPS = [
+      { id: "all", label: "All" },
+      { id: "today", label: "Today’s Daf" },
+      ...MAGGIDIM.map((maggid) => ({ id: `maggid:${maggid.id}`, label: maggid.name })),
+      { id: "chazarah", label: "Chazarah" },
+      { id: "hebrew", label: "Hebrew" },
+      { id: "continue", label: "Continue watching" },
+    ];
+
+    function activeChip() {
+      if (state.showContinue) return "continue";
+      if (state.filter === "Today") return "today";
+      if (state.maggidFilter) return `maggid:${state.maggidFilter}`;
+      if (state.variant === "chazarah" && state.language === "all") return "chazarah";
+      if (state.language === "he" && state.variant === "all") return "hebrew";
+      if (state.variant === "all" && state.language === "all") return "all";
+      return null;
+    }
+
+    function chooseChip(id) {
+      state.activeNav = id === "today" ? "Today’s Daf" : "Home";
+      state.filter = id === "today" ? "Today" : "All Shiurim";
+      state.maggidFilter = id.startsWith("maggid:") ? id.slice("maggid:".length) : null;
+      state.variant = id === "chazarah" ? "chazarah" : "all";
+      state.language = id === "hebrew" ? "he" : "all";
+      state.showContinue = id === "continue";
+      state.maggidPage = false;
+      variantFilter.value = state.variant;
+      languageFilter.value = state.language;
+      render();
+      window.scrollTo({ top: 0 });
+    }
+
+    function renderChips() {
+      const active = activeChip();
+      const chips = document.querySelector("#feedChips");
+      chips.innerHTML = CHIPS.map((chip) =>
+        `<button class="${chip.id === active ? "active" : ""}" data-chip="${escapeHtml(chip.id)}" type="button" aria-pressed="${chip.id === active}">${escapeHtml(chip.label)}</button>`
+      ).join("") + `<button class="chip-filters${document.body.classList.contains("phone-filters-open") ? " open" : ""}" id="chipFilters" type="button" aria-label="More filters" aria-expanded="${document.body.classList.contains("phone-filters-open")}">${icon("sliders", 18)}</button>`;
+      chips.querySelectorAll("[data-chip]").forEach((button) => {
+        button.addEventListener("click", () => chooseChip(button.dataset.chip));
+      });
+      chips.querySelector("#chipFilters").addEventListener("click", () => {
+        document.body.classList.toggle("phone-filters-open");
+        renderChips();
+      });
+    }
+
+    function readWatchHistory() {
+      try {
+        const list = JSON.parse(localStorage.getItem(WATCH_HISTORY_KEY) || "[]");
+        return Array.isArray(list)
+          ? list.filter((entry) => entry && typeof entry.url === "string" && entry.url.startsWith("/player/?") && entry.videoId && entry.ref)
+          : [];
+      } catch {
+        return [];
+      }
+    }
+
+    // The catalog's own title and maggid for a remembered video, when it
+    // is still listed; otherwise just its daf.
+    function historyDetails(entry) {
+      for (const row of state.catalog.concat(state.maggidRows)) {
+        const combo = COMBO_KEYS.find((key) => row[key]?.videoId === entry.videoId);
+        if (combo) return { title: videoLabel(row, combo), maggid: rowMaggid(row), meta: `${maggidName(rowMaggid(row))} · ${dafLabel(row)} · ${COMBO_LABELS[combo]}` };
+      }
+      const maggid = new URLSearchParams(entry.url.split("?")[1]).get("maggid") || DEFAULT_MAGGID;
+      return { title: entry.ref, maggid, meta: maggidName(maggid) };
+    }
+
+    function historyUrl(entry) {
+      const params = new URLSearchParams(entry.url.split("?")[1]);
+      const mode = defaultViewMode();
+      if (mode !== "standard") params.set("mode", mode);
+      const finished = entry.duration > 0 && entry.time >= entry.duration - 15;
+      if (entry.time > 0 && !finished) params.set("t", String(Math.floor(entry.time)));
+      return `/player/?${params.toString()}`;
+    }
+
+    function historyCardMarkup(entry, wide) {
+      const details = historyDetails(entry);
+      const percent = entry.duration > 0 ? Math.min(100, Math.max(2, (entry.time / entry.duration) * 100)) : 0;
+      const progress = percent ? `<span class="continue-progress"><span style="width:${percent.toFixed(1)}%"></span></span>` : "";
+      const picture = `<span class="thumbnail"><img class="thumb-img" src="${thumbUrl(entry.videoId)}" alt="" loading="lazy" />${progress}</span>`;
+      return wide
+        ? `<a class="continue-card is-wide" href="${escapeHtml(historyUrl(entry))}">${picture}<span class="card-copy"><strong dir="auto">${escapeHtml(details.title)}</strong><span></span><span class="card-meta-phone">${escapeHtml(details.meta)}</span>${avatarMarkup(details.maggid)}</span></a>`
+        : `<a class="continue-card" href="${escapeHtml(historyUrl(entry))}">${picture}<strong dir="auto">${escapeHtml(details.title)}</strong><small>${escapeHtml(details.meta)}</small></a>`;
+    }
+
+    function shelfMarkup(history) {
+      return `<section class="continue-shelf" id="continueShelf" aria-label="Continue learning">
+        <h2>Continue learning</h2>
+        <div class="continue-row">${history.slice(0, 12).map((entry) => historyCardMarkup(entry, false)).join("")}</div>
+      </section>`;
+    }
+
+    // Cards [from, to) of the current feed, with the Continue learning row
+    // dropped in where it belongs.
+    const feed = { items: [], shown: 0, shelfAt: -1, history: [] };
+    function appendFeed(to) {
+      const end = Math.min(to, feed.items.length);
+      let html = "";
+      for (let index = feed.shown; index < end; index += 1) {
+        if (index === feed.shelfAt) html += shelfMarkup(feed.history);
+        html += cardMarkup(feed.items[index], index);
+      }
+      // Every card is today's: the row goes after them all.
+      if (feed.shelfAt === feed.items.length && end === feed.items.length && !grid.querySelector("#continueShelf")) {
+        html += shelfMarkup(feed.history);
+      }
+      feed.shown = end;
+      grid.insertAdjacentHTML("beforeend", html);
+    }
+
+    // Keep adding pages while the end of the feed is close to the screen
+    // (the observer only speaks up when that changes).
+    function fillFeed() {
+      const sentinel = document.querySelector("#feedMore");
+      while (feed.shown < feed.items.length && sentinel.getBoundingClientRect().top < window.innerHeight + 900) {
+        appendFeed(feed.shown + FEED_PAGE);
+      }
+    }
+
+    const feedObserver = "IntersectionObserver" in window
+      ? new IntersectionObserver((entries) => {
+        if (entries.some((entry) => entry.isIntersecting) && feed.shown < feed.items.length) appendFeed(feed.shown + FEED_PAGE);
+      }, { rootMargin: "900px 0px" })
+      : null;
+    feedObserver?.observe(document.querySelector("#feedMore"));
+
+    function toggleSearch(open) {
+      const topbar = document.querySelector(".topbar");
+      topbar.classList.toggle("search-open", open);
+      document.querySelector("#searchToggle").setAttribute("aria-expanded", String(open));
+      if (open) search.focus();
+    }
+
+    function renderThemeToggle() {
+      const dark = document.documentElement.dataset.theme === "dark";
+      const button = document.querySelector("#themeToggle");
+      button.innerHTML = icon(dark ? "sun" : "moon", 22);
+      button.setAttribute("aria-label", dark ? "Light mode" : "Dark mode");
+      button.setAttribute("aria-pressed", String(dark));
+      document.querySelector('meta[name="theme-color"]').content = dark && phoneLayout.matches ? "#0f1115" : "#132238";
     }
 
     // Each daf can have up to four genuinely different videos (English vs
@@ -1920,6 +2637,8 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
 
     // A maggid's own page: the ordinary video grid narrowed to their dapim.
     function openMaggid(id) {
+      state.maggidPage = true;
+      state.showContinue = false;
       state.activeNav = "Home";
       state.filter = "All Shiurim";
       state.maggidFilter = id;
@@ -1976,6 +2695,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       // hide the usual hero/filter/grid machinery entirely while it's active.
       const maggidimActive = state.activeNav === "Maggidei Shiurim";
       document.querySelector("#maggidimSection").hidden = !maggidimActive;
+      document.querySelector("#feedChips").hidden = maggidimActive;
       document.querySelector(".learning-section").hidden = maggidimActive;
       if (maggidimActive) {
         todaySection.hidden = true;
@@ -1985,10 +2705,34 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       }
       // One maggid's own page (opened from their card) shows only their
       // videos, with a way back; everywhere else everyone's sit side by side.
-      document.querySelector("#maggidBack").hidden = !state.maggidFilter;
       renderOtherShiurim();
 
-      const items = state.catalogLoading ? [] : cardItems();
+      const phone = phoneLayout.matches;
+      const history = phone ? readWatchHistory() : [];
+      // A maggid's page opened from the Maggidei Shiurim tab keeps its title
+      // and way back on the phone; the maggid chips are just a filter.
+      const maggidPage = Boolean(state.maggidFilter) && (state.maggidPage || !phone);
+      document.querySelector("#maggidBack").hidden = !maggidPage;
+      document.querySelector(".learning-section").classList.toggle("is-searching", Boolean(state.query) || maggidPage);
+      if (phone && state.showContinue && !state.query) {
+        renderChips();
+        grid.innerHTML = history.map((entry) => historyCardMarkup(entry, true)).join("");
+        grid.hidden = history.length === 0;
+        empty.hidden = history.length > 0;
+        emptyTitle.textContent = "Nothing to continue yet";
+        emptyMessage.textContent = "Shiurim you start watching on this device show up here.";
+        emptyClearButton.hidden = true;
+        feed.items = [];
+        feed.shown = 0;
+        return;
+      }
+
+      let items = state.catalogLoading ? [] : cardItems();
+      // Today's daf first in the phone's All feed, then the rest newest first.
+      const allFeed = phone && !state.query && state.filter === "All Shiurim" && !state.maggidFilter;
+      if (allFeed && state.today) {
+        items = items.filter((item) => isTodayRow(item.row)).concat(items.filter((item) => !isTodayRow(item.row)));
+      }
       todaySection.hidden = Boolean(state.query);
       clearSearch.hidden = !state.query;
       empty.hidden = items.length > 0;
@@ -2029,12 +2773,36 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         sectionEyebrow.textContent = state.filter.toUpperCase();
         sectionTitle.textContent = state.filter;
       }
+      if (phone) {
+        renderChips();
+        if (state.filter === "Today" && !state.catalogLoading && !state.catalogFailed && !items.length && state.today) {
+          emptyTitle.textContent = `${state.today.tractate} ${state.today.daf} isn’t linked yet`;
+          emptyMessage.textContent = "Check back a little later.";
+          emptyClearButton.hidden = true;
+        }
+        feed.items = items;
+        feed.shown = 0;
+        feed.history = history;
+        feed.shelfAt = allFeed && history.length && items.length
+          ? items.filter((item) => isTodayRow(item.row)).length
+          : -1;
+        grid.innerHTML = "";
+        appendFeed(FEED_PAGE);
+        requestAnimationFrame(fillFeed);
+        return;
+      }
+      feed.items = items;
+      feed.shown = items.length;
       grid.innerHTML = items.map((item, index) => cardMarkup(item, index)).join("");
-      grid.querySelectorAll("[data-card]").forEach((card) => {
-        const item = items[Number(card.dataset.card)];
-        card.addEventListener("click", () => openShiur(item.row, item.combo));
-      });
     }
+
+    // One listener for every card, however many pages the feed has added.
+    grid.addEventListener("click", (event) => {
+      const card = event.target.closest("[data-card]");
+      if (!card || !grid.contains(card)) return;
+      const item = feed.items[Number(card.dataset.card)];
+      if (item) openShiur(item.row, item.combo);
+    });
 
     function renderHero() {
       const loading = document.querySelector("#hero-loading");
@@ -2107,6 +2875,23 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
+    document.querySelector("#searchToggle").addEventListener("click", () => toggleSearch(true));
+    document.querySelector("#searchClose").addEventListener("click", () => {
+      toggleSearch(false);
+      if (state.query) {
+        state.query = "";
+        search.value = "";
+        renderCards();
+      }
+    });
+    document.querySelector("#themeToggle").addEventListener("click", () => {
+      const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+      document.documentElement.dataset.theme = next;
+      try { localStorage.setItem("dafsync.theme", next); } catch { /* this visit only */ }
+      renderThemeToggle();
+    });
+    phoneLayout.addEventListener?.("change", () => { renderThemeToggle(); render(); });
+    renderThemeToggle();
     document.querySelector("#modal-close").addEventListener("click", closeModal);
     modal.addEventListener("click", (event) => {
       if (event.target === modal) closeModal();
@@ -2117,6 +2902,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     document.querySelectorAll(".brand").forEach((brand) => brand.addEventListener("click", (event) => {
       event.preventDefault();
       state.maggidFilter = null;
+      state.showContinue = false;
       state.activeNav = "Home";
       state.filter = "All Shiurim";
       state.query = "";
