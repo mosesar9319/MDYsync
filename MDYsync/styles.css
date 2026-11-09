@@ -235,7 +235,7 @@ h2 { margin-bottom: 0; }
    whatever the element itself computes. */
 .video-frame { --pc-bar-h: 68px; --pc-timeline-h: 74px; --accent: #2f6ea5; --accent-soft: rgba(47, 110, 165,.16); position: relative; background: #020812; overflow: hidden; border-radius: 15px; aspect-ratio: 16/9; border: 1px solid var(--line); flex-shrink: 0; }
 .video-frame.is-compact { --pc-bar-h: 40px; --pc-timeline-h: 30px; }
-.video-frame video { width: 100%; height: 100%; display: block; object-fit: contain; background: #030914; }
+.video-frame video { width: 100%; height: 100%; display: block; object-fit: contain; object-position: center top; background: #030914; }
 .video-empty { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; color: var(--muted); }
 .empty-icon { font-size: 32px; color: var(--accent); }
 .large-play { position: absolute; inset: 0; margin: auto; width: 74px; height: 74px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25); background: rgba(4,14,27,.72); color: white; display: grid; place-items: center; cursor: pointer; backdrop-filter: blur(10px); transition: .2s ease; }
@@ -356,26 +356,71 @@ h2 { margin-bottom: 0; }
    app.js set on the input itself. Scoped to .scrubber only -- the volume/
    opacity sliders don't need a third color and keep their native
    accent-color rendering as-is. */
+/* YouTube-style timeline: a thin track, red for what has played, a lighter
+   grey for what is buffered, a muted grey for the rest, and a round red
+   thumb. The input box is taller than the track (--scrub-hit) so a finger
+   or a mouse lands on it easily; only the track and the thumb are painted,
+   so the visible control stays a hairline. Hover, keyboard focus, and a
+   drag thicken the track and grow the thumb, the way YouTube's does.
+   app.js keeps --scrub-played-f / --scrub-buffered-f (0-1) current. The
+   red ends at the thumb's centre, which the native range places between
+   thumb/2 and width - thumb/2; scrubTimeFromClientX in app.js maps a press
+   the same way, so the pressed point, the thumb, and the fill agree. */
 .scrubber {
+  --scrub-red: #ff0033;
+  --scrub-track-h: 3px;
+  /* The thumb's layout size never changes (the native range maps a click
+     using it, mid-hover included); it looks smaller at rest by scale. */
+  --scrub-thumb: 15px;
+  --scrub-thumb-scale: .8;
+  --scrub-hit: 20px;
+  --scrub-p: calc(var(--scrub-thumb) / 2 + (100% - var(--scrub-thumb)) * var(--scrub-played-f, 0));
+  --scrub-b: calc(var(--scrub-thumb) / 2 + (100% - var(--scrub-thumb)) * var(--scrub-buffered-f, 0));
+  --scrub-fill: linear-gradient(to right,
+    var(--scrub-red) 0 var(--scrub-p),
+    rgba(255,255,255,.45) var(--scrub-p) var(--scrub-b),
+    rgba(255,255,255,.22) var(--scrub-b) 100%);
+  display: block;
   width: 100%;
-  height: 4px;
+  height: var(--scrub-hit);
+  margin: 0;
+  padding: 0;
   cursor: pointer;
   -webkit-appearance: none;
   appearance: none;
-  background: transparent;
+  background: transparent !important;
+  border-radius: 4px;
+  /* A horizontal drag on the timeline is a seek, never a page scroll. */
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
 }
-.scrubber::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: inherit; }
+.scrubber:hover,
+.scrubber:focus-visible,
+.scrubber.is-scrubbing { --scrub-track-h: 5px; --scrub-thumb-scale: 1; }
+.scrubber:focus { outline: none; }
+.scrubber:focus-visible { outline: 2px solid rgba(255,255,255,.75); outline-offset: 1px; }
+.scrubber::-webkit-slider-runnable-track {
+  height: var(--scrub-track-h);
+  border: 0;
+  border-radius: 0;
+  background: var(--scrub-fill);
+  transition: height .1s ease;
+}
 .scrubber::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 16px;
-  height: 16px;
-  margin-top: -6px;
+  width: var(--scrub-thumb);
+  height: var(--scrub-thumb);
+  margin-top: calc((var(--scrub-track-h) - var(--scrub-thumb)) / 2);
+  border: 0;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--scrub-red);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.18);
   cursor: pointer;
+  transform: scale(var(--scrub-thumb-scale));
+  transition: transform .1s ease, margin-top .1s ease;
 }
-.scrubber::-moz-range-track { height: 4px; border-radius: 2px; background: inherit; }
-.scrubber::-moz-range-thumb { width: 16px; height: 16px; border: none; border-radius: 50%; background: var(--accent); cursor: pointer; }
+.scrubber::-moz-range-track { height: var(--scrub-track-h); border: 0; border-radius: 0; background: var(--scrub-fill); }
+.scrubber::-moz-range-thumb { width: var(--scrub-thumb); height: var(--scrub-thumb); border: none; border-radius: 50%; background: var(--scrub-red); cursor: pointer; transform: scale(var(--scrub-thumb-scale)); }
 .scrub-preview { position: absolute; top: -51px; left: 0; width: min(290px, 68%); transform: translateX(-50%); padding: 9px 11px; background: #162b43; border: 1px solid var(--line-strong); border-radius: 10px; box-shadow: 0 12px 35px rgba(0,0,0,.35); pointer-events: none; z-index: 4; }
 .scrub-preview::after { content: ""; position: absolute; bottom: -6px; left: 50%; width: 10px; height: 10px; background: #162b43; border-right: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); transform: translateX(-50%) rotate(45deg); }
 .scrub-preview strong, .scrub-preview span { display: block; }
@@ -405,6 +450,8 @@ h2 { margin-bottom: 0; }
    skewed by the button's own default padding on one side. */
 .icon-button { width: 30px; height: 30px; padding: 0; border-radius: 8px; font-size: 10px; font-weight: 700; display: grid; place-items: center; }
 .icon-button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.pc-tools-menu .pc-stack.is-on { background: rgba(47, 110, 165, .42); }
+.pc-tools-menu .pc-stack.is-on .pc-label { color: #fff; font-weight: 800; }
 /* Wider than .icon-button on purpose -- named for the word it needs to fit
    ("Vaater"), not sized to it after the fact. The skip-forward glyph (two
    triangles + a bar, the same shape this control used before it grew a
@@ -553,13 +600,14 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .player-chrome-menu { position: absolute; top: calc(100% - 4px); z-index: 9; min-width: 210px; padding: 12px; border-radius: 13px; background: rgba(9,19,32,.98); border: 1px solid rgba(255,255,255,.16); box-shadow: 0 22px 54px rgba(0,0,0,.5); }
 .player-daf-menu { left: 16px; }
 .player-more-menu { right: 16px; display: flex; flex-direction: column; gap: 2px; padding: 8px; }
-.player-chrome-menu-item { text-align: left; padding: 9px 11px; border: 0; border-radius: 8px; background: none; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; }
-.player-chrome-menu-item:hover { background: rgba(255,255,255,.1); }
+.player-chrome-menu-item { text-align: left; padding: 9px 11px; border: 0; border-radius: 8px; background: none; color: #f4f7fb; font: inherit; font-size: 13px; cursor: pointer; }
+.player-chrome-menu-item:hover { background: rgba(255,255,255,.12); color: #fff; }
 /* The page's real daf picker is moved in here rather than duplicated, so it
    arrives with the setup strip's own layout classes and needs re-fitting to
    a narrow popover. */
 .player-daf-menu .setup-field { display: flex; flex-direction: column; gap: 9px; }
-.player-daf-menu .setup-field > label { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.player-daf-menu .setup-field > label { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #c5d4e4; }
+.player-daf-menu select { color: #f4f7fb; background-color: rgba(4, 14, 27, .85); }
 .player-daf-menu .daf-picker-row, .player-daf-menu .picker-toggle-row { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
 .player-daf-menu select { min-width: 0; }
 
@@ -659,7 +707,7 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
    exactly what made choosing a speed do nothing while Split View was
    active -- the menu was genuinely there, just invisible and unclickable
    underneath the real video and daf pane. */
-.speed-menu { position: fixed; z-index: 600; min-width: 92px; margin: 0; padding: 4px; list-style: none; border-radius: 10px; background: rgba(10,20,32,.96); border: 1px solid rgba(255,255,255,.15); box-shadow: 0 14px 38px rgba(0,0,0,.45); }
+.speed-menu { position: fixed; z-index: 710; min-width: 92px; margin: 0; padding: 4px; list-style: none; border-radius: 10px; background: rgba(10,20,32,.96); border: 1px solid rgba(255,255,255,.15); box-shadow: 0 14px 38px rgba(0,0,0,.45); }
 .speed-menu:focus { outline: none; }
 .speed-menu li { padding: 8px 10px; border-radius: 7px; font-size: 13px; font-weight: 600; color: rgba(255,255,255,.85); cursor: pointer; }
 .speed-menu li:hover, .speed-menu li.is-active { background: rgba(255,255,255,.12); color: #fff; }
@@ -708,6 +756,7 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
    rules elsewhere in this file without fighting their specificity: those are
    all scoped through .video-frame, which this tray is no longer a
    descendant of once moved here. */
+.pc-tools-menu .pc-label { pointer-events: none; }
 .pc-tools-menu .pc-stack,
 .pc-tools-menu .pc-pill {
   flex-direction: row;
@@ -829,21 +878,62 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .video-frame.is-tiny .player-topbar { height: 30px; padding: 0 7px; }
 
 /* Phones (and a short landscape phone, which is still wide enough to miss
-   the 760px sidebar breakpoint) need a ~44px hit target. The 22px glyphs
-   above stay for a desktop reading-mode mini-player, which shares is-tiny
-   but is not a phone. Gaps shrink so the larger targets stay on one row
-   instead of stacking over the picture. */
+   the 760px sidebar breakpoint). The controls stay big enough to tap, but
+   they read like a phone player: ~34px glyphs, no filled boxes, and a short
+   light fade behind the title row and the control row instead of a tall
+   dark slab over the picture. The reading-mode mini player below keeps its
+   own smaller chrome so its resize handle stays reachable. */
 @media (max-width: 760px), (max-height: 520px) and (max-width: 1100px) {
   .video-frame.is-compact,
-  .video-frame.is-tiny { --pc-bar-h: 52px; }
+  .video-frame.is-tiny { --pc-bar-h: 36px; --pc-timeline-h: 22px; }
+  .video-frame.is-compact .player-topbar,
+  .video-frame.is-tiny .player-topbar {
+    height: 40px;
+    padding: 0 8px;
+    /* The fade ends at the bottom of the title row. It does not continue
+       down over the picture. */
+    background: linear-gradient(to bottom, rgba(4,12,22,.42), rgba(4,12,22,0));
+  }
+  /* The phone title row used to fade out, and YouTube's own title and
+     icons sat in that transparent band, behind our controls. Keep this
+     row solid for a YouTube shiur. The picture below it stays clear. */
+  .video-frame.youtube-active.is-compact .player-topbar,
+  .video-frame.youtube-active.is-tiny .player-topbar {
+    background: #07111c;
+  }
   .video-frame.is-compact .player-controls,
-  .video-frame.is-tiny .player-controls { gap: 4px; padding: 0 4px; }
+  .video-frame.is-tiny .player-controls {
+    gap: 6px;
+    padding: 0 8px;
+    background: transparent;
+    border-top: 0;
+    backdrop-filter: none;
+  }
+  .video-frame.is-compact .player-controls::before,
+  .video-frame.is-tiny .player-controls::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    /* The control row only. A 58px fade covered the timeline and a band of
+       picture above it — about half of a short Split video. */
+    height: 36px;
+    background: linear-gradient(to top, rgba(4,14,27,.4), rgba(4,14,27,0));
+    pointer-events: none;
+    z-index: -1;
+  }
+  .video-frame.is-compact .scrubber-wrap,
+  .video-frame.is-tiny .scrubber-wrap {
+    background: none;
+    padding: 0 8px 0;
+  }
   .video-frame.is-compact .pc-transport,
   .video-frame.is-tiny .pc-transport,
   .video-frame.is-compact .pc-tools,
   .video-frame.is-tiny .pc-tools,
   .video-frame.is-compact .pc-volume,
-  .video-frame.is-tiny .pc-volume { gap: 2px; }
+  .video-frame.is-tiny .pc-volume { gap: 4px; }
   .video-frame.is-compact .pc-transport .icon-button,
   .video-frame.is-tiny .pc-transport .icon-button,
   .video-frame.is-compact .pc-volume .icon-button,
@@ -851,44 +941,79 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
   .video-frame.is-compact .pc-tools .icon-button,
   .video-frame.is-tiny .pc-tools .icon-button,
   .video-frame.is-compact .video-fullscreen-button,
-  .video-frame.is-tiny .video-fullscreen-button,
+  .video-frame.is-tiny .video-fullscreen-button {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .video-frame.is-compact .pc-transport .icon-button svg,
+  .video-frame.is-tiny .pc-transport .icon-button svg,
+  .video-frame.is-compact .pc-volume .icon-button svg,
+  .video-frame.is-tiny .pc-volume .icon-button svg,
+  .video-frame.is-compact .pc-tools .icon-button svg,
+  .video-frame.is-tiny .pc-tools .icon-button svg,
+  .video-frame.is-compact .video-fullscreen-button svg,
+  .video-frame.is-tiny .video-fullscreen-button svg,
+  .video-frame.is-compact .vaater-button svg,
+  .video-frame.is-tiny .vaater-button svg {
+    width: 22px;
+    height: 22px;
+  }
   .video-frame.is-compact .pc-transport .play-button,
-  .video-frame.is-tiny .pc-transport .play-button,
+  .video-frame.is-tiny .pc-transport .play-button {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    background: none;
+    border: 1.5px solid rgba(255,255,255,.88);
+    color: #fff;
+  }
+  .video-frame.is-compact .pc-transport .play-button svg,
+  .video-frame.is-tiny .pc-transport .play-button svg { width: 16px; height: 16px; }
   .video-frame.is-compact .vaater-button,
   .video-frame.is-tiny .vaater-button {
-    width: 44px;
-    height: 44px;
-    min-width: 44px;
-    min-height: 44px;
+    width: auto;
+    height: 32px;
+    min-width: 0;
+    min-height: 32px;
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    font-size: 13px;
+    gap: 2px;
   }
   .video-frame.is-compact .speed-select,
   .video-frame.is-tiny .speed-select {
-    height: 44px;
-    min-height: 44px;
-    min-width: 44px;
-    padding: 0 16px 0 8px;
+    height: 32px;
+    min-height: 32px;
+    min-width: 0;
+    padding: 0 14px 0 4px;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
   }
-  .video-frame.is-compact .vaater-button,
-  .video-frame.is-tiny .vaater-button { padding: 0; justify-content: center; }
-  .video-frame.is-compact,
-  .video-frame.is-tiny { --pc-timeline-h: 52px; }
+  .video-frame.is-compact .pc-tools .icon-button[aria-pressed="true"],
+  .video-frame.is-tiny .pc-tools .icon-button[aria-pressed="true"] {
+    color: var(--accent);
+    background: transparent;
+  }
+  /* A finger needs a tall target; the painted bar stays 3px. */
   .video-frame.is-compact .scrubber,
   .video-frame.is-tiny .scrubber {
-    height: 44px;
-    touch-action: none;
+    --scrub-hit: 28px;
+    --scrub-thumb: 17px;
+    --scrub-thumb-scale: .76;
   }
-  .video-frame.is-compact .scrubber::-webkit-slider-thumb,
-  .video-frame.is-tiny .scrubber::-webkit-slider-thumb {
-    width: 22px;
-    height: 22px;
-    margin-top: -9px;
-  }
-  .video-frame.is-compact .scrubber::-moz-range-thumb,
-  .video-frame.is-tiny .scrubber::-moz-range-thumb {
-    width: 22px;
-    height: 22px;
-  }
-  .split-toolbar .icon-button { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
+  .video-frame.is-compact .scrubber.is-scrubbing,
+  .video-frame.is-tiny .scrubber.is-scrubbing { --scrub-thumb-scale: 1; }
+  .split-toolbar .icon-button { width: 36px; height: 36px; min-width: 36px; min-height: 36px; }
   /* The reading-mode mini player is a small float with its resize handle in
      the bottom-right corner. 44px targets there cover that handle, so the
      float's own fullscreen button never receives the tap. It keeps the
@@ -926,17 +1051,19 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
     min-height: 0;
     padding: 0 15px 0 6px;
   }
+  /* The mini player's resize handle shares this corner; keep its timeline
+     box short so it does not reach over the handle. */
   body.reading-mode-active .reading-video-float .video-frame.is-compact .scrubber,
   body.reading-mode-active .reading-video-float .video-frame.is-tiny .scrubber {
-    height: 4px;
+    --scrub-hit: 14px;
+    --scrub-thumb: 13px;
+    --scrub-thumb-scale: .9;
   }
-  body.reading-mode-active .reading-video-float .video-frame.is-compact .scrubber::-webkit-slider-thumb,
-  body.reading-mode-active .reading-video-float .video-frame.is-tiny .scrubber::-webkit-slider-thumb,
-  body.reading-mode-active .reading-video-float .video-frame.is-compact .scrubber::-moz-range-thumb,
-  body.reading-mode-active .reading-video-float .video-frame.is-tiny .scrubber::-moz-range-thumb {
-    width: 16px;
-    height: 16px;
+  body.reading-mode-active .reading-video-float .video-frame .player-controls {
+    background: rgba(6,15,26,.93);
+    border-top: 1px solid rgba(255,255,255,.07);
   }
+  body.reading-mode-active .reading-video-float .video-frame .player-controls::before { content: none; }
 }
 
 .now-learning { margin-top: 17px; padding: 15px 17px; border-radius: 14px; border: 1px solid rgba(47, 110, 165,.24); background: linear-gradient(135deg, rgba(47, 110, 165,.11), rgba(82,167,255,.06)); min-height: 113px; }
@@ -1926,8 +2053,225 @@ dialog ol { color: #d8e2eb; padding-left: 21px; line-height: 1.6; }
 .lock-video-row { margin-top: 8px; }
 input[type="url"] { width: 100%; border: 1px solid var(--line-strong); color: var(--text); background: rgba(4,14,27,.7); border-radius: 11px; padding: 9px 11px; outline: none; }
 input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0 3px rgba(47, 110, 165,.1); }
-.youtube-player-host { position: absolute; inset: 0; background: #000; }
+/* The stage is its own stacking context (isolation + a transform). A
+   YouTube iframe on Android Chrome otherwise paints over later siblings
+   once an ancestor is position:fixed — which is Split view and fullscreen —
+   so the pause poster never covered the embed there. */
+.youtube-stage {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  isolation: isolate;
+  transform: translateZ(0);
+  background: #07111c;
+  pointer-events: none;
+  contain: paint;
+}
+.video-frame.youtube-active .youtube-stage { display: block; }
+.youtube-player-host { position: absolute; inset: 0; z-index: 0; background: #000; overflow: hidden; }
 .youtube-player-host iframe, #youtubePlayer { width: 100%; height: 100%; display: block; border: 0; }
+/* The picture is a 16:9 box clipped by the frame. A taller pane covers
+   (full height, sides cropped). A short pane used to contain that box and
+   letterbox the sides, which left YouTube's title and logo inside the
+   strip. Both shapes now grow the iframe past the frame so those rows hang
+   outside the clip. The short-pane crop scales with the pane. No transform
+   — one on the iframe freezes the picture on phones. */
+.video-frame.youtube-active { container-type: size; container-name: yt-frame; }
+.video-frame.youtube-active .youtube-player-host {
+  inset: auto;
+  top: 0;
+  bottom: auto;
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  width: min(100cqw, calc(100cqh * 16 / 9));
+  height: min(100cqh, calc(100cqw * 9 / 16));
+  max-width: 100%;
+  max-height: 100%;
+}
+/* YouTube paints its title, share icon, watch-later, logo, and the
+   pause "More videos" shelf inside the iframe. controls=0 does not
+   remove them. The poster (.yt-shield) covers only the opening, before
+   the first frame. After that, opaque bands (.yt-mask-layer) cover
+   those regions and leave the middle of the frame clear. */
+.video-frame.youtube-active .youtube-player-host,
+.video-frame.youtube-active .youtube-player-host iframe,
+.video-frame.youtube-active #youtubePlayer { pointer-events: none !important; }
+.video-frame.youtube-active:not(.yt-started) .youtube-player-host { visibility: hidden; opacity: 0; }
+.video-frame.youtube-active .youtube-player-host iframe,
+.video-frame.youtube-active #youtubePlayer {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  /* Opacity under 1 keeps Android Chrome from promoting the cross-origin
+     iframe onto a video overlay plane that paints above every sibling,
+     which is how the title bar and the corner badge stayed visible on top
+     of the poster and the top mask. A transform on this element freezes
+     the picture on phones, so the opacity is the containment. */
+  opacity: 0.99 !important;
+}
+.yt-shield {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  transform: translateZ(0);
+  background-color: #07111c;
+  background-position: center top;
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+/* Same top-locked 16:9 box as the embed. cover + center used to crop the
+   thumbnail from the top as the split pane shrank, which read as the
+   picture sliding off the screen. The poster now scales inside the box. */
+.video-frame.youtube-active .yt-shield {
+  inset: auto;
+  top: 0;
+  bottom: auto;
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  width: min(100cqw, calc(100cqh * 16 / 9));
+  height: min(100cqh, calc(100cqw * 9 / 16));
+  max-width: 100%;
+  max-height: 100%;
+}
+.yt-shield::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 10, 18, .38);
+}
+.video-frame.youtube-active:not(.yt-started) .yt-shield { display: block; }
+/* Opaque bands on the same top-locked 16:9 box as the embed, above the
+   stage (z-index 1) and under our own control bar (z-index 6). The outer
+   edge is solid so the title row, the share and watch-later icons, the
+   corner logo, and the More videos shelf cannot show through. A short
+   gradient on the inner edge keeps the band from looking like a hard crop.
+   The middle of the picture stays clear. */
+.yt-mask-layer {
+  display: none;
+  position: absolute;
+  inset: auto;
+  top: 0;
+  bottom: auto;
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  width: min(100cqw, calc(100cqh * 16 / 9));
+  height: min(100cqh, calc(100cqw * 9 / 16));
+  max-width: 100%;
+  max-height: 100%;
+  z-index: 5;
+  pointer-events: none;
+  transform: translateZ(0);
+}
+.video-frame.youtube-active.yt-started.yt-mask .yt-mask-layer { display: block; }
+.yt-edge { position: absolute; pointer-events: none; }
+.yt-edge-top {
+  top: 0;
+  left: 0;
+  right: 0;
+  /* YouTube's title and channel line are about 48px at the top of the
+     iframe. The solid run covers that row; only the inner edge fades. */
+  height: clamp(76px, 20%, 100px);
+  background: linear-gradient(to bottom, #07111c 0, #07111c calc(100% - 12px), rgba(7, 17, 28, 0) 100%);
+}
+.yt-edge-bottom {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: clamp(96px, 38%, 220px);
+  background: linear-gradient(to top, #07111c 0, #07111c calc(100% - 16px), rgba(7, 17, 28, 0) 100%);
+}
+/* YouTube lays the bottom row out in the iframe's own box: the More videos
+   card is about x 55%–90% of that box, the logo runs to the iframe's right
+   edge, and the share icon is a short span at the left. The iframe is often
+   wider than the pane, so those fractions are not the pane's corners. The
+   chips are the on-screen part of that row (52px: the control row plus
+   padding) and nothing outside the mask. A full-width bottom band is never
+   drawn. The picture is not lifted when our bar opens — the bar is
+   translucent and sits on the bottom edge. */
+.video-frame.youtube-active .yt-mask-layer {
+  overflow: hidden;
+  --yt-iframe-w: calc((100cqh + var(--yt-crop-top, 0px)) * 16 / 9);
+  --yt-iframe-left: calc((100cqw - var(--yt-iframe-w)) / 2);
+  --yt-mask-left: max(0px, var(--yt-iframe-left));
+  --yt-origin: calc(var(--yt-iframe-left) - var(--yt-mask-left));
+  --yt-clip: min(100cqw, var(--yt-iframe-w));
+  --yt-card-l: max(0px, calc(var(--yt-origin) + 0.55 * var(--yt-iframe-w)));
+  --yt-card-r: min(var(--yt-clip), max(0px, calc(var(--yt-origin) + var(--yt-iframe-w))));
+  --yt-share-l: max(0px, var(--yt-origin));
+  --yt-share-r: min(var(--yt-clip), max(0px, calc(var(--yt-origin) + 96px)));
+}
+.yt-edge-logo,
+.yt-edge-share {
+  display: none;
+  bottom: 0;
+  height: 52px;
+  z-index: 2;
+  background: #0e1014;
+  opacity: 1;
+}
+.yt-edge-logo {
+  left: var(--yt-card-l, 0px);
+  right: auto;
+  width: max(0px, calc(var(--yt-card-r, 0px) - var(--yt-card-l, 0px)));
+}
+.yt-edge-share {
+  left: var(--yt-share-l, 0px);
+  width: max(0px, calc(var(--yt-share-r, 0px) - var(--yt-share-l, 0px)));
+}
+.video-frame.youtube-active.yt-started.yt-corner:not(.yt-mask) .yt-mask-layer { display: block; }
+.video-frame.youtube-active.yt-started.yt-corner:not(.yt-mask) .yt-edge:not(.yt-edge-logo):not(.yt-edge-share) { display: none; }
+.video-frame.youtube-active.yt-started.yt-corner .yt-edge-logo,
+.video-frame.youtube-active.yt-started.yt-corner .yt-edge-share {
+  display: block;
+  opacity: 1;
+}
+.video-frame.youtube-active.yt-started.yt-corner.yt-corner-out:not(.yt-mask) .yt-edge-logo,
+.video-frame.youtube-active.yt-started.yt-corner.yt-corner-out:not(.yt-mask) .yt-edge-share {
+  opacity: 0;
+  transition: opacity .35s ease;
+}
+/* No full-width strip over the burned-in lines, including while the title
+   band is up. The two chips above are the bottom mask. */
+.video-frame.youtube-active .yt-edge-bottom { display: none; }
+/* Desktop regular player (not Split). The pane is 16:9, so YouTube's title
+   row sits inside the picture. The iframe stays 16:9, its bottom edge is
+   the pane's bottom edge, and the extra height hangs off the top only. */
+@media (min-width: 900px) {
+  body:not(.split-view-active) .video-frame.youtube-active {
+    --yt-crop-top: 60px;
+  }
+  body:not(.split-view-active) .video-frame.youtube-active .youtube-player-host,
+  body:not(.split-view-active) .video-frame.youtube-active .yt-shield {
+    --yt-crop-top: 60px;
+    width: calc((100cqh + var(--yt-crop-top)) * 16 / 9);
+    height: calc(100cqh + var(--yt-crop-top));
+    max-width: none;
+    max-height: none;
+    top: auto;
+    bottom: 0;
+    left: calc((100cqw - (100cqh + var(--yt-crop-top)) * 16 / 9) / 2);
+    right: auto;
+    margin-inline: 0;
+  }
+}
+.video-frame.youtube-active .player-topbar {
+  background: #07111c;
+}
+/* Our own "YouTube" pill sits at the top-left of the picture, above the
+   stage, so shifting the iframe never covered it. It is the grey badge
+   that stays up once the topbar fades. The lecture title already names
+   the shiur. */
+.video-frame.youtube-active .video-source-badge { display: none !important; }
 .video-source-badge { position: absolute; left: 10px; top: 10px; z-index: 3; padding: 5px 8px; border: 1px solid rgba(255,255,255,.2); border-radius: 999px; background: rgba(2,8,18,.72); color: #d9e5ee; font-size: 11px; font-weight: 700; backdrop-filter: blur(8px); pointer-events: none; }
 /* z-index 13, not 4: in Split View, #splitVideoPinchSurface (z-index 11,
    see its own construction in app.js) sits directly over the video picture
@@ -1945,7 +2289,15 @@ input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0
    further down) for the same reason -- the daf picker/bookmark/notes/More
    buttons up there had the exact same problem. */
 .video-frame .large-play { z-index: 13; }
-.video-frame.youtube-active .video-source-badge { left: 12px; top: 12px; }
+/* The centre pause button (app.js) is for touchscreens only, where a tap on
+   the picture no longer pauses. It fades with the rest of the controls. A
+   mouse pauses with a click anywhere, as on YouTube, so desktop never shows
+   it. */
+.video-frame .large-pause { display: none; }
+@media (hover: none), (pointer: coarse) {
+  .video-frame .large-pause:not([hidden]) { display: grid; transition: opacity .25s ease, visibility 0s linear 0s; }
+  .video-frame.controls-hidden .large-pause { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .25s ease, visibility 0s linear .25s; }
+}
 
 @media (max-width: 700px) {
   .source-tabs { width: 100%; }
@@ -2618,19 +2970,26 @@ mark.daf-search-flash { background: rgba(240, 200, 90, .34); color: inherit; bor
   align-items: center;
   margin: 0 0 16px;
 }
+/* Each mode's name sits under its icon, at every size -- an icon alone
+   did not say which of three similar pictures meant what. */
 .viewer-mode-button {
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  gap: 9px;
-  height: 48px;
+  justify-content: center;
+  gap: 3px;
+  height: auto;
+  min-height: 52px;
   min-width: 44px;
-  padding: 0 18px;
+  padding: 5px 16px;
+  line-height: 1.1;
+  white-space: nowrap;
   border-radius: 14px;
   border: 1px solid var(--line-strong);
   background: var(--card);
   color: var(--text);
   font: inherit;
-  font-size: 14.5px;
+  font-size: 12.5px;
   font-weight: 800;
   cursor: pointer;
   box-shadow: 0 1px 0 rgba(255,255,255,.02) inset;
@@ -2649,26 +3008,18 @@ mark.daf-search-flash { background: rgba(240, 200, 90, .34); color: inherit; bor
   outline: 3px solid rgba(47, 110, 165, .5);
   outline-offset: 2px;
 }
+.viewer-mode-button span:not(.sr-only) { display: block; }
 @media (max-width: 560px) {
   .viewer-mode-select { gap: 8px; }
-  .viewer-mode-button { height: 44px; padding: 0 13px; font-size: 13px; }
+  .viewer-mode-button { min-height: 48px; padding: 4px 10px; font-size: 11.5px; }
 }
-/* A phone in portrait is often just over 380px (the old cutoff), so
-   "Video on daf" wrapped onto its own row. Icon-only from 640px down, and
-   on a short landscape phone, keeps the three mode buttons on one row.
-   The label stays in the button for assistive tech. */
+/* A phone in portrait is often just over 380px. Stacking the name under
+   the icon (instead of beside it) is what keeps all three on one row with
+   their names showing; the old fix hid the names entirely. */
 @media (max-width: 640px), (max-height: 520px) and (max-width: 1100px) {
   .viewer-mode-select { flex-wrap: nowrap; }
-  .viewer-mode-button span:not(.sr-only) {
-    position: absolute;
-    width: 1px; height: 1px;
-    padding: 0; margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
-  .viewer-mode-button { position: relative; padding: 0 12px; min-width: 44px; }
+  .viewer-mode-button { flex: 0 1 auto; min-width: 44px; padding: 4px 9px; font-size: 11px; gap: 2px; }
+  .viewer-mode-button svg { width: 19px; height: 19px; }
 }
 
 /* --- Split View container: .watch-layout in its "split-active" state ---- */
@@ -2688,7 +3039,7 @@ body.split-view-active .watch-layout.split-active.split-stacked {
 }
 body.split-view-active .watch-layout.split-active > .player-card {
   grid-column: 1; grid-row: 1; margin: 0; min-width: 0; min-height: 0; height: 100%;
-  display: flex; flex-direction: column;
+  display: flex; flex-direction: column; justify-content: flex-start; overflow: hidden;
   /* Flush with the daf pane, and showing nothing but the video itself (see
      the child rule below) -- no card padding/background/border/shadow left
      to draw a frame around it. */
@@ -2700,7 +3051,16 @@ body.split-view-active .watch-layout.split-active > .daf-card {
      padding/background/border/shadow of its own left to hold the printed
      page away from the shared edge. Unlike .player-card, nothing inside is
      hidden: the daf stays fully interactive (header, zoom toolbar, the page
-     itself, the status bar), just flush to the pane instead of inset in it. */
+     itself, the status bar), just flush to the pane instead of inset in it.
+     position:relative is the phone panel's containing block. top/left must
+     stay auto: the page stylesheet's sticky top:128px is ignored while the
+     card is static, and turning it relative (below 1120px) was shifting the
+     whole pane — and the dropdown — about 128px below the divider. */
+  position: relative;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
   padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none;
 }
 /* .daf-scroll already manages its own internal spacing independently of
@@ -2835,24 +3195,16 @@ body.split-view-active.split-layout-stacked.split-video-at-end .viewer-mode-sele
    desktop widths keep the labels -- the spec's own "icon+label, feels like
    a primary control" is otherwise lost for the one case (Split View,
    already the default mode) that matters most. */
-@media (max-width: 680px) {
-  body.split-view-active .viewer-mode-select .viewer-mode-button span:not(.sr-only) {
-    position: absolute;
-    width: 1px; height: 1px;
-    padding: 0; margin: -1px;
-    overflow: hidden;
-    clip: rect(0,0,0,0);
-    white-space: nowrap;
-    border: 0;
-  }
-}
+/* Names stay visible here too: under the icon they cost height, not width,
+   so the bar keeps to one row. */
 body.split-view-active .viewer-mode-select .viewer-mode-button {
-  padding: 0 12px;
+  padding: 4px 12px;
 }
 body.split-view-active .watch-layout.split-active {
   position: fixed;
   inset: 0;
   z-index: 500;
+  overflow: hidden;
   height: 100vh;
   height: 100dvh;
   padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
@@ -2887,6 +3239,22 @@ body.split-view-active .watch-layout.split-active.split-stacked .split-divider {
   inset: 0 -17px;
 }
 body.split-view-active .watch-layout.split-active.split-stacked .split-divider::before { inset: -17px 0; }
+/* Landscape phones get a vertical bar about 10px wide, and the panes paint
+   over the old slop, so a finger never lands a tap. Raise the bar above
+   the panes and bias the target into the daf, clear of the video controls.
+   10px bar + 28px daf side + 10px video side is a 48px touch target. */
+@media (pointer: coarse) and (orientation: landscape),
+       (hover: none) and (orientation: landscape) {
+  body.split-view-active .watch-layout.split-active:not(.split-stacked) .split-divider {
+    z-index: 20;
+  }
+  body.split-view-active .watch-layout.split-active:not(.split-stacked) .split-divider::before {
+    inset: -12px -28px -12px -10px;
+  }
+  body.split-view-active .watch-layout.split-active.split-video-end:not(.split-stacked) .split-divider::before {
+    inset: -12px -10px -12px -28px;
+  }
+}
 .split-divider:hover,
 .split-divider.is-dragging,
 .split-divider:focus-visible {
@@ -2908,6 +3276,221 @@ body.split-view-active .watch-layout.split-active.split-stacked .split-divider::
 body.split-view-active .watch-layout.split-active.split-stacked .split-divider::after { width: 34px; height: 4px; }
 body:not(.split-view-active) .split-divider,
 .watch-layout:not(.split-active) .split-divider { display: none; }
+
+/* Phone Split keeps the daf picker and the daf header out of the picture.
+   They live in a panel the divider opens on tap. Collapsed, only the thin
+   bar shows. Portrait uses this below 760px. Landscape phones are wider
+   than that and side-by-side, so the same rules also follow a coarse or
+   touch pointer in landscape. A mouse keeps the desktop chrome. */
+.split-tools-panel { display: none; }
+.split-tools-hint {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  width: 7px;
+  height: 7px;
+  margin-top: -3px;
+  border-radius: 50%;
+  background: #c4840a;
+  box-shadow: 0 0 0 2px rgba(255,255,255,.85);
+  pointer-events: none;
+}
+.split-tools-hint[hidden] { display: none; }
+@media (max-width: 760px),
+       (pointer: coarse) and (orientation: landscape),
+       (hover: none) and (orientation: landscape) {
+  body.split-tools-phone .watch-layout.split-active .video-frame > #playerTopbar {
+    display: none !important;
+  }
+  body.split-tools-phone:not(.split-tools-open) .watch-layout.split-active > .daf-card > .daf-header,
+  body.split-tools-phone:not(.split-tools-open) .watch-layout.split-active > .daf-card > .card-heading,
+  body.split-tools-phone:not(.split-tools-open) .watch-layout.split-active > .daf-card > #readerDafNotes,
+  body.split-tools-phone:not(.split-tools-open) .watch-layout.split-active .vilna-zoom-controls {
+    display: none !important;
+  }
+  body.split-tools-phone .watch-layout.split-active > .daf-card {
+    position: relative;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+  }
+  /* A dropdown over the top of the daf pane. It sizes to its rows and
+     only scrolls past 60% of the pane. The rows are chips, so at 412×915
+     the picker, Notes, More, Auto-scroll, Daf page, Reviewing, and Skip
+     all fit without an inner scroller. */
+  body.split-tools-phone.split-tools-open #splitToolsPanel {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 40;
+    max-height: 60%;
+    /* Visible so the daf picker can drop past the bar. The rows are short
+       enough that 60% holds them; the card clips anything past the pane. */
+    overflow: visible;
+    background: #f4f7fb;
+    color: #132238;
+    box-shadow: 0 18px 42px rgba(8, 17, 28, .38);
+    border-bottom: 1px solid rgba(19, 34, 56, .14);
+  }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .split-tools-scroll {
+    min-height: 0;
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .player-topbar {
+    position: relative !important;
+    top: auto !important;
+    height: auto !important;
+    min-height: 0;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 4px 6px;
+    padding: 4px 8px;
+    background: #102033;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .player-topbar::before { content: none; }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .player-topbar-group { flex-wrap: nowrap; min-width: 0; }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .player-brand span,
+  body.split-tools-phone.split-tools-open #splitToolsPanel .player-daf-hebrew,
+  body.split-tools-phone.split-tools-open #splitToolsPanel .player-topbar-rule-he { display: none; }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .player-daf-button {
+    min-width: 0;
+    height: 28px;
+    padding: 0 8px;
+    font-size: 13px;
+  }
+  body.split-tools-phone.split-tools-open #splitToolsPanel #playerDafLabel {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 46vw;
+  }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .player-chrome-button {
+    height: 28px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .1);
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .player-chrome-button svg { width: 14px; height: 14px; }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .daf-header,
+  body.split-tools-phone.split-tools-open #splitToolsPanel .card-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+    padding: 4px 8px 2px;
+    height: auto;
+    background: transparent;
+  }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .daf-header > div:first-child,
+  body.split-tools-phone.split-tools-open #splitToolsPanel .card-heading > div:first-child,
+  body.split-tools-phone.split-tools-open #splitToolsPanel .daf-tools,
+  body.split-tools-phone.split-tools-open #splitToolsPanel .daf-heading-tools {
+    display: contents;
+  }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .eyebrow { display: none; }
+  body.split-tools-phone.split-tools-open #splitToolsPanel #dafTitle,
+  body.split-tools-phone.split-tools-open #splitToolsPanel .daf-header h2 {
+    flex: 1 1 100%;
+    margin: 0;
+    font: 700 14px Georgia, "Times New Roman", serif;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .header-auto-scroll,
+  body.split-tools-phone.split-tools-open #splitToolsPanel .split-back-to-daf {
+    height: 28px;
+    margin: 0;
+    padding: 0 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    background: #fff;
+    border: 1px solid rgba(19, 34, 56, .18);
+    color: #132238;
+  }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .reading-mode-entry {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    padding: 0;
+    justify-content: center;
+  }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .reading-mode-entry span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+  body.split-tools-phone.split-tools-open #splitToolsPanel #readerDafNotes {
+    display: flex;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+    overflow: visible;
+    padding: 2px 8px 4px;
+    background: transparent;
+  }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .reviewing-label,
+  body.split-tools-phone.split-tools-open #splitToolsPanel .not-synced-note {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .skip-to-daf-chip {
+    flex: 0 1 auto;
+    min-width: 0;
+    height: 28px;
+    padding: 0 8px;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
+  }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .vilna-zoom-controls {
+    position: relative;
+    top: auto;
+    display: flex;
+    flex-wrap: nowrap;
+    align-self: stretch;
+    overflow: hidden;
+    height: 32px;
+    width: auto;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    margin: 2px 8px 6px;
+    padding: 2px 6px;
+    border-radius: 12px;
+    z-index: 2;
+  }
+  /* A landscape daf pane is short. 60% of it clips the chips; the pane
+     itself is the dropdown's ceiling. */
+  @media (pointer: coarse) and (orientation: landscape),
+         (hover: none) and (orientation: landscape) {
+    body.split-tools-phone.split-tools-open #splitToolsPanel {
+      max-height: 100%;
+    }
+  }
+}
 
 /* Split View's own small toolbar (layout toggle, swap, reset, fullscreen,
    exit) -- merged into ONE combined bar with the prominent selector rather
@@ -2940,6 +3523,18 @@ body.split-view-active .split-toolbar { display: flex; }
   cursor: pointer;
 }
 .split-toolbar .icon-button:hover { background: rgba(255,255,255,.12); color: #fff; }
+body.split-view-active .split-toolbar #splitExitButton {
+  opacity: 1;
+  color: #102033;
+  background: #fff;
+  border: 1px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .45);
+  cursor: pointer;
+}
+body.split-view-active .split-toolbar #splitExitButton:hover {
+  background: #fff;
+  color: #102033;
+}
 .split-toolbar .icon-button[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
 .split-back-to-daf {
   display: inline-flex;
@@ -3061,6 +3656,85 @@ body.split-view-active .watch-layout.split-active .video-frame .player-topbar::b
   background: rgba(4,12,22,.9);
   pointer-events: none;
 }
+/* On a phone the solid fill above the shifted title row, stacked on the
+   control-bar scrim, covered most of a short split video. A short fade is
+   enough to hide the embed's own title without painting the picture. */
+@media (max-width: 760px), (max-height: 520px) and (max-width: 1100px) {
+  body.split-view-active .watch-layout.split-active .video-frame .player-topbar::before {
+    top: -10px;
+    height: 10px;
+    background: linear-gradient(to bottom, rgba(4,12,22,.28), rgba(4,12,22,0));
+  }
+  /* One row, over the video only while the player chrome is up. Two wrapped
+     rows of 44px buttons were covering the top ~40% of a short Split video. */
+  body.split-view-active .viewer-mode-select {
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 3px;
+    border-radius: 12px;
+    max-width: calc(100vw - 12px);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  body.split-view-active .viewer-mode-select::-webkit-scrollbar { display: none; }
+  /* Icon over a 10px name set on two short lines ("Daf on / video"). On
+     one line the three names need ~230px and the bar has ~185px beside
+     the Split tools, so they were clipped; two lines fit in the 44px the
+     close button already makes this bar. */
+  body.split-view-active .viewer-mode-select .viewer-mode-button {
+    flex: 0 0 auto;
+    height: auto;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 3px 4px 3px;
+    gap: 1px;
+    font-size: 10px;
+    border-radius: 9px;
+  }
+  body.split-view-active .viewer-mode-select .viewer-mode-button span:not(.sr-only) {
+    max-width: 36px;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.05;
+  }
+  body.split-view-active .viewer-mode-select .viewer-mode-button svg { width: 17px; height: 17px; }
+  /* A 360px phone: the last few pixels come from the tool icons' padding,
+     not from the names or the close button's 44px target. */
+  @media (max-width: 380px) {
+    body.split-view-active .viewer-mode-select { gap: 3px; }
+    body.split-view-active .split-toolbar .icon-button:not(#splitExitButton) {
+      width: 30px;
+      min-width: 30px;
+    }
+  }
+  body.split-view-active .split-toolbar { gap: 2px; }
+  body.split-view-active .split-toolbar .icon-button {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+  }
+  /* The close control was the same faint stroke as the other icons, and on
+     a phone it read as disabled. A solid chip stays obviously tappable. */
+  body.split-view-active .split-toolbar #splitExitButton {
+    width: 40px;
+    height: 40px;
+    min-width: 44px;
+    min-height: 44px;
+    opacity: 1;
+    color: #102033;
+    background: #fff;
+    border: 1px solid #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .45);
+  }
+  body.split-view-active .split-toolbar #splitExitButton svg {
+    width: 18px;
+    height: 18px;
+  }
+  body.split-view-active.split-chrome-hidden .watch-layout.split-active .video-frame .player-topbar {
+    top: 0;
+  }
+}
 /* Applied to the video PICTURE only (#video / #youtubePlayerHost -- exactly
    one is visible at a time, see app.js's own source-switch code) -- NOT to
    #videoFrame itself. #videoFrame also contains the topbar, control bar and
@@ -3080,13 +3754,285 @@ body.split-view-active .watch-layout.split-active .video-frame .player-topbar::b
    actually zooms. */
 body.split-view-active .watch-layout.split-active .video-frame.split-video-zoomed #video,
 body.split-view-active .watch-layout.split-active .video-frame.split-video-zoomed #youtubePlayerHost {
-  transform: scale(var(--split-video-zoom, 1)) translate(var(--split-video-pan-x, 0px), var(--split-video-pan-y, 0px));
+  /* Translate first, so the pan is in screen pixels whatever the zoom. */
+  transform: translate(var(--split-video-pan-x, 0px), var(--split-video-pan-y, 0px)) scale(var(--split-video-zoom, 1));
   transform-origin: center center;
+}
+body.split-view-active .watch-layout.split-active .video-frame #video {
+  width: 100%;
+  height: 100%;
+  object-position: center top;
+}
+body.split-view-active .watch-layout.split-active .video-frame.youtube-active #youtubePlayerHost {
+  /* Same top-locked 16:9 box as outside Split. Stretching this host to the
+     whole pane, then cropping the iframe upward, slid the picture off the
+     top as the pane shrank. A pane taller than 16:9 is the cover rule
+     below: full height, sides cropped, bottom kept for the burned-in line. */
+  inset: auto;
+  top: 0;
+  bottom: auto;
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  width: min(100cqw, calc(100cqh * 16 / 9));
+  height: min(100cqh, calc(100cqw * 9 / 16));
+  max-width: 100%;
+  max-height: 100%;
+}
+/* Pane taller than 16:9 (cover), outside Split only. The picture scales
+   past the pane. The iframe is pinned to the pane's bottom edge, so the
+   extra height — and the title row — can only hang off the top. Sides
+   crop. Split View never uses this: there the whole frame is fitted inside
+   the pane (see "Split View: the whole picture" below). */
+@container yt-frame (aspect-ratio < 16 / 9) {
+  body:not(.split-view-active) .video-frame.youtube-active .youtube-player-host,
+  body:not(.split-view-active) .video-frame.youtube-active .yt-shield {
+    --yt-crop-top: clamp(36px, 8cqh, 84px);
+    width: calc((100cqh + var(--yt-crop-top)) * 16 / 9);
+    height: calc(100cqh + var(--yt-crop-top));
+    max-width: none;
+    max-height: none;
+    top: auto;
+    bottom: 0;
+    left: calc((100cqw - (100cqh + var(--yt-crop-top)) * 16 / 9) / 2);
+    right: auto;
+    margin-inline: 0;
+  }
+  body:not(.split-view-active) .video-frame.youtube-active .yt-mask-layer {
+    --yt-crop-top: clamp(36px, 8cqh, 84px);
+    top: 0;
+    left: 0;
+    right: auto;
+    bottom: auto;
+    margin: 0;
+    width: 100cqw;
+    height: 100cqh;
+    max-width: none;
+    max-height: none;
+  }
+  body:not(.split-view-active) .video-frame.youtube-active .yt-mask-layer .yt-edge-top {
+    /* 48px of the iframe, scaled by how far the cover box is enlarged
+       past the pane, then brought back by the crop. The band is at least
+       that tall so the byline cannot sit above the toolbar. */
+    height: max(80px, calc(48px * ((100cqh + var(--yt-crop-top)) * 16 / 9) / 100cqw - var(--yt-crop-top)));
+  }
+}
+/* Divider dragged far down, outside Split. The title crop is already off
+   the top, so the top band stays a hairline. */
+@container yt-frame (aspect-ratio < 2 / 3) {
+  body:not(.split-view-active) .video-frame.youtube-active .yt-mask-layer .yt-edge-top {
+    height: clamp(18px, 4cqh, 36px);
+  }
+}
+/* --- Split View: the whole picture --------------------------------------
+   The iframe, the poster, and the mask share one box: the largest 16:9
+   rectangle that fits inside the pane, top edge on the pane's top edge,
+   centered across. Nothing is cropped off the top (the old title crop), so
+   both burned-in caption lines stay in view. Shrinking the pane shrinks
+   the picture from its top-anchored box, so it never slides off.
+
+   Stacked (phone portrait): the default pane is exactly the full-width
+   picture (stackedFullPictureRatio in app.js). Dragging the divider down
+   past that keeps pulling the picture down with it: it fills the pane's
+   height and its sides are cut evenly, so it zooms in and narrows instead
+   of leaving empty space below (the cover rule just after this one).
+   Side by side, the divider moves across, and the picture stays whole.
+   The reader can still pinch to zoom; the Fit button (app.js) and a
+   double-tap bring the full frame back.
+
+   The iframe is exactly the picture, so YouTube lays its own rows out in
+   this box: the chip variables are the box itself (origin 0, full width). */
+body.split-view-active .watch-layout.split-active .video-frame.youtube-active #youtubePlayerHost,
+body.split-view-active .watch-layout.split-active .video-frame.youtube-active .yt-shield,
+body.split-view-active .watch-layout.split-active .video-frame.youtube-active .yt-mask-layer {
+  --yt-crop-top: 0px;
+  --yt-iframe-w: min(100cqw, calc(100cqh * 16 / 9));
+  --yt-iframe-left: 0px;
+  --yt-mask-left: 0px;
+  --yt-origin: 0px;
+  --yt-clip: var(--yt-iframe-w);
+  inset: auto;
+  top: 0;
+  bottom: auto;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: min(100cqw, calc(100cqh * 16 / 9));
+  height: min(100cqh, calc(100cqw * 9 / 16));
+  max-width: 100%;
+  max-height: 100%;
+}
+/* Stacked, pane taller than the full-width picture (divider dragged down):
+   the picture follows the divider down -- full pane height, 16:9, sides cut
+   evenly, top on the pane's top -- so there is no empty band below it. The
+   caption lines stay at the pane's bottom edge. The mask is the visible
+   pane; the poster keeps the picture's own box. */
+@container yt-frame (aspect-ratio < 16 / 9) {
+  body.split-view-active.split-layout-stacked .watch-layout.split-active .video-frame.youtube-active #youtubePlayerHost,
+  body.split-view-active.split-layout-stacked .watch-layout.split-active .video-frame.youtube-active .yt-shield {
+    top: 0;
+    left: calc((100cqw - 100cqh * 16 / 9) / 2);
+    right: auto;
+    margin: 0;
+    width: calc(100cqh * 16 / 9);
+    height: 100cqh;
+    max-width: none;
+    max-height: none;
+  }
+  body.split-view-active.split-layout-stacked .watch-layout.split-active .video-frame.youtube-active .yt-mask-layer {
+    top: 0;
+    left: 0;
+    right: auto;
+    margin: 0;
+    width: 100cqw;
+    height: 100cqh;
+    max-width: none;
+    max-height: none;
+  }
+  body.split-view-active.split-layout-stacked .watch-layout.split-active .video-frame #video {
+    object-fit: cover;
+    object-position: center top;
+  }
+}
+/* A direct video link uses the same rule, so the frame is a size container
+   in Split whatever the source. */
+body.split-view-active .watch-layout.split-active .video-frame { container-type: size; container-name: yt-frame; }
+/* Phone held sideways, side by side. The pane is about half the screen wide
+   and the whole screen tall, so a full-width picture left a tall empty band
+   below it. Here the picture fills the pane's whole height, as in stacked
+   Split dragged down: 16:9 at that height, centered, its sides cut evenly.
+   The controls float over its bottom and fade with the rest of the chrome.
+   Dragging the divider right widens the pane and cuts less; pinching out
+   shows the whole frame. A mouse in a wide window keeps the whole-picture
+   rule above. */
+@media (pointer: coarse) and (orientation: landscape),
+       (hover: none) and (orientation: landscape) {
+  body.split-view-active:not(.split-layout-stacked) .watch-layout.split-active .video-frame {
+    --split-slot-h: 100cqh;
+  }
+  body.split-view-active:not(.split-layout-stacked) .watch-layout.split-active .video-frame.youtube-active #youtubePlayerHost,
+  body.split-view-active:not(.split-layout-stacked) .watch-layout.split-active .video-frame.youtube-active .yt-shield {
+    --yt-iframe-w: calc(var(--split-slot-h) * 16 / 9);
+    --yt-clip: min(100cqw, var(--yt-iframe-w));
+    top: 0;
+    left: calc((100cqw - var(--split-slot-h) * 16 / 9) / 2);
+    right: auto;
+    margin: 0;
+    width: calc(var(--split-slot-h) * 16 / 9);
+    height: var(--split-slot-h);
+    max-width: none;
+    max-height: none;
+  }
+  /* The mask is what shows of the picture: the pane's width (or the
+     picture's, if narrower), the picture's height. */
+  body.split-view-active:not(.split-layout-stacked) .watch-layout.split-active .video-frame.youtube-active .yt-mask-layer {
+    --yt-iframe-w: min(100cqw, calc(var(--split-slot-h) * 16 / 9));
+    --yt-clip: var(--yt-iframe-w);
+    top: 0;
+    left: max(0px, calc((100cqw - var(--split-slot-h) * 16 / 9) / 2));
+    right: auto;
+    margin: 0;
+    width: min(100cqw, calc(var(--split-slot-h) * 16 / 9));
+    height: var(--split-slot-h);
+    max-width: none;
+    max-height: none;
+  }
+  body.split-view-active:not(.split-layout-stacked) .watch-layout.split-active .video-frame #video {
+    height: var(--split-slot-h);
+    object-fit: cover;
+    object-position: center top;
+  }
+  /* The controls float over the picture, as they do stacked: no solid bar,
+     just a light fade behind the control row. */
+  body.split-view-active:not(.split-layout-stacked) .watch-layout.split-active .video-frame .player-controls {
+    background: transparent;
+    border-top: 0;
+    backdrop-filter: none;
+  }
+  body.split-view-active:not(.split-layout-stacked) .watch-layout.split-active .video-frame .player-controls::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(var(--pc-bar-h, 68px) + var(--pc-timeline-h, 74px));
+    background: linear-gradient(to top, rgba(4,14,27,.55), rgba(4,14,27,0));
+    pointer-events: none;
+    z-index: -1;
+  }
+  body.split-view-active:not(.split-layout-stacked) .watch-layout.split-active .video-frame .scrubber-wrap {
+    background: none;
+  }
+}
+/* What the mask still does in Split, and what it gives up. Measured on a
+   real embed at phone size: YouTube's title row is about 48px of the
+   iframe (after play, a seek, or while buffering), and its share button,
+   channel card, and logo sit along the bottom row -- exactly where the
+   two burned-in caption lines are -- for a few seconds before steady
+   playback clears them.
+   - The top band covers the title block (about 52px) and no more. The old
+     76-100px band hid a third of a 412px-wide picture.
+   - The bottom chips are not drawn. An opaque chip there hid the right
+     half of both caption lines for six seconds after every play, seek,
+     and pause, even when YouTube showed nothing there at all. YouTube's
+     own small icons are allowed to show briefly instead. */
+body.split-view-active .watch-layout.split-active .video-frame.youtube-active .yt-mask-layer .yt-edge-top {
+  /* Title, channel line, and avatar end ~52px down on a real embed. */
+  height: min(60px, 26%);
+  background: linear-gradient(to bottom, #07111c 0, #07111c calc(100% - 6px), rgba(7, 17, 28, 0) 100%);
+}
+body.split-view-active .watch-layout.split-active .video-frame.youtube-active .yt-mask-layer .yt-edge-logo,
+body.split-view-active .watch-layout.split-active .video-frame.youtube-active .yt-mask-layer .yt-edge-share,
+body.split-view-active .watch-layout.split-active .video-frame.youtube-active .yt-mask-layer .yt-edge-bottom {
+  display: none !important;
+}
+/* Touch landscape, Split off. The daf picker is a row of the bottom chrome,
+   and the picture ends above it. In Split the same bar lives in the divider
+   panel; a mouse keeps it across the top of the video. */
+@media (pointer: coarse) and (orientation: landscape),
+       (hover: none) and (orientation: landscape) {
+  body:not(.split-view-active) .video-frame { --phone-picker-h: 40px; }
+  body:not(.split-view-active) .video-frame > #playerTopbar {
+    top: auto;
+    bottom: calc(var(--pc-bar-h, 68px) + var(--pc-timeline-h, 74px));
+    height: var(--phone-picker-h);
+    padding: 0 10px;
+    background: #07111c;
+    z-index: 8;
+  }
+  body:not(.split-view-active) .video-frame.youtube-active .youtube-player-host,
+  body:not(.split-view-active) .video-frame.youtube-active .yt-shield,
+  body:not(.split-view-active) .video-frame.youtube-active .yt-mask-layer {
+    --chrome-h: calc(var(--pc-bar-h, 68px) + var(--pc-timeline-h, 74px) + var(--phone-picker-h, 40px));
+    /* This slot is the contained picture, not the oversized crop. The
+       chips have to use this box or they land on the wrong fraction. */
+    --yt-iframe-w: min(100cqw, calc((100cqh - var(--chrome-h)) * 16 / 9));
+    --yt-iframe-left: 0px;
+    --yt-mask-left: 0px;
+    --yt-origin: 0px;
+    --yt-clip: var(--yt-iframe-w);
+    top: 0;
+    bottom: auto;
+    left: 0;
+    right: auto;
+    margin-inline: auto;
+    width: min(100cqw, calc((100cqh - var(--chrome-h)) * 16 / 9));
+    height: min(calc(100cqh - var(--chrome-h)), calc(100cqw * 9 / 16));
+    max-width: 100%;
+    max-height: calc(100cqh - var(--chrome-h));
+  }
+  /* The picture fills the slot above the picker. Its own bottom edge is
+     that slot's bottom edge, so the caption lines are not cropped and the
+     iframe does not run under the controls. */
+  body:not(.split-view-active) .video-frame.youtube-active .youtube-player-host,
+  body:not(.split-view-active) .video-frame.youtube-active .yt-shield,
+  body:not(.split-view-active) .video-frame.youtube-active .yt-mask-layer {
+    top: auto;
+    bottom: var(--chrome-h);
+  }
 }
 body.split-view-active .watch-layout.split-active .video-frame #video,
 body.split-view-active .watch-layout.split-active .video-frame #youtubePlayerHost {
-  width: 100%;
-  height: 100%;
   /* The pinch surface above is the ONE deliberate tap-to-play/pinch/pan
      handler for this picture in Split View, precisely because (per its own
      comment) it would otherwise "silently swallow" a tap meant for the
@@ -3128,6 +4074,36 @@ body.split-view-active .watch-layout.split-active .video-frame #youtubePlayerHos
   transition: opacity .2s ease;
 }
 .split-video-zoom-indicator.show { opacity: 1; }
+/* Shown only while the picture is pinch-zoomed (see applySplitVideoTransform).
+   Above the pinch surface (11) and the mask (5), below the topbar (13). */
+.split-video-fit-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 12;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(255,255,255,.35);
+  border-radius: 999px;
+  background: rgba(8,17,28,.86);
+  color: #fff;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.split-video-fit-button[hidden] { display: none; }
+/* The fixed mode bar covers the top of the video pane while it is up. */
+body.split-view-active:not(.split-chrome-hidden) .split-video-fit-button {
+  top: calc(max(10px, env(safe-area-inset-top, 0px)) + var(--viewer-mode-bar-h, 44px) + 6px);
+}
+/* Stacked with the video below, the bar sits over the daf instead. */
+body.split-view-active.split-layout-stacked.split-video-at-end:not(.split-chrome-hidden) .split-video-fit-button { top: 8px; }
+.split-video-fit-button svg { width: 16px; height: 16px; }
+.split-video-fit-button:focus-visible { outline: 3px solid rgba(47, 110, 165, .6); outline-offset: 2px; }
 
 /* --- Responsive defaults -------------------------------------------------
    Landscape (desktop, landscape tablet/phone) defaults to side-by-side via

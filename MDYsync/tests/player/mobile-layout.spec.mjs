@@ -14,6 +14,48 @@ const FILES = [
 ];
 const SHOTS = '/opt/cursor/artifacts/mobile-layout';
 
+// YouTube's bottom row, in the iframe's own box: the More videos card is
+// x 55%–90%, the logo continues to the right edge, and the share icon is
+// the first 96px. Project that onto the screen and clip it to the pane.
+function rowSlice(iframe, frame, x0, x1) {
+  const left = iframe.left + iframe.width * x0;
+  const right = iframe.left + iframe.width * x1;
+  const top = iframe.bottom - 52;
+  const bottom = iframe.bottom;
+  const l = Math.max(left, frame.left);
+  const r = Math.min(right, frame.right);
+  const t = Math.max(top, frame.top);
+  const b = Math.min(bottom, frame.bottom);
+  return { left: l, right: r, top: t, bottom: b, width: Math.max(0, r - l), height: Math.max(0, b - t) };
+}
+function expectChipCovers(chip, target, frame, name) {
+  if (target.width < 1 || target.height < 1) return;
+  expect(chip.right, `${name} chip inside`).toBeLessThanOrEqual(frame.right + 2);
+  expect(chip.left, `${name} chip inside`).toBeGreaterThanOrEqual(frame.left - 2);
+  expect(chip.left, `${name} covers left`).toBeLessThanOrEqual(target.left + 2);
+  expect(chip.right, `${name} covers right`).toBeGreaterThanOrEqual(target.right - 2);
+  expect(chip.top, `${name} covers top`).toBeLessThanOrEqual(target.top + 2);
+  expect(chip.bottom, `${name} covers bottom`).toBeGreaterThanOrEqual(target.bottom - 2);
+}
+function expectBottomRow(iframe, frame, logo, share, name) {
+  const card = rowSlice(iframe, frame, 0.55, 0.9);
+  const logoSlice = rowSlice(iframe, frame, 0.9, 1);
+  const shareSlice = rowSlice(iframe, frame, 0, Math.min(1, 96 / Math.max(iframe.width, 1)));
+  if (card.width >= 1) {
+    const mid = ((card.left + card.right) / 2 - frame.left) / frame.width;
+    console.log(`CARD ${name} x=${((card.left - frame.left) / frame.width).toFixed(2)}-${((card.right - frame.left) / frame.width).toFixed(2)} mid=${mid.toFixed(2)} w=${card.width.toFixed(0)}`);
+  } else {
+    console.log(`CARD ${name} offscreen`);
+  }
+  if (card.width < 1 && logoSlice.width < 1) expect(logo.width, `${name} card offscreen`).toBeLessThan(2);
+  else {
+    expectChipCovers(logo, card, frame, `${name} more-videos`);
+    expectChipCovers(logo, logoSlice, frame, `${name} logo`);
+  }
+  if (shareSlice.width < 1) expect(share.width, `${name} share offscreen`).toBeLessThan(2);
+  else expectChipCovers(share, shareSlice, frame, `${name} share`);
+}
+
 const YT_STUB = `
 window.YT = window.YT || {};
 window.YT.Player = function (id, options) {
@@ -23,12 +65,25 @@ window.YT.Player = function (id, options) {
     _duration: 7200,
     _muted: false,
     _events: options.events,
-    seekTo(time) { self._time = Number(time) || 0; },
-    getCurrentTime() { return self._time; },
+    seekTo(time) {
+      self._time = Number(time) || 0;
+      self._origin = self._time;
+      if (self._state === 1) self._playedAt = performance.now();
+    },
+    getCurrentTime() {
+      if (self._state === 1 && self._playedAt) {
+        return self._origin + (performance.now() - self._playedAt) / 1000;
+      }
+      return self._time;
+    },
     getDuration() { return self._duration; },
     getPlayerState() { return self._state; },
     cueVideoById() { self._state = 5; },
     playVideo() {
+      if (self._state !== 1 || !self._playedAt) {
+        self._origin = self._time;
+        self._playedAt = performance.now();
+      }
       self._state = 1;
       self._playCount = (self._playCount || 0) + 1;
       const fire = () => self._events.onStateChange({ data: 1, target: self });
@@ -36,6 +91,10 @@ window.YT.Player = function (id, options) {
       else fire();
     },
     pauseVideo() {
+      if (self._playedAt && self._state === 1) {
+        self._time = self._origin + (performance.now() - self._playedAt) / 1000;
+      }
+      self._playedAt = 0;
       self._state = 2;
       self._pauseCount = (self._pauseCount || 0) + 1;
       if (self._pauseRewind) self._time = Math.max(0, self._time - self._pauseRewind);
@@ -111,29 +170,70 @@ function boxesOverlap(a, b) {
 }
 
 test.describe('mobile player layout', () => {
-  test('phone control buttons are 44px and do not overlap', async ({ page }) => {
+  test('phone control buttons stay compact and do not overlap', async ({ page }) => {
     test.skip(test.info().project.name !== 'mobile', 'measured on the touch viewport');
     test.setTimeout(60000);
-    await page.setViewportSize({ width: 400, height: 985 });
+    await page.setViewportSize({ width: 412, height: 915 });
     await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
     await page.locator('#videoFrame').evaluate((frame) => frame.classList.remove('controls-hidden'));
-    const ids = ['backButton', 'playButton', 'forwardButton', 'vaaterButton', 'muteButton', 'fullscreenButton'];
+    const ids = ['backButton', 'playButton', 'forwardButton', 'muteButton', 'fullscreenButton'];
     const boxes = {};
     for (const id of ids) {
       const box = await page.locator(`#${id}`).boundingBox();
       boxes[id] = box;
       expect(box, id).toBeTruthy();
-      expect(box.width, id).toBeGreaterThanOrEqual(44);
-      expect(box.height, id).toBeGreaterThanOrEqual(44);
+      expect(box.height, id).toBeGreaterThanOrEqual(32);
+      expect(box.height, id).toBeLessThanOrEqual(36);
+      expect(box.width, id).toBeGreaterThanOrEqual(32);
+      expect(box.width, id).toBeLessThanOrEqual(36);
     }
+    const chrome = await page.evaluate(() => {
+      const bar = getComputedStyle(document.querySelector('.player-controls'));
+      const scrub = document.querySelector('.scrubber-wrap').getBoundingClientRect();
+      const controls = document.querySelector('.player-controls').getBoundingClientRect();
+      const mute = getComputedStyle(document.getElementById('muteButton'));
+      return {
+        barBg: bar.backgroundColor,
+        bottom: Math.round(controls.bottom - scrub.top),
+        muteBorder: mute.borderTopWidth,
+        fade: Math.round(parseFloat(getComputedStyle(document.querySelector('.player-controls'), '::before').height) || 0),
+      };
+    });
+    expect(chrome.barBg).toBe('rgba(0, 0, 0, 0)');
+    expect(chrome.bottom).toBeLessThanOrEqual(64);
+    expect(chrome.fade).toBeLessThanOrEqual(40);
+    expect(chrome.muteBorder).toBe('0px');
+    const youtube = await page.evaluate(() => {
+      const host = document.getElementById('youtubePlayerHost');
+      const frame = document.getElementById('videoFrame');
+      return {
+        pointer: getComputedStyle(host).pointerEvents,
+        hidden: getComputedStyle(host).visibility,
+        started: frame.classList.contains('yt-started'),
+        hold: frame.classList.contains('yt-hold'),
+        shield: getComputedStyle(document.getElementById('ytShield')).display,
+        crop: parseFloat(getComputedStyle(document.getElementById('youtubePlayer')).top),
+        branding: window.__playerVars?.modestbranding ?? window.__ytVars?.modestbranding,
+      };
+    });
+    expect(youtube.pointer).toBe('none');
+    expect(youtube.hidden).toBe('hidden');
+    expect(youtube.started).toBe(false);
+    expect(youtube.hold).toBe(true);
+    expect(youtube.shield).toBe('block');
+    // The embed used to be shifted up by 72px. On a short phone that crop
+    // took the top of the picture with it. The picture now starts at the
+    // top of its frame.
+    expect(youtube.crop).toBeGreaterThanOrEqual(-1);
+    expect(youtube.crop).toBeLessThan(2);
     const speedHome = await page.evaluate(() => {
       const speed = document.getElementById('speedSelect');
       return speed?.closest('#toolsMoreMenu') ? 'menu' : 'bar';
     });
     if (speedHome === 'bar') {
       const speed = await page.locator('#speedSelect').boundingBox();
-      expect(speed.height).toBeGreaterThanOrEqual(44);
-      expect(speed.width).toBeGreaterThanOrEqual(44);
+      expect(speed.height).toBeGreaterThanOrEqual(30);
+      expect(speed.height).toBeLessThanOrEqual(36);
       boxes.speed = speed;
     }
     const order = Object.keys(boxes);
@@ -149,6 +249,260 @@ test.describe('mobile player layout', () => {
       expect(box.x + box.width, id).toBeLessThanOrEqual(frame.x + frame.width + 1);
     }
     await shot(page, 'phone-controls');
+    const more = page.locator('#toolsMoreButton');
+    if (await more.isVisible()) await more.tap();
+    await expect(page.locator('#toolsMoreMenu')).toBeVisible();
+    await expect(page.locator('#captionsStack .pc-label')).toHaveText('Captions off');
+    await shot(page, 'captions-off');
+    await page.locator('#captionsButton').tap();
+    await expect(page.locator('#captionsStack .pc-label')).toHaveText('Captions on');
+    await expect(page.locator('#captionsButton')).toHaveAttribute('aria-pressed', 'true');
+    await shot(page, 'captions-on');
+  });
+
+  test('the opening poster lifts within a second and a pause keeps the frame', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'phone player');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 412, height: 915 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    const before = await page.evaluate(() => ({
+      hold: document.getElementById('videoFrame').classList.contains('yt-hold'),
+      shield: getComputedStyle(document.getElementById('ytShield')).display,
+    }));
+    expect(before.hold).toBe(true);
+    expect(before.shield).toBe('block');
+    await shot(page, 'youtube-cover-before-play');
+    // togglePlay() is the real Play path. Calling playVideo() on the stub
+    // while a paused-frame blip is still armed is treated as that blip and
+    // paused again before the cover can lift.
+    await page.waitForFunction(() => state.youtubeReady);
+    const warming = await page.evaluate(() => {
+      togglePlay();
+      return document.getElementById('videoFrame').classList.contains('yt-hold');
+    });
+    expect(warming).toBe(true);
+    await expect.poll(() => page.evaluate(() => {
+      const frame = document.getElementById('videoFrame');
+      return !frame.classList.contains('yt-hold') && frame.classList.contains('yt-started');
+    }), { timeout: 800 }).toBe(true);
+    const playing = await page.evaluate(() => {
+      const frame = document.getElementById('videoFrame');
+      const badge = document.getElementById('videoSourceBadge');
+      badge.hidden = false;
+      badge.textContent = 'YouTube';
+      const mask = frame.querySelector('.yt-chrome-mask');
+      return {
+        hold: frame.classList.contains('yt-hold'),
+        started: frame.classList.contains('yt-started'),
+        shield: getComputedStyle(document.getElementById('ytShield')).display,
+        mask: mask ? getComputedStyle(mask).display : 'none',
+        badge: getComputedStyle(badge).display,
+      };
+    });
+    expect(playing.hold).toBe(false);
+    expect(playing.started).toBe(true);
+    expect(playing.shield).toBe('none');
+    expect(playing.mask).toBe('none');
+    expect(playing.badge).toBe('none');
+    await page.evaluate(() => togglePlay());
+    const paused = await page.evaluate(() => {
+      const frame = document.getElementById('videoFrame');
+      const layer = frame.querySelector('.yt-mask-layer');
+      const edge = frame.querySelector('.yt-edge-top');
+      const bottom = frame.querySelector('.yt-edge-bottom');
+      const logo = frame.querySelector('.yt-edge-logo');
+      const share = frame.querySelector('.yt-edge-share');
+      const layerBox = layer ? layer.getBoundingClientRect() : { height: 0 };
+      const edgeBox = edge ? edge.getBoundingClientRect() : { height: 0 };
+      const bottomBox = bottom ? bottom.getBoundingClientRect() : { height: 0 };
+      const logoCs = logo ? getComputedStyle(logo) : null;
+      const shareCs = share ? getComputedStyle(share) : null;
+      return {
+        hold: frame.classList.contains('yt-hold'),
+        started: frame.classList.contains('yt-started'),
+        mask: frame.classList.contains('yt-mask'),
+        corner: frame.classList.contains('yt-corner'),
+        shield: getComputedStyle(document.getElementById('ytShield')).display,
+        layer: layer ? getComputedStyle(layer).display : 'none',
+        edgeH: edgeBox.height,
+        bottomH: bottomBox.height,
+        layerH: layerBox.height,
+        play: document.getElementById('largePlay').hidden,
+        logoDisplay: logoCs ? logoCs.display : 'missing',
+        logoH: logo ? logo.getBoundingClientRect().height : 0,
+        shareDisplay: shareCs ? shareCs.display : 'missing',
+        shareH: share ? share.getBoundingClientRect().height : 0,
+      };
+    });
+    expect(paused.hold).toBe(false);
+    expect(paused.started).toBe(true);
+    expect(paused.mask).toBe(true);
+    expect(paused.shield).toBe('none');
+    expect(paused.layer).toBe('block');
+    expect(paused.layerH).toBeGreaterThan(120);
+    // The title row is still covered. The caption lines are not: there is
+    // no full-width bottom band.
+    expect(paused.edgeH).toBeGreaterThanOrEqual(48);
+    expect(paused.bottomH).toBe(0);
+    expect(paused.edgeH).toBeLessThan(paused.layerH * 0.45);
+    expect(paused.corner).toBe(true);
+    expect(paused.logoDisplay).toBe('block');
+    expect(paused.logoH).toBeGreaterThanOrEqual(50);
+    expect(paused.logoH).toBeLessThanOrEqual(54);
+    expect(paused.shareDisplay).toBe('block');
+    expect(paused.shareH).toBeGreaterThanOrEqual(50);
+    expect(paused.play).toBe(false);
+    await shot(page, 'youtube-cover-paused');
+    await page.click('#viewerModeSplitButton');
+    await expect(page.locator('body')).toHaveClass(/split-view-active/);
+    const splitCover = await page.evaluate(() => {
+      const frame = document.getElementById('videoFrame');
+      const layer = frame.querySelector('.yt-mask-layer');
+      return {
+        hold: frame.classList.contains('yt-hold'),
+        mask: frame.classList.contains('yt-mask'),
+        shield: getComputedStyle(document.getElementById('ytShield')).display,
+        layer: layer ? getComputedStyle(layer).display : 'none',
+        stage: getComputedStyle(document.getElementById('youtubeStage')).display,
+      };
+    });
+    expect(splitCover.hold).toBe(false);
+    expect(splitCover.mask).toBe(true);
+    expect(splitCover.shield).toBe('none');
+    expect(splitCover.layer).toBe('block');
+    expect(splitCover.stage).toBe('block');
+    await shot(page, 'youtube-cover-split-paused');
+  });
+
+  test('split close is a solid enabled button and leaves split view', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'phone split');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 412, height: 915 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeSplitButton');
+    await expect(page.locator('body')).toHaveClass(/split-view-active/);
+    await page.evaluate(() => document.body.classList.remove('split-chrome-hidden'));
+    const look = await page.evaluate(() => {
+      const button = document.getElementById('splitExitButton');
+      const style = getComputedStyle(button);
+      const rect = button.getBoundingClientRect();
+      return {
+        opacity: style.opacity,
+        color: style.color,
+        bg: style.backgroundColor,
+        disabled: button.disabled,
+        pointer: style.pointerEvents,
+        hidden: button.hidden,
+        w: rect.width,
+        h: rect.height,
+      };
+    });
+    expect(look.hidden).toBe(false);
+    expect(look.disabled).toBe(false);
+    expect(look.opacity).toBe('1');
+    expect(look.pointer).not.toBe('none');
+    expect(look.bg).toBe('rgb(255, 255, 255)');
+    expect(look.color).toBe('rgb(16, 32, 51)');
+    expect(look.w).toBeGreaterThanOrEqual(40);
+    expect(look.h).toBeGreaterThanOrEqual(40);
+    await shot(page, 'split-exit-enabled');
+    const box = await page.locator('#splitExitButton').boundingBox();
+    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
+    await expect(page.locator('body')).not.toHaveClass(/split-view-active/);
+  });
+
+  test('a touch on the Split close button leaves split while the bar is hidden', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'phone touch');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 412, height: 915 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeSplitButton');
+    await expect(page.locator('body')).toHaveClass(/split-view-active/);
+    const point = await page.evaluate(() => {
+      document.body.classList.add('split-chrome-hidden');
+      const button = document.getElementById('splitExitButton');
+      const bar = document.getElementById('viewerModeSelect');
+      const rect = button.getBoundingClientRect();
+      return {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+        w: rect.width,
+        barPointer: getComputedStyle(bar).pointerEvents,
+      };
+    });
+    expect(point.w).toBeGreaterThan(8);
+    expect(point.barPointer).toBe('none');
+    await page.touchscreen.tap(point.x, point.y);
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
+    await expect(page.locator('body')).not.toHaveClass(/split-view-active/);
+    expect(await page.evaluate(() => document.getElementById('authDialog').open)).toBe(false);
+  });
+
+  test('a touch on the Split close button does not open Sign in', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'phone touch');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 412, height: 915 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeSplitButton');
+    await expect(page.locator('body')).toHaveClass(/split-view-active/);
+    const point = await page.evaluate(() => {
+      const exit = document.getElementById('splitExitButton');
+      const rect = exit.getBoundingClientRect();
+      const signIn = document.getElementById('signInButton');
+      signIn.style.position = 'fixed';
+      signIn.style.left = `${rect.left}px`;
+      signIn.style.top = `${rect.top}px`;
+      signIn.style.width = `${Math.max(rect.width, 44)}px`;
+      signIn.style.height = `${Math.max(rect.height, 44)}px`;
+      signIn.style.zIndex = '1';
+      signIn.style.margin = '0';
+      signIn.style.pointerEvents = 'auto';
+      window.__signInClicks = 0;
+      signIn.addEventListener('click', () => { window.__signInClicks += 1; });
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    });
+    await page.touchscreen.tap(point.x, point.y);
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
+    await page.waitForTimeout(50);
+    const after = await page.evaluate(() => ({
+      clicks: window.__signInClicks,
+      open: document.getElementById('authDialog').open,
+    }));
+    expect(after.clicks).toBe(0);
+    expect(after.open).toBe(false);
+  });
+
+  test('a pause stays paused when YouTube reports playing again', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'phone player');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 412, height: 915 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.waitForFunction(() => state.youtubeReady);
+    await page.evaluate(() => togglePlay());
+    await page.evaluate(() => togglePlay());
+    const result = await page.evaluate(() => {
+      const before = window.__yt._pauseCount || 0;
+      state.wantPlaying = false;
+      window.__yt._state = 1;
+      window.__yt._events.onStateChange({ data: 1, target: window.__yt });
+      const frame = document.getElementById('videoFrame');
+      return {
+        want: state.wantPlaying,
+        pauses: (window.__yt._pauseCount || 0) - before,
+        hold: frame.classList.contains('yt-hold'),
+        mask: frame.classList.contains('yt-mask'),
+        shield: getComputedStyle(document.getElementById('ytShield')).display,
+        state: window.__yt.getPlayerState(),
+      };
+    });
+    expect(result.want).toBe(false);
+    expect(result.pauses).toBeGreaterThan(0);
+    // Still covered: the opening poster if playback never revealed, otherwise
+    // the edge mask. The thumbnail does not replace a frame that already showed.
+    if (result.hold) expect(result.shield).toBe('block');
+    else expect(result.mask).toBe(true);
+    expect(result.state).toBe(2);
   });
 
   test('tapping the video does not scroll the page down to the daf', async ({ page }) => {
@@ -192,6 +546,8 @@ test.describe('mobile player layout', () => {
     await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
     await page.click('#viewerModeSplitButton');
     await expect(page.locator('body')).toHaveClass(/split-view-active/);
+    await page.click('#splitDivider');
+    await expect(page.locator('body')).toHaveClass(/split-tools-open/);
     await page.evaluate(() => {
       const scroll = document.getElementById('dafScroll');
       const stretch = document.createElement('div');
@@ -223,7 +579,9 @@ test.describe('mobile player layout', () => {
     });
     expect(geo.scrollTop).toBeGreaterThan(200);
     expect(geo.headerTop).toBeGreaterThanOrEqual(geo.cardTop - 2);
-    expect(geo.headerBottom).toBeLessThanOrEqual(geo.cardTop + 160);
+    // The phone tools panel (picker, then the header) sits above the page.
+    // It stays pinned to the card; it does not scroll away with the daf.
+    expect(geo.headerBottom).toBeLessThanOrEqual(geo.cardTop + 260);
     expect(geo.backTop).toBeGreaterThanOrEqual(geo.cardTop - 2);
     expect(geo.autoTop).toBeGreaterThanOrEqual(geo.cardTop - 2);
     expect(geo.autoTop).toBeLessThan(geo.cardBottom);
@@ -300,11 +658,14 @@ test.describe('mobile player layout', () => {
     await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
     const geo = await page.evaluate(() => {
       const play = document.getElementById('playButton').getBoundingClientRect();
+      const frame = document.getElementById('videoFrame').getBoundingClientRect();
+      const picker = document.getElementById('playerTopbar').getBoundingClientRect();
       return {
         sidebar: getComputedStyle(document.querySelector('.sidebar')).display,
         top: document.querySelector('.topbar').getBoundingClientRect().height,
         playW: play.width,
         playH: play.height,
+        pickerTop: picker.top - frame.top,
         tiny: document.getElementById('videoFrame').classList.contains('is-tiny'),
         compact: document.getElementById('videoFrame').classList.contains('is-compact'),
         snug: document.getElementById('videoFrame').classList.contains('is-snug'),
@@ -315,10 +676,11 @@ test.describe('mobile player layout', () => {
     expect(geo.tiny).toBe(false);
     // At 1440px the sidebar and daf column leave the video frame in the
     // compact tier, whose desktop play control is 30px. Snug is 38, full is
-    // 46. The phone 44px target must not replace any of those.
+    // 46. The phone control size must not replace any of those.
     const expected = geo.compact ? 30 : geo.snug ? 38 : 46;
     expect(Math.abs(geo.playW - expected)).toBeLessThan(2);
     expect(Math.abs(geo.playH - expected)).toBeLessThan(2);
+    expect(geo.pickerTop).toBeLessThan(8);
     await shot(page, 'desktop-unchanged');
   });
 
@@ -413,6 +775,8 @@ test.describe('mobile player layout', () => {
     expect(after.daf).toBe(true);
     expect(after.video).toBe(true);
     expect(after.back).toBe(true);
+    await page.click('#splitDivider');
+    await expect(page.locator('body')).toHaveClass(/split-tools-open/);
     const panes = await page.evaluate(() => {
       const video = document.querySelector('.watch-layout.split-active > .player-card').getBoundingClientRect();
       const daf = document.getElementById('dafCard').getBoundingClientRect();
@@ -483,8 +847,25 @@ test.describe('mobile player layout', () => {
     expect(geo.stacked).toBe(false);
     expect(geo.videoW).toBeGreaterThan(80);
     expect(geo.dafW).toBeGreaterThan(80);
-    expect(geo.backW).toBeGreaterThan(20);
     expect(geo.dafLeft).toBeGreaterThan(geo.videoRight - 30);
+    // The picker and the daf header sit in the divider panel, not on the video.
+    await page.click('#splitDivider');
+    await expect(page.locator('body')).toHaveClass(/split-tools-open/);
+    const panel = await page.evaluate(() => {
+      const back = document.getElementById('splitBackToDaf').getBoundingClientRect();
+      const topbar = document.getElementById('playerTopbar');
+      const frame = document.getElementById('videoFrame');
+      const tools = document.getElementById('splitToolsPanel');
+      const card = document.getElementById('dafCard');
+      return {
+        backW: back.width,
+        overVideo: frame.contains(topbar),
+        inCard: card.contains(tools) && tools.contains(topbar),
+      };
+    });
+    expect(panel.backW).toBeGreaterThan(20);
+    expect(panel.overVideo).toBe(false);
+    expect(panel.inCard).toBe(true);
     await shot(page, 'fullscreen-split-landscape');
     await page.evaluate(() => document.exitFullscreen());
   });
@@ -532,6 +913,8 @@ test.describe('mobile player layout', () => {
     await page.setViewportSize({ width: 400, height: 985 });
     await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
     await page.click('#viewerModeSplitButton');
+    await page.click('#splitDivider');
+    await expect(page.locator('body')).toHaveClass(/split-tools-open/);
     await page.evaluate(() => document.body.classList.add('split-chrome-hidden'));
     await page.waitForTimeout(350);
     const before = await page.evaluate(() => document.getElementById('autoScroll').checked);
@@ -608,7 +991,8 @@ test.describe('mobile player layout', () => {
       state.seeking = false;
     });
     const box = await page.locator('#scrubber').boundingBox();
-    expect(box.height).toBeGreaterThanOrEqual(40);
+    expect(box.height).toBeGreaterThanOrEqual(24);
+    expect(box.height).toBeLessThanOrEqual(36);
     const client = await page.context().newCDPSession(page);
     const y = box.y + box.height / 2;
     const startX = box.x + 8;
@@ -668,5 +1052,625 @@ test.describe('mobile player layout', () => {
     expect(result.chip).toContain('31a');
     expect(result.mismatched).toBe(0);
     expect(result.matched).toBeGreaterThan(0);
+  });
+
+  test('a tap on the split bar opens the controls and a drag keeps the video on screen', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'portrait phone');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 412, height: 915 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeSplitButton');
+    await expect(page.locator('body')).toHaveClass(/split-tools-phone/);
+    const closed = await page.evaluate(() => {
+      const frame = document.getElementById('videoFrame');
+      const topbar = document.getElementById('playerTopbar');
+      const header = document.querySelector('#dafCard .daf-header');
+      const divider = document.getElementById('splitDivider').getBoundingClientRect();
+      const card = document.getElementById('dafCard').getBoundingClientRect();
+      const scroll = document.getElementById('dafScroll').getBoundingClientRect();
+      return {
+        open: document.body.classList.contains('split-tools-open'),
+        inFrame: frame.contains(topbar),
+        header: getComputedStyle(header).display,
+        gap: card.top - divider.bottom,
+        scrollGap: scroll.top - divider.bottom,
+      };
+    });
+    expect(closed.open).toBe(false);
+    expect(closed.inFrame).toBe(false);
+    expect(closed.header).toBe('none');
+    expect(Math.abs(closed.gap)).toBeLessThan(4);
+    expect(Math.abs(closed.scrollGap)).toBeLessThan(8);
+    await shot(page, 'phone-split-closed-flush');
+
+    await page.click('#splitDivider');
+    await expect(page.locator('body')).toHaveClass(/split-tools-open/);
+    const opened = await page.evaluate(() => {
+      const title = document.getElementById('dafTitle');
+      const chip = document.getElementById('skipToDafChip');
+      const titleBox = title.getBoundingClientRect();
+      const chipBox = chip && !chip.hidden ? chip.getBoundingClientRect() : null;
+      return {
+        title: title.textContent,
+        titleOverflow: title.scrollWidth - title.clientWidth,
+        chipText: chip?.textContent || '',
+        chipRight: chipBox ? chipBox.right : null,
+        viewW: window.innerWidth,
+      };
+    });
+    expect(opened.title).toContain('Bekhorot');
+    expect(opened.titleOverflow).toBeLessThan(2);
+    if (opened.chipRight != null) expect(opened.chipRight).toBeLessThanOrEqual(opened.viewW + 1);
+    const zoom = await page.evaluate(() => {
+      const bar = document.getElementById('vilnaZoomControls');
+      const select = document.getElementById('vilnaSelectTextModeButton');
+      const panel = document.getElementById('splitToolsPanel');
+      const card = document.getElementById('dafCard');
+      const scroll = document.getElementById('dafScroll');
+      const notes = document.getElementById('readerDafNotes');
+      const chip = document.getElementById('skipToDafChip');
+      const label = document.getElementById('reviewingLabel');
+      if (label) {
+        label.hidden = false;
+        label.textContent = 'Reviewing Bekhorot 43b';
+      }
+      if (chip) {
+        chip.hidden = false;
+        chip.textContent = 'Skip to Bekhorot 44a (7:28)';
+      }
+      const fits = (el) => {
+        if (!el || el.hidden) return false;
+        const box = el.getBoundingClientRect();
+        const pane = panel.getBoundingClientRect();
+        return box.height > 8
+          && box.width > 8
+          && box.top >= pane.top - 1
+          && box.bottom <= pane.bottom + 1
+          && box.left >= pane.left - 1
+          && box.right <= pane.right + 1;
+      };
+      const scroller = panel.querySelector('.split-tools-scroll');
+      const auto = document.querySelector('#splitToolsPanel .header-auto-scroll');
+      const dafPage = document.getElementById('splitBackToDaf');
+      const cardBox = card.getBoundingClientRect();
+      const scrollBox = scroll.getBoundingClientRect();
+      const panelBox = panel.getBoundingClientRect();
+      const layout = {
+        position: getComputedStyle(bar).position,
+        panelPos: getComputedStyle(panel).position,
+        inPanel: panel.contains(bar),
+        barH: bar.getBoundingClientRect().height,
+        notesClip: notes ? notes.scrollHeight - notes.clientHeight : 0,
+        panelH: panelBox.height,
+        cardH: cardBox.height,
+        scrollH: scrollBox.height,
+        scrollTop: scrollBox.top,
+        cardTop: cardBox.top,
+        innerScroll: scroller ? scroller.scrollHeight - scroller.clientHeight : 0,
+        panelScroll: panel.scrollHeight - panel.clientHeight,
+      };
+      return {
+        ...layout,
+        selectFits: fits(select),
+        chipFits: fits(chip),
+        labelFits: fits(label),
+        autoFits: fits(auto),
+        dafPageFits: fits(dafPage),
+      };
+    });
+    expect(zoom.position).toBe('relative');
+    expect(zoom.panelPos).toBe('absolute');
+    expect(zoom.inPanel).toBe(true);
+    expect(zoom.barH).toBeGreaterThan(20);
+    expect(zoom.selectFits).toBe(true);
+    expect(zoom.chipFits).toBe(true);
+    expect(zoom.labelFits).toBe(true);
+    expect(zoom.notesClip).toBeLessThanOrEqual(1);
+    expect(zoom.autoFits).toBe(true);
+    expect(zoom.dafPageFits).toBe(true);
+    expect(zoom.innerScroll).toBeLessThanOrEqual(1);
+    expect(zoom.panelScroll).toBeLessThanOrEqual(1);
+    expect(zoom.panelH).toBeLessThanOrEqual(zoom.cardH * 0.6 + 2);
+    expect(zoom.panelH).toBeLessThan(zoom.cardH * 0.75);
+    // The toolbar and footer stay in the card. The page scroll still fills
+    // the rest, instead of collapsing under an in-flow panel.
+    expect(zoom.scrollH).toBeGreaterThan(zoom.cardH * 0.7);
+    expect(Math.abs(zoom.scrollTop - zoom.cardTop)).toBeLessThan(8);
+    const openBar = await page.evaluate(() => {
+      const divider = document.getElementById('splitDivider').getBoundingClientRect();
+      const card = document.getElementById('dafCard').getBoundingClientRect();
+      const panel = document.getElementById('splitToolsPanel').getBoundingClientRect();
+      const more = document.getElementById('playerMoreButton');
+      const notes = document.getElementById('playerNotesButton');
+      const hit = (el) => {
+        if (!el || el.hidden) return null;
+        const box = el.getBoundingClientRect();
+        const x = box.left + Math.min(box.width / 2, 18);
+        const y = box.top + box.height / 2;
+        const top = document.elementFromPoint(x, y);
+        return {
+          h: box.height,
+          inPanel: box.top >= panel.top - 1 && box.bottom <= panel.bottom + 1,
+          hit: top === el || el.contains(top),
+        };
+      };
+      return {
+        gap: card.top - divider.bottom,
+        panelGap: panel.top - card.top,
+        more: hit(more),
+        notes: hit(notes),
+      };
+    });
+    expect(Math.abs(openBar.gap)).toBeLessThan(4);
+    expect(Math.abs(openBar.panelGap)).toBeLessThan(2);
+    expect(openBar.more?.h).toBeGreaterThan(8);
+    expect(openBar.more?.inPanel).toBe(true);
+    expect(openBar.more?.hit).toBe(true);
+    if (openBar.notes) {
+      expect(openBar.notes.h).toBeGreaterThan(8);
+      expect(openBar.notes.inPanel).toBe(true);
+      expect(openBar.notes.hit).toBe(true);
+    }
+    await shot(page, 'phone-split-open-flush');
+    await page.click('#splitDivider');
+    await expect(page.locator('body')).not.toHaveClass(/split-tools-open/);
+
+    const divider = await page.locator('#splitDivider').boundingBox();
+    const startX = divider.x + divider.width / 2;
+    const startY = divider.y + divider.height / 2;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX, Math.max(24, startY - 220), { steps: 10 });
+    await page.mouse.up();
+    const dragged = await page.evaluate(() => {
+      const layout = document.querySelector('.watch-layout.split-active').getBoundingClientRect();
+      const frame = document.getElementById('videoFrame').getBoundingClientRect();
+      const frameEl = document.getElementById('videoFrame');
+      frameEl.classList.add('youtube-active', 'controls-hidden');
+      const hostEl = document.getElementById('youtubePlayerHost');
+      hostEl.hidden = false;
+      const host = hostEl.getBoundingClientRect();
+      const embed = document.querySelector('#youtubePlayerHost iframe, #youtubePlayer');
+      const shieldEl = document.getElementById('ytShield');
+      const shield = shieldEl.getBoundingClientRect();
+      const shieldCs = getComputedStyle(shieldEl);
+      const fitted = Math.min(frame.height, frame.width * 9 / 16);
+      return {
+        open: document.body.classList.contains('split-tools-open'),
+        layoutTop: layout.top,
+        frameTop: frame.top,
+        frameH: frame.height,
+        frameW: frame.width,
+        frameBottom: frame.bottom,
+        layoutBottom: layout.bottom,
+        hostTop: host.top,
+        hostBottom: host.bottom,
+        hostH: host.height,
+        iframeTop: embed ? getComputedStyle(embed).top : '0px',
+        shieldTop: shield.top,
+        shieldH: shield.height,
+        shieldW: shield.width,
+        shieldBottom: shield.bottom,
+        shieldLeft: shield.left,
+        shieldRight: shield.right,
+        frameLeft: frame.left,
+        frameRight: frame.right,
+        fitted,
+        bgSize: shieldCs.backgroundSize,
+        bgPos: shieldCs.backgroundPosition,
+      };
+    });
+    expect(dragged.open).toBe(false);
+    expect(dragged.frameTop).toBeGreaterThanOrEqual(dragged.layoutTop - 1);
+    expect(dragged.frameH).toBeGreaterThanOrEqual(108);
+    expect(dragged.frameBottom).toBeLessThanOrEqual(dragged.layoutBottom + 1);
+    // The whole 16:9 picture, fitted inside the shortened pane: its top edge
+    // stays on the pane's top edge (it shrinks, it does not slide off), and
+    // nothing hangs past any edge.
+    expect(Math.abs(dragged.hostTop - dragged.frameTop)).toBeLessThan(1.5);
+    expect(dragged.hostBottom).toBeLessThanOrEqual(dragged.frameBottom + 1);
+    expect(Math.abs(dragged.hostH - dragged.fitted)).toBeLessThan(1.5);
+    expect(parseFloat(dragged.iframeTop)).toBeGreaterThanOrEqual(-1);
+    // The poster uses the same box, scaled inside it.
+    expect(dragged.bgSize).toBe('contain');
+    expect(dragged.bgPos).toMatch(/0%|top/);
+    expect(Math.abs(dragged.shieldTop - dragged.hostTop)).toBeLessThan(1.5);
+    expect(Math.abs(dragged.shieldBottom - dragged.hostBottom)).toBeLessThan(1.5);
+    expect(Math.abs(dragged.shieldW / dragged.shieldH - 16 / 9)).toBeLessThan(0.02);
+    expect(dragged.shieldLeft).toBeGreaterThanOrEqual(dragged.frameLeft - 1);
+    expect(dragged.shieldRight).toBeLessThanOrEqual(dragged.frameRight + 1);
+    await shot(page, 'phone-split-tools');
+  });
+
+  test('landscape split keeps the video inside the screen when the bar is dragged', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'landscape phone');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 900, height: 400 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeSplitButton');
+    const divider = await page.locator('#splitDivider').boundingBox();
+    const y = divider.y + divider.height / 2;
+    await page.mouse.move(divider.x + 4, y);
+    await page.mouse.down();
+    await page.mouse.move(40, y, { steps: 8 });
+    await page.mouse.up();
+    const geo = await page.evaluate(() => {
+      const layout = document.querySelector('.watch-layout.split-active').getBoundingClientRect();
+      const frameEl = document.getElementById('videoFrame');
+      const frame = frameEl.getBoundingClientRect();
+      frameEl.classList.add('youtube-active', 'controls-hidden');
+      const hostEl = document.getElementById('youtubePlayerHost');
+      hostEl.hidden = false;
+      const host = hostEl.getBoundingClientRect();
+      const header = document.querySelector('#dafCard .daf-header');
+      const topbar = document.getElementById('playerTopbar');
+      return {
+        stacked: document.body.classList.contains('split-layout-stacked'),
+        tools: document.body.classList.contains('split-tools-phone'),
+        open: document.body.classList.contains('split-tools-open'),
+        inFrame: frameEl.contains(topbar),
+        header: header ? getComputedStyle(header).display : 'none',
+        layoutTop: layout.top,
+        layoutLeft: layout.left,
+        layoutRight: layout.right,
+        layoutBottom: layout.bottom,
+        frameTop: frame.top,
+        frameLeft: frame.left,
+        frameRight: frame.right,
+        frameBottom: frame.bottom,
+        frameW: frame.width,
+        hostTop: host.top,
+        hostBottom: host.bottom,
+        hostLeft: host.left,
+        hostRight: host.right,
+        hostW: host.width,
+      };
+    });
+    expect(geo.stacked).toBe(false);
+    expect(geo.tools).toBe(true);
+    expect(geo.open).toBe(false);
+    expect(geo.inFrame).toBe(false);
+    expect(geo.header).toBe('none');
+    expect(geo.frameTop).toBeGreaterThanOrEqual(geo.layoutTop - 1);
+    expect(geo.frameLeft).toBeGreaterThanOrEqual(geo.layoutLeft - 1);
+    expect(geo.frameRight).toBeLessThanOrEqual(geo.layoutRight + 1);
+    expect(geo.frameBottom).toBeLessThanOrEqual(geo.layoutBottom + 1);
+    expect(geo.frameW).toBeGreaterThanOrEqual(100);
+    // The narrowed pane is far taller than 16:9. The picture still runs from
+    // the pane's top down to the controls, centered, its sides cut evenly.
+    expect(Math.abs(geo.hostTop - geo.frameTop)).toBeLessThan(1.5);
+    expect(geo.hostBottom).toBeLessThanOrEqual(geo.frameBottom + 1);
+    expect(geo.hostLeft).toBeLessThan(geo.frameLeft);
+    expect(geo.hostRight).toBeGreaterThan(geo.frameRight);
+    expect(Math.abs((geo.frameLeft - geo.hostLeft) - (geo.hostRight - geo.frameRight))).toBeLessThan(1.5);
+    expect(Math.abs(geo.hostW / (geo.hostBottom - geo.hostTop) - 16 / 9)).toBeLessThan(0.02);
+  });
+
+  test('a landscape page load opens Split side by side with the video on the left', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'touch phone');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 915, height: 412 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeSplitButton');
+    const geo = await page.evaluate(() => {
+      const frame = document.getElementById('videoFrame').getBoundingClientRect();
+      const daf = document.getElementById('dafCard').getBoundingClientRect();
+      return {
+        stacked: document.body.classList.contains('split-layout-stacked'),
+        videoLeft: frame.right <= daf.left + 1,
+      };
+    });
+    expect(geo.stacked).toBe(false);
+    expect(geo.videoLeft).toBe(true);
+  });
+
+  // A phone held sideways: the side-by-side pane is about as tall as the
+  // screen. The picture used to fit the pane's width and leave a tall empty
+  // band below it; it now fills the pane's height, sides cut, under the
+  // floating controls.
+  test('landscape split fills the video pane top to bottom, with no empty band', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'touch phone');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 915, height: 412 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeSplitButton');
+    const read = () => page.evaluate(() => {
+      const frameEl = document.getElementById('videoFrame');
+      frameEl.classList.add('youtube-active');
+      frameEl.classList.remove('controls-hidden');
+      const hostEl = document.getElementById('youtubePlayerHost');
+      hostEl.hidden = false;
+      const box = (el) => { const r = el.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width, height: r.height }; };
+      const mask = document.querySelector('#videoFrame .yt-mask-layer');
+      return {
+        stacked: document.body.classList.contains('split-layout-stacked'),
+        frame: box(frameEl),
+        host: box(hostEl),
+        mask: mask ? box(mask) : null,
+        timeline: box(frameEl.querySelector('.scrubber-wrap')),
+        controls: box(frameEl.querySelector('.player-controls')),
+      };
+    });
+    const geo = await read();
+    expect(geo.stacked).toBe(false);
+    // Top on the pane's top, bottom on the pane's bottom: no gap.
+    expect(Math.abs(geo.host.top - geo.frame.top)).toBeLessThan(1.5);
+    expect(Math.abs(geo.host.bottom - geo.frame.bottom)).toBeLessThan(1.5);
+    expect(geo.host.height).toBeGreaterThan(geo.frame.width * 9 / 16 + 20);
+    // 16:9, centered, both sides cut by the same amount.
+    expect(Math.abs(geo.host.width / geo.host.height - 16 / 9)).toBeLessThan(0.02);
+    expect(Math.abs((geo.frame.left - geo.host.left) - (geo.host.right - geo.frame.right))).toBeLessThan(1.5);
+    // The mask is the visible part: the pane's width, the picture's height.
+    if (geo.mask && geo.mask.width > 0) {
+      expect(Math.abs(geo.mask.left - geo.frame.left)).toBeLessThan(1.5);
+      expect(Math.abs(geo.mask.width - geo.frame.width)).toBeLessThan(1.5);
+      expect(Math.abs(geo.mask.bottom - geo.host.bottom)).toBeLessThan(1.5);
+    }
+    await shot(page, 'landscape-split-filled');
+
+    // Divider dragged right: a wider pane cuts less. Past the picture's own
+    // width the whole picture shows, centered, still full height.
+    const divider = await page.locator('#splitDivider').boundingBox();
+    const y = divider.y + divider.height / 2;
+    await page.mouse.move(divider.x + 4, y);
+    await page.mouse.down();
+    await page.mouse.move(890, y, { steps: 8 });
+    await page.mouse.up();
+    const wide = await read();
+    expect(wide.frame.width).toBeGreaterThan(geo.frame.width);
+    expect(Math.abs(wide.host.bottom - wide.frame.bottom)).toBeLessThan(1.5);
+    expect(Math.abs(wide.host.width / wide.host.height - 16 / 9)).toBeLessThan(0.02);
+    const cutBefore = geo.host.width - geo.frame.width;
+    const cutAfter = Math.max(0, wide.host.width - wide.frame.width);
+    expect(cutAfter).toBeLessThan(cutBefore);
+    await shot(page, 'landscape-split-filled-wide');
+  });
+
+  // Pinch goes all the way out to the whole frame and in to 5x, in both
+  // layouts. Side by side the picture starts cut at the sides, so pinching
+  // out is how the whole frame comes back; one finger can slide it across.
+  test('split pinch zooms out to the whole frame and in to 5x, in both layouts', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'touch phone');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 915, height: 412 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeSplitButton');
+    const measure = () => page.evaluate(() => {
+      const frameEl = document.getElementById('videoFrame');
+      frameEl.classList.add('youtube-active');
+      const host = document.getElementById('youtubePlayerHost');
+      host.hidden = false;
+      const f = frameEl.getBoundingClientRect();
+      const h = host.getBoundingClientRect();
+      return { zoom: state.splitVideoZoom, frameW: f.width, frameLeft: f.left, frameRight: f.right, hostW: h.width, hostLeft: h.left, hostRight: h.right, hostTop: h.top, hostBottom: h.bottom, frameTop: f.top, frameBottom: f.bottom };
+    });
+    await measure();
+    // Side by side: starts side-cut, so pinching out goes below 1x and stops
+    // exactly where the whole picture fits the pane's width.
+    await page.evaluate(() => setSplitVideoZoom(0.05));
+    await page.waitForTimeout(300); // the zoom eases in over 0.12s
+    const out = await measure();
+    expect(out.zoom).toBeLessThan(0.95);
+    expect(Math.abs(out.hostW - out.frameW)).toBeLessThan(2);
+    expect(out.hostLeft).toBeGreaterThanOrEqual(out.frameLeft - 1);
+    expect(out.hostRight).toBeLessThanOrEqual(out.frameRight + 1);
+    expect(await page.locator('#splitVideoFitButton').isVisible()).toBe(true);
+    await page.evaluate(() => setSplitVideoZoom(50));
+    expect((await measure()).zoom).toBe(5);
+    // Back to the start; at 1x one finger can slide the cut picture across,
+    // but never past its own edge.
+    await page.evaluate(() => resetSplitVideoZoom({ announce: false }));
+    await page.evaluate(() => setSplitVideoZoom(1, { panX: 5000, panY: 0, announce: false }));
+    await page.waitForTimeout(300);
+    const slid = await measure();
+    expect(Math.abs(slid.hostLeft - slid.frameLeft)).toBeLessThan(1.5);
+    await page.evaluate(() => resetSplitVideoZoom({ announce: false }));
+
+    // Stacked (portrait): the default already shows the whole picture, so
+    // it cannot go below 1x there; it still zooms in to 5x.
+    await page.setViewportSize({ width: 412, height: 915 });
+    await expect.poll(() => page.evaluate(() => document.body.classList.contains('split-layout-stacked'))).toBe(true);
+    await page.evaluate(() => setSplitVideoZoom(0.05));
+    expect((await measure()).zoom).toBeGreaterThan(0.97);
+    await page.evaluate(() => setSplitVideoZoom(50));
+    expect((await measure()).zoom).toBe(5);
+  });
+
+  test('side by side the controls float over a full-height picture', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'touch phone');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 915, height: 412 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeSplitButton');
+    const geo = await page.evaluate(() => {
+      const frameEl = document.getElementById('videoFrame');
+      frameEl.classList.add('youtube-active');
+      frameEl.classList.remove('controls-hidden');
+      const host = document.getElementById('youtubePlayerHost');
+      host.hidden = false;
+      const f = frameEl.getBoundingClientRect();
+      const h = host.getBoundingClientRect();
+      const bar = frameEl.querySelector('.player-controls');
+      const b = bar.getBoundingClientRect();
+      return { frameTop: f.top, frameBottom: f.bottom, hostTop: h.top, hostBottom: h.bottom, barTop: b.top, barBg: getComputedStyle(bar).backgroundColor };
+    });
+    expect(Math.abs(geo.hostTop - geo.frameTop)).toBeLessThan(1.5);
+    expect(Math.abs(geo.hostBottom - geo.frameBottom)).toBeLessThan(1.5);
+    expect(geo.barTop).toBeLessThan(geo.hostBottom);
+    expect(geo.barBg).toBe('rgba(0, 0, 0, 0)');
+    await shot(page, 'landscape-split-floating-controls');
+  });
+
+  test('each view mode shows its name under its icon, on one row', async ({ page }) => {
+    test.setTimeout(60000);
+    const phone = test.info().project.name === 'mobile';
+    const sizes = phone ? [{ width: 360, height: 780 }, { width: 412, height: 915 }, { width: 915, height: 412 }] : [{ width: 1440, height: 900 }];
+    await page.setViewportSize(sizes[0]);
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    const read = () => page.evaluate(() => {
+      const bar = document.getElementById('viewerModeSelect');
+      const buttons = [...bar.querySelectorAll('.viewer-mode-button')];
+      return {
+        overflow: bar.scrollWidth - bar.clientWidth,
+        barRight: bar.getBoundingClientRect().right,
+        viewW: window.innerWidth,
+        rows: new Set(buttons.map((b) => Math.round(b.getBoundingClientRect().top))).size,
+        items: buttons.map((b) => {
+          const icon = b.querySelector('svg').getBoundingClientRect();
+          const label = b.querySelector('span');
+          const box = label.getBoundingClientRect();
+          const cs = getComputedStyle(label);
+          const own = b.getBoundingClientRect();
+          return {
+            text: label.textContent.trim(),
+            under: box.top >= icon.bottom - 1,
+            centered: Math.abs((box.left + box.right) / 2 - (icon.left + icon.right) / 2) < 3,
+            visible: box.width > 10 && box.height > 6 && cs.clip === 'auto' && cs.visibility === 'visible',
+            inside: box.left >= own.left - 0.5 && box.right <= own.right + 0.5 && box.bottom <= own.bottom + 0.5
+              && label.scrollWidth <= label.clientWidth + 1,
+            fontPx: parseFloat(cs.fontSize),
+            tap: Math.min(own.width, own.height),
+          };
+        }),
+      };
+    });
+    const expectLabels = (info, name) => {
+      expect(info.items.map((i) => i.text), name).toEqual(['Split view', 'Daf on video', 'Video on daf']);
+      for (const item of info.items) {
+        expect(item.visible, `${name} ${item.text} visible`).toBe(true);
+        expect(item.under, `${name} ${item.text} under its icon`).toBe(true);
+        expect(item.centered, `${name} ${item.text} centered`).toBe(true);
+        expect(item.inside, `${name} ${item.text} not clipped`).toBe(true);
+        expect(item.fontPx, `${name} ${item.text} readable`).toBeGreaterThanOrEqual(10);
+        expect(item.tap, `${name} ${item.text} tap target`).toBeGreaterThanOrEqual(40);
+      }
+      expect(info.rows, `${name} one row`).toBe(1);
+      expect(info.overflow, `${name} no sideways scroll`).toBeLessThanOrEqual(1);
+      expect(info.barRight, `${name} on screen`).toBeLessThanOrEqual(info.viewW + 1);
+    };
+    for (const size of sizes) {
+      await page.setViewportSize(size);
+      await page.waitForTimeout(200);
+      if (await page.evaluate(() => state.viewerMode === 'split')) await page.evaluate(() => setViewerMode('standard'));
+      await page.waitForTimeout(150);
+      expectLabels(await read(), `standard ${size.width}x${size.height}`);
+      await page.evaluate(() => setViewerMode('split'));
+      await page.evaluate(() => showSplitChrome());
+      await page.waitForTimeout(300);
+      expectLabels(await read(), `split ${size.width}x${size.height}`);
+      await shot(page, `mode-labels-${test.info().project.name}-${size.width}`);
+      await page.evaluate(() => setViewerMode('standard'));
+    }
+  });
+
+  test('the timeline seeks to the point pressed and steps by keyboard', async ({ page }) => {
+    test.setTimeout(60000);
+    const phone = test.info().project.name === 'mobile';
+    await page.setViewportSize(phone ? { width: 412, height: 915 } : { width: 1280, height: 800 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    if (phone) await page.click('#viewerModeSplitButton');
+    // This test is about the timeline, not auto-hide: keep the bar up so a
+    // tap is never spent revealing it.
+    await page.addStyleTag({ content: '.video-frame.controls-hidden .scrubber-wrap,.video-frame.controls-hidden .player-controls{opacity:1!important;visibility:visible!important;pointer-events:auto!important}' });
+    await page.evaluate(() => showVideoControls());
+    const scrubber = page.locator('#scrubber');
+    await expect(scrubber).toBeVisible();
+    const box = await scrubber.boundingBox();
+    const dur = await page.evaluate(() => getDuration());
+    const thumb = await scrubber.evaluate((el) => parseFloat(getComputedStyle(el).getPropertyValue('--scrub-thumb')));
+    // What is painted (slider pseudo-elements have no computed style to read):
+    // half played, then count red and grey pixels down three columns.
+    await page.mouse.move(1, 1);
+    await page.evaluate((t) => { seek(t, true); showVideoControls(); }, dur / 2);
+    // The bar floats over the picture: measure it over a plain dark ground.
+    const ground = await page.addStyleTag({ content: '.youtube-stage,.yt-shield,.yt-mask-layer,#video{visibility:hidden!important}.video-frame{background:#030914!important}' });
+    await page.waitForTimeout(250);
+    const { Jimp } = await import('jimp');
+    const png = await Jimp.read(await scrubber.screenshot());
+    await ground.evaluate((el) => el.remove());
+    const scale = png.bitmap.width / box.width;
+    const column = (fx) => {
+      const x = Math.round(png.bitmap.width * fx);
+      let red = 0;
+      let grey = 0;
+      for (let yy = 0; yy < png.bitmap.height; yy += 1) {
+        const i = (yy * png.bitmap.width + x) * 4;
+        const [r, g, b] = [png.bitmap.data[i], png.bitmap.data[i + 1], png.bitmap.data[i + 2]];
+        if (r > 190 && g < 90 && b < 110) red += 1;
+        else if (Math.abs(r - g) < 14 && Math.abs(g - b) < 14 && r > 60) grey += 1;
+      }
+      return { red: red / scale, grey: grey / scale };
+    };
+    const played = column(0.25);
+    const atThumb = column(0.5);
+    const remaining = column(0.8);
+    // Thin red played track, round red thumb in the middle, muted rest, and
+    // a hit box much taller than what is drawn.
+    expect(played.red, 'played track is red and thin').toBeGreaterThan(1.5);
+    expect(played.red, 'played track is red and thin').toBeLessThanOrEqual(4);
+    expect(atThumb.red, 'round red thumb').toBeGreaterThanOrEqual(9);
+    expect(remaining.red, 'remaining is not red').toBe(0);
+    expect(remaining.grey, 'remaining is a muted track').toBeGreaterThan(1.5);
+    expect(remaining.grey, 'remaining is a muted track').toBeLessThanOrEqual(4);
+    expect(box.height).toBeGreaterThanOrEqual(phone ? 28 : 20);
+    expect(await scrubber.evaluate((el) => getComputedStyle(el).touchAction)).toBe('none');
+    const expectAt = (x) => Math.min(1, Math.max(0, (x - box.x - thumb / 2) / (box.width - thumb))) * dur;
+    const tol = 2 * dur / (box.width - thumb); // two pixels
+    const y = box.y + box.height / 2;
+    const read = () => page.evaluate(() => Number(document.getElementById('scrubber').value));
+    const tapAt = async (x, dy = 0) => {
+      if (phone) {
+        const cdp = await page.context().newCDPSession(page);
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y: y + dy }] });
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      } else {
+        await page.mouse.click(x, y + dy);
+      }
+      await page.waitForTimeout(250);
+    };
+    // A tap a few pixels off the painted 3px bar still lands.
+    for (const f of [0.1, 0.5, 0.9]) {
+      const x = box.x + box.width * f;
+      await tapAt(x, phone ? -8 : -6);
+      const got = await read();
+      expect(Math.abs(got - expectAt(x)), `tap at ${f}: want ${expectAt(x).toFixed(1)} got ${got.toFixed(1)}`).toBeLessThanOrEqual(tol);
+    }
+    // A drag that wanders vertically still follows x, and ends where released.
+    const from = box.x + box.width * 0.2;
+    const to = box.x + box.width * 0.75;
+    if (phone) {
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: from, y }] });
+      for (let i = 1; i <= 10; i += 1) {
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: from + (to - from) * i / 10, y: y + (i % 2 ? 9 : -9) }] });
+      }
+      expect(await scrubber.evaluate((el) => el.classList.contains('is-scrubbing'))).toBe(true);
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    } else {
+      await page.mouse.move(from, y);
+      await page.mouse.down();
+      for (let i = 1; i <= 10; i += 1) await page.mouse.move(from + (to - from) * i / 10, y);
+      expect(await scrubber.evaluate((el) => el.classList.contains('is-scrubbing'))).toBe(true);
+      await page.mouse.up();
+    }
+    await page.waitForTimeout(250);
+    expect(Math.abs((await read()) - expectAt(to))).toBeLessThanOrEqual(tol);
+    expect(await scrubber.evaluate((el) => el.classList.contains('is-scrubbing'))).toBe(false);
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    // The seek reached the player and the highlight followed it.
+    const synced = await page.evaluate(() => ({ player: window.__yt.getCurrentTime(), value: Number(document.getElementById('scrubber').value), active: state.activeIndex }));
+    expect(Math.abs(synced.player - synced.value)).toBeLessThan(1.5);
+    // Keyboard: arrows step 5s, Home/End go to the ends, with a readable value.
+    await scrubber.focus();
+    const k0 = await read();
+    await page.keyboard.press('ArrowRight');
+    expect((await read()) - k0).toBeCloseTo(5, 0);
+    await page.keyboard.press('ArrowLeft');
+    await page.keyboard.press('ArrowLeft');
+    expect((await read()) - k0).toBeCloseTo(-5, 0);
+    await page.keyboard.press('Home');
+    expect(await read()).toBe(0);
+    await expect(scrubber).toHaveAttribute('aria-valuetext', /^0:00 of \d+:\d\d(:\d\d)?$/);
+    await shot(page, `scrubber-${test.info().project.name}`);
   });
 });

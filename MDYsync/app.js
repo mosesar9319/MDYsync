@@ -115,6 +115,16 @@ const state = {
   lastManualScrollAt: 0,
   alignmentDuration: 0,
   vilnaPageKey: null,
+  // The amud actually on screen. Playback does not assign this from the
+  // phrase that happens to be active this instant — see noteVilnaFollow.
+  vilnaFollowKey: null,
+  vilnaFollowCandidate: null,
+  vilnaFollowCount: 0,
+  vilnaFollowSince: 0,
+  vilnaFollowPhrase: -1,
+  statusHoldText: '',
+  statusHoldUntil: 0,
+  dafWindowAnchor: 0,
   vilnaPageMap: null,
   vilnaPagePollTimer: null,
   vilnaOverlayKey: '',
@@ -202,9 +212,14 @@ const state = {
   // which only picks a viewport-based default while this stays false.
   splitViewLayoutExplicit: false,
   // Fraction (0-1) of the split container the VIDEO pane occupies along the
-  // split axis. Null means "use the mode's own default" (0.5 side-by-side,
-  // 0.4 stacked) -- see splitViewRatioOrDefault().
+  // split axis. Null means "use the mode's own default" (0.5 side-by-side;
+  // stacked, a pane exactly as tall as the full-width picture) -- see
+  // splitViewRatioOrDefault().
   splitViewRatio: null,
+  // The divider position each layout last had, so a phone rotated to
+  // landscape and back gets its portrait divider back (and vice versa)
+  // instead of one shared fraction that means different things per axis.
+  splitViewRatios: {},
   // 'start' (video left/top, the default) or 'end' (swapped).
   splitViewVideoPosition: 'start',
   // Pinch/pan/wheel zoom on the video pane's own picture while in Split View
@@ -343,6 +358,13 @@ const PHRASE_SEEK_LEAD = 0.4;
 // After a phrase's own end, keep the highlight briefly, then go idle so a
 // sponsor slide or explanation doesn't stay lit for minutes.
 const GAP_IDLE_AFTER_END = 3;
+// A one- or two-second silence is not a new place in the shiur. The status
+// line keeps the last amud until the gap has lasted this long.
+const STATUS_GAP_HOLD_S = 4;
+// The Vilna page turns only once a different amud has been the phrase for
+// two real phrases, or for this long without a break. One estimated blip,
+// or a gap, does not turn it.
+const VILNA_FOLLOW_HOLD_S = 3.5;
 const MIN_ESTIMATED_VISIBLE = 0.8;
 
 const $ = (id) => document.getElementById(id);
@@ -1014,14 +1036,27 @@ function nextReadingTime(time = getCurrentTime()) {
   const current = segments[state.activeIndex];
   let startIndex = state.activeIndex >= 0 ? state.activeIndex + 1 : 0;
   if (current && samePhrase(current, segments[startIndex])) startIndex += 1;
+  // Several rows can share a start (a zero-length twin beside the real
+  // phrase). Keep the longer real one so Vaater does not land on the blip.
+  let best = null;
   for (let index = Math.max(0, startIndex); index < segments.length; index++) {
     const segment = segments[index];
     if (samePhrase(segment, current)) continue;
-    if (!(Number(segment.start) > time + 0.02)) continue;
+    const start = Number(segment.start);
+    if (!(start > time + 0.02)) continue;
     if (isSkippableSegment(index)) continue;
-    return Number(segment.start);
+    const dur = Number(segment.end) - start;
+    if (!best) {
+      best = { start, dur };
+      continue;
+    }
+    if (start <= best.start + 0.05) {
+      if (dur > best.dur) best = { start, dur };
+      continue;
+    }
+    return best.start;
   }
-  return null;
+  return best ? best.start : null;
 }
 
 function updateVaaterButtonUi(time = getCurrentTime()) {
@@ -1037,9 +1072,31 @@ function updateVaaterButtonUi(time = getCurrentTime()) {
 }
 
 function skipToNextReading() {
-  const target = nextReadingTime(getCurrentTime());
-  if (target === null) return;
+  // A second press while the first jump is still buffering used to read the
+  // pre-seek clock and ask for the same phrase again. Chain from the end of
+  // the phrase already targeted, and keep that end even after the pending
+  // clock is dropped — YouTube can report the target and then snap back.
+  const now = performance.now();
+  const chain = state.vaaterChain;
+  const pending = state.pendingSeek;
+  let base = readPlayerTime();
+  const chainEnd = chain && now - chain.issuedAt < 2500 ? Number(chain.phraseEnd) : NaN;
+  const pendingEnd = pending ? Number(pending.phraseEnd) : NaN;
+  const pendingTime = pending ? Number(pending.time) : NaN;
+  if (Number.isFinite(chainEnd)) base = Math.max(base, chainEnd);
+  else if (Number.isFinite(pendingEnd) && pendingEnd > (Number.isFinite(pendingTime) ? pendingTime : pendingEnd - 1)) {
+    base = Math.max(base, pendingEnd);
+  } else if (Number.isFinite(pendingTime)) base = Math.max(base, pendingTime);
+  const target = nextReadingTime(base);
+  if (target == null) return;
   seek(target, true);
+  const phraseEnd = phraseEndCovering(target);
+  state.vaaterChain = {
+    time: target,
+    phraseEnd: Number.isFinite(phraseEnd) ? phraseEnd : target,
+    issuedAt: performance.now(),
+  };
+  if (state.pendingSeek) state.pendingSeek.phraseEnd = state.vaaterChain.phraseEnd;
   updateVaaterButtonUi(target);
 }
 
@@ -1158,8 +1215,28 @@ function readPlayerTime() {
   return Number(htmlVideo.currentTime) || 0;
 }
 
+// The end of the real phrase a Vaater press lands on. A second press chains
+// from here, so it cannot stop on a word that shares the landing second.
+function phraseEndCovering(time) {
+  let end = null;
+  const segments = state.segments || [];
+  for (let index = 0; index < segments.length; index++) {
+    if (isSkippableSegment(index)) continue;
+    const segment = segments[index];
+    const start = Number(segment.start);
+    const segEnd = Number(segment.end);
+    if (!Number.isFinite(start) || !Number.isFinite(segEnd) || !(segEnd > start)) continue;
+    if (Math.abs(start - time) <= 0.05 && (end == null || segEnd > end)) end = segEnd;
+  }
+  return end;
+}
 function armPendingSeek(time) {
-  state.pendingSeek = { time, issuedAt: performance.now() };
+  const phraseEnd = phraseEndCovering(time);
+  state.pendingSeek = {
+    time,
+    issuedAt: performance.now(),
+    phraseEnd: Number.isFinite(phraseEnd) ? phraseEnd : null,
+  };
 }
 
 // Until the player catches up (or the request is clearly abandoned), report
@@ -1175,6 +1252,11 @@ function getCurrentTime() {
   // Vaater jump look like it did nothing.
   if (state.pausedFrameRefresh) return pending.time;
   if (Math.abs(actual - pending.time) <= 0.45) {
+    // Buffering reports a time near the ask before the frame has loaded.
+    // Dropping the pending target there made a second Vaater press repeat
+    // the jump that was already in flight.
+    const live = state.playerType === 'youtube' ? Number(state.youtubeState) : 1;
+    if (live === 3 || live === -1) return pending.time;
     state.pendingSeek = null;
     return actual;
   }
@@ -1264,6 +1346,43 @@ function firstRealSegmentStart(segments = state.segments) {
   return null;
 }
 
+// A real phrase still on the clock. Zero-length marks do not count: they
+// are a single timestamp, and treating them as a span let a later blip
+// cover the phrase that was actually playing.
+function segmentStrictlyCovers(segment, time) {
+  if (!segment || segment.estimated) return false;
+  const start = Number(segment.start);
+  const end = Number(segment.end);
+  if (!Number.isFinite(start)) return false;
+  const effectiveEnd = Number.isFinite(end) ? end : start;
+  if (effectiveEnd <= start + 0.05) return false;
+  return time >= start - 0.001 && time < effectiveEnd;
+}
+
+// The real phrase that owns `time`: one whose interval still contains it,
+// or, if none does, the latest real phrase that has not yet gone idle.
+// Estimated fillers published inside that interval must not take the
+// highlight (Bekhorot 44a Chazarah, ~81–95s: 43b:7 and 43b:5 were painted
+// while 43b:13 was still the phrase on screen).
+function owningRealSegment(segments, time) {
+  let strict = -1;
+  let hold = -1;
+  for (let i = 0; i < segments.length; i += 1) {
+    const segment = segments[i];
+    if (!segment || segment.estimated) continue;
+    const start = Number(segment.start);
+    if (!Number.isFinite(start) || start > time + 0.001) continue;
+    if (segmentStrictlyCovers(segment, time)) {
+      if (strict < 0 || start >= Number(segments[strict].start)) strict = i;
+      continue;
+    }
+    const end = Number(segment.end);
+    const effectiveEnd = Number.isFinite(end) ? end : start;
+    if (time < effectiveEnd + GAP_IDLE_AFTER_END && (hold < 0 || start >= Number(segments[hold].start))) hold = i;
+  }
+  return strict >= 0 ? strict : hold;
+}
+
 function findSegmentAt(time) {
   if (state.liveFollow?.active) return state.liveFollow.activeIndex;
   const segments = state.segments;
@@ -1312,6 +1431,8 @@ function findSegmentAt(time) {
     best = i;
   }
   const segment = segments[best];
+  const owner = owningRealSegment(segments, time);
+  if (owner >= 0 && (!segment || segment.estimated || !segmentStrictlyCovers(segment, time))) return owner;
   const end = Number(segment.end);
   const effectiveEnd = Number.isFinite(end) ? end : segment.start;
   let nextStart = Infinity;
@@ -1398,7 +1519,10 @@ function renderDafWindow() {
     dafPage.appendChild(note);
     return;
   }
-  const anchor = state.activeIndex >= 0 ? state.activeIndex : 0;
+  // A gap (no phrase) used to snap the window back to segment 0 and rebuild
+  // the pane. Keep the last real phrase's window; only the highlight moves.
+  const anchor = state.activeIndex >= 0 ? state.activeIndex : (state.dafWindowAnchor || 0);
+  if (state.activeIndex >= 0) state.dafWindowAnchor = state.activeIndex;
   const lo = Math.max(0, anchor - DAF_WINDOW_BEFORE);
   const hi = Math.min(state.segments.length - 1, anchor + DAF_WINDOW_AFTER);
   const windowKey = `${lo}:${hi}:${state.segments.length}`;
@@ -1835,12 +1959,84 @@ function stabilizeEstimatedSegments(segments) {
   return out.sort((a, b) => a.start - b.start);
 }
 
-function setVilnaPageStatus(message) {
+function setVilnaPageStatus(message, { keepCanvas = false } = {}) {
   const status = $('vilnaPageStatus');
   const text = $('vilnaPageStatusText');
   if (text) text.textContent = message;
-  if (status) status.hidden = false;
-  $('vilnaPageCanvas').hidden = true;
+  if (status) status.hidden = keepCanvas;
+  // Replacing a page that is already on screen keeps that image up until
+  // the next raster is ready. Hiding it here was the grey skeleton flash
+  // every time the amud key flickered.
+  if (!keepCanvas) $('vilnaPageCanvas').hidden = true;
+}
+
+function vilnaKeyFromRef(ref) {
+  const parsed = parseDafRef(ref);
+  return parsed ? `${parsed.tractate}|${parsed.daf}|${parsed.amud}` : null;
+}
+
+function resetVilnaFollow(ref = state.dafRef) {
+  state.vilnaFollowKey = vilnaKeyFromRef(ref);
+  state.vilnaFollowCandidate = null;
+  state.vilnaFollowCount = 0;
+  state.vilnaFollowSince = 0;
+  state.vilnaFollowPhrase = -1;
+  state.statusHoldText = '';
+  state.statusHoldUntil = 0;
+  state.dafWindowAnchor = 0;
+}
+
+// Real phrases only. Estimated fillers are what sprinkle the other amud
+// through a run (Bekhorot 44a has 132 of them) and must not turn the page.
+function segmentVilnaKey(segment) {
+  if (!segment || segment.estimated) return null;
+  return vilnaKeyFromRef(segment.ref);
+}
+
+// Bekhorot 44a (and 30a/31a, regular and Chazarah) review the previous amud
+// in short phrases with 1–7s gaps. findSegmentAt goes idle in those gaps,
+// and the page key used to fall back to the loaded daf — 43b, then 44a,
+// then 43b, about once a phrase. A gap never turns the page. A new amud
+// turns it after two real phrases, or after one phrase has been current
+// for VILNA_FOLLOW_HOLD_S. A seek (immediate) turns at once.
+// Returns true when the committed page changed.
+function noteVilnaFollow(index, time, immediate) {
+  if (!state.vilnaFollowKey) state.vilnaFollowKey = vilnaKeyFromRef(state.dafRef);
+  if (index < 0) return false;
+  const key = segmentVilnaKey(state.segments[index]);
+  if (!key) return false;
+  if (key === state.vilnaFollowKey) {
+    state.vilnaFollowCandidate = null;
+    state.vilnaFollowCount = 0;
+    state.vilnaFollowPhrase = -1;
+    return false;
+  }
+  if (immediate) {
+    state.vilnaFollowKey = key;
+    state.vilnaFollowCandidate = null;
+    state.vilnaFollowCount = 0;
+    state.vilnaFollowPhrase = -1;
+    return true;
+  }
+  if (state.vilnaFollowCandidate !== key) {
+    state.vilnaFollowCandidate = key;
+    state.vilnaFollowCount = 1;
+    state.vilnaFollowSince = time;
+    state.vilnaFollowPhrase = index;
+    return false;
+  }
+  if (index !== state.vilnaFollowPhrase) {
+    state.vilnaFollowCount += 1;
+    state.vilnaFollowPhrase = index;
+  }
+  if (state.vilnaFollowCount >= 2 || time - state.vilnaFollowSince >= VILNA_FOLLOW_HOLD_S) {
+    state.vilnaFollowKey = key;
+    state.vilnaFollowCandidate = null;
+    state.vilnaFollowCount = 0;
+    state.vilnaFollowPhrase = -1;
+    return true;
+  }
+  return false;
 }
 
 // The daf shown can change mid-flight (a user seeking back and forth across
@@ -1853,10 +2049,21 @@ function setVilnaPageStatus(message) {
 // to the new amud's word positions, landing highlights in blank space that
 // belonged on a page that was no longer the one on screen.
 function currentVilnaPageKey() {
-  const activeRef = state.browsePageRef || state.segments[state.activeIndex]?.ref || state.dafRef;
-  const parsed = parseDafRef(activeRef);
-  if (!parsed) return { parsed: null, key: null };
-  return { parsed, key: `${parsed.tractate}|${parsed.daf}|${parsed.amud}` };
+  // The daf browser pins a page explicitly. Playback uses the committed
+  // follow key, not whichever phrase (or gap) is active this tick.
+  if (state.browsePageRef) {
+    const pinned = parseDafRef(state.browsePageRef);
+    if (!pinned) return { parsed: null, key: null };
+    return { parsed: pinned, key: `${pinned.tractate}|${pinned.daf}|${pinned.amud}` };
+  }
+  const key = state.vilnaFollowKey || vilnaKeyFromRef(state.dafRef);
+  if (!key) return { parsed: null, key: null };
+  const [tractate, daf, amud] = key.split('|');
+  const base = parseDafRef(state.dafRef) || {};
+  return {
+    parsed: { ...base, tractate, daf: Number(daf), amud },
+    key,
+  };
 }
 
 // The source PDF (proxied as-is from shas.org) is real vector text -- ~50
@@ -1932,7 +2139,8 @@ async function renderVilnaPage() {
   state.vilnaPageLoadingKey = key;
   const stillWanted = () => currentVilnaPageKey().key === key;
 
-  setVilnaPageStatus(`Loading the Vilna page for ${parsed.tractate} ${parsed.daf}${parsed.amud}…`);
+  const keepCanvas = Boolean(state.vilnaPageKey) && !canvas.hidden;
+  setVilnaPageStatus(`Loading the Vilna page for ${parsed.tractate} ${parsed.daf}${parsed.amud}…`, { keepCanvas });
   try {
     const [lib, response] = await Promise.all([
       loadPdfJs(),
@@ -2250,7 +2458,7 @@ let suppressSplitExitOnFullscreenChange = false;
 function ensureDafFullscreenExit() {
   let button = $('dafFullscreenExit');
   if (button) return button;
-  const header = document.querySelector('#dafCard > .daf-header, #dafCard > .card-heading, #dafCard > header');
+  const header = document.querySelector('#dafCard .daf-header, #dafCard .card-heading, #dafCard > header');
   if (!header) return null;
   button = document.createElement('button');
   button.type = 'button';
@@ -5991,8 +6199,7 @@ function setReadingMode(enabled) {
 const SPLIT_VIEW_PREFS_KEY = 'dafsync-immersive-split-v1';
 const SPLIT_VIEW_MIN_RATIO = 0.22;
 const SPLIT_VIEW_MAX_RATIO = 0.78;
-const SPLIT_VIDEO_MIN_ZOOM = 1;
-const SPLIT_VIDEO_MAX_ZOOM = 3;
+const SPLIT_VIDEO_MAX_ZOOM = 5;
 const VIEWER_MODES = ['standard', 'daf-on-video', 'video-on-daf', 'split'];
 let splitDividerDrag = null;
 let splitVideoZoomIndicatorTimer = null;
@@ -6006,18 +6213,34 @@ function loadSplitViewPreferences() {
     if (!saved || typeof saved !== 'object') return;
     if (saved.layout === 'side-by-side' || saved.layout === 'stacked') state.splitViewLayout = saved.layout;
     if (typeof saved.layoutExplicit === 'boolean') state.splitViewLayoutExplicit = saved.layoutExplicit;
-    if (Number.isFinite(saved.ratio)) state.splitViewRatio = clampReadingValue(saved.ratio, SPLIT_VIEW_MIN_RATIO, SPLIT_VIEW_MAX_RATIO);
     if (saved.videoPosition === 'start' || saved.videoPosition === 'end') state.splitViewVideoPosition = saved.videoPosition;
+    // A divider position saved before version 2 meant something else: the
+    // stacked default was 40% of the screen, which now opens zoomed in.
+    // Start those readers from the full-picture default instead.
+    if (saved.v !== 2) return;
+    if (Number.isFinite(saved.ratio)) state.splitViewRatio = clampReadingValue(saved.ratio, SPLIT_VIEW_MIN_RATIO, SPLIT_VIEW_MAX_RATIO);
+    if (saved.ratios && typeof saved.ratios === 'object') {
+      for (const layout of ['side-by-side', 'stacked']) {
+        const value = saved.ratios[layout];
+        if (Number.isFinite(value)) state.splitViewRatios[layout] = clampReadingValue(value, SPLIT_VIEW_MIN_RATIO, SPLIT_VIEW_MAX_RATIO);
+      }
+    } else if (Number.isFinite(state.splitViewRatio)) {
+      state.splitViewRatios[state.splitViewLayout] = state.splitViewRatio;
+    }
   } catch {
     // A malformed preference should never keep the viewer from opening.
   }
 }
 function saveSplitViewPreferences() {
+  if (Number.isFinite(state.splitViewRatio)) state.splitViewRatios[state.splitViewLayout] = state.splitViewRatio;
+  else delete state.splitViewRatios[state.splitViewLayout];
   try {
     localStorage.setItem(SPLIT_VIEW_PREFS_KEY, JSON.stringify({
+      v: 2,
       layout: state.splitViewLayout,
       layoutExplicit: state.splitViewLayoutExplicit,
       ratio: state.splitViewRatio,
+      ratios: state.splitViewRatios,
       videoPosition: state.splitViewVideoPosition,
     }));
   } catch {
@@ -6035,16 +6258,233 @@ function splitViewContainer() {
 function preferredSplitViewLayoutForViewport() {
   return window.innerWidth >= window.innerHeight ? 'side-by-side' : 'stacked';
 }
-// Only ever picks a default while the reader has never explicitly chosen a
-// layout themselves (see the toolbar's own layout-toggle handler below,
-// which is the only place splitViewLayoutExplicit is ever set true) -- once
-// they have, this never overrides that choice on resize/rotate again.
+// With a mouse, this only picks a default while the reader has never
+// explicitly chosen a layout (the toolbar's layout toggle below is the only
+// place splitViewLayoutExplicit is set true); once they have, a window
+// resize never overrides it.
+// A phone or tablet follows the way it is held: portrait is video on top,
+// daf below; landscape is video on the left, daf on the right. That is
+// applied on the first Split of a page load (whatever was saved before)
+// and again on every rotation. Between rotations the toolbar's layout and
+// swap buttons still work; the next rotation hands the layout back to the
+// orientation. A mouse-driven window keeps the old rule: an explicit
+// choice sticks through resizes.
+function splitFollowsOrientation() {
+  return window.matchMedia('(pointer: coarse), (hover: none)').matches;
+}
+let splitAppliedOrientation = null;
 function applySplitViewDefaultLayout() {
-  if (!state.splitViewLayoutExplicit) state.splitViewLayout = preferredSplitViewLayoutForViewport();
+  const orientationLayout = preferredSplitViewLayoutForViewport();
+  if (!splitFollowsOrientation()) {
+    if (!state.splitViewLayoutExplicit) state.splitViewLayout = orientationLayout;
+    return false;
+  }
+  if (orientationLayout === splitAppliedOrientation) return false;
+  if (splitAppliedOrientation && Number.isFinite(state.splitViewRatio)) {
+    state.splitViewRatios[state.splitViewLayout] = state.splitViewRatio;
+  }
+  splitAppliedOrientation = orientationLayout;
+  state.splitViewLayout = orientationLayout;
+  state.splitViewVideoPosition = 'start';
+  const remembered = state.splitViewRatios[orientationLayout];
+  state.splitViewRatio = Number.isFinite(remembered) ? remembered : null;
+  return true;
 }
 function splitViewRatioOrDefault() {
-  if (Number.isFinite(state.splitViewRatio)) return state.splitViewRatio;
-  return state.splitViewLayout === 'stacked' ? 0.4 : 0.5;
+  const ratio = Number.isFinite(state.splitViewRatio)
+    ? state.splitViewRatio
+    : (state.splitViewLayout === 'stacked' ? stackedFullPictureRatio() : 0.5);
+  return clampSplitRatio(ratio);
+}
+// Stacked default: the video pane is exactly as tall as the whole 16:9
+// picture at full width, so the default shows the entire frame with no
+// space left over. A taller pane (divider dragged down) grows the picture
+// and crops its sides (styles.css); a shorter one shrinks it to fit.
+// Recomputed on every layout pass, so a resize or rotation keeps it exact.
+function stackedFullPictureRatio() {
+  const container = splitViewContainer();
+  if (!container) return 0.4;
+  const cs = getComputedStyle(container);
+  const width = container.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+  const height = container.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0);
+  const divider = parseFloat(cs.getPropertyValue('--split-divider-size')) || 10;
+  if (!(width > 0) || !(height - divider > 40)) return 0.4;
+  return (width * 9 / 16) / (height - divider);
+}
+// The divider used to follow the finger as a fraction of the whole screen,
+// and the YouTube picture was shifted up by a fixed crop. Past a point,
+// shrinking the video walked its top edge off the viewport. The ratio now
+// keeps a real minimum and maximum pane, in pixels, in both orientations.
+const SPLIT_VIDEO_MIN_PX = 112;
+const SPLIT_OTHER_MIN_PX = 148;
+function clampSplitRatio(ratio) {
+  const fallback = clampReadingValue(ratio, SPLIT_VIEW_MIN_RATIO, SPLIT_VIEW_MAX_RATIO);
+  const container = splitViewContainer();
+  if (!container) return fallback;
+  const rect = container.getBoundingClientRect();
+  const stacked = state.splitViewLayout === 'stacked';
+  const size = stacked ? rect.height : rect.width;
+  if (!size || size < 80) return fallback;
+  const dividerSize = parseFloat(getComputedStyle(container).getPropertyValue('--split-divider-size')) || 10;
+  const minVideo = Math.min(SPLIT_VIDEO_MIN_PX, size * 0.42);
+  const minOther = Math.min(SPLIT_OTHER_MIN_PX, size * 0.28);
+  const minRatio = minVideo / size;
+  const maxRatio = (size - dividerSize - minOther) / size;
+  if (!(maxRatio > minRatio + 0.02)) return fallback;
+  return clampReadingValue(ratio, minRatio, maxRatio);
+}
+function phoneSplitToolsActive() {
+  if (!state.splitViewEnabled) return false;
+  // A landscape phone is side-by-side and about 900px wide, so the portrait
+  // width cap never matches it and the picker stays painted on the video.
+  // Coarse or touch landscape uses the divider panel at any width. A mouse
+  // in a wide window keeps the desktop chrome.
+  const touchLandscape = window.matchMedia(
+    '(pointer: coarse) and (orientation: landscape), (hover: none) and (orientation: landscape)'
+  ).matches;
+  if (touchLandscape) return true;
+  return state.splitViewLayout === 'stacked'
+    && window.matchMedia('(max-width: 760px)').matches;
+}
+function ensureSplitToolsPanel() {
+  const card = $('dafCard');
+  if (!card) return null;
+  let panel = $('splitToolsPanel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'splitToolsPanel';
+    panel.className = 'split-tools-panel';
+    panel.hidden = true;
+    card.insertBefore(panel, card.firstChild);
+  }
+  if (!panel.querySelector(':scope > .split-tools-scroll')) {
+    const scroller = document.createElement('div');
+    scroller.className = 'split-tools-scroll';
+    panel.appendChild(scroller);
+  }
+  const divider = $('splitDivider');
+  if (divider && !$('splitToolsHint')) {
+    const hint = document.createElement('span');
+    hint.id = 'splitToolsHint';
+    hint.className = 'split-tools-hint';
+    hint.hidden = true;
+    hint.setAttribute('aria-hidden', 'true');
+    divider.appendChild(hint);
+  }
+  return panel;
+}
+// Where a node lived before the open phone panel borrowed it. A comment
+// marker stays in the card so closing the panel puts the header, notes, and
+// zoom bar back as direct children — the collapsed rules only hide those.
+const phoneToolsHome = new WeakMap();
+function rememberPhoneToolsHome(node) {
+  if (!node || phoneToolsHome.has(node)) return;
+  const marker = document.createComment('phone-tools-home');
+  node.before(marker);
+  phoneToolsHome.set(node, marker);
+}
+function restorePhoneToolsHome(node) {
+  const marker = node && phoneToolsHome.get(node);
+  if (!marker?.parentNode) return false;
+  marker.after(node);
+  return true;
+}
+function phoneSplitPageView() {
+  const placeholder = $('vilnaPlaceholder');
+  return Boolean(placeholder && !placeholder.hidden);
+}
+// The open panel is a dropdown over the daf, not a row that steals its
+// height. The picker, the daf header, the review/skip row, and the zoom
+// bar all live in that dropdown while it is open, then go home on close.
+function mountPhoneSplitOverlay() {
+  const panel = $('splitToolsPanel');
+  const card = $('dafCard');
+  if (!panel || !card || !phoneSplitToolsActive()) return;
+  const topbar = $('playerTopbar');
+  if (topbar && topbar.parentElement !== panel) panel.prepend(topbar);
+  const scroller = panel.querySelector(':scope > .split-tools-scroll');
+  if (!scroller) return;
+  const header = card.querySelector('.daf-header, .card-heading')
+    || panel.querySelector('.daf-header, .card-heading');
+  const notes = $('readerDafNotes');
+  const zoom = $('vilnaZoomControls');
+  const pageView = phoneSplitPageView();
+  const parked = (node) => node && node.parentElement !== scroller;
+  if (header && parked(header)) {
+    rememberPhoneToolsHome(header);
+    scroller.appendChild(header);
+  }
+  if (notes && parked(notes)) {
+    rememberPhoneToolsHome(notes);
+    scroller.appendChild(notes);
+  }
+  if (zoom && pageView && parked(zoom)) {
+    rememberPhoneToolsHome(zoom);
+    scroller.appendChild(zoom);
+  } else if (zoom && !pageView && panel.contains(zoom)) {
+    if (!restorePhoneToolsHome(zoom)) $('vilnaPlaceholder')?.prepend(zoom);
+  }
+  for (const node of [header, notes, pageView ? zoom : null]) {
+    if (node && panel.contains(node)) scroller.appendChild(node);
+  }
+  panel.appendChild(scroller);
+}
+function unmountPhoneSplitOverlay() {
+  const panel = $('splitToolsPanel');
+  const card = $('dafCard');
+  if (!panel || !card) return;
+  const header = panel.querySelector('.daf-header, .card-heading');
+  const notes = $('readerDafNotes');
+  const zoom = $('vilnaZoomControls');
+  if (header) {
+    if (!restorePhoneToolsHome(header)) {
+      card.insertBefore(header, card.querySelector('.daf-scroll') || null);
+    }
+  }
+  if (notes && panel.contains(notes)) {
+    if (!restorePhoneToolsHome(notes)) {
+      const home = card.querySelector(':scope > .daf-header, :scope > .card-heading');
+      if (home) home.insertAdjacentElement('afterend', notes);
+      else card.insertBefore(notes, card.querySelector('.daf-scroll') || null);
+    }
+  }
+  if (zoom && panel.contains(zoom)) {
+    if (!restorePhoneToolsHome(zoom)) $('vilnaPlaceholder')?.prepend(zoom);
+  }
+}
+function setSplitToolsOpen(open) {
+  const want = Boolean(open) && phoneSplitToolsActive();
+  document.body.classList.toggle('split-tools-open', want);
+  const panel = $('splitToolsPanel');
+  if (panel) panel.hidden = !want;
+  const divider = $('splitDivider');
+  if (divider && phoneSplitToolsActive()) divider.setAttribute('aria-expanded', String(want));
+  if (want) mountPhoneSplitOverlay();
+  else unmountPhoneSplitOverlay();
+}
+function syncPhoneSplitTools() {
+  const panel = ensureSplitToolsPanel();
+  const topbar = $('playerTopbar');
+  const frame = $('videoFrame');
+  const active = phoneSplitToolsActive();
+  document.body.classList.toggle('split-tools-phone', active);
+  if (!panel || !topbar || !frame) return;
+  if (active) {
+    if (topbar.parentElement !== panel) panel.prepend(topbar);
+    if (document.body.classList.contains('split-tools-open')) {
+      panel.hidden = false;
+      mountPhoneSplitOverlay();
+    } else {
+      unmountPhoneSplitOverlay();
+      panel.hidden = true;
+    }
+  } else {
+    unmountPhoneSplitOverlay();
+    if (topbar.parentElement !== frame) frame.appendChild(topbar);
+    document.body.classList.remove('split-tools-open');
+    panel.hidden = true;
+    $('splitDivider')?.setAttribute('aria-expanded', 'false');
+  }
 }
 function applySplitViewLayoutToDom() {
   const container = splitViewContainer();
@@ -6062,6 +6502,7 @@ function applySplitViewLayoutToDom() {
   document.body.classList.toggle('split-layout-stacked', state.splitViewEnabled && stacked);
   document.body.classList.toggle('split-video-at-end', state.splitViewEnabled && videoAtEnd);
   updateSplitViewToolbarUi();
+  syncPhoneSplitTools();
 }
 function updateSplitViewToolbarUi() {
   const stacked = state.splitViewLayout === 'stacked';
@@ -6076,6 +6517,9 @@ function updateSplitViewToolbarUi() {
   if (divider) {
     divider.setAttribute('aria-orientation', stacked ? 'horizontal' : 'vertical');
     divider.setAttribute('aria-valuenow', String(Math.round(splitViewRatioOrDefault() * 100)));
+    divider.setAttribute('aria-label', phoneSplitToolsActive()
+      ? 'Resize video and daf. Tap to show daf controls.'
+      : 'Resize video and daf panels');
   }
 }
 
@@ -6107,7 +6551,8 @@ function setSplitView(enabled) {
 
   const popSplitHistory = !splitHistoryQuiet && Boolean(history.state?.split);
   state.splitViewEnabled = false;
-  document.body.classList.remove('split-view-active', 'split-chrome-hidden', 'split-layout-stacked', 'split-video-at-end');
+  document.body.classList.remove('split-view-active', 'split-chrome-hidden', 'split-layout-stacked', 'split-video-at-end', 'split-tools-phone', 'split-tools-open');
+  syncPhoneSplitTools();
   document.documentElement.style.removeProperty('--split-video-ratio');
   clearTimeout(splitChromeHideTimer);
   pointerRestingOnSplitChrome = false;
@@ -6157,7 +6602,7 @@ function toggleSplitViewerMode() {
 function ensureSplitBackButton() {
   let button = $('splitBackToDaf');
   if (button) return button;
-  const header = document.querySelector('#dafCard > .daf-header, #dafCard > .card-heading, #dafCard > header');
+  const header = document.querySelector('#dafCard .daf-header, #dafCard .card-heading, #dafCard > header');
   if (!header) return null;
   button = document.createElement('button');
   button.type = 'button';
@@ -6222,6 +6667,9 @@ document.addEventListener('pointerup', onSplitChromePointerSettle, { capture: tr
 document.addEventListener('pointercancel', onSplitChromePointerSettle, { capture: true });
 function splitChromeShouldStayVisible() {
   if (pointerRestingOnSplitChrome || splitDividerDrag) return true;
+  // Stay up for as long as the player bar is up, and leave with it.
+  const frame = $('videoFrame');
+  if (frame && !frame.classList.contains('controls-hidden')) return true;
   const active = document.activeElement;
   return !!(active && active.closest?.('#viewerModeSelect') && active.matches(':focus-visible'));
 }
@@ -6251,8 +6699,61 @@ function applySplitVideoTransform() {
   frame.style.setProperty('--split-video-zoom', String(state.splitVideoZoom));
   frame.style.setProperty('--split-video-pan-x', `${state.splitVideoPanX}px`);
   frame.style.setProperty('--split-video-pan-y', `${state.splitVideoPanY}px`);
-  const zoomed = state.splitVideoZoom > 1.001;
+  const zoomed = splitVideoTransformed();
   frame.classList.toggle('split-video-zoomed', zoomed);
+  const fit = ensureSplitVideoFitButton();
+  if (fit) fit.hidden = !(zoomed && state.splitViewEnabled);
+}
+function splitVideoTransformed() {
+  return Math.abs(state.splitVideoZoom - 1) > 0.001
+    || Math.abs(state.splitVideoPanX) > 0.5 || Math.abs(state.splitVideoPanY) > 0.5;
+}
+// The picture's own box (before any pinch), and the pane it shows in. The
+// picture can be larger than the pane: it fills the pane's height and has
+// its sides cut (stacked dragged down, and side by side on a phone).
+function splitVideoPictureGeometry() {
+  const frame = $('videoFrame');
+  if (!frame) return null;
+  const picture = frame.classList.contains('youtube-active') ? $('youtubePlayerHost') : $('video');
+  const frameW = frame.clientWidth;
+  const frameH = frame.clientHeight;
+  const pictureW = picture?.offsetWidth || frameW;
+  const pictureH = picture?.offsetHeight || frameH;
+  if (!(frameW > 0 && frameH > 0 && pictureW > 0 && pictureH > 0)) return null;
+  return { frameW, frameH, pictureW, pictureH };
+}
+// Pinching out goes all the way to the whole frame: the scale at which the
+// whole picture fits inside the pane. A picture that already fits stops at 1.
+function splitVideoMinZoom() {
+  const geo = splitVideoPictureGeometry();
+  if (!geo) return 1;
+  return Math.min(1, geo.frameW / geo.pictureW, geo.frameH / geo.pictureH);
+}
+// While the picture is pinched in, out or slid across, a visible button
+// says so and puts the starting picture back in one tap -- a double-tap on
+// the picture does the same, but nothing on screen told anyone that.
+function ensureSplitVideoFitButton() {
+  let button = $('splitVideoFitButton');
+  if (button) return button;
+  const frame = $('videoFrame');
+  if (!frame) return null;
+  button = document.createElement('button');
+  button.type = 'button';
+  button.id = 'splitVideoFitButton';
+  button.className = 'split-video-fit-button';
+  button.hidden = true;
+  button.title = 'Back to the starting picture';
+  button.setAttribute('aria-label', 'Reset the video zoom');
+  button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Reset zoom</span>';
+  // The pinch surface sits under this button. Stop the press here so it
+  // never becomes the start of a pan or a play/pause tap underneath.
+  button.addEventListener('pointerdown', (event) => event.stopPropagation());
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    resetSplitVideoZoom({ announce: false });
+  });
+  frame.appendChild(button);
+  return button;
 }
 function showSplitVideoZoomIndicator() {
   const indicator = $('splitVideoZoomIndicator');
@@ -6262,16 +6763,25 @@ function showSplitVideoZoomIndicator() {
   clearTimeout(splitVideoZoomIndicatorTimer);
   splitVideoZoomIndicatorTimer = setTimeout(() => indicator.classList.remove('show'), 1100);
 }
+// Pan is in screen pixels (the translate comes before the scale, see
+// styles.css), as far as the picture reaches past the pane on each side --
+// so one finger can also slide a side-cut picture across at its first size.
 function clampSplitVideoPan(zoom, panX, panY) {
-  const frame = $('videoFrame');
-  if (!frame) return { x: 0, y: 0 };
-  const maxX = (frame.clientWidth * (zoom - 1)) / 2;
-  const maxY = (frame.clientHeight * (zoom - 1)) / 2;
+  const geo = splitVideoPictureGeometry();
+  if (!geo) return { x: 0, y: 0 };
+  const maxX = Math.max(0, (geo.pictureW * zoom - geo.frameW) / 2);
+  const maxY = Math.max(0, (geo.pictureH * zoom - geo.frameH) / 2);
   return { x: clampReadingValue(panX, -maxX, maxX), y: clampReadingValue(panY, -maxY, maxY) };
 }
+function splitVideoCanPan() {
+  const geo = splitVideoPictureGeometry();
+  if (!geo) return false;
+  const zoom = state.splitVideoZoom;
+  return geo.pictureW * zoom > geo.frameW + 1 || geo.pictureH * zoom > geo.frameH + 1;
+}
 function setSplitVideoZoom(zoom, { panX = state.splitVideoPanX, panY = state.splitVideoPanY, announce = true } = {}) {
-  const nextZoom = clampReadingValue(zoom, SPLIT_VIDEO_MIN_ZOOM, SPLIT_VIDEO_MAX_ZOOM);
-  const pan = nextZoom > 1 ? clampSplitVideoPan(nextZoom, panX, panY) : { x: 0, y: 0 };
+  const nextZoom = clampReadingValue(zoom, splitVideoMinZoom(), SPLIT_VIDEO_MAX_ZOOM);
+  const pan = clampSplitVideoPan(nextZoom, panX, panY);
   state.splitVideoZoom = nextZoom;
   state.splitVideoPanX = pan.x;
   state.splitVideoPanY = pan.y;
@@ -6287,6 +6797,9 @@ function setViewerMode(mode) {
   const nextMode = VIEWER_MODES.includes(mode) ? mode : 'standard';
   if (nextMode === state.viewerMode) return;
   state.viewerMode = nextMode;
+  // An open daf picker is positioned against the split video. Leaving Split
+  // (or switching mode) used to leave that panel stuck over the picture.
+  window.closePlayerChromeMenus?.();
   // Order matters only a little here (see each function's own early-return
   // guard, which makes calling one already at its target value a no-op) --
   // Split View settles the shared container's own layout first, then each
@@ -6398,7 +6911,7 @@ function announceViewerMode(mode) {
     const offset = stacked ? clientY - rect.top : clientX - rect.left;
     let fraction = offset / size;
     if (state.splitViewVideoPosition === 'end') fraction = 1 - fraction;
-    return clampReadingValue(fraction, SPLIT_VIEW_MIN_RATIO, SPLIT_VIEW_MAX_RATIO);
+    return clampSplitRatio(fraction);
   }
   function setRatioLive(ratio) {
     state.splitViewRatio = ratio;
@@ -6408,26 +6921,60 @@ function announceViewerMode(mode) {
     updateSplitViewToolbarUi();
   }
 
+  // A tap opens the phone controls. A drag resizes. The two share one
+  // gesture, so a few pixels of movement — more than a finger's jitter —
+  // is what decides. Opening on pointerdown made every resize also pop
+  // the panel.
+  const SPLIT_DIVIDER_TAP_PX = 8;
   divider.addEventListener('pointerdown', (event) => {
     if (!state.splitViewEnabled || (event.pointerType === 'mouse' && event.button !== 0)) return;
-    splitDividerDrag = { pointerId: event.pointerId };
+    splitDividerDrag = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      moved: false,
+    };
     divider.setPointerCapture?.(event.pointerId);
-    divider.classList.add('is-dragging');
     event.preventDefault();
   });
   divider.addEventListener('pointermove', (event) => {
     if (!splitDividerDrag || splitDividerDrag.pointerId !== event.pointerId) return;
+    const dx = event.clientX - splitDividerDrag.x;
+    const dy = event.clientY - splitDividerDrag.y;
+    // A drag resizes across the bar. Sliding along it is how a finger
+    // lands a tap, especially on the thin vertical bar in landscape, so
+    // only the cross-axis counts toward the 8px threshold.
+    const across = state.splitViewLayout === 'stacked' ? Math.abs(dy) : Math.abs(dx);
+    if (!splitDividerDrag.moved && across < SPLIT_DIVIDER_TAP_PX) return;
+    if (!splitDividerDrag.moved) {
+      splitDividerDrag.moved = true;
+      divider.classList.add('is-dragging');
+    }
     setRatioLive(ratioFromPoint(event.clientX, event.clientY));
     event.preventDefault();
   });
   function endDividerDrag(event) {
     if (!splitDividerDrag || (event && splitDividerDrag.pointerId !== event.pointerId)) return;
+    const moved = splitDividerDrag.moved;
     splitDividerDrag = null;
     divider.classList.remove('is-dragging');
-    saveSplitViewPreferences();
+    if (moved) {
+      saveSplitViewPreferences();
+      return;
+    }
+    if (event?.type === 'pointerup' && phoneSplitToolsActive()) {
+      setSplitToolsOpen(!document.body.classList.contains('split-tools-open'));
+    }
   }
   divider.addEventListener('pointerup', endDividerDrag);
   divider.addEventListener('pointercancel', endDividerDrag);
+  // A drag that loses capture still has to commit. A tap waits for
+  // pointerup: releasing capture can fire this first, and treating it as
+  // the tap would swallow the toggle.
+  divider.addEventListener('lostpointercapture', (event) => {
+    if (!splitDividerDrag?.moved || splitDividerDrag.pointerId !== event.pointerId) return;
+    endDividerDrag(event);
+  });
   divider.addEventListener('keydown', (event) => {
     if (!state.splitViewEnabled) return;
     const stacked = state.splitViewLayout === 'stacked';
@@ -6438,8 +6985,14 @@ function announceViewerMode(mode) {
     const step = event.shiftKey ? 0.08 : 0.04;
     const sign = event.key === growKey ? 1 : -1;
     const directional = state.splitViewVideoPosition === 'end' ? -sign : sign;
-    setRatioLive(clampReadingValue(splitViewRatioOrDefault() + directional * step, SPLIT_VIEW_MIN_RATIO, SPLIT_VIEW_MAX_RATIO));
+    setRatioLive(clampSplitRatio(splitViewRatioOrDefault() + directional * step));
     saveSplitViewPreferences();
+  });
+  divider.addEventListener('keydown', (event) => {
+    if (!phoneSplitToolsActive()) return;
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    setSplitToolsOpen(!document.body.classList.contains('split-tools-open'));
   });
 
   // --- Prominent selector + Split View's own small toolbar ----------------
@@ -6450,7 +7003,47 @@ function announceViewerMode(mode) {
   $('viewerModeDafOnVideoButton')?.addEventListener('click', () => setViewerMode(state.viewerMode === 'daf-on-video' ? 'standard' : 'daf-on-video'));
   $('viewerModeVideoOnDafButton')?.addEventListener('click', () => setViewerMode(state.viewerMode === 'video-on-daf' ? 'standard' : 'video-on-daf'));
   $('splitExitButton')?.addEventListener('click', () => requestExitSplit());
+  // The X leaves Split on the press itself. Waiting for click loses the
+  // tap: while the bar is fading it already has pointer-events:none, so the
+  // finger falls through to the video and the gesture only hides the chrome.
+  // The button's box still counts when the bar is hidden or mid-fade.
+  // Closing moves the header's Sign in button under that same point, and
+  // the click the browser synthesizes after touchend lands on it. The rest
+  // of this gesture, and any click in the next half second, is swallowed.
+  let splitExitSwallowUntil = 0;
+  function splitExitButtonHit(x, y) {
+    const button = $('splitExitButton');
+    if (!button || button.hidden || state.viewerMode !== 'split') return false;
+    const rect = button.getBoundingClientRect();
+    if (rect.width < 8 || rect.height < 8) return false;
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+  }
+  function closeSplitFromExit(event) {
+    splitExitSwallowUntil = performance.now() + 500;
+    requestExitSplit();
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+  function swallowSplitExitFollowup(event) {
+    if (performance.now() > splitExitSwallowUntil) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+  document.addEventListener('touchstart', (event) => {
+    const touch = event.changedTouches && event.changedTouches[0];
+    if (!touch || !splitExitButtonHit(touch.clientX, touch.clientY)) return;
+    closeSplitFromExit(event);
+  }, { capture: true, passive: false });
+  document.addEventListener('pointerdown', (event) => {
+    if (event.button > 0) return;
+    if (!splitExitButtonHit(event.clientX, event.clientY)) return;
+    closeSplitFromExit(event);
+  }, true);
+  for (const type of ['pointerup', 'pointercancel', 'touchend', 'touchcancel', 'mouseup', 'click']) {
+    document.addEventListener(type, swallowSplitExitFollowup, true);
+  }
   $('splitLayoutToggleButton')?.addEventListener('click', () => {
+    window.closePlayerChromeMenus?.();
     state.splitViewLayout = state.splitViewLayout === 'stacked' ? 'side-by-side' : 'stacked';
     state.splitViewLayoutExplicit = true;
     state.splitViewRatio = null; // the new layout's own default, not the old one's
@@ -6460,11 +7053,13 @@ function announceViewerMode(mode) {
     announceViewerMode('split');
   });
   $('splitSwapButton')?.addEventListener('click', () => {
+    window.closePlayerChromeMenus?.();
     state.splitViewVideoPosition = state.splitViewVideoPosition === 'end' ? 'start' : 'end';
     applySplitViewLayoutToDom();
     saveSplitViewPreferences();
   });
   $('splitResetButton')?.addEventListener('click', () => {
+    window.closePlayerChromeMenus?.();
     state.splitViewRatio = null;
     state.splitViewVideoPosition = 'start';
     applySplitViewLayoutToDom();
@@ -6549,7 +7144,7 @@ function announceViewerMode(mode) {
         // without a fresh pointerdown on it -- this branch only starts a NEW
         // gesture, so it must not stomp a pinch this same pointerdown already
         // continues as a pan.
-        splitVideoPinch = state.splitVideoZoom > 1.001
+        splitVideoPinch = splitVideoCanPan()
           ? { pan: true, startX: event.clientX, startY: event.clientY, startPanX: state.splitVideoPanX, startPanY: state.splitVideoPanY }
           : null;
         splitVideoTap = {
@@ -6606,7 +7201,7 @@ function announceViewerMode(mode) {
       // behavior for YouTube that plain, non-Split-View playback never had.
       if (!cancelled && !wasPinching && splitVideoTap?.pointerId === event.pointerId) {
         const now = performance.now();
-        if (state.splitVideoZoom > 1.001 && now - splitVideoLastTapAt < 320) {
+        if (splitVideoTransformed() && now - splitVideoLastTapAt < 320) {
           resetSplitVideoZoom();
           splitVideoLastTapAt = 0;
         } else {
@@ -6626,28 +7221,53 @@ function announceViewerMode(mode) {
     }, { passive: false });
   }
 
-  window.addEventListener('resize', () => {
+  // Rotation is a resize. Only the layout classes and the ratio variable
+  // change -- the iframe and the daf are never moved -- so playback, the
+  // current daf, and the highlight carry straight through. Some phones
+  // report the new innerWidth/innerHeight a frame after the orientation
+  // media query flips, so the orientation listener re-checks on the next
+  // frames as well.
+  function onSplitViewportChange() {
     if (!state.splitViewEnabled) return;
-    applySplitViewDefaultLayout();
+    const rotated = applySplitViewDefaultLayout();
+    if (rotated) {
+      window.closePlayerChromeMenus?.();
+      if (document.body.classList.contains('split-tools-open')) setSplitToolsOpen(false);
+    }
     applySplitViewLayoutToDom();
     resetSplitVideoZoom({ announce: false });
     scheduleVilnaPageLayoutRefresh(120);
-  });
+    if (rotated) announceViewerMode('split');
+  }
+  window.addEventListener('resize', onSplitViewportChange);
+  const orientationQuery = window.matchMedia('(orientation: portrait)');
+  const onOrientationFlip = () => {
+    onSplitViewportChange();
+    requestAnimationFrame(() => requestAnimationFrame(onSplitViewportChange));
+    setTimeout(onSplitViewportChange, 300);
+  };
+  if (orientationQuery.addEventListener) orientationQuery.addEventListener('change', onOrientationFlip);
+  else orientationQuery.addListener?.(onOrientationFlip);
+  // player-chrome.js builds the top bar after this file. Pick it up once
+  // that script has run, so a phone split entered later can move it.
+  setTimeout(syncPhoneSplitTools, 0);
+  // Esc while Split is fullscreen only leaves fullscreen. Chrome often
+  // swallows the key and only fires fullscreenchange; when it also delivers
+  // the key, that arrives after fullscreen is already gone. Either way Split
+  // stays on. Esc while Split is not fullscreen still leaves Split.
+  let leftSplitFullscreenAt = -Infinity;
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape' || state.viewerMode !== 'split' || overlayConsumesEscape()) return;
+    if (document.fullscreenElement || document.webkitFullscreenElement) return;
+    if (performance.now() - leftSplitFullscreenAt < 500) return;
     event.preventDefault();
     requestExitSplit();
   });
-  // Chrome (and other browsers) handle Esc themselves while an element is
-  // fullscreen: the page never sees the key, and only fullscreenchange
-  // fires. That used to leave Split on, so a second Esc was required.
   const onSplitFullscreenChange = () => {
     const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
     if (fullscreenElement) return;
-    const keepSplit = suppressSplitExitOnFullscreenChange;
+    leftSplitFullscreenAt = performance.now();
     suppressSplitExitOnFullscreenChange = false;
-    if (keepSplit || state.viewerMode !== 'split' || overlayConsumesEscape()) return;
-    setViewerMode('standard');
   };
   document.addEventListener('fullscreenchange', onSplitFullscreenChange);
   document.addEventListener('webkitfullscreenchange', onSplitFullscreenChange);
@@ -6664,6 +7284,30 @@ function announceViewerMode(mode) {
     finally { splitHistoryQuiet = false; }
   });
   ensureSplitChromeWake();
+
+  // A tap that starts on the picture must not land on the overlay toolbar.
+  // The bar sits on the video and can appear or shift under the finger, and
+  // the click that follows was reaching Split view / the X and leaving Split.
+  let splitPicturePointerDown = false;
+  document.addEventListener('pointerdown', (event) => {
+    if (!state.splitViewEnabled || event.button > 0) {
+      splitPicturePointerDown = false;
+      return;
+    }
+    const frame = $('videoFrame');
+    // The pinch surface is role=button so a tap can zoom it. It is still the
+    // picture: a click that follows must not hit the mode bar or the X.
+    const picture = event.target?.closest?.('#splitVideoPinchSurface, #video, .video-click-surface, .player-wake-layer, #youtubePlayerHost');
+    splitPicturePointerDown = Boolean(frame && picture && frame.contains(picture));
+  }, true);
+  document.addEventListener('click', (event) => {
+    if (!splitPicturePointerDown) return;
+    splitPicturePointerDown = false;
+    const bar = event.target?.closest?.('#viewerModeSelect, #splitToolbar');
+    if (!bar) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }, true);
 
   // --- Bringing the combined bar back once it has faded out --------------
   // Scoped to the daf pane and the bar itself -- NOT the whole document,
@@ -6893,25 +7537,64 @@ function ensureReaderNotes() {
   });
 }
 
+// The review of the previous amud (Bekhorot 44a reviews 43b until 7:28) is
+// one span, not a label that exists only while a phrase is the active one.
+// Gaps of 7–9s inside that span used to clear "Reviewing …" after 4s.
+function reviewAmudAt(time) {
+  const wanted = realDafRef(state.dafRef);
+  if (!wanted) return '';
+  let label = '';
+  let labelStart = -1;
+  for (const segment of state.segments) {
+    if (segment.estimated) continue;
+    const start = Number(segment.start);
+    if (!Number.isFinite(start) || start > time + 0.05) continue;
+    const key = segmentDafKey(segment.ref);
+    if (!key || key === wanted) continue;
+    if (start >= labelStart) {
+      labelStart = start;
+      label = key;
+    }
+  }
+  return label;
+}
+
 function updateReaderNotes(time, index) {
   ensureReaderNotes();
   const ownStart = ownContentStartTime();
   const inLeadIn = ownStart != null && time + 0.05 < ownStart;
   const active = state.segments[index];
-  const activeLabel = active ? segmentDafKey(active.ref) : '';
   const requested = requestedDafLabel();
   const anchor = firstRealSegmentStart();
   const inPreAnchor = anchor != null && time < anchor - 0.05;
   const beforeFirst = state.segments.length > 0 && time < state.segments[0].start - 0.05 && index < 0;
+  const reviewKey = inLeadIn && !beforeFirst && !inPreAnchor ? reviewAmudAt(time) : '';
   let refText = requested || 'No daf loaded';
   let reviewing = '';
   if (!state.segments.length) refText = state.dafRef ? `Loading ${requested}…` : 'No daf loaded';
-  else if (beforeFirst || inPreAnchor) refText = 'Intro';
-  else if (index < 0) refText = 'Between phrases';
-  else if (inLeadIn && activeLabel && activeLabel !== realDafRef(state.dafRef)) {
-    reviewing = `Reviewing ${activeLabel}`;
+  else if (beforeFirst || inPreAnchor) {
+    refText = 'Intro';
+    state.statusHoldText = refText;
+    state.statusHoldUntil = 0;
+  } else if (reviewKey) {
+    reviewing = `Reviewing ${reviewKey}`;
     refText = reviewing;
-  } else refText = requested;
+    state.statusHoldText = refText;
+    state.statusHoldUntil = ownStart;
+  } else if (index < 0) {
+    // Bekhorot 44a flips this line every second or two (25:24, then 25:25)
+    // because phrases end a few seconds before the next one starts. The
+    // hold is armed only by the phrase just shown, so a seek into a later
+    // silence still reads "Between phrases". A gap inside the review span
+    // never reaches this branch — reviewKey stays set until the daf itself.
+    refText = state.statusHoldText && time < state.statusHoldUntil
+      ? state.statusHoldText
+      : 'Between phrases';
+  } else {
+    refText = requested;
+    state.statusHoldText = refText;
+    state.statusHoldUntil = (Number(active?.end) || time) + STATUS_GAP_HOLD_S;
+  }
   const currentRef = $('currentRef');
   if (currentRef) currentRef.textContent = refText;
   const reviewingLabel = $('reviewingLabel');
@@ -6920,10 +7603,16 @@ function updateReaderNotes(time, index) {
     reviewingLabel.textContent = reviewing;
   }
   const chip = $('skipToDafChip');
+  const showSkip = Boolean(inLeadIn && ownStart > 0.5);
   if (chip) {
-    const show = Boolean(inLeadIn && ownStart > 0.5);
-    chip.hidden = !show;
-    if (show) chip.textContent = `Skip to ${realDafRef(state.dafRef)} (${formatTime(ownStart)})`;
+    chip.hidden = !showSkip;
+    if (showSkip) chip.textContent = `Skip to ${realDafRef(state.dafRef)} (${formatTime(ownStart)})`;
+  }
+  const toolsHint = $('splitToolsHint');
+  if (toolsHint) {
+    const showHint = phoneSplitToolsActive() && Boolean(reviewing || showSkip);
+    toolsHint.hidden = !showHint;
+    toolsHint.title = reviewing || (showSkip ? chip?.textContent || '' : '');
   }
   const note = $('notSyncedNote');
   if (note) {
@@ -6997,9 +7686,11 @@ function scrollActiveIntoView(force) {
 function updateActiveSegment(force = false, timeOverride = null) {
   const time = timeOverride ?? getCurrentTime();
   let jumpedBack = false;
+  let jumpedForward = false;
   if (timeOverride == null) {
     const previous = state.lastObservedTime;
     jumpedBack = previous != null && time < previous - 1;
+    jumpedForward = previous != null && time > previous + 2;
     state.lastObservedTime = time;
     // A real rewind (media keys, a seek this page didn't pin) must drop the
     // tap pin so the highlight can follow. The landing of a tap's own seek
@@ -7025,15 +7716,25 @@ function updateActiveSegment(force = false, timeOverride = null) {
     // clock by more than a second and is allowed through. Idle (-1) is also
     // allowed: dimming in a gap is not "moving backward."
     if (!force && !jumpedBack && index !== -1 && state.activeIndex >= 0 && index < state.activeIndex) {
-      updateActiveWords(time);
-      updateVaaterButtonUi(time);
-      return;
+      // A later estimated (or zero-length) row can win the binary search
+      // while an earlier real phrase still contains this time. That move
+      // is a correction, not the clock jitter this guard is for.
+      const chosen = state.segments[index];
+      if (!segmentStrictlyCovers(chosen, time)) {
+        updateActiveWords(time);
+        updateVaaterButtonUi(time);
+        return;
+      }
     }
   }
+  // A seek, or a clock jump the poll didn't take one tick at a time, shows
+  // the amud under the playhead immediately. Steady playback waits.
+  const turned = noteVilnaFollow(index, time, Boolean(force) || jumpedBack || jumpedForward);
   if (!force && index === state.activeIndex) {
     updateActiveWords(time);
     updateVaaterButtonUi(time);
     updateReaderNotes(time, index);
+    if (turned) renderVilnaPage();
     return;
   }
   state.activeIndex = index;
@@ -7118,7 +7819,13 @@ function updateScrubberFill() {
     // what it's already shown) -- clamps against rounding/staleness between
     // this and the poll/timeupdate tick that last refreshed loadedPercent.
     const bufferedPercent = Math.max(playedPercent, loadedPercent);
-    el.style.background = `linear-gradient(to right, var(--accent) 0%, var(--accent) ${playedPercent}%, rgba(255,255,255,.4) ${playedPercent}%, rgba(255,255,255,.4) ${bufferedPercent}%, rgba(255,255,255,.14) ${bufferedPercent}%, rgba(255,255,255,.14) 100%)`;
+    // Painted by the track pseudo-element only (styles.css .scrubber). On the
+    // input itself it would fill the whole tall touch box, not the thin bar.
+    el.style.setProperty('--scrub-played-f', String(playedPercent / 100));
+    el.style.setProperty('--scrub-buffered-f', String(bufferedPercent / 100));
+    // Screen readers otherwise announce the raw seconds ("1834.27").
+    const valueText = `${formatTime(Number(el.value) || 0)} of ${formatTime(Number(el.max) || 0)}`;
+    if (el.getAttribute('aria-valuetext') !== valueText) el.setAttribute('aria-valuetext', valueText);
   }
 }
 
@@ -7226,6 +7933,11 @@ function updatePlayUi() {
     largePlay.setAttribute('aria-busy', String(loading));
     largePlay.setAttribute('aria-label', loading ? 'Loading video' : 'Play video');
   }
+  // On a touchscreen the centre button is the only place a tap plays or
+  // pauses, so while the video plays a centre pause button comes and goes
+  // with the controls (styles.css shows it on touch devices only).
+  const largePause = ensureLargePauseButton();
+  if (largePause) largePause.hidden = !state.videoSource || paused || loading;
   if (playButton) {
     playButton.classList.toggle('is-loading', loading);
     playButton.setAttribute('aria-busy', String(loading));
@@ -7271,13 +7983,38 @@ function debugPlayLog(line) {
 // (the frame's touchstart listener). A typeless synthetic tap does not
 // toggle YouTube: the pinch surfaces used to pause every YouTube video
 // because they treated those the same as a finger.
+function ensureLargePauseButton() {
+  let button = $('largePause');
+  if (button) return button;
+  const largePlay = $('largePlay');
+  if (!largePlay) return null;
+  button = document.createElement('button');
+  button.type = 'button';
+  button.id = 'largePause';
+  button.className = 'large-play large-pause';
+  button.hidden = true;
+  button.setAttribute('aria-label', 'Pause video');
+  button.innerHTML = '<svg viewBox="0 0 44 44" aria-hidden="true"><path d="M14 12h6v20h-6zM24 12h6v20h-6z" fill="currentColor"/></svg>';
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    togglePlay();
+    showVideoControls();
+  });
+  largePlay.after(button);
+  return button;
+}
+
+// A tap on the video picture. With a mouse, a click anywhere plays or
+// pauses, as on YouTube's desktop player. With a finger, only the big centre
+// button does that: a tap anywhere else on the picture shows the controls,
+// or puts them away if they are already up, as on YouTube's phone player.
 function handleVideoPictureTap(tap) {
-  const type = tap?.pointerType || '';
-  if (state.playerType !== 'youtube') {
+  if (tap?.pointerType === 'mouse') {
     togglePlay();
     return;
   }
-  if (type === 'mouse' || (type === 'touch' && !tap.controlsHidden)) togglePlay();
+  if (tap?.controlsHidden) showVideoControls();
+  else hideVideoControls();
 }
 
 async function togglePlay() {
@@ -7357,6 +8094,9 @@ let pausedFrameTarget = null;
 // Treating that late event as a real play is what resumed a paused Vaater.
 let pausedFrameSuppressPlay = false;
 let pausedFrameLastTarget = null;
+// pauseVideo from the unwanted-PLAYING guard can itself report PLAYING
+// before the player has stopped. That second event must not pause again.
+let suppressingUnwantedPlay = false;
 // Time shown when the reader hit pause. YouTube often reports the previous
 // keyframe (~1s earlier) once playback stops; a slip that small is put back.
 let pauseAnchor = null;
@@ -7383,6 +8123,10 @@ function finishPausedFrameRefresh(token) {
     pausedFrameSuppressPlay = true;
     pauseAnchor = null;
     player.pauseVideo?.();
+    // The blip's PLAYING event returns before the bands are touched. Put
+    // them back now so a paused seek cannot leave the title up.
+    if ($('videoFrame')?.classList.contains('yt-started')) maskYouTubeEdges();
+    stopYouTubeAdvanceWatch();
   } else {
     pausedFrameSuppressPlay = false;
   }
@@ -7412,13 +8156,29 @@ function seekYouTubePlayer(time, allowSeekAhead, attempt = 0, generation = ++see
   const player = state.youtubePlayer;
   if (!player?.seekTo) return;
   player.seekTo(time, allowSeekAhead);
+  // A seek while the shiur is already playing can leave YouTube paused on
+  // the old frame, which is what made Vaater look like a no-op at 1.5×.
+  // Ask it to keep going from the new time. A paused seek must not do this:
+  // that path uses the muted frame blip below instead.
+  if (state.wantPlaying && !state.pausedFrameRefresh) {
+    try { player.playVideo?.(); } catch { /* already playing */ }
+    const rate = Number($('speedSelect')?.value);
+    if (rate && rate !== 1) {
+      try { player.setPlaybackRate?.(rate); } catch { /* rate list not ready */ }
+    }
+  }
   if (attempt === 0 && allowSeekAhead) repaintPausedYouTubeFrame(time);
   if (attempt >= 20) return;
   setTimeout(() => {
     if (generation !== seekGeneration) return; // superseded by a newer seek request
     if (state.playerType !== 'youtube' || state.youtubePlayer !== player) return; // moved on since
     const actual = Number(player.getCurrentTime?.()) || 0;
-    if (Math.abs(actual - time) > 2) seekYouTubePlayer(time, allowSeekAhead, attempt + 1, generation);
+    // A phrase under 2s ahead used to look "landed" while the player was
+    // still on the previous jump, so the retry gave up and a rapid second
+    // Vaater never moved. Re-issue until the clock is actually there.
+    // Buffering that already reports this target is left alone so the
+    // retry does not keep restarting a seek that took.
+    if (Math.abs(actual - time) > 0.5) seekYouTubePlayer(time, allowSeekAhead, attempt + 1, generation);
   }, 400);
 }
 
@@ -7469,6 +8229,9 @@ function paintSeekUi(time) {
 }
 
 function seek(time, allowSeekAhead = true) {
+  // A scrub or a word tap is a new landing. Vaater puts its chain back
+  // after this returns, so a rapid second press still sees the phrase end.
+  state.vaaterChain = null;
   const max = getDuration() || Number(scrubber.max) || 0;
   const clamped = Math.max(0, Math.min(time, max || time));
   // A tap pins the phrase it landed on, then seeks a fraction early so the
@@ -7489,6 +8252,7 @@ function seek(time, allowSeekAhead = true) {
   state.lastObservedTime = clamped;
 
   if (state.playerType === 'youtube') {
+    coverYouTubeSeek();
     if (state.youtubeReady && state.youtubePlayer?.seekTo) seekYouTubePlayer(clamped, allowSeekAhead);
     else state.queuedSeek = { time: clamped, allowSeekAhead };
   } else {
@@ -7574,6 +8338,122 @@ function setPlaybackRate(rate) {
     htmlVideo.playbackRate = rate;
   }
 }
+
+// Captions stay off until the reader turns them on. YouTube's cc_load_policy
+// is not enough on its own: automatic captions come back when playback
+// starts, so the preference is applied again there. The choice is remembered
+// on this device.
+const CAPTIONS_STORAGE_KEY = 'dafsync-captions';
+// Older builds stored a boolean under these names. None of them mean the
+// reader turned captions on. Only the exact string "on" does.
+const CAPTION_LEGACY_KEYS = ['dafsync-cc', 'dafsync.captions', 'captions', 'youtube-captions', 'cc'];
+function captionsWanted() {
+  try {
+    for (const key of CAPTION_LEGACY_KEYS) localStorage.removeItem(key);
+    const value = localStorage.getItem(CAPTIONS_STORAGE_KEY);
+    if (value === 'on') return true;
+    if (value != null && value !== 'off') localStorage.removeItem(CAPTIONS_STORAGE_KEY);
+    return false;
+  } catch { return false; }
+}
+function updateCaptionsButton() {
+  const button = $('captionsButton');
+  if (!button) return;
+  const on = captionsWanted();
+  button.setAttribute('aria-pressed', String(on));
+  button.setAttribute('aria-label', on ? 'Captions on' : 'Captions off');
+  button.title = on ? 'Captions on' : 'Captions off';
+  const stack = button.closest('.pc-stack');
+  stack?.classList.toggle('is-on', on);
+  const label = stack?.querySelector('.pc-label');
+  if (label) label.textContent = on ? 'Captions on' : 'Captions off';
+}
+function captionTrackChoice(tracks) {
+  const list = Array.isArray(tracks) ? tracks : [];
+  return list.find((item) => item?.languageCode === 'en' && item.kind !== 'asr')
+    || list.find((item) => /^en/i.test(item?.languageCode || '') && item.kind !== 'asr')
+    || list.find((item) => item?.languageCode === 'en')
+    || list.find((item) => /^en/i.test(item?.languageCode || ''))
+    || list[0]
+    || null;
+}
+let captionApplyToken = 0;
+// True once captions have actually been requested this session. The first
+// paint stays unload-only: loading the module just to turn captions off is
+// what flashed English auto-captions on a fresh open. After the reader has
+// turned them on, turning them off has to clear the live track first —
+// unload alone leaves the line YouTube put back up in fullscreen.
+let captionsEverOn = false;
+function applyYouTubeCaptions(player, on) {
+  if (!player) return;
+  const token = ++captionApplyToken;
+  const run = () => {
+    if (token !== captionApplyToken) return;
+    try {
+      if (!on) {
+        if (captionsEverOn) {
+          try { player.loadModule('captions'); } catch { /* player not ready */ }
+          try { player.loadModule('cc'); } catch { /* same module, other name */ }
+          try { player.setOption('captions', 'track', {}); } catch { /* module not loaded */ }
+        }
+        try { player.unloadModule('captions'); } catch { /* already off */ }
+        try { player.unloadModule('cc'); } catch { /* already off */ }
+        return;
+      }
+      captionsEverOn = true;
+      // MDY uploads usually have only YouTube's automatic English track.
+      // The track list is often empty until the module finishes loading, so
+      // an English request is sent even when nothing is listed yet, and
+      // again once the asr track shows up.
+      try { player.loadModule('captions'); } catch { /* player not ready */ }
+      try { player.loadModule('cc'); } catch { /* same module, other name */ }
+      let tracks = [];
+      try { tracks = player.getOption('captions', 'tracklist') || []; } catch { tracks = []; }
+      const listed = captionTrackChoice(tracks);
+      const choices = [
+        listed,
+        { languageCode: 'en', kind: 'asr' },
+        { languageCode: 'en' },
+      ].filter(Boolean);
+      for (const track of choices) {
+        try { player.setOption('captions', 'track', track); } catch { /* try the next shape */ }
+      }
+      try { player.setOption('captions', 'reload', true); } catch { /* optional */ }
+    } catch { /* captions module unavailable */ }
+  };
+  run();
+  const delays = on ? [400, 900, 1800, 3200] : [400, 900, 1600, 2800];
+  for (const delay of delays) {
+    window.setTimeout(() => {
+      if (token !== captionApplyToken) return;
+      if (on !== captionsWanted()) return;
+      run();
+    }, delay);
+  }
+}
+function applyHtmlCaptions(on) {
+  const tracks = htmlVideo?.textTracks;
+  if (!tracks) return;
+  for (const track of tracks) track.mode = on ? 'showing' : 'disabled';
+}
+function applyCaptionsPreference() {
+  const on = captionsWanted();
+  updateCaptionsButton();
+  if (state.playerType === 'youtube' && state.youtubeReady) applyYouTubeCaptions(state.youtubePlayer, on);
+  else applyHtmlCaptions(on);
+}
+function setCaptionsEnabled(on) {
+  if (on) captionsEverOn = true;
+  try { localStorage.setItem(CAPTIONS_STORAGE_KEY, on ? 'on' : 'off'); }
+  catch { /* private mode */ }
+  applyCaptionsPreference();
+}
+document.addEventListener('fullscreenchange', () => {
+  if (state.playerType === 'youtube' && state.youtubeReady) applyCaptionsPreference();
+});
+document.addEventListener('webkitfullscreenchange', () => {
+  if (state.playerType === 'youtube' && state.youtubeReady) applyCaptionsPreference();
+});
 
 // Video-quality selection, YouTube only -- a direct-link <video> has no
 // server-side rendition ladder to pick from, so #qualityControl just stays
@@ -8093,6 +8973,7 @@ async function loadDaf(refOverride = null, options = {}) {
     const { heRef, paragraphs } = await fetchSefariaParagraphs(sefariaRef);
 
     state.dafRef = ref;
+    resetVilnaFollow(ref);
     state.wordTimeline = [];
     const duration = getDuration() || Number(scrubber.max) || 48;
     const length = duration / paragraphs.length;
@@ -8168,6 +9049,7 @@ function handleVideoFile(file) {
   // all and setPlaybackRate never got called. Matches what the YouTube path
   // already does after cueVideoById -- see waitForYouTubeMetadata's caller.
   setPlaybackRate(Number($('speedSelect').value));
+  applyCaptionsPreference();
   $('videoFileName').textContent = file.name;
   $('lectureTitle').textContent = file.name.replace(/\.[^.]+$/, '');
   setSourceBadge('Local file');
@@ -8314,9 +9196,234 @@ function scheduleYouTubeError(code, player, videoId, { reject, resolve, settled 
   }, 1500);
 }
 
+// The thumbnail covers only the opening. After the first frame, opaque
+// bands hide the title row, share and watch-later icons, the logo, and the
+// More videos shelf. YouTube keeps that overlay up for about three seconds
+// after a play, a seek, or a resume, so the bands stay at least that long
+// and also until the playhead is really moving. They drop sooner only when
+// nothing just asked YouTube to paint the overlay.
+// The bottom-right card (More videos, the logo) and the bottom-left share
+// icon autohide with YouTube's controls, later than the title row. Both
+// chips go up with the title band — on a seek, a play, a resume, and a
+// pause — and stay until playback has been steady for six seconds. They
+// are not a deeper crop: the caption line stays in the picture.
+const YT_ADVANCE_MS = 300;
+const YT_CHROME_HOLD_MS = 3400;
+const YT_CORNER_STEADY_MS = 6000;
+let ytRevealTimer = null;
+let ytCornerFadeTimer = null;
+let ytChromeHoldUntil = 0;
+let ytChromeHoldAfterPause = false;
+function armYouTubeChromeHold() {
+  ytChromeHoldUntil = performance.now() + YT_CHROME_HOLD_MS;
+}
+function youtubeOverlayRisk(now = performance.now()) {
+  return now < ytChromeHoldUntil;
+}
+function ensureYouTubeMask(frame) {
+  if (!frame) return;
+  let layer = frame.querySelector(':scope > .yt-mask-layer');
+  if (!layer) {
+    const stranded = frame.querySelector('.yt-mask-layer');
+    if (stranded) stranded.remove();
+    layer = document.createElement('div');
+    layer.className = 'yt-mask-layer';
+    layer.setAttribute('aria-hidden', 'true');
+    layer.innerHTML = '<div class="yt-edge yt-edge-top"></div><div class="yt-edge yt-edge-bottom"></div><div class="yt-edge yt-edge-logo"></div><div class="yt-edge yt-edge-share"></div>';
+    frame.appendChild(layer);
+  } else if (!layer.querySelector('.yt-edge-share')) {
+    const share = document.createElement('div');
+    share.className = 'yt-edge yt-edge-share';
+    layer.appendChild(share);
+  }
+}
+function ensureYouTubeShield() {
+  const existing = $('ytShield');
+  const frame = $('videoFrame');
+  if (existing) {
+    if (frame) ensureYouTubeMask(frame);
+    return existing;
+  }
+  if (!frame) return null;
+  const shield = document.createElement('div');
+  shield.id = 'ytShield';
+  shield.className = 'yt-shield';
+  shield.setAttribute('aria-hidden', 'true');
+  const stage = $('youtubeStage') || $('youtubePlayerHost');
+  if (stage) stage.insertAdjacentElement(stage.id === 'youtubeStage' ? 'beforeend' : 'afterend', shield);
+  else frame.appendChild(shield);
+  ensureYouTubeMask(frame);
+  return shield;
+}
+function setYouTubePoster(videoId) {
+  const shield = ensureYouTubeShield();
+  if (!shield) return;
+  const id = String(videoId || '').replace(/[^A-Za-z0-9_-]/g, '');
+  shield.style.backgroundImage = id ? `url("https://i.ytimg.com/vi/${id}/hqdefault.jpg")` : '';
+}
+// Opening poster only. Once a frame has been shown, this does not swap
+// the picture for the thumbnail.
+function cancelYouTubeCornerFade() {
+  clearTimeout(ytCornerFadeTimer);
+  ytCornerFadeTimer = null;
+}
+function dropYouTubeCorner(frame) {
+  cancelYouTubeCornerFade();
+  frame?.classList.remove('yt-corner', 'yt-corner-out');
+}
+// The chip fades out instead of popping off. A new mask cancels the fade
+// so a seek during it cannot remove the corner a moment later.
+function releaseYouTubeCorner(frame) {
+  if (!frame?.classList.contains('yt-corner') || frame.classList.contains('yt-corner-out')) return;
+  frame.classList.add('yt-corner-out');
+  cancelYouTubeCornerFade();
+  ytCornerFadeTimer = setTimeout(() => {
+    ytCornerFadeTimer = null;
+    frame.classList.remove('yt-corner', 'yt-corner-out');
+  }, 420);
+}
+function holdYouTubeChrome() {
+  clearTimeout(ytRevealTimer);
+  ytRevealTimer = null;
+  const frame = $('videoFrame');
+  if (!frame || frame.classList.contains('yt-started')) return;
+  frame.classList.add('yt-hold');
+  frame.classList.remove('yt-playing', 'yt-mask');
+  dropYouTubeCorner(frame);
+}
+function maskYouTubeEdges() {
+  const frame = $('videoFrame');
+  if (!frame?.classList.contains('yt-started')) return;
+  ensureYouTubeMask(frame);
+  cancelYouTubeCornerFade();
+  frame.classList.remove('yt-corner-out');
+  frame.classList.add('yt-mask', 'yt-corner', 'yt-playing');
+  frame.classList.remove('yt-hold');
+}
+function stopYouTubeAdvanceWatch() {
+  clearTimeout(ytRevealTimer);
+  ytRevealTimer = null;
+}
+function youtubePlayRate() {
+  const fromPlayer = Number(state.youtubePlayer?.getPlaybackRate?.());
+  if (fromPlayer > 0.2) return fromPlayer;
+  const fromUi = Number($('speedSelect')?.value);
+  return fromUi > 0.2 ? fromUi : 1;
+}
+function scheduleYouTubeReveal() {
+  const frame = $('videoFrame');
+  if (!frame || state.youtubeState !== 1 || !state.wantPlaying) return;
+  const uncovered = frame.classList.contains('yt-playing')
+    && frame.classList.contains('yt-started')
+    && !frame.classList.contains('yt-hold')
+    && !frame.classList.contains('yt-mask');
+  // A later PLAYING echo during steady playback must not restart the hold.
+  // A corner that is already counting down keeps its watch. A corner left
+  // up with no watch (the timer was cleared) starts again below.
+  if (uncovered && !frame.classList.contains('yt-corner')) return;
+  if (uncovered && ytRevealTimer) return;
+  stopYouTubeAdvanceWatch();
+  const samples = [];
+  let seekArrived = false;
+  let steadySince = 0;
+  const watch = () => {
+    ytRevealTimer = null;
+    if (!frame.isConnected) return;
+    // Pause, or a seek that has not resumed. Leave the bands where they are.
+    if (state.youtubeState !== 1 || !state.wantPlaying) return;
+    // First play included: the picture comes out under the bands. A bare
+    // iframe here is the title, the share icon, and More videos. Re-assert
+    // every tick so a seek jump cannot uncover that chrome early.
+    ensureYouTubeMask(frame);
+    frame.classList.add('yt-started', 'yt-playing', 'yt-corner');
+    frame.classList.remove('yt-hold');
+    const pending = state.pendingSeek;
+    const time = readPlayerTime();
+    const t = performance.now();
+    if (pending && Math.abs(time - pending.time) <= 0.45) seekArrived = true;
+    // The clock is still on the phrase just left. Counting that motion
+    // lifted the bands before the word-tap seek had landed, which is the
+    // flash of YouTube's title on a desktop daf click. Once the new time
+    // has shown up, later motion is playback and must not re-arm this hold.
+    if (!seekArrived && pending && t - pending.issuedAt < 2000 && Math.abs(time - pending.time) > 0.45) {
+      samples.length = 0;
+      steadySince = 0;
+      frame.classList.add('yt-mask');
+      ytRevealTimer = setTimeout(watch, 50);
+      return;
+    }
+    const prev = samples[samples.length - 1];
+    const wall = prev ? Math.max(0.05, (t - prev.t) / 1000) : 0.05;
+    const rate = youtubePlayRate();
+    // A seek steps the clock once. That step is not the playhead advancing.
+    if (prev && Math.abs(time - prev.time) > Math.max(0.35, wall * rate * 3 + 0.05)) {
+      samples.length = 0;
+      steadySince = 0;
+    }
+    samples.push({ t, time });
+    while (samples.length && t - samples[0].t > 480) samples.shift();
+    const first = samples[0];
+    const last = samples[samples.length - 1];
+    const mid = samples[Math.floor(samples.length / 2)];
+    const span = last && first ? last.t - first.t : 0;
+    const moved = last && first ? last.time - first.time : 0;
+    const expected = (span / 1000) * rate;
+    const moving = last && first && mid
+      && span >= YT_ADVANCE_MS
+      && moved > Math.max(0.04, expected * 0.45)
+      && moved < expected * 2.5 + 0.12
+      && last.time > mid.time + Math.max(0.015, expected * 0.15)
+      && mid.time >= first.time - 0.02;
+    // Bands cover the title through YouTube's short overlay. The corner
+    // stays until the playhead has been moving smoothly for 6s, which is
+    // when the bottom-right card autohides. A jump or a stall starts that
+    // stretch over.
+    if (!moving) {
+      steadySince = 0;
+      frame.classList.add('yt-mask');
+      ytRevealTimer = setTimeout(watch, 50);
+      return;
+    }
+    if (!steadySince) steadySince = first.t;
+    if (youtubeOverlayRisk(t)) frame.classList.add('yt-mask');
+    else frame.classList.remove('yt-mask');
+    if (t - steadySince >= YT_CORNER_STEADY_MS && !youtubeOverlayRisk(t)) {
+      frame.classList.remove('yt-hold', 'yt-mask');
+      releaseYouTubeCorner(frame);
+      return;
+    }
+    ytRevealTimer = setTimeout(watch, 50);
+  };
+  ytRevealTimer = setTimeout(watch, 0);
+}
+// Word taps, Vaater, and the scrubber all come through here. After the
+// first frame, cover the chrome YouTube flashes on a jump without putting
+// the thumbnail back. A seek that is already playing starts the short
+// lift; buffering cancels it until PLAYING.
+function coverYouTubeSeek() {
+  if (state.playerType !== 'youtube') return;
+  const frame = $('videoFrame');
+  if (!frame?.classList.contains('yt-started')) return;
+  // Word taps, Vaater, and the scrubber all restart the overlay hold.
+  // YouTube paints the title again on the jump.
+  armYouTubeChromeHold();
+  maskYouTubeEdges();
+  // A paused seek, including the frame-refresh blip, keeps the bands up.
+  // Only a shiur the reader actually has playing may start the lift, and
+  // that lift waits out the overlay and a real playhead.
+  if (state.youtubeState === 1 && state.wantPlaying) scheduleYouTubeReveal();
+  else stopYouTubeAdvanceWatch();
+}
+
 async function ensureYouTubePlayer(videoId) {
   await loadYouTubeApi();
   state.youtubeCueId = videoId;
+  // Cover first, then reveal the host. Unhiding the iframe before the
+  // poster is in the DOM is the flash of YouTube's title bar on load.
+  cancelYouTubeCornerFade();
+  $('videoFrame')?.classList.remove('yt-started', 'yt-playing', 'yt-mask', 'yt-corner', 'yt-corner-out');
+  holdYouTubeChrome();
+  setYouTubePoster(videoId);
   switchPlayerType('youtube');
 
   if (!state.youtubePlayer) {
@@ -8346,12 +9453,16 @@ async function ensureYouTubePlayer(videoId) {
         // own fullscreen button (below) fullscreens the whole video-frame
         // container instead, so it covers both.
         fs: 0,
-        // Captions are permanently off, with no UI to turn them on -- a
-        // reader already has this daf's own text/translation on screen and
-        // doesn't need YouTube's own (frequently auto-generated, un-vetted)
-        // captions burned on top of it.
+        // Captions start off. cc_load_policy 0 asks YouTube not to show
+        // them; applyCaptionsPreference() also unloads the captions module
+        // because automatic captions otherwise come back when playback
+        // starts. The CC button can turn them on later.
         cc_load_policy: 0,
-        iv_load_policy: 3
+        iv_load_policy: 3,
+        // Drops the big YouTube logo in the control bar. The poster covers
+        // the opening only. After the first frame, pause and seek keep
+        // the picture and mask the title row, More videos strip, and logo.
+        modestbranding: 1
       };
       if (location.protocol === 'http:' || location.protocol === 'https:') playerVars.origin = location.origin;
 
@@ -8379,6 +9490,7 @@ async function ensureYouTubePlayer(videoId) {
             startPausedDriftWatch();
             syncVolumeUi();
             showVideoControls();
+            applyCaptionsPreference();
             settleResolve();
           },
           onStateChange: (event) => {
@@ -8405,16 +9517,82 @@ async function ensureYouTubePlayer(videoId) {
                   paintSeekUi(hold);
                 }
                 try { event.target?.pauseVideo?.(); } catch { /* already paused */ }
+                if ($('videoFrame')?.classList.contains('yt-started')) maskYouTubeEdges();
+                else holdYouTubeChrome();
+                stopYouTubeAdvanceWatch();
                 return;
               }
+            }
+            if (event.data === 2 && state.wantPlaying && state.pendingSeek && performance.now() - state.pendingSeek.issuedAt < 1600) {
+              // A seek while playback is running reports PAUSED for a
+              // moment. That is not the reader pausing. Treating it as one
+              // made the following PLAYING event stop the shiur, so Vaater
+              // and a scrub looked like they never moved the clock.
+              // Keep the edge mask over the chrome that flash shows, and
+              // don't lift it until playback is actually running again.
+              maskYouTubeEdges();
+              clearTimeout(ytRevealTimer);
+              ytRevealTimer = null;
+              updatePlayUi();
+              return;
+            }
+            if (event.data === 1 && !state.wantPlaying) {
+              // A pause puts the clock back with seekTo, and a paused-frame
+              // repaint calls playVideo. Both report PLAYING. Treating that
+              // as the reader pressing Play is what started the shiur again
+              // a moment after they paused it.
+              if (!suppressingUnwantedPlay) {
+                suppressingUnwantedPlay = true;
+                try { event.target?.pauseVideo?.(); } catch { /* already paused */ }
+                suppressingUnwantedPlay = false;
+              }
+              if ($('videoFrame')?.classList.contains('yt-started')) maskYouTubeEdges();
+              else holdYouTubeChrome();
+              updatePlayUi();
+              return;
             }
             if (event.data === 1) {
               state.wantPlaying = true;
               state.playRetryUsed = false;
               clearPlayWatchdog();
               flushDeferredPlaybackWork();
+              const playingFrame = $('videoFrame');
+              const firstPlay = !playingFrame?.classList.contains('yt-started')
+                || playingFrame.classList.contains('yt-hold');
+              // A resume and the first Play ask YouTube for the title row.
+              // A later PLAYING echo during a seek does not restart it;
+              // coverYouTubeSeek already did.
+              if (ytChromeHoldAfterPause || firstPlay) armYouTubeChromeHold();
+              ytChromeHoldAfterPause = false;
+              // The chips have to be up on the same turn as Play. Waiting
+              // for the reveal watch left the More videos card bare for
+              // the first frames of a resume.
+              if (playingFrame?.classList.contains('yt-started')) maskYouTubeEdges();
+              scheduleYouTubeReveal();
+            } else if (event.data === 5 || event.data === -1) {
+              if ($('videoFrame')?.classList.contains('yt-started')) maskYouTubeEdges();
+            } else if (event.data === 3) {
+              const frame = $('videoFrame');
+              // Buffering after the picture is up is the seek flash: title,
+              // share, logo, and the More videos row. Mask the edges and
+              // hold them until PLAYING. The opening poster stays up on
+              // its own and is not swapped in here.
+              if (frame?.classList.contains('yt-started') && state.wantPlaying) {
+                maskYouTubeEdges();
+                clearTimeout(ytRevealTimer);
+                ytRevealTimer = null;
+              } else if (frame?.classList.contains('yt-hold')) {
+                clearTimeout(ytRevealTimer);
+                ytRevealTimer = null;
+              }
             } else if (event.data === 2) {
               state.wantPlaying = false;
+              ytChromeHoldAfterPause = true;
+              stopYouTubeAdvanceWatch();
+              // Paused chrome comes back on the frozen frame. Cover the
+              // edges only. The frame itself stays; the poster does not.
+              if ($('videoFrame')?.classList.contains('yt-started')) maskYouTubeEdges();
+              else holdYouTubeChrome();
               clearPlayWatchdog();
               const anchor = pauseAnchor;
               pauseAnchor = null;
@@ -8443,6 +9621,10 @@ async function ensureYouTubePlayer(videoId) {
             // (buffering) or 1 (playing) is the first reliable point real
             // levels show up, not onReady (see refreshQualityOptions).
             if (event.data === 3 || event.data === 1) refreshQualityOptions();
+            // Automatic captions come back when the video starts, and again
+            // when it buffers or enters fullscreen. Re-apply the reader's
+            // saved choice (off, unless they turned them on).
+            if (event.data === 1 || event.data === 3 || event.data === 5) applyCaptionsPreference();
           },
           onPlaybackQualityChange: () => refreshQualityOptions(),
           onError: (event) => {
@@ -8458,11 +9640,16 @@ async function ensureYouTubePlayer(videoId) {
   } else {
     state.youtubePlayer.cueVideoById(videoId);
     state.youtubeState = 5;
+    cancelYouTubeCornerFade();
+    $('videoFrame')?.classList.remove('yt-started', 'yt-playing', 'yt-mask', 'yt-corner', 'yt-corner-out');
+    holdYouTubeChrome();
+    setYouTubePoster(videoId);
     flushQueuedSeek();
     showVideoControls();
   }
 
   setPlaybackRate(Number($('speedSelect').value));
+  applyCaptionsPreference();
   waitForYouTubeMetadata();
 }
 
@@ -8569,6 +9756,7 @@ function loadDirectVideoUrl(url, saveRefs = null, locked = false) {
   // Re-syncs the real rate after .load() resets it to 1 -- see the matching
   // comment in handleVideoFile above.
   setPlaybackRate(Number($('speedSelect').value));
+  applyCaptionsPreference();
   $('lectureTitle').textContent = titleFromUrl(parsed.href);
   setSourceBadge('Direct link');
   setSourcePanel('linkSourcePanel');
@@ -8795,6 +9983,7 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
     : [];
   state.alignmentDuration = Number(data.duration) || 0;
   state.dafRef = dafRefOverride || data.dafRef || state.dafRef;
+  resetVilnaFollow(state.dafRef);
   // A voice-recognition-sourced alignment's segments are the engine's own
   // rough guess (see voice_align.py) -- retaining a copy of exactly what it
   // guessed, before any admin edits touch state.segments, is what lets
@@ -9130,7 +10319,16 @@ htmlVideo.addEventListener('progress', updateScrubberFill);
 htmlVideo.addEventListener('play', updatePlayUi);
 htmlVideo.addEventListener('pause', updatePlayUi);
 htmlVideo.addEventListener('ended', updatePlayUi);
-htmlVideo.addEventListener('click', togglePlay);
+// A direct video file follows the same rule as the picture surfaces: a mouse
+// click plays or pauses, a finger tap shows or hides the controls.
+let htmlVideoPointerType = '';
+htmlVideo.addEventListener('pointerdown', (event) => { htmlVideoPointerType = event.pointerType || ''; });
+htmlVideo.addEventListener('click', () => {
+  handleVideoPictureTap({
+    pointerType: htmlVideoPointerType,
+    controlsHidden: $('videoFrame')?.classList.contains('controls-hidden'),
+  });
+});
 htmlVideo.addEventListener('error', () => {
   if (state.videoSource.type === 'direct') {
     showToast('This direct link could not be played. Use a direct MP4/WebM file URL or a YouTube link.', 'error');
@@ -9593,10 +10791,24 @@ function controlsShouldStayVisible() {
   return !!(active && active.closest?.(CONTROLS_HOVER_SELECTOR) && active.matches(':focus-visible'));
 }
 
+// A finger tap on the picture while the controls are up puts them away at
+// once, unless something is holding them open (a menu, a scrub).
+function hideVideoControls() {
+  const frame = $('videoFrame');
+  if (!frame || controlsShouldStayVisible()) return;
+  if (controlsHideTimer) clearTimeout(controlsHideTimer);
+  frame.classList.add('controls-hidden');
+  hideScrubPreview();
+  if (state.splitViewEnabled && !splitChromeShouldStayVisible()) {
+    document.body.classList.add('split-chrome-hidden');
+  }
+}
+
 function showVideoControls() {
   const frame = $('videoFrame');
   if (!frame) return;
   frame.classList.remove('controls-hidden');
+  if (state.splitViewEnabled) showSplitChrome();
   if (controlsHideTimer) clearTimeout(controlsHideTimer);
   // Re-arm rather than abandon the timer while something is holding the bar
   // open. Every one of those conditions ends without necessarily producing
@@ -9609,6 +10821,11 @@ function showVideoControls() {
     if (controlsShouldStayVisible()) { controlsHideTimer = setTimeout(tick, CONTROLS_AUTO_HIDE_MS); return; }
     frame.classList.add('controls-hidden');
     hideScrubPreview();
+    // The Split mode row covers the top of a short phone video. It leaves
+    // with the player chrome instead of staying parked on the picture.
+    if (state.splitViewEnabled && !splitChromeShouldStayVisible()) {
+      document.body.classList.add('split-chrome-hidden');
+    }
   };
   controlsHideTimer = setTimeout(tick, CONTROLS_AUTO_HIDE_MS);
 }
@@ -9643,6 +10860,7 @@ let scrubSeekTimer = 0;
 function applyScrubSeek(time, allowSeekAhead) {
   armPendingSeek(time);
   if (state.playerType === 'youtube') {
+    coverYouTubeSeek();
     if (state.youtubeReady && state.youtubePlayer?.seekTo) seekYouTubePlayer(time, allowSeekAhead);
     else state.queuedSeek = { time, allowSeekAhead };
   } else if (htmlVideo.readyState >= 1) {
@@ -9674,15 +10892,56 @@ for (const el of scrubberEls) {
 // starts on the thumb never hits the range and never seeks. A captured
 // pointer drag seeks from the finger's x for touch and pen. Mouse keeps
 // the native range behavior.
+// The native range centres its thumb between thumb/2 and width - thumb/2,
+// and mouse input uses that mapping. Touch uses the same one, and the red
+// fill in styles.css ends at the same point, so the place pressed is where
+// the thumb lands and where the played portion ends, on every input.
+function scrubThumbPx(el) {
+  const value = parseFloat(getComputedStyle(el).getPropertyValue('--scrub-thumb'));
+  return Number.isFinite(value) ? value : 15;
+}
 function scrubTimeFromClientX(el, clientX) {
   const rect = el.getBoundingClientRect();
-  const span = Math.max(1, rect.width);
-  const fraction = Math.min(1, Math.max(0, (clientX - rect.left) / span));
+  const inset = Math.min(rect.width / 4, scrubThumbPx(el) / 2);
+  const span = Math.max(1, rect.width - inset * 2);
+  const fraction = Math.min(1, Math.max(0, (clientX - rect.left - inset) / span));
   const min = Number(el.min) || 0;
   const max = Number(el.max) || 0;
   const step = Number(el.step) > 0 ? Number(el.step) : 0.01;
   const stepped = Math.round((min + (max - min) * fraction) / step) * step;
   return Math.min(max, Math.max(min, stepped));
+}
+// The track thickens and the thumb grows while a drag is in progress, the
+// way YouTube's does, for mouse and touch alike.
+for (const el of scrubberEls) {
+  el.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    el.classList.add('is-scrubbing');
+    const done = (ev) => {
+      if (ev.pointerId !== event.pointerId) return;
+      el.classList.remove('is-scrubbing');
+      document.removeEventListener('pointerup', done, true);
+      document.removeEventListener('pointercancel', done, true);
+    };
+    document.addEventListener('pointerup', done, true);
+    document.addEventListener('pointercancel', done, true);
+  });
+  // Arrow keys on a native range move one `step` (0.01s here), which did
+  // nothing a reader could see. Seek in steps a listener can use instead.
+  el.addEventListener('keydown', (event) => {
+    const steps = { ArrowRight: 5, ArrowUp: 5, ArrowLeft: -5, ArrowDown: -5, PageUp: 10, PageDown: -10 };
+    const max = Number(el.max) || 0;
+    let time;
+    if (event.key in steps) time = (Number(el.value) || 0) + steps[event.key] * (event.shiftKey ? 2 : 1);
+    else if (event.key === 'Home') time = 0;
+    else if (event.key === 'End') time = Math.max(0, max - 1);
+    else return;
+    event.preventDefault();
+    showVideoControls();
+    el.value = String(Math.min(max, Math.max(0, time)));
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
 }
 for (const el of scrubberEls) {
   el.addEventListener('pointerdown', (event) => {
@@ -9734,6 +10993,7 @@ function switchDafView(mode) {
   dafPage.hidden = mode !== 'text';
   const vilnaPlaceholder = $('vilnaPlaceholder');
   if (vilnaPlaceholder) vilnaPlaceholder.hidden = mode !== 'page';
+  if (document.body.classList.contains('split-tools-open')) mountPhoneSplitOverlay();
   const scanPlaceholder = $('scanPlaceholder');
   if (scanPlaceholder) scanPlaceholder.hidden = mode !== 'scan';
   if (mode === 'page') renderVilnaPage();

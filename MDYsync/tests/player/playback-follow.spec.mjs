@@ -9,8 +9,16 @@ import { preparePage } from '../support/harness.mjs';
 const LIVE = 'https://dafsync.netlify.app/api/get-results-file?path=';
 const FILES = [
   'by-ref/Bekhorot-34a.json',
+  'by-ref/Bekhorot-44a.json',
+  'by-ref/Chazarah-Daf-Bekhorot-44a.json',
+  'by-ref/Bekhorot-30a.json',
+  'by-ref/Bekhorot-31a.json',
   'by-ref/Chazarah-Daf-Bekhorot-30a.json',
   'video-links/Bekhorot-34a.json',
+  'video-links/Bekhorot-44a.json',
+  'video-links/Chazarah-Daf-Bekhorot-44a.json',
+  'video-links/Bekhorot-30a.json',
+  'video-links/Bekhorot-31a.json',
   'video-links/Chazarah-Daf-Bekhorot-30a.json',
 ];
 const SHOTS = '/opt/cursor/artifacts/player-follow';
@@ -118,6 +126,7 @@ test.describe('live alignments follow taps, the intro, and gaps', () => {
       chipHidden: document.getElementById('skipToDafChip')?.hidden,
       own: ownContentStartTime(),
       disablekb: window.__playerVars?.disablekb,
+      modestbranding: window.__playerVars?.modestbranding,
     }));
     expect(intro.active).toBe(-1);
     expect(intro.ref).toBe('Intro');
@@ -127,6 +136,7 @@ test.describe('live alignments follow taps, the intro, and gaps', () => {
     expect(intro.own).toBeGreaterThan(140);
     expect(intro.own).toBeLessThan(170);
     expect(intro.disablekb).toBe(1);
+    expect(intro.modestbranding).toBe(1);
     await shot(page, 'bekhorot-30-chazarah-intro');
 
     const reviewing = await page.evaluate(() => {
@@ -194,12 +204,16 @@ test.describe('live alignments follow taps, the intro, and gaps', () => {
     const gap = await page.evaluate(() => {
       // A phrase can share its start with a longer neighbor, so "3s after
       // this phrase's end" is only a gap when no other phrase still covers it.
+      // Gaps before the requested amud itself are the review span and stay
+      // on "Reviewing …", not "Between phrases".
+      const own = ownContentStartTime();
       const segments = state.segments;
       for (let i = 0; i < segments.length; i += 1) {
         const end = Number(segments[i].end);
         if (!Number.isFinite(end)) continue;
         const time = end + 3.5;
         if (time <= segments[0].start || findSegmentAt(time) !== -1) continue;
+        if (own != null && time < own) continue;
         state.pendingSeek = null;
         state.phrasePin = null;
         updateActiveSegment(true, time);
@@ -266,12 +280,14 @@ test.describe('live alignments follow taps, the intro, and gaps', () => {
     expect(lead.chip).toBe(false);
 
     const gap = await page.evaluate(() => {
+      const own = ownContentStartTime();
       const segments = state.segments;
       for (let i = 0; i < segments.length; i += 1) {
         const end = Number(segments[i].end);
         if (!Number.isFinite(end)) continue;
         const time = end + 3.5;
         if (time <= segments[0].start || findSegmentAt(time) !== -1) continue;
+        if (own != null && time < own) continue;
         state.pendingSeek = null;
         state.phrasePin = null;
         updateActiveSegment(true, time);
@@ -282,6 +298,152 @@ test.describe('live alignments follow taps, the intro, and gaps', () => {
     expect(gap).toBe(-1);
     await shot(page, 'bekhorot-34a-gap');
   });
+});
+
+test.describe('the daf page does not chase every phrase and gap', () => {
+  // Bekhorot 44a reviews 43b in short phrases separated by 1–7s gaps, and
+  // estimated fillers jump to 44b and back. Following the active phrase
+  // turned the Vilna page on every one of those (about 80 times). The same
+  // shape is in the Chazarah recording and in 30a/31a.
+  const CASES = [
+    ['/player/?ref=Bekhorot+44a', 'Bekhorot 44a'],
+    ['/player/?ref=Bekhorot+44a&variant=chazarah', 'Bekhorot 44a Chazarah'],
+    ['/player/?ref=Bekhorot+30a', 'Bekhorot 30a'],
+    ['/player/?ref=Bekhorot+31a', 'Bekhorot 31a'],
+  ];
+
+  for (const [url, label] of CASES) {
+    test(`${label}: gaps and one-off phrases do not turn the page`, async ({ page }) => {
+      test.setTimeout(90000);
+      await openLiveDaf(page, url);
+      const counts = await page.evaluate(() => {
+        resetVilnaFollow(state.dafRef);
+        const loaded = vilnaKeyFromRef(state.dafRef);
+        let raw = 0;
+        let follow = 0;
+        let prevRaw = null;
+        let prevFollow = null;
+        const end = Number(state.segments.at(-1)?.end) || 0;
+        for (let t = 0; t <= end; t += 1) {
+          const index = findSegmentAt(t);
+          const ref = index >= 0 ? state.segments[index].ref : state.dafRef;
+          const rawKey = vilnaKeyFromRef(ref) || loaded;
+          if (prevRaw && rawKey !== prevRaw) raw += 1;
+          prevRaw = rawKey;
+          state.pendingSeek = null;
+          state.phrasePin = null;
+          updateActiveSegment(false, t);
+          const followKey = currentVilnaPageKey().key;
+          if (prevFollow && followKey !== prevFollow) follow += 1;
+          prevFollow = followKey;
+        }
+        // A real phrase, then one second into the silence after it.
+        let held = null;
+        for (let i = 0; i < state.segments.length; i += 1) {
+          const segment = state.segments[i];
+          if (segment.estimated) continue;
+          const end = Number(segment.end);
+          if (!Number.isFinite(end)) continue;
+          // Idle starts 3s after the phrase. The hold lasts until end+4s, so
+          // this is the short "Between phrases" flash the status used to show.
+          const gapAt = end + 3.2;
+          if (findSegmentAt(segment.start + 0.15) !== i) continue;
+          if (findSegmentAt(gapAt) !== -1) continue;
+          state.pendingSeek = null;
+          state.phrasePin = null;
+          updateActiveSegment(false, segment.start + 0.15);
+          const during = document.getElementById('currentRef').textContent;
+          const pageDuring = currentVilnaPageKey().key;
+          updateActiveSegment(false, gapAt);
+          held = {
+            during,
+            gap: document.getElementById('currentRef').textContent,
+            pageSame: currentVilnaPageKey().key === pageDuring,
+          };
+          break;
+        }
+        // A long gap inside the review span (past the 4s status hold) must
+        // keep "Reviewing …" until the requested amud actually starts.
+        let reviewGap = null;
+        const own = ownContentStartTime();
+        if (own > 1) {
+          for (let i = 0; i < state.segments.length; i += 1) {
+            const segment = state.segments[i];
+            if (segment.estimated) continue;
+            const key = segmentDafKey(segment.ref);
+            if (!key || key === loaded) continue;
+            const gapAt = Number(segment.end) + 6.5;
+            if (!(gapAt < own - 0.2) || findSegmentAt(gapAt) !== -1) continue;
+            state.pendingSeek = null;
+            state.phrasePin = null;
+            updateActiveSegment(false, segment.start + 0.2);
+            const during = document.getElementById('currentRef').textContent;
+            updateActiveSegment(false, gapAt);
+            const labelEl = document.getElementById('reviewingLabel');
+            reviewGap = {
+              during,
+              gap: document.getElementById('currentRef').textContent,
+              label: labelEl?.textContent || '',
+              hidden: Boolean(labelEl?.hidden),
+            };
+            break;
+          }
+        }
+        return { raw, follow, held, loaded, reviewGap };
+      });
+      expect(counts.raw, `${label} raw amud changes`).toBeGreaterThan(8);
+      expect(counts.follow, `${label} page turns ${counts.follow} vs raw ${counts.raw}`).toBeLessThan(counts.raw / 3);
+      expect(counts.follow).toBeLessThan(12);
+      expect(counts.held, `${label} has a short gap`).toBeTruthy();
+      expect(counts.held.gap).toBe(counts.held.during);
+      expect(counts.held.gap).not.toBe('Between phrases');
+      expect(counts.held.pageSame).toBe(true);
+      if (label.includes('44a')) {
+        expect(counts.reviewGap, `${label} review span`).toBeTruthy();
+      }
+      if (counts.reviewGap) {
+        expect(counts.reviewGap.during).toContain('Reviewing');
+        expect(counts.reviewGap.gap).toBe(counts.reviewGap.during);
+        expect(counts.reviewGap.label).toContain('Reviewing');
+        expect(counts.reviewGap.hidden).toBe(false);
+      }
+      if (label.includes('44a') && label.includes('Chazarah')) {
+        const stolen = await page.evaluate(() => {
+          const bad = [];
+          for (const t of [88, 90, 96]) {
+            const index = findSegmentAt(t);
+            const active = state.segments[index];
+            const covering = state.segments.find((segment) => segment
+              && !segment.estimated
+              && Number(segment.start) <= t + 0.001
+              && t < Number(segment.end));
+            if (!covering) continue;
+            if (!active || active.estimated || !segmentStrictlyCovers(active, t)) {
+              bad.push({
+                t,
+                active: active ? `${active.ref} w${active.w0}-${active.w1}${active.estimated ? ' est' : ''}` : 'none',
+                covering: `${covering.ref} w${covering.w0}-${covering.w1}`,
+              });
+            }
+          }
+          return bad;
+        });
+        expect(stolen, 'estimated or later blips stole a real phrase').toEqual([]);
+      }
+      if (label.includes('44a') && label.includes('Chazarah') && counts.reviewGap) {
+        await page.evaluate(() => {
+          const own = ownContentStartTime();
+          updateActiveSegment(true, Math.max(0, own - 8));
+        });
+        await shot(page, 'review-span-held');
+        if (test.info().project.name === 'mobile') {
+          await page.setViewportSize({ width: 412, height: 915 });
+          await page.locator('#reviewingLabel').scrollIntoViewIfNeeded();
+          await page.screenshot({ path: '/opt/cursor/artifacts/mobile-layout/review-span-held.png' });
+        }
+      }
+    });
+  }
 });
 
 test.describe('player labels, keys, and the wake layer', () => {

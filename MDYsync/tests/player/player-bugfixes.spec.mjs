@@ -52,6 +52,7 @@ window.YT.Player = function (id, options) {
     getVideoData() { return { video_id: 'stubvid0001' }; },
     addEventListener() {},
     destroy() {},
+    _events: options.events,
   };
   window.__yt = self;
   setTimeout(() => options.events.onReady({ target: self }), 0);
@@ -188,6 +189,189 @@ test.describe('player bugfixes on live Bekhorot', () => {
     expect(Number(immediate.active)).toBeCloseTo(immediate.target, 1);
   });
 
+  test('Vaater while playing at 1.5× seeks forward and a pause blip does not undo it', async ({ page }) => {
+    test.setTimeout(60000);
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    const result = await page.evaluate(() => {
+      const real = state.segments.findIndex((segment) => !segment.estimated && segment.end - segment.start > 1);
+      const start = state.segments[real].start + 0.2;
+      window.__yt._time = start;
+      window.__yt._state = 1;
+      window.__yt._plays = 0;
+      window.__yt._pauses = 0;
+      state.youtubeState = 1;
+      state.wantPlaying = true;
+      state.playerType = 'youtube';
+      state.pendingSeek = null;
+      state.phrasePin = null;
+      document.getElementById('speedSelect').value = '1.5';
+      setPlaybackRate(1.5);
+      updateActiveSegment(true, start);
+      updateVaaterButtonUi(start);
+      const asked = [];
+      window.__yt.seekTo = (time) => { asked.push(Number(time)); };
+      window.__yt.playVideo = () => { window.__yt._plays += 1; };
+      window.__yt.pauseVideo = () => { window.__yt._pauses += 1; window.__yt._state = 2; };
+      const before = getCurrentTime();
+      const target = nextReadingTime(before);
+      const button = document.getElementById('vaaterButton');
+      button.click();
+      // YouTube reports PAUSED then PLAYING while a seek buffers. The clock
+      // is still the pre-seek time until the player catches up.
+      window.__yt._events.onStateChange({ data: 2, target: window.__yt });
+      window.__yt._events.onStateChange({ data: 1, target: window.__yt });
+      return {
+        before,
+        target,
+        after: getCurrentTime(),
+        asked,
+        plays: window.__yt._plays,
+        pauses: window.__yt._pauses,
+        wantPlaying: state.wantPlaying,
+        enabled: !button.disabled && !button.hidden,
+        rate: document.getElementById('speedSelect').value,
+      };
+    });
+    expect(result.enabled).toBe(true);
+    expect(result.rate).toBe('1.5');
+    expect(result.target).not.toBeNull();
+    expect(result.target).toBeGreaterThan(result.before + 0.4);
+    expect(result.asked[0]).toBeCloseTo(result.target, 1);
+    expect(result.after).toBeCloseTo(result.target, 1);
+    expect(result.plays).toBeGreaterThan(0);
+    expect(result.pauses).toBe(0);
+    expect(result.wantPlaying).toBe(true);
+  });
+
+  test('a rapid second Vaater press chains from the end of the phrase already targeted', async ({ page }) => {
+    test.setTimeout(60000);
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    const result = await page.evaluate(() => {
+      state.segments = [
+        { ref: 'Bekhorot 44a:1', start: 589, end: 594, estimated: false, he: 'one', w0: 0, w1: 2 },
+        { ref: 'Bekhorot 44a:2', start: 594, end: 600, estimated: false, he: 'two', w0: 0, w1: 3 },
+        { ref: 'Bekhorot 44a:3', start: 600.2, end: 606, estimated: false, he: 'three', w0: 0, w1: 3 },
+      ];
+      state.activeIndex = 0;
+      state.phrasePin = null;
+      state.pendingSeek = null;
+      state.vaaterChain = null;
+      state.youtubeState = 1;
+      state.wantPlaying = true;
+      state.playerType = 'youtube';
+      window.__yt._time = 590;
+      window.__yt._state = 1;
+      const asked = [];
+      window.__yt.seekTo = (time) => { asked.push(Number(time)); };
+      window.__yt.playVideo = () => {};
+      window.__yt.pauseVideo = () => {};
+      window.__yt.getCurrentTime = () => window.__yt._time;
+      const button = document.getElementById('vaaterButton');
+      button.click();
+      // The player reports the landing time, the pending clock is dropped,
+      // then the readout snaps back to where the press started.
+      state.pendingSeek = null;
+      window.__yt._time = 590;
+      button.click();
+      return {
+        first: asked[0],
+        second: asked[1],
+        chainEnd: state.vaaterChain && state.vaaterChain.phraseEnd,
+      };
+    });
+    expect(result.first).toBeCloseTo(594, 1);
+    expect(result.second).toBeGreaterThan(599);
+    expect(result.chainEnd).toBeGreaterThan(result.second);
+  });
+
+  test('a second Vaater press while the first jump is still loading seeks further', async ({ page }) => {
+    test.setTimeout(60000);
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    const result = await page.evaluate(() => {
+      const real = state.segments.findIndex((segment) => !segment.estimated && segment.end - segment.start > 1);
+      const start = state.segments[real].start + 0.2;
+      window.__yt._time = start;
+      window.__yt._state = 1;
+      window.__yt._plays = 0;
+      window.__yt._pauses = 0;
+      state.youtubeState = 1;
+      state.wantPlaying = true;
+      state.playerType = 'youtube';
+      state.pendingSeek = null;
+      state.phrasePin = null;
+      document.getElementById('speedSelect').value = '1.5';
+      setPlaybackRate(1.5);
+      updateActiveSegment(true, start);
+      const asked = [];
+      window.__yt.seekTo = (time) => { asked.push(Number(time)); };
+      window.__yt.playVideo = () => { window.__yt._plays += 1; };
+      window.__yt.pauseVideo = () => { window.__yt._pauses += 1; };
+      window.__yt.getPlayerState = () => window.__yt._state;
+      const button = document.getElementById('vaaterButton');
+      button.click();
+      // The player reports the first target while it is still buffering,
+      // then the clock snaps back. A second press has to leave that target.
+      const first = asked[0];
+      window.__yt._time = first;
+      window.__yt._state = 3;
+      state.youtubeState = 3;
+      getCurrentTime();
+      window.__yt._time = start;
+      updateActiveSegment();
+      button.click();
+      return {
+        first,
+        second: asked[1],
+        asked: asked.length,
+        pauses: window.__yt._pauses,
+        wantPlaying: state.wantPlaying,
+        plays: window.__yt._plays,
+      };
+    });
+    expect(result.first).toBeGreaterThan(0);
+    expect(result.asked).toBeGreaterThanOrEqual(2);
+    expect(result.second).toBeGreaterThan(result.first + 0.4);
+    expect(result.pauses).toBe(0);
+    expect(result.wantPlaying).toBe(true);
+    expect(result.plays).toBeGreaterThan(0);
+  });
+
+  test('Vaater from a gap lands on the next real phrase, then the one after it', async ({ page }) => {
+    test.setTimeout(60000);
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    const result = await page.evaluate(() => {
+      // Bekhorot 44a around 2:14: the previous real phrase has ended, a
+      // zero-length row and an estimated blip share the next timestamp
+      // with the real phrase at 2:16, and the phrase after that is 2:24.
+      state.segments = [
+        { ref: 'Bekhorot 43b:14', start: 127.67, end: 129.67, estimated: false, w0: 9, w1: 21, he: 'a' },
+        { ref: 'Bekhorot 43b:14', start: 130.67, end: 130.67, estimated: false, w0: 12, w1: 23, he: 'b' },
+        { ref: 'Bekhorot 43b:14', start: 136, end: 136.02, estimated: true, w0: 24, w1: 25, he: 'c' },
+        { ref: 'Bekhorot 43b:14', start: 136, end: 143.67, estimated: false, w0: 26, w1: 33, he: 'd' },
+        { ref: 'Bekhorot 43b:14', start: 144, end: 150.67, estimated: false, w0: 31, w1: 32, he: 'e' },
+      ];
+      state.activeIndex = 0;
+      state.pendingSeek = null;
+      state.phrasePin = null;
+      state.youtubeState = 1;
+      state.wantPlaying = true;
+      window.__yt._time = 134;
+      window.__yt._state = 1;
+      const asked = [];
+      window.__yt.seekTo = (time) => { asked.push(Number(time)); };
+      window.__yt.playVideo = () => {};
+      window.__yt.pauseVideo = () => {};
+      const first = nextReadingTime(134);
+      document.getElementById('vaaterButton').click();
+      document.getElementById('vaaterButton').click();
+      return { first, asked };
+    });
+    expect(result.first).toBeCloseTo(136, 1);
+    expect(result.asked[0]).toBeCloseTo(136, 1);
+    expect(result.asked[1]).toBeCloseTo(144, 1);
+    expect(result.asked[1]).toBeGreaterThan(result.asked[0] + 5);
+  });
+
   test('Bekhorot 31a intro does not highlight the packed 30b phrases', async ({ page }) => {
     test.setTimeout(60000);
     await openLive(page, '/player/?ref=Bekhorot+31a&variant=chazarah');
@@ -214,6 +398,81 @@ test.describe('player bugfixes on live Bekhorot', () => {
     expect(intro.activeCount).toBe(0);
     expect(intro.boxCount).toBe(0);
     await shot(page, 'intro-31a');
+  });
+
+  // On a touchscreen only the big centre button plays or pauses. While the
+  // video plays, a centre pause button comes and goes with the controls; a
+  // finger tap anywhere else on the picture only shows or hides them. A
+  // mouse click anywhere still plays or pauses, as on YouTube's desktop
+  // player, so the desktop never shows the centre pause button.
+  test('a finger tap on the picture only shows or hides the controls; the centre button pauses', async ({ page }) => {
+    test.setTimeout(60000);
+    const phone = test.info().project.name === 'mobile';
+    await openLive(page, '/player/?ref=Bekhorot+20a');
+    await page.evaluate(() => {
+      window.__plays = 0;
+      window.__pauses = 0;
+      const player = window.__yt;
+      player.playVideo = () => { window.__plays += 1; player._state = 1; };
+      player.pauseVideo = () => { window.__pauses += 1; player._state = 2; };
+      player._state = 1;
+      state.wantPlaying = false;
+      state.youtubeReady = true;
+      updatePlayUi();
+      showVideoControls();
+    });
+    const pause = page.locator('#largePause');
+    if (!phone) {
+      await expect(pause).toBeHidden();
+      return;
+    }
+    await expect(pause).toBeVisible();
+    await expect(page.locator('#largePlay')).toBeHidden();
+
+    // A finger tap on the picture away from the centre: no pause, and the
+    // controls (and the centre button with them) go away.
+    const tapAt = (selector, x, y) => page.evaluate(async ([selector, fx, fy]) => {
+      const el = document.querySelector(selector);
+      const r = el.getBoundingClientRect();
+      const px = r.left + r.width * fx;
+      const py = r.top + r.height * fy;
+      el.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 7, pointerType: 'touch', clientX: px, clientY: py, bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      el.dispatchEvent(new PointerEvent('pointerup', { pointerId: 7, pointerType: 'touch', clientX: px, clientY: py, bubbles: true }));
+      el.dispatchEvent(new MouseEvent('click', { clientX: px, clientY: py, bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    }, [selector, x, y]);
+    await tapAt('.video-click-surface', 0.2, 0.3);
+    expect(await page.evaluate(() => window.__pauses + window.__plays)).toBe(0);
+    await expect(page.locator('#videoFrame')).toHaveClass(/controls-hidden/);
+    await expect(pause).toBeHidden();
+
+    // The next tap brings them back, still without pausing.
+    await tapAt('.player-wake-layer', 0.2, 0.3);
+    expect(await page.evaluate(() => window.__pauses + window.__plays)).toBe(0);
+    await expect(page.locator('#videoFrame')).not.toHaveClass(/controls-hidden/);
+    await expect(pause).toBeVisible();
+
+    // The centre button pauses, and the centre then offers play.
+    await pause.tap();
+    expect(await page.evaluate(() => window.__pauses)).toBe(1);
+    await page.evaluate(() => updatePlayUi());
+    await expect(page.locator('#largePlay')).toBeVisible();
+    await expect(pause).toBeHidden();
+  });
+
+  test('a mouse click anywhere on the picture plays or pauses, as on YouTube desktop', async ({ page }) => {
+    test.setTimeout(60000);
+    await openLive(page, '/player/?ref=Bekhorot+20a');
+    await page.evaluate(() => {
+      window.__toggles = 0;
+      window.togglePlay = () => { window.__toggles += 1; };
+      showVideoControls();
+    });
+    const surface = page.locator('.video-click-surface');
+    await surface.dispatchEvent('pointerdown', { pointerType: 'mouse' });
+    await surface.dispatchEvent('click');
+    expect(await page.evaluate(() => window.__toggles)).toBe(1);
   });
 
   test('play intent shows a spinner and a second click cancels instead of re-requesting', async ({ page }) => {
