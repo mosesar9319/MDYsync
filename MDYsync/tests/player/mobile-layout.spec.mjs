@@ -1366,8 +1366,9 @@ test.describe('mobile player layout', () => {
 
   // A phone held sideways: the side-by-side pane is about as tall as the
   // screen. The picture used to fit the pane's width and leave a tall empty
-  // band above the controls; it now fills down to the timeline, sides cut.
-  test('landscape split fills the video pane down to the controls, with no empty band', async ({ page }) => {
+  // band below it; it now fills the pane's height, sides cut, under the
+  // floating controls.
+  test('landscape split fills the video pane top to bottom, with no empty band', async ({ page }) => {
     test.skip(test.info().project.name !== 'mobile', 'touch phone');
     test.setTimeout(60000);
     await page.setViewportSize({ width: 915, height: 412 });
@@ -1392,9 +1393,9 @@ test.describe('mobile player layout', () => {
     });
     const geo = await read();
     expect(geo.stacked).toBe(false);
-    // Top on the pane's top, bottom on the timeline's top: no gap.
+    // Top on the pane's top, bottom on the pane's bottom: no gap.
     expect(Math.abs(geo.host.top - geo.frame.top)).toBeLessThan(1.5);
-    expect(Math.abs(geo.host.bottom - geo.timeline.top)).toBeLessThan(1.5);
+    expect(Math.abs(geo.host.bottom - geo.frame.bottom)).toBeLessThan(1.5);
     expect(geo.host.height).toBeGreaterThan(geo.frame.width * 9 / 16 + 20);
     // 16:9, centered, both sides cut by the same amount.
     expect(Math.abs(geo.host.width / geo.host.height - 16 / 9)).toBeLessThan(0.02);
@@ -1408,7 +1409,7 @@ test.describe('mobile player layout', () => {
     await shot(page, 'landscape-split-filled');
 
     // Divider dragged right: a wider pane cuts less. Past the picture's own
-    // width the whole picture shows, centered, still down to the timeline.
+    // width the whole picture shows, centered, still full height.
     const divider = await page.locator('#splitDivider').boundingBox();
     const y = divider.y + divider.height / 2;
     await page.mouse.move(divider.x + 4, y);
@@ -1417,12 +1418,87 @@ test.describe('mobile player layout', () => {
     await page.mouse.up();
     const wide = await read();
     expect(wide.frame.width).toBeGreaterThan(geo.frame.width);
-    expect(Math.abs(wide.host.bottom - wide.timeline.top)).toBeLessThan(1.5);
+    expect(Math.abs(wide.host.bottom - wide.frame.bottom)).toBeLessThan(1.5);
     expect(Math.abs(wide.host.width / wide.host.height - 16 / 9)).toBeLessThan(0.02);
     const cutBefore = geo.host.width - geo.frame.width;
     const cutAfter = Math.max(0, wide.host.width - wide.frame.width);
     expect(cutAfter).toBeLessThan(cutBefore);
     await shot(page, 'landscape-split-filled-wide');
+  });
+
+  // Pinch goes all the way out to the whole frame and in to 5x, in both
+  // layouts. Side by side the picture starts cut at the sides, so pinching
+  // out is how the whole frame comes back; one finger can slide it across.
+  test('split pinch zooms out to the whole frame and in to 5x, in both layouts', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'touch phone');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 915, height: 412 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeSplitButton');
+    const measure = () => page.evaluate(() => {
+      const frameEl = document.getElementById('videoFrame');
+      frameEl.classList.add('youtube-active');
+      const host = document.getElementById('youtubePlayerHost');
+      host.hidden = false;
+      const f = frameEl.getBoundingClientRect();
+      const h = host.getBoundingClientRect();
+      return { zoom: state.splitVideoZoom, frameW: f.width, frameLeft: f.left, frameRight: f.right, hostW: h.width, hostLeft: h.left, hostRight: h.right, hostTop: h.top, hostBottom: h.bottom, frameTop: f.top, frameBottom: f.bottom };
+    });
+    await measure();
+    // Side by side: starts side-cut, so pinching out goes below 1x and stops
+    // exactly where the whole picture fits the pane's width.
+    await page.evaluate(() => setSplitVideoZoom(0.05));
+    await page.waitForTimeout(300); // the zoom eases in over 0.12s
+    const out = await measure();
+    expect(out.zoom).toBeLessThan(0.95);
+    expect(Math.abs(out.hostW - out.frameW)).toBeLessThan(2);
+    expect(out.hostLeft).toBeGreaterThanOrEqual(out.frameLeft - 1);
+    expect(out.hostRight).toBeLessThanOrEqual(out.frameRight + 1);
+    expect(await page.locator('#splitVideoFitButton').isVisible()).toBe(true);
+    await page.evaluate(() => setSplitVideoZoom(50));
+    expect((await measure()).zoom).toBe(5);
+    // Back to the start; at 1x one finger can slide the cut picture across,
+    // but never past its own edge.
+    await page.evaluate(() => resetSplitVideoZoom({ announce: false }));
+    await page.evaluate(() => setSplitVideoZoom(1, { panX: 5000, panY: 0, announce: false }));
+    await page.waitForTimeout(300);
+    const slid = await measure();
+    expect(Math.abs(slid.hostLeft - slid.frameLeft)).toBeLessThan(1.5);
+    await page.evaluate(() => resetSplitVideoZoom({ announce: false }));
+
+    // Stacked (portrait): the default already shows the whole picture, so
+    // it cannot go below 1x there; it still zooms in to 5x.
+    await page.setViewportSize({ width: 412, height: 915 });
+    await expect.poll(() => page.evaluate(() => document.body.classList.contains('split-layout-stacked'))).toBe(true);
+    await page.evaluate(() => setSplitVideoZoom(0.05));
+    expect((await measure()).zoom).toBeGreaterThan(0.97);
+    await page.evaluate(() => setSplitVideoZoom(50));
+    expect((await measure()).zoom).toBe(5);
+  });
+
+  test('side by side the controls float over a full-height picture', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'touch phone');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 915, height: 412 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeSplitButton');
+    const geo = await page.evaluate(() => {
+      const frameEl = document.getElementById('videoFrame');
+      frameEl.classList.add('youtube-active');
+      frameEl.classList.remove('controls-hidden');
+      const host = document.getElementById('youtubePlayerHost');
+      host.hidden = false;
+      const f = frameEl.getBoundingClientRect();
+      const h = host.getBoundingClientRect();
+      const bar = frameEl.querySelector('.player-controls');
+      const b = bar.getBoundingClientRect();
+      return { frameTop: f.top, frameBottom: f.bottom, hostTop: h.top, hostBottom: h.bottom, barTop: b.top, barBg: getComputedStyle(bar).backgroundColor };
+    });
+    expect(Math.abs(geo.hostTop - geo.frameTop)).toBeLessThan(1.5);
+    expect(Math.abs(geo.hostBottom - geo.frameBottom)).toBeLessThan(1.5);
+    expect(geo.barTop).toBeLessThan(geo.hostBottom);
+    expect(geo.barBg).toBe('rgba(0, 0, 0, 0)');
+    await shot(page, 'landscape-split-floating-controls');
   });
 
   test('each view mode shows its name under its icon, on one row', async ({ page }) => {

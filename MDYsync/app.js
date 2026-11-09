@@ -6199,8 +6199,7 @@ function setReadingMode(enabled) {
 const SPLIT_VIEW_PREFS_KEY = 'dafsync-immersive-split-v1';
 const SPLIT_VIEW_MIN_RATIO = 0.22;
 const SPLIT_VIEW_MAX_RATIO = 0.78;
-const SPLIT_VIDEO_MIN_ZOOM = 1;
-const SPLIT_VIDEO_MAX_ZOOM = 3;
+const SPLIT_VIDEO_MAX_ZOOM = 5;
 const VIEWER_MODES = ['standard', 'daf-on-video', 'video-on-daf', 'split'];
 let splitDividerDrag = null;
 let splitVideoZoomIndicatorTimer = null;
@@ -6700,14 +6699,39 @@ function applySplitVideoTransform() {
   frame.style.setProperty('--split-video-zoom', String(state.splitVideoZoom));
   frame.style.setProperty('--split-video-pan-x', `${state.splitVideoPanX}px`);
   frame.style.setProperty('--split-video-pan-y', `${state.splitVideoPanY}px`);
-  const zoomed = state.splitVideoZoom > 1.001;
+  const zoomed = splitVideoTransformed();
   frame.classList.toggle('split-video-zoomed', zoomed);
   const fit = ensureSplitVideoFitButton();
   if (fit) fit.hidden = !(zoomed && state.splitViewEnabled);
 }
-// Pinch zoom crops the picture on purpose. While it is zoomed, a visible
-// button says so and puts the whole frame back in one tap -- a double-tap
-// on the picture does the same, but nothing on screen told anyone that.
+function splitVideoTransformed() {
+  return Math.abs(state.splitVideoZoom - 1) > 0.001
+    || Math.abs(state.splitVideoPanX) > 0.5 || Math.abs(state.splitVideoPanY) > 0.5;
+}
+// The picture's own box (before any pinch), and the pane it shows in. The
+// picture can be larger than the pane: it fills the pane's height and has
+// its sides cut (stacked dragged down, and side by side on a phone).
+function splitVideoPictureGeometry() {
+  const frame = $('videoFrame');
+  if (!frame) return null;
+  const picture = frame.classList.contains('youtube-active') ? $('youtubePlayerHost') : $('video');
+  const frameW = frame.clientWidth;
+  const frameH = frame.clientHeight;
+  const pictureW = picture?.offsetWidth || frameW;
+  const pictureH = picture?.offsetHeight || frameH;
+  if (!(frameW > 0 && frameH > 0 && pictureW > 0 && pictureH > 0)) return null;
+  return { frameW, frameH, pictureW, pictureH };
+}
+// Pinching out goes all the way to the whole frame: the scale at which the
+// whole picture fits inside the pane. A picture that already fits stops at 1.
+function splitVideoMinZoom() {
+  const geo = splitVideoPictureGeometry();
+  if (!geo) return 1;
+  return Math.min(1, geo.frameW / geo.pictureW, geo.frameH / geo.pictureH);
+}
+// While the picture is pinched in, out or slid across, a visible button
+// says so and puts the starting picture back in one tap -- a double-tap on
+// the picture does the same, but nothing on screen told anyone that.
 function ensureSplitVideoFitButton() {
   let button = $('splitVideoFitButton');
   if (button) return button;
@@ -6718,9 +6742,9 @@ function ensureSplitVideoFitButton() {
   button.id = 'splitVideoFitButton';
   button.className = 'split-video-fit-button';
   button.hidden = true;
-  button.title = 'Show the whole picture';
-  button.setAttribute('aria-label', 'Zoom out to the full frame');
-  button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Full frame</span>';
+  button.title = 'Back to the starting picture';
+  button.setAttribute('aria-label', 'Reset the video zoom');
+  button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Reset zoom</span>';
   // The pinch surface sits under this button. Stop the press here so it
   // never becomes the start of a pan or a play/pause tap underneath.
   button.addEventListener('pointerdown', (event) => event.stopPropagation());
@@ -6739,16 +6763,25 @@ function showSplitVideoZoomIndicator() {
   clearTimeout(splitVideoZoomIndicatorTimer);
   splitVideoZoomIndicatorTimer = setTimeout(() => indicator.classList.remove('show'), 1100);
 }
+// Pan is in screen pixels (the translate comes before the scale, see
+// styles.css), as far as the picture reaches past the pane on each side --
+// so one finger can also slide a side-cut picture across at its first size.
 function clampSplitVideoPan(zoom, panX, panY) {
-  const frame = $('videoFrame');
-  if (!frame) return { x: 0, y: 0 };
-  const maxX = (frame.clientWidth * (zoom - 1)) / 2;
-  const maxY = (frame.clientHeight * (zoom - 1)) / 2;
+  const geo = splitVideoPictureGeometry();
+  if (!geo) return { x: 0, y: 0 };
+  const maxX = Math.max(0, (geo.pictureW * zoom - geo.frameW) / 2);
+  const maxY = Math.max(0, (geo.pictureH * zoom - geo.frameH) / 2);
   return { x: clampReadingValue(panX, -maxX, maxX), y: clampReadingValue(panY, -maxY, maxY) };
 }
+function splitVideoCanPan() {
+  const geo = splitVideoPictureGeometry();
+  if (!geo) return false;
+  const zoom = state.splitVideoZoom;
+  return geo.pictureW * zoom > geo.frameW + 1 || geo.pictureH * zoom > geo.frameH + 1;
+}
 function setSplitVideoZoom(zoom, { panX = state.splitVideoPanX, panY = state.splitVideoPanY, announce = true } = {}) {
-  const nextZoom = clampReadingValue(zoom, SPLIT_VIDEO_MIN_ZOOM, SPLIT_VIDEO_MAX_ZOOM);
-  const pan = nextZoom > 1 ? clampSplitVideoPan(nextZoom, panX, panY) : { x: 0, y: 0 };
+  const nextZoom = clampReadingValue(zoom, splitVideoMinZoom(), SPLIT_VIDEO_MAX_ZOOM);
+  const pan = clampSplitVideoPan(nextZoom, panX, panY);
   state.splitVideoZoom = nextZoom;
   state.splitVideoPanX = pan.x;
   state.splitVideoPanY = pan.y;
@@ -7111,7 +7144,7 @@ function announceViewerMode(mode) {
         // without a fresh pointerdown on it -- this branch only starts a NEW
         // gesture, so it must not stomp a pinch this same pointerdown already
         // continues as a pan.
-        splitVideoPinch = state.splitVideoZoom > 1.001
+        splitVideoPinch = splitVideoCanPan()
           ? { pan: true, startX: event.clientX, startY: event.clientY, startPanX: state.splitVideoPanX, startPanY: state.splitVideoPanY }
           : null;
         splitVideoTap = {
@@ -7168,7 +7201,7 @@ function announceViewerMode(mode) {
       // behavior for YouTube that plain, non-Split-View playback never had.
       if (!cancelled && !wasPinching && splitVideoTap?.pointerId === event.pointerId) {
         const now = performance.now();
-        if (state.splitVideoZoom > 1.001 && now - splitVideoLastTapAt < 320) {
+        if (splitVideoTransformed() && now - splitVideoLastTapAt < 320) {
           resetSplitVideoZoom();
           splitVideoLastTapAt = 0;
         } else {

@@ -3745,7 +3745,8 @@ body.split-view-active .watch-layout.split-active .video-frame .player-topbar::b
    actually zooms. */
 body.split-view-active .watch-layout.split-active .video-frame.split-video-zoomed #video,
 body.split-view-active .watch-layout.split-active .video-frame.split-video-zoomed #youtubePlayerHost {
-  transform: scale(var(--split-video-zoom, 1)) translate(var(--split-video-pan-x, 0px), var(--split-video-pan-y, 0px));
+  /* Translate first, so the pan is in screen pixels whatever the zoom. */
+  transform: translate(var(--split-video-pan-x, 0px), var(--split-video-pan-y, 0px)) scale(var(--split-video-zoom, 1));
   transform-origin: center center;
 }
 body.split-view-active .watch-layout.split-active .video-frame #video {
@@ -3889,16 +3890,16 @@ body.split-view-active .watch-layout.split-active .video-frame.youtube-active .y
 body.split-view-active .watch-layout.split-active .video-frame { container-type: size; container-name: yt-frame; }
 /* Phone held sideways, side by side. The pane is about half the screen wide
    and the whole screen tall, so a full-width picture left a tall empty band
-   between it and the controls. Here the picture fills the pane from its top
-   down to the top of the timeline: 16:9 at that height, centered, its sides
-   cut evenly, the caption lines on its bottom edge just above the timeline.
-   Dragging the divider right widens the pane and cuts less; a pane wider
-   than the picture shows it whole, centered. A mouse in a wide window keeps
-   the whole-picture rule above. */
+   below it. Here the picture fills the pane's whole height, as in stacked
+   Split dragged down: 16:9 at that height, centered, its sides cut evenly.
+   The controls float over its bottom and fade with the rest of the chrome.
+   Dragging the divider right widens the pane and cuts less; pinching out
+   shows the whole frame. A mouse in a wide window keeps the whole-picture
+   rule above. */
 @media (pointer: coarse) and (orientation: landscape),
        (hover: none) and (orientation: landscape) {
   body.split-view-active:not(.split-layout-stacked) .watch-layout.split-active .video-frame {
-    --split-slot-h: max(80px, calc(100cqh - var(--pc-bar-h, 68px) - var(--pc-timeline-h, 74px)));
+    --split-slot-h: 100cqh;
   }
   body.split-view-active:not(.split-layout-stacked) .watch-layout.split-active .video-frame.youtube-active #youtubePlayerHost,
   body.split-view-active:not(.split-layout-stacked) .watch-layout.split-active .video-frame.youtube-active .yt-shield {
@@ -3931,6 +3932,27 @@ body.split-view-active .watch-layout.split-active .video-frame { container-type:
     height: var(--split-slot-h);
     object-fit: cover;
     object-position: center top;
+  }
+  /* The controls float over the picture, as they do stacked: no solid bar,
+     just a light fade behind the control row. */
+  body.split-view-active:not(.split-layout-stacked) .watch-layout.split-active .video-frame .player-controls {
+    background: transparent;
+    border-top: 0;
+    backdrop-filter: none;
+  }
+  body.split-view-active:not(.split-layout-stacked) .watch-layout.split-active .video-frame .player-controls::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(var(--pc-bar-h, 68px) + var(--pc-timeline-h, 74px));
+    background: linear-gradient(to top, rgba(4,14,27,.55), rgba(4,14,27,0));
+    pointer-events: none;
+    z-index: -1;
+  }
+  body.split-view-active:not(.split-layout-stacked) .watch-layout.split-active .video-frame .scrubber-wrap {
+    background: none;
   }
 }
 /* What the mask still does in Split, and what it gives up. Measured on a

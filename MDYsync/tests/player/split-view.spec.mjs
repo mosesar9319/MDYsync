@@ -353,14 +353,14 @@ test.describe('Split View — divider and layout', () => {
 // directly -- every real entry point into them (pinch, wheel, double-tap)
 // ultimately calls the same two functions these tests drive here.
 test.describe('Split View — video zoom', () => {
-  test('setSplitVideoZoom stays clamped to 1x-3x, and resetSplitVideoZoom returns to 1x', async ({ page }) => {
+  test('setSplitVideoZoom stays clamped to 5x, and resetSplitVideoZoom returns to 1x', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
     await page.goto('/browse/?ref=Chullin%2089a');
     await enterSplitView(page);
 
-    await page.evaluate(() => { for (let i = 0; i < 10; i += 1) setSplitVideoZoom(state.splitVideoZoom + 0.25); });
-    await expect.poll(() => page.evaluate(() => state.splitVideoZoom)).toBeLessThanOrEqual(3);
+    await page.evaluate(() => { for (let i = 0; i < 30; i += 1) setSplitVideoZoom(state.splitVideoZoom + 0.25); });
+    await expect.poll(() => page.evaluate(() => state.splitVideoZoom)).toBe(5);
 
     await page.evaluate(() => resetSplitVideoZoom());
     await expect.poll(() => page.evaluate(() => state.splitVideoZoom)).toBe(1);
