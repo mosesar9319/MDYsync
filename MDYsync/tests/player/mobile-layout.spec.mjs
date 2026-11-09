@@ -170,6 +170,73 @@ function boxesOverlap(a, b) {
 }
 
 test.describe('mobile player layout', () => {
+  // As on YouTube's phone player: one tap on the picture shows the controls,
+  // the next puts them away, and neither plays or pauses. Split used to put
+  // them straight back: the imitation mouse events a browser fires after a
+  // tap counted as a real mouse arriving.
+  test('a tap on the picture shows the controls and the next tap hides them, in every layout', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'touch');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 412, height: 915 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    const hidden = () => page.evaluate(() => document.getElementById('videoFrame').classList.contains('controls-hidden'));
+    const tapPicture = async () => {
+      const box = await page.locator('#videoFrame').boundingBox();
+      await page.touchscreen.tap(box.x + box.width * 0.25, box.y + box.height * 0.35);
+      await page.waitForTimeout(500);
+    };
+    await page.evaluate(() => { window.__yt._state = 1; state.youtubeReady = true; updatePlayUi(); });
+    for (const layout of ['regular', 'split', 'split fullscreen']) {
+      if (layout === 'split') await page.click('#viewerModeSplitButton');
+      if (layout === 'split fullscreen') {
+        await page.evaluate(() => document.getElementById('splitFullscreenButton').click());
+        await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(true);
+      }
+      await page.waitForTimeout(300);
+      await page.evaluate(() => document.getElementById('videoFrame').classList.add('controls-hidden'));
+      await tapPicture();
+      expect(await hidden(), `${layout}: first tap shows`).toBe(false);
+      await tapPicture();
+      expect(await hidden(), `${layout}: second tap hides`).toBe(true);
+      await tapPicture();
+      expect(await hidden(), `${layout}: third tap shows again`).toBe(false);
+      expect(await page.evaluate(() => window.__yt._state), `${layout}: still playing`).toBe(1);
+    }
+  });
+
+  // The flash on the regular page: a tap that wakes the controls can end
+  // with its click on the picture surface underneath. That click is not a
+  // tap of its own and must not put the controls straight back away.
+  test('the click that ends a waking tap does not hide the controls it just showed', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'touch');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 412, height: 915 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.evaluate(() => { window.__yt._state = 1; state.youtubeReady = true; updatePlayUi(); });
+    // An earlier finger tap on the surface itself.
+    await page.evaluate(() => {
+      const surface = document.querySelector('.video-click-surface');
+      surface.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'touch', bubbles: true }));
+      surface.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await page.evaluate(() => document.getElementById('videoFrame').classList.add('controls-hidden'));
+    const result = await page.evaluate(async () => {
+      const frame = document.getElementById('videoFrame');
+      const wake = document.querySelector('.player-wake-layer');
+      const surface = document.querySelector('.video-click-surface');
+      const r = wake.getBoundingClientRect();
+      const x = r.left + r.width * 0.25;
+      const y = r.top + r.height * 0.35;
+      wake.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 3, pointerType: 'touch', clientX: x, clientY: y, bubbles: true }));
+      wake.dispatchEvent(new PointerEvent('pointerup', { pointerId: 3, pointerType: 'touch', clientX: x, clientY: y, bubbles: true }));
+      // The browser's click for that tap, landing on the surface below.
+      surface.dispatchEvent(new MouseEvent('click', { clientX: x, clientY: y, bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return frame.classList.contains('controls-hidden');
+    });
+    expect(result).toBe(false);
+  });
+
   test('phone control buttons stay compact and do not overlap', async ({ page }) => {
     test.skip(test.info().project.name !== 'mobile', 'measured on the touch viewport');
     test.setTimeout(60000);

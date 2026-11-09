@@ -10804,6 +10804,16 @@ function hideVideoControls() {
   }
 }
 
+// True for the mouse events a browser makes up after a touch (see the frame
+// listeners below): they arrive within a few hundred milliseconds of it.
+let lastTouchAt = -Infinity;
+for (const type of ['touchstart', 'touchend']) {
+  document.addEventListener(type, () => { lastTouchAt = performance.now(); }, { capture: true, passive: true });
+}
+function mouseEventFromTouch() {
+  return performance.now() - lastTouchAt < 800;
+}
+
 function showVideoControls() {
   const frame = $('videoFrame');
   if (!frame) return;
@@ -10833,8 +10843,11 @@ function showVideoControls() {
 (() => {
   const frame = $('videoFrame');
   if (!frame) return;
-  frame.addEventListener('mousemove', showVideoControls);
-  frame.addEventListener('mouseenter', showVideoControls);
+  // After a finger tap the browser also fires imitation mouse events
+  // (mouseenter, mousemove) at the same spot. Taken as a real mouse, they
+  // showed the controls again right after a tap had put them away.
+  frame.addEventListener('mousemove', () => { if (!mouseEventFromTouch()) showVideoControls(); });
+  frame.addEventListener('mouseenter', () => { if (!mouseEventFromTouch()) showVideoControls(); });
   frame.addEventListener('touchstart', showVideoControls, { passive: true });
   // Delegated on the frame (which is in every page's markup) rather than
   // bound to .player-controls itself, because player-chrome.js builds that
