@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { preparePage, failOnPageError } from '../support/harness.mjs';
+import { USERS } from '../fixtures/dataset.mjs';
 
 // The unified viewing-mode system: the prominent 3-button selector above the
 // player, and the new Split View mode (video and daf in separate,
@@ -1001,5 +1002,53 @@ test.describe('Split View — tapping the video does not manufacture a pause', (
     const after = await page.evaluate(() => document.getElementById('video').paused);
 
     expect(after).not.toBe(before);
+  });
+});
+
+// A link can ask for a viewing mode (?mode=); the home page's shiur links
+// carry the reader's default. The parameter leaves the address once applied.
+test.describe('Opening the player in a viewing mode', () => {
+  for (const mode of ['split', 'daf-on-video', 'video-on-daf']) {
+    test(`?mode=${mode} opens in that mode`, async ({ page }) => {
+      failOnPageError(page);
+      await preparePage(page, { user: null });
+      await page.goto(`/player/?ref=Chullin%2089a&mode=${mode}`);
+      await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe(mode);
+      expect(new URL(page.url()).searchParams.has('mode')).toBe(false);
+      expect(new URL(page.url()).searchParams.get('ref')).toBe('Chullin 89a');
+    });
+  }
+  test('Back from Split returns to the plain player, not off the page', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a&mode=split');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+    await page.goBack();
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
+    expect(new URL(page.url()).pathname).toBe('/player/');
+  });
+  test('no mode, or an unknown one, opens the regular player', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a&mode=nonsense');
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => state.viewerMode)).toBe('standard');
+  });
+});
+
+// Readers see neither the "click any phrase" line, the segment count, nor
+// the "About this shiur" card; admins keep the segment count.
+test.describe('The daf card without its bottom rows', () => {
+  test('a reader sees none of them', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await expect(page.locator('#segmentCount')).toBeHidden();
+    await expect(page.getByText('Click any phrase to jump')).toHaveCount(0);
+    await expect(page.locator('.about-card')).toHaveCount(0);
+    await expect(page.locator('#dafCard .daf-toolbar')).toBeHidden();
+  });
+  test('an admin keeps the segment count', async ({ page }) => {
+    await preparePage(page, { user: USERS.admin });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await expect(page.locator('body')).toHaveClass(/is-admin/, { timeout: 8000 });
+    await expect(page.locator('#segmentCount')).toBeVisible();
   });
 });

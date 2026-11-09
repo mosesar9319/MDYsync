@@ -532,6 +532,13 @@
         },
         signInWithOAuth() { return Promise.resolve({ data: {}, error: null }); },
         signOut() { setSession(null); return Promise.resolve({ error: null }); },
+        updateUser({ data } = {}) {
+          recordCall({ updateUser: clone(data || {}) });
+          if (!session) return Promise.resolve({ data: { user: null }, error: { message: 'not signed in' } });
+          session.user.user_metadata = { ...(session.user.user_metadata || {}), ...(data || {}) };
+          setSession(session);
+          return Promise.resolve({ data: { user: session.user }, error: null });
+        },
       },
       // Exposed for tests that need to drive an auth transition mid-page.
       __setSession: setSession,

@@ -34,9 +34,9 @@ const OTHER_SHIURIM = {
   ],
 };
 
-async function open(page, { query = '', catalog = CATALOG } = {}) {
+async function open(page, { query = '', catalog = CATALOG, ...options } = {}) {
   const errors = failOnPageError(page, []);
-  await preparePage(page);
+  await preparePage(page, options);
   await page.route('**/api/get-catalog', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(catalog) }));
   await page.route('**/api/get-results-file?*', (route) => {
     const path = new URL(route.request().url()).searchParams.get('path');
@@ -91,6 +91,28 @@ test.describe('Home page — every maggid side by side', () => {
     await cards(page).filter({ hasText: 'Stefansky' }).first().click();
     const href = await page.locator('#modal-watch-link').getAttribute('href');
     expect(new URL(href, 'http://x').searchParams.has('maggid')).toBe(false);
+  });
+});
+
+// A shiur opened from the home page starts in the reader's default viewing
+// mode: Split view, unless they chose another on their account page.
+test.describe('Home page — the viewing mode a shiur opens in', () => {
+  const modeOf = async (page) => {
+    await cards(page).filter({ hasText: 'Stefansky' }).first().click();
+    const href = await page.locator('#modal-watch-link').getAttribute('href');
+    return new URL(href, 'http://x').searchParams.get('mode');
+  };
+  test('Split view for everyone by default, signed in or not', async ({ page }) => {
+    await open(page);
+    expect(await modeOf(page)).toBe('split');
+  });
+  test('the reader\'s own choice, from their account', async ({ page }) => {
+    await open(page, { session: { user: { id: '11111111-1111-4111-8111-111111111111', email: 'r@example.com', user_metadata: { default_view_mode: 'video-on-daf' } }, access_token: 't' } });
+    expect(await modeOf(page)).toBe('video-on-daf');
+  });
+  test('the regular player carries no mode at all', async ({ page }) => {
+    await open(page, { session: { user: { id: '11111111-1111-4111-8111-111111111111', email: 'r@example.com', user_metadata: { default_view_mode: 'standard' } }, access_token: 't' } });
+    expect(await modeOf(page)).toBeNull();
   });
 });
 

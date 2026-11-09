@@ -4405,3 +4405,9 @@ body[data-page="browse"]:not(.is-admin) .setup-strip { grid-template-columns: 1f
 @media (prefers-reduced-motion: reduce) {
   .split-divider-cue.is-bouncing { animation: none; }
 }
+
+/* The daf card's bottom rows are for admins: readers see neither the segment
+   count nor a toolbar left with nothing in it for them (the Caption/Voice
+   sync switch and Auto-scroll, where a page puts it there, still show). */
+body:not(.is-admin) .daf-card .daf-footer { display: none; }
+body:not(.is-admin) .daf-card .daf-toolbar:not(:has(> :not(.admin-only):not([hidden]))) { display: none; }

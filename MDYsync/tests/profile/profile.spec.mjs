@@ -163,3 +163,25 @@ test.describe('Profile page — avatar', () => {
     await expect(page.locator('#pfAvatarDialog')).toBeHidden();
   });
 });
+
+test.describe('Profile page — the viewing mode a shiur opens in', () => {
+  test('shows Split view until the reader chooses, and saves a choice on the account', async ({ page }) => {
+    failOnPageError(page);
+    await openProfile(page, { session: sessionFor(USERS.author) });
+    await expect(page.locator('#pfProfile')).toBeVisible();
+    await expect(page.locator('#pfDefaultView')).toHaveValue('split');
+    await page.selectOption('#pfDefaultView', 'daf-on-video');
+    await expect(page.locator('#pfViewStatus')).toHaveText('Saved.');
+    const calls = await readTestCalls(page);
+    expect(calls.filter((c) => c.updateUser)).toEqual([{ updateUser: { default_view_mode: 'daf-on-video' } }]);
+    expect(await page.evaluate(() => window.DafSyncAuth.getUser().user_metadata.default_view_mode)).toBe('daf-on-video');
+  });
+
+  test('shows a choice already on the account', async ({ page }) => {
+    failOnPageError(page);
+    const session = sessionFor(USERS.author);
+    session.user.user_metadata = { default_view_mode: 'standard' };
+    await openProfile(page, { session });
+    await expect(page.locator('#pfDefaultView')).toHaveValue('standard');
+  });
+});

@@ -6934,6 +6934,18 @@ function resetSplitVideoZoom({ announce = true } = {}) {
   setSplitVideoZoom(1, { panX: 0, panY: 0, announce });
 }
 
+// ?mode=split | daf-on-video | video-on-daf: open the page in that mode. The
+// parameter is taken off the address first, so a reload or a shared link
+// opens normally, and Back from the mode returns to the plain player.
+function applyRequestedViewerMode() {
+  const url = new URL(window.location.href);
+  const mode = url.searchParams.get('mode');
+  if (!mode) return;
+  url.searchParams.delete('mode');
+  try { history.replaceState(history.state, '', url.pathname + url.search + url.hash); } catch { /* keep the address */ }
+  if (mode !== 'standard' && VIEWER_MODES.includes(mode)) setViewerMode(mode);
+}
+
 // --- The one authoritative mode switch -------------------------------------
 function setViewerMode(mode) {
   const nextMode = VIEWER_MODES.includes(mode) ? mode : 'standard';
@@ -7039,10 +7051,11 @@ function announceViewerMode(mode) {
     }
   }
   // Every page loads into 'standard' -- the same plain .watch-layout grid
-  // shown before this feature existed -- exactly as it always did. Split
-  // View (like the other two modes) is reached only by an explicit reader
-  // choice, never activated automatically on load.
+  // shown before this feature existed -- unless the link asks for a mode
+  // (?mode=, which a shiur opened from the home page carries: the reader's
+  // chosen default, Split unless they changed it).
   if (container) updateViewerModeUi();
+  if (container) setTimeout(applyRequestedViewerMode, 0);
   if (!container || !divider) return;
 
   function ratioFromPoint(clientX, clientY) {

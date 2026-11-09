@@ -14,6 +14,7 @@
       'pfPreviewAvatar', 'pfPreviewName', 'pfPreviewRole',
       'pfAvatarDialog', 'pfAvatarClose', 'pfAvatarFile', 'pfCropWrap', 'pfCropCanvas', 'pfCropZoom',
       'pfAvatarError', 'pfAvatarCancel', 'pfAvatarSave',
+      'pfDefaultView', 'pfViewStatus',
     ].forEach((id) => { els[id] = document.getElementById(id); });
   }
 
@@ -54,7 +55,31 @@
 
   let currentProfile = null;
 
+  // The viewing mode a shiur opened from the home page starts in. Kept on the
+  // account itself (its user metadata), so it follows the reader to any
+  // device; Split view until they choose.
+  const VIEW_MODES = ['split', 'standard', 'daf-on-video', 'video-on-daf'];
+  function renderDefaultView() {
+    if (!els.pfDefaultView) return;
+    const chosen = window.DafSyncAuth?.getUser?.()?.user_metadata?.default_view_mode;
+    els.pfDefaultView.value = VIEW_MODES.includes(chosen) ? chosen : 'split';
+  }
+  async function onDefaultViewChange() {
+    const value = els.pfDefaultView.value;
+    if (!VIEW_MODES.includes(value)) return;
+    els.pfViewStatus.textContent = 'Saving…';
+    try {
+      const { error } = await window.DafSyncAuth.client.auth.updateUser({ data: { default_view_mode: value } });
+      if (error) throw error;
+      els.pfViewStatus.textContent = 'Saved.';
+    } catch (error) {
+      els.pfViewStatus.textContent = 'Could not save. Please try again.';
+      renderDefaultView();
+    }
+  }
+
   function renderProfile() {
+    renderDefaultView();
     els.pfDisplayName.value = currentProfile?.display_name || '';
     renderAvatarInto(els.pfAvatarPreview, currentProfile);
     renderAvatarInto(els.pfPreviewAvatar, currentProfile);
@@ -261,6 +286,7 @@
     els.pfCropCanvas.addEventListener('pointerup', onCropPointerUp);
     els.pfCropCanvas.addEventListener('pointerleave', onCropPointerUp);
     els.pfAvatarSave.addEventListener('click', onSaveAvatar);
+    els.pfDefaultView?.addEventListener('change', onDefaultViewChange);
 
     window.DafSyncAuth?.onChange(() => loadProfile());
   }

@@ -393,9 +393,6 @@
       .daf-card { height: calc(100dvh - 150px); }
       .daf-card .daf-scroll { min-height: 0; }
     }
-    .about-card { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); padding: 18px; margin-top: 12px; }
-    .about-card h2 { color: var(--navy); font: 700 25px Georgia,"Times New Roman",serif; }
-    .about-card p { color: var(--muted); line-height: 1.7; }
     .details { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
     .detail-pill { padding: 8px 12px; color: #65748a; background: #eef3f9; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; }
 
@@ -600,7 +597,6 @@
     body.reading-mode-active .daf-card .daf-scroll { min-height: 0; }
     body.reading-mode-active .daf-card .vilna-placeholder { padding-inline: clamp(10px, 4vw, 48px); }
     body.reading-mode-active .daf-card .vilna-page-wrap { width: 100%; max-width: 940px; }
-    body.reading-mode-active .about-card { max-width: 1320px; margin-inline: auto; }
     /* The shared watch surface—not only .daf-card—is the fullscreen target
        in Reading Mode, because the uninterrupted live player is its sibling.
        Fill the top layer with the daf while the absolute player container
@@ -896,7 +892,6 @@
       .daf-card .daf-toolbar { padding: 10px 14px; }
       .daf-card .daf-footer { padding: 11px 14px 13px; }
       .sync-note { margin: 12px 13px 0; }
-      .about-card { padding: 18px; }
       body.reading-mode-active main { padding-inline: 6px; }
       body.reading-mode-active .title-row { padding-inline: 8px; }
       body.reading-mode-active .daf-card { height: max(620px, calc(100svh - 18px)); min-height: 620px; border-radius: 15px; }
@@ -1771,7 +1766,6 @@
               <span class="toggle"></span>
               Set as default
             </label>
-            <span class="toolbar-hint">Click any phrase to jump to that point in the shiur.</span>
           </div>
 
           <div class="daf-footer">
@@ -1803,12 +1797,6 @@
         </section>
       </section>
 
-      <section class="about-card">
-        <p class="eyebrow">About this shiur</p>
-        <h2>Learn today’s daf with the text beside you</h2>
-        <p>DafSync keeps the video and Gemara together in one calm learning space. The daf automatically follows the maggid shiur, while still letting you pause, review, or jump directly to a passage.</p>
-        <div class="details"><span class="detail-pill">Phrase-level sync</span><span class="detail-pill">Auto-scroll</span><span class="detail-pill">Vilna page overlay</span><span class="detail-pill">Sefaria text</span></div>
-      </section>
     </main>
   </div>
 
