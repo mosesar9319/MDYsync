@@ -3887,6 +3887,52 @@ body.split-view-active .watch-layout.split-active .video-frame.youtube-active .y
 /* A direct video link uses the same rule, so the frame is a size container
    in Split whatever the source. */
 body.split-view-active .watch-layout.split-active .video-frame { container-type: size; container-name: yt-frame; }
+/* Phone held sideways, side by side. The pane is about half the screen wide
+   and the whole screen tall, so a full-width picture left a tall empty band
+   between it and the controls. Here the picture fills the pane from its top
+   down to the top of the timeline: 16:9 at that height, centered, its sides
+   cut evenly, the caption lines on its bottom edge just above the timeline.
+   Dragging the divider right widens the pane and cuts less; a pane wider
+   than the picture shows it whole, centered. A mouse in a wide window keeps
+   the whole-picture rule above. */
+@media (pointer: coarse) and (orientation: landscape),
+       (hover: none) and (orientation: landscape) {
+  body.split-view-active:not(.split-layout-stacked) .watch-layout.split-active .video-frame {
+    --split-slot-h: max(80px, calc(100cqh - var(--pc-bar-h, 68px) - var(--pc-timeline-h, 74px)));
+  }
+  body.split-view-active:not(.split-layout-stacked) .watch-layout.split-active .video-frame.youtube-active #youtubePlayerHost,
+  body.split-view-active:not(.split-layout-stacked) .watch-layout.split-active .video-frame.youtube-active .yt-shield {
+    --yt-iframe-w: calc(var(--split-slot-h) * 16 / 9);
+    --yt-clip: min(100cqw, var(--yt-iframe-w));
+    top: 0;
+    left: calc((100cqw - var(--split-slot-h) * 16 / 9) / 2);
+    right: auto;
+    margin: 0;
+    width: calc(var(--split-slot-h) * 16 / 9);
+    height: var(--split-slot-h);
+    max-width: none;
+    max-height: none;
+  }
+  /* The mask is what shows of the picture: the pane's width (or the
+     picture's, if narrower), the picture's height. */
+  body.split-view-active:not(.split-layout-stacked) .watch-layout.split-active .video-frame.youtube-active .yt-mask-layer {
+    --yt-iframe-w: min(100cqw, calc(var(--split-slot-h) * 16 / 9));
+    --yt-clip: var(--yt-iframe-w);
+    top: 0;
+    left: max(0px, calc((100cqw - var(--split-slot-h) * 16 / 9) / 2));
+    right: auto;
+    margin: 0;
+    width: min(100cqw, calc(var(--split-slot-h) * 16 / 9));
+    height: var(--split-slot-h);
+    max-width: none;
+    max-height: none;
+  }
+  body.split-view-active:not(.split-layout-stacked) .watch-layout.split-active .video-frame #video {
+    height: var(--split-slot-h);
+    object-fit: cover;
+    object-position: center top;
+  }
+}
 /* What the mask still does in Split, and what it gives up. Measured on a
    real embed at phone size: YouTube's title row is about 48px of the
    iframe (after play, a seek, or while buffering), and its share button,
