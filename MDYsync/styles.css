@@ -4197,3 +4197,211 @@ body[data-page="browse"]:not(.is-admin) .setup-strip { grid-template-columns: 1f
 @media (prefers-reduced-motion: reduce) {
   .daf-press-ring.is-growing { transition: none; }
 }
+
+/* --- Phone Split: the drop-down holds the viewing modes and the daf row ----
+   The viewing-mode bar (with the Split tools) and the daf row (amud arrows,
+   Auto-scroll, Select text) are two compact rows at the top of the divider's
+   drop-down. The daf header and the zoom bar are not shown on a phone. */
+@media (max-width: 760px),
+       (pointer: coarse) and (orientation: landscape),
+       (hover: none) and (orientation: landscape) {
+  body.split-tools-phone .watch-layout.split-active > .daf-card > .daf-header,
+  body.split-tools-phone .watch-layout.split-active > .daf-card > .card-heading,
+  body.split-tools-phone .watch-layout.split-active .vilna-zoom-controls,
+  body.split-tools-phone .split-chrome-wake {
+    display: none !important;
+  }
+  body.is-admin.split-tools-phone.split-tools-open #splitToolsPanel .vilna-zoom-controls { display: flex !important; }
+  #splitToolsPanel .split-tools-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 8px 3px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  #splitToolsPanel .split-tools-row::-webkit-scrollbar { display: none; }
+  #splitToolsPanel .split-tools-daf { padding-top: 3px; padding-bottom: 6px; border-bottom: 1px solid rgba(19, 34, 56, .1); }
+  /* One row on most phones; on a narrow one the Split tools wrap under the
+     viewing modes rather than scroll sideways. */
+  body.split-view-active #splitToolsPanel .viewer-mode-select {
+    row-gap: 4px;
+    position: static;
+    top: auto;
+    left: auto;
+    right: auto;
+    transform: none;
+    z-index: auto;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    backdrop-filter: none;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    column-gap: 4px;
+    overflow: visible;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition: none;
+  }
+  body.split-view-active #splitToolsPanel .viewer-mode-select .viewer-mode-button {
+    flex: 0 0 auto;
+    min-height: 40px;
+    min-width: 40px;
+    padding: 3px 5px;
+    gap: 1px;
+    font-size: 10px;
+    border-radius: 9px;
+  }
+  body.split-view-active #splitToolsPanel .viewer-mode-select .viewer-mode-button svg { width: 16px; height: 16px; }
+  body.split-view-active #splitToolsPanel .viewer-mode-select .viewer-mode-button span:not(.sr-only) {
+    max-width: 40px;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.05;
+  }
+  #splitToolsPanel .viewer-mode-bar-divider { align-self: stretch; width: 1px; margin: 4px 2px; background: rgba(19, 34, 56, .16); }
+  #splitToolsPanel .split-toolbar { gap: 3px; margin-left: auto; }
+  body.split-view-active #splitToolsPanel .split-toolbar .icon-button {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
+    border: 1px solid rgba(19, 34, 56, .16);
+    background: #fff;
+    color: #132238;
+  }
+  body.split-view-active #splitToolsPanel .split-toolbar .icon-button[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
+  body.split-view-active #splitToolsPanel .split-toolbar #splitExitButton {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    background: #132238;
+    border-color: #132238;
+    color: #fff;
+    box-shadow: none;
+  }
+  #splitToolsPanel .split-amud-step {
+    flex: none;
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    padding: 0 0 3px;
+    border: 1px solid rgba(19, 34, 56, .22);
+    border-radius: 50%;
+    background: #fff;
+    color: #132238;
+    font: inherit;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  #splitToolsPanel .split-amud-back {
+    flex: none;
+    height: 30px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 999px;
+    background: #132238;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  #splitToolsPanel .split-amud-back[hidden] { display: none; }
+  #splitToolsPanel .split-tools-daf .header-auto-scroll { margin-left: 4px; flex: none; }
+  #splitToolsPanel .split-tools-daf .vilna-select-text-toggle {
+    flex: none;
+    width: auto;
+    height: 30px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(19, 34, 56, .18);
+    background: #fff;
+    color: #132238;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  /* The divider says what it does: a handle with a chevron (and, until the
+     drop-down has been opened once, the words "Daf tools") sits on the bar,
+     bounces the first couple of times Split opens, and flips while open. */
+  /* Only the handle is raised over the panes (it takes no taps); raising the
+     whole bar would let its wide touch area cover the video's controls. */
+  body.split-tools-phone .watch-layout.split-active .split-divider::after { content: none; }
+  .split-divider-cue { display: none; }
+  body.split-tools-phone .watch-layout.split-active .split-divider-cue {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 22px;
+    padding: 0 9px;
+    border-radius: 999px;
+    background: #132238;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(8, 17, 28, .3);
+    pointer-events: none;
+    z-index: 21;
+  }
+  .split-divider-cue svg { width: 12px; height: 12px; transition: transform .2s ease; }
+  body.split-tools-open .split-divider-cue svg { transform: rotate(180deg); }
+  .split-divider-cue-label[hidden] { display: none; }
+  /* Side by side the bar is upright: the handle is a round button on it. */
+  body.split-tools-phone .watch-layout.split-active:not(.split-stacked) .split-divider-cue { padding: 0; width: 24px; height: 24px; justify-content: center; }
+  body.split-tools-phone .watch-layout.split-active:not(.split-stacked) .split-divider-cue-label { display: none; }
+  body.split-tools-phone .watch-layout.split-active:not(.split-stacked) .split-divider-cue svg { transform: rotate(-90deg); }
+  body.split-tools-phone.split-tools-open .watch-layout.split-active:not(.split-stacked) .split-divider-cue svg { transform: rotate(90deg); }
+  .split-divider-cue.is-bouncing { animation: split-cue-bounce .7s ease-in-out 3; }
+  @keyframes split-cue-bounce {
+    0%, 100% { transform: translate(-50%, -50%); }
+    50% { transform: translate(-50%, calc(-50% + 5px)); }
+  }
+  .split-divider-tip {
+    position: fixed;
+    z-index: 640;
+    box-sizing: border-box;
+    max-width: min(320px, calc(100vw - 24px));
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 9px 9px 13px;
+    border-radius: 12px;
+    background: #132238;
+    color: #fff;
+    font-size: 13px;
+    line-height: 1.35;
+    box-shadow: 0 8px 24px rgba(19, 34, 56, .3);
+    pointer-events: none;
+  }
+  .split-divider-tip button {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    border: 0;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .14);
+    color: #fff;
+    font-size: 17px;
+    line-height: 1;
+    cursor: pointer;
+    pointer-events: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .split-divider-cue.is-bouncing { animation: none; }
+}

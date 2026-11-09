@@ -158,6 +158,14 @@ async function openLive(page, url) {
   await page.waitForTimeout(250);
 }
 
+// On a phone the viewing modes and the Split tools are in the divider's
+// drop-down (see 'the phone Split drop-down holds the viewing modes...').
+async function openSplitTools(page) {
+  if (!(await page.evaluate(() => document.body.classList.contains('split-tools-phone')))) return;
+  await page.evaluate(() => setSplitToolsOpen(true));
+  await expect(page.locator('#splitToolsPanel')).toBeVisible();
+}
+
 async function shot(page, name) {
   await page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: false });
 }
@@ -235,6 +243,108 @@ test.describe('mobile player layout', () => {
       return frame.classList.contains('controls-hidden');
     });
     expect(result).toBe(false);
+  });
+
+  // On a phone the viewing modes and the Split tools fold into the divider's
+  // drop-down, with a daf row under them: amud arrows, Auto-scroll, Select
+  // text. The daf title, Following, Video on daf and the zoom bar are gone.
+  test('the phone Split drop-down holds the viewing modes, the Split tools and the daf row', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'touch');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 412, height: 915 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeSplitButton');
+    await page.waitForTimeout(300);
+    // Closed: nothing of the bar on the video.
+    await expect(page.locator('#viewerModeSelect')).toBeHidden();
+    expect(await page.evaluate(() => document.getElementById('splitToolsPanel').contains(document.getElementById('viewerModeSelect')))).toBe(true);
+    await page.locator('#splitDivider').tap();
+    const panel = page.locator('#splitToolsPanel');
+    await expect(panel).toBeVisible();
+    for (const id of ['viewerModeSplitButton', 'viewerModeDafOnVideoButton', 'viewerModeVideoOnDafButton', 'splitLayoutToggleButton', 'splitSwapButton', 'splitResetButton', 'splitFullscreenButton', 'splitExitButton']) {
+      await expect(panel.locator(`#${id}`), id).toBeVisible();
+    }
+    const dafRow = panel.locator('#splitToolsDafRow');
+    await expect(dafRow.locator('#splitAmudNextButton')).toBeVisible();
+    await expect(dafRow.locator('#splitAmudPrevButton')).toBeVisible();
+    await expect(dafRow.locator('#autoScroll')).toBeAttached();
+    await expect(dafRow.getByText('Auto-scroll')).toBeVisible();
+    await expect(dafRow.locator('#vilnaSelectTextModeButton')).toBeVisible();
+    for (const id of ['readingModeButton', 'readingVideoFollowButton', 'dafTitle', 'vilnaZoomInButton', 'vilnaZoomResetButton']) {
+      await expect(page.locator(`#${id}`), id).toBeHidden();
+    }
+    // Two rows, each within the screen's width.
+    const rows = await page.evaluate(() => ['splitToolsModesRow', 'splitToolsDafRow'].map((id) => {
+      const el = document.getElementById(id);
+      const r = el.getBoundingClientRect();
+      return { right: r.right, overflow: el.scrollWidth - el.clientWidth };
+    }));
+    for (const row of rows) {
+      expect(row.right).toBeLessThanOrEqual(412 + 1);
+      expect(row.overflow).toBeLessThanOrEqual(1);
+    }
+    // A mode button in the drop-down still works: it leaves Split.
+    await panel.locator('#splitExitButton').click();
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
+    // Out of Split the bar is back where it always was, over the player.
+    await expect(page.locator('#viewerModeSelect')).toBeVisible();
+    expect(await page.evaluate(() => document.getElementById('splitToolsPanel').contains(document.getElementById('viewerModeSelect')))).toBe(false);
+  });
+
+  test('the amud arrows turn the printed page on its own, into the next daf, and back to the shiur', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'touch');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 412, height: 915 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.waitForFunction(() => Object.keys(syncState.talmudByName).length > 10, null, { timeout: 15000 });
+    await page.click('#viewerModeSplitButton');
+    await page.locator('#splitDivider').tap();
+    const shown = () => page.evaluate(() => { const { parsed } = currentVilnaPageKey(); return parsed ? `${parsed.tractate} ${parsed.daf}${parsed.amud}` : null; });
+    expect(await shown()).toBe('Bekhorot 30a');
+    await page.locator('#splitAmudNextButton').click();
+    expect(await shown()).toBe('Bekhorot 30b');
+    await expect(page.locator('#splitAmudBackButton')).toBeVisible();
+    await page.locator('#splitAmudNextButton').click();
+    expect(await shown()).toBe('Bekhorot 31a');
+    await page.locator('#splitAmudBackButton').click();
+    expect(await shown()).toBe('Bekhorot 30a');
+    await expect(page.locator('#splitAmudBackButton')).toBeHidden();
+    await page.locator('#splitAmudPrevButton').click();
+    expect(await shown()).toBe('Bekhorot 29b');
+    // Turning back onto the shiur's own amud follows the shiur again.
+    await page.locator('#splitAmudNextButton').click();
+    expect(await page.evaluate(() => state.browsePageRef)).toBeNull();
+    // The video never moved.
+    expect(await page.evaluate(() => state.dafRef)).toContain('Bekhorot 30a');
+  });
+
+  test('the divider introduces its drop-down: a Daf tools handle, a bounce, a one-time tip', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'touch');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 412, height: 915 });
+    await preparePage(page, { user: null, menuHints: true });
+    await installLiveRoutes(page);
+    await page.goto('/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.waitForFunction(() => state.segments.length > 20 && window.__yt, null, { timeout: 20000 });
+    await page.click('#viewerModeSplitButton');
+    const cue = page.locator('#splitDividerCue');
+    await expect(cue).toBeVisible();
+    await expect(cue).toContainText('Daf tools');
+    await expect(cue).toHaveClass(/is-bouncing/);
+    await expect(page.locator('.split-divider-tip')).toContainText('Tap it for the daf tools', { timeout: 3000 });
+    await page.locator('#splitDivider').tap();
+    await expect(page.locator('.split-divider-tip')).toHaveCount(0);
+    await expect(cue.locator('.split-divider-cue-label')).toBeHidden();
+    // Leaving and coming back: no tip, no words, just the handle.
+    await page.locator('#splitExitButton').click();
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
+    await page.waitForTimeout(400);
+    await page.click('#viewerModeSplitButton');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+    await page.waitForTimeout(1200);
+    await expect(page.locator('.split-divider-tip')).toHaveCount(0);
+    await expect(cue).toBeVisible();
+    await expect(cue.locator('.split-divider-cue-label')).toBeHidden();
   });
 
   test('phone control buttons stay compact and do not overlap', async ({ page }) => {
@@ -449,6 +559,7 @@ test.describe('mobile player layout', () => {
     await page.click('#viewerModeSplitButton');
     await expect(page.locator('body')).toHaveClass(/split-view-active/);
     await page.evaluate(() => document.body.classList.remove('split-chrome-hidden'));
+    await openSplitTools(page);
     const look = await page.evaluate(() => {
       const button = document.getElementById('splitExitButton');
       const style = getComputedStyle(button);
@@ -468,8 +579,9 @@ test.describe('mobile player layout', () => {
     expect(look.disabled).toBe(false);
     expect(look.opacity).toBe('1');
     expect(look.pointer).not.toBe('none');
-    expect(look.bg).toBe('rgb(255, 255, 255)');
-    expect(look.color).toBe('rgb(16, 32, 51)');
+    // In the light drop-down the close button is the one dark, solid chip.
+    expect(look.bg).toBe('rgb(19, 34, 56)');
+    expect(look.color).toBe('rgb(255, 255, 255)');
     expect(look.w).toBeGreaterThanOrEqual(40);
     expect(look.h).toBeGreaterThanOrEqual(40);
     await shot(page, 'split-exit-enabled');
@@ -479,13 +591,16 @@ test.describe('mobile player layout', () => {
     await expect(page.locator('body')).not.toHaveClass(/split-view-active/);
   });
 
-  test('a touch on the Split close button leaves split while the bar is hidden', async ({ page }) => {
+  // The player chrome hiding (split-chrome-hidden) must not make the close
+  // button in the drop-down dead: the drop-down is not part of that chrome.
+  test('a touch on the Split close button leaves split after the player chrome has hidden', async ({ page }) => {
     test.skip(test.info().project.name !== 'mobile', 'phone touch');
     test.setTimeout(60000);
     await page.setViewportSize({ width: 412, height: 915 });
     await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
     await page.click('#viewerModeSplitButton');
     await expect(page.locator('body')).toHaveClass(/split-view-active/);
+    await openSplitTools(page);
     const point = await page.evaluate(() => {
       document.body.classList.add('split-chrome-hidden');
       const button = document.getElementById('splitExitButton');
@@ -499,7 +614,7 @@ test.describe('mobile player layout', () => {
       };
     });
     expect(point.w).toBeGreaterThan(8);
-    expect(point.barPointer).toBe('none');
+    expect(point.barPointer).not.toBe('none');
     await page.touchscreen.tap(point.x, point.y);
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
     await expect(page.locator('body')).not.toHaveClass(/split-view-active/);
@@ -513,6 +628,7 @@ test.describe('mobile player layout', () => {
     await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
     await page.click('#viewerModeSplitButton');
     await expect(page.locator('body')).toHaveClass(/split-view-active/);
+    await openSplitTools(page);
     const point = await page.evaluate(() => {
       const exit = document.getElementById('splitExitButton');
       const rect = exit.getBoundingClientRect();
@@ -606,7 +722,7 @@ test.describe('mobile player layout', () => {
     await shot(page, 'phone-video-tap');
   });
 
-  test('split daf header stays reachable after the page scrolls', async ({ page }) => {
+  test('the split drop-down stays reachable after the page scrolls', async ({ page }) => {
     test.skip(test.info().project.name !== 'mobile', 'stacked phone split');
     test.setTimeout(60000);
     await page.setViewportSize({ width: 400, height: 985 });
@@ -629,9 +745,9 @@ test.describe('mobile player layout', () => {
     });
     const geo = await page.evaluate(() => {
       const card = document.getElementById('dafCard').getBoundingClientRect();
-      const header = document.querySelector('#dafCard .daf-header').getBoundingClientRect();
-      const back = document.getElementById('splitBackToDaf').getBoundingClientRect();
-      const autoScroll = document.getElementById('autoScroll').getBoundingClientRect();
+      const header = document.getElementById('splitToolsModesRow').getBoundingClientRect();
+      const back = document.getElementById('splitExitButton').getBoundingClientRect();
+      const autoScroll = document.querySelector('#splitToolsDafRow .header-auto-scroll').getBoundingClientRect();
       const notes = document.getElementById('readerDafNotes')?.getBoundingClientRect();
       return {
         cardTop: card.top,
@@ -821,6 +937,7 @@ test.describe('mobile player layout', () => {
     await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
     await page.click('#viewerModeSplitButton');
     await expect(page.locator('body')).toHaveClass(/split-view-active/);
+    await openSplitTools(page);
     const button = await page.locator('#splitFullscreenButton').boundingBox();
     const hit = await page.evaluate(({ x, y }) => {
       const el = document.elementFromPoint(x, y);
@@ -835,19 +952,18 @@ test.describe('mobile player layout', () => {
       fullscreen: document.fullscreenElement?.className || '',
       daf: Boolean(document.fullscreenElement?.querySelector('#dafCard')),
       video: Boolean(document.fullscreenElement?.querySelector('#videoFrame')),
-      back: document.getElementById('splitBackToDaf')?.hidden === false,
+      back: Boolean(document.fullscreenElement?.contains(document.getElementById('splitExitButton'))),
     }));
     expect(after.state).toBe(before);
     test.skip(!after.fullscreen.includes('watch-layout'), `fullscreen unavailable (${after.fullscreen})`);
     expect(after.daf).toBe(true);
     expect(after.video).toBe(true);
     expect(after.back).toBe(true);
-    await page.click('#splitDivider');
-    await expect(page.locator('body')).toHaveClass(/split-tools-open/);
+    await openSplitTools(page);
     const panes = await page.evaluate(() => {
       const video = document.querySelector('.watch-layout.split-active > .player-card').getBoundingClientRect();
       const daf = document.getElementById('dafCard').getBoundingClientRect();
-      const back = document.getElementById('splitBackToDaf').getBoundingClientRect();
+      const back = document.getElementById('splitExitButton').getBoundingClientRect();
       return {
         stacked: document.body.classList.contains('split-layout-stacked'),
         videoH: video.height,
@@ -867,20 +983,21 @@ test.describe('mobile player layout', () => {
     await page.evaluate(() => document.exitFullscreen());
   });
 
-  test('split overlay fullscreen enters on the first tap while the bar is hidden', async ({ page }) => {
+  test('split fullscreen enters on the first tap after the player chrome has hidden', async ({ page }) => {
     test.skip(test.info().project.name !== 'mobile', 'phone split fullscreen');
     test.setTimeout(60000);
     await page.setViewportSize({ width: 400, height: 985 });
     await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
     await page.click('#viewerModeSplitButton');
     await expect(page.locator('body')).toHaveClass(/split-view-active/);
+    await openSplitTools(page);
     const button = await page.locator('#splitFullscreenButton').boundingBox();
     await page.evaluate(() => document.body.classList.add('split-chrome-hidden'));
-    const covered = await page.evaluate(({ x, y }) => {
+    const reachable = await page.evaluate(({ x, y }) => {
       const el = document.elementFromPoint(x, y);
       return el?.closest?.('#splitFullscreenButton')?.id || '';
     }, { x: button.x + button.width / 2, y: button.y + button.height / 2 });
-    expect(covered).toBe('');
+    expect(reachable).toBe('splitFullscreenButton');
     await page.touchscreen.tap(button.x + button.width / 2, button.y + button.height / 2);
     await page.waitForTimeout(300);
     const opened = await page.evaluate(() => document.fullscreenElement?.className || '');
@@ -901,25 +1018,23 @@ test.describe('mobile player layout', () => {
     const geo = await page.evaluate(() => {
       const video = document.querySelector('.watch-layout.split-active > .player-card').getBoundingClientRect();
       const daf = document.getElementById('dafCard').getBoundingClientRect();
-      const back = document.getElementById('splitBackToDaf').getBoundingClientRect();
       return {
         stacked: document.body.classList.contains('split-layout-stacked'),
         videoRight: video.right,
         dafLeft: daf.left,
         videoW: video.width,
         dafW: daf.width,
-        backW: back.width,
       };
     });
     expect(geo.stacked).toBe(false);
     expect(geo.videoW).toBeGreaterThan(80);
     expect(geo.dafW).toBeGreaterThan(80);
     expect(geo.dafLeft).toBeGreaterThan(geo.videoRight - 30);
-    // The picker and the daf header sit in the divider panel, not on the video.
+    // The picker and the viewing modes sit in the divider panel, not on the video.
     await page.click('#splitDivider');
     await expect(page.locator('body')).toHaveClass(/split-tools-open/);
     const panel = await page.evaluate(() => {
-      const back = document.getElementById('splitBackToDaf').getBoundingClientRect();
+      const back = document.getElementById('splitExitButton').getBoundingClientRect();
       const topbar = document.getElementById('playerTopbar');
       const frame = document.getElementById('videoFrame');
       const tools = document.getElementById('splitToolsPanel');
@@ -1153,20 +1268,14 @@ test.describe('mobile player layout', () => {
     await page.click('#splitDivider');
     await expect(page.locator('body')).toHaveClass(/split-tools-open/);
     const opened = await page.evaluate(() => {
-      const title = document.getElementById('dafTitle');
       const chip = document.getElementById('skipToDafChip');
-      const titleBox = title.getBoundingClientRect();
       const chipBox = chip && !chip.hidden ? chip.getBoundingClientRect() : null;
       return {
-        title: title.textContent,
-        titleOverflow: title.scrollWidth - title.clientWidth,
         chipText: chip?.textContent || '',
         chipRight: chipBox ? chipBox.right : null,
         viewW: window.innerWidth,
       };
     });
-    expect(opened.title).toContain('Bekhorot');
-    expect(opened.titleOverflow).toBeLessThan(2);
     if (opened.chipRight != null) expect(opened.chipRight).toBeLessThanOrEqual(opened.viewW + 1);
     const zoom = await page.evaluate(() => {
       const bar = document.getElementById('vilnaZoomControls');
@@ -1198,15 +1307,13 @@ test.describe('mobile player layout', () => {
       };
       const scroller = panel.querySelector('.split-tools-scroll');
       const auto = document.querySelector('#splitToolsPanel .header-auto-scroll');
-      const dafPage = document.getElementById('splitBackToDaf');
+      const dafPage = document.getElementById('splitExitButton');
       const cardBox = card.getBoundingClientRect();
       const scrollBox = scroll.getBoundingClientRect();
       const panelBox = panel.getBoundingClientRect();
       const layout = {
-        position: getComputedStyle(bar).position,
         panelPos: getComputedStyle(panel).position,
-        inPanel: panel.contains(bar),
-        barH: bar.getBoundingClientRect().height,
+        zoomShown: getComputedStyle(bar).display !== 'none' && bar.getBoundingClientRect().height > 0,
         notesClip: notes ? notes.scrollHeight - notes.clientHeight : 0,
         panelH: panelBox.height,
         cardH: cardBox.height,
@@ -1225,10 +1332,9 @@ test.describe('mobile player layout', () => {
         dafPageFits: fits(dafPage),
       };
     });
-    expect(zoom.position).toBe('relative');
     expect(zoom.panelPos).toBe('absolute');
-    expect(zoom.inPanel).toBe(true);
-    expect(zoom.barH).toBeGreaterThan(20);
+    // No zoom bar on a phone (pinch zooms the page); Select text is in the daf row.
+    expect(zoom.zoomShown).toBe(false);
     expect(zoom.selectFits).toBe(true);
     expect(zoom.chipFits).toBe(true);
     expect(zoom.labelFits).toBe(true);
@@ -1623,6 +1729,7 @@ test.describe('mobile player layout', () => {
       expectLabels(await read(), `standard ${size.width}x${size.height}`);
       await page.evaluate(() => setViewerMode('split'));
       await page.evaluate(() => showSplitChrome());
+      await openSplitTools(page);
       await page.waitForTimeout(300);
       expectLabels(await read(), `split ${size.width}x${size.height}`);
       await shot(page, `mode-labels-${test.info().project.name}-${size.width}`);

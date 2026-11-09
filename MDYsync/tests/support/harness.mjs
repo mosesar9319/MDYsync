@@ -109,10 +109,15 @@ export async function preparePage(page, options = {}) {
       window.__DAFSYNC_TEST_CONTROL__ = JSON.parse(controlJson);
       window.__DAFSYNC_TEST_CALLS__ = [];
       window.__DAFSYNC_TEST_QUERIES__ = [];
-      // The daf menu's one-time hints (daf-context-menu.js) would otherwise
-      // pop up over the daf in every test; specs about them opt back in.
+      // The one-time hints (the daf menu's in daf-context-menu.js, the phone
+      // Split divider's in app.js) would otherwise pop up in every test;
+      // specs about them opt back in.
       if (!menuHints) {
-        try { window.localStorage.setItem('dafsync.dafMenu.found', '1'); } catch { /* storage blocked */ }
+        try {
+          window.localStorage.setItem('dafsync.dafMenu.found', '1');
+          window.localStorage.setItem('dafsync.split.tipShown', '1');
+          window.localStorage.setItem('dafsync.split.cueBounces', '2');
+        } catch { /* storage blocked */ }
       }
     },
     { dbJson: JSON.stringify(db), sessionJson: JSON.stringify(session), controlJson: JSON.stringify(control), menuHints: Boolean(options.menuHints) }

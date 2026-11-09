@@ -40,6 +40,14 @@ async function enterSplitView(page) {
   await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
 }
 
+// On a phone the viewing modes and the Split tools live in the divider's
+// drop-down rather than on the video; open it before using them.
+async function openSplitTools(page) {
+  if (!(await page.evaluate(() => document.body.classList.contains('split-tools-phone')))) return;
+  await page.evaluate(() => setSplitToolsOpen(true));
+  await expect(page.locator('#splitToolsPanel')).toBeVisible();
+}
+
 // Playwright's click leaves the mouse on the mode button. A resting mouse
 // keeps the bar up on purpose. Clear that, then start the player-chrome
 // idle timer — the mode row hides with those controls, not on its own.
@@ -81,6 +89,7 @@ test.describe('Unified viewing modes — the prominent selector', () => {
     await expect(page.locator('.watch-layout')).toHaveClass(/split-active/);
     await expect(page.locator('body')).toHaveClass(/split-view-active/);
 
+    await openSplitTools(page);
     await page.click('#viewerModeDafOnVideoButton');
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('daf-on-video');
     await expect.poll(() => page.evaluate(() => state.videoOverlayEnabled)).toBe(true);
@@ -209,6 +218,7 @@ test.describe('Split View — divider and layout', () => {
 
     const videoFrameHandle = await page.evaluateHandle(() => document.getElementById('videoFrame'));
     const before = await page.evaluate(() => state.splitViewLayout);
+    await openSplitTools(page);
     await page.click('#splitLayoutToggleButton');
     await expect.poll(() => page.evaluate(() => state.splitViewLayout)).toBe(before === 'stacked' ? 'side-by-side' : 'stacked');
     await expect.poll(() => page.evaluate(() => state.splitViewLayoutExplicit)).toBe(true);
@@ -223,12 +233,16 @@ test.describe('Split View — divider and layout', () => {
     await enterSplitView(page);
     await expect.poll(() => page.evaluate(() => state.splitViewVideoPosition)).toBe('start');
 
+    await openSplitTools(page);
     await page.click('#splitSwapButton');
     await expect.poll(() => page.evaluate(() => state.splitViewVideoPosition)).toBe('end');
     await expect(page.locator('.watch-layout')).toHaveClass(/split-video-end/);
   });
 
   test('the split bar stays over the video pane and off the daf Auto-scroll row', async ({ page }) => {
+    // On a phone the bar is in the divider's drop-down, not over the video
+    // (mobile-layout.spec covers that layout).
+    test.skip(test.info().project.name === 'mobile', 'phone: the bar is in the drop-down');
     failOnPageError(page);
     await preparePage(page, { user: null });
     await page.goto('/player/?ref=Chullin%2089a');
@@ -314,6 +328,7 @@ test.describe('Split View — divider and layout', () => {
       return state.viewerMode;
     });
     expect(stayed).toBe('split');
+    await openSplitTools(page);
     await page.click('#splitExitButton');
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
   });
@@ -337,6 +352,7 @@ test.describe('Split View — divider and layout', () => {
     // to keep it clear. Dismissed the same way enterSplitView() already
     // does for the first entry.
     await dismissErrorBanner(page);
+    await openSplitTools(page);
     await expect(page.locator('#splitExitButton')).toBeVisible();
     await page.click('#splitExitButton');
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
@@ -610,7 +626,9 @@ test.describe('Split View — its overlays never cover the player chrome', () =>
         inFrame: frame.contains(topbar),
       };
     });
-    expect(measurements.cssVar).toBeGreaterThan(0);
+    // On a phone the bar folds into the closed drop-down, so it has no
+    // height over the video to clear.
+    if (!measurements.phoneTools) expect(measurements.cssVar).toBeGreaterThan(0);
     if (measurements.phoneTools) {
       expect(measurements.inFrame).toBe(false);
     } else {
@@ -775,6 +793,9 @@ test.describe('Split View — the daf pane is flush, and the combined bar auto-h
   // daf header lands on the daf, and the always-visible back button — not
   // a button inside the hidden bar — is what leaves Split view.
   test('a hidden split bar does not intercept taps, and Back to daf leaves split view', async ({ page }) => {
+    // On a phone there is no bar over the video to hide, and the drop-down's
+    // close button replaces Back to daf (mobile-layout.spec covers both).
+    test.skip(test.info().project.name === 'mobile', 'phone: the bar is in the drop-down');
     failOnPageError(page);
     await preparePage(page, { user: null });
     await page.goto('/player/?ref=Chullin%2089a');

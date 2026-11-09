@@ -6364,6 +6364,16 @@ function ensureSplitToolsPanel() {
     panel.appendChild(scroller);
   }
   const divider = $('splitDivider');
+  if (divider && !$('splitDividerCue')) {
+    const cue = document.createElement('span');
+    cue.id = 'splitDividerCue';
+    cue.className = 'split-divider-cue';
+    cue.setAttribute('aria-hidden', 'true');
+    cue.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      + '<span class="split-divider-cue-label">Daf tools</span>';
+    cue.querySelector('.split-divider-cue-label').hidden = Boolean(splitCueRead('dafsync.split.toolsOpened'));
+    divider.appendChild(cue);
+  }
   if (divider && !$('splitToolsHint')) {
     const hint = document.createElement('span');
     hint.id = 'splitToolsHint';
@@ -6405,42 +6415,90 @@ function mountPhoneSplitOverlay() {
   if (topbar && topbar.parentElement !== panel) panel.prepend(topbar);
   const scroller = panel.querySelector(':scope > .split-tools-scroll');
   if (!scroller) return;
-  const header = card.querySelector('.daf-header, .card-heading')
-    || panel.querySelector('.daf-header, .card-heading');
+  // The daf header (title, Following, Video on daf, Daf page) stays out:
+  // the mode row below already offers each of those. Auto-scroll and Select
+  // text join the amud arrows in the daf row. The zoom bar is gone on a
+  // phone (pinch zooms the page); an admin keeps it for its correction tools.
+  const rows = ensureSplitToolsRows(panel);
   const notes = $('readerDafNotes');
   const zoom = $('vilnaZoomControls');
+  const autoScroll = document.querySelector('.header-auto-scroll');
+  const selectText = $('vilnaSelectTextModeButton');
   const pageView = phoneSplitPageView();
+  const admin = document.body.classList.contains('is-admin');
   const parked = (node) => node && node.parentElement !== scroller;
-  if (header && parked(header)) {
-    rememberPhoneToolsHome(header);
-    scroller.appendChild(header);
+  for (const node of [autoScroll, pageView ? selectText : null]) {
+    if (node && node.parentElement !== rows.daf) {
+      rememberPhoneToolsHome(node);
+      rows.daf.appendChild(node);
+    }
   }
+  if (selectText && !pageView && rows.daf.contains(selectText)) restorePhoneToolsHome(selectText);
   if (notes && parked(notes)) {
     rememberPhoneToolsHome(notes);
     scroller.appendChild(notes);
   }
-  if (zoom && pageView && parked(zoom)) {
+  if (zoom && pageView && admin && parked(zoom)) {
     rememberPhoneToolsHome(zoom);
     scroller.appendChild(zoom);
-  } else if (zoom && !pageView && panel.contains(zoom)) {
+  } else if (zoom && (!pageView || !admin) && panel.contains(zoom)) {
     if (!restorePhoneToolsHome(zoom)) $('vilnaPlaceholder')?.prepend(zoom);
   }
-  for (const node of [header, notes, pageView ? zoom : null]) {
+  for (const node of [rows.modes, rows.daf, notes, pageView && admin ? zoom : null]) {
     if (node && panel.contains(node)) scroller.appendChild(node);
   }
   panel.appendChild(scroller);
+  updateAmudPinUi();
+}
+// The drop-down's two compact rows: the viewing modes with the Split tools,
+// then the daf row -- amud arrows, Auto-scroll, Select text.
+function ensureSplitToolsRows(panel) {
+  const scroller = panel.querySelector(':scope > .split-tools-scroll');
+  let modes = $('splitToolsModesRow');
+  if (!modes) {
+    modes = document.createElement('div');
+    modes.id = 'splitToolsModesRow';
+    modes.className = 'split-tools-row split-tools-modes';
+    scroller.prepend(modes);
+  }
+  let daf = $('splitToolsDafRow');
+  if (!daf) {
+    daf = document.createElement('div');
+    daf.id = 'splitToolsDafRow';
+    daf.className = 'split-tools-row split-tools-daf';
+    const step = (id, glyph, label, direction) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.id = id;
+      button.className = 'split-amud-step';
+      button.innerHTML = glyph;
+      button.setAttribute('aria-label', label);
+      button.title = `${label} (the video keeps playing)`;
+      button.addEventListener('click', () => stepViewedAmud(direction));
+      return button;
+    };
+    // A Hebrew book turns leftward: the next amud is on the left.
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.id = 'splitAmudBackButton';
+    back.className = 'split-amud-back';
+    back.textContent = 'Back to the shiur';
+    back.title = 'Show the amud the shiur is on';
+    back.hidden = true;
+    back.addEventListener('click', returnToShiurAmud);
+    daf.append(step('splitAmudNextButton', '&#8249;', 'Next amud', 1), step('splitAmudPrevButton', '&#8250;', 'Previous amud', -1), back);
+    modes.after(daf);
+  }
+  return { modes, daf };
 }
 function unmountPhoneSplitOverlay() {
   const panel = $('splitToolsPanel');
   const card = $('dafCard');
   if (!panel || !card) return;
-  const header = panel.querySelector('.daf-header, .card-heading');
   const notes = $('readerDafNotes');
   const zoom = $('vilnaZoomControls');
-  if (header) {
-    if (!restorePhoneToolsHome(header)) {
-      card.insertBefore(header, card.querySelector('.daf-scroll') || null);
-    }
+  for (const node of [document.querySelector('.header-auto-scroll'), $('vilnaSelectTextModeButton')]) {
+    if (node && panel.contains(node)) restorePhoneToolsHome(node);
   }
   if (notes && panel.contains(notes)) {
     if (!restorePhoneToolsHome(notes)) {
@@ -6453,8 +6511,76 @@ function unmountPhoneSplitOverlay() {
     if (!restorePhoneToolsHome(zoom)) $('vilnaPlaceholder')?.prepend(zoom);
   }
 }
+// How the divider's drop-down introduces itself on a phone: the "Daf tools"
+// words on its handle until it has been opened once, a bounce of the handle
+// the first two times Split opens, and a one-time tip beside the bar.
+const SPLIT_TOOLS_OPENED_KEY = 'dafsync.split.toolsOpened';
+const SPLIT_CUE_BOUNCES_KEY = 'dafsync.split.cueBounces';
+const SPLIT_TIP_KEY = 'dafsync.split.tipShown';
+function splitCueRead(key) {
+  try { return window.localStorage.getItem(key); } catch { return null; }
+}
+function splitCueWrite(key, value) {
+  try { window.localStorage.setItem(key, String(value)); } catch { /* not remembered */ }
+}
+let splitDividerTip = null;
+let splitDividerTipTimer = null;
+function hideSplitDividerTip() {
+  clearTimeout(splitDividerTipTimer);
+  splitDividerTip?.remove();
+  splitDividerTip = null;
+}
+function introducePhoneSplitTools() {
+  const cue = $('splitDividerCue');
+  const divider = $('splitDivider');
+  if (!cue || !divider) return;
+  const bounces = Number(splitCueRead(SPLIT_CUE_BOUNCES_KEY)) || 0;
+  if (bounces < 2 && !splitCueRead(SPLIT_TOOLS_OPENED_KEY)) {
+    splitCueWrite(SPLIT_CUE_BOUNCES_KEY, bounces + 1);
+    cue.classList.remove('is-bouncing');
+    void cue.offsetWidth;
+    cue.classList.add('is-bouncing');
+    setTimeout(() => cue.classList.remove('is-bouncing'), 2400);
+  }
+  if (splitCueRead(SPLIT_TIP_KEY) || splitCueRead(SPLIT_TOOLS_OPENED_KEY)) return;
+  splitCueWrite(SPLIT_TIP_KEY, '1');
+  // After the layout settles, beside the bar on the daf's side.
+  setTimeout(() => {
+    if (!phoneSplitToolsActive() || document.body.classList.contains('split-tools-open')) return;
+    const rect = divider.getBoundingClientRect();
+    if (!rect.width && !rect.height) return;
+    hideSplitDividerTip();
+    const tip = document.createElement('div');
+    tip.className = 'split-divider-tip';
+    tip.setAttribute('role', 'status');
+    const text = document.createElement('span');
+    text.textContent = 'Drag the bar to resize. Tap it for the daf tools and viewing modes.';
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.setAttribute('aria-label', 'Dismiss the tip');
+    close.textContent = '×';
+    close.addEventListener('click', hideSplitDividerTip);
+    tip.append(text, close);
+    (document.fullscreenElement || document.webkitFullscreenElement || document.body).appendChild(tip);
+    const box = tip.getBoundingClientRect();
+    const stacked = state.splitViewLayout === 'stacked';
+    const left = stacked ? (window.innerWidth - box.width) / 2 : Math.min(rect.right + 12, window.innerWidth - box.width - 12);
+    const top = stacked ? rect.bottom + 14 : rect.top + rect.height / 2 - box.height / 2;
+    tip.style.left = `${Math.max(12, left)}px`;
+    tip.style.top = `${Math.max(12, top)}px`;
+    splitDividerTip = tip;
+    splitDividerTipTimer = setTimeout(hideSplitDividerTip, 7000);
+  }, 700);
+}
+
 function setSplitToolsOpen(open) {
   const want = Boolean(open) && phoneSplitToolsActive();
+  if (want) {
+    splitCueWrite(SPLIT_TOOLS_OPENED_KEY, '1');
+    hideSplitDividerTip();
+    const label = document.querySelector('#splitDividerCue .split-divider-cue-label');
+    if (label) label.hidden = true;
+  }
   document.body.classList.toggle('split-tools-open', want);
   const panel = $('splitToolsPanel');
   if (panel) panel.hidden = !want;
@@ -6468,8 +6594,23 @@ function syncPhoneSplitTools() {
   const topbar = $('playerTopbar');
   const frame = $('videoFrame');
   const active = phoneSplitToolsActive();
+  const wasActive = document.body.classList.contains('split-tools-phone');
   document.body.classList.toggle('split-tools-phone', active);
+  if (active && !wasActive) introducePhoneSplitTools();
+  if (!active) hideSplitDividerTip();
   if (!panel || !topbar || !frame) return;
+  // On a phone the viewing-mode bar (with the Split tools) lives in the
+  // drop-down; elsewhere it is the bar over the top of the page.
+  const modeBar = $('viewerModeSelect');
+  if (active && modeBar) {
+    const rows = ensureSplitToolsRows(panel);
+    if (modeBar.parentElement !== rows.modes) {
+      rememberPhoneToolsHome(modeBar);
+      rows.modes.appendChild(modeBar);
+    }
+  } else if (modeBar && panel.contains(modeBar)) {
+    restorePhoneToolsHome(modeBar);
+  }
   if (active) {
     if (topbar.parentElement !== panel) panel.prepend(topbar);
     if (document.body.classList.contains('split-tools-open')) {
@@ -11721,6 +11862,71 @@ function stepBrowseDaf(direction) {
   if (!ref) return;
   if (state.liveFollow?.active) onDafPickerChanged();
   else showBrowsePage(ref);
+}
+
+// The amud before or after one, across dafim and tractates (the index's
+// own order). Null at either end of Shas.
+function neighborAmud(tractate, daf, amud, direction) {
+  const names = Object.keys(syncState.talmudByName);
+  let t = names.indexOf(tractate);
+  if (t === -1) return null;
+  let entry = syncState.talmudByName[names[t]];
+  let sides = amudimForDaf(entry, daf);
+  let side = sides.indexOf(amud);
+  let dafs = dafOptionsFor(entry);
+  let d = dafs.indexOf(daf);
+  if (direction > 0) {
+    if (side !== -1 && side + 1 < sides.length) return { tractate, daf, amud: sides[side + 1] };
+    if (d !== -1 && d + 1 < dafs.length) return { tractate, daf: dafs[d + 1], amud: amudimForDaf(entry, dafs[d + 1])[0] };
+    if (t + 1 >= names.length) return null;
+    entry = syncState.talmudByName[names[t + 1]];
+    dafs = dafOptionsFor(entry);
+    return { tractate: names[t + 1], daf: dafs[0], amud: amudimForDaf(entry, dafs[0])[0] };
+  }
+  if (side > 0) return { tractate, daf, amud: sides[side - 1] };
+  if (d > 0) {
+    sides = amudimForDaf(entry, dafs[d - 1]);
+    return { tractate, daf: dafs[d - 1], amud: sides[sides.length - 1] };
+  }
+  if (t === 0) return null;
+  entry = syncState.talmudByName[names[t - 1]];
+  dafs = dafOptionsFor(entry);
+  const lastDaf = dafs[dafs.length - 1];
+  sides = amudimForDaf(entry, lastDaf);
+  return { tractate: names[t - 1], daf: lastDaf, amud: sides[sides.length - 1] };
+}
+
+// The phone Split drop-down's amud arrows. On the Interactive Daf page they
+// step the picker, as its own arrows do. On a shiur's page they turn the
+// printed page on its own -- an amud at a time, on into the next or previous
+// daf -- while the video keeps playing; the page stays where it was turned
+// until it is turned back to the shiur's own amud (or "Back to the shiur").
+function stepViewedAmud(direction) {
+  if (state.browseMode) {
+    stepBrowseDaf(direction);
+    return;
+  }
+  const { parsed } = currentVilnaPageKey();
+  if (!parsed) return;
+  const next = neighborAmud(parsed.tractate, Number(parsed.daf), parsed.amud, direction);
+  if (!next) return;
+  const followed = state.vilnaFollowKey || vilnaKeyFromRef(state.dafRef);
+  const key = `${next.tractate}|${next.daf}|${next.amud}`;
+  state.browsePageRef = key === followed ? null : `${next.tractate} ${next.daf}${next.amud}`;
+  renderVilnaPage();
+  updateAmudPinUi();
+}
+
+function returnToShiurAmud() {
+  if (state.browseMode || !state.browsePageRef) return;
+  state.browsePageRef = null;
+  renderVilnaPage();
+  updateAmudPinUi();
+}
+
+function updateAmudPinUi() {
+  const back = $('splitAmudBackButton');
+  if (back) back.hidden = state.browseMode || !state.browsePageRef;
 }
 
 // Reflects an externally-set ref (loaded via import, restored project,
