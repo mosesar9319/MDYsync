@@ -7933,6 +7933,11 @@ function updatePlayUi() {
     largePlay.setAttribute('aria-busy', String(loading));
     largePlay.setAttribute('aria-label', loading ? 'Loading video' : 'Play video');
   }
+  // On a touchscreen the centre button is the only place a tap plays or
+  // pauses, so while the video plays a centre pause button comes and goes
+  // with the controls (styles.css shows it on touch devices only).
+  const largePause = ensureLargePauseButton();
+  if (largePause) largePause.hidden = !state.videoSource || paused || loading;
   if (playButton) {
     playButton.classList.toggle('is-loading', loading);
     playButton.setAttribute('aria-busy', String(loading));
@@ -7978,13 +7983,38 @@ function debugPlayLog(line) {
 // (the frame's touchstart listener). A typeless synthetic tap does not
 // toggle YouTube: the pinch surfaces used to pause every YouTube video
 // because they treated those the same as a finger.
+function ensureLargePauseButton() {
+  let button = $('largePause');
+  if (button) return button;
+  const largePlay = $('largePlay');
+  if (!largePlay) return null;
+  button = document.createElement('button');
+  button.type = 'button';
+  button.id = 'largePause';
+  button.className = 'large-play large-pause';
+  button.hidden = true;
+  button.setAttribute('aria-label', 'Pause video');
+  button.innerHTML = '<svg viewBox="0 0 44 44" aria-hidden="true"><path d="M14 12h6v20h-6zM24 12h6v20h-6z" fill="currentColor"/></svg>';
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    togglePlay();
+    showVideoControls();
+  });
+  largePlay.after(button);
+  return button;
+}
+
+// A tap on the video picture. With a mouse, a click anywhere plays or
+// pauses, as on YouTube's desktop player. With a finger, only the big centre
+// button does that: a tap anywhere else on the picture shows the controls,
+// or puts them away if they are already up, as on YouTube's phone player.
 function handleVideoPictureTap(tap) {
-  const type = tap?.pointerType || '';
-  if (state.playerType !== 'youtube') {
+  if (tap?.pointerType === 'mouse') {
     togglePlay();
     return;
   }
-  if (type === 'mouse' || (type === 'touch' && !tap.controlsHidden)) togglePlay();
+  if (tap?.controlsHidden) showVideoControls();
+  else hideVideoControls();
 }
 
 async function togglePlay() {
@@ -10289,7 +10319,16 @@ htmlVideo.addEventListener('progress', updateScrubberFill);
 htmlVideo.addEventListener('play', updatePlayUi);
 htmlVideo.addEventListener('pause', updatePlayUi);
 htmlVideo.addEventListener('ended', updatePlayUi);
-htmlVideo.addEventListener('click', togglePlay);
+// A direct video file follows the same rule as the picture surfaces: a mouse
+// click plays or pauses, a finger tap shows or hides the controls.
+let htmlVideoPointerType = '';
+htmlVideo.addEventListener('pointerdown', (event) => { htmlVideoPointerType = event.pointerType || ''; });
+htmlVideo.addEventListener('click', () => {
+  handleVideoPictureTap({
+    pointerType: htmlVideoPointerType,
+    controlsHidden: $('videoFrame')?.classList.contains('controls-hidden'),
+  });
+});
 htmlVideo.addEventListener('error', () => {
   if (state.videoSource.type === 'direct') {
     showToast('This direct link could not be played. Use a direct MP4/WebM file URL or a YouTube link.', 'error');
@@ -10750,6 +10789,19 @@ function controlsShouldStayVisible() {
   if ($('speedSelect')?.getAttribute('aria-expanded') === 'true') return true;
   const active = document.activeElement;
   return !!(active && active.closest?.(CONTROLS_HOVER_SELECTOR) && active.matches(':focus-visible'));
+}
+
+// A finger tap on the picture while the controls are up puts them away at
+// once, unless something is holding them open (a menu, a scrub).
+function hideVideoControls() {
+  const frame = $('videoFrame');
+  if (!frame || controlsShouldStayVisible()) return;
+  if (controlsHideTimer) clearTimeout(controlsHideTimer);
+  frame.classList.add('controls-hidden');
+  hideScrubPreview();
+  if (state.splitViewEnabled && !splitChromeShouldStayVisible()) {
+    document.body.classList.add('split-chrome-hidden');
+  }
 }
 
 function showVideoControls() {

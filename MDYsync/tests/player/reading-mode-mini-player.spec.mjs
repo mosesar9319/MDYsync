@@ -198,16 +198,16 @@ test.describe('Reading Mode mini player — fullscreen', () => {
 // togglePlay() unconditionally manufactured a "tap always pauses it"
 // behavior neither mode ever had for YouTube before this surface existed.
 test.describe('Reading Mode mini player — tapping the video does not manufacture a pause', () => {
-  async function tapPinchSurface(page) {
-    await page.evaluate(async () => {
+  async function tapPinchSurface(page, pointerType = 'touch') {
+    await page.evaluate(async (pointerType) => {
       const surface = document.getElementById('readingVideoPinchSurface');
       const rect = surface.getBoundingClientRect();
       const x = rect.left + rect.width / 2, y = rect.top + rect.height / 2;
-      surface.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, clientX: x, clientY: y, bubbles: true }));
+      surface.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, pointerType, clientX: x, clientY: y, bubbles: true }));
       await new Promise((r) => setTimeout(r, 30));
-      surface.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, clientX: x, clientY: y, bubbles: true }));
+      surface.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, pointerType, clientX: x, clientY: y, bubbles: true }));
       await new Promise((r) => setTimeout(r, 30));
-    });
+    }, pointerType);
   }
 
   test('a plain tap never pauses (or plays) a YouTube video', async ({ page }) => {
@@ -231,7 +231,10 @@ test.describe('Reading Mode mini player — tapping the video does not manufactu
     expect(result).toEqual({ paused: 0, played: 0 });
   });
 
-  test('a plain tap still toggles play/pause for a direct-link <video>, exactly as before', async ({ page }) => {
+  // A finger tap on the picture only shows or hides the controls; the big
+  // centre button is what plays or pauses on a touchscreen. A mouse click
+  // anywhere still plays or pauses, as on YouTube's desktop player.
+  test('a finger tap never plays or pauses a direct-link <video> either', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
     await page.goto('/browse/?ref=Chullin%2089a');
@@ -239,7 +242,20 @@ test.describe('Reading Mode mini player — tapping the video does not manufactu
     await expect(page.locator('#readingVideoFloat')).toBeVisible();
 
     const before = await page.evaluate(() => document.getElementById('video').paused);
-    await tapPinchSurface(page);
+    await tapPinchSurface(page, 'touch');
+    await page.waitForTimeout(100);
+    expect(await page.evaluate(() => document.getElementById('video').paused)).toBe(before);
+  });
+
+  test('a mouse click still toggles play/pause for a direct-link <video>, as on YouTube desktop', async ({ page }) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.click('#readingModeButton');
+    await expect(page.locator('#readingVideoFloat')).toBeVisible();
+
+    const before = await page.evaluate(() => document.getElementById('video').paused);
+    await tapPinchSurface(page, 'mouse');
     await page.waitForTimeout(100);
     const after = await page.evaluate(() => document.getElementById('video').paused);
 

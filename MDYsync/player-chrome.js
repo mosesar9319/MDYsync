@@ -1314,10 +1314,15 @@
   });
   clickSurface.addEventListener('click', () => {
     // This surface is inert while the controls are hidden (the wake layer
-    // owns that). A click here means they were already showing.
-    if (picturePointerType === 'mouse' || picturePointerType === 'touch') {
+    // owns that). A click here means they were already showing. A mouse
+    // click plays or pauses (YouTube's desktop player); a finger tap only
+    // puts the controls away -- on a touchscreen the big centre button is
+    // the one place that plays or pauses.
+    if (picturePointerType === 'mouse') {
       showVideoControls();
       window.togglePlay?.();
+    } else if (picturePointerType === 'touch' || picturePointerType === 'pen') {
+      window.hideVideoControls?.();
     }
   });
 

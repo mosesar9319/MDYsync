@@ -400,6 +400,81 @@ test.describe('player bugfixes on live Bekhorot', () => {
     await shot(page, 'intro-31a');
   });
 
+  // On a touchscreen only the big centre button plays or pauses. While the
+  // video plays, a centre pause button comes and goes with the controls; a
+  // finger tap anywhere else on the picture only shows or hides them. A
+  // mouse click anywhere still plays or pauses, as on YouTube's desktop
+  // player, so the desktop never shows the centre pause button.
+  test('a finger tap on the picture only shows or hides the controls; the centre button pauses', async ({ page }) => {
+    test.setTimeout(60000);
+    const phone = test.info().project.name === 'mobile';
+    await openLive(page, '/player/?ref=Bekhorot+20a');
+    await page.evaluate(() => {
+      window.__plays = 0;
+      window.__pauses = 0;
+      const player = window.__yt;
+      player.playVideo = () => { window.__plays += 1; player._state = 1; };
+      player.pauseVideo = () => { window.__pauses += 1; player._state = 2; };
+      player._state = 1;
+      state.wantPlaying = false;
+      state.youtubeReady = true;
+      updatePlayUi();
+      showVideoControls();
+    });
+    const pause = page.locator('#largePause');
+    if (!phone) {
+      await expect(pause).toBeHidden();
+      return;
+    }
+    await expect(pause).toBeVisible();
+    await expect(page.locator('#largePlay')).toBeHidden();
+
+    // A finger tap on the picture away from the centre: no pause, and the
+    // controls (and the centre button with them) go away.
+    const tapAt = (selector, x, y) => page.evaluate(async ([selector, fx, fy]) => {
+      const el = document.querySelector(selector);
+      const r = el.getBoundingClientRect();
+      const px = r.left + r.width * fx;
+      const py = r.top + r.height * fy;
+      el.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 7, pointerType: 'touch', clientX: px, clientY: py, bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      el.dispatchEvent(new PointerEvent('pointerup', { pointerId: 7, pointerType: 'touch', clientX: px, clientY: py, bubbles: true }));
+      el.dispatchEvent(new MouseEvent('click', { clientX: px, clientY: py, bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    }, [selector, x, y]);
+    await tapAt('.video-click-surface', 0.2, 0.3);
+    expect(await page.evaluate(() => window.__pauses + window.__plays)).toBe(0);
+    await expect(page.locator('#videoFrame')).toHaveClass(/controls-hidden/);
+    await expect(pause).toBeHidden();
+
+    // The next tap brings them back, still without pausing.
+    await tapAt('.player-wake-layer', 0.2, 0.3);
+    expect(await page.evaluate(() => window.__pauses + window.__plays)).toBe(0);
+    await expect(page.locator('#videoFrame')).not.toHaveClass(/controls-hidden/);
+    await expect(pause).toBeVisible();
+
+    // The centre button pauses, and the centre then offers play.
+    await pause.tap();
+    expect(await page.evaluate(() => window.__pauses)).toBe(1);
+    await page.evaluate(() => updatePlayUi());
+    await expect(page.locator('#largePlay')).toBeVisible();
+    await expect(pause).toBeHidden();
+  });
+
+  test('a mouse click anywhere on the picture plays or pauses, as on YouTube desktop', async ({ page }) => {
+    test.setTimeout(60000);
+    await openLive(page, '/player/?ref=Bekhorot+20a');
+    await page.evaluate(() => {
+      window.__toggles = 0;
+      window.togglePlay = () => { window.__toggles += 1; };
+      showVideoControls();
+    });
+    const surface = page.locator('.video-click-surface');
+    await surface.dispatchEvent('pointerdown', { pointerType: 'mouse' });
+    await surface.dispatchEvent('click');
+    expect(await page.evaluate(() => window.__toggles)).toBe(1);
+  });
+
   test('play intent shows a spinner and a second click cancels instead of re-requesting', async ({ page }) => {
     test.setTimeout(60000);
     await openLive(page, '/player/?ref=Bekhorot+20a');

@@ -2289,6 +2289,15 @@ input[type="url"]:focus { border-color: rgba(47, 110, 165,.8); box-shadow: 0 0 0
    further down) for the same reason -- the daf picker/bookmark/notes/More
    buttons up there had the exact same problem. */
 .video-frame .large-play { z-index: 13; }
+/* The centre pause button (app.js) is for touchscreens only, where a tap on
+   the picture no longer pauses. It fades with the rest of the controls. A
+   mouse pauses with a click anywhere, as on YouTube, so desktop never shows
+   it. */
+.video-frame .large-pause { display: none; }
+@media (hover: none), (pointer: coarse) {
+  .video-frame .large-pause:not([hidden]) { display: grid; transition: opacity .25s ease, visibility 0s linear 0s; }
+  .video-frame.controls-hidden .large-pause { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .25s ease, visibility 0s linear .25s; }
+}
 
 @media (max-width: 700px) {
   .source-tabs { width: 100%; }
