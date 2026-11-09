@@ -212,8 +212,9 @@ const state = {
   // which only picks a viewport-based default while this stays false.
   splitViewLayoutExplicit: false,
   // Fraction (0-1) of the split container the VIDEO pane occupies along the
-  // split axis. Null means "use the mode's own default" (0.5 side-by-side,
-  // 0.4 stacked) -- see splitViewRatioOrDefault().
+  // split axis. Null means "use the mode's own default" (0.5 side-by-side;
+  // stacked, a pane exactly as tall as the full-width picture) -- see
+  // splitViewRatioOrDefault().
   splitViewRatio: null,
   // The divider position each layout last had, so a phone rotated to
   // landscape and back gets its portrait divider back (and vice versa)
@@ -6213,8 +6214,12 @@ function loadSplitViewPreferences() {
     if (!saved || typeof saved !== 'object') return;
     if (saved.layout === 'side-by-side' || saved.layout === 'stacked') state.splitViewLayout = saved.layout;
     if (typeof saved.layoutExplicit === 'boolean') state.splitViewLayoutExplicit = saved.layoutExplicit;
-    if (Number.isFinite(saved.ratio)) state.splitViewRatio = clampReadingValue(saved.ratio, SPLIT_VIEW_MIN_RATIO, SPLIT_VIEW_MAX_RATIO);
     if (saved.videoPosition === 'start' || saved.videoPosition === 'end') state.splitViewVideoPosition = saved.videoPosition;
+    // A divider position saved before version 2 meant something else: the
+    // stacked default was 40% of the screen, which now opens zoomed in.
+    // Start those readers from the full-picture default instead.
+    if (saved.v !== 2) return;
+    if (Number.isFinite(saved.ratio)) state.splitViewRatio = clampReadingValue(saved.ratio, SPLIT_VIEW_MIN_RATIO, SPLIT_VIEW_MAX_RATIO);
     if (saved.ratios && typeof saved.ratios === 'object') {
       for (const layout of ['side-by-side', 'stacked']) {
         const value = saved.ratios[layout];
@@ -6232,6 +6237,7 @@ function saveSplitViewPreferences() {
   else delete state.splitViewRatios[state.splitViewLayout];
   try {
     localStorage.setItem(SPLIT_VIEW_PREFS_KEY, JSON.stringify({
+      v: 2,
       layout: state.splitViewLayout,
       layoutExplicit: state.splitViewLayoutExplicit,
       ratio: state.splitViewRatio,
@@ -6288,8 +6294,23 @@ function applySplitViewDefaultLayout() {
 function splitViewRatioOrDefault() {
   const ratio = Number.isFinite(state.splitViewRatio)
     ? state.splitViewRatio
-    : (state.splitViewLayout === 'stacked' ? 0.4 : 0.5);
+    : (state.splitViewLayout === 'stacked' ? stackedFullPictureRatio() : 0.5);
   return clampSplitRatio(ratio);
+}
+// Stacked default: the video pane is exactly as tall as the whole 16:9
+// picture at full width, so the default shows the entire frame with no
+// space left over. A taller pane (divider dragged down) grows the picture
+// and crops its sides (styles.css); a shorter one shrinks it to fit.
+// Recomputed on every layout pass, so a resize or rotation keeps it exact.
+function stackedFullPictureRatio() {
+  const container = splitViewContainer();
+  if (!container) return 0.4;
+  const cs = getComputedStyle(container);
+  const width = container.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+  const height = container.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0);
+  const divider = parseFloat(cs.getPropertyValue('--split-divider-size')) || 10;
+  if (!(width > 0) || !(height - divider > 40)) return 0.4;
+  return (width * 9 / 16) / (height - divider);
 }
 // The divider used to follow the finger as a fraction of the whole screen,
 // and the YouTube picture was shifted up by a fixed crop. Past a point,

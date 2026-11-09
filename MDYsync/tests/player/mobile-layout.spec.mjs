@@ -1467,7 +1467,7 @@ test.describe('mobile player layout', () => {
     await shot(page, 'phone-landscape-picker-in-controls');
   });
 
-  test('split shows the whole picture at every divider position and never crops it', async ({ page }) => {
+  test('split opens on the whole picture, zooms in as the divider is dragged down, and fits when dragged up', async ({ page }) => {
     test.skip(test.info().project.name !== 'mobile', 'portrait phone');
     test.setTimeout(60000);
     await page.setViewportSize({ width: 412, height: 915 });
@@ -1509,30 +1509,43 @@ test.describe('mobile player layout', () => {
         hidden: frameEl.classList.contains('controls-hidden'),
       };
     }, hidden);
-    // The largest 16:9 box that fits the pane, top edge on the pane's top
-    // edge, centered across. Iframe, poster, and mask all share it.
+    // Two shapes, both 16:9 and top-anchored, centered across:
+    //  - pane no taller than the full-width picture: the largest box that
+    //    fits, nothing cropped (iframe, poster, and mask share it);
+    //  - pane taller (divider dragged down): the picture fills the pane's
+    //    height and its sides are cut evenly, with no space below it. The
+    //    mask is then the visible pane.
     const expectWhole = (info, name) => {
       const { frame, host } = info;
-      const fitH = Math.min(frame.height, frame.width * 9 / 16);
+      const zoomed = frame.height > frame.width * 9 / 16 + 1.5;
       expect(Math.abs(host.width / host.height - 16 / 9), `${name} 16:9`).toBeLessThan(0.02);
-      expect(Math.abs(host.height - fitH), `${name} as large as fits`).toBeLessThan(1.5);
       expect(Math.abs(host.top - frame.top), `${name} top anchored`).toBeLessThan(1.5);
-      expect(host.left, `${name} not cropped left`).toBeGreaterThanOrEqual(frame.left - 1);
-      expect(host.right, `${name} not cropped right`).toBeLessThanOrEqual(frame.right + 1);
-      expect(host.bottom, `${name} not cropped below`).toBeLessThanOrEqual(frame.bottom + 1);
       expect(Math.abs((host.left + host.right) / 2 - (frame.left + frame.right) / 2), `${name} centered`).toBeLessThan(1.5);
+      if (zoomed) {
+        expect(Math.abs(host.height - frame.height), `${name} fills the pane height`).toBeLessThan(1.5);
+        expect(Math.abs(host.bottom - frame.bottom), `${name} no space below`).toBeLessThan(1.5);
+        expect(host.left, `${name} sides cut`).toBeLessThan(frame.left - 1);
+      } else {
+        expect(Math.abs(host.height - Math.min(frame.height, frame.width * 9 / 16)), `${name} as large as fits`).toBeLessThan(1.5);
+        expect(host.left, `${name} not cropped left`).toBeGreaterThanOrEqual(frame.left - 1);
+        expect(host.right, `${name} not cropped right`).toBeLessThanOrEqual(frame.right + 1);
+        expect(host.bottom, `${name} not cropped below`).toBeLessThanOrEqual(frame.bottom + 1);
+      }
+      const sameBox = { shield: host, embed: host, mask: zoomed ? frame : host };
       for (const key of ['mask', 'shield', 'embed']) {
         const other = info[key];
         if (!other) continue;
-        expect(Math.abs(other.top - host.top), `${name} ${key} top`).toBeLessThan(1.5);
-        expect(Math.abs(other.bottom - host.bottom), `${name} ${key} bottom`).toBeLessThan(1.5);
-        expect(Math.abs(other.left - host.left), `${name} ${key} left`).toBeLessThan(1.5);
-        expect(Math.abs(other.right - host.right), `${name} ${key} right`).toBeLessThan(1.5);
+        const ref = sameBox[key];
+        expect(Math.abs(other.top - ref.top), `${name} ${key} top`).toBeLessThan(1.5);
+        expect(Math.abs(other.bottom - ref.bottom), `${name} ${key} bottom`).toBeLessThan(1.5);
+        expect(Math.abs(other.left - ref.left), `${name} ${key} left`).toBeLessThan(1.5);
+        expect(Math.abs(other.right - ref.right), `${name} ${key} right`).toBeLessThan(1.5);
       }
       // The title band covers YouTube's title block only; no bottom chips sit
       // on the burned-in caption lines.
-      expect(info.topEdge, `${name} title band`).toBeLessThanOrEqual(Math.min(60, host.height * 0.26) + 1);
-      expect(info.topEdge, `${name} title band`).toBeGreaterThan(Math.min(24, host.height * 0.26 - 1));
+      const bandBase = Math.min(host.height, frame.height);
+      expect(info.topEdge, `${name} title band`).toBeLessThanOrEqual(Math.min(60, bandBase * 0.26) + 1);
+      expect(info.topEdge, `${name} title band`).toBeGreaterThan(Math.min(24, bandBase * 0.26 - 1));
       expect(info.chips, `${name} no caption chips`).toEqual([]);
       expect(['none', 'matrix(1, 0, 0, 1, 0, 0)']).toContain(info.transform);
       console.log(`FIT ${name} pane=${frame.width.toFixed(0)}x${frame.height.toFixed(0)} picture=${host.width.toFixed(0)}x${host.height.toFixed(0)}@${(host.left - frame.left).toFixed(0)},${(host.top - frame.top).toFixed(0)}`);
@@ -1540,23 +1553,35 @@ test.describe('mobile player layout', () => {
 
     const normal = await picture(false);
     expectWhole(normal, 'default');
-    // Portrait default: the picture spans the full width.
+    // Portrait default: the pane is exactly the whole full-width picture,
+    // with no space left over.
+    expect(Math.abs(normal.frame.height - normal.frame.width * 9 / 16)).toBeLessThan(1.5);
     expect(Math.abs(normal.host.width - normal.frame.width)).toBeLessThan(1.5);
+    expect(Math.abs(normal.host.height - normal.frame.height)).toBeLessThan(1.5);
     await shot(page, 'phone-split-fit-default');
 
-    const divider = await page.locator('#splitDivider').boundingBox();
-    const x = divider.x + divider.width / 2;
-    const y = divider.y + divider.height / 2;
-    await page.mouse.move(x, y);
-    await page.mouse.down();
-    await page.mouse.move(x, y + 600, { steps: 12 });
-    await page.mouse.up();
+    // Dragging down keeps pulling the picture down with the divider: it
+    // grows taller, wider, and more cropped at each step.
+    const dragDown = async (dy) => {
+      const d = await page.locator('#splitDivider').boundingBox();
+      const x = d.x + d.width / 2;
+      const y = d.y + d.height / 2;
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await page.mouse.move(x, y + dy, { steps: 12 });
+      await page.mouse.up();
+    };
+    await dragDown(140);
+    const mid = await picture(false);
+    expect(mid.frame.height).toBeGreaterThan(normal.frame.height + 100);
+    expectWhole(mid, 'mid');
+    expect(mid.host.width).toBeGreaterThan(normal.host.width + 100);
+    await shot(page, 'phone-split-zoom-mid');
+    await dragDown(600);
     const tall = await picture(false);
-    expect(tall.frame.height).toBeGreaterThan(normal.frame.height + 40);
+    expect(tall.frame.height).toBeGreaterThan(mid.frame.height + 40);
     expectWhole(tall, 'tall');
-    // Taller than the full-width picture needs: it stays full width and
-    // letterboxes below rather than zooming in.
-    expect(Math.abs(tall.host.width - normal.host.width)).toBeLessThan(1.5);
+    expect(tall.host.width).toBeGreaterThan(mid.host.width + 40);
     const tallHidden = await picture(true);
     expectWhole(tallHidden, 'tall-hidden');
     expect(Math.abs(tall.host.top - tallHidden.host.top), 'the bar does not move the picture').toBeLessThan(1.5);
@@ -1857,7 +1882,7 @@ test.describe('mobile player layout', () => {
     }
   });
 
-  test('phone split keeps the whole picture and a title-only band at three pane heights', async ({ page }) => {
+  test('phone split: whole-picture default, zoom when dragged tall, title-only band, at three pane heights', async ({ page }) => {
     test.skip(test.info().project.name !== 'mobile', '412 portrait phone');
     test.setTimeout(180000);
     await page.setViewportSize({ width: 412, height: 915 });
@@ -1879,8 +1904,8 @@ test.describe('mobile player layout', () => {
     const setPane = (mode) => page.evaluate((mode) => {
       const container = document.querySelector('.watch-layout.split-active');
       const size = container.getBoundingClientRect().height || 1;
-      const target = mode === 'short' ? 80 : mode === 'tall' ? 460 : size * 0.4;
-      state.splitViewRatio = target / size;
+      // default = the full-picture default (no saved divider position).
+      state.splitViewRatio = mode === 'short' ? 80 / size : mode === 'tall' ? 460 / size : null;
       applySplitViewLayoutToDom();
     }, mode);
     let seekTo = 36;
@@ -1924,16 +1949,29 @@ test.describe('mobile player layout', () => {
         await shot(page, name);
         const { frame, host } = info;
         expect(frame.height, name).toBeGreaterThan(70);
-        // The whole frame: 16:9, inside the pane, top-anchored, as large as fits.
+        // 16:9 and top-anchored. Default and short: the whole frame, as large
+        // as fits. Tall (pane taller than the full-width picture): the picture
+        // fills the height with its sides cut evenly; the mask is the pane.
+        const zoomed = frame.height > frame.width * 9 / 16 + 1.5;
         expect(Math.abs(host.width / host.height - 16 / 9), name).toBeLessThan(0.02);
-        expect(Math.abs(host.height - Math.min(frame.height, frame.width * 9 / 16)), name).toBeLessThan(1.5);
         expect(Math.abs(host.top - frame.top), `${name} top`).toBeLessThan(1);
-        expect(host.bottom, `${name} bottom`).toBeLessThanOrEqual(frame.bottom + 1);
-        expect(host.left, name).toBeGreaterThanOrEqual(frame.left - 1);
-        expect(host.right, name).toBeLessThanOrEqual(frame.right + 1);
+        expect(Math.abs((host.left + host.right) / 2 - (frame.left + frame.right) / 2), `${name} centered`).toBeLessThan(1.5);
+        if (zoomed) {
+          expect(Math.abs(host.height - frame.height), `${name} fills height`).toBeLessThan(1.5);
+          expect(host.left, `${name} sides cut`).toBeLessThan(frame.left - 1);
+        } else {
+          expect(Math.abs(host.height - Math.min(frame.height, frame.width * 9 / 16)), name).toBeLessThan(1.5);
+          expect(host.bottom, `${name} bottom`).toBeLessThanOrEqual(frame.bottom + 1);
+          expect(host.left, name).toBeGreaterThanOrEqual(frame.left - 1);
+          expect(host.right, name).toBeLessThanOrEqual(frame.right + 1);
+        }
+        if (label === 'default') {
+          expect(Math.abs(frame.height - frame.width * 9 / 16), `${name} default pane is the whole picture`).toBeLessThan(1.5);
+        }
+        const maskRef = zoomed ? frame : host;
         for (const edge of ['top', 'bottom', 'left', 'right']) {
           expect(Math.abs(info.embed[edge] - host[edge]), `${name} iframe ${edge}`).toBeLessThan(1);
-          if (info.layer && (info.mask || info.corner)) expect(Math.abs(info.layer[edge] - host[edge]), `${name} mask ${edge}`).toBeLessThan(1.5);
+          if (info.layer && (info.mask || info.corner)) expect(Math.abs(info.layer[edge] - maskRef[edge]), `${name} mask ${edge}`).toBeLessThan(1.5);
         }
         if (ms === 500) console.log(`FIT ${name} pane=${frame.width.toFixed(0)}x${frame.height.toFixed(0)} picture=${host.width.toFixed(0)}x${host.height.toFixed(0)}`);
         const aspect = frame.width / frame.height;
@@ -1946,8 +1984,9 @@ test.describe('mobile player layout', () => {
         if (info.elapsed <= 5400) expect(info.corner, name).toBe(true);
         if (info.elapsed >= 7800) expect(info.corner, name).toBe(false);
         if (info.mask) {
-          expect(info.topH, `${name} title band`).toBeLessThanOrEqual(Math.min(60, host.height * 0.26) + 1);
-          expect(info.topH, `${name} title band`).toBeGreaterThan(Math.min(20, host.height * 0.26 - 1));
+          const bandBase = Math.min(host.height, frame.height);
+          expect(info.topH, `${name} title band`).toBeLessThanOrEqual(Math.min(60, bandBase * 0.26) + 1);
+          expect(info.topH, `${name} title band`).toBeGreaterThan(Math.min(20, bandBase * 0.26 - 1));
         }
         // Nothing opaque over the caption lines, in any state.
         expect(info.chips, `${name} caption chips`).toEqual([]);
@@ -2164,9 +2203,12 @@ test.describe('mobile player layout', () => {
     // half played, then count red and grey pixels down three columns.
     await page.mouse.move(1, 1);
     await page.evaluate((t) => { seek(t, true); showVideoControls(); }, dur / 2);
+    // The bar floats over the picture: measure it over a plain dark ground.
+    const ground = await page.addStyleTag({ content: '.youtube-stage,.yt-shield,.yt-mask-layer,#video{visibility:hidden!important}.video-frame{background:#030914!important}' });
     await page.waitForTimeout(250);
     const { Jimp } = await import('jimp');
     const png = await Jimp.read(await scrubber.screenshot());
+    await ground.evaluate((el) => el.remove());
     const scale = png.bitmap.width / box.width;
     const column = (fx) => {
       const x = Math.round(png.bitmap.width * fx);

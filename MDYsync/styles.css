@@ -3817,12 +3817,16 @@ body.split-view-active .watch-layout.split-active .video-frame.youtube-active #y
 /* --- Split View: the whole picture --------------------------------------
    The iframe, the poster, and the mask share one box: the largest 16:9
    rectangle that fits inside the pane, top edge on the pane's top edge,
-   centered across. Nothing is cropped -- not the sides (the old cover rule
-   for a pane taller than 16:9) and not the top (the old title crop for a
-   pane wider than 16:9) -- so both burned-in caption lines are always in
-   view. A pane of another shape letterboxes instead of cropping. Growing
-   the pane grows the picture until the other edge limits it; shrinking it
-   shrinks the picture from the top-anchored box, so it never slides off.
+   centered across. Nothing is cropped off the top (the old title crop), so
+   both burned-in caption lines stay in view. Shrinking the pane shrinks
+   the picture from its top-anchored box, so it never slides off.
+
+   Stacked (phone portrait): the default pane is exactly the full-width
+   picture (stackedFullPictureRatio in app.js). Dragging the divider down
+   past that keeps pulling the picture down with it: it fills the pane's
+   height and its sides are cut evenly, so it zooms in and narrows instead
+   of leaving empty space below (the cover rule just after this one).
+   Side by side, the divider moves across, and the picture stays whole.
    The reader can still pinch to zoom; the Fit button (app.js) and a
    double-tap bring the full frame back.
 
@@ -3848,6 +3852,41 @@ body.split-view-active .watch-layout.split-active .video-frame.youtube-active .y
   max-width: 100%;
   max-height: 100%;
 }
+/* Stacked, pane taller than the full-width picture (divider dragged down):
+   the picture follows the divider down -- full pane height, 16:9, sides cut
+   evenly, top on the pane's top -- so there is no empty band below it. The
+   caption lines stay at the pane's bottom edge. The mask is the visible
+   pane; the poster keeps the picture's own box. */
+@container yt-frame (aspect-ratio < 16 / 9) {
+  body.split-view-active.split-layout-stacked .watch-layout.split-active .video-frame.youtube-active #youtubePlayerHost,
+  body.split-view-active.split-layout-stacked .watch-layout.split-active .video-frame.youtube-active .yt-shield {
+    top: 0;
+    left: calc((100cqw - 100cqh * 16 / 9) / 2);
+    right: auto;
+    margin: 0;
+    width: calc(100cqh * 16 / 9);
+    height: 100cqh;
+    max-width: none;
+    max-height: none;
+  }
+  body.split-view-active.split-layout-stacked .watch-layout.split-active .video-frame.youtube-active .yt-mask-layer {
+    top: 0;
+    left: 0;
+    right: auto;
+    margin: 0;
+    width: 100cqw;
+    height: 100cqh;
+    max-width: none;
+    max-height: none;
+  }
+  body.split-view-active.split-layout-stacked .watch-layout.split-active .video-frame #video {
+    object-fit: cover;
+    object-position: center top;
+  }
+}
+/* A direct video link uses the same rule, so the frame is a size container
+   in Split whatever the source. */
+body.split-view-active .watch-layout.split-active .video-frame { container-type: size; container-name: yt-frame; }
 /* What the mask still does in Split, and what it gives up. Measured on a
    real embed at phone size: YouTube's title row is about 48px of the
    iframe (after play, a seek, or while buffering), and its share button,
