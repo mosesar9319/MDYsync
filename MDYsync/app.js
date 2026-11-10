@@ -5143,6 +5143,12 @@ const IDLE_OPACITY_FLOOR = 0.1;
 // videoOverlayZoom multiplies into the mode's base crop width -- 1 is the
 // mode's default framing, >1 shows less of the page (more magnified), <1
 // shows more. Clamped so the crop never needs to exceed the source image.
+// Narrowest crop of a phone's band of current lines, as a fraction of the
+// page's width (see updateVideoOverlay).
+const PHONE_OVERLAY_MIN_SPAN = 0.34;
+function phoneVideoOverlay() {
+  return window.matchMedia('(max-width: 760px), (pointer: coarse)').matches;
+}
 const OVERLAY_ZOOM_MIN = 0.6;
 const OVERLAY_ZOOM_MAX = 3.5;
 // The main page canvas (vilnaPageCanvas) is sized for the reading column it
@@ -5269,8 +5275,18 @@ function updateVideoOverlay(time) {
 
   const pageW = source.width;
   const pageH = source.height;
-  const x0 = state.videoOverlayMode === 'strip' ? GEMARA_X0_FRAC : COMMENTARY_X0_FRAC;
-  const x1 = state.videoOverlayMode === 'strip' ? GEMARA_X1_FRAC : COMMENTARY_X1_FRAC;
+  let x0 = state.videoOverlayMode === 'strip' ? GEMARA_X0_FRAC : COMMENTARY_X0_FRAC;
+  let x1 = state.videoOverlayMode === 'strip' ? GEMARA_X1_FRAC : COMMENTARY_X1_FRAC;
+  // A phone's band of current lines crops to the words being read (about a
+  // third of the page wide, around the phrase), so they are large enough to
+  // read rather than the whole width of the page in tiny type.
+  if (state.videoOverlayMode === 'strip' && activeBoxes.length && phoneVideoOverlay()) {
+    const left = Math.min(...activeBoxes.map((b) => b.x));
+    const right = Math.max(...activeBoxes.map((b) => b.x + b.w));
+    const span = Math.min(1, Math.max(right - left + 0.04, PHONE_OVERLAY_MIN_SPAN));
+    x0 = Math.max(0, Math.min(1 - span, (left + right) / 2 - span / 2));
+    x1 = x0 + span;
+  }
   const zoom = Math.max(OVERLAY_ZOOM_MIN, Math.min(OVERLAY_ZOOM_MAX, state.videoOverlayZoom || 1));
   // Pan is a user-chosen nudge on top of the mode's default centering (X) or
   // the auto-follow-the-active-word centering (Y) -- it isn't clamped itself,
@@ -10565,6 +10581,16 @@ const overlayOpacityTargetSelectEls = overlayControlGroup('overlayOpacityTargetS
 const overlayIdleSelectEls = overlayControlGroup('overlayIdleSelect');
 const overlayZoomSliderEls = overlayControlGroup('overlayZoomSlider');
 const overlayResetPositionButtonEls = overlayControlGroup('overlayResetPositionButton');
+
+// On a phone the whole printed page over the video is too small to read:
+// Daf on video starts with just the lines being read, as a band across the
+// picture, nearly opaque. The overlay settings can still change both.
+if (window.matchMedia('(max-width: 760px), (pointer: coarse)').matches) {
+  state.videoOverlayMode = 'strip';
+  state.videoOverlayOpacity = 0.9;
+  for (const el of overlayModeSelectEls) el.value = 'strip';
+  for (const el of overlayOpacitySliderEls) el.value = '90';
+}
 
 for (const el of overlayToggleEls) el.addEventListener('change', (event) => {
   syncGroupValue(overlayToggleEls, event, 'checked');

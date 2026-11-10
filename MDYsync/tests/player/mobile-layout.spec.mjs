@@ -248,6 +248,38 @@ test.describe('mobile player layout', () => {
   // On a phone the viewing modes and the Split tools fold into the divider's
   // drop-down, with a daf row under them: amud arrows, Auto-scroll, Select
   // text. The daf title, Following, Video on daf and the zoom bar are gone.
+  test('a sideways phone: the player fits the screen, its bars and controls on it', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'touch');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 915, height: 412 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    for (const mode of ['standard', 'daf-on-video']) {
+      if (mode !== 'standard') await page.evaluate(() => setViewerMode('daf-on-video'));
+      await page.locator('#videoFrame').evaluate((frame) => { frame.scrollIntoView({ block: 'start' }); frame.classList.remove('controls-hidden'); });
+      const box = await page.evaluate(() => {
+        const r = (id) => document.querySelector(id).getBoundingClientRect();
+        return { frame: r('#videoFrame'), topbar: r('#playerTopbar'), controls: r('.player-controls'), overlay: r('#videoVilnaOverlay'), vh: innerHeight };
+      });
+      expect(box.frame.height, mode).toBeLessThanOrEqual(box.vh);
+      // The bars are inside the player, which is no taller than the screen.
+      expect(box.controls.bottom, mode).toBeLessThanOrEqual(box.frame.bottom + 1);
+      expect(box.topbar.bottom, mode).toBeLessThanOrEqual(box.controls.top + 1);
+      // The daf overlay is on the picture, not over the bars below it.
+      expect(box.overlay.bottom, mode).toBeLessThanOrEqual(box.topbar.top + 1);
+    }
+  });
+
+  test('Daf on video on a phone starts with a band of the current lines, nearly opaque', async ({ page }) => {
+    test.setTimeout(60000);
+    const phone = test.info().project.name === 'mobile';
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeDafOnVideoButton');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('daf-on-video');
+    const overlay = await page.evaluate(() => ({ mode: state.videoOverlayMode, opacity: state.videoOverlayOpacity, select: document.getElementById('overlayModeSelect').value }));
+    // A computer keeps the whole page, half see-through.
+    expect(overlay).toEqual(phone ? { mode: 'strip', opacity: 0.9, select: 'strip' } : { mode: 'full', opacity: 0.5, select: 'full' });
+  });
+
   test('the phone Split drop-down is two rows, the Skip chip at the end of the daf row', async ({ page }) => {
     test.skip(test.info().project.name !== 'mobile', 'touch');
     test.setTimeout(90000);

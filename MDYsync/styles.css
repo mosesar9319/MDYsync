@@ -278,6 +278,10 @@ h2 { margin-bottom: 0; }
    this box now extends. */
 .video-vilna-overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 3; }
 .video-vilna-overlay.mode-strip { top: auto; height: 30%; }
+/* A phone's band of current lines is a little taller: three or four lines. */
+@media (max-width: 760px), (pointer: coarse) {
+  .video-vilna-overlay.mode-strip { height: 40%; }
+}
 #videoVilnaCanvas { width: 100%; height: 100%; display: block; pointer-events: auto; cursor: grab; touch-action: none; }
 #videoVilnaCanvas:active { cursor: grabbing; }
 
@@ -4017,7 +4021,17 @@ body.split-view-active .watch-layout.split-active .video-frame.youtube-active .y
    panel; a mouse keeps it across the top of the video. */
 @media (pointer: coarse) and (orientation: landscape),
        (hover: none) and (orientation: landscape) {
-  body:not(.split-view-active) .video-frame { --phone-picker-h: 40px; }
+  /* The picture sits above the daf-name bar, the timeline and the controls.
+     The frame is no taller than the screen, so those bars stay on it (sized
+     from the width alone it ran ~90px past the bottom of a phone), and the
+     daf overlay stays on the picture, off the bars. */
+  body:not(.split-view-active) .video-frame:not(:fullscreen) {
+    --phone-picker-h: 40px;
+    max-height: calc(100dvh - 8px);
+  }
+  body:not(.split-view-active) .video-frame:not(:fullscreen) > .video-vilna-overlay {
+    bottom: calc(var(--pc-bar-h, 68px) + var(--pc-timeline-h, 74px) + var(--phone-picker-h, 40px));
+  }
   body:not(.split-view-active) .video-frame > #playerTopbar {
     top: auto;
     bottom: calc(var(--pc-bar-h, 68px) + var(--pc-timeline-h, 74px));
