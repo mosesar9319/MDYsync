@@ -338,7 +338,9 @@ test.describe('mobile player layout', () => {
     // Leaving and coming back: no tip, no words, just the handle.
     await page.locator('#splitExitButton').click();
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
-    await page.waitForTimeout(400);
+    // The X swallows any tap for half a second after it closes Split (the
+    // click the phone sends after the finger lifts), so wait past that.
+    await page.waitForTimeout(800);
     await page.click('#viewerModeSplitButton');
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
     await page.waitForTimeout(1200);

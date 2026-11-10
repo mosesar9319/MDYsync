@@ -6680,9 +6680,11 @@ function setSplitView(enabled) {
     applySplitVideoTransform();
     showSplitChrome();
     ensureSplitBackButton();
-    if (!splitHistoryQuiet && !history.state?.split) {
-      try { history.pushState({ ...(history.state || {}), split: true }, ''); }
-      catch { /* ignore a non-cloneable existing state */ }
+    // While the Back from leaving Split a moment ago is still on its way,
+    // the entry it is about to leave still reads split: true. Its popstate
+    // pushes the new entry instead (see the listener below).
+    if (!splitHistoryQuiet && !splitHistoryBackPending && !history.state?.split) {
+      pushSplitHistory();
     }
     // Double rAF, matching restoreReadingVideoPlacement's own reasoning: one
     // frame for the class change to take effect, a second so the resulting
@@ -6702,12 +6704,27 @@ function setSplitView(enabled) {
   container.style.removeProperty('--split-video-ratio');
   resetSplitVideoZoom({ announce: false });
   scheduleVilnaPageLayoutRefresh(0);
-  if (popSplitHistory) history.back();
+  if (popSplitHistory) {
+    splitHistoryBackPending = true;
+    clearTimeout(splitHistoryBackTimer);
+    splitHistoryBackTimer = setTimeout(() => { splitHistoryBackPending = false; }, 3000);
+    history.back();
+  }
 }
 
 // True while a popstate is applying the history entry, so setSplitView does
 // not push or pop a second time.
 let splitHistoryQuiet = false;
+// True from leaving Split until the Back that leaving asked for arrives.
+// history.back() lands a moment later, and a reader who taps Split again
+// before it does must not be thrown out of Split by it.
+let splitHistoryBackPending = false;
+let splitHistoryBackTimer = null;
+
+function pushSplitHistory() {
+  try { history.pushState({ ...(history.state || {}), split: true }, ''); }
+  catch { /* ignore a non-cloneable existing state */ }
+}
 
 function overlayConsumesEscape() {
   if (document.querySelector('dialog[open]')) return true;
@@ -7432,6 +7449,14 @@ function announceViewerMode(mode) {
     setTimeout(() => { suppressSplitExitOnFullscreenChange = false; }, 80);
   }, true);
   window.addEventListener('popstate', () => {
+    if (splitHistoryBackPending) {
+      // Our own Back from leaving Split. If the reader went back into Split
+      // while it was on its way, keep Split and give it its entry again.
+      splitHistoryBackPending = false;
+      clearTimeout(splitHistoryBackTimer);
+      if (state.viewerMode === 'split' && !history.state?.split) pushSplitHistory();
+      return;
+    }
     const wantsSplit = Boolean(history.state?.split);
     if (wantsSplit === (state.viewerMode === 'split')) return;
     splitHistoryQuiet = true;
