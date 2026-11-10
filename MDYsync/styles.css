@@ -4357,6 +4357,51 @@ body[data-page="browse"]:not(.is-admin) .setup-strip { grid-template-columns: 1f
     white-space: nowrap;
   }
   #splitToolsPanel .split-amud-back[hidden] { display: none; }
+  #splitToolsPanel .split-live-button {
+    position: relative;
+    flex: none;
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid rgba(19, 34, 56, .22);
+    border-radius: 50%;
+    background: #fff;
+    color: #132238;
+    cursor: pointer;
+  }
+  #splitToolsPanel .split-live-button[hidden] { display: none; }
+  #splitToolsPanel .split-live-button svg { width: 17px; height: 17px; }
+  #splitToolsPanel .split-live-dot {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #2e9d62;
+    box-shadow: 0 0 0 2px #fff;
+  }
+  #splitToolsPanel .split-live-count {
+    position: absolute;
+    bottom: -4px;
+    right: -5px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #2f6ea5;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+  }
+  #splitToolsPanel .split-live-count.is-new { background: #c2410c; }
+  #splitToolsPanel .split-live-count[hidden] { display: none; }
+  /* The drop-down has its own Live button; the floating one stays out of Split. */
+  body.split-tools-phone .live-toggle { display: none; }
   #splitToolsPanel .split-tools-daf .header-auto-scroll { margin-left: 4px; flex: none; font-size: 12px; gap: 6px; }
   /* The Skip / Reviewing / Not synced notes end the daf row (two rows in
      all). The chip there reads "Skip to 2:29"; its full name stays its text. */
@@ -4373,7 +4418,7 @@ body[data-page="browse"]:not(.is-admin) .setup-strip { grid-template-columns: 1f
     padding: 0 10px;
   }
   body.split-tools-phone.split-tools-open #splitToolsDafRow .skip-to-daf-chip[data-short]::after {
-    content: attr(data-short);
+    content: "Skip to " attr(data-time);
     font-size: 12px;
   }
   /* A narrow phone (360px): a little tighter, still two rows. */
@@ -4387,9 +4432,14 @@ body[data-page="browse"]:not(.is-admin) .setup-strip { grid-template-columns: 1f
     body.split-view-active #splitToolsPanel .split-toolbar #splitExitButton { width: 34px; height: 34px; min-width: 34px; min-height: 34px; }
     #splitToolsPanel .split-amud-step { width: 30px; height: 30px; font-size: 20px; }
     #splitToolsPanel .split-tools-daf .header-auto-scroll { margin-left: 2px; font-size: 11px; gap: 4px; }
-    #splitToolsPanel .split-tools-daf .vilna-select-text-toggle { padding: 0 8px; font-size: 11px; }
+    body #splitToolsPanel .split-tools-daf .vilna-select-text-toggle { padding: 0 7px; font-size: 11px; }
     body.split-tools-phone.split-tools-open #splitToolsDafRow .skip-to-daf-chip[data-short] { padding: 0 8px; }
-    body.split-tools-phone.split-tools-open #splitToolsDafRow .skip-to-daf-chip[data-short]::after { font-size: 11px; }
+    body.split-tools-phone.split-tools-open #splitToolsDafRow .skip-to-daf-chip[data-short]::after { content: "Skip " attr(data-time); font-size: 11px; }
+    body.split-tools-phone.split-tools-open #splitToolsPanel .split-tools-daf .header-auto-scroll { padding: 0 7px 0 5px; }
+    #splitToolsPanel .split-tools-daf .header-auto-scroll .toggle { width: 26px; height: 15px; }
+    #splitToolsPanel .split-tools-daf .header-auto-scroll .toggle::after { left: 2px; top: 2px; width: 11px; height: 11px; }
+    #splitToolsPanel .split-tools-daf .header-auto-scroll input:checked + .toggle::after { transform: translateX(11px); }
+    #splitToolsPanel .split-live-button { width: 30px; height: 30px; }
   }
   #splitToolsPanel .split-tools-daf .vilna-select-text-toggle {
     flex: none;

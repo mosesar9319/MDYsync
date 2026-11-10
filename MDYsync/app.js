@@ -6504,10 +6504,58 @@ function ensureSplitToolsRows(panel) {
     back.title = 'Show the amud the shiur is on';
     back.hidden = true;
     back.addEventListener('click', returnToShiurAmud);
-    daf.append(step('splitAmudNextButton', '&#8249;', 'Next amud', 1), step('splitAmudPrevButton', '&#8250;', 'Previous amud', -1), back);
+    daf.append(step('splitAmudNextButton', '&#8249;', 'Next amud', 1), step('splitAmudPrevButton', '&#8250;', 'Previous amud', -1), splitLiveButton(), back);
     modes.after(daf);
   }
+  watchLiveToggle();
   return { modes, daf };
+}
+// Cloud Chaburah Live from the drop-down: the same panel the floating
+// "Live discussions" button opens (live-chaburah-ui.js), with its count.
+function splitLiveButton() {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.id = 'splitLiveButton';
+  button.className = 'split-live-button';
+  button.hidden = true;
+  button.setAttribute('aria-label', 'Live discussions');
+  button.title = 'Live discussions on this daf';
+  button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>'
+    + '<span class="split-live-dot" aria-hidden="true"></span><span class="split-live-count" hidden></span>';
+  button.addEventListener('click', () => {
+    if (document.fullscreenElement || document.webkitFullscreenElement) exitFullscreenIfActive();
+    setSplitToolsOpen(false);
+    window.DafLive?.open();
+  });
+  return button;
+}
+let liveToggleObserver = null;
+function syncSplitLiveButton() {
+  const button = $('splitLiveButton');
+  const toggle = document.querySelector('.live-toggle');
+  if (!button) return;
+  const available = Boolean(toggle && !toggle.hidden && window.DafLive?.available?.());
+  button.hidden = !available;
+  const count = button.querySelector('.split-live-count');
+  const fresh = toggle?.querySelector('.live-toggle-new');
+  const total = toggle?.querySelector('.live-toggle-count');
+  const text = fresh && !fresh.hidden && fresh.textContent ? fresh.textContent.replace(/\s*new$/, '')
+    : (total && !total.hidden ? total.textContent : '');
+  count.textContent = text;
+  count.hidden = !text;
+  count.classList.toggle('is-new', Boolean(fresh && !fresh.hidden && fresh.textContent));
+}
+function watchLiveToggle() {
+  syncSplitLiveButton();
+  if (liveToggleObserver) return;
+  const toggle = document.querySelector('.live-toggle');
+  if (!toggle) {
+    // The live panel builds itself after this script; look again shortly.
+    setTimeout(() => { if (!liveToggleObserver && document.querySelector('.live-toggle')) watchLiveToggle(); }, 1500);
+    return;
+  }
+  liveToggleObserver = new MutationObserver(syncSplitLiveButton);
+  liveToggleObserver.observe(toggle, { attributes: true, attributeFilter: ['hidden'], subtree: true, childList: true, characterData: true });
 }
 function unmountPhoneSplitOverlay() {
   const panel = $('splitToolsPanel');
@@ -7808,6 +7856,7 @@ function updateReaderNotes(time, index) {
       chip.textContent = `Skip to ${realDafRef(state.dafRef)} (${formatTime(ownStart)})`;
       // The phone drop-down's daf row shows this shorter label (CSS).
       chip.dataset.short = `Skip to ${formatTime(ownStart)}`;
+      chip.dataset.time = formatTime(ownStart);
       chip.setAttribute('aria-label', chip.textContent);
     }
   }
