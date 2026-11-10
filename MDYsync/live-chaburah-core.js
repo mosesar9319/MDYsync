@@ -168,6 +168,7 @@
     live_cannot_delete: 'You can only delete your own messages.',
     live_root_has_replies: 'This opening question has replies, so it cannot be deleted.',
     live_thread_missing: 'This discussion is no longer available.',
+    live_too_many_dapim: 'You are following the most dapim allowed (100). Unfollow one first.',
   };
   function errorText(error) {
     const message = String(error?.message || '');
@@ -211,7 +212,194 @@
     return Object.values(state || {}).filter((entries) => Array.isArray(entries) && entries.length > 0).length;
   }
 
+  // ---- Phase 2: finding, filtering, markers -----------------------------------------------
+
+  // Text for matching: without Hebrew vowel points and cantillation, lower-cased, spaces folded,
+  // so a search for "רבי" finds "רַבִּי" and "Rashi" finds "rashi".
+  function normalizeText(value) {
+    return String(value || '')
+      .normalize('NFC')
+      .replace(/[\u0591-\u05C7]/g, '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  // Does a thread's own text (its quoted words, opening question or asker) contain the query?
+  // Messages are searched by the database; this covers what the list already holds.
+  function matchesQuery(thread, query) {
+    const q = normalizeText(query);
+    if (!q) return true;
+    return [thread.quoted_text, thread.preview, thread.author_display_name]
+      .some((text) => normalizeText(text).includes(q));
+  }
+
+  // A search word as a LIKE pattern body: the characters that mean something to LIKE are
+  // escaped, so "100%" is searched for, not treated as a wildcard.
+  function escapeLike(query) {
+    return String(query || '').trim().replace(/[\\%_]/g, (c) => `\\${c}`);
+  }
+
+  // Which threads to list. `filter`: 'all', 'following', 'mine' (asked, or posted in) or 'here'
+  // (anchored in the passage the reader is at); `matchIds` is the set a search found (null
+  // means no search); `ids` limits to a set (the threads behind a marker the reader clicked).
+  function filterThreads(threads, { filter = 'all', follows, mine, matchIds = null, ids = null, myId = null, place = null } = {}) {
+    return threads.filter((thread) => {
+      if (ids && !ids.has(thread.id)) return false;
+      if (matchIds && !matchIds.has(thread.id)) return false;
+      if (filter === 'following') return Boolean(follows?.has(thread.id));
+      if (filter === 'mine') return thread.author_id === myId || Boolean(mine?.has(thread.id));
+      if (filter === 'here') return isHere(thread, place);
+      return true;
+    });
+  }
+
+  // Is a thread about the passage the reader is at (the same paragraph of the daf)?
+  function isHere(thread, place) {
+    return Boolean(place) && Number(thread.anchor_segment) === Number(place.segment) && Number(place.segment) > 0;
+  }
+
+  // The reader's place from what is on screen: the printed word nearest the vertical middle of
+  // the visible part of the page. `boxes` are the page's word boxes ({ ref, wordIndex, y, h }
+  // as fractions of the page height), `middle` the fraction of the page height at the middle
+  // of the viewport. Null when there is nothing to go by.
+  function placeFromViewport(boxes, middle) {
+    if (!Array.isArray(boxes) || !boxes.length || !Number.isFinite(middle)) return null;
+    let best = null;
+    let bestDistance = Infinity;
+    for (const box of boxes) {
+      const distance = Math.abs(box.y + box.h / 2 - middle);
+      if (distance < bestDistance) { best = box; bestDistance = distance; }
+    }
+    return best ? { segment: segmentNumber(best.ref), word: Number(best.wordIndex) || 0 } : null;
+  }
+
+  // Groups marker positions (fractions of the page) that are close enough to overlap into one
+  // marker with a count, so several threads about the same few words are one tap target.
+  // Points are { x, y, id }. Returns [{ x, y, ids: [...] }], top to bottom.
+  function clusterMarkers(points, { dx = 0.04, dy = 0.014 } = {}) {
+    const sorted = points.slice().sort((a, b) => a.y - b.y || a.x - b.x);
+    const clusters = [];
+    for (const point of sorted) {
+      const home = clusters.find((c) => Math.abs(c.x - point.x) <= dx && Math.abs(c.y - point.y) <= dy);
+      if (home) home.ids.push(point.id);
+      else clusters.push({ x: point.x, y: point.y, ids: [point.id] });
+    }
+    return clusters;
+  }
+
+  // Total new messages across an unread map (thread id -> count).
+  function unreadTotal(counts) {
+    let total = 0;
+    for (const value of (counts instanceof Map ? counts.values() : Object.values(counts || {}))) total += Number(value) || 0;
+    return total;
+  }
+
+
+  // ---- notifications -------------------------------------------------------------------------
+  // The settings a person who never opened the page has (the same as the database's).
+  const PREF_DEFAULTS = {
+    all_off: false, snooze_until: null, in_app_enabled: true, push_enabled: false,
+    lvl_mine: true, lvl_daf: false, lvl_everywhere: false, lvl_while_using: false,
+    everywhere_mode: 'digest', timezone: 'UTC', batch_minutes: 5, digest_enabled: false, digest_hour: 20,
+    quiet_enabled: false, quiet_start: 22, quiet_end: 7,
+  };
+  const BATCH_CHOICES = [[0, 'Right away'], [5, 'Every 5 minutes'], [15, 'Every 15 minutes'], [60, 'Every hour']];
+
+  // "Bekhorot-22a" back to "Bekhorot 22a".
+  function dafLabelFromKey(key) {
+    return String(key || '').replace(/-/g, ' ');
+  }
+
+  // One line saying what happened, from a notification row.
+  function notificationText(n) {
+    const who = n.actor_display_name || 'Someone';
+    switch (n.kind) {
+      case 'mention': return `${who} mentioned you`;
+      case 'reply_to_me': return `${who} replied to you`;
+      case 'reply_to_thread': return `${who} replied in your discussion`;
+      case 'followed_activity': return `${who} wrote in a discussion you follow`;
+      case 'new_thread_daf':
+      case 'new_thread_everywhere': return `${who} started a discussion on ${dafLabelFromKey(n.daf_ref_key)}`;
+      default: return `${who} wrote something`;
+    }
+  }
+
+  // The inbox shows one row per discussion, not one per message: how many arrived, how many
+  // are unread, and the newest. Input is newest first; so is the output.
+  function groupNotifications(list) {
+    const groups = new Map();
+    for (const n of list || []) {
+      let g = groups.get(n.thread_id);
+      if (!g) {
+        g = { thread_id: n.thread_id, daf_ref_key: n.daf_ref_key, latest: n, count: 0, unread: 0, thread_preview: n.thread_preview };
+        groups.set(n.thread_id, g);
+      }
+      g.count += 1;
+      if (!n.read_at) g.unread += 1;
+    }
+    return [...groups.values()];
+  }
+
+  function unreadNotificationCount(list) {
+    return (list || []).filter((n) => !n.read_at).length;
+  }
+
+  // "8 am", "11 pm" for the hour pickers.
+  function hourLabel(hour) {
+    const h = Number(hour);
+    if (h === 0) return 'midnight';
+    if (h === 12) return 'noon';
+    return h < 12 ? `${h} am` : `${h - 12} pm`;
+  }
+
+  // The settings as the database wants them: only known keys, hours as whole numbers in range.
+  function cleanPrefs(patch) {
+    const out = {};
+    for (const [key, value] of Object.entries(patch || {})) {
+      if (!(key in PREF_DEFAULTS)) continue;
+      const kind = typeof PREF_DEFAULTS[key];
+      if (key === 'snooze_until') out[key] = value ? String(value) : null;
+      else if (kind === 'boolean') out[key] = Boolean(value);
+      else if (kind === 'number') out[key] = Math.trunc(Number(value));
+      else out[key] = String(value);
+    }
+    return out;
+  }
+
+  // A short name for a device, from its user-agent string ("Chrome on Android").
+  function deviceLabel(userAgent) {
+    const ua = String(userAgent || '');
+    const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox'
+      : /(Chrome|CriOS)\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
+    const system = /Android/.test(ua) ? 'Android' : /(iPhone|iPad|iPod)/.test(ua) ? 'iPhone/iPad'
+      : /Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : '';
+    return system ? `${browser} on ${system}` : browser;
+  }
+
+  // The link a notification opens: the right daf, with the discussion open.
+  function notificationUrl(origin, n) {
+    return `${origin}/browse/?ref=${encodeURIComponent(dafLabelFromKey(n.daf_ref_key))}&live=${encodeURIComponent(n.thread_id)}`;
+  }
+
+  // Which of today's alert settings would make a notification arrive with sound or a banner:
+  // the in-app path is always on unless the person turned everything off.
+  function alertsOn(prefs) {
+    return Boolean(prefs) && !prefs.all_off && (prefs.in_app_enabled || prefs.push_enabled);
+  }
+
+  // Whether "while I use DafSync" alerts apply to an event on `dafKey` (a discussion started
+  // on the daf the reader has open, by someone else).
+  function liveAlertApplies(prefs, { dafKey, openDafKey, authorId, myId }) {
+    return Boolean(prefs && prefs.lvl_while_using && !prefs.all_off && prefs.in_app_enabled
+      && dafKey && dafKey === openDafKey && authorId !== myId);
+  }
+
   return {
+    PREF_DEFAULTS, BATCH_CHOICES, dafLabelFromKey, notificationText, groupNotifications, unreadNotificationCount,
+    hourLabel, cleanPrefs, deviceLabel, notificationUrl, alertsOn, liveAlertApplies,
+    normalizeText, matchesQuery, escapeLike, filterThreads, isHere, placeFromViewport,
+    clusterMarkers, unreadTotal,
     dafKeyFromRef, dafLabelFromRef, segmentNumber, anchorOrder, placeOrder, sortThreads,
     replyCount, timeAgo, hasUnread, mergeMessage, mergeThread, removeThread, quoteSnippet,
     bodyProblem, errorText, runsFromTarget, threadUrl, threadIdFromSearch, presenceCount,
