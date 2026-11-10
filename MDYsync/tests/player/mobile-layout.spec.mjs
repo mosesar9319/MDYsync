@@ -248,6 +248,124 @@ test.describe('mobile player layout', () => {
   // On a phone the viewing modes and the Split tools fold into the divider's
   // drop-down, with a daf row under them: amud arrows, Auto-scroll, Select
   // text. The daf title, Following, Video on daf and the zoom bar are gone.
+  test('a sideways phone: the player fits the screen, its bars and controls on it', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'touch');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 915, height: 412 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    for (const mode of ['standard', 'daf-on-video']) {
+      if (mode !== 'standard') await page.evaluate(() => setViewerMode('daf-on-video'));
+      await page.locator('#videoFrame').evaluate((frame) => { frame.scrollIntoView({ block: 'start' }); frame.classList.remove('controls-hidden'); });
+      const box = await page.evaluate(() => {
+        const r = (id) => document.querySelector(id).getBoundingClientRect();
+        return { frame: r('#videoFrame'), topbar: r('#playerTopbar'), controls: r('.player-controls'), overlay: r('#videoVilnaOverlay'), vh: innerHeight };
+      });
+      expect(box.frame.height, mode).toBeLessThanOrEqual(box.vh);
+      // The bars are inside the player, which is no taller than the screen.
+      expect(box.controls.bottom, mode).toBeLessThanOrEqual(box.frame.bottom + 1);
+      expect(box.topbar.bottom, mode).toBeLessThanOrEqual(box.controls.top + 1);
+      // The daf overlay is on the picture, not over the bars below it.
+      expect(box.overlay.bottom, mode).toBeLessThanOrEqual(box.topbar.top + 1);
+    }
+  });
+
+  test('Daf on video on a phone starts with a band of the current lines, nearly opaque', async ({ page }) => {
+    test.setTimeout(60000);
+    const phone = test.info().project.name === 'mobile';
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeDafOnVideoButton');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('daf-on-video');
+    const overlay = await page.evaluate(() => ({ mode: state.videoOverlayMode, opacity: state.videoOverlayOpacity, select: document.getElementById('overlayModeSelect').value }));
+    // A computer keeps the whole page, half see-through.
+    expect(overlay).toEqual(phone ? { mode: 'strip', opacity: 0.9, select: 'strip' } : { mode: 'full', opacity: 0.5, select: 'full' });
+  });
+
+  test('the phone Split drop-down is two rows, the Skip chip at the end of the daf row', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'touch');
+    test.setTimeout(90000);
+    for (const width of [412, 360]) {
+      await page.setViewportSize({ width, height: 860 });
+      await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+      await page.click('#viewerModeSplitButton');
+      await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+      await page.locator('#splitDivider').tap();
+      const panel = page.locator('#splitToolsPanel');
+      await expect(panel).toBeVisible();
+      // At 0:00 the shiur is still in its lead-in: the chip offers the jump.
+      const chip = panel.locator('#splitToolsDafRow #skipToDafChip');
+      await expect(chip).toBeVisible();
+      await expect(chip).toHaveAttribute('data-short', /^Skip to \d+:\d\d$/);
+      await expect(chip).toHaveAttribute('aria-label', /^Skip to Bekhorot 30a \(/);
+      const rows = await page.evaluate(() => {
+        const visible = [...document.querySelectorAll('#splitToolsPanel .split-tools-scroll > *')]
+          .filter((el) => el.getBoundingClientRect().height > 0);
+        return {
+          ids: visible.map((el) => el.id),
+          lines: ['splitToolsModesRow', 'splitToolsDafRow'].map((id) => {
+            const el = document.getElementById(id);
+            return { h: el.getBoundingClientRect().height, overflow: el.scrollWidth - el.clientWidth };
+          }),
+        };
+      });
+      expect(rows.ids, `width ${width}`).toEqual(['splitToolsModesRow', 'splitToolsDafRow']);
+      for (const line of rows.lines) {
+        expect(line.h, `width ${width}`).toBeLessThanOrEqual(56);
+        expect(line.overflow, `width ${width}`).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  test('Notes from the phone drop-down: Save is reachable on a short screen and saves', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'touch');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 412, height: 420 });
+    const { USERS } = await import('../fixtures/dataset.mjs');
+    await preparePage(page, { user: USERS.ordinary });
+    await installLiveRoutes(page);
+    await page.goto('/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.waitForFunction(() => state.segments.length > 20 && window.__yt, null, { timeout: 20000 });
+    await page.click('#viewerModeSplitButton');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+    await page.locator('#splitDivider').tap();
+    await page.locator('#playerNotesButton').tap();
+    await expect(page.locator('#noteCompose')).toBeVisible();
+    await page.locator('#noteBodyInput').fill('Written on a short phone screen');
+    const save = page.locator('#saveNoteButton');
+    const box = await save.boundingBox();
+    expect(box.y + box.height).toBeLessThanOrEqual(420);
+    await save.tap();
+    await expect(page.locator('#noteBodyInput')).toHaveValue('');
+    await expect(page.locator('#noteDialog .note-list')).toContainText('Written on a short phone screen');
+  });
+
+  test('the daf picker in the phone drop-down opens over the daf and changes the amud', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'touch');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 412, height: 915 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeSplitButton');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+    await page.locator('#splitDivider').tap();
+    await page.locator('#playerDafButton').tap();
+    const menu = page.locator('#playerDafMenu');
+    await expect(menu).toBeVisible();
+    // Below the button, on top of everything (not hidden behind the video).
+    const placed = await page.evaluate(() => {
+      const button = document.getElementById('playerDafButton').getBoundingClientRect();
+      const select = document.getElementById('dafDafSelect').getBoundingClientRect();
+      const hit = document.elementFromPoint(select.x + select.width / 2, select.y + select.height / 2);
+      return { below: select.top > button.bottom, onTop: hit?.id === 'dafDafSelect' };
+    });
+    expect(placed).toEqual({ below: true, onTop: true });
+    const asked = [];
+    page.on('request', (request) => {
+      const path = new URL(request.url()).searchParams.get('path');
+      if (path) asked.push(path);
+    });
+    await menu.locator('.amud-option', { hasText: 'b' }).first().tap();
+    await expect.poll(() => asked.some((path) => path.includes('Bekhorot-30b'))).toBe(true);
+  });
+
   test('the phone Split drop-down holds the viewing modes, the Split tools and the daf row', async ({ page }) => {
     test.skip(test.info().project.name !== 'mobile', 'touch');
     test.setTimeout(60000);
@@ -338,7 +456,9 @@ test.describe('mobile player layout', () => {
     // Leaving and coming back: no tip, no words, just the handle.
     await page.locator('#splitExitButton').click();
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
-    await page.waitForTimeout(400);
+    // The X swallows any tap for half a second after it closes Split (the
+    // click the phone sends after the finger lifts), so wait past that.
+    await page.waitForTimeout(800);
     await page.click('#viewerModeSplitButton');
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
     await page.waitForTimeout(1200);

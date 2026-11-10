@@ -278,6 +278,10 @@ h2 { margin-bottom: 0; }
    this box now extends. */
 .video-vilna-overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 3; }
 .video-vilna-overlay.mode-strip { top: auto; height: 30%; }
+/* A phone's band of current lines is a little taller: three or four lines. */
+@media (max-width: 760px), (pointer: coarse) {
+  .video-vilna-overlay.mode-strip { height: 40%; }
+}
 #videoVilnaCanvas { width: 100%; height: 100%; display: block; pointer-events: auto; cursor: grab; touch-action: none; }
 #videoVilnaCanvas:active { cursor: grabbing; }
 
@@ -1992,6 +1996,30 @@ dialog ol { color: #d8e2eb; padding-left: 21px; line-height: 1.6; }
   #noteDialog .note-timestamp-toggle { margin-top: 6px; }
   #noteDialog .note-compose-actions { margin-top: 7px; }
 }
+/* A phone: the panel is only as tall as what is actually visible (the
+   browser's bars and the keyboard cover the rest -- notes.js keeps
+   --note-dialog-h/-top in step with the visual viewport), the list shrinks
+   to its notes, and Save stays pinned at the bottom of the form while the
+   rest of it scrolls. */
+@media (max-width: 760px) {
+  #noteDialog[open] {
+    top: var(--note-dialog-top, 0);
+    bottom: auto;
+    height: var(--note-dialog-h, 100dvh);
+    max-height: var(--note-dialog-h, 100dvh);
+    padding: 16px 16px 0;
+  }
+  #noteDialog .note-list { flex: 0 1 auto; }
+  #noteDialog .note-compose-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    margin-top: 8px;
+    padding: 8px 0 calc(10px + env(safe-area-inset-bottom));
+    background: var(--card, #fff);
+    box-shadow: 0 -10px 12px -10px rgba(19, 34, 56, .22);
+  }
+}
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none; background: #17304b; border: 1px solid var(--line-strong); color: white; padding: 11px 15px; border-radius: 12px; box-shadow: 0 12px 35px rgba(0,0,0,.35); transition: .25s; z-index: 20; }
 .toast.show { transform: translate(-50%, 0); opacity: 1; }
 .toast.error { border-color: rgba(255,124,137,.5); color: #ffd5da; }
@@ -2892,7 +2920,7 @@ mark.daf-search-flash { background: rgba(240, 200, 90, .34); color: inherit; bor
     bottom: 0;
     box-shadow: 0 -5px 20px rgba(29, 57, 88, 0.06);
     display: flex;
-    gap: 10px;
+    gap: 0;
     overflow-x: auto;
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
@@ -2913,14 +2941,16 @@ mark.daf-search-flash { background: rgba(240, 200, 90, .34); color: inherit; bor
     border: 0;
     color: #65748a;
     display: flex;
-    flex: 1 0 auto;
+    /* Five short tabs share the width evenly. */
+    flex: 1 1 0;
     flex-direction: column;
-    font-size: 10px;
+    font-size: 11px;
     gap: 4px;
-    min-width: 74px;
+    min-width: 56px;
     padding: 4px 1px;
     scroll-snap-align: start;
     text-decoration: none;
+    white-space: nowrap;
   }
 
   /* A two-word label (Cloud Chaburah, Maggidei Shiurim) wraps onto a second
@@ -3862,6 +3892,22 @@ body.split-view-active .watch-layout.split-active .video-frame.youtube-active .y
   max-width: 100%;
   max-height: 100%;
 }
+/* Side by side with a mouse (a computer): the picture is centred in its
+   pane, top to bottom, instead of hanging at the top of a tall pane. The
+   controls sit along the pane's bottom, under the picture. Phones keep the
+   top edge (stacked) or fill the height (sideways) as set elsewhere. */
+@media (hover: hover) and (pointer: fine) {
+  body.split-view-active:not(.split-layout-stacked) .watch-layout.split-active .video-frame.youtube-active #youtubePlayerHost,
+  body.split-view-active:not(.split-layout-stacked) .watch-layout.split-active .video-frame.youtube-active .yt-shield,
+  body.split-view-active:not(.split-layout-stacked) .watch-layout.split-active .video-frame.youtube-active .yt-mask-layer {
+    top: 0;
+    bottom: 0;
+    margin: auto;
+  }
+  body.split-view-active:not(.split-layout-stacked) .watch-layout.split-active .video-frame #video {
+    object-position: center center;
+  }
+}
 /* Stacked, pane taller than the full-width picture (divider dragged down):
    the picture follows the divider down -- full pane height, 16:9, sides cut
    evenly, top on the pane's top -- so there is no empty band below it. The
@@ -3991,7 +4037,17 @@ body.split-view-active .watch-layout.split-active .video-frame.youtube-active .y
    panel; a mouse keeps it across the top of the video. */
 @media (pointer: coarse) and (orientation: landscape),
        (hover: none) and (orientation: landscape) {
-  body:not(.split-view-active) .video-frame { --phone-picker-h: 40px; }
+  /* The picture sits above the daf-name bar, the timeline and the controls.
+     The frame is no taller than the screen, so those bars stay on it (sized
+     from the width alone it ran ~90px past the bottom of a phone), and the
+     daf overlay stays on the picture, off the bars. */
+  body:not(.split-view-active) .video-frame:not(:fullscreen) {
+    --phone-picker-h: 40px;
+    max-height: calc(100dvh - 8px);
+  }
+  body:not(.split-view-active) .video-frame:not(:fullscreen) > .video-vilna-overlay {
+    bottom: calc(var(--pc-bar-h, 68px) + var(--pc-timeline-h, 74px) + var(--phone-picker-h, 40px));
+  }
   body:not(.split-view-active) .video-frame > #playerTopbar {
     top: auto;
     bottom: calc(var(--pc-bar-h, 68px) + var(--pc-timeline-h, 74px));
@@ -4317,7 +4373,90 @@ body[data-page="browse"]:not(.is-admin) .setup-strip { grid-template-columns: 1f
     white-space: nowrap;
   }
   #splitToolsPanel .split-amud-back[hidden] { display: none; }
-  #splitToolsPanel .split-tools-daf .header-auto-scroll { margin-left: 4px; flex: none; }
+  #splitToolsPanel .split-live-button {
+    position: relative;
+    flex: none;
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid rgba(19, 34, 56, .22);
+    border-radius: 50%;
+    background: #fff;
+    color: #132238;
+    cursor: pointer;
+  }
+  #splitToolsPanel .split-live-button[hidden] { display: none; }
+  #splitToolsPanel .split-live-button svg { width: 17px; height: 17px; }
+  #splitToolsPanel .split-live-dot {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #2e9d62;
+    box-shadow: 0 0 0 2px #fff;
+  }
+  #splitToolsPanel .split-live-count {
+    position: absolute;
+    bottom: -4px;
+    right: -5px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #2f6ea5;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+  }
+  #splitToolsPanel .split-live-count.is-new { background: #c2410c; }
+  #splitToolsPanel .split-live-count[hidden] { display: none; }
+  /* The drop-down has its own Live button; the floating one stays out of Split. */
+  body.split-tools-phone .live-toggle { display: none; }
+  #splitToolsPanel .split-tools-daf .header-auto-scroll { margin-left: 4px; flex: none; font-size: 12px; gap: 6px; }
+  /* The Skip / Reviewing / Not synced notes end the daf row (two rows in
+     all). The chip there reads "Skip to 2:29"; its full name stays its text. */
+  body.split-tools-phone.split-tools-open #splitToolsDafRow > #readerDafNotes {
+    flex: 0 1 auto;
+    min-width: 0;
+    padding: 0;
+    margin-left: 2px;
+  }
+  body.split-tools-phone.split-tools-open #splitToolsDafRow > #readerDafNotes:not(:has(> :not([hidden]))) { display: none; }
+  body.split-tools-phone.split-tools-open #splitToolsDafRow .skip-to-daf-chip[data-short] {
+    flex: none;
+    font-size: 0;
+    padding: 0 10px;
+  }
+  body.split-tools-phone.split-tools-open #splitToolsDafRow .skip-to-daf-chip[data-short]::after {
+    content: "Skip to " attr(data-time);
+    font-size: 12px;
+  }
+  /* A narrow phone (360px): a little tighter, still two rows. */
+  @media (max-width: 400px) {
+    #splitToolsPanel .split-tools-row { gap: 3px; padding-left: 6px; padding-right: 6px; }
+    body.split-view-active #splitToolsPanel .viewer-mode-select { column-gap: 3px; }
+    body.split-view-active #splitToolsPanel .viewer-mode-select .viewer-mode-button { padding: 3px 4px; }
+    #splitToolsPanel .viewer-mode-bar-divider { margin: 4px 1px; }
+    #splitToolsPanel .split-toolbar { gap: 2px; }
+    body.split-view-active #splitToolsPanel .split-toolbar .icon-button { width: 30px; height: 30px; min-width: 30px; min-height: 30px; }
+    body.split-view-active #splitToolsPanel .split-toolbar #splitExitButton { width: 34px; height: 34px; min-width: 34px; min-height: 34px; }
+    #splitToolsPanel .split-amud-step { width: 30px; height: 30px; font-size: 20px; }
+    #splitToolsPanel .split-tools-daf .header-auto-scroll { margin-left: 2px; font-size: 11px; gap: 4px; }
+    body #splitToolsPanel .split-tools-daf .vilna-select-text-toggle { padding: 0 7px; font-size: 11px; }
+    body.split-tools-phone.split-tools-open #splitToolsDafRow .skip-to-daf-chip[data-short] { padding: 0 8px; }
+    body.split-tools-phone.split-tools-open #splitToolsDafRow .skip-to-daf-chip[data-short]::after { content: "Skip " attr(data-time); font-size: 11px; }
+    body.split-tools-phone.split-tools-open #splitToolsPanel .split-tools-daf .header-auto-scroll { padding: 0 7px 0 5px; }
+    #splitToolsPanel .split-tools-daf .header-auto-scroll .toggle { width: 26px; height: 15px; }
+    #splitToolsPanel .split-tools-daf .header-auto-scroll .toggle::after { left: 2px; top: 2px; width: 11px; height: 11px; }
+    #splitToolsPanel .split-tools-daf .header-auto-scroll input:checked + .toggle::after { transform: translateX(11px); }
+    #splitToolsPanel .split-live-button { width: 30px; height: 30px; }
+  }
   #splitToolsPanel .split-tools-daf .vilna-select-text-toggle {
     flex: none;
     width: auto;
@@ -4411,3 +4550,123 @@ body[data-page="browse"]:not(.is-admin) .setup-strip { grid-template-columns: 1f
    sync switch and Auto-scroll, where a page puts it there, still show). */
 body:not(.is-admin) .daf-card .daf-footer { display: none; }
 body:not(.is-admin) .daf-card .daf-toolbar:not(:has(> :not(.admin-only):not([hidden]))) { display: none; }
+
+/* --- Computer Split: the divider's drop-down of daf tools ----------------
+   Clicking the divider (not dragging it) opens a panel across the top of
+   the daf side: the amud arrows, Auto-scroll, the Skip / Reviewing notes,
+   and Live discussions. The viewing modes stay on the video and the zoom
+   bar stays on the daf. A small round handle near the top of the divider
+   says it is there. */
+.split-divider-cue { display: none; }
+body.split-tools-desk .watch-layout.split-active .split-divider-cue {
+  position: absolute;
+  top: 28px;
+  left: 50%;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: #132238;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(8, 17, 28, .3);
+  cursor: pointer;
+}
+body.split-tools-desk .split-divider-cue-label { display: none; }
+body.split-tools-desk .split-divider-cue svg { width: 13px; height: 13px; transition: transform .2s ease; }
+body.split-tools-desk.split-tools-open .split-divider-cue svg { transform: rotate(180deg); }
+body.split-tools-desk .split-divider:hover .split-divider-cue { background: var(--accent, #2f6ea5); }
+body.split-tools-desk.split-tools-open #splitToolsPanel {
+  display: flex;
+  flex-direction: column;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  background: #f4f7fb;
+  color: #132238;
+  box-shadow: 0 14px 34px rgba(8, 17, 28, .22);
+  border-bottom: 1px solid rgba(19, 34, 56, .14);
+}
+body.split-tools-desk #splitToolsPanel .player-topbar,
+body.split-tools-desk #splitToolsPanel .split-tools-modes { display: none; }
+body.split-tools-desk #splitToolsPanel .split-tools-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+}
+body.split-tools-desk #splitToolsPanel .split-amud-step,
+body.split-tools-desk #splitToolsPanel .split-live-button {
+  position: relative;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0 0 2px;
+  border: 1px solid rgba(19, 34, 56, .22);
+  border-radius: 50%;
+  background: #fff;
+  color: #132238;
+  font: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+body.split-tools-desk #splitToolsPanel .split-amud-step:hover,
+body.split-tools-desk #splitToolsPanel .split-live-button:hover { border-color: var(--accent, #2f6ea5); }
+body.split-tools-desk #splitToolsPanel .split-live-button { padding: 0; }
+body.split-tools-desk #splitToolsPanel .split-live-button[hidden],
+body.split-tools-desk #splitToolsPanel .split-amud-back[hidden] { display: none; }
+body.split-tools-desk #splitToolsPanel .split-live-button svg { width: 18px; height: 18px; }
+body.split-tools-desk #splitToolsPanel .split-live-dot { position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; border-radius: 50%; background: #2e9d62; box-shadow: 0 0 0 2px #fff; }
+body.split-tools-desk #splitToolsPanel .split-live-count { position: absolute; bottom: -4px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: #2f6ea5; color: #fff; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; }
+body.split-tools-desk #splitToolsPanel .split-live-count.is-new { background: #c2410c; }
+body.split-tools-desk #splitToolsPanel .split-live-count[hidden] { display: none; }
+body.split-tools-desk #splitToolsPanel .split-amud-back {
+  flex: none;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: #132238;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+body.split-tools-desk #splitToolsPanel .header-auto-scroll {
+  height: 32px;
+  margin: 0;
+  padding: 0 12px;
+  border: 1px solid rgba(19, 34, 56, .18);
+  border-radius: 999px;
+  background: #fff;
+  color: #132238;
+  font-size: 13px;
+}
+body.split-tools-desk #splitToolsPanel #readerDafNotes {
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  padding: 0;
+  overflow: visible;
+}
+body.split-tools-desk #splitToolsPanel #readerDafNotes:not(:has(> :not([hidden]))) { display: none; }
+
+/* The daf zoom bar's extra controls: Fit page, set sizes, where the page
+   sits across the pane, and back to the top. The bar stays one row and
+   scrolls sideways when it doesn't fit; a phone keeps Fit page only. */
+.vilna-zoom-size { flex: none; width: auto; min-width: 0; height: 26px; border-radius: 8px; border: 1px solid rgba(19, 34, 56,.25); background: rgba(255,255,255,.7); color: #132238; font-size: 12px; padding: 0 4px; cursor: pointer; }
+.vilna-align-group { display: inline-flex; align-items: center; gap: 3px; padding-left: 6px; margin-left: 2px; border-left: 1px solid rgba(19, 34, 56,.16); }
+.vilna-align-btn { display: grid; place-items: center; padding: 0; }
+.vilna-align-btn svg { width: 15px; height: 15px; }
+.vilna-align-btn[aria-pressed="true"], #vilnaFitPageButton[aria-pressed="true"] { background: var(--accent-soft, rgba(47, 110, 165, .16)); border-color: var(--accent, #2f6ea5); color: var(--accent, #2f6ea5); }
+@media (max-width: 760px), (hover: none) {
+  .vilna-zoom-size, .vilna-align-group { display: none; }
+}

@@ -8,13 +8,16 @@
 // pre-selected. Not loaded by index.html itself -- it already renders its
 // own copy with real in-page filter behavior, not just links.
 
+// `short` is the phone bar's label (the desktop sidebar keeps `label`); a
+// tab with `phone: false` is left off the phone bar -- Today's Daf is a chip
+// at the top of the phone home page instead -- so five tabs fit side by side.
 const NAV_ITEMS = [
-  { label: 'Home', icon: 'home', href: '/' },
-  { label: 'Today’s Daf', icon: 'calendar', href: '/?nav=today' },
-  { label: 'Interactive Daf', icon: 'bookOpen', href: '/browse/' },
-  { label: 'Cloud Chaburah', icon: 'chaburah', href: '/chaburah/' },
-  { label: 'Maggidei Shiurim', icon: 'teacher', href: '/?nav=maggidei' },
-  { label: 'Daf Scan', icon: 'camera', href: '/player/?view=scan' },
+  { label: 'Home', short: 'Home', icon: 'home', href: '/' },
+  { label: 'Today’s Daf', short: 'Today', icon: 'calendar', href: '/?nav=today', phone: false },
+  { label: 'Interactive Daf', short: 'Daf', icon: 'bookOpen', href: '/browse/' },
+  { label: 'Cloud Chaburah', short: 'Chaburah', icon: 'chaburah', href: '/chaburah/' },
+  { label: 'Maggidei Shiurim', short: 'Maggidim', icon: 'teacher', href: '/?nav=maggidei' },
+  { label: 'Daf Scan', short: 'Scan', icon: 'camera', href: '/player/?view=scan' },
 ];
 
 // Same path data as index.html's own icon set, kept in sync by hand since
@@ -55,8 +58,8 @@ function renderBottomNav() {
   const nav = document.createElement('nav');
   nav.className = 'mobile-nav';
   nav.setAttribute('aria-label', 'Mobile navigation');
-  nav.innerHTML = NAV_ITEMS.map((item) =>
-    `<a class="${isItemActive(item) ? 'active' : ''}" href="${item.href}">${navIcon(item.icon)}<span>${item.label}</span></a>`
+  nav.innerHTML = NAV_ITEMS.filter((item) => item.phone !== false).map((item) =>
+    `<a class="${isItemActive(item) ? 'active' : ''}" href="${item.href}" aria-label="${item.label}">${navIcon(item.icon)}<span>${item.short}</span></a>`
   ).join('');
   document.body.appendChild(nav);
 }

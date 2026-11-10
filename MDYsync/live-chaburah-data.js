@@ -135,6 +135,47 @@
     if (error) throw error;
   }
 
+  // New messages waiting for the reader in threads they follow: Map(thread id -> count), and
+  // the daf each belongs to. null when it cannot be read (signed out, or the database
+  // function is not there yet): the page then shows its plain "new activity" marker instead.
+  async function fetchUnreadCounts() {
+    if (!me()) return null;
+    try {
+      const { data, error } = await client().rpc('live_unread_counts', { p_daf_ref_key: null });
+      if (error) return null;
+      const counts = new Map();
+      const dafs = new Map();
+      for (const row of data || []) {
+        counts.set(row.thread_id, Number(row.unread) || 0);
+        dafs.set(row.thread_id, row.daf_ref_key);
+      }
+      return { counts, dafs };
+    } catch {
+      return null;
+    }
+  }
+
+  // Which of these threads have a message containing `query` (a plain substring, wildcards
+  // escaped). Searches the conversations themselves, not just their opening questions.
+  async function searchMessages(threadIds, query) {
+    const pattern = core.escapeLike(query);
+    if (!pattern || !threadIds.length) return new Set();
+    const { data, error } = await client().from('live_messages').select('thread_id')
+      .in('thread_id', threadIds).ilike('body', `%${pattern}%`).limit(500);
+    if (error) throw error;
+    return new Set((data || []).map((row) => row.thread_id));
+  }
+
+  // The threads (of these) the reader has posted in.
+  async function fetchParticipated(threadIds) {
+    const user = me();
+    if (!user || !threadIds.length) return new Set();
+    const { data, error } = await client().from('live_messages').select('thread_id')
+      .eq('author_id', user.id).in('thread_id', threadIds).limit(1000);
+    if (error) throw error;
+    return new Set((data || []).map((row) => row.thread_id));
+  }
+
   // ---- Realtime -----------------------------------------------------------------------
   function randomKey() {
     return (window.crypto?.randomUUID?.() || `tab-${Math.random().toString(36).slice(2)}${Date.now()}`);
@@ -195,7 +236,8 @@
   window.DafSyncLive.data = {
     fetchAudience, fetchThreads, fetchThread, fetchMessages, fetchMessagesAfter,
     startThread, postMessage, editMessage, deleteMessage, setAnswer, moderate, setAudience, report,
-    fetchFollows, follow, unfollow, fetchReadStates, markRead, joinDaf, joinThread, poll,
+    fetchFollows, follow, unfollow, fetchReadStates, markRead, fetchUnreadCounts, searchMessages, fetchParticipated,
+    joinDaf, joinThread, poll,
     PAGE,
   };
 })();

@@ -160,3 +160,75 @@ test('presence counts the tabs that are here, by key, and ignores keys that have
   assert.equal(C.presenceCount({}), 0);
   assert.equal(C.presenceCount(null), 0);
 });
+
+test('search ignores vowel points and case, in Hebrew and English', () => {
+  const thread = { quoted_text: 'אָמַר רַבִּי יְהוּדָה', preview: 'Why does Rashi say this?', author_display_name: 'Author Two' };
+  assert.equal(C.matchesQuery(thread, 'רבי'), true);
+  assert.equal(C.matchesQuery(thread, 'אמר רבי יהודה'), true);
+  assert.equal(C.matchesQuery(thread, 'RASHI'), true);
+  assert.equal(C.matchesQuery(thread, 'author two'), true);
+  assert.equal(C.matchesQuery(thread, 'tosafos'), false);
+  assert.equal(C.matchesQuery(thread, '   '), true, 'an empty search matches everything');
+  assert.equal(C.normalizeText('  A   b\nC '), 'a b c');
+});
+
+test('a search word is escaped so LIKE wildcards are searched for, not obeyed', () => {
+  assert.equal(C.escapeLike('100%'), '100\\%');
+  assert.equal(C.escapeLike('a_b'), 'a\\_b');
+  assert.equal(C.escapeLike('a\\b'), 'a\\\\b');
+  assert.equal(C.escapeLike('  plain  '), 'plain');
+});
+
+test('filters: following, mine (asked or posted in), here, a search, a marker\'s threads', () => {
+  const list = [thread('a', 1, 0, { author_id: 'me' }), thread('b', 2, 0, { author_id: 'x' }), thread('c', 2, 5, { author_id: 'y' })];
+  const base = { follows: new Set(['b']), mine: new Set(['c']), myId: 'me' };
+  const ids = (opts) => C.filterThreads(list, { ...base, ...opts }).map((t) => t.id);
+  assert.deepEqual(ids({}), ['a', 'b', 'c']);
+  assert.deepEqual(ids({ filter: 'following' }), ['b']);
+  assert.deepEqual(ids({ filter: 'mine' }), ['a', 'c']);
+  assert.deepEqual(ids({ filter: 'here', place: { segment: 2, word: 0 } }), ['b', 'c']);
+  assert.deepEqual(ids({ filter: 'here', place: null }), []);
+  assert.deepEqual(ids({ matchIds: new Set(['c', 'a']) }), ['a', 'c']);
+  assert.deepEqual(ids({ ids: new Set(['b']) }), ['b']);
+  assert.deepEqual(ids({ filter: 'mine', matchIds: new Set(['a']) }), ['a'], 'filters combine');
+});
+
+test('"here" means the paragraph the reader is in, and needs a known place', () => {
+  assert.equal(C.isHere({ anchor_segment: 4 }, { segment: 4, word: 9 }), true);
+  assert.equal(C.isHere({ anchor_segment: 4 }, { segment: 5, word: 0 }), false);
+  assert.equal(C.isHere({ anchor_segment: 0 }, { segment: 0, word: 0 }), false, 'no paragraph is not a place');
+  assert.equal(C.isHere({ anchor_segment: 4 }, null), false);
+});
+
+test('the place on screen is the printed word nearest the middle of the viewport', () => {
+  const boxes = [
+    { ref: 'Bekhorot 22a.3', wordIndex: 0, y: 0.10, h: 0.02 },
+    { ref: 'Bekhorot 22a.3', wordIndex: 7, y: 0.30, h: 0.02 },
+    { ref: 'Bekhorot 22a.4', wordIndex: 2, y: 0.52, h: 0.02 },
+    { ref: 'Bekhorot 22a.5', wordIndex: 1, y: 0.90, h: 0.02 },
+  ];
+  assert.deepEqual(C.placeFromViewport(boxes, 0.5), { segment: 4, word: 2 });
+  assert.deepEqual(C.placeFromViewport(boxes, 0.0), { segment: 3, word: 0 });
+  assert.equal(C.placeFromViewport([], 0.5), null);
+  assert.equal(C.placeFromViewport(boxes, NaN), null);
+});
+
+test('markers that would overlap become one, with every thread behind it', () => {
+  const points = [
+    { id: 'a', x: 0.50, y: 0.100 }, { id: 'b', x: 0.52, y: 0.104 },  // the same few words
+    { id: 'c', x: 0.50, y: 0.300 },                                   // far below
+    { id: 'd', x: 0.10, y: 0.100 },                                   // same line, far across
+  ];
+  const clusters = C.clusterMarkers(points);
+  assert.equal(clusters.length, 3);
+  assert.deepEqual(clusters[1].ids.slice().sort(), ['a', 'b']);
+  assert.deepEqual(clusters.map((c) => c.ids.length), [1, 2, 1]); // d, then a+b, then c: top to bottom, left to right
+  assert.deepEqual(C.clusterMarkers([]), []);
+  assert.deepEqual(C.clusterMarkers(points).flatMap((c) => c.ids).sort(), ['a', 'b', 'c', 'd'], 'nothing is lost');
+});
+
+test('total unread across threads', () => {
+  assert.equal(C.unreadTotal(new Map([['a', 2], ['b', 5]])), 7);
+  assert.equal(C.unreadTotal({ a: 1 }), 1);
+  assert.equal(C.unreadTotal(null), 0);
+});

@@ -53,6 +53,19 @@ async function open(page, { history = null, theme = null, user = null } = {}) {
 }
 
 const cards = (page) => page.locator('#card-grid .shiur-card');
+
+// A card goes straight to its video; the player is stubbed so the address
+// the card opened can be read.
+async function followCard(page, card) {
+  let opened = null;
+  await page.route('**/player/**', (route) => {
+    opened = route.request().url();
+    return route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>Player</title>' });
+  });
+  await card.click();
+  await expect.poll(() => opened).not.toBeNull();
+  return new URL(opened);
+}
 const chip = (page, id) => page.locator(`#feedChips [data-chip="${id}"]`);
 
 test.describe('Phone home — the feed', () => {
@@ -190,13 +203,14 @@ test.describe('Phone home — the feed', () => {
     await expect(cards(page)).toHaveCount(12);
   });
 
-  test('a card opens the shiur window, which opens the player in Split', async ({ page }) => {
+  test('a card goes straight to its own video in Split, with no version window', async ({ page }) => {
     await open(page);
-    await cards(page).nth(2).click();
-    await expect(page.locator('#modal')).toBeVisible();
-    const href = new URL(await page.locator('#modal-watch-link').getAttribute('href'), 'http://x');
-    expect(href.searchParams.get('ref')).toBe('Bekhorot 41a');
-    expect(href.searchParams.get('mode')).toBe('split');
+    // The Hebrew recording of today's daf: that exact version, not the default English one.
+    const url = await followCard(page, cards(page).nth(1));
+    expect(url.pathname).toBe('/player/');
+    expect(url.searchParams.get('ref')).toBe('Chullin 89a');
+    expect(url.searchParams.get('language')).toBe('hebrew');
+    expect(url.searchParams.get('mode')).toBe('split');
   });
 });
 
@@ -244,6 +258,20 @@ test.describe('Desktop home is unchanged', () => {
     await expect(cards(page)).toHaveCount(44);
     await expect(cards(page).first().locator('.card-avatar')).toBeHidden();
     await expect(cards(page).first().locator('.thumb-badge')).toBeHidden();
+  });
+
+  test('a card goes straight to its video; the Today’s Daf banner still offers the versions', async ({ page }) => {
+    await open(page);
+    await expect(page.locator('#hero-card')).toBeVisible();
+    await page.locator('#hero-card').click();
+    await expect(page.locator('#modal')).toBeVisible();
+    await expect(page.locator('#modal-variant-toggle button')).toHaveText(['English', 'Hebrew']);
+    await page.locator('#modal-close').click();
+    await expect(page.locator('#modal')).toBeHidden();
+    const url = await followCard(page, cards(page).filter({ hasText: 'Chazarah Chullin 88' }));
+    expect(url.searchParams.get('ref')).toBe('Chullin 88a');
+    expect(url.searchParams.get('variant')).toBe('chazarah');
+    await expect(page.locator('#modal')).toBeHidden();
   });
 
   test('dark mode does not change the desktop page', async ({ page }) => {
