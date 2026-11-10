@@ -1763,7 +1763,11 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
   .mobile-nav button,
   .mobile-nav a {
     color: var(--feed-meta);
-    min-width: 66px;
+    /* Five short tabs share the width evenly. */
+    flex: 1 1 0;
+    font-size: 11px;
+    min-width: 56px;
+    white-space: nowrap;
   }
 
   .mobile-nav button.active,
@@ -2235,15 +2239,17 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     // -----------------------------------------------------------------
 
     const navItems = [
-      { label: "Home", icon: "home" },
-      { label: "Today’s Daf", icon: "calendar" },
+      // `short` labels the phone's bottom bar; Today's Daf is a chip at the
+      // top of the phone page, so it stays off that bar (phone: false).
+      { label: "Home", short: "Home", icon: "home" },
+      { label: "Today’s Daf", short: "Today", icon: "calendar", phone: false },
       // These two are plain links to dedicated pages, not in-page filters --
       // Scan needs the camera permission scoped to /player/* in netlify.toml,
       // and both need app.js's daf-loading machinery this lightweight home
       // page deliberately doesn't load. `href` present is what distinguishes
       // a link entry from a filter entry below (see navMarkup/renderNavigation).
-      { label: "Interactive Daf", icon: "bookOpen", href: "/browse/" },
-      { label: "Cloud Chaburah", icon: "chaburah", href: "/chaburah/" },
+      { label: "Interactive Daf", short: "Daf", icon: "bookOpen", href: "/browse/" },
+      { label: "Cloud Chaburah", short: "Chaburah", icon: "chaburah", href: "/chaburah/" },
       // Replaces the old "Masechtos" tab -- a per-tractate browsing tab is
       // its own feature (which masechtot to list, how to source them) that
       // hasn't been rebuilt since SITE_TRACTATES stopped being a single
@@ -2252,8 +2258,8 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       // filter of the video grid the way the other in-page tabs are -- see
       // renderCards' maggidimActive branch, which swaps in a dedicated
       // section instead.
-      { label: "Maggidei Shiurim", icon: "teacher" },
-      { label: "Daf Scan", icon: "camera", href: "/player/?view=scan" },
+      { label: "Maggidei Shiurim", short: "Maggidim", icon: "teacher" },
+      { label: "Daf Scan", short: "Scan", icon: "camera", href: "/player/?view=scan" },
     ];
     const state = {
       activeNav: "Home", filter: "All Shiurim", filters: ["All Shiurim"],
@@ -2303,15 +2309,16 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
 
     function navMarkup(item, mobile = false) {
       const classes = `${mobile ? "" : "side-link "}${state.activeNav === item.label ? "active" : ""}`;
-      const content = `${icon(item.icon, mobile ? 23 : 27)}<span>${item.label}</span>`;
+      const content = `${icon(item.icon, mobile ? 23 : 27)}<span>${mobile ? item.short : item.label}</span>`;
+      const name = mobile ? ` aria-label="${item.label}"` : "";
       return item.href
-        ? `<a class="${classes}" href="${item.href}">${content}</a>`
-        : `<button class="${classes}" data-nav="${item.label}" type="button">${content}</button>`;
+        ? `<a class="${classes}" href="${item.href}"${name}>${content}</a>`
+        : `<button class="${classes}" data-nav="${item.label}" type="button"${name}>${content}</button>`;
     }
 
     function renderNavigation() {
       desktopNav.innerHTML = navItems.map((item) => navMarkup(item)).join("");
-      mobileNav.innerHTML = navItems.map((item) => navMarkup(item, true)).join("");
+      mobileNav.innerHTML = navItems.filter((item) => item.phone !== false).map((item) => navMarkup(item, true)).join("");
       document.querySelectorAll("[data-nav]").forEach((button) => {
         button.addEventListener("click", () => {
           state.activeNav = button.dataset.nav;

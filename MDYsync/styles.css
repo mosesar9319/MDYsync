@@ -2892,7 +2892,7 @@ mark.daf-search-flash { background: rgba(240, 200, 90, .34); color: inherit; bor
     bottom: 0;
     box-shadow: 0 -5px 20px rgba(29, 57, 88, 0.06);
     display: flex;
-    gap: 10px;
+    gap: 0;
     overflow-x: auto;
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
@@ -2913,14 +2913,16 @@ mark.daf-search-flash { background: rgba(240, 200, 90, .34); color: inherit; bor
     border: 0;
     color: #65748a;
     display: flex;
-    flex: 1 0 auto;
+    /* Five short tabs share the width evenly. */
+    flex: 1 1 0;
     flex-direction: column;
-    font-size: 10px;
+    font-size: 11px;
     gap: 4px;
-    min-width: 74px;
+    min-width: 56px;
     padding: 4px 1px;
     scroll-snap-align: start;
     text-decoration: none;
+    white-space: nowrap;
   }
 
   /* A two-word label (Cloud Chaburah, Maggidei Shiurim) wraps onto a second
