@@ -231,6 +231,8 @@ const state = {
   splitVideoPanX: 0,
   splitVideoPanY: 0,
   vilnaPageZoom: 1,
+  vilnaPageAlign: 'center',
+  vilnaZoomFit: null,
   vilnaPdfPage: null,
   vilnaPdfContainerWidth: 0,
   vilnaZoomRerenderTimer: null,
@@ -2391,8 +2393,28 @@ async function loadVilnaPageMap(parsed, stillWanted = () => true) {
 }
 
 const VILNA_ZOOM_MIN = 0.5;
-const VILNA_ZOOM_MAX = 3;
+const VILNA_ZOOM_MAX = 4;
 const VILNA_ZOOM_STEP = 0.2;
+// The daf's zoom and where the page sits across the pane (left, centre,
+// right), remembered on this device. "Fit page" is kept as a mode, so the
+// whole page fits again on a differently sized screen.
+const VILNA_VIEW_KEY = 'dafsync.dafView';
+const VILNA_ALIGN_FRACTION = { left: 0, center: 0.5, right: 1 };
+function loadVilnaView() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(VILNA_VIEW_KEY) || 'null');
+    if (!saved || typeof saved !== 'object') return;
+    if (saved.align in VILNA_ALIGN_FRACTION) state.vilnaPageAlign = saved.align;
+    if (saved.fit === 'page') state.vilnaZoomFit = 'page';
+    const zoom = Number(saved.zoom);
+    if (Number.isFinite(zoom)) state.vilnaPageZoom = Math.max(VILNA_ZOOM_MIN, Math.min(VILNA_ZOOM_MAX, zoom));
+  } catch { /* defaults */ }
+}
+function saveVilnaView() {
+  try {
+    localStorage.setItem(VILNA_VIEW_KEY, JSON.stringify({ zoom: state.vilnaPageZoom, align: state.vilnaPageAlign, fit: state.vilnaZoomFit || null }));
+  } catch { /* this visit only */ }
+}
 
 // A plain CSS transform on the page's own wrap, not a re-render -- the
 // canvas and the per-word click targets inside it scale together as one
@@ -2401,17 +2423,50 @@ const VILNA_ZOOM_STEP = 0.2;
 // around a zoomed-in page for free.
 function applyVilnaPageZoom() {
   const wrap = $('vilnaPageWrap');
-  if (wrap) wrap.style.transform = `scale(${state.vilnaPageZoom})`;
+  const zoom = state.vilnaPageZoom;
+  const fraction = VILNA_ALIGN_FRACTION[state.vilnaPageAlign] ?? 0.5;
+  // Narrower than the pane: shift it left, to the centre or right. Wider:
+  // the scroll position does that (alignVilnaPageScroll).
+  const spare = wrap ? wrap.offsetWidth * (1 - zoom) : 0;
+  const shift = zoom < 1 ? Math.round(spare * fraction) : 0;
+  if (wrap) wrap.style.transform = `${shift ? `translateX(${shift}px) ` : ''}scale(${zoom})`;
   const label = $('vilnaZoomLabel');
-  if (label) label.textContent = `${Math.round(state.vilnaPageZoom * 100)}%`;
+  if (label) label.textContent = `${Math.round(zoom * 100)}%`;
+  for (const button of document.querySelectorAll('#vilnaZoomControls [data-daf-align]')) {
+    button.setAttribute('aria-pressed', String(button.dataset.dafAlign === state.vilnaPageAlign));
+  }
+  const fitPage = $('vilnaFitPageButton');
+  if (fitPage) fitPage.setAttribute('aria-pressed', String(state.vilnaZoomFit === 'page'));
   // Zooming changes the active words' screen coordinates even while the
   // shiur is paused, outside the normal playback-update path.
   scheduleReadingVideoFollow(false, 180);
 }
 
-function setVilnaPageZoom(zoom) {
+// Horizontal scroll that puts a page wider than the pane at its left edge,
+// centre or right edge.
+function alignVilnaPageScroll() {
+  const scroller = $('dafScroll');
+  if (!scroller) return;
+  const spare = scroller.scrollWidth - scroller.clientWidth;
+  if (spare <= 0) return;
+  scroller.scrollLeft = Math.round(spare * (VILNA_ALIGN_FRACTION[state.vilnaPageAlign] ?? 0.5));
+}
+// The zoom that shows the whole page, top to bottom, in the pane.
+function vilnaFitPageZoom() {
+  const wrap = $('vilnaPageWrap');
+  const scroller = $('dafScroll');
+  if (!wrap || !scroller || !wrap.offsetHeight) return 1;
+  const bar = $('vilnaZoomControls');
+  const barH = bar && bar.offsetParent ? bar.offsetHeight + 14 : 0;
+  const room = scroller.clientHeight - barH - 12;
+  return Math.max(VILNA_ZOOM_MIN, Math.min(1, room / wrap.offsetHeight));
+}
+function setVilnaPageZoom(zoom, { keepFit = false, align = true } = {}) {
+  if (!keepFit) state.vilnaZoomFit = null;
   state.vilnaPageZoom = Math.max(VILNA_ZOOM_MIN, Math.min(VILNA_ZOOM_MAX, zoom));
   applyVilnaPageZoom();
+  if (align) requestAnimationFrame(alignVilnaPageScroll);
+  saveVilnaView();
   // The CSS transform above gives instant visual feedback by stretching the
   // existing bitmap (blurry past its native resolution, same as stretching
   // any image); this re-rasterizes the same cached vector page at a
@@ -6639,8 +6694,28 @@ function introducePhoneSplitTools() {
   }, 700);
 }
 
+// A computer in Split (mouse, not the phone layout): clicking the divider
+// opens a drop-down of daf tools at the top of the daf side. The viewing
+// modes stay on the video and the zoom bar stays on the daf.
+function deskSplitToolsActive() {
+  return Boolean(state.splitViewEnabled) && !phoneSplitToolsActive();
+}
+function mountDeskSplitTools() {
+  const panel = $('splitToolsPanel');
+  if (!panel) return;
+  const rows = ensureSplitToolsRows(panel);
+  for (const node of [document.querySelector('.header-auto-scroll'), $('readerDafNotes')]) {
+    if (node && node.parentElement !== rows.daf) {
+      rememberPhoneToolsHome(node);
+      rows.daf.appendChild(node);
+    }
+  }
+  updateAmudPinUi();
+  syncSplitLiveButton();
+}
 function setSplitToolsOpen(open) {
-  const want = Boolean(open) && phoneSplitToolsActive();
+  const desk = deskSplitToolsActive();
+  const want = Boolean(open) && (phoneSplitToolsActive() || desk);
   if (want) {
     splitCueWrite(SPLIT_TOOLS_OPENED_KEY, '1');
     hideSplitDividerTip();
@@ -6651,8 +6726,9 @@ function setSplitToolsOpen(open) {
   const panel = $('splitToolsPanel');
   if (panel) panel.hidden = !want;
   const divider = $('splitDivider');
-  if (divider && phoneSplitToolsActive()) divider.setAttribute('aria-expanded', String(want));
-  if (want) mountPhoneSplitOverlay();
+  if (divider && (phoneSplitToolsActive() || desk)) divider.setAttribute('aria-expanded', String(want));
+  if (want && desk) mountDeskSplitTools();
+  else if (want) mountPhoneSplitOverlay();
   else unmountPhoneSplitOverlay();
 }
 function syncPhoneSplitTools() {
@@ -6662,6 +6738,14 @@ function syncPhoneSplitTools() {
   const active = phoneSplitToolsActive();
   const wasActive = document.body.classList.contains('split-tools-phone');
   document.body.classList.toggle('split-tools-phone', active);
+  const deskWas = document.body.classList.contains('split-tools-desk');
+  const desk = deskSplitToolsActive();
+  document.body.classList.toggle('split-tools-desk', desk);
+  // The computer drop-down stays as it is while Split stays on a computer.
+  if (desk && deskWas && document.body.classList.contains('split-tools-open')) {
+    if (panel) { panel.hidden = false; mountDeskSplitTools(); }
+    return;
+  }
   if (active && !wasActive) introducePhoneSplitTools();
   if (!active) hideSplitDividerTip();
   if (!panel || !topbar || !frame) return;
@@ -7200,7 +7284,7 @@ function announceViewerMode(mode) {
       saveSplitViewPreferences();
       return;
     }
-    if (event?.type === 'pointerup' && phoneSplitToolsActive()) {
+    if (event?.type === 'pointerup' && (phoneSplitToolsActive() || deskSplitToolsActive())) {
       setSplitToolsOpen(!document.body.classList.contains('split-tools-open'));
     }
   }
@@ -7227,11 +7311,24 @@ function announceViewerMode(mode) {
     saveSplitViewPreferences();
   });
   divider.addEventListener('keydown', (event) => {
-    if (!phoneSplitToolsActive()) return;
+    if (!phoneSplitToolsActive() && !deskSplitToolsActive()) return;
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
     setSplitToolsOpen(!document.body.classList.contains('split-tools-open'));
   });
+
+  // The computer drop-down closes with Escape or a click anywhere else.
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !document.body.classList.contains('split-tools-desk')) return;
+    if (!document.body.classList.contains('split-tools-open')) return;
+    event.stopPropagation();
+    setSplitToolsOpen(false);
+  }, true);
+  document.addEventListener('pointerdown', (event) => {
+    if (!document.body.classList.contains('split-tools-desk') || !document.body.classList.contains('split-tools-open')) return;
+    if (event.target.closest?.('#splitToolsPanel, #splitDivider, .player-chrome-menu, .live-panel')) return;
+    setSplitToolsOpen(false);
+  }, true);
 
   // --- Prominent selector + Split View's own small toolbar ----------------
   $('viewerModeSplitButton')?.addEventListener('click', () => toggleSplitViewerMode());
@@ -10780,7 +10877,11 @@ document.addEventListener('webkitfullscreenchange', positionOverlaySettingsInVid
 
 $('vilnaZoomInButton')?.addEventListener('click', () => setVilnaPageZoom(state.vilnaPageZoom + VILNA_ZOOM_STEP));
 $('vilnaZoomOutButton')?.addEventListener('click', () => setVilnaPageZoom(state.vilnaPageZoom - VILNA_ZOOM_STEP));
-$('vilnaZoomResetButton')?.addEventListener('click', () => setVilnaPageZoom(1));
+$('vilnaZoomResetButton')?.addEventListener('click', () => {
+  setVilnaPageZoom(1);
+  const scroller = $('dafScroll');
+  if (scroller) scroller.scrollLeft = 0;
+});
 $('vilnaFullscreenButton')?.addEventListener('click', toggleVilnaFullscreen);
 // ctrlKey is how browsers deliver a trackpad/touchscreen pinch gesture as a
 // wheel event -- only intercepted with that modifier so plain two-finger
@@ -10801,11 +10902,112 @@ $('vilnaPageWrap')?.addEventListener('click', (event) => {
     : x >= 0.15 && x <= 0.855;
   showToast(inGemara ? 'No timing for this word' : 'Only the Gemara text is synced');
 });
-$('vilnaPageWrap')?.addEventListener('wheel', (event) => {
-  if (!event.ctrlKey) return;
+// The mouse wheel zooms with Ctrl (or ⌘) held anywhere on the page, and
+// with no key over the zoom bar itself; the plain wheel on the page still
+// scrolls the daf. It zooms toward the pointer.
+function wheelZoomVilnaPage(event) {
   event.preventDefault();
-  setVilnaPageZoom(state.vilnaPageZoom + (event.deltaY < 0 ? VILNA_ZOOM_STEP : -VILNA_ZOOM_STEP));
+  const scroller = $('dafScroll');
+  const wrap = $('vilnaPageWrap');
+  const before = state.vilnaPageZoom;
+  const unit = event.deltaMode === 1 ? 33 : event.deltaMode === 2 ? 400 : 1;
+  const factor = Math.exp(-Math.max(-300, Math.min(300, event.deltaY * unit)) * 0.0022);
+  const pointerOnPage = Boolean(wrap && event.currentTarget === wrap);
+  const rect = scroller?.getBoundingClientRect();
+  const px = rect ? event.clientX - rect.left : 0;
+  const py = rect ? event.clientY - rect.top : 0;
+  const top = wrap ? wrap.offsetTop : 0;
+  const x0 = scroller ? scroller.scrollLeft + px : 0;
+  const y0 = scroller ? scroller.scrollTop + py - top : 0;
+  setVilnaPageZoom(before * factor, { align: !pointerOnPage });
+  if (!pointerOnPage || !scroller) return;
+  const ratio = state.vilnaPageZoom / before;
+  if (state.vilnaPageZoom > 1) scroller.scrollLeft = Math.round(x0 * ratio - px);
+  scroller.scrollTop = Math.round(y0 * ratio + top - py);
+}
+$('vilnaPageWrap')?.addEventListener('wheel', (event) => {
+  if (!event.ctrlKey && !event.metaKey) return;
+  wheelZoomVilnaPage(event);
 }, { passive: false });
+$('vilnaZoomControls')?.addEventListener('wheel', (event) => {
+  if (Math.abs(event.deltaY) < Math.abs(event.deltaX)) return; // a sideways scroll of the bar itself
+  wheelZoomVilnaPage(event);
+}, { passive: false });
+
+// The extra zoom controls, after Fit width: Fit page, set sizes, where the
+// page sits across the pane, and back to the top of the page.
+(function buildVilnaZoomExtras() {
+  const reset = $('vilnaZoomResetButton');
+  if (!reset || $('vilnaFitPageButton')) return;
+  reset.textContent = 'Fit width';
+  reset.title = 'The page as wide as the pane';
+  const make = (tag, props) => Object.assign(document.createElement(tag), props);
+  const fitPage = make('button', { type: 'button', id: 'vilnaFitPageButton', className: 'vilna-zoom-reset', textContent: 'Fit page', title: 'The whole page in view' });
+  fitPage.setAttribute('aria-pressed', 'false');
+  fitPage.addEventListener('click', () => {
+    state.vilnaZoomFit = 'page';
+    setVilnaPageZoom(vilnaFitPageZoom(), { keepFit: true });
+    const scroller = $('dafScroll');
+    if (scroller) scroller.scrollTop = 0;
+  });
+  const size = make('select', { id: 'vilnaZoomSizeSelect', className: 'vilna-zoom-size', title: 'Zoom to a set size' });
+  size.setAttribute('aria-label', 'Zoom size');
+  size.append(make('option', { value: '', textContent: 'Size' }));
+  for (const value of [50, 75, 100, 125, 150, 200, 300, 400]) size.append(make('option', { value: String(value / 100), textContent: `${value}%` }));
+  size.addEventListener('change', () => {
+    if (size.value) setVilnaPageZoom(Number(size.value));
+    size.value = '';
+  });
+  const group = make('span', { className: 'vilna-align-group' });
+  group.setAttribute('role', 'group');
+  group.setAttribute('aria-label', 'Where the page sits');
+  const icons = {
+    left: '<path d="M4 5v14M8 8h11M8 12h7M8 16h11"/>',
+    center: '<path d="M12 4v16M5 8h14M7 12h10M5 16h14"/>',
+    right: '<path d="M20 5v14M5 8h11M9 12h7M5 16h11"/>',
+  };
+  for (const [align, label] of [['left', 'Page to the left'], ['center', 'Page in the centre'], ['right', 'Page to the right']]) {
+    const button = make('button', { type: 'button', className: 'vilna-zoom-btn vilna-align-btn', title: label });
+    button.dataset.dafAlign = align;
+    button.setAttribute('aria-label', label);
+    button.setAttribute('aria-pressed', 'false');
+    button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">${icons[align]}</g></svg>`;
+    button.addEventListener('click', () => {
+      state.vilnaPageAlign = align;
+      applyVilnaPageZoom();
+      alignVilnaPageScroll();
+      saveVilnaView();
+    });
+    group.append(button);
+  }
+  const toTop = make('button', { type: 'button', id: 'vilnaPageTopButton', className: 'vilna-zoom-btn vilna-align-btn', title: 'Back to the top of the page' });
+  toTop.setAttribute('aria-label', 'Top of the page');
+  toTop.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14M12 20V9M7 13l5-5 5 5"/></g></svg>';
+  toTop.addEventListener('click', () => {
+    const scroller = $('dafScroll');
+    if (scroller) scroller.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+  group.append(toTop);
+  reset.after(fitPage, size, group);
+  const hint = $('vilnaZoomControls');
+  if (hint) hint.title = 'Ctrl + mouse wheel zooms the page (or the wheel over this bar)';
+})();
+
+// The remembered zoom and position, once the page is laid out; Fit page
+// fits again whenever the page or the pane changes size.
+loadVilnaView();
+function refitVilnaPage() {
+  if (state.vilnaZoomFit === 'page') setVilnaPageZoom(vilnaFitPageZoom(), { keepFit: true });
+  else applyVilnaPageZoom();
+}
+window.addEventListener('dafsync:vilna-page', (event) => {
+  if (event.detail?.reason === 'map' || event.detail?.reason === 'status') requestAnimationFrame(refitVilnaPage);
+});
+window.addEventListener('resize', () => {
+  clearTimeout(state.vilnaRefitTimer);
+  state.vilnaRefitTimer = setTimeout(refitVilnaPage, 150);
+});
+applyVilnaPageZoom();
 
 // Native two-finger pinch zoom for the standalone Vilna daf.  A single
 // finger remains ordinary scrolling/panning; only a genuine two-touch
@@ -10875,7 +11077,7 @@ vilnaScroll?.addEventListener('touchmove', (event) => {
     const midpoint = vilnaTouchMidpoint(touches, rect);
     const ratio = vilnaTouchDistance(touches) / vilnaPinchGesture.distance;
     const nextZoom = Math.max(VILNA_ZOOM_MIN, Math.min(VILNA_ZOOM_MAX, vilnaPinchGesture.zoom * ratio));
-    setVilnaPageZoom(nextZoom);
+    setVilnaPageZoom(nextZoom, { align: false });
     vilnaScroll.scrollLeft = vilnaPinchGesture.contentX * nextZoom - midpoint.x;
     vilnaScroll.scrollTop = vilnaPinchGesture.contentY * nextZoom - midpoint.y;
   });
