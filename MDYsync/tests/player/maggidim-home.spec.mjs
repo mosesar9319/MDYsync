@@ -49,6 +49,19 @@ async function open(page, { query = '', catalog = CATALOG, ...options } = {}) {
 
 const cards = (page) => page.locator('#card-grid .shiur-card');
 
+// A card goes straight to its video. The player itself is stubbed so the
+// address the card opened can be read before the player tidies it up.
+async function followCard(page, card) {
+  let opened = null;
+  await page.route('**/player/**', (route) => {
+    opened = route.request().url();
+    return route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>Player</title>' });
+  });
+  await card.click();
+  await expect.poll(() => opened).not.toBeNull();
+  return new URL(opened);
+}
+
 test.describe('Home page — every maggid side by side', () => {
   test('a daf both maggidim have shows two cards, each saying whose it is', async ({ page }) => {
     const errors = await open(page);
@@ -80,30 +93,22 @@ test.describe('Home page — every maggid side by side', () => {
 
   test('a card opens the player on that maggid\'s recording', async ({ page }) => {
     await open(page);
-    await cards(page).filter({ hasText: 'Bechoros 22' }).click();
-    await expect(page.locator('#modal-teacher')).toHaveText('R’ Sruly Bornstein · Bekhorot 22 · English');
-    const href = await page.locator('#modal-watch-link').getAttribute('href');
-    const params = new URL(href, 'http://x').searchParams;
+    const params = (await followCard(page, cards(page).filter({ hasText: 'Bechoros 22' }))).searchParams;
     expect(params.get('ref')).toBe('Bekhorot 22a');
     expect(params.get('maggid')).toBe('bornstein');
   });
 
   test('the default maggid\'s link carries no maggid, as before', async ({ page }) => {
     await open(page);
-    await cards(page).filter({ hasText: 'Stefansky' }).first().click();
-    const href = await page.locator('#modal-watch-link').getAttribute('href');
-    expect(new URL(href, 'http://x').searchParams.has('maggid')).toBe(false);
+    const url = await followCard(page, cards(page).filter({ hasText: 'Stefansky' }).first());
+    expect(url.searchParams.has('maggid')).toBe(false);
   });
 });
 
 // A shiur opened from the home page starts in the reader's default viewing
 // mode: Split view, unless they chose another on their account page.
 test.describe('Home page — the viewing mode a shiur opens in', () => {
-  const modeOf = async (page) => {
-    await cards(page).filter({ hasText: 'Stefansky' }).first().click();
-    const href = await page.locator('#modal-watch-link').getAttribute('href');
-    return new URL(href, 'http://x').searchParams.get('mode');
-  };
+  const modeOf = async (page) => (await followCard(page, cards(page).filter({ hasText: 'Stefansky' }).first())).searchParams.get('mode');
   test('Split view for everyone by default, signed in or not', async ({ page }) => {
     await open(page);
     expect(await modeOf(page)).toBe('split');

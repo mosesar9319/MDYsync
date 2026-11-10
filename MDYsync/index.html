@@ -601,6 +601,8 @@ h1 {
 }
 
 .shiur-card {
+  display: block;
+  text-decoration: none;
   background: var(--paper);
   border: 1px solid #d9e1eb;
   border-radius: 13px;
@@ -2384,14 +2386,17 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       const { row, combo } = item;
       const videoId = row[combo].videoId;
       const maggid = rowMaggid(row);
-      return `<button class="shiur-card" data-card="${index}" type="button">
+      // A link straight to this card's own video (no version pop-up; the
+      // Today's Daf banner keeps that). Long-press / right-click opens it in a
+      // new tab like any link.
+      return `<a class="shiur-card" data-card="${index}" href="${escapeHtml(playerUrl(entryForCombo(row, combo)))}">
         <span class="thumbnail">
           <img class="thumb-img" src="${thumbUrl(videoId)}" alt="" loading="lazy" />
           <span class="thumbnail-play">${icon("play", 20)}</span>
           ${isTodayRow(row) ? `<span class="thumb-badge is-today">Today</span>` : ""}
         </span>
         <span class="card-copy"><strong dir="auto">${escapeHtml(videoLabel(row, combo))}</strong><span>${dafLabel(row)} · ${COMBO_LABELS[combo]}${maggidTag(row)}</span><span class="card-meta-phone">${escapeHtml(maggidName(maggid))} · ${dafLabel(row)} · ${COMBO_LABELS[combo]}</span>${avatarMarkup(maggid)}</span>
-      </button>`;
+      </a>`;
     }
 
     // -----------------------------------------------------------------
@@ -2803,12 +2808,14 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       grid.innerHTML = items.map((item, index) => cardMarkup(item, index)).join("");
     }
 
-    // One listener for every card, however many pages the feed has added.
+    // A card is a plain link to its video. Its address is refreshed as it is
+    // followed, so a viewing mode chosen (or a sign-in finished) after the
+    // feed was drawn still applies.
     grid.addEventListener("click", (event) => {
-      const card = event.target.closest("[data-card]");
+      const card = event.target.closest("a[data-card]");
       if (!card || !grid.contains(card)) return;
       const item = feed.items[Number(card.dataset.card)];
-      if (item) openShiur(item.row, item.combo);
+      if (item) card.href = playerUrl(entryForCombo(item.row, item.combo));
     });
 
     function renderHero() {
