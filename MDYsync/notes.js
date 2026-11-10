@@ -967,8 +967,27 @@ function openNoteDialog(ref, text) {
   // video behind it stays visible AND interactive (a modal dialog makes
   // everything outside it inert) while a note is being written.
   dialog.show();
+  fitNoteDialogToViewport();
   refreshNoteList(ref);
 }
+
+// On a phone the notes panel fills the screen. The browser's own bars and
+// the keyboard cover part of the layout viewport, so the panel follows the
+// part actually visible -- its Save button stays on screen while typing.
+function fitNoteDialogToViewport() {
+  const dialog = document.getElementById('noteDialog');
+  if (!dialog?.open) return;
+  const vv = window.visualViewport;
+  if (!vv || !window.matchMedia('(max-width: 760px)').matches) {
+    dialog.style.removeProperty('--note-dialog-h');
+    dialog.style.removeProperty('--note-dialog-top');
+    return;
+  }
+  dialog.style.setProperty('--note-dialog-h', `${Math.round(vv.height)}px`);
+  dialog.style.setProperty('--note-dialog-top', `${Math.round(vv.offsetTop)}px`);
+}
+window.visualViewport?.addEventListener('resize', fitNoteDialogToViewport);
+window.visualViewport?.addEventListener('scroll', fitNoteDialogToViewport);
 
 window.DafNotes = { open: openNoteDialog };
 
@@ -1069,6 +1088,7 @@ async function openNoteComposerForSelection(runs) {
   compose.hidden = !user;
   signInPrompt.hidden = Boolean(user);
   dialog.show(); // see openNoteDialog's own comment on non-modal show()
+  fitNoteDialogToViewport();
   refreshNoteList(primaryRef);
 }
 

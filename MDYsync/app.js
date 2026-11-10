@@ -6434,9 +6434,11 @@ function mountPhoneSplitOverlay() {
     }
   }
   if (selectText && !pageView && rows.daf.contains(selectText)) restorePhoneToolsHome(selectText);
-  if (notes && parked(notes)) {
+  // The Skip / Reviewing / Not synced notes ride at the end of the daf row,
+  // so the drop-down is two rows, not three.
+  if (notes && notes.parentElement !== rows.daf) {
     rememberPhoneToolsHome(notes);
-    scroller.appendChild(notes);
+    rows.daf.appendChild(notes);
   }
   if (zoom && pageView && admin && parked(zoom)) {
     rememberPhoneToolsHome(zoom);
@@ -6444,7 +6446,7 @@ function mountPhoneSplitOverlay() {
   } else if (zoom && (!pageView || !admin) && panel.contains(zoom)) {
     if (!restorePhoneToolsHome(zoom)) $('vilnaPlaceholder')?.prepend(zoom);
   }
-  for (const node of [rows.modes, rows.daf, notes, pageView && admin ? zoom : null]) {
+  for (const node of [rows.modes, rows.daf, pageView && admin ? zoom : null]) {
     if (node && panel.contains(node)) scroller.appendChild(node);
   }
   panel.appendChild(scroller);
@@ -7786,7 +7788,12 @@ function updateReaderNotes(time, index) {
   const showSkip = Boolean(inLeadIn && ownStart > 0.5);
   if (chip) {
     chip.hidden = !showSkip;
-    if (showSkip) chip.textContent = `Skip to ${realDafRef(state.dafRef)} (${formatTime(ownStart)})`;
+    if (showSkip) {
+      chip.textContent = `Skip to ${realDafRef(state.dafRef)} (${formatTime(ownStart)})`;
+      // The phone drop-down's daf row shows this shorter label (CSS).
+      chip.dataset.short = `Skip to ${formatTime(ownStart)}`;
+      chip.setAttribute('aria-label', chip.textContent);
+    }
   }
   const toolsHint = $('splitToolsHint');
   if (toolsHint) {

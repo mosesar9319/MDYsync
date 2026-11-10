@@ -1992,6 +1992,30 @@ dialog ol { color: #d8e2eb; padding-left: 21px; line-height: 1.6; }
   #noteDialog .note-timestamp-toggle { margin-top: 6px; }
   #noteDialog .note-compose-actions { margin-top: 7px; }
 }
+/* A phone: the panel is only as tall as what is actually visible (the
+   browser's bars and the keyboard cover the rest -- notes.js keeps
+   --note-dialog-h/-top in step with the visual viewport), the list shrinks
+   to its notes, and Save stays pinned at the bottom of the form while the
+   rest of it scrolls. */
+@media (max-width: 760px) {
+  #noteDialog[open] {
+    top: var(--note-dialog-top, 0);
+    bottom: auto;
+    height: var(--note-dialog-h, 100dvh);
+    max-height: var(--note-dialog-h, 100dvh);
+    padding: 16px 16px 0;
+  }
+  #noteDialog .note-list { flex: 0 1 auto; }
+  #noteDialog .note-compose-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    margin-top: 8px;
+    padding: 8px 0 calc(10px + env(safe-area-inset-bottom));
+    background: var(--card, #fff);
+    box-shadow: 0 -10px 12px -10px rgba(19, 34, 56, .22);
+  }
+}
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none; background: #17304b; border: 1px solid var(--line-strong); color: white; padding: 11px 15px; border-radius: 12px; box-shadow: 0 12px 35px rgba(0,0,0,.35); transition: .25s; z-index: 20; }
 .toast.show { transform: translate(-50%, 0); opacity: 1; }
 .toast.error { border-color: rgba(255,124,137,.5); color: #ffd5da; }
@@ -4319,7 +4343,40 @@ body[data-page="browse"]:not(.is-admin) .setup-strip { grid-template-columns: 1f
     white-space: nowrap;
   }
   #splitToolsPanel .split-amud-back[hidden] { display: none; }
-  #splitToolsPanel .split-tools-daf .header-auto-scroll { margin-left: 4px; flex: none; }
+  #splitToolsPanel .split-tools-daf .header-auto-scroll { margin-left: 4px; flex: none; font-size: 12px; gap: 6px; }
+  /* The Skip / Reviewing / Not synced notes end the daf row (two rows in
+     all). The chip there reads "Skip to 2:29"; its full name stays its text. */
+  body.split-tools-phone.split-tools-open #splitToolsDafRow > #readerDafNotes {
+    flex: 0 1 auto;
+    min-width: 0;
+    padding: 0;
+    margin-left: 2px;
+  }
+  body.split-tools-phone.split-tools-open #splitToolsDafRow > #readerDafNotes:not(:has(> :not([hidden]))) { display: none; }
+  body.split-tools-phone.split-tools-open #splitToolsDafRow .skip-to-daf-chip[data-short] {
+    flex: none;
+    font-size: 0;
+    padding: 0 10px;
+  }
+  body.split-tools-phone.split-tools-open #splitToolsDafRow .skip-to-daf-chip[data-short]::after {
+    content: attr(data-short);
+    font-size: 12px;
+  }
+  /* A narrow phone (360px): a little tighter, still two rows. */
+  @media (max-width: 400px) {
+    #splitToolsPanel .split-tools-row { gap: 3px; padding-left: 6px; padding-right: 6px; }
+    body.split-view-active #splitToolsPanel .viewer-mode-select { column-gap: 3px; }
+    body.split-view-active #splitToolsPanel .viewer-mode-select .viewer-mode-button { padding: 3px 4px; }
+    #splitToolsPanel .viewer-mode-bar-divider { margin: 4px 1px; }
+    #splitToolsPanel .split-toolbar { gap: 2px; }
+    body.split-view-active #splitToolsPanel .split-toolbar .icon-button { width: 30px; height: 30px; min-width: 30px; min-height: 30px; }
+    body.split-view-active #splitToolsPanel .split-toolbar #splitExitButton { width: 34px; height: 34px; min-width: 34px; min-height: 34px; }
+    #splitToolsPanel .split-amud-step { width: 30px; height: 30px; font-size: 20px; }
+    #splitToolsPanel .split-tools-daf .header-auto-scroll { margin-left: 2px; font-size: 11px; gap: 4px; }
+    #splitToolsPanel .split-tools-daf .vilna-select-text-toggle { padding: 0 8px; font-size: 11px; }
+    body.split-tools-phone.split-tools-open #splitToolsDafRow .skip-to-daf-chip[data-short] { padding: 0 8px; }
+    body.split-tools-phone.split-tools-open #splitToolsDafRow .skip-to-daf-chip[data-short]::after { font-size: 11px; }
+  }
   #splitToolsPanel .split-tools-daf .vilna-select-text-toggle {
     flex: none;
     width: auto;

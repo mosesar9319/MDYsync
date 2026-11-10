@@ -111,10 +111,31 @@
     const viewLeft = vv ? vv.offsetLeft : 0;
     const viewH = vv ? vv.height : window.innerHeight;
     const viewW = vv ? vv.width : window.innerWidth;
+    // In the phone Split drop-down the button sits just under the video:
+    // above it the menu would land behind the picture. Open downward over
+    // the daf instead, above the drop-down, scrolling if the screen is short.
+    const inPhonePanel = Boolean(anchor.closest('#splitToolsPanel'));
+    // Split is a fixed layer at z-index 500: a menu on the body must sit above
+    // it. Only ever raise a menu (the speed menu's own level is higher still).
+    menu.style.zIndex = '';
+    if (document.body.classList.contains('split-view-active')) {
+      const own = Number.parseInt(getComputedStyle(menu).zIndex, 10);
+      if (!(own > 520)) menu.style.zIndex = '520';
+    }
+    menu.style.maxHeight = '';
+    menu.style.overflowY = '';
+    if (inPhonePanel) {
+      const room = viewTop + viewH - r.bottom - 14;
+      if (menu.offsetHeight > room) {
+        menu.style.maxHeight = `${Math.max(160, room)}px`;
+        menu.style.overflowY = 'auto';
+      }
+    }
     const mh = menu.offsetHeight || 40;
     const mw = menu.offsetWidth || 40;
     let top = r.top - mh - 8;
-    if (top < viewTop + 8) top = Math.min(r.bottom + 8, viewTop + viewH - mh - 8);
+    if (inPhonePanel) top = r.bottom + 6;
+    else if (top < viewTop + 8) top = Math.min(r.bottom + 8, viewTop + viewH - mh - 8);
     let left = align === 'end' ? r.right - mw : r.left;
     left = Math.max(viewLeft + 8, Math.min(left, viewLeft + viewW - mw - 8));
     menu.style.top = `${Math.round(top)}px`;

@@ -126,8 +126,12 @@ test.describe('Modal dialogs are not clipped at phone widths', () => {
     await expect(page.locator('#noteCategorySecondaryOptions')).toBeVisible();
 
     const saveButton = page.locator('#saveNoteButton');
+    // Save is pinned at the bottom of the form from the start (sticky), and
+    // the form itself really is taller than the screen, so it scrolls.
     const before = await saveButton.boundingBox();
-    expect(before.y + before.height).toBeGreaterThan(600); // below the fold to start
+    expect(before.y + before.height).toBeLessThanOrEqual(600);
+    const compose = await page.locator('#noteCompose').evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight }));
+    expect(compose.scroll).toBeGreaterThan(compose.client);
 
     // The actual gesture a touchscreen swipe performs: scroll the compose
     // form's own content, not any ancestor.
