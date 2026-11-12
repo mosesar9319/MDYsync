@@ -101,7 +101,9 @@
     .hero-meta { margin-top: 22px; font-size: 14px; color: rgba(255, 255, 255, .6); }
     .hero-meta b { color: rgba(255, 255, 255, .88); font-weight: 600; }
 
-    .showcase { position: relative; margin: 56px auto 0; max-width: 1060px; padding-bottom: 0; }
+    .hero { padding-bottom: 72px; }
+    .showcase { position: relative; margin: 56px auto 0; max-width: 1140px; display: flex; align-items: flex-end; justify-content: center; gap: 28px; }
+    .showcase .browser { flex: 1 1 auto; min-width: 0; border-radius: 14px; }
     .browser {
       background: #0c1626; border-radius: 14px 14px 0 0; overflow: hidden;
       box-shadow: 0 40px 90px -30px rgba(0, 0, 0, .7), 0 0 0 1px rgba(255, 255, 255, .08);
@@ -122,7 +124,7 @@
       content: ""; position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
       width: 9px; height: 9px; border-radius: 50%; background: #000; box-shadow: 0 0 0 2px #1d2738;
     }
-    .showcase .phone { position: absolute; right: -28px; bottom: -40px; width: 22%; min-width: 150px; }
+    .showcase .phone { flex: 0 0 21%; }
 
     /* ---------- strip ---------- */
     .strip { background: var(--paper); border-bottom: 1px solid var(--line); padding: 80px 0 34px; }
@@ -172,10 +174,15 @@
     .shot { border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); border: 1px solid var(--line); background: #fff; }
     .crop { position: relative; overflow: hidden; }
     .crop img { max-width: none; }
-    .crop-highlight { aspect-ratio: 4 / 3; }
-    .crop-highlight img { width: 200%; margin-left: -101.5%; margin-top: -34%; }
-    .crop-browse { aspect-ratio: 1900 / 864; }
-    .crop-browse img { width: 113.6%; margin-left: -11.4%; margin-top: -25.6%; }
+    .crop-highlight { aspect-ratio: 16 / 11; }
+    .crop-highlight img { width: 200%; margin-left: -100%; margin-top: -40%; }
+    .crop-live { aspect-ratio: 1090 / 1350; }
+    .crop-live img { width: 198.2%; margin-left: -98.2%; }
+    .phone.land { width: 100%; border-radius: 30px; padding: 8px 10px; }
+    .phone.land img { border-radius: 22px; }
+    .phone.land::after { top: 50%; left: 14px; transform: translateY(-50%); }
+    .live-badge { display: inline-flex; align-items: center; gap: 7px; }
+    .live-badge::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #2fb67c; box-shadow: 0 0 0 4px rgba(47, 182, 124, .18); }
     .media-phones { display: flex; justify-content: center; align-items: flex-end; gap: 22px; }
     .media-phones .phone { width: min(260px, 46%); }
     .media-phones .phone.tilt-l { transform: rotate(-3deg) translateY(12px); }
@@ -223,11 +230,6 @@
     }
     .menu-list svg { width: 18px; height: 18px; color: var(--blue); flex: none; }
 
-    /* ---------- maggidim ---------- */
-    .maggidim { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 22px; }
-    .maggid { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; background: var(--ivory); }
-    .maggid b { font-family: var(--serif); font-size: 17px; display: block; }
-    .maggid span { color: var(--muted); font-size: 14px; }
 
     /* ---------- final CTA ---------- */
     .final {
@@ -261,7 +263,7 @@
       .feature { grid-template-columns: 1fr; gap: 40px; }
       .feature.flip .feature-media { order: 0; }
       .feature + .feature { margin-top: 88px; }
-      .showcase .phone { right: -6px; }
+      .showcase { gap: 16px; }
     }
     @media (max-width: 760px) {
       body { font-size: 16px; }
@@ -270,9 +272,8 @@
       .hero { padding-top: 48px; }
       .cta-row .btn { flex: 1 1 100%; max-width: 360px; }
       .showcase { margin-top: 40px; }
-      .showcase .phone { width: 34%; min-width: 0; right: -4px; bottom: -28px; border-radius: 22px; padding: 6px; }
-      .showcase .phone img { border-radius: 17px; }
-      .showcase .phone::after { top: 12px; width: 6px; height: 6px; }
+      .hero { padding-bottom: 48px; }
+      .showcase .phone { display: none; }
       .browser-bar { height: 24px; padding: 0 10px; gap: 5px; }
       .browser-bar span { width: 7px; height: 7px; }
       .browser-bar .url { height: 16px; line-height: 16px; font-size: 10px; flex-basis: 160px; }
@@ -282,7 +283,10 @@
       .section-head { margin-bottom: 40px; }
       .section-head p, .feature-copy > p { font-size: 16.5px; }
       .steps, .grid { grid-template-columns: 1fr; }
-      .menu-list, .maggidim { grid-template-columns: 1fr; }
+      .menu-list { grid-template-columns: 1fr; }
+      .phone.land { border-radius: 20px; padding: 5px 6px; }
+      .phone.land img { border-radius: 15px; }
+      .phone.land::after { display: none; }
       .card { display: grid; grid-template-columns: 42px 1fr; column-gap: 14px; padding: 20px; }
       .card .ico { grid-row: 1 / span 3; margin: 0; }
       .card > :not(.ico) { grid-column: 2; }
@@ -347,13 +351,13 @@
             </a>
             <a class="btn btn-ghost" href="#features">See what it can do</a>
           </div>
-          <p class="hero-meta"><b>R’ Eli Stefansky</b> &amp; <b>R’ Sruly Bornstein</b> · English &amp; Hebrew · Phone &amp; computer</p>
+          <p class="hero-meta">English &amp; Hebrew shiurim · Chazarah · <b>Live discussions</b> · Phone &amp; computer</p>
         </div>
 
         <div class="showcase">
           <div class="browser">
             <div class="browser-bar"><span></span><span></span><span></span><div class="url">dafsync.netlify.app</div></div>
-            <img src="/assets/welcome/desk-split.jpg" width="2160" height="1350" alt="DafSync on a computer: the shiur video on the left and the printed daf on the right, with the phrase being said highlighted in blue." />
+            <img src="/assets/welcome/desk-split.jpg" width="2160" height="1350" alt="DafSync on a computer: the shiur playing on the left and the printed daf on the right, with the phrase being said highlighted in blue." />
           </div>
           <div class="phone">
             <img src="/assets/welcome/phone-split.jpg" width="824" height="1678" alt="DafSync on a phone: video on top, the daf below with the current phrase highlighted." />
@@ -366,9 +370,9 @@
     <div class="strip">
       <div class="wrap">
         <ul>
-          <li><span class="ico"><svg><use href="#i-sync"/></svg></span><div><strong>Word-for-word sync</strong><span>The highlight follows the maggid across the real daf.</span></div></li>
+          <li><span class="ico"><svg><use href="#i-sync"/></svg></span><div><strong>Word-for-word sync</strong><span>The highlight follows the shiur across the real daf.</span></div></li>
           <li><span class="ico"><svg><use href="#i-hand"/></svg></span><div><strong>Tap to jump</strong><span>Touch any word and the shiur goes right to it.</span></div></li>
-          <li><span class="ico"><svg><use href="#i-note"/></svg></span><div><strong>Learn actively</strong><span>Notes, highlights, discussions and your own kuntras.</span></div></li>
+          <li><span class="ico"><svg><use href="#i-chat"/></svg></span><div><strong>Live discussions</strong><span>Ask and answer on any line, with other learners, in real time.</span></div></li>
           <li><span class="ico"><svg><use href="#i-devices"/></svg></span><div><strong>Anywhere</strong><span>Built for phones and big screens alike.</span></div></li>
         </ul>
       </div>
@@ -411,12 +415,12 @@
         <!-- Synced shiur -->
         <div class="feature">
           <div class="feature-media reveal glow">
-            <div class="shot crop crop-highlight"><img src="/assets/welcome/desk-split.jpg" width="2160" height="1350" loading="lazy" alt="A close-up of the daf, with the phrase the maggid is explaining highlighted in blue." /></div>
+            <div class="shot crop crop-highlight"><img src="/assets/welcome/desk-split.jpg" width="2160" height="1350" loading="lazy" alt="A close-up of the daf, with the phrase being explained highlighted in blue." /></div>
             <div class="pill-note"><b>“Vaater”</b>Skip ahead to the next part of the daf the maggid explains.</div>
           </div>
           <div class="feature-copy reveal">
             <div class="kicker">The synced shiur</div>
-            <h3>The daf follows the maggid</h3>
+            <h3>The daf follows the shiur in real-time</h3>
             <p>As the shiur plays, DafSync highlights the exact phrase being explained on the printed Vilna daf, so your eyes are always in the right place.</p>
             <ul class="checks">
               <li><b>Live phrase highlighting</b> on the real page, line by line.</li>
@@ -428,12 +432,34 @@
           </div>
         </div>
 
-        <!-- Viewing modes -->
+        <!-- Live discussions -->
         <div class="feature flip">
           <div class="feature-media reveal glow">
-            <div class="media-phone-single small">
-              <div class="phone"><img src="/assets/welcome/phone-split.jpg" width="824" height="1678" loading="lazy" alt="Split view on a phone: video on top, daf below." /></div>
+            <div class="shot crop crop-live">
+              <img src="/assets/welcome/desk-live.jpg" width="2160" height="1350" loading="lazy" alt="A live discussion open beside the daf: learners asking and answering about a phrase on the page, with the answer marked." />
             </div>
+            <div class="caption">Sample discussion, for illustration.</div>
+          </div>
+          <div class="feature-copy reveal">
+            <div class="kicker live-badge">Cloud Chaburah Live</div>
+            <h3>Talk it through, right on the daf</h3>
+            <p>Every line of the daf can have its own live conversation. Ask a question while the shiur plays, and other learners on the same daf answer in real time.</p>
+            <ul class="checks">
+              <li><b>Start a discussion on any phrase</b>: hold a word and tap “Start live discussion here”.</li>
+              <li><b>Live chat</b>: messages appear instantly, and you can see how many people are learning the daf right now.</li>
+              <li><b>Markers on the daf</b> show where people are talking. Tap one to jump in.</li>
+              <li><b>Mark the answer</b>, follow the discussions you care about, and see what’s new.</li>
+              <li>Search and filter every discussion on the daf.</li>
+              <li>Open it from the player, the Interactive Daf, or the drop-down in Split view.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Viewing modes -->
+        <div class="feature">
+          <div class="feature-media reveal glow">
+            <div class="phone land"><img src="/assets/welcome/phone-land.jpg" width="1830" height="824" loading="lazy" alt="Split view on a sideways phone: the shiur on the left, the daf on the right." /></div>
+            <div class="caption">Turn your phone sideways for the shiur and the daf side by side.</div>
             <div class="band-shot"><img src="/assets/welcome/phone-dov.jpg" width="712" height="400" loading="lazy" alt="Daf on video: a band of the daf’s current lines across the bottom of the video." /></div>
             <div class="caption">Daf on video: the current lines ride along on the video itself.</div>
           </div>
@@ -442,7 +468,7 @@
             <h3>Watch it your way</h3>
             <p>Switch between layouts at any time, and pick the one you like best as your default.</p>
             <ul class="checks">
-              <li><b>Split view</b>: video and daf side by side on a computer, stacked on a phone. Drag the divider to resize.</li>
+              <li><b>Split view</b>: video and daf side by side on a computer or a sideways phone, and stacked when the phone is upright. Drag the divider to resize.</li>
               <li><b>Daf on video</b>: a band of the current lines right on the video.</li>
               <li><b>Video on daf</b>: a small video floating over a full-size page.</li>
               <li>Tap the divider for a drop-down with the daf picker, amud arrows, auto-scroll, notes and more.</li>
@@ -452,7 +478,7 @@
         </div>
 
         <!-- Hold any word -->
-        <div class="feature">
+        <div class="feature flip">
           <div class="feature-media reveal glow">
             <div class="media-phone-single">
               <div class="phone"><img src="/assets/welcome/phone-menu.jpg" width="824" height="1678" loading="lazy" alt="Holding a word on the daf opens a menu of actions." /></div>
@@ -476,9 +502,9 @@
         </div>
 
         <!-- Interactive Daf -->
-        <div class="feature flip">
+        <div class="feature">
           <div class="feature-media reveal glow">
-            <div class="shot crop crop-browse"><img src="/assets/welcome/desk-browse.jpg" width="2160" height="1350" loading="lazy" alt="The Interactive Daf page, with the Gemara page and a list of synced shiurim." /></div>
+            <div class="shot"><img src="/assets/welcome/desk-browse.jpg" width="1935" height="960" loading="lazy" alt="The Interactive Daf on a computer: the shiur on the left, the Gemara page on the right, and the words being discussed shown below the video." /></div>
           </div>
           <div class="feature-copy reveal">
             <div class="kicker">Interactive Daf</div>
@@ -494,7 +520,7 @@
         </div>
 
         <!-- Home / daily -->
-        <div class="feature">
+        <div class="feature flip">
           <div class="feature-media reveal glow">
             <div class="media-phone-single">
               <div class="phone"><img src="/assets/welcome/phone-home.jpg" width="824" height="1678" loading="lazy" alt="The DafSync home page on a phone, with today’s daf and shiurim to continue." /></div>
@@ -510,10 +536,6 @@
               <li><b>Chazarah</b>: go back over dapim you’ve already learned.</li>
               <li>Search any masechta and daf, and switch on dark mode for night learning.</li>
             </ul>
-            <div class="maggidim">
-              <div class="maggid"><b>R’ Eli Stefansky</b><span>Mercaz Daf Yomi</span></div>
-              <div class="maggid"><b>R’ Sruly Bornstein</b><span>Lakewood Daf Yomi</span></div>
-            </div>
           </div>
         </div>
       </div>
@@ -547,11 +569,6 @@
             <span class="go">Visit the chaburah →</span>
           </a>
           <div class="card reveal">
-            <span class="ico"><svg><use href="#i-chat"/></svg></span>
-            <h3>Live discussions</h3>
-            <p>Start a discussion on any phrase and chat about it live while you learn. Markers on the daf show where people are talking, with unread counts and an option to follow your place.</p>
-          </div>
-          <div class="card reveal">
             <span class="ico"><svg><use href="#i-scan"/></svg></span>
             <h3>Daf Scan</h3>
             <p>Point your phone’s camera at a printed Gemara, or choose a photo, and DafSync finds that daf and opens its shiur.</p>
@@ -570,6 +587,11 @@
             <span class="ico"><svg><use href="#i-zoom"/></svg></span>
             <h3>A page that fits</h3>
             <p>Pinch or Ctrl+scroll to zoom, fit the page to your screen, and move it left, right or centre.</p>
+          </div>
+          <div class="card reveal">
+            <span class="ico"><svg><use href="#i-moon"/></svg></span>
+            <h3>Dark mode</h3>
+            <p>Switch to a darker screen for comfortable learning late at night or early in the morning.</p>
           </div>
           <a class="card reveal" href="/profile/">
             <span class="ico"><svg><use href="#i-user"/></svg></span>
