@@ -205,6 +205,37 @@
 
     .alt { background: var(--paper); border-block: 1px solid var(--line); }
 
+    /* ---------- try it ---------- */
+    .try { background: linear-gradient(180deg, var(--paper), var(--ivory)); }
+    .try-stage {
+      position: relative; max-width: 1100px; margin: 0 auto; aspect-ratio: 16 / 9;
+      border-radius: 18px; overflow: hidden; background: #0c1626;
+      box-shadow: 0 40px 90px -36px rgba(19, 34, 56, .6), 0 0 0 1px rgba(19, 34, 56, .08);
+    }
+    .try-stage iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
+    .try-poster {
+      position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; cursor: pointer;
+      background: #0c1626; color: #fff; font: inherit;
+    }
+    .try-poster img { width: 100%; height: 100%; object-fit: cover; object-position: top center; opacity: .55; transition: opacity .25s ease, transform .6s ease; }
+    .try-poster:hover img { opacity: .68; transform: scale(1.01); }
+    .try-poster-inner {
+      position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+      background: radial-gradient(closest-side, rgba(12, 22, 38, .55), transparent);
+    }
+    .try-play {
+      width: 92px; height: 92px; border-radius: 50%; display: grid; place-items: center;
+      background: var(--blue-light); box-shadow: 0 0 0 10px rgba(74, 144, 201, .25), 0 18px 40px -10px rgba(0, 0, 0, .6);
+      transition: transform .2s ease;
+    }
+    .try-poster:hover .try-play { transform: scale(1.06); }
+    .try-play svg { width: 36px; height: 36px; margin-left: 5px; }
+    .try-label { font: 700 clamp(20px, 2.6vw, 28px)/1.2 var(--serif); text-shadow: 0 2px 12px rgba(0, 0, 0, .5); }
+    .try-sub { font-size: 15px; color: rgba(255, 255, 255, .85); text-shadow: 0 1px 8px rgba(0, 0, 0, .6); }
+    .try-tips { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 26px; margin: 22px auto 0; padding: 0; list-style: none; color: var(--muted); font-size: 15px; }
+    .try-tips li { display: flex; align-items: center; gap: 8px; }
+    .try-tips svg { width: 18px; height: 18px; color: var(--blue); }
+
     /* ---------- grid of more tools ---------- */
     .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
     .card {
@@ -292,6 +323,9 @@
       .card > :not(.ico) { grid-column: 2; }
       .card h3 { font-size: 19px; margin: 8px 0 6px; }
       .card .go { margin-top: 10px; }
+      .try-stage { aspect-ratio: auto; height: min(78svh, 680px); border-radius: 16px; }
+      .try-play { width: 76px; height: 76px; }
+      .try-play svg { width: 30px; height: 30px; }
       .pill-note { position: static; max-width: none; margin-top: 16px; }
       .media-phones { gap: 12px; }
       .phone { border-radius: 26px; padding: 7px; }
@@ -329,6 +363,7 @@
     <div class="wrap">
       <a class="brand" href="/"><img src="/assets/dafsync-mark.png" alt="" />DafSync</a>
       <nav class="topnav" aria-label="On this page">
+        <a href="#try">Try it</a>
         <a href="#how">How it works</a>
         <a href="#features">Features</a>
         <a href="#tools">All tools</a>
@@ -349,7 +384,7 @@
             <a class="btn btn-primary" href="/?nav=today">Start today’s daf
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
             </a>
-            <a class="btn btn-ghost" href="#features">See what it can do</a>
+            <a class="btn btn-ghost" href="#try">Try a free sample</a>
           </div>
           <p class="hero-meta">English &amp; Hebrew shiurim · Chazarah · <b>Live discussions</b> · Phone &amp; computer</p>
         </div>
@@ -377,6 +412,35 @@
         </ul>
       </div>
     </div>
+
+    <!-- ======================= TRY IT ======================= -->
+    <section id="try" class="try" aria-labelledby="try-title">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <div class="kicker">Try it now</div>
+          <h2 id="try-title">Learn a few minutes, right here</h2>
+          <p>This is the real DafSync, playing a short sample of a shiur on Bekhorot 40a. Press play and watch the daf follow along.</p>
+        </div>
+        <div class="try-stage reveal" id="tryStage">
+          <button type="button" class="try-poster" id="tryButton" aria-label="Play a 3-minute sample of a shiur in DafSync">
+            <picture>
+              <source media="(max-width: 760px)" srcset="/assets/welcome/phone-split.jpg" />
+              <img src="/assets/welcome/desk-split.jpg" alt="" loading="lazy" />
+            </picture>
+            <span class="try-poster-inner">
+              <span class="try-play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg></span>
+              <span class="try-label">Try a 3-minute sample</span>
+              <span class="try-sub">Bekhorot 40a · with sound</span>
+            </span>
+          </button>
+        </div>
+        <ul class="try-tips">
+          <li><svg><use href="#i-hand"/></svg>Tap any word on the daf to jump there</li>
+          <li><svg><use href="#i-zoom"/></svg>Zoom the page in or out</li>
+          <li><svg><use href="#i-play"/></svg>Try Daf on video and Video on daf</li>
+        </ul>
+      </div>
+    </section>
 
     <!-- ======================= HOW IT WORKS ======================= -->
     <section id="how" aria-labelledby="how-title">
@@ -631,6 +695,28 @@
   </footer>
 
   <script>
+    // "Try it": the real player, loaded only when asked for, so the welcome
+    // page itself stays light. See EMBED in app.js for what ?embed=1 changes.
+    (function () {
+      var button = document.getElementById('tryButton');
+      var stage = document.getElementById('tryStage');
+      if (!button || !stage) return;
+      button.addEventListener('click', function () {
+        var phone = window.matchMedia('(max-width: 760px)').matches;
+        var params = new URLSearchParams({
+          ref: 'Bekhorot 40a', embed: '1', mode: 'split', t: '1745', limit: '180',
+          zoom: phone ? '1.7' : '1.4', autoplay: '1'
+        });
+        var frame = document.createElement('iframe');
+        frame.src = '/player/?' + params.toString();
+        frame.title = 'DafSync sample: a shiur on Bekhorot 40a';
+        frame.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture';
+        frame.setAttribute('allowfullscreen', '');
+        stage.replaceChildren(frame);
+        frame.focus();
+      });
+    })();
+
     (function () {
       var items = document.querySelectorAll('.reveal');
       if (!('IntersectionObserver' in window)) {
