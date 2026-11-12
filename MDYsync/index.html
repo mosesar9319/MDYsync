@@ -220,6 +220,14 @@ body.sidebar-collapsed .sidebar-toggle { left: 0; }
 body.sidebar-collapsed .sidebar-toggle .icon { transform: rotate(180deg); }
 body.sidebar-collapsed .page { margin-left: 0; }
 
+.welcome-link {
+  flex: 0 0 auto;
+  padding: 7px 2px;
+  color: inherit;
+  font: 600 .85rem/1.25 system-ui, sans-serif;
+  text-underline-offset: 4px;
+}
+.topbar.search-open .welcome-link { display: none; }
 .topbar {
   align-items: center;
   backdrop-filter: blur(14px);
@@ -1849,6 +1857,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         </label>
         <button class="top-icon search-toggle" id="searchToggle" type="button" aria-label="Search" aria-expanded="false"><span data-icon="search"></span></button>
         <button class="top-icon theme-toggle" id="themeToggle" type="button" aria-label="Dark mode" aria-pressed="false"></button>
+        <a class="welcome-link" href="/welcome/">Welcome</a>
         <div class="auth-widget" id="authWidget">
           <button class="auth-button" id="signInButton" type="button">Sign in</button>
           <div class="account-menu" id="accountMenu" hidden>
