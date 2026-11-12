@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Welcome to DafSync: follow the Daf Yomi shiur word by word on the printed Vilna daf, with notes, discussions, scanning and more." />
+  <meta property="og:title" content="Welcome to DafSync" />
+  <meta property="og:description" content="Hear the shiur. See every word on the daf." />
+  <meta property="og:image" content="/assets/welcome/desk-split.jpg" />
+  <meta name="theme-color" content="#132238" />
+  <title>Welcome to DafSync</title>
+  <link rel="icon" href="/assets/dafsync-mark.png" type="image/png">
+  <style>
+    :root {
+      --ivory: #f4f7fb;
+      --paper: #ffffff;
+      --navy: #132238;
+      --navy-2: #1c3150;
+      --blue: #2f6ea5;
+      --blue-light: #4a90c9;
+      --sky: #e6f0f9;
+      --muted: #65748a;
+      --line: #d9e1eb;
+      --ink: #132238;
+      --shadow: 0 24px 60px -24px rgba(19, 34, 56, .35);
+      --radius: 18px;
+      --serif: Georgia, "Times New Roman", serif;
+      --sans: Arial, "Helvetica Neue", Helvetica, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--ivory);
+      color: var(--ink);
+      font: 17px/1.6 var(--sans);
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    img { display: block; max-width: 100%; height: auto; }
+    a { color: inherit; }
+    h1, h2, h3 { font-family: var(--serif); font-weight: 700; line-height: 1.15; margin: 0; }
+    .wrap { width: min(1180px, 100% - 32px); margin-inline: auto; }
+
+    /* ---------- top bar ---------- */
+    .topbar {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(19, 34, 56, .86);
+      backdrop-filter: saturate(140%) blur(12px);
+      -webkit-backdrop-filter: saturate(140%) blur(12px);
+      border-bottom: 1px solid rgba(255, 255, 255, .08);
+    }
+    .topbar .wrap { display: flex; align-items: center; gap: 24px; height: 64px; }
+    .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: #fff; font: 700 21px var(--serif); letter-spacing: .2px; }
+    .brand img { width: 34px; height: 34px; border-radius: 8px; background: #fff; padding: 3px; }
+    .topnav { display: flex; gap: 22px; margin-left: auto; }
+    .topnav a { color: rgba(255, 255, 255, .78); text-decoration: none; font-size: 15px; }
+    .topnav a:hover { color: #fff; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      min-height: 46px; padding: 0 22px; border-radius: 999px;
+      font: 700 16px var(--sans); text-decoration: none; white-space: nowrap;
+      transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn-primary { background: var(--blue-light); color: #fff; box-shadow: 0 10px 24px -10px rgba(74, 144, 201, .9); }
+    .btn-primary:hover { background: #5a9dd3; }
+    .btn-ghost { color: #fff; border: 1.5px solid rgba(255, 255, 255, .35); }
+    .btn-ghost:hover { border-color: #fff; }
+    .btn-sm { min-height: 38px; padding: 0 16px; font-size: 14px; }
+    .topbar .btn { margin-left: 4px; }
+
+    /* ---------- hero ---------- */
+    .hero {
+      position: relative; overflow: hidden; color: #fff;
+      background:
+        radial-gradient(900px 500px at 85% -10%, rgba(74, 144, 201, .38), transparent 60%),
+        radial-gradient(700px 500px at -10% 110%, rgba(47, 110, 165, .35), transparent 60%),
+        linear-gradient(180deg, var(--navy) 0%, var(--navy-2) 100%);
+      padding: 72px 0 0;
+    }
+    .hero::before {
+      /* faint column rules, like the margins of a printed daf */
+      content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .07;
+      background-image: repeating-linear-gradient(90deg, #fff 0 1px, transparent 1px 120px);
+      mask-image: linear-gradient(180deg, #000, transparent 70%);
+      -webkit-mask-image: linear-gradient(180deg, #000, transparent 70%);
+    }
+    .hero-copy { position: relative; text-align: center; max-width: 820px; margin-inline: auto; }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 13px; letter-spacing: 1.6px; text-transform: uppercase; font-weight: 700;
+      color: #bcd8f1; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .14);
+      padding: 6px 14px; border-radius: 999px;
+    }
+    .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: #5ad19a; box-shadow: 0 0 0 4px rgba(90, 209, 154, .2); }
+    .hero h1 { font-size: clamp(38px, 6.4vw, 72px); margin: 22px 0 18px; letter-spacing: -.5px; }
+    .hero h1 em { font-style: normal; color: #9cc8ee; background: linear-gradient(transparent 62%, rgba(74, 144, 201, .45) 62%); padding: 0 4px; }
+    .hero p.lead { font-size: clamp(17px, 2.1vw, 21px); color: rgba(255, 255, 255, .8); margin: 0 auto 30px; max-width: 660px; }
+    .cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .hero-meta { margin-top: 22px; font-size: 14px; color: rgba(255, 255, 255, .6); }
+    .hero-meta b { color: rgba(255, 255, 255, .88); font-weight: 600; }
+
+    .hero { padding-bottom: 72px; }
+    .showcase { position: relative; margin: 56px auto 0; max-width: 1140px; display: flex; align-items: flex-end; justify-content: center; gap: 28px; }
+    .showcase .browser { flex: 1 1 auto; min-width: 0; border-radius: 14px; }
+    .browser {
+      background: #0c1626; border-radius: 14px 14px 0 0; overflow: hidden;
+      box-shadow: 0 40px 90px -30px rgba(0, 0, 0, .7), 0 0 0 1px rgba(255, 255, 255, .08);
+    }
+    .browser-bar { display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px; background: #1a2a42; }
+    .browser-bar span { width: 11px; height: 11px; border-radius: 50%; background: rgba(255, 255, 255, .22); }
+    .browser-bar .url {
+      flex: 0 1 340px; margin: 0 auto; height: 22px; border-radius: 6px; width: auto;
+      background: rgba(255, 255, 255, .08); color: rgba(255, 255, 255, .6);
+      font-size: 12px; line-height: 22px; text-align: center;
+    }
+    .phone {
+      position: relative; border-radius: 34px; padding: 9px; background: #0b1220;
+      box-shadow: 0 30px 70px -20px rgba(0, 0, 0, .6), inset 0 0 0 1.5px rgba(255, 255, 255, .14);
+    }
+    .phone img { border-radius: 26px; width: 100%; }
+    .phone::after {
+      content: ""; position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+      width: 9px; height: 9px; border-radius: 50%; background: #000; box-shadow: 0 0 0 2px #1d2738;
+    }
+    .showcase .phone { flex: 0 0 21%; }
+
+    /* ---------- strip ---------- */
+    .strip { background: var(--paper); border-bottom: 1px solid var(--line); padding: 80px 0 34px; }
+    .strip ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+    .strip li { display: flex; gap: 12px; align-items: flex-start; }
+    .strip li strong { display: block; font-family: var(--serif); font-size: 18px; }
+    .strip li span { color: var(--muted); font-size: 14.5px; line-height: 1.45; }
+    .ico {
+      flex: none; width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center;
+      background: var(--sky); color: var(--blue);
+    }
+    .ico svg { width: 22px; height: 22px; }
+
+    /* ---------- sections ---------- */
+    section { padding: 96px 0; }
+    .section-head { text-align: center; max-width: 720px; margin: 0 auto 56px; }
+    .kicker { color: var(--blue); font-size: 13px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; }
+    .section-head h2 { font-size: clamp(30px, 4.2vw, 46px); margin: 10px 0 14px; }
+    .section-head p { color: var(--muted); margin: 0; font-size: 18px; }
+
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; counter-reset: step; }
+    .step {
+      position: relative; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius);
+      padding: 30px 26px 26px; box-shadow: 0 1px 0 rgba(19, 34, 56, .03);
+    }
+    .step::before {
+      counter-increment: step; content: counter(step);
+      display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%;
+      background: var(--navy); color: #fff; font: 700 18px var(--serif); margin-bottom: 18px;
+    }
+    .step h3 { font-size: 22px; margin-bottom: 8px; }
+    .step p { margin: 0; color: var(--muted); font-size: 16px; }
+
+    .feature { display: grid; grid-template-columns: 1.1fr 1fr; gap: 64px; align-items: center; }
+    .feature + .feature { margin-top: 120px; }
+    .feature.flip .feature-media { order: 2; }
+    .feature-copy h3 { font-size: clamp(28px, 3.4vw, 38px); margin: 10px 0 16px; }
+    .feature-copy > p { color: var(--muted); font-size: 18px; margin: 0 0 22px; }
+    .checks { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+    .checks li { position: relative; padding-left: 34px; font-size: 16px; }
+    .checks li::before {
+      content: ""; position: absolute; left: 0; top: 2px; width: 22px; height: 22px; border-radius: 50%;
+      background: var(--sky) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232f6ea5' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / 13px no-repeat;
+    }
+    .checks b { color: var(--navy); }
+    .feature-media { position: relative; }
+    .shot { border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); border: 1px solid var(--line); background: #fff; }
+    .crop { position: relative; overflow: hidden; }
+    .crop img { max-width: none; }
+    .crop-highlight { aspect-ratio: 16 / 11; }
+    .crop-highlight img { width: 200%; margin-left: -100%; margin-top: -40%; }
+    .crop-live { aspect-ratio: 1090 / 1350; }
+    .crop-live img { width: 198.2%; margin-left: -98.2%; }
+    .phone.land { width: 100%; border-radius: 30px; padding: 8px 10px; }
+    .phone.land img { border-radius: 22px; }
+    .phone.land::after { top: 50%; left: 14px; transform: translateY(-50%); }
+    .live-badge { display: inline-flex; align-items: center; gap: 7px; }
+    .live-badge::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #2fb67c; box-shadow: 0 0 0 4px rgba(47, 182, 124, .18); }
+    .media-phones { display: flex; justify-content: center; align-items: flex-end; gap: 22px; }
+    .media-phones .phone { width: min(260px, 46%); }
+    .media-phones .phone.tilt-l { transform: rotate(-3deg) translateY(12px); }
+    .media-phones .phone.tilt-r { transform: rotate(3deg); }
+    .media-phone-single { display: flex; justify-content: center; }
+    .media-phone-single .phone { width: min(300px, 70%); }
+    .media-phone-single.small .phone { width: min(230px, 56%); }
+    .glow::before {
+      content: ""; position: absolute; inset: 8% 4%; z-index: -1; border-radius: 40px; filter: blur(50px);
+      background: radial-gradient(closest-side, rgba(74, 144, 201, .35), transparent);
+    }
+    .pill-note {
+      position: absolute; left: -18px; bottom: 28px; max-width: 260px;
+      background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px;
+      box-shadow: var(--shadow); font-size: 14px; line-height: 1.4; color: var(--muted);
+    }
+    .pill-note b { display: block; color: var(--navy); font-size: 14.5px; }
+    .band-shot { margin-top: 18px; border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+    .caption { margin-top: 10px; text-align: center; font-size: 13.5px; color: var(--muted); }
+
+    .alt { background: var(--paper); border-block: 1px solid var(--line); }
+
+    /* ---------- try it ---------- */
+    .try { background: linear-gradient(180deg, var(--paper), var(--ivory)); }
+    .try-stage {
+      position: relative; max-width: 1100px; margin: 0 auto; aspect-ratio: 16 / 9;
+      border-radius: 18px; overflow: hidden; background: #0c1626;
+      box-shadow: 0 40px 90px -36px rgba(19, 34, 56, .6), 0 0 0 1px rgba(19, 34, 56, .08);
+    }
+    .try-stage iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
+    .try-poster {
+      position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; cursor: pointer;
+      background: #0c1626; color: #fff; font: inherit;
+    }
+    .try-poster img { width: 100%; height: 100%; object-fit: cover; object-position: top center; opacity: .55; transition: opacity .25s ease, transform .6s ease; }
+    .try-poster:hover img { opacity: .68; transform: scale(1.01); }
+    .try-poster-inner {
+      position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+      background: radial-gradient(closest-side, rgba(12, 22, 38, .55), transparent);
+    }
+    .try-play {
+      width: 92px; height: 92px; border-radius: 50%; display: grid; place-items: center;
+      background: var(--blue-light); box-shadow: 0 0 0 10px rgba(74, 144, 201, .25), 0 18px 40px -10px rgba(0, 0, 0, .6);
+      transition: transform .2s ease;
+    }
+    .try-poster:hover .try-play { transform: scale(1.06); }
+    .try-play svg { width: 36px; height: 36px; margin-left: 5px; }
+    .try-label { font: 700 clamp(20px, 2.6vw, 28px)/1.2 var(--serif); text-shadow: 0 2px 12px rgba(0, 0, 0, .5); }
+    .try-sub { font-size: 15px; color: rgba(255, 255, 255, .85); text-shadow: 0 1px 8px rgba(0, 0, 0, .6); }
+    .try-tips { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 26px; margin: 22px auto 0; padding: 0; list-style: none; color: var(--muted); font-size: 15px; }
+    .try-tips li { display: flex; align-items: center; gap: 8px; }
+    .try-tips svg { width: 18px; height: 18px; color: var(--blue); }
+
+    /* ---------- grid of more tools ---------- */
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .card {
+      position: relative; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius);
+      padding: 26px; transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+      text-decoration: none; display: block;
+    }
+    a.card:hover { transform: translateY(-3px); box-shadow: var(--shadow); border-color: #bcd0e4; }
+    .card .ico { margin-bottom: 16px; }
+    .card h3 { font-size: 21px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .card p { margin: 0; color: var(--muted); font-size: 15.5px; }
+    .tag {
+      font: 700 11px var(--sans); letter-spacing: .8px; text-transform: uppercase;
+      padding: 3px 8px; border-radius: 999px; background: #fff3d6; color: #8a5a00;
+    }
+    .card .go { margin-top: 14px; display: inline-block; color: var(--blue); font-weight: 700; font-size: 14.5px; }
+
+    /* ---------- menu list ---------- */
+    .menu-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 18px; margin-top: 6px; }
+    .menu-list span {
+      display: flex; align-items: center; gap: 10px; font-size: 15px;
+      padding: 10px 12px; border-radius: 10px; background: var(--ivory); border: 1px solid var(--line);
+    }
+    .menu-list svg { width: 18px; height: 18px; color: var(--blue); flex: none; }
+
+
+    /* ---------- final CTA ---------- */
+    .final {
+      color: #fff; text-align: center;
+      background:
+        radial-gradient(700px 360px at 50% 0%, rgba(74, 144, 201, .4), transparent 70%),
+        var(--navy);
+    }
+    .final img.mark { width: 72px; height: 72px; margin: 0 auto 22px; border-radius: 18px; background: #fff; padding: 8px; }
+    .final h2 { font-size: clamp(32px, 4.6vw, 52px); margin-bottom: 14px; }
+    .final p { color: rgba(255, 255, 255, .75); font-size: 19px; margin: 0 auto 30px; max-width: 560px; }
+    footer { background: #0d1828; color: rgba(255, 255, 255, .55); font-size: 14px; padding: 26px 0; }
+    footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: space-between; align-items: center; }
+    footer nav { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+    footer a { text-decoration: none; color: rgba(255, 255, 255, .72); }
+    footer a:hover { color: #fff; }
+
+    /* ---------- reveal on scroll ---------- */
+    .reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s ease; }
+    .reveal.in { opacity: 1; transform: none; }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .reveal { opacity: 1; transform: none; transition: none; }
+      .btn, .card { transition: none; }
+    }
+
+    /* ---------- responsive ---------- */
+    @media (max-width: 980px) {
+      .strip ul { grid-template-columns: repeat(2, 1fr); }
+      .grid { grid-template-columns: repeat(2, 1fr); }
+      .feature { grid-template-columns: 1fr; gap: 40px; }
+      .feature.flip .feature-media { order: 0; }
+      .feature + .feature { margin-top: 88px; }
+      .showcase { gap: 16px; }
+    }
+    @media (max-width: 760px) {
+      body { font-size: 16px; }
+      .topnav { display: none; }
+      .topbar .btn { margin-left: auto; }
+      .hero { padding-top: 48px; }
+      .cta-row .btn { flex: 1 1 100%; max-width: 360px; }
+      .showcase { margin-top: 40px; }
+      .hero { padding-bottom: 48px; }
+      .showcase .phone { display: none; }
+      .browser-bar { height: 24px; padding: 0 10px; gap: 5px; }
+      .browser-bar span { width: 7px; height: 7px; }
+      .browser-bar .url { height: 16px; line-height: 16px; font-size: 10px; flex-basis: 160px; }
+      .strip { padding-top: 64px; }
+      .strip ul { grid-template-columns: 1fr; gap: 16px; }
+      section { padding: 68px 0; }
+      .section-head { margin-bottom: 40px; }
+      .section-head p, .feature-copy > p { font-size: 16.5px; }
+      .steps, .grid { grid-template-columns: 1fr; }
+      .menu-list { grid-template-columns: 1fr; }
+      .phone.land { border-radius: 20px; padding: 5px 6px; }
+      .phone.land img { border-radius: 15px; }
+      .phone.land::after { display: none; }
+      .card { display: grid; grid-template-columns: 42px 1fr; column-gap: 14px; padding: 20px; }
+      .card .ico { grid-row: 1 / span 3; margin: 0; }
+      .card > :not(.ico) { grid-column: 2; }
+      .card h3 { font-size: 19px; margin: 8px 0 6px; }
+      .card .go { margin-top: 10px; }
+      .try-stage { aspect-ratio: auto; height: min(78svh, 680px); border-radius: 16px; }
+      .try-play { width: 76px; height: 76px; }
+      .try-play svg { width: 30px; height: 30px; }
+      .pill-note { position: static; max-width: none; margin-top: 16px; }
+      .media-phones { gap: 12px; }
+      .phone { border-radius: 26px; padding: 7px; }
+      .phone img { border-radius: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-sync" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.4 6.4L3 16"/><path d="M3 12a9 9 0 0 1 15.4-6.4L21 8"/><path d="M21 3v5h-5M3 21v-5h5"/></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="19" height="15" rx="3"/><path d="M10 9v6l5-3z" fill="currentColor"/></symbol>
+      <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5.5A2.5 2.5 0 0 1 4.5 3H11v18H4.5A2.5 2.5 0 0 1 2 18.5z"/><path d="M22 5.5A2.5 2.5 0 0 0 19.5 3H13v18h6.5a2.5 2.5 0 0 0 2.5-2.5z"/></symbol>
+      <symbol id="i-devices" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="14" height="10" rx="1.5"/><path d="M5 18h8"/><rect x="17" y="8" width="5" height="12" rx="1.2"/></symbol>
+      <symbol id="i-note" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12l4 4v12H4z"/><path d="M8 11h8M8 15h5"/></symbol>
+      <symbol id="i-kuntras" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5"/><path d="M9 12h7M9 16h7"/><path d="M3 6v15h12"/></symbol>
+      <symbol id="i-cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a5 5 0 0 1-.8-9.9A6 6 0 0 1 17.7 9 4.5 4.5 0 0 1 17 18z"/><path d="M9 13h6"/></symbol>
+      <symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.6A8 8 0 1 1 21 12z"/><circle cx="8.5" cy="12" r=".9" fill="currentColor"/><circle cx="12.5" cy="12" r=".9" fill="currentColor"/><circle cx="16.5" cy="12" r=".9" fill="currentColor"/></symbol>
+      <symbol id="i-scan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M7 12h10"/></symbol>
+      <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+      <symbol id="i-zoom" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M8 11h6M11 8v6"/></symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/></symbol>
+      <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+      <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></symbol>
+      <symbol id="i-hand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11V4.5a1.5 1.5 0 0 1 3 0V10"/><path d="M12 10V3.5a1.5 1.5 0 0 1 3 0V10"/><path d="M15 10V5.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-.5a6 6 0 0 1-4.6-2.2L3.3 15.4a1.5 1.5 0 0 1 2.3-2L9 16V11"/></symbol>
+      <symbol id="i-highlight" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 15 7.5-7.5a2.1 2.1 0 0 0-3-3L6 12l-1 4z"/><path d="M3 21h18"/></symbol>
+      <symbol id="i-dict" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h14v15H6a2 2 0 0 0-2 2 2 2 0 0 0 2 2h14"/><path d="M9 7h7M9 11h5"/></symbol>
+      <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3.2-3.2a4.5 4.5 0 0 0-6.4-6.4L12 5.6"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3.2 3.2a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/></symbol>
+      <symbol id="i-flag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></symbol>
+    </defs>
+  </svg>
+
+  <header class="topbar">
+    <div class="wrap">
+      <a class="brand" href="/"><img src="/assets/dafsync-mark.png" alt="" />DafSync</a>
+      <nav class="topnav" aria-label="On this page">
+        <a href="#try">Try it</a>
+        <a href="#how">How it works</a>
+        <a href="#features">Features</a>
+        <a href="#tools">All tools</a>
+      </nav>
+      <a class="btn btn-primary btn-sm" href="/">Open DafSync</a>
+    </div>
+  </header>
+
+  <main>
+    <!-- ======================= HERO ======================= -->
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="wrap">
+        <div class="hero-copy">
+          <span class="eyebrow"><span class="dot"></span>Daf Yomi, in sync</span>
+          <h1 id="hero-title">Hear the shiur.<br />See <em>every word</em> on the daf.</h1>
+          <p class="lead">DafSync puts the Daf Yomi shiur and the printed Vilna page side by side, and lights up each phrase as the maggid says it. Never lose your place on the daf again.</p>
+          <div class="cta-row">
+            <a class="btn btn-primary" href="/?nav=today">Start today’s daf
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </a>
+            <a class="btn btn-ghost" href="#try">Try a free sample</a>
+          </div>
+          <p class="hero-meta">English &amp; Hebrew shiurim · Chazarah · <b>Live discussions</b> · Phone &amp; computer</p>
+        </div>
+
+        <div class="showcase">
+          <div class="browser">
+            <div class="browser-bar"><span></span><span></span><span></span><div class="url">dafsync.netlify.app</div></div>
+            <img src="/assets/welcome/desk-split.jpg" width="2160" height="1350" alt="DafSync on a computer: the shiur playing on the left and the printed daf on the right, with the phrase being said highlighted in blue." />
+          </div>
+          <div class="phone">
+            <img src="/assets/welcome/phone-split.jpg" width="824" height="1678" alt="DafSync on a phone: video on top, the daf below with the current phrase highlighted." />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= STRIP ======================= -->
+    <div class="strip">
+      <div class="wrap">
+        <ul>
+          <li><span class="ico"><svg><use href="#i-sync"/></svg></span><div><strong>Word-for-word sync</strong><span>The highlight follows the shiur across the real daf.</span></div></li>
+          <li><span class="ico"><svg><use href="#i-hand"/></svg></span><div><strong>Tap to jump</strong><span>Touch any word and the shiur goes right to it.</span></div></li>
+          <li><span class="ico"><svg><use href="#i-chat"/></svg></span><div><strong>Live discussions</strong><span>Ask and answer on any line, with other learners, in real time.</span></div></li>
+          <li><span class="ico"><svg><use href="#i-devices"/></svg></span><div><strong>Anywhere</strong><span>Built for phones and big screens alike.</span></div></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ======================= TRY IT ======================= -->
+    <section id="try" class="try" aria-labelledby="try-title">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <div class="kicker">Try it now</div>
+          <h2 id="try-title">Learn a few minutes, right here</h2>
+          <p>This is the real DafSync, playing a short sample of a shiur on Bekhorot 40a. Press play and watch the daf follow along.</p>
+        </div>
+        <div class="try-stage reveal" id="tryStage">
+          <button type="button" class="try-poster" id="tryButton" aria-label="Play a 3-minute sample of a shiur in DafSync">
+            <picture>
+              <source media="(max-width: 760px)" srcset="/assets/welcome/phone-split.jpg" />
+              <img src="/assets/welcome/desk-split.jpg" alt="" loading="lazy" />
+            </picture>
+            <span class="try-poster-inner">
+              <span class="try-play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg></span>
+              <span class="try-label">Try a 3-minute sample</span>
+              <span class="try-sub">Bekhorot 40a · with sound</span>
+            </span>
+          </button>
+        </div>
+        <ul class="try-tips">
+          <li><svg><use href="#i-hand"/></svg>Tap any word on the daf to jump there</li>
+          <li><svg><use href="#i-zoom"/></svg>Zoom the page in or out</li>
+          <li><svg><use href="#i-play"/></svg>Try Daf on video and Video on daf</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ======================= HOW IT WORKS ======================= -->
+    <section id="how" aria-labelledby="how-title">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <div class="kicker">How it works</div>
+          <h2 id="how-title">Three steps to a clearer shiur</h2>
+          <p>No setup, no downloads. Open DafSync in your browser and start learning.</p>
+        </div>
+        <div class="steps">
+          <div class="step reveal">
+            <h3>Pick your daf</h3>
+            <p>Today’s daf is waiting on the home page, or search for any masechta and daf. Choose your maggid, in English or Hebrew.</p>
+          </div>
+          <div class="step reveal">
+            <h3>Press play</h3>
+            <p>The shiur plays beside the printed Vilna page. Skip past the intro with one tap and go straight to the daf.</p>
+          </div>
+          <div class="step reveal">
+            <h3>Follow along</h3>
+            <p>Each phrase lights up as it’s said and the page scrolls with you. Tap any word to hear that part again.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= FEATURES ======================= -->
+    <section id="features" class="alt" aria-labelledby="features-title">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <div class="kicker">Features</div>
+          <h2 id="features-title">Everything you need to learn the daf</h2>
+          <p>From your first Daf Yomi to your hundredth chazarah, DafSync keeps the shiur and the Gemara together.</p>
+        </div>
+
+        <!-- Synced shiur -->
+        <div class="feature">
+          <div class="feature-media reveal glow">
+            <div class="shot crop crop-highlight"><img src="/assets/welcome/desk-split.jpg" width="2160" height="1350" loading="lazy" alt="A close-up of the daf, with the phrase being explained highlighted in blue." /></div>
+            <div class="pill-note"><b>“Vaater”</b>Skip ahead to the next part of the daf the maggid explains.</div>
+          </div>
+          <div class="feature-copy reveal">
+            <div class="kicker">The synced shiur</div>
+            <h3>The daf follows the shiur in real-time</h3>
+            <p>As the shiur plays, DafSync highlights the exact phrase being explained on the printed Vilna daf, so your eyes are always in the right place.</p>
+            <ul class="checks">
+              <li><b>Live phrase highlighting</b> on the real page, line by line.</li>
+              <li><b>Tap or click any word</b> to jump the video to that moment.</li>
+              <li><b>Auto-scroll</b> keeps the highlighted line in view.</li>
+              <li><b>Skip to daf</b> passes the intro, and <b>Vaater</b> skips ahead.</li>
+              <li>Speed control, 10-second skips and fullscreen.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Live discussions -->
+        <div class="feature flip">
+          <div class="feature-media reveal glow">
+            <div class="shot crop crop-live">
+              <img src="/assets/welcome/desk-live.jpg" width="2160" height="1350" loading="lazy" alt="A live discussion open beside the daf: learners asking and answering about a phrase on the page, with the answer marked." />
+            </div>
+            <div class="caption">Sample discussion, for illustration.</div>
+          </div>
+          <div class="feature-copy reveal">
+            <div class="kicker live-badge">Cloud Chaburah Live</div>
+            <h3>Talk it through, right on the daf</h3>
+            <p>Every line of the daf can have its own live conversation. Ask a question while the shiur plays, and other learners on the same daf answer in real time.</p>
+            <ul class="checks">
+              <li><b>Start a discussion on any phrase</b>: hold a word and tap “Start live discussion here”.</li>
+              <li><b>Live chat</b>: messages appear instantly, and you can see how many people are learning the daf right now.</li>
+              <li><b>Markers on the daf</b> show where people are talking. Tap one to jump in.</li>
+              <li><b>Mark the answer</b>, follow the discussions you care about, and see what’s new.</li>
+              <li>Search and filter every discussion on the daf.</li>
+              <li>Open it from the player, the Interactive Daf, or the drop-down in Split view.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Viewing modes -->
+        <div class="feature">
+          <div class="feature-media reveal glow">
+            <div class="phone land"><img src="/assets/welcome/phone-land.jpg" width="1830" height="824" loading="lazy" alt="Split view on a sideways phone: the shiur on the left, the daf on the right." /></div>
+            <div class="caption">Turn your phone sideways for the shiur and the daf side by side.</div>
+            <div class="band-shot"><img src="/assets/welcome/phone-dov.jpg" width="712" height="400" loading="lazy" alt="Daf on video: a band of the daf’s current lines across the bottom of the video." /></div>
+            <div class="caption">Daf on video: the current lines ride along on the video itself.</div>
+          </div>
+          <div class="feature-copy reveal">
+            <div class="kicker">Viewing modes</div>
+            <h3>Watch it your way</h3>
+            <p>Switch between layouts at any time, and pick the one you like best as your default.</p>
+            <ul class="checks">
+              <li><b>Split view</b>: video and daf side by side on a computer or a sideways phone, and stacked when the phone is upright. Drag the divider to resize.</li>
+              <li><b>Daf on video</b>: a band of the current lines right on the video.</li>
+              <li><b>Video on daf</b>: a small video floating over a full-size page.</li>
+              <li>Tap the divider for a drop-down with the daf picker, amud arrows, auto-scroll, notes and more.</li>
+              <li><b>Zoom tools</b>: fit width, fit page, sizes from 50% to 400%, and left, centre or right alignment.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Hold any word -->
+        <div class="feature flip">
+          <div class="feature-media reveal glow">
+            <div class="media-phone-single">
+              <div class="phone"><img src="/assets/welcome/phone-menu.jpg" width="824" height="1678" loading="lazy" alt="Holding a word on the daf opens a menu of actions." /></div>
+            </div>
+          </div>
+          <div class="feature-copy reveal">
+            <div class="kicker">Hold any word</div>
+            <h3>The whole page is interactive</h3>
+            <p>Hold a word on your phone, or right-click it on a computer, and a menu of tools opens right where you are.</p>
+            <div class="menu-list">
+              <span><svg><use href="#i-note"/></svg>Add a note here</span>
+              <span><svg><use href="#i-chat"/></svg>Start a live discussion</span>
+              <span><svg><use href="#i-highlight"/></svg>Highlight</span>
+              <span><svg><use href="#i-dict"/></svg>Look up in the dictionary</span>
+              <span><svg><use href="#i-search"/></svg>Search in Shas</span>
+              <span><svg><use href="#i-cloud"/></svg>Search Cloud Chaburah</span>
+              <span><svg><use href="#i-link"/></svg>Copy a link to this line or moment</span>
+              <span><svg><use href="#i-flag"/></svg>Flag a problem</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Interactive Daf -->
+        <div class="feature">
+          <div class="feature-media reveal glow">
+            <div class="shot"><img src="/assets/welcome/desk-browse.jpg" width="1935" height="960" loading="lazy" alt="The Interactive Daf on a computer: the shiur on the left, the Gemara page on the right, and the words being discussed shown below the video." /></div>
+          </div>
+          <div class="feature-copy reveal">
+            <div class="kicker">Interactive Daf</div>
+            <h3>Start from the Gemara</h3>
+            <p>Flip through Shas page by page. When a line catches your eye, tap it and go straight to that moment in the shiur.</p>
+            <ul class="checks">
+              <li>Turn amudim with the arrows, or jump to any daf.</li>
+              <li>See every synced shiur for the daf in one list.</li>
+              <li>Tap a word to start the shiur exactly there.</li>
+            </ul>
+            <p style="margin:22px 0 0"><a class="btn btn-primary btn-sm" href="/browse/">Open the Interactive Daf</a></p>
+          </div>
+        </div>
+
+        <!-- Home / daily -->
+        <div class="feature flip">
+          <div class="feature-media reveal glow">
+            <div class="media-phone-single">
+              <div class="phone"><img src="/assets/welcome/phone-home.jpg" width="824" height="1678" loading="lazy" alt="The DafSync home page on a phone, with today’s daf and shiurim to continue." /></div>
+            </div>
+          </div>
+          <div class="feature-copy reveal">
+            <div class="kicker">Your daily learning</div>
+            <h3>Today’s daf, one tap away</h3>
+            <p>The home page always opens on today’s daf from the Daf Yomi calendar, with the shiurim you were in the middle of right below.</p>
+            <ul class="checks">
+              <li><b>Today’s Daf</b>: choose your maggid and language, then press play.</li>
+              <li><b>Continue learning</b> picks up right where you stopped.</li>
+              <li><b>Chazarah</b>: go back over dapim you’ve already learned.</li>
+              <li>Search any masechta and daf, and switch on dark mode for night learning.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= MORE TOOLS ======================= -->
+    <section id="tools" aria-labelledby="tools-title">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <div class="kicker">More tools</div>
+          <h2 id="tools-title">Go deeper into every daf</h2>
+          <p>Write it down, talk it through, and bring the shiur to the sefer on your table.</p>
+        </div>
+        <div class="grid">
+          <a class="card reveal" href="/notes/">
+            <span class="ico"><svg><use href="#i-note"/></svg></span>
+            <h3>My Notes</h3>
+            <p>Add notes to any line of the daf, private or shared. Sort them by type (question, insight, difficulty, source and more), format them, and tag them to the exact moment in the video.</p>
+            <span class="go">Open My Notes →</span>
+          </a>
+          <a class="card reveal" href="/kuntras/">
+            <span class="ico"><svg><use href="#i-kuntras"/></svg></span>
+            <h3>Kuntras Builder</h3>
+            <p>Gather your notes into your own pamphlet, arrange them how you like, and save it as a PDF to print or share.</p>
+            <span class="go">Build a kuntras →</span>
+          </a>
+          <a class="card reveal" href="/chaburah/">
+            <span class="ico"><svg><use href="#i-cloud"/></svg></span>
+            <h3>Cloud Chaburah</h3>
+            <p>Questions, insights and sources from other learners, attached to the daf. Ask your own and help answer others.</p>
+            <span class="go">Visit the chaburah →</span>
+          </a>
+          <div class="card reveal">
+            <span class="ico"><svg><use href="#i-scan"/></svg></span>
+            <h3>Daf Scan</h3>
+            <p>Point your phone’s camera at a printed Gemara, or choose a photo, and DafSync finds that daf and opens its shiur.</p>
+          </div>
+          <div class="card reveal">
+            <span class="ico"><svg><use href="#i-mic"/></svg></span>
+            <h3>Live follow <span class="tag">Experiment</span></h3>
+            <p>Sitting in a shiur being given right now? Let DafSync listen and follow along on the daf for you.</p>
+          </div>
+          <div class="card reveal">
+            <span class="ico"><svg><use href="#i-search"/></svg></span>
+            <h3>Search &amp; dictionary</h3>
+            <p>Look up a word in the dictionary, or search for a phrase across all of Shas, without leaving the page.</p>
+          </div>
+          <div class="card reveal">
+            <span class="ico"><svg><use href="#i-zoom"/></svg></span>
+            <h3>A page that fits</h3>
+            <p>Pinch or Ctrl+scroll to zoom, fit the page to your screen, and move it left, right or centre.</p>
+          </div>
+          <div class="card reveal">
+            <span class="ico"><svg><use href="#i-moon"/></svg></span>
+            <h3>Dark mode</h3>
+            <p>Switch to a darker screen for comfortable learning late at night or early in the morning.</p>
+          </div>
+          <a class="card reveal" href="/profile/">
+            <span class="ico"><svg><use href="#i-user"/></svg></span>
+            <h3>Your account</h3>
+            <p>Sign in to keep your notes, history and settings on every device, and choose your default viewing mode.</p>
+            <span class="go">Go to your profile →</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= FINAL CTA ======================= -->
+    <section class="final" aria-labelledby="final-title">
+      <div class="wrap reveal">
+        <img class="mark" src="/assets/dafsync-mark.png" alt="" />
+        <h2 id="final-title">Ready for today’s daf?</h2>
+        <p>Open DafSync, press play, and follow the shiur on the daf, word by word.</p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="/?nav=today">Start today’s daf</a>
+          <a class="btn btn-ghost" href="/">Browse all shiurim</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span>© DafSync</span>
+      <nav aria-label="Site">
+        <a href="/">Home</a>
+        <a href="/browse/">Interactive Daf</a>
+        <a href="/chaburah/">Cloud Chaburah</a>
+        <a href="/notes/">My Notes</a>
+        <a href="/kuntras/">Kuntras Builder</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script>
+    // "Try it": the real player, loaded only when asked for, so the welcome
+    // page itself stays light. See EMBED in app.js for what ?embed=1 changes.
+    (function () {
+      var button = document.getElementById('tryButton');
+      var stage = document.getElementById('tryStage');
+      if (!button || !stage) return;
+      button.addEventListener('click', function () {
+        var phone = window.matchMedia('(max-width: 760px)').matches;
+        var params = new URLSearchParams({
+          ref: 'Bekhorot 40a', embed: '1', mode: 'split', t: '1745', limit: '180',
+          zoom: phone ? '1.7' : '1.4', autoplay: '1'
+        });
+        var frame = document.createElement('iframe');
+        frame.src = '/player/?' + params.toString();
+        frame.title = 'DafSync sample: a shiur on Bekhorot 40a';
+        frame.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture';
+        frame.setAttribute('allowfullscreen', '');
+        stage.replaceChildren(frame);
+        frame.focus();
+      });
+    })();
+
+    (function () {
+      var items = document.querySelectorAll('.reveal');
+      if (!('IntersectionObserver' in window)) {
+        items.forEach(function (el) { el.classList.add('in'); });
+        return;
+      }
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('in');
+            io.unobserve(entry.target);
+          }
+        });
+      }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+      items.forEach(function (el) { io.observe(el); });
+    })();
+  </script>
+</body>
+</html>

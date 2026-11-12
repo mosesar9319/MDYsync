@@ -30,6 +30,34 @@ const maggidMarkerSuffix = (id) => {
   return marker ? ` (${marker})` : '';
 };
 
+// ?embed=1 -- the player shown inside another DafSync page: the welcome
+// page's "Try it" sample. It opens in Split view at ?t=, shows only the video
+// and the daf, remembers nothing (no watch history, zoom or Split layout --
+// a visitor's own settings stay as they were), opens links in the full
+// window, and after ?limit= seconds of playing pauses with a way into the
+// full shiur. ?zoom= sets how far the daf starts zoomed in; ?autoplay=1
+// starts playing once the video is ready, when the browser allows it.
+const EMBED = (() => {
+  const params = new URLSearchParams(location.search);
+  if (params.get('embed') !== '1') return null;
+  const number = (name) => { const value = Number(params.get(name)); return Number.isFinite(value) && value > 0 ? value : 0; };
+  return {
+    start: number('t'),
+    limit: number('limit'),
+    zoom: number('zoom'),
+    autoplay: params.get('autoplay') === '1',
+    played: 0,
+    lastTick: 0,
+    ended: false,
+  };
+})();
+if (EMBED) {
+  document.documentElement.classList.add('is-embed');
+  const base = document.createElement('base');
+  base.target = '_top';
+  document.head.prepend(base);
+}
+
 const state = {
   dafRef: '',
   segments: [],
@@ -2407,6 +2435,10 @@ function vilnaViewRemembered() {
   return !window.matchMedia('(pointer: coarse), (hover: none)').matches;
 }
 function loadVilnaView() {
+  if (EMBED) {
+    if (EMBED.zoom) state.vilnaPageZoom = Math.max(VILNA_ZOOM_MIN, Math.min(VILNA_ZOOM_MAX, EMBED.zoom));
+    return;
+  }
   if (!vilnaViewRemembered()) {
     try { localStorage.removeItem(VILNA_VIEW_KEY); } catch { /* nothing saved */ }
     return;
@@ -2421,7 +2453,7 @@ function loadVilnaView() {
   } catch { /* defaults */ }
 }
 function saveVilnaView() {
-  if (!vilnaViewRemembered()) return;
+  if (EMBED || !vilnaViewRemembered()) return;
   try {
     localStorage.setItem(VILNA_VIEW_KEY, JSON.stringify({ zoom: state.vilnaPageZoom, align: state.vilnaPageAlign, fit: state.vilnaZoomFit || null }));
   } catch { /* this visit only */ }
@@ -6291,6 +6323,7 @@ const splitVideoPinchPointers = new Map();
 let splitVideoPinch = null;
 
 function loadSplitViewPreferences() {
+  if (EMBED) return;
   try {
     const saved = JSON.parse(localStorage.getItem(SPLIT_VIEW_PREFS_KEY) || 'null');
     if (!saved || typeof saved !== 'object') return;
@@ -6319,6 +6352,7 @@ function loadSplitViewPreferences() {
   }
 }
 function saveSplitViewPreferences() {
+  if (EMBED) return;
   if (Number.isFinite(state.splitViewRatio)) state.splitViewRatios[state.splitViewLayout] = state.splitViewRatio;
   else delete state.splitViewRatios[state.splitViewLayout];
   try {
@@ -6890,6 +6924,7 @@ let splitHistoryBackPending = false;
 let splitHistoryBackTimer = null;
 
 function pushSplitHistory() {
+  if (EMBED) return;
   try { history.pushState({ ...(history.state || {}), split: true }, ''); }
   catch { /* ignore a non-cloneable existing state */ }
 }
@@ -8136,6 +8171,7 @@ function applyDuration(duration, resetDefault = true) {
 
 function updateTimeline() {
   const current = getCurrentTime();
+  if (EMBED?.limit) countEmbedPlayTime(current);
   const duration = getDuration() || Number(scrubber.max) || 0;
   if (duration > 0 && Number(scrubber.max) !== duration) scrubberEls.forEach((el) => { el.max = String(duration); });
   if (!state.seeking) scrubberEls.forEach((el) => { el.value = String(Math.min(current, duration || current)); });
@@ -12957,6 +12993,7 @@ if (!state.browseMode && bootParams.get('view') !== 'scan') {
       } else {
         resumeFromSearch(bootParams);
       }
+      startEmbedPlayback();
     });
   }
 }
@@ -13077,6 +13114,7 @@ const WATCH_HISTORY_MAX = 30;
 const WATCH_HISTORY_PARAMS = ['ref', 'variant', 'language', 'maggid'];
 
 function recordWatchProgress() {
+  if (EMBED) return;
   if (!/^\/(player|watch)\//.test(location.pathname)) return;
   const source = state.videoSource;
   if (source?.type !== 'youtube' || !source.videoId) return;
@@ -13100,6 +13138,63 @@ function recordWatchProgress() {
     const rest = Array.isArray(list) ? list.filter((item) => item?.key !== entry.key) : [];
     localStorage.setItem(WATCH_HISTORY_KEY, JSON.stringify([entry, ...rest].slice(0, WATCH_HISTORY_MAX)));
   } catch { /* not remembered */ }
+}
+
+// The sample counts time actually played, not where in the shiur it is, so a
+// visitor can tap words all over the daf without cutting it short.
+function countEmbedPlayTime(current) {
+  const now = performance.now();
+  const playing = !isPaused();
+  if (playing && EMBED.lastTick) EMBED.played += Math.min(1, (now - EMBED.lastTick) / 1000);
+  EMBED.lastTick = playing ? now : 0;
+  if (playing && !EMBED.ended && EMBED.played >= EMBED.limit) endEmbedSample(current);
+}
+
+function endEmbedSample(current) {
+  EMBED.ended = true;
+  if (!isPaused()) togglePlay();
+  const link = new URLSearchParams();
+  const search = new URLSearchParams(location.search);
+  for (const name of WATCH_HISTORY_PARAMS) if (search.get(name)) link.set(name, search.get(name));
+  link.set('mode', 'split');
+  link.set('t', String(Math.floor(current)));
+  let panel = document.getElementById('embedEnd');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'embedEnd';
+    panel.className = 'embed-end';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-label', 'End of the sample');
+    panel.innerHTML = '<div class="embed-end-card"><p class="embed-end-title">That was a taste of DafSync</p>'
+      + '<p class="embed-end-text">Keep going from right here, with the whole shiur and every tool.</p>'
+      + '<a class="embed-end-cta" target="_top">Keep learning in DafSync</a>'
+      + '<button type="button" class="embed-end-again">Watch the sample again</button></div>';
+    panel.querySelector('.embed-end-again').addEventListener('click', () => {
+      panel.hidden = true;
+      EMBED.played = 0;
+      EMBED.lastTick = 0;
+      EMBED.ended = false;
+      seek(EMBED.start);
+      if (isPaused()) togglePlay();
+    });
+    document.body.append(panel);
+  }
+  panel.querySelector('.embed-end-cta').href = `/player/?${link.toString()}`;
+  panel.hidden = false;
+}
+
+// ?autoplay=1 in the sample: press play once the video can take it. When the
+// browser refuses to start sound without a tap, the big play button stays.
+function startEmbedPlayback() {
+  if (!EMBED?.autoplay) return;
+  let tries = 0;
+  const timer = setInterval(() => {
+    tries += 1;
+    if (state.youtubeReady || tries > 60) {
+      clearInterval(timer);
+      if (state.youtubeReady && isPaused()) togglePlay().catch?.(() => {});
+    }
+  }, 250);
 }
 
 function resumeFromSearch(params) {
