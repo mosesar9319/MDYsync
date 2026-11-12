@@ -240,3 +240,59 @@ test.describe('The daf zoom bar on a computer', () => {
     await expect(page.locator('#vilnaFitPageButton')).toHaveAttribute('aria-pressed', 'false');
   });
 });
+
+test.describe('Split View opens side by side on a computer', () => {
+  test.beforeEach(({}, info) => test.skip(info.project.name === 'mobile', 'mouse layout'));
+
+  test('even in a window taller than it is wide', async ({ page }) => {
+    await openPlayer(page, { size: { width: 900, height: 1200 } });
+    await openSplit(page);
+    expect(await page.evaluate(() => state.splitViewLayout)).toBe('side-by-side');
+    await expect(page.locator('.watch-layout')).not.toHaveClass(/split-stacked/);
+  });
+
+  test('a layout saved before this change no longer keeps it stacked', async ({ page }) => {
+    await page.addInitScript(() => {
+      if (!sessionStorage.getItem('seeded')) {
+        localStorage.setItem('dafsync-immersive-split-v1', JSON.stringify({ v: 2, layout: 'stacked', layoutExplicit: true, ratio: 0.4, ratios: { stacked: 0.4 }, videoPosition: 'start' }));
+        sessionStorage.setItem('seeded', '1');
+      }
+    });
+    await openPlayer(page);
+    await openSplit(page);
+    expect(await page.evaluate(() => state.splitViewLayout)).toBe('side-by-side');
+  });
+
+  test('stacked chosen with the layout button sticks on the next visit', async ({ page }) => {
+    await openPlayer(page);
+    await openSplit(page);
+    await page.locator('#splitLayoutToggleButton').click();
+    expect(await page.evaluate(() => state.splitViewLayout)).toBe('stacked');
+    await page.reload();
+    await page.waitForFunction(() => window.__yt && state.segments.length === 2, null, { timeout: 20000 });
+    await page.evaluate(() => setViewerMode('split'));
+    await expect.poll(() => page.evaluate(() => state.splitViewLayout)).toBe('stacked');
+  });
+});
+
+test.describe('The daf on a phone opens fitting its width', () => {
+  test.beforeEach(({}, info) => test.skip(info.project.name !== 'mobile', 'phone'));
+
+  test('a zoom saved earlier is not reused, and a new one is not saved', async ({ page }) => {
+    await page.addInitScript(() => {
+      if (!sessionStorage.getItem('seeded')) {
+        localStorage.setItem('dafsync.dafView', JSON.stringify({ zoom: 2.2, align: 'center', fit: null }));
+        sessionStorage.setItem('seeded', '1');
+      }
+    });
+    await openPlayer(page, { size: { width: 412, height: 915 } });
+    expect(await page.evaluate(() => state.vilnaPageZoom)).toBe(1);
+    expect(await page.evaluate(() => localStorage.getItem('dafsync.dafView'))).toBeNull();
+    // A zoom on the phone is for now only.
+    await page.evaluate(() => setVilnaPageZoom(1.8));
+    expect(await page.evaluate(() => localStorage.getItem('dafsync.dafView'))).toBeNull();
+    await page.reload();
+    await page.waitForFunction(() => window.__yt && state.segments.length === 2, null, { timeout: 20000 });
+    expect(await page.evaluate(() => state.vilnaPageZoom)).toBe(1);
+  });
+});

@@ -2400,7 +2400,17 @@ const VILNA_ZOOM_STEP = 0.2;
 // whole page fits again on a differently sized screen.
 const VILNA_VIEW_KEY = 'dafsync.dafView';
 const VILNA_ALIGN_FRACTION = { left: 0, center: 0.5, right: 1 };
+// Remembered on a computer only. A phone opens every daf fitting its width:
+// a pinch there is for the moment, and a remembered one opened every shiur
+// zoomed in.
+function vilnaViewRemembered() {
+  return !window.matchMedia('(pointer: coarse), (hover: none)').matches;
+}
 function loadVilnaView() {
+  if (!vilnaViewRemembered()) {
+    try { localStorage.removeItem(VILNA_VIEW_KEY); } catch { /* nothing saved */ }
+    return;
+  }
   try {
     const saved = JSON.parse(localStorage.getItem(VILNA_VIEW_KEY) || 'null');
     if (!saved || typeof saved !== 'object') return;
@@ -2411,6 +2421,7 @@ function loadVilnaView() {
   } catch { /* defaults */ }
 }
 function saveVilnaView() {
+  if (!vilnaViewRemembered()) return;
   try {
     localStorage.setItem(VILNA_VIEW_KEY, JSON.stringify({ zoom: state.vilnaPageZoom, align: state.vilnaPageAlign, fit: state.vilnaZoomFit || null }));
   } catch { /* this visit only */ }
@@ -6283,13 +6294,17 @@ function loadSplitViewPreferences() {
   try {
     const saved = JSON.parse(localStorage.getItem(SPLIT_VIEW_PREFS_KEY) || 'null');
     if (!saved || typeof saved !== 'object') return;
-    if (saved.layout === 'side-by-side' || saved.layout === 'stacked') state.splitViewLayout = saved.layout;
-    if (typeof saved.layoutExplicit === 'boolean') state.splitViewLayoutExplicit = saved.layoutExplicit;
+    // A layout chosen before version 3 is dropped once: a computer now
+    // opens Split side by side, and an old "stacked" kept it stacked.
+    if (saved.v >= 3) {
+      if (saved.layout === 'side-by-side' || saved.layout === 'stacked') state.splitViewLayout = saved.layout;
+      if (typeof saved.layoutExplicit === 'boolean') state.splitViewLayoutExplicit = saved.layoutExplicit;
+    }
     if (saved.videoPosition === 'start' || saved.videoPosition === 'end') state.splitViewVideoPosition = saved.videoPosition;
     // A divider position saved before version 2 meant something else: the
     // stacked default was 40% of the screen, which now opens zoomed in.
     // Start those readers from the full-picture default instead.
-    if (saved.v !== 2) return;
+    if (!(saved.v >= 2)) return;
     if (Number.isFinite(saved.ratio)) state.splitViewRatio = clampReadingValue(saved.ratio, SPLIT_VIEW_MIN_RATIO, SPLIT_VIEW_MAX_RATIO);
     if (saved.ratios && typeof saved.ratios === 'object') {
       for (const layout of ['side-by-side', 'stacked']) {
@@ -6308,7 +6323,7 @@ function saveSplitViewPreferences() {
   else delete state.splitViewRatios[state.splitViewLayout];
   try {
     localStorage.setItem(SPLIT_VIEW_PREFS_KEY, JSON.stringify({
-      v: 2,
+      v: 3,
       layout: state.splitViewLayout,
       layoutExplicit: state.splitViewLayoutExplicit,
       ratio: state.splitViewRatio,
@@ -6327,7 +6342,10 @@ function splitViewContainer() {
 // side-by-side, portrait phone/tablet gets stacked -- landscape-vs-portrait
 // (rather than a fixed width breakpoint) is what actually distinguishes
 // those cases across device sizes.
+// A computer opens Split side by side, whatever the window's shape; a
+// phone or tablet follows the way it is held (splitFollowsOrientation).
 function preferredSplitViewLayoutForViewport() {
+  if (!splitFollowsOrientation()) return 'side-by-side';
   return window.innerWidth >= window.innerHeight ? 'side-by-side' : 'stacked';
 }
 // With a mouse, this only picks a default while the reader has never
