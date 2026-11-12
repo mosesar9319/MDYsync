@@ -83,6 +83,22 @@ function renderDesktopNav() {
   const existing = document.querySelector('.desktop-navigation');
   if (!existing) return; // page has no sidebar -- nothing to attach to
   existing.innerHTML = linksHtml;
+  renderWelcomeLink(existing);
+}
+
+// A quiet text link under the icon list. Not a phone-bar tab: five tabs
+// already fill that row, and Welcome is an introduction, not a daily tool.
+function renderWelcomeLink(nav) {
+  const aside = nav.closest('.sidebar');
+  if (!aside || aside.querySelector('.sidebar-welcome')) return;
+  const link = document.createElement('a');
+  link.className = 'sidebar-welcome';
+  link.href = '/welcome/';
+  link.textContent = 'Welcome';
+  if (location.pathname === '/welcome' || location.pathname === '/welcome/') {
+    link.setAttribute('aria-current', 'page');
+  }
+  aside.appendChild(link);
 }
 
 renderBottomNav();

@@ -1143,7 +1143,7 @@ h1 {
 [hidden]{display:none!important}
 .brand{text-decoration:none}
 .desktop-navigation{display:flex;flex-direction:column}
-.shiur-card:focus-visible,.hero-card:focus-visible,.filters button:focus-visible,.side-link:focus-visible,.mobile-nav button:focus-visible,.mobile-nav a:focus-visible,.profile-button:focus-visible{outline:3px solid rgba(47, 110, 165,.45);outline-offset:2px}
+.shiur-card:focus-visible,.hero-card:focus-visible,.filters button:focus-visible,.side-link:focus-visible,.mobile-nav button:focus-visible,.mobile-nav a:focus-visible,.profile-button:focus-visible,.welcome-link:focus-visible,.welcome-banner:focus-visible,.sidebar-welcome:focus-visible{outline:3px solid rgba(47, 110, 165,.45);outline-offset:2px}
 
 /* Account sign-in: the site's one login affordance, mainly there so an
    admin can reach the /studio/ backend (see the account dropdown's
@@ -1821,6 +1821,52 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     color: var(--feed-title);
   }
 }
+
+.welcome-link {
+  color: var(--gold);
+  flex: 0 0 auto;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 16px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.welcome-link:hover { text-decoration: underline; }
+
+.sidebar-welcome {
+  border-top: 1px solid var(--line);
+  color: var(--gold);
+  display: block;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 13px;
+  line-height: 1.2;
+  margin: 2px 12px 16px;
+  padding: 10px 4px 2px;
+  text-align: center;
+  text-decoration: none;
+}
+.sidebar-welcome:hover { color: var(--navy); }
+
+.welcome-banner { display: none; }
+
+@media (max-width: 760px) {
+  .welcome-link { display: none; }
+  .welcome-banner {
+    align-items: center;
+    background: transparent;
+    border-radius: 999px;
+    color: #1e5684;
+    display: inline-flex;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 16px;
+    gap: 8px;
+    margin: 2px 14px 8px;
+    min-height: 44px;
+    padding: 8px 2px;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  html[data-theme="dark"] .welcome-banner { color: #9ec4e4; }
+}
 </style>
 </head>
 <body>
@@ -1830,6 +1876,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         <span class="brand-emblem" aria-hidden="true"><img src="/assets/dafsync-lockup.png" alt=""></span>
       </a>
       <nav class="desktop-navigation" aria-label="Primary navigation"></nav>
+      <a class="sidebar-welcome" href="/welcome/">Welcome</a>
     </aside>
 
     <div class="page">
@@ -1849,6 +1896,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         </label>
         <button class="top-icon search-toggle" id="searchToggle" type="button" aria-label="Search" aria-expanded="false"><span data-icon="search"></span></button>
         <button class="top-icon theme-toggle" id="themeToggle" type="button" aria-label="Dark mode" aria-pressed="false"></button>
+        <a class="welcome-link" href="/welcome/">What is DafSync?</a>
         <div class="auth-widget" id="authWidget">
           <button class="auth-button" id="signInButton" type="button">Sign in</button>
           <div class="account-menu" id="accountMenu" hidden>
@@ -1866,6 +1914,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       </header>
 
       <main>
+        <a class="welcome-banner" href="/welcome/"><span>What is DafSync?</span><span aria-hidden="true">→</span></a>
         <div class="feed-chips" id="feedChips" role="toolbar" aria-label="Filter shiurim"></div>
         <div class="filters" id="filters" aria-label="Browse filters"></div>
 
