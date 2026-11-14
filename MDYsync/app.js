@@ -76,6 +76,10 @@ const state = {
   // so the first play isn't competing with that download.
   deferVilnaRaster: false,
   usingDefaultAlignment: true,
+  // A Mercaz livestream (or its just-finished recording) with no alignment
+  // of its own. The daf stays on screen and nothing is highlighted.
+  // Same rule as shouldHighlightWords() in shared/live-broadcast.mjs.
+  livePlainDaf: false,
   editingIndex: 0,
   phraseEditMode: false,
   vilnaMarkMode: false,
@@ -1309,6 +1313,36 @@ function setSourceBadge(label) {
   $('videoSourceBadge').textContent = label;
   $('videoSourceBadge').hidden = false;
   $('videoEmpty').hidden = true;
+}
+
+// Kept in step with shouldHighlightWords() in shared/live-broadcast.mjs.
+function liveBroadcastHidesHighlight(source, alignment) {
+  if (!source?.liveBroadcast) return false;
+  if (source.liveStatus === 'live' || source.liveStatus === 'upcoming') return true;
+  const sameVideo = alignment?.videoId && alignment.videoId === source.videoId
+    && Array.isArray(alignment.segments) && alignment.segments.length;
+  return !sameVideo;
+}
+
+function syncLiveBroadcastChrome(source, plain) {
+  document.body.classList.toggle('is-live-broadcast', Boolean(plain));
+  let banner = document.getElementById('liveBroadcastBanner');
+  if (!plain) {
+    banner?.remove();
+    return;
+  }
+  if (!banner) {
+    banner = document.createElement('p');
+    banner.id = 'liveBroadcastBanner';
+    banner.className = 'live-broadcast-banner';
+    const title = $('lectureTitle');
+    if (title?.parentElement) title.insertAdjacentElement('afterend', banner);
+  }
+  const onAir = source?.liveStatus === 'live';
+  banner.dataset.onAir = onAir ? 'true' : 'false';
+  banner.textContent = onAir
+    ? 'Live. The shiur is on now. The daf is below. Words are not highlighted until the edited recording is posted.'
+    : 'Live recording. Words are not highlighted until the edited shiur is posted.';
 }
 
 function switchPlayerType(type) {
@@ -3226,6 +3260,7 @@ function flashSeekPending() {
 // on it directly, so a shared start time or the lead-in offset can't light
 // the neighboring phrase instead.
 function activatePhrase(index) {
+  if (state.livePlainDaf) return;
   const resolved = nearestSamePhrase(index);
   const segment = state.segments[resolved];
   if (!segment) return;
@@ -3238,6 +3273,7 @@ function activatePhrase(index) {
 
 async function seekToVilnaWord(ref, wordIndex) {
   if (state.liveFollow?.active) return window.dafLiveFollow?.tapWord(ref, wordIndex);
+  if (state.livePlainDaf) return;
   // state.forwardAlignment.ref is the NEXT daf (the recording to load), while
   // `ref` here is a paragraph ("Bekhorot 30b.4"). Comparing them never
   // matched, so the lead-in redirect never ran. Match on coverage instead:
@@ -8051,6 +8087,7 @@ function scrollActiveIntoView(force) {
 }
 
 function updateActiveSegment(force = false, timeOverride = null) {
+  if (state.livePlainDaf) return;
   const time = timeOverride ?? getCurrentTime();
   let jumpedBack = false;
   let jumpedForward = false;
@@ -9260,7 +9297,13 @@ async function loadDaf(refOverride = null, options = {}) {
   // reader can always switch to voice recognition from the toggle this
   // just made visible.
   const serverAlignment = ocrAlignment || voiceAlignment;
-  if (serverAlignment) {
+  // A livestream is played with the daf underneath and no word highlight.
+  // An alignment that belongs to a different video (the usual case: this
+  // daf's by-ref file is still the previous recording, or not written yet)
+  // must not be laid on top of the live player.
+  state.livePlainDaf = liveBroadcastHidesHighlight(preferredVideoSource, serverAlignment);
+  syncLiveBroadcastChrome(preferredVideoSource, state.livePlainDaf);
+  if (serverAlignment && !state.livePlainDaf) {
     // The server's own videoSource is never actually playable -- it's
     // just the generic local filename the OCR job used internally
     // (e.g. "job-video.mp4"), not a real YouTube/direct link. Prefer a
@@ -9305,7 +9348,7 @@ async function loadDaf(refOverride = null, options = {}) {
     if (!options.silent) showToast(`Loaded the synced alignment for ${ref} from the server.`);
     return;
   }
-  const saved = loadProjectForRef(ref);
+  const saved = state.livePlainDaf ? null : loadProjectForRef(ref);
   if (saved && Array.isArray(saved.segments) && saved.segments.length) {
     await loadAlignmentData(saved, { dafRefOverride: ref });
     if (!options.silent) showToast(`Restored the saved sync for ${ref}.`);
@@ -9360,7 +9403,7 @@ async function loadDaf(refOverride = null, options = {}) {
         estimated: true,
       };
     }));
-    state.activeIndex = 0;
+    state.activeIndex = state.livePlainDaf ? -1 : 0;
     state.editingIndex = 0;
     // Reaching this branch at all means there was no real synced alignment
     // to load (checked above, before the Sefaria fetch) -- these segments
@@ -9375,13 +9418,19 @@ async function loadDaf(refOverride = null, options = {}) {
     // highlight then raced through every segment in that opening stretch
     // and sat frozen on the last one for the rest of playback, dragging
     // auto-scroll along with it.
-    state.usingDefaultAlignment = true;
-    state.alignmentStatus = 'placeholder';
+    state.usingDefaultAlignment = !state.livePlainDaf;
+    state.alignmentStatus = state.livePlainDaf ? 'live' : 'placeholder';
     updateAlignmentStatus();
     $('dafTitle').textContent = heRef || ref;
     renderDaf();
-    seek(0);
-    if (!options.silent) showToast(`Loaded ${paragraphs.length} text segments from Sefaria.`);
+    if (!state.livePlainDaf || preferredVideoSource?.liveStatus !== 'live') seek(0);
+    if (!options.silent) {
+      showToast(state.livePlainDaf
+        ? (preferredVideoSource?.liveStatus === 'live'
+          ? 'Live shiur. The daf is below. Words are not highlighted yet.'
+          : 'Live recording. Words are not highlighted until the edited shiur is posted.')
+        : `Loaded ${paragraphs.length} text segments from Sefaria.`);
+    }
   } catch (error) {
     console.error(error);
     showToast(`Could not load the daf: ${error.message}`, 'error');
@@ -10073,27 +10122,44 @@ function startPausedDriftWatch() {
   }, 500);
 }
 
-async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs = null, label = null, locked = false) {
+async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs = null, label = null, locked = false, extras = null) {
   if (!validateYouTubeId(videoId)) throw new Error('A valid YouTube video link is required.');
   cleanupObjectUrl();
   await ensureYouTubePlayer(videoId);
+  const liveBroadcast = Boolean(extras?.liveBroadcast);
   state.videoSource = {
     type: 'youtube',
     videoId,
     url: `https://www.youtube.com/watch?v=${videoId}`,
     label: label || 'YouTube',
     locked,
+    ...(liveBroadcast ? {
+      liveBroadcast: true,
+      liveStatus: extras.liveStatus || 'finished',
+      durationSeconds: Number(extras.durationSeconds) || null,
+    } : {}),
   };
   state.currentProjectId = null;
   $('videoUrl').value = state.videoSource.url;
   $('lectureTitle').textContent = label || `YouTube lecture · ${videoId}`;
-  setSourceBadge('YouTube');
+  setSourceBadge(liveBroadcast ? 'Live' : 'YouTube');
   setSourcePanel('linkSourcePanel');
-  seek(0);
+  // Seeking to 0 on a broadcast that is on the air leaves the live edge
+  // and lands in the waiting room. The iframe already opens at live.
+  if (state.videoSource.liveStatus !== 'live') seek(0);
   saveProjectForRef(state.dafRef, { videoSource: state.videoSource });
-  saveVideoLinkForCoveredRefs(state.videoSource, saveRefs);
+  // The live publisher owns this link. Re-saving it from the player would
+  // dispatch save-video-link and drop liveBroadcast (that endpoint only
+  // stores a manual link).
+  if (!liveBroadcast) saveVideoLinkForCoveredRefs(state.videoSource, saveRefs);
   scheduleNonEssential(() => refreshTestRuns(videoId));
-  showToast('YouTube video connected to the synchronized timeline.');
+  if (liveBroadcast) {
+    showToast(state.videoSource.liveStatus === 'live'
+      ? 'Live shiur. The daf is below. Words are not highlighted yet.'
+      : 'Live recording. Words are not highlighted until the edited shiur is posted.');
+  } else {
+    showToast('YouTube video connected to the synchronized timeline.');
+  }
 }
 
 function titleFromUrl(url) {
@@ -10273,7 +10339,7 @@ async function restoreVideoSource(source, saveRefs = null) {
       // just that same generic 'YouTube' sentinel (see loadYouTubeVideo), so
       // it's excluded rather than shown as if it meant something.
       const realLabel = source.label && source.label !== 'YouTube' ? source.label : null;
-      await loadYouTubeVideo(source.url || source.videoId, source.videoId, saveRefs, realLabel, source.locked === true);
+      await loadYouTubeVideo(source.url || source.videoId, source.videoId, saveRefs, realLabel, source.locked === true, source);
     } else if (source.type === 'direct' && source.url) {
       $('videoUrl').value = source.url;
       loadDirectVideoUrl(source.url, saveRefs, source.locked === true);

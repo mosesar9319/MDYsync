@@ -1297,6 +1297,29 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
 .auth-form-actions .primary-action { justify-content: center; width: 100%; }
 .auth-switch-button { background: transparent; border: 0; color: var(--gold); cursor: pointer; font-size: 13px; }
 
+.live-pill {
+  background: #b42318;
+  border-radius: 999px;
+  color: #fff;
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+  margin-left: 8px;
+  padding: 1px 8px;
+  vertical-align: 2px;
+}
+.live-pill.is-on-air::before {
+  background: #fff;
+  border-radius: 50%;
+  content: "";
+  display: inline-block;
+  height: 7px;
+  margin-right: 5px;
+  width: 7px;
+}
+
 /* ---------------------------------------------------------------------
    Phone home, laid out like a video app's feed: a slim top bar (search
    behind an icon, light/dark, account), one row of chips, then one
@@ -2124,7 +2147,9 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       if (entry.variant === "chazarah") params.set("variant", "chazarah");
       if (entry.language === "he") params.set("language", "hebrew");
       if (entry.maggid && entry.maggid !== DEFAULT_MAGGID) params.set("maggid", entry.maggid);
-      const mode = defaultViewMode();
+      // A livestream opens with the video on top and the daf underneath,
+      // rather than the reader's usual Split (side by side on a computer).
+      const mode = entry.liveBroadcast ? "standard" : defaultViewMode();
       if (mode !== "standard") params.set("mode", mode);
       return `/player/?${params.toString()}`;
     }
@@ -2209,6 +2234,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         tractate: row.tractate, daf: row.daf, amud: row[key].amud,
         variant: comboVariant(key), language: comboLanguage(key),
         videoId: row[key].videoId, maggid: rowMaggid(row),
+        liveBroadcast: Boolean(row[key].liveBroadcast),
       };
     }
 
@@ -2386,6 +2412,9 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       const { row, combo } = item;
       const videoId = row[combo].videoId;
       const maggid = rowMaggid(row);
+      const live = Boolean(row[combo].liveBroadcast);
+      const liveText = row[combo].liveStatus === "live" ? "Live" : "Live recording";
+      const livePill = live ? `<span class="live-pill${row[combo].liveStatus === "live" ? " is-on-air" : ""}">${liveText}</span>` : "";
       // A link straight to this card's own video (no version pop-up; the
       // Today's Daf banner keeps that). Long-press / right-click opens it in a
       // new tab like any link.
@@ -2395,7 +2424,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
           <span class="thumbnail-play">${icon("play", 20)}</span>
           ${isTodayRow(row) ? `<span class="thumb-badge is-today">Today</span>` : ""}
         </span>
-        <span class="card-copy"><strong dir="auto">${escapeHtml(videoLabel(row, combo))}</strong><span>${dafLabel(row)} · ${COMBO_LABELS[combo]}${maggidTag(row)}</span><span class="card-meta-phone">${escapeHtml(maggidName(maggid))} · ${dafLabel(row)} · ${COMBO_LABELS[combo]}</span>${avatarMarkup(maggid)}</span>
+        <span class="card-copy"><strong dir="auto">${escapeHtml(videoLabel(row, combo))}${livePill}</strong><span>${dafLabel(row)} · ${COMBO_LABELS[combo]}${maggidTag(row)}</span><span class="card-meta-phone">${escapeHtml(maggidName(maggid))} · ${dafLabel(row)} · ${COMBO_LABELS[combo]}</span>${avatarMarkup(maggid)}</span>
       </a>`;
     }
 

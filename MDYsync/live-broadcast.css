@@ -1,0 +1,29 @@
+/* Shown while a Mercaz livestream (or its unsynced recording) is the
+   video on screen. The daf text stays; the moving highlight does not. */
+.live-broadcast-banner {
+  background: #fde8e6;
+  border-radius: 10px;
+  color: #8a1c13;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+  margin: 8px 0 0;
+  padding: 8px 12px;
+}
+
+.live-broadcast-banner[data-on-air="true"]::before {
+  background: #d92d20;
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px rgba(217, 45, 32, 0.25);
+  content: "";
+  display: inline-block;
+  height: 8px;
+  margin-right: 8px;
+  width: 8px;
+}
+
+body.is-live-broadcast .daf-segment.active,
+body.is-live-broadcast .daf-segment.past {
+  background: transparent;
+  box-shadow: none;
+}

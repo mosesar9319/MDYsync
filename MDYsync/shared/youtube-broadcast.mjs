@@ -42,6 +42,8 @@ export function liveTabFeedUrl(channelId) {
 // Mercaz Daf Yomi's "recent uploads" are the Videos tab. The channel-wide
 // uploads feed also carries the Live tab, which is how an unedited stream
 // was getting linked. Every other channel keeps the uploads feed.
+// Livestreams are linked by youtube-live-poll.mjs and youtube-live-webhook.mjs,
+// which never replace a finished upload this feed already recorded.
 export function recentUploadFeedUrl(channelId) {
   if (channelId === MDY_CHANNEL_ID) return videosTabFeedUrl(channelId);
   return channelFeedUrl(channelId);
