@@ -90,6 +90,8 @@ jobs:
           RD_LANGUAGE: ${{ github.event.client_payload.language }}
           RD_JOB_ID: ${{ github.event.client_payload.jobId }}
           RD_REFS_JSON: ${{ toJSON(github.event.client_payload.refs) }}
+          RD_LIVE: ${{ github.event.client_payload.liveRecording }}
+          RD_EXPECTED: ${{ github.event.client_payload.expectedDurationSeconds }}
         run: |
           set -e
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -99,6 +101,8 @@ jobs:
               echo "variant=${WD_VARIANT:-regular}"
               echo "language=${WD_LANGUAGE:-en}"
               echo "jobId=manual-${{ github.run_id }}"
+              echo "liveRecording=false"
+              echo "expectedDurationSeconds="
             } >> "$GITHUB_OUTPUT"
             { echo "refsJson<<JOBINPUT_EOF"; echo "$WD_REFS_JSON"; echo "JOBINPUT_EOF"; } >> "$GITHUB_OUTPUT"
           else
@@ -108,6 +112,8 @@ jobs:
               echo "variant=$RD_VARIANT"
               echo "language=$RD_LANGUAGE"
               echo "jobId=$RD_JOB_ID"
+              echo "liveRecording=$RD_LIVE"
+              echo "expectedDurationSeconds=$RD_EXPECTED"
             } >> "$GITHUB_OUTPUT"
             { echo "refsJson<<JOBINPUT_EOF"; echo "$RD_REFS_JSON"; echo "JOBINPUT_EOF"; } >> "$GITHUB_OUTPUT"
           fi
@@ -190,6 +196,7 @@ jobs:
         env:
           YOUTUBE_URL: ${{ steps.job_input.outputs.youtubeUrl }}
           YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
+          LIVE_RECORDING: ${{ steps.job_input.outputs.liveRecording }}
         run: |
           set -e
           # Capped at 720p -- plenty for OCR'ing the on-screen caption box,
@@ -231,25 +238,23 @@ jobs:
           # pass silently matches 0 samples. Falls back to avc1 at any
           # resolution before it accepts a non-avc1 stream.
           #
-          # --live-from-start: the channel streams each shiur live (a Zoom
-          # feed simulcast to YouTube) before it settles into a normal VOD,
-          # and the hourly auto-sync poll can dispatch this job the moment a
-          # video appears in the channel's feed -- which, for a live upload,
-          # is the instant the broadcast starts, not when it ends. Without
-          # this flag yt-dlp instead joins at the live edge and stops
-          # whenever the job happens to run, so the captured file is a
-          # truncated/offset slice of the real shiur; every OCR timestamp
-          # then gets measured against that wrong recording instead of the
-          # finished VOD the player actually loads, producing a duration/
-          # alignment mismatch once the stream finalizes. This flag makes
-          # yt-dlp instead record the complete broadcast from its true
-          # start and only finish once the stream ends -- a no-op for a
-          # video that's already a finished upload, so it's safe to pass
-          # unconditionally rather than needing a separate live-status check
-          # before deciding whether to download.
+          # --live-from-start stays on for a normal upload. It is a no-op once
+          # YouTube has finished the file, and it is how an in-progress
+          # stream used to be recorded from the beginning.
+          #
+          # A finished live recording (liveRecording=true) is downloaded
+          # without that flag. The player plays YouTube's processed file.
+          # --live-from-start follows the live HLS timeline, which is not
+          # that file: the length and the start can both differ. The poll
+          # only dispatches this path after the stream has ended and the
+          # processed length has held still for ten minutes.
+          extra=()
+          if [ "$LIVE_RECORDING" != "true" ]; then
+            extra+=(--live-from-start)
+          fi
           yt-dlp --cookies cookies.txt \
             --remote-components ejs:github \
-            --live-from-start \
+            "${extra[@]}" \
             -f "bv*[height<=720][vcodec^=avc1]+ba/b[height<=720][vcodec^=avc1]/bv*[vcodec^=avc1]+ba/b[vcodec^=avc1]/bv*[height<=720]+ba/b" \
             --merge-output-format mp4 -o job-video.mp4 "$YOUTUBE_URL"
           rm -f cookies.txt
@@ -265,10 +270,16 @@ jobs:
         working-directory: MDYsync/tools/caption-sync
         env:
           REFS_JSON: ${{ steps.job_input.outputs.refsJson }}
+          LIVE_RECORDING: ${{ steps.job_input.outputs.liveRecording }}
+          EXPECT_DURATION: ${{ steps.job_input.outputs.expectedDurationSeconds }}
+          YOUTUBE_URL: ${{ steps.job_input.outputs.youtubeUrl }}
         run: |
-          python3 caption_ocr_align.py job-video.mp4 \
-            --refs-json "$REFS_JSON" \
-            --out-dir job-out
+          args=(job-video.mp4 --refs-json "$REFS_JSON" --out-dir job-out)
+          if [ "$LIVE_RECORDING" = "true" ]; then
+            video_id=$(printf '%s' "$YOUTUBE_URL" | sed -n 's/.*[?&]v=\([A-Za-z0-9_-]\{11\}\).*/\1/p')
+            args+=(--expect-duration "$EXPECT_DURATION" --live-caption-gate --video-id "$video_id" --outcome job-out/outcome.json)
+          fi
+          python3 caption_ocr_align.py "${args[@]}"
 
       - name: Publish the result to the results branch
         env:
@@ -281,6 +292,7 @@ jobs:
           # it instead of assuming whatever video-links happens to point at.
           # Exactly one of the two is set (see this workflow's own comment).
           VIDEO_URL: ${{ steps.job_input.outputs.youtubeUrl || steps.job_input.outputs.driveUrl }}
+          LIVE_RECORDING: ${{ steps.job_input.outputs.liveRecording }}
         run: |
           set -e
           mkdir -p /tmp/results-checkout
@@ -302,18 +314,47 @@ jobs:
           # own (fuller) one -- and, because nothing recorded which recording
           # an alignment's timestamps were measured from, left several dapim
           # serving one video's timestamps against a different video entirely.
-          python3 MDYsync/tools/caption-sync/publish_alignment.py \
-            --alignment MDYsync/tools/caption-sync/job-out/alignment.json \
-            --refs-json "$REFS_JSON" \
-            --out-dir /tmp/results-checkout \
-            --job-id "$JOB_ID" \
-            --variant "$VARIANT" \
-            --language "$LANGUAGE" \
-            --video-url "$VIDEO_URL"
+          # A finished live recording publishes by-video/<id>.json only, so
+          # its timestamps cannot become the daf's by-ref file (that file is
+          # what a normal upload, including the later edit, is played from).
+          # A length or caption rejection writes live-outcomes/<id>.json and
+          # no alignment. Either way the outcome is the week's tally.
+          align_args=()
+          if [ "$LIVE_RECORDING" = "true" ]; then
+            align_args+=(--video-only)
+          fi
+          if [ -f MDYsync/tools/caption-sync/job-out/alignment.json ]; then
+            python3 MDYsync/tools/caption-sync/publish_alignment.py \
+              --alignment MDYsync/tools/caption-sync/job-out/alignment.json \
+              --refs-json "$REFS_JSON" \
+              --out-dir /tmp/results-checkout \
+              --job-id "$JOB_ID" \
+              --variant "$VARIANT" \
+              --language "$LANGUAGE" \
+              --video-url "$VIDEO_URL" \
+              "${align_args[@]}"
+          else
+            echo "No alignment.json — a live gate refused this recording, or OCR produced nothing."
+          fi
+          if [ -f MDYsync/tools/caption-sync/job-out/outcome.json ]; then
+            video_id=$(printf '%s' "$VIDEO_URL" | sed -n 's/.*[?&]v=\([A-Za-z0-9_-]\{11\}\).*/\1/p')
+            if [ -n "$video_id" ]; then
+              mkdir -p /tmp/results-checkout/live-outcomes
+              cp MDYsync/tools/caption-sync/job-out/outcome.json "/tmp/results-checkout/live-outcomes/${video_id}.json"
+            fi
+          fi
 
           cd /tmp/results-checkout
-          git add by-ref by-video
-          git commit -m "Add OCR result for job ${JOB_ID}"
+          git add by-ref by-video live-outcomes 2>/dev/null || git add by-ref by-video
+          if git diff --cached --quiet; then
+            echo "Nothing new to publish."
+            exit 0
+          fi
+          if git diff --cached --name-only | grep -q '^by-video/'; then
+            git commit -m "Add OCR result for job ${JOB_ID}"
+          else
+            git commit -m "Record live alignment outcome for job ${JOB_ID}"
+          fi
           for attempt in 1 2 3 4 5; do
             if git push origin HEAD:results; then
               break

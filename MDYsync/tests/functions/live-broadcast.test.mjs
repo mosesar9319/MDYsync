@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+  advanceLengthCheck,
   chooseLiveRecording,
   describeLiveVideo,
   hubFieldsFromUrl,
@@ -145,6 +146,7 @@ function githubFetch({ files, puts, calls }) {
     if (url.includes('talmud_index.json')) {
       return new Response(fs.readFileSync(path.join(ROOT, 'talmud_index.json'), 'utf8'));
     }
+    if (url.includes('settings.json')) return json({ autoSyncNewUploads: false });
     if (url.includes('googleapis.com/youtube/v3/search')) throw new Error('search.list must not be called');
     if (url.includes('/dispatches')) throw new Error('live ingest must not dispatch a job');
     if (url.includes('pubsubhubbub')) return new Response('', { status: 202 });
@@ -184,7 +186,7 @@ test('a recent English live id is linked for both amudim and does not start OCR'
     lookup,
     now: NOW,
   });
-  assert.equal(result.dispatched, false);
+  assert.deepEqual(result.dispatched, []);
   assert.equal(calls.some((call) => call.url.includes('/dispatches')), false);
   const links = puts.filter((put) => put.path.startsWith('video-links/'));
   assert.deepEqual(links.map((put) => put.path).sort(), [
@@ -221,13 +223,76 @@ test('the poll verifies with videos.list and leaves an edited link in place', as
     now: new Date('2026-11-14T04:00:00Z'),
   });
   assert.equal(result.renewed, true);
-  assert.equal(result.dispatched, false);
+  assert.deepEqual(result.dispatched, []);
   assert.equal(calls.some((call) => call.url.includes('/youtube/v3/search')), false);
   assert.equal(calls.some((call) => call.url.includes('/dispatches')), false);
   assert.ok(calls.some((call) => call.url.includes('pubsubhubbub') && call.method === 'POST'));
   assert.deepEqual(result.checked, ['aK6dGXjrTDw']);
   assert.equal(puts.some((put) => put.path.startsWith('video-links/')), false);
   assert.ok(result.skipped.some((item) => item.reason === 'edited upload stays'));
+});
+
+test('length has to agree for ten minutes before a kept finished recording is aligned once', async () => {
+  const first = advanceLengthCheck(null, 4497, new Date('2026-11-14T19:40:00Z'));
+  assert.equal(first.stable, false);
+  const tooSoon = advanceLengthCheck(first.lengthCheck, 4498, new Date('2026-11-14T19:45:00Z'));
+  assert.equal(tooSoon.stable, false);
+  const held = advanceLengthCheck(first.lengthCheck, 4497, new Date('2026-11-14T19:50:00Z'));
+  assert.equal(held.stable, true);
+  assert.equal(advanceLengthCheck(first.lengthCheck, 4600, new Date('2026-11-14T20:00:00Z')).stable, false);
+  const base = {
+    autoSync: true, liveStatus: 'finished', actualEndTime: '2026-11-14T14:30:00Z',
+    lengthStable: true, isKept: true,
+  };
+  assert.equal(shouldDispatchLiveAlignment(base), true);
+  assert.equal(shouldDispatchLiveAlignment({ ...base, autoSync: false }), false);
+  assert.equal(shouldDispatchLiveAlignment({ ...base, isKept: false }), false);
+  assert.equal(shouldDispatchLiveAlignment({ ...base, alreadyAligned: true }), false);
+  assert.equal(shouldDispatchLiveAlignment({ ...base, outcome: 'rejected-captions' }), false);
+  assert.equal(shouldDispatchLiveAlignment({ ...base, liveStatus: 'live' }), false);
+
+  const puts = [];
+  const dispatches = [];
+  const finished = describeLiveVideo({
+    ...ENGLISH_LIVE,
+    snippet: { ...ENGLISH_LIVE.snippet, liveBroadcastContent: 'none' },
+    liveStreamingDetails: { actualStartTime: '2026-11-13T13:15:11Z', actualEndTime: '2026-11-13T14:30:08Z' },
+  });
+  const link = {
+    videoId: 'aK6dGXjrTDw', liveBroadcast: true, liveStatus: 'finished',
+    durationSeconds: finished.durationSeconds, label: ENGLISH_LIVE.snippet.title,
+    lengthCheck: { seconds: finished.durationSeconds, firstSeenAt: '2026-11-14T19:40:00Z' },
+  };
+  const files = {
+    'video-links/Bekhorot-57a.json': link,
+    'video-links/Bekhorot-57b.json': { ...link },
+  };
+  const fetchImpl = async (input, init = {}) => {
+    const url = String(input);
+    if (url.includes('/dispatches')) {
+      dispatches.push(JSON.parse(init.body));
+      return new Response(null, { status: 204 });
+    }
+    return githubFetch({ files, puts, calls: [] })(input, init);
+  };
+  const result = await ingestDescribed([finished], {
+    fetchImpl, token: 'token', lookup, autoSync: true, now: new Date('2026-11-14T20:00:00Z'),
+  });
+  assert.equal(dispatches.length, 1);
+  assert.equal(dispatches[0].event_type, 'run-ocr-job');
+  assert.equal(dispatches[0].client_payload.liveRecording, true);
+  assert.equal(dispatches[0].client_payload.expectedDurationSeconds, finished.durationSeconds);
+  assert.equal(dispatches[0].client_payload.youtubeUrl.includes('aK6dGXjrTDw'), true);
+  assert.ok(dispatches[0].client_payload.refs.includes('Bekhorot 57a'));
+  assert.equal(result.dispatched[0].videoId, 'aK6dGXjrTDw');
+  const written = puts.find((put) => put.path === 'video-links/Bekhorot-57a.json').decoded;
+  files['video-links/Bekhorot-57a.json'] = written;
+  files['video-links/Bekhorot-57b.json'] = puts.find((put) => put.path === 'video-links/Bekhorot-57b.json').decoded;
+  const again = await ingestDescribed([finished], {
+    fetchImpl, token: 'token', lookup, autoSync: true, now: new Date('2026-11-14T20:10:00Z'),
+  });
+  assert.equal(dispatches.length, 1);
+  assert.deepEqual(again.dispatched, []);
 });
 
 test('the webhook repeats the hub challenge as plain text', async () => {

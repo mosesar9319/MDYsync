@@ -29,7 +29,7 @@ const REPO = 'MDYsync';
 // test-runs/<videoId>/<file> holds a test shiur's numbered alignments (see
 // tools/caption-sync/test_runs.py) and maggidim/<id>.json a followed channel's
 // full video list (youtube-channel-sync.mjs); both are public like the rest.
-const ALLOWED_PATH = /^(by-ref|by-video|video-links|pages|maggidim)\/[A-Za-z0-9][A-Za-z0-9._-]*\.json$|^test-runs\/[A-Za-z0-9_-]{11}\/[A-Za-z0-9][A-Za-z0-9._-]*\.json$|^settings\.json$|^abbreviation-additions\.json$/;
+const ALLOWED_PATH = /^(by-ref|by-video|video-links|pages|maggidim|live-outcomes)\/[A-Za-z0-9][A-Za-z0-9._-]*\.json$|^test-runs\/[A-Za-z0-9_-]{11}\/[A-Za-z0-9][A-Za-z0-9._-]*\.json$|^settings\.json$|^abbreviation-additions\.json$/;
 
 export default async (request) => {
   const url = new URL(request.url);
