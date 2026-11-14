@@ -97,7 +97,11 @@ for (const file of files) {
     ...(payload.testShiur ? { testShiur: true } : {}),
     // Set only when a link was explicitly marked. Ingestion no longer writes
     // livestreams; this lets a daf that already has both keep the final cut.
-    ...(payload.liveBroadcast ? { liveBroadcast: true } : {}),
+    ...(payload.liveBroadcast ? {
+      liveBroadcast: true,
+      ...(payload.liveStatus ? { liveStatus: payload.liveStatus } : {}),
+      ...(Number(payload.durationSeconds) ? { durationSeconds: Number(payload.durationSeconds) } : {}),
+    } : {}),
   };
 }
 
@@ -122,7 +126,11 @@ function rowsFor(byTractate) {
         row[comboKey] = {
           videoId: picked.videoId, label: picked.label, amud,
           ...(picked.testShiur ? { testShiur: true } : {}),
-          ...(picked.liveBroadcast ? { liveBroadcast: true } : {}),
+          ...(picked.liveBroadcast ? {
+            liveBroadcast: true,
+            ...(picked.liveStatus ? { liveStatus: picked.liveStatus } : {}),
+            ...(Number(picked.durationSeconds) ? { durationSeconds: Number(picked.durationSeconds) } : {}),
+          } : {}),
         };
       }
       rows.push(row);
