@@ -2,9 +2,11 @@
 // should link. Pure functions only — the Netlify poll and the WebSub
 // callback share them, and the tests exercise them without GitHub.
 //
-// Phase 2 hook: shouldDispatchLiveAlignment() stays false until a finished
-// live recording's processed file has a stable length. Phase 1 never
-// starts OCR, and it never publishes a guessed timeline.
+// Phase 2: shouldDispatchLiveAlignment() is true only for the kept finished
+// recording, after YouTube's length has agreed with itself for ten minutes,
+// and only while autoSyncNewUploads is on. A thin caption read is rejected
+// inside the OCR job, not here. Phase 3 (swap the edited upload in only
+// once its own alignment exists) is still the hourly Videos-tab sync.
 //
 // Phase 3 already happens in youtube-channel-sync.mjs: an edited upload
 // on the Videos tab replaces an unlocked link. This module never does
@@ -152,8 +154,48 @@ export function shouldHighlightWords(source, alignment) {
   );
 }
 
-export function shouldDispatchLiveAlignment(_video) {
-  return false;
+// Two YouTube length readings this close count as the same processed file.
+export const LENGTH_MATCH_SECONDS = 2;
+// The second reading has to be at least this long after the first.
+export const LENGTH_STABLE_MS = 10 * 60 * 1000;
+// A dispatch that never wrote an outcome can be tried once more after this.
+export const DISPATCH_RETRY_MS = 6 * 60 * 60 * 1000;
+
+export function advanceLengthCheck(previous, seconds, now) {
+  const instant = now instanceof Date ? now : new Date(now);
+  const at = instant.toISOString();
+  const value = Number(seconds);
+  if (!Number.isFinite(value) || value <= 0) {
+    return { lengthCheck: previous || null, stable: false };
+  }
+  const same = previous
+    && Number.isFinite(Number(previous.seconds))
+    && Math.abs(Number(previous.seconds) - value) <= LENGTH_MATCH_SECONDS
+    && previous.firstSeenAt;
+  if (!same) return { lengthCheck: { seconds: value, firstSeenAt: at }, stable: false };
+  const elapsed = instant.getTime() - Date.parse(previous.firstSeenAt);
+  return {
+    lengthCheck: { seconds: Number(previous.seconds), firstSeenAt: previous.firstSeenAt },
+    stable: Number.isFinite(elapsed) && elapsed >= LENGTH_STABLE_MS,
+  };
+}
+
+// input fields, all required for a yes: autoSync, liveStatus 'finished',
+// actualEndTime, lengthStable, isKept. alreadyAligned, outcome, or a fresh
+// dispatchedAt are nos. A bare live video (phase 1 shape) is a no.
+export function shouldDispatchLiveAlignment(input) {
+  if (!input || typeof input !== 'object') return false;
+  if (input.autoSync !== true) return false;
+  if (input.liveStatus !== 'finished') return false;
+  if (!input.actualEndTime) return false;
+  if (input.lengthStable !== true) return false;
+  if (input.isKept !== true) return false;
+  if (input.alreadyAligned || input.outcome) return false;
+  if (input.dispatchedAt) {
+    const age = Date.now() - Date.parse(input.dispatchedAt);
+    if (!Number.isFinite(age) || age < DISPATCH_RETRY_MS) return false;
+  }
+  return true;
 }
 
 export function parseAtomVideoIds(xml) {

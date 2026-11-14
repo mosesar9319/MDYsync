@@ -812,7 +812,7 @@ function resultsFileUrl(path, optional = false) {
   return `/api/get-results-file?path=${encodeURIComponent(path)}${optional ? '&optional=1' : ''}`;
 }
 
-async function fetchAlignmentForVideo(videoId, ref, { voice = false } = {}) {
+async function fetchAlignmentForVideo(videoId, ref, { voice = false, full = false } = {}) {
   if (!videoId) return null;
   try {
     const parsed = parseDafRef(ref);
@@ -824,6 +824,13 @@ async function fetchAlignmentForVideo(videoId, ref, { voice = false } = {}) {
     const response = await fetch(url);
     if (!response.ok) return null;
     const data = await response.json();
+    // Timestamps in this file are for this recording only. A missing or
+    // different videoId means it must not be played against the live video.
+    if (data?.videoId && data.videoId !== videoId) return null;
+    if (full) {
+      if (data?.videoId !== videoId) return null;
+      return dropStrayContextMatches(data);
+    }
     const scoped = scopeAlignmentToDaf(data, ref);
     // Only useful if this recording actually reaches the daf being read --
     // an empty scope means it doesn't, and the caller should keep whatever
@@ -9296,7 +9303,13 @@ async function loadDaf(refOverride = null, options = {}) {
   // override, caption-OCR is the more established of the two engines; the
   // reader can always switch to voice recognition from the toggle this
   // just made visible.
-  const serverAlignment = ocrAlignment || voiceAlignment;
+  // A livestream is timed only by by-video/<its own id>. by-ref is whatever
+  // upload last claimed the daf, and those timestamps are not this recording.
+  let serverAlignment = ocrAlignment || voiceAlignment;
+  if (preferredVideoSource?.liveBroadcast && preferredVideoSource.videoId) {
+    const own = await fetchAlignmentForVideo(preferredVideoSource.videoId, ref, { full: true });
+    serverAlignment = own?.videoId === preferredVideoSource.videoId ? own : null;
+  }
   // A livestream is played with the daf underneath and no word highlight.
   // An alignment that belongs to a different video (the usual case: this
   // daf's by-ref file is still the previous recording, or not written yet)
