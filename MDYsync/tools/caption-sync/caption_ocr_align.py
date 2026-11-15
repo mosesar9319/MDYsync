@@ -862,7 +862,7 @@ def main():
     p.add_argument("--debug", action="store_true")
     # Finished live recordings only. A normal upload leaves these unset.
     p.add_argument("--expect-duration", type=float, default=None,
-                   help="YouTube lengthSeconds. Refuse to align if the file differs by more than 2s.")
+                   help="YouTube lengthSeconds. Refuse to align if the file differs by more than max(30s, 1%).")
     p.add_argument("--live-caption-gate", action="store_true",
                    help="Refuse a guessed timeline when burned-in captions were barely read.")
     p.add_argument("--outcome", default=None, help="Where to write synced/rejected-length/rejected-captions JSON.")
