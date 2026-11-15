@@ -37,7 +37,7 @@ A `202` from the hub means it accepted the request and will call the callback wi
 
 Do not subscribe a deploy-preview URL. The preview cron does not run, and that callback goes away when the preview does.
 
-The five-minute Live-tab poll does not need the hub. It is the backup if a push is missed. It still needs `YOUTUBE_API_KEY`, because a feed entry is not linked until `videos.list` says the video is a broadcast. That RSS answers 200, 404, and 500 with no pattern, so one miss is retried twice and then the cycle does nothing rather than guessing.
+The five-minute Live-tab poll does not need the hub. It is the backup if a push is missed. It still needs `YOUTUBE_API_KEY`, because a feed entry is not linked until `videos.list` says the video is a broadcast. That RSS answers 200, 404, and 500 with no pattern, so one miss is retried twice. A finished recording also drops off that feed, so the poll rechecks every catalog row still marked live. That second look is what records the length again and, once it has held for ten minutes, starts alignment. A feed miss no longer skips those rows.
 
 ## After the stream ends (phase 2)
 

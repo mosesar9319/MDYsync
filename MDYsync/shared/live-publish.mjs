@@ -24,6 +24,7 @@ import {
   videosListUrl,
   parseFeedEntries,
   liveTabFeed,
+  linkedLiveEntries,
   WEBSUB_HUB,
   WEBSUB_TOPIC,
   leaseRenewalDue,
@@ -480,21 +481,41 @@ async function fetchFeed(fetchImpl) {
 export async function pollLive({ fetchImpl, token, apiKey, callback, verifyToken = '', now = new Date() }) {
   const renewed = await maybeRenewLease({ fetchImpl, callback, verifyToken, now });
   const feedResponse = await fetchFeed(fetchImpl);
+  let feedError = null;
+  let recentEntries = [];
   if (!feedResponse.ok) {
-    return { renewed, published: [], skipped: [], error: `YouTube live feed returned ${feedResponse.status}`, dispatched: false };
+    feedError = `YouTube live feed returned ${feedResponse.status}`;
+  } else {
+    const feedText = await feedResponse.text();
+    recentEntries = parseFeedEntries(feedText).filter((entry) => feedEntryIsRecent(entry, now));
   }
-  const feedText = await feedResponse.text();
-  const recentEntries = parseFeedEntries(feedText).filter((entry) => feedEntryIsRecent(entry, now));
-  const recentIds = recentEntries.map((entry) => entry.videoId);
-  const verified = await verifyVideoIds(recentIds, { fetchImpl, apiKey });
-  if (verified.error) {
-    return { renewed, published: [], skipped: [], error: verified.error, dispatched: false };
+  let linked = [];
+  if (token) {
+    try {
+      const catalog = await readJsonFile(fetchImpl, token, 'catalog.json');
+      linked = linkedLiveEntries(catalog.file);
+    } catch {
+      linked = [];
+    }
+  }
+  const recentIds = new Set(recentEntries.map((entry) => entry.videoId));
+  const entries = [...recentEntries];
+  for (const entry of linked) {
+    if (!recentIds.has(entry.videoId)) entries.push(entry);
+  }
+  const checked = entries.map((entry) => entry.videoId);
+  if (!checked.length) {
+    return { renewed, published: [], skipped: [], dispatched: [], unavailable: [], checked, error: feedError };
+  }
+  const verified = await verifyVideoIds(checked, { fetchImpl, apiKey });
+  if (verified.error && !verified.videos.length) {
+    return { renewed, published: [], skipped: [], error: verified.error, dispatched: [], unavailable: [], checked, feedError };
   }
   const lookup = await loadLookup(fetchImpl);
-  const unavailable = await noteUnavailableLives(verified.unavailableIds, recentEntries, { fetchImpl, token, lookup });
+  const unavailable = await noteUnavailableLives(verified.unavailableIds, entries, { fetchImpl, token, lookup });
   const autoSync = await readAutoSync(fetchImpl);
   const result = await ingestDescribed(verified.videos, { fetchImpl, token, lookup, autoSync, now });
-  return { renewed, autoSync, unavailable, ...result, checked: recentIds };
+  return { renewed, autoSync, unavailable, ...result, checked, feedError };
 }
 
 async function maybeRenewLease({ fetchImpl, callback, verifyToken, now }) {

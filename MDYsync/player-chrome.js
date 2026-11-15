@@ -605,7 +605,7 @@
   if ($('readingModeButton')) tools.appendChild(videoOnDafButton);
   splitViewButton.addEventListener('click', () => {
     if (typeof window.toggleSplitViewerMode === 'function') window.toggleSplitViewerMode();
-    else window.setViewerMode?.('split');
+    else window.setViewerMode?.('split', { persist: true });
   });
   if (!hasSplitView) splitViewButton.hidden = true;
 

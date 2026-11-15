@@ -148,7 +148,8 @@ const OVERLAY_PREF_IDS = [
 
 function readOverlayPrefs() {
   return {
-    enabled: $('overlayToggle').checked,
+    enabled: state.viewerMode === 'daf-on-video',
+    viewerMode: state.viewerMode,
     mode: $('overlayModeSelect').value,
     opacity: $('overlayOpacitySlider').value,
     opacityTarget: $('overlayOpacityTargetSelect').value,
@@ -164,13 +165,12 @@ function applyOverlayPrefs(prefs) {
   if (prefs.opacityTarget) $('overlayOpacityTargetSelect').value = prefs.opacityTarget;
   if (prefs.idleMode) $('overlayIdleSelect').value = prefs.idleMode;
   if (prefs.zoom != null) $('overlayZoomSlider').value = prefs.zoom;
-  if (prefs.enabled != null) $('overlayToggle').checked = prefs.enabled;
-  // Re-fire the same events app.js already listens to, so its own state and
-  // derived UI (the "overlay-on" class, the transform math) update exactly
-  // as if the reader had changed these controls by hand.
+  // prefs.enabled used to be reapplied as the viewing mode. That checkbox
+  // is Daf on video, so an old saved "on" replaced Split — the account
+  // default and a choice the reader had just made — on every load.
+  // Opacity, crop, and zoom still follow the saved overlay settings.
   ['overlayModeSelect', 'overlayOpacityTargetSelect', 'overlayIdleSelect'].forEach((id) => $(id).dispatchEvent(new Event('change')));
   ['overlayOpacitySlider', 'overlayZoomSlider'].forEach((id) => $(id).dispatchEvent(new Event('input')));
-  $('overlayToggle').dispatchEvent(new Event('change'));
 }
 
 let prefsSaveTimer = null;
@@ -191,6 +191,7 @@ OVERLAY_PREF_IDS.forEach((id) => {
   el?.addEventListener('change', schedulePrefsSave);
   el?.addEventListener('input', schedulePrefsSave);
 });
+document.addEventListener('dafsync-viewer-mode', schedulePrefsSave);
 
 async function loadAndApplyPreferences() {
   const auth = window.DafSyncAuth;
@@ -233,5 +234,8 @@ new MutationObserver(() => {
 
 window.DafSyncAuth?.onChange(async (user) => {
   refreshFavoriteButton();
+  // The account default can only be read once the session exists. A mode
+  // already chosen (the link, or a click) is left as it is.
+  if (typeof window.applyInitialViewerMode === 'function') window.applyInitialViewerMode();
   if (user) await loadAndApplyPreferences();
 });

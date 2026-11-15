@@ -295,6 +295,76 @@ test('length has to agree for ten minutes before a kept finished recording is al
   assert.deepEqual(again.dispatched, []);
 });
 
+test('a finished live id still gets aligned after it leaves the Live-tab feed', async () => {
+  const now = new Date('2026-11-15T07:00:00Z');
+  const title = "Daf Yomi Bechoros Daf 58 by R' Eli Stefansky (unedited)";
+  const link = {
+    videoId: 'T70KGQVCsCw', liveBroadcast: true, liveStatus: 'finished',
+    durationSeconds: 4450, label: title, source: 'live-auto',
+    actualEndTime: '2026-11-15T06:22:56Z',
+    lengthCheck: { seconds: 4450, firstSeenAt: '2026-11-15T06:25:01.334Z' },
+  };
+  const files = {
+    'catalog.json': {
+      tractates: { Bekhorot: [{ daf: 58, regularEn: { videoId: 'T70KGQVCsCw', label: title, amud: 'a', liveBroadcast: true, liveStatus: 'finished' } }] },
+    },
+    'video-links/Bekhorot-58a.json': link,
+    'video-links/Bekhorot-58b.json': { ...link },
+  };
+  const dispatches = [];
+  const puts = [];
+  const fetchImpl = async (input, init = {}) => {
+    const url = String(input);
+    const method = init.method || 'GET';
+    const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+    if (url.includes('playlist_id=UULV')) return new Response('missing', { status: 404 });
+    if (url.includes('talmud_index.json')) return new Response(fs.readFileSync(path.join(ROOT, 'talmud_index.json'), 'utf8'));
+    if (url.includes('settings.json')) return json({ autoSyncNewUploads: true });
+    if (url.includes('googleapis.com/youtube/v3/videos')) {
+      assert.match(url, /T70KGQVCsCw/);
+      return json({ items: [{
+        id: 'T70KGQVCsCw',
+        status: { privacyStatus: 'public' },
+        snippet: {
+          title, channelId: 'UCKwQa5DB_VR98ac_r-Wyl-g',
+          publishedAt: '2026-11-15T05:08:45Z', liveBroadcastContent: 'none',
+        },
+        contentDetails: { duration: 'PT1H14M10S' },
+        liveStreamingDetails: { actualStartTime: '2026-11-15T05:08:45Z', actualEndTime: '2026-11-15T06:22:56Z' },
+      }] });
+    }
+    if (url.includes('/dispatches')) {
+      dispatches.push(JSON.parse(init.body));
+      return new Response(null, { status: 204 });
+    }
+    const contents = /\/contents\/([^?]+)/.exec(url);
+    if (contents && method === 'GET') {
+      const file = files[decodeURIComponent(contents[1])];
+      if (!file) return json({ message: 'Not Found' }, 404);
+      return json({ sha: 'sha-1', content: Buffer.from(JSON.stringify(file)).toString('base64') });
+    }
+    if (contents && method === 'PUT') {
+      const body = JSON.parse(init.body);
+      puts.push({ path: decodeURIComponent(contents[1]), decoded: JSON.parse(Buffer.from(body.content, 'base64').toString('utf8')) });
+      return json({ ok: true });
+    }
+    if (url.includes('pubsubhubbub')) return new Response('', { status: 202 });
+    throw new Error(`unexpected ${method} ${url}`);
+  };
+  const result = await pollLive({
+    fetchImpl, token: 'token', apiKey: 'key', now,
+  });
+  assert.equal(result.feedError, 'YouTube live feed returned 404');
+  assert.deepEqual(result.checked, ['T70KGQVCsCw']);
+  assert.equal(dispatches.length, 1);
+  assert.equal(dispatches[0].client_payload.liveRecording, true);
+  assert.equal(dispatches[0].client_payload.youtubeUrl.includes('T70KGQVCsCw'), true);
+  assert.equal(dispatches[0].client_payload.expectedDurationSeconds, 4450);
+  const written = puts.find((put) => put.path === 'video-links/Bekhorot-58a.json');
+  assert.equal(written.decoded.alignmentDispatchedAt, now.toISOString());
+  assert.equal(written.decoded.videoId, 'T70KGQVCsCw');
+});
+
 test('the webhook repeats the hub challenge as plain text', async () => {
   globalThis.Netlify = { env: { get: (key) => (key === 'YOUTUBE_WEBSUB_TOKEN' ? 'secret' : '') } };
   const { default: handler } = await import(`../../netlify/functions/youtube-live-webhook.mjs?${Date.now()}`);

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { preparePage, failOnPageError } from '../support/harness.mjs';
-import { USERS } from '../fixtures/dataset.mjs';
+import { USERS, buildDatabase, sessionFor } from '../fixtures/dataset.mjs';
 
 // The unified viewing-mode system: the prominent 3-button selector above the
 // player, and the new Split View mode (video and daf in separate,
@@ -78,6 +78,46 @@ test.describe('Unified viewing modes — the prominent selector', () => {
     await expect(page.locator('#viewerModeVideoOnDafButton')).toHaveAttribute('aria-pressed', 'false');
     await expect(page.locator('.watch-layout')).not.toHaveClass(/split-active/);
     await expect(page.locator('body')).not.toHaveClass(/split-view-active/);
+  });
+
+  test('an old overlay preference does not replace the account default or a saved Split choice', async ({ page }) => {
+    failOnPageError(page);
+    const db = buildDatabase();
+    db.preferences.push({
+      user_id: USERS.ordinary.id,
+      data: { enabled: true, mode: 'full', opacity: '50', opacityTarget: 'both', idleMode: 'dim', zoom: '100' },
+    });
+    const session = sessionFor(USERS.ordinary);
+    session.user.user_metadata = { default_view_mode: 'split' };
+    await preparePage(page, { db, session });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+    await page.reload();
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+  });
+
+  test('choosing Split sticks across a refresh, and Vaater stays on the video', async ({ page }, testInfo) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
+    await enterSplitView(page);
+    await page.reload();
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+    await page.evaluate(() => {
+      state.segments = [
+        { start: 0, end: 4, estimated: false, ref: 'Chullin 89a' },
+        { start: 12, end: 16, estimated: false, ref: 'Chullin 89a' },
+      ];
+      updateVaaterButtonUi(0);
+      document.getElementById('videoFrame')?.classList.remove('controls-hidden');
+    });
+    const button = page.locator('#vaaterButton');
+    await expect(button).toBeVisible();
+    if (testInfo.project.name !== 'mobile') {
+      await expect(button.locator('.vaater-button-label')).toBeVisible();
+      await expect(button.locator('.vaater-button-label')).toHaveText('Vaater');
+    }
   });
 
   test('clicking Split view enters it, and it stays reachable across a switch to the other two modes', async ({ page }) => {
