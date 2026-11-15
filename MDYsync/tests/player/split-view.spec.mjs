@@ -85,11 +85,19 @@ test.describe('a signed-in phone keeps Split and shows Vaater', () => {
     session.user.user_metadata = { default_view_mode: 'split' };
     await page.addInitScript(() => {
       if (sessionStorage.getItem('stale-view-planted')) return;
-      localStorage.setItem('dafsync-viewer-mode', 'daf-on-video');
+      localStorage.setItem('dafsync-viewer-mode', JSON.stringify({ v: 2, explicit: true, mode: 'daf-on-video' }));
+      sessionStorage.setItem('dafsync-viewer-mode', 'daf-on-video');
+      sessionStorage.setItem('dafsync-overlay-enabled', '1');
       sessionStorage.setItem('stale-view-planted', '1');
     });
     await preparePage(page, { db, session });
-    await page.goto('/player/?ref=Bekhorot%2041a');
+    await page.goto('/player/?ref=Bekhorot%2041a&mode=daf-on-video');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+    expect(await page.evaluate(() => localStorage.getItem('dafsync-viewer-mode'))).toBeNull();
+    expect(await page.evaluate(() => sessionStorage.getItem('dafsync-viewer-mode'))).toBeNull();
+    const reasons = await page.evaluate(() => (window.__dafsyncViewLog || []).map((entry) => entry.reason));
+    expect(reasons).toContain('account-default');
+    await page.reload();
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
     await page.evaluate(() => {
       const box = document.getElementById('overlayToggle');

@@ -142,14 +142,14 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) saveP
 // --- Saved overlay/player preferences ------------------------------------
 
 const OVERLAY_PREF_IDS = [
-  'overlayToggle', 'overlayModeSelect', 'overlayOpacitySlider',
+  'overlayModeSelect', 'overlayOpacitySlider',
   'overlayOpacityTargetSelect', 'overlayIdleSelect', 'overlayZoomSlider',
 ];
 
 function readOverlayPrefs() {
+  // Display settings only. `enabled` used to mean "open in Daf on video"
+  // and is no longer read or written.
   return {
-    enabled: state.viewerMode === 'daf-on-video',
-    viewerMode: state.viewerMode,
     mode: $('overlayModeSelect').value,
     opacity: $('overlayOpacitySlider').value,
     opacityTarget: $('overlayOpacityTargetSelect').value,
@@ -191,8 +191,6 @@ OVERLAY_PREF_IDS.forEach((id) => {
   el?.addEventListener('change', schedulePrefsSave);
   el?.addEventListener('input', schedulePrefsSave);
 });
-document.addEventListener('dafsync-viewer-mode', schedulePrefsSave);
-
 async function loadAndApplyPreferences() {
   const auth = window.DafSyncAuth;
   const user = auth?.getUser();

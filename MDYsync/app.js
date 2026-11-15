@@ -6333,11 +6333,25 @@ const SPLIT_VIEW_MIN_RATIO = 0.22;
 const SPLIT_VIEW_MAX_RATIO = 0.78;
 const SPLIT_VIDEO_MAX_ZOOM = 5;
 const VIEWER_MODES = ['standard', 'daf-on-video', 'video-on-daf', 'split'];
-const VIEWER_MODE_KEY = 'dafsync-viewer-mode';
-// Set once the reader (or a link, or a saved choice) has picked a mode, so a
-// late sign-in cannot replace it with the account default.
+// The old key stored the overlay preference as if it were the view. It is
+// deleted once and never read again. A choice made after that lives here.
+const LEGACY_VIEW_KEYS = [
+  'dafsync-viewer-mode',
+  'dafsync-view',
+  'dafsync-view-mode',
+  'dafsync.viewMode',
+  'dafsync.viewerMode',
+  'dafsync-overlay',
+  'dafsync-overlay-enabled',
+  'dafsync.overlay',
+  'dafsync.overlayEnabled',
+];
+const VIEW_MIGRATION_KEY = 'dafsync-view-migrated';
+const VIEW_CHOICE_KEY = 'dafsync-view-choice';
+// Set only by a tap after the migration, so a late sign-in cannot replace it.
 let viewerModeExplicit = false;
 let consumedUrlMode = null;
+const viewDecisionLog = [];
 let splitDividerDrag = null;
 let splitVideoZoomIndicatorTimer = null;
 let splitVideoLastTapAt = 0;
@@ -7175,15 +7189,43 @@ function resetSplitVideoZoom({ announce = true } = {}) {
 
 function readSavedViewerMode() {
   try {
-    const raw = localStorage.getItem(VIEWER_MODE_KEY);
-    if (!raw) return '';
-    const parsed = JSON.parse(raw);
-    // A bare string is stale. The overlay preference used to write one
-    // (and a phone can keep it), which pinned every later visit to Daf
-    // on video. Only a choice the reader actually made is kept.
-    if (parsed && parsed.v === 2 && parsed.explicit === true && VIEWER_MODES.includes(parsed.mode)) return parsed.mode;
+    const parsed = JSON.parse(localStorage.getItem(VIEW_CHOICE_KEY) || 'null');
+    if (parsed && parsed.v === 1 && parsed.explicit === true && VIEWER_MODES.includes(parsed.mode)) return parsed.mode;
   } catch { /* not a choice */ }
   return '';
+}
+
+// Once per browser: throw away every stored view that predates the account
+// default. That includes the overlay checkbox's old local value and any
+// session copy. A choice saved after this flag is left alone.
+function migrateLegacyViewStorage() {
+  const removed = [];
+  let already = false;
+  try {
+    already = localStorage.getItem(VIEW_MIGRATION_KEY) === '1';
+    if (!already) {
+      for (const store of [localStorage, sessionStorage]) {
+        const prefix = store === sessionStorage ? 'session:' : '';
+        for (const key of LEGACY_VIEW_KEYS) {
+          if (store.getItem(key) != null) {
+            removed.push(prefix + key);
+            store.removeItem(key);
+          }
+        }
+      }
+      for (const id of ['overlayToggle', 'overlayToggleInVideo']) {
+        const box = document.getElementById(id);
+        if (!box) continue;
+        box.autocomplete = 'off';
+        if (box.checked) {
+          box.checked = false;
+          removed.push('checkbox:' + id);
+        }
+      }
+      localStorage.setItem(VIEW_MIGRATION_KEY, '1');
+    }
+  } catch { /* private mode */ }
+  return { already, removed };
 }
 
 function profileViewerMode() {
@@ -7191,9 +7233,8 @@ function profileViewerMode() {
   return VIEWER_MODES.includes(chosen) ? chosen : '';
 }
 
-// ?mode= is one navigation (the home page passes the account default).
-// A choice the reader makes after that is what a refresh keeps. With
-// neither, the account default applies once sign-in is known.
+// ?mode= is stripped from the address. It opens that mode only when the
+// account has no default. It never outranks default_view_mode.
 function consumeUrlMode() {
   if (consumedUrlMode !== null) return consumedUrlMode;
   const url = new URL(window.location.href);
@@ -7206,28 +7247,55 @@ function consumeUrlMode() {
   return consumedUrlMode;
 }
 
-function applyInitialViewerMode() {
-  if (viewerModeExplicit) return;
+function decideViewerMode() {
+  const migration = migrateLegacyViewStorage();
   const urlMode = consumeUrlMode();
-  if (urlMode) {
-    setViewerMode(urlMode);
-    viewerModeExplicit = true;
-    return;
-  }
-  const saved = readSavedViewerMode();
-  if (saved) {
-    setViewerMode(saved);
-    viewerModeExplicit = true;
-    return;
-  }
+  const choice = readSavedViewerMode();
   const profile = profileViewerMode();
-  if (profile) setViewerMode(profile);
+  const signedIn = Boolean(window.DafSyncAuth?.getUser?.());
+  let mode = '';
+  let reason = 'built-in-standard';
+  if (choice) {
+    mode = choice;
+    reason = 'explicit-choice';
+  } else if (profile) {
+    mode = profile;
+    reason = 'account-default';
+  } else if (urlMode) {
+    mode = urlMode;
+    reason = 'url';
+  }
+  const decision = {
+    reason,
+    mode: mode || 'standard',
+    urlMode: urlMode || null,
+    choice: choice || null,
+    accountDefault: profile || null,
+    signedIn,
+    migration,
+    mobile: window.matchMedia('(pointer: coarse), (hover: none), (max-width: 760px)').matches,
+    live: Boolean(state.videoSource?.liveBroadcast),
+  };
+  viewDecisionLog.push(decision);
+  window.__dafsyncViewLog = viewDecisionLog;
+  console.info('[dafsync view]', decision);
+  return decision;
+}
+
+function applyInitialViewerMode() {
+  const decision = decideViewerMode();
+  if (viewerModeExplicit && decision.reason !== 'explicit-choice') return;
+  if (!decision.mode || decision.reason === 'built-in-standard') return;
+  if (decision.reason === 'explicit-choice') viewerModeExplicit = true;
+  setViewerMode(decision.mode);
 }
 
 function rememberViewerMode(mode) {
   viewerModeExplicit = true;
-  try { localStorage.setItem(VIEWER_MODE_KEY, JSON.stringify({ v: 2, explicit: true, mode })); } catch { /* private mode */ }
-  document.dispatchEvent(new CustomEvent('dafsync-viewer-mode'));
+  try {
+    localStorage.setItem(VIEW_MIGRATION_KEY, '1');
+    localStorage.setItem(VIEW_CHOICE_KEY, JSON.stringify({ v: 1, explicit: true, mode }));
+  } catch { /* private mode */ }
 }
 
 // --- The one authoritative mode switch -------------------------------------
@@ -10907,13 +10975,20 @@ if (window.matchMedia('(max-width: 760px), (pointer: coarse)').matches) {
   for (const el of overlayOpacitySliderEls) el.value = '90';
 }
 
-let viewerChoiceArmed = false;
-document.addEventListener('pointerdown', () => { viewerChoiceArmed = true; }, { capture: true, once: true });
+let overlayCheckboxPressed = false;
+document.addEventListener('pointerdown', (event) => {
+  const el = event.target instanceof Element ? event.target : null;
+  const label = el?.closest?.('label');
+  overlayCheckboxPressed = Boolean(
+    el && (el.id === 'overlayToggle' || el.id === 'overlayToggleInVideo'
+      || label?.querySelector?.('#overlayToggle, #overlayToggleInVideo'))
+  );
+}, true);
 for (const el of overlayToggleEls) el.addEventListener('change', (event) => {
-  // A phone restores the old checked box on its own, and that change is
-  // not a choice. Ignore it, and ignore anything dispatched while saved
-  // overlay settings are being applied.
-  if (!event.isTrusted || !viewerChoiceArmed) return;
+  // The box used to be the saved "open in Daf on video" setting. A phone
+  // also restores a checked box by itself. Only a finger on this box counts.
+  if (!event.isTrusted || !overlayCheckboxPressed) return;
+  overlayCheckboxPressed = false;
   syncGroupValue(overlayToggleEls, event, 'checked');
   setViewerMode(event.target.checked ? 'daf-on-video' : 'split', { persist: true });
   // The rest of the overlay's own display settings (style/opacity/zoom/etc)

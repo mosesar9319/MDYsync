@@ -770,6 +770,11 @@
   // suppressed (see readingModePreviousOverlayEnabled in app.js).
   const overlayToggle = $('overlayToggle');
   dafOnVideoButton.addEventListener('click', () => {
+    if (typeof window.setViewerMode === 'function') {
+      const on = document.getElementById('videoFrame')?.classList.contains('overlay-on');
+      window.setViewerMode(on ? 'standard' : 'daf-on-video', { persist: true });
+      return;
+    }
     if (!overlayToggle) return;
     overlayToggle.checked = !overlayToggle.checked;
     overlayToggle.dispatchEvent(new Event('change', { bubbles: true }));
