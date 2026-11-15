@@ -1,7 +1,11 @@
 {
-  "outcome": "rejected-length",
-  "at": "2026-11-15T07:55:09Z",
+  "outcome": "synced",
+  "at": "2026-11-15T08:51:19Z",
   "videoId": "T70KGQVCsCw",
+  "highlightSamples": 7495,
+  "realSegments": 135,
+  "segments": 209,
+  "realSegmentRatio": 0.6459,
   "downloadedDurationSeconds": 4440.27,
   "youtubeLengthSeconds": 4450.0
 }
