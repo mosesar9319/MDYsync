@@ -1345,11 +1345,15 @@ function syncLiveBroadcastChrome(source, plain) {
     const title = $('lectureTitle');
     if (title?.parentElement) title.insertAdjacentElement('afterend', banner);
   }
-  const onAir = source?.liveStatus === 'live';
+  const unavailable = Boolean(source?.liveUnavailable);
+  const onAir = source?.liveStatus === 'live' && !unavailable;
   banner.dataset.onAir = onAir ? 'true' : 'false';
-  banner.textContent = onAir
-    ? 'Live. The shiur is on now. The daf is below. Words are not highlighted until the edited recording is posted.'
-    : 'Live recording. Words are not highlighted until the edited shiur is posted.';
+  banner.textContent = unavailable
+    ? 'This live recording is no longer available. The edited shiur will show up here when its sync is ready.'
+    : onAir
+      ? 'Live. The shiur is on now. The daf is below. Words are not highlighted until the edited recording is posted.'
+      : 'Live recording. Words are not highlighted until the edited shiur is posted.';
+  if (unavailable && youtubeHost) youtubeHost.hidden = true;
 }
 
 function switchPlayerType(type) {
@@ -9309,6 +9313,15 @@ async function loadDaf(refOverride = null, options = {}) {
   if (preferredVideoSource?.liveBroadcast && preferredVideoSource.videoId) {
     const own = await fetchAlignmentForVideo(preferredVideoSource.videoId, ref, { full: true });
     serverAlignment = own?.videoId === preferredVideoSource.videoId ? own : null;
+  } else if (preferredVideoSource?.videoId && serverAlignment?.videoId
+      && serverAlignment.videoId !== preferredVideoSource.videoId) {
+    // The daf's by-ref alignment belongs to a different recording. Use this
+    // video's own file, or none. Never play one video on another's times.
+    const own = await fetchAlignmentForVideo(preferredVideoSource.videoId, ref, { full: true });
+    serverAlignment = own?.videoId === preferredVideoSource.videoId ? own : null;
+  }
+  if (preferredVideoSource?.liveUnavailable && preferredVideoSource?.liveBroadcast) {
+    serverAlignment = null;
   }
   // A livestream is played with the daf underneath and no word highlight.
   // An alignment that belongs to a different video (the usual case: this
@@ -9371,7 +9384,7 @@ async function loadDaf(refOverride = null, options = {}) {
   // it shouldn't depend on Sefaria's fetch succeeding. Already resolved
   // above, alongside the alignment lookup: this browser's saved link
   // first, then the one published for this daf on the server.
-  if (preferredVideoSource) {
+  if (preferredVideoSource && !(preferredVideoSource.liveBroadcast && preferredVideoSource.liveUnavailable)) {
     // Explicit [ref] here, not the default (state.segments-derived) covered
     // refs -- at this point in loadDaf(), state.segments/state.dafRef still
     // hold the *previous* daf's data (this one hasn't matched a synced
@@ -9619,6 +9632,12 @@ function scheduleYouTubeError(code, player, videoId, { reject, resolve, settled 
     if (sameVideo && [1, 2, 3, 5].includes(live)) {
       if (!settled()) resolve();
       return;
+    }
+    if ([100, 101, 150].includes(Number(code)) && state.videoSource?.liveBroadcast) {
+      state.videoSource = { ...state.videoSource, liveUnavailable: true };
+      state.livePlainDaf = true;
+      syncLiveBroadcastChrome(state.videoSource, true);
+      try { player?.stopVideo?.(); } catch { /* the embed is already dead */ }
     }
     if (!settled()) reject(new Error(message));
     else showToast(message, 'error');

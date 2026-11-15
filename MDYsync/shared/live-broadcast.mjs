@@ -27,7 +27,7 @@ export const LIVE_LOOKBACK_MS = 36 * 60 * 60 * 1000;
 
 export function videosListUrl(ids, apiKey) {
   const list = [...ids].filter(Boolean);
-  return `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,liveStreamingDetails&id=${encodeURIComponent(list.join(','))}&key=${encodeURIComponent(apiKey)}`;
+  return `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,liveStreamingDetails,status&id=${encodeURIComponent(list.join(','))}&key=${encodeURIComponent(apiKey)}`;
 }
 
 export function parseIsoDuration(value) {
@@ -47,7 +47,9 @@ function clockDuration(details) {
 // null when the video is not a livestream. liveStatus is 'live' only while
 // YouTube says the broadcast is on the air.
 export function describeLiveVideo(item) {
-  if (!item?.id || !isLivestreamVideo(item)) return null;
+  // A private video is gone for viewers. Do not describe it, and do not
+  // link it again after Mercaz takes the live recording down.
+  if (!item?.id || item.status?.privacyStatus === 'private' || !isLivestreamVideo(item)) return null;
   const content = item.snippet?.liveBroadcastContent;
   const liveStatus = content === 'live' ? 'live' : content === 'upcoming' ? 'upcoming' : 'finished';
   return {
@@ -183,7 +185,7 @@ export function advanceLengthCheck(previous, seconds, now) {
 // input fields, all required for a yes: autoSync, liveStatus 'finished',
 // actualEndTime, lengthStable, isKept. alreadyAligned, outcome, or a fresh
 // dispatchedAt are nos. A bare live video (phase 1 shape) is a no.
-export function shouldDispatchLiveAlignment(input) {
+export function shouldDispatchLiveAlignment(input, now = new Date()) {
   if (!input || typeof input !== 'object') return false;
   if (input.autoSync !== true) return false;
   if (input.liveStatus !== 'finished') return false;
@@ -192,7 +194,8 @@ export function shouldDispatchLiveAlignment(input) {
   if (input.isKept !== true) return false;
   if (input.alreadyAligned || input.outcome) return false;
   if (input.dispatchedAt) {
-    const age = Date.now() - Date.parse(input.dispatchedAt);
+    const instant = now instanceof Date ? now.getTime() : new Date(now).getTime();
+    const age = instant - Date.parse(input.dispatchedAt);
     if (!Number.isFinite(age) || age < DISPATCH_RETRY_MS) return false;
   }
   return true;

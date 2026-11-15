@@ -117,6 +117,9 @@ const kept = [];
 const enriched = [];
 for (const [key, pick] of [...best.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
   const target = args.results ? path.join(args.results, 'video-links', `${key}.json`) : null;
+  // A new file for the previous daf's tail would make this shiur that
+  // daf's recording. Existing tail links are left for a person to correct.
+  if (pick.rank === TAIL && !(target && fs.existsSync(target))) continue;
   // Never repoint an existing link: it's either a reader's own hand-pasted
   // correction or something the hourly job already published, and neither
   // should be clobbered by a bulk backfill.

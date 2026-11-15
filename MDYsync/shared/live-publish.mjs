@@ -28,6 +28,12 @@ import {
   WEBSUB_TOPIC,
   leaseRenewalDue,
 } from './live-broadcast.mjs';
+import {
+  byVideoAlignmentPath,
+  editedLinkFrom,
+  unavailableVideoIds,
+  videoIsPrivate,
+} from './live-edit-swap.mjs';
 
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
@@ -155,8 +161,31 @@ async function applyCatalog(fetchImpl, token, reading, video, label) {
   return 'catalog updated';
 }
 
+// The edited upload's catalog row. liveBroadcast is omitted on purpose:
+// once this is written, a later live id must not be what the home page offers.
+async function applyEditedCatalog(fetchImpl, token, reading, videoId, label) {
+  const path = 'catalog.json';
+  const { file, sha } = await readJsonFile(fetchImpl, token, path);
+  const catalog = file && typeof file === 'object' ? file : { tractates: {} };
+  if (!catalog.tractates) catalog.tractates = {};
+  const rows = catalog.tractates[reading.tractate] || (catalog.tractates[reading.tractate] = []);
+  let row = rows.find((item) => item.daf === reading.daf);
+  if (!row) {
+    row = { daf: reading.daf };
+    rows.push(row);
+    rows.sort((a, b) => a.daf - b.daf);
+  }
+  row[comboKeyFor(reading.language)] = {
+    videoId,
+    label: String(label || '').slice(0, 100),
+    amud: reading.amud,
+  };
+  catalog.generatedAt = new Date().toISOString();
+  await writeJsonFile(fetchImpl, token, path, catalog, `Swap catalog to edited ${videoId}`, sha);
+}
+
 function byVideoPath(language, videoId) {
-  return `by-video/${language === 'he' ? 'Hebrew-' : ''}${videoId}.json`;
+  return byVideoAlignmentPath(videoId, { language, variant: 'regular' });
 }
 
 async function existsOnResults(fetchImpl, token, path) {
@@ -232,6 +261,33 @@ export async function publishGroups({ groups, fetchImpl, token, lookup, autoSync
       continue;
     }
     const chosen = decision.video;
+    if (anchor.file?.pendingEdit?.videoId) {
+      const editId = anchor.file.pendingEdit.videoId;
+      let ready = false;
+      try {
+        ready = await existsOnResults(fetchImpl, token, byVideoPath(amudA.language, editId));
+      } catch (error) {
+        skipped.push({ ref: refDisplay(amudA), videoId: editId, reason: error.message });
+        continue;
+      }
+      if (ready) {
+        const source = editedLinkFrom(anchor.file);
+        try {
+          for (const item of reads) {
+            await writeJsonFile(
+              fetchImpl, token, item.path, source,
+              `Swap ${refDisplay(item.reading)} to edited ${editId}`,
+              item.sha,
+            );
+            published.push({ ref: refDisplay(item.reading), videoId: editId, action: 'swap' });
+          }
+          await applyEditedCatalog(fetchImpl, token, anchor.reading, editId, source.label);
+        } catch (error) {
+          skipped.push({ ref: refDisplay(amudA), videoId: editId, reason: error.message });
+        }
+        continue;
+      }
+    }
     const same = anchor.file?.videoId === chosen.videoId;
     const priorCheck = same ? anchor.file?.lengthCheck : null;
     let lengthCheck = priorCheck || null;
@@ -264,7 +320,7 @@ export async function publishGroups({ groups, fetchImpl, token, lookup, autoSync
       alreadyAligned,
       outcome,
       dispatchedAt,
-    });
+    }, now);
     if (dispatch) dispatchedAt = now.toISOString();
     const source = {
       ...liveVideoSource(chosen, group.readings),
@@ -314,20 +370,24 @@ export async function loadLookup(fetchImpl) {
 }
 
 export async function verifyVideoIds(ids, { fetchImpl, apiKey }) {
-  if (!apiKey) return { videos: [], error: 'YOUTUBE_API_KEY is not set' };
-  if (!ids.length) return { videos: [], error: null };
+  if (!apiKey) return { videos: [], unavailableIds: [], error: 'YOUTUBE_API_KEY is not set' };
+  if (!ids.length) return { videos: [], unavailableIds: [], error: null };
   const videos = [];
+  const unavailableIds = [];
   for (let i = 0; i < ids.length; i += 50) {
     const chunk = ids.slice(i, i + 50);
     const response = await fetchImpl(videosListUrl(chunk, apiKey));
-    if (!response.ok) return { videos, error: `YouTube Data API returned ${response.status}` };
+    if (!response.ok) return { videos, unavailableIds, error: `YouTube Data API returned ${response.status}` };
     const body = await response.json();
-    for (const item of body.items || []) {
+    const items = body.items || [];
+    unavailableIds.push(...unavailableVideoIds(chunk, items));
+    for (const item of items) {
+      if (videoIsPrivate(item)) continue;
       const described = describeLiveVideo(item);
       if (described) videos.push(described);
     }
   }
-  return { videos, error: null };
+  return { videos, unavailableIds, error: null };
 }
 
 export async function ingestDescribed(videos, { fetchImpl, token, lookup, autoSync = false, now = new Date() }) {
@@ -335,6 +395,63 @@ export async function ingestDescribed(videos, { fetchImpl, token, lookup, autoSy
   const groups = planGroups(recent, lookup);
   if (!token) return { published: [], skipped: [{ reason: 'GitHub token is not set' }], dispatched: [] };
   return publishGroups({ groups, fetchImpl, token, lookup, autoSync, now });
+}
+
+// A live id YouTube no longer returns (Mercaz makes the recording private
+// once the edit is up). If the edit's alignment is already in, swap to it.
+// Otherwise mark the link unavailable so the player does not embed a dead
+// video, and do not create a new link for this id.
+async function noteUnavailableLives(ids, entries, { fetchImpl, token, lookup }) {
+  const noted = [];
+  if (!token || !ids?.length) return noted;
+  const byId = new Map(entries.map((entry) => [entry.videoId, entry]));
+  for (const videoId of ids) {
+    const entry = byId.get(videoId);
+    const parsed = entry ? parseChannelTitle(entry.title, lookup) : null;
+    if (!parsed || parsed.variant !== 'regular') continue;
+    const readings = primaryReadings(parsed, lookup);
+    const anchor = readings.find((reading) => reading.amud === 'a') || readings[0];
+    if (!anchor) continue;
+    let current;
+    try {
+      current = await readJsonFile(fetchImpl, token, `video-links/${refKeyFor(anchor)}.json`);
+    } catch {
+      continue;
+    }
+    const link = current.file;
+    if (!link?.liveBroadcast || link.videoId !== videoId) continue;
+    if (link.pendingEdit?.videoId) {
+      const ready = await existsOnResults(fetchImpl, token, byVideoPath(anchor.language, link.pendingEdit.videoId));
+      if (ready) {
+        const source = editedLinkFrom(link);
+        for (const reading of readings) {
+          const path = `video-links/${refKeyFor(reading)}.json`;
+          const file = path.endsWith(`${refKeyFor(anchor)}.json`)
+            ? current
+            : await readJsonFile(fetchImpl, token, path);
+          if (file.file?.videoId && !file.file.liveBroadcast) continue;
+          await writeJsonFile(fetchImpl, token, path, source, `Swap ${refDisplay(reading)} to edited ${source.videoId}`, file.sha);
+        }
+        await applyEditedCatalog(fetchImpl, token, anchor, source.videoId, source.label);
+        noted.push({ videoId, action: 'swap', editId: source.videoId });
+        continue;
+      }
+    }
+    if (link.liveUnavailable) continue;
+    for (const reading of readings) {
+      const path = `video-links/${refKeyFor(reading)}.json`;
+      const file = reading === anchor ? current : await readJsonFile(fetchImpl, token, path);
+      if (!file.file || file.file.videoId !== videoId) continue;
+      await writeJsonFile(
+        fetchImpl, token, path,
+        { ...file.file, liveUnavailable: true },
+        `Mark live ${refDisplay(reading)} unavailable`,
+        file.sha,
+      );
+    }
+    noted.push({ videoId, action: 'unavailable' });
+  }
+  return noted;
 }
 
 export async function readAutoSync(fetchImpl) {
@@ -367,15 +484,17 @@ export async function pollLive({ fetchImpl, token, apiKey, callback, verifyToken
     return { renewed, published: [], skipped: [], error: `YouTube live feed returned ${feedResponse.status}`, dispatched: false };
   }
   const feedText = await feedResponse.text();
-  const recentIds = parseFeedEntries(feedText).filter((entry) => feedEntryIsRecent(entry, now)).map((entry) => entry.videoId);
+  const recentEntries = parseFeedEntries(feedText).filter((entry) => feedEntryIsRecent(entry, now));
+  const recentIds = recentEntries.map((entry) => entry.videoId);
   const verified = await verifyVideoIds(recentIds, { fetchImpl, apiKey });
   if (verified.error) {
     return { renewed, published: [], skipped: [], error: verified.error, dispatched: false };
   }
   const lookup = await loadLookup(fetchImpl);
+  const unavailable = await noteUnavailableLives(verified.unavailableIds, recentEntries, { fetchImpl, token, lookup });
   const autoSync = await readAutoSync(fetchImpl);
   const result = await ingestDescribed(verified.videos, { fetchImpl, token, lookup, autoSync, now });
-  return { renewed, autoSync, ...result, checked: recentIds };
+  return { renewed, autoSync, unavailable, ...result, checked: recentIds };
 }
 
 async function maybeRenewLease({ fetchImpl, callback, verifyToken, now }) {

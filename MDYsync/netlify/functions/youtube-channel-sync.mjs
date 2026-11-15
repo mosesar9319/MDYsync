@@ -11,10 +11,15 @@
 // parsing a title into the daf refs it covers lives in shared/mdy-channel.mjs,
 // which tools/backfill-video-links.mjs imports too so the two can't drift.
 //
-// Almost every shiur opens with the tail end of the previous daf's amud b
-// before moving on to the new daf's a and b, so each video is published
-// under three refs, not one: the previous daf's b (if it exists) and the
-// new daf's a and b (if it exists) -- see readingsForVideo().
+// Almost every shiur opens on the tail of the previous daf. That stretch
+// is included in the caption job's refs so the opening can be matched,
+// and it lives inside the alignment. It is not given its own video link:
+// the previous daf keeps the recording that is actually about it.
+//
+// When the link already there is a livestream of this same daf, the edited
+// upload is remembered and aligned, and the link stays on the live video
+// until results/by-video/<edited id>.json exists. Then the link and the
+// catalog move to the edit together. A live id never replaces that edit.
 //
 // This job only ever sees the 15 newest items the RSS feed carries --
 // backfilling anything older is what the manually-dispatched
@@ -24,11 +29,9 @@
 // the Data API (or, without a key, the Live-tab feed) still marks as a
 // livestream is skipped and never replaces a finished upload.
 //
-// A link is replaced whenever a newly seen upload resolves to the same
-// ref's *primary* reading and points at a different videoId -- covering
-// the channel sometimes posting an unedited cut of a shiur first, then
-// replacing it on YouTube with the finished edit under a fresh upload
-// (same daf/variant/language, new videoId) once it's ready. The one
+// A finished upload replaces another finished upload for the same daf.
+// It does not replace a livestream of that daf until the new upload's
+// own alignment is in results/by-video/. The one
 // exception is a link explicitly marked `locked: true` (see
 // save-video-link.mjs) -- a reader/admin can tick "Lock this video" when
 // saving one to keep this job from ever touching it, but that's opt-in,
@@ -64,6 +67,7 @@ import {
 } from '../../shared/mdy-channel.mjs';
 import { MAGGIDIM, parseBornsteinTitle } from '../../shared/maggidim.mjs';
 import { livestreamIdsAmong, MDY_CHANNEL_ID, recentUploadFeedUrl } from '../../shared/youtube-broadcast.mjs';
+import { byVideoAlignmentPath, decideUpload, linkReadingsOnly, pendingEditRecord } from '../../shared/live-edit-swap.mjs';
 
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
@@ -165,6 +169,18 @@ export default async (request) => {
   const published = [];
   const skipped = [...feedProblems];
   const catalogUpdates = []; // { tractate, daf, amud, comboKey, videoId, label }
+  const alignmentReady = new Map();
+  async function editIsAligned(videoId, parsed) {
+    const path = byVideoAlignmentPath(videoId, parsed);
+    if (alignmentReady.has(path)) return alignmentReady.get(path);
+    const response = await fetch(
+      `https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}?ref=results`,
+      { headers }
+    );
+    const ready = response.ok;
+    alignmentReady.set(path, ready);
+    return ready;
+  }
 
   // Livestreams and past broadcasts (the Live tab) are not shiurim to link,
   // even when a title happens to match. The Videos-tab feed already leaves
@@ -204,6 +220,10 @@ export default async (request) => {
       ? amudimForDaf(lookup.byName.get(parsed.tractate.toLowerCase()), parsed.daf)
         .map((amud) => ({ tractate: parsed.tractate, daf: parsed.daf, amud, variant: parsed.variant, language: parsed.language, maggid: maggid.id }))
       : readingsForVideo(parsed, lookup);
+    // The previous daf's amud stays in `readings` so the caption job can
+    // match the opening. It is not a video-link. Writing it used to make
+    // the next shiur's lead-in the previous daf's recording.
+    const linkReadings = linkReadingsOnly({ ...parsed, maggid: maggid.id }, readings);
     const videoSource = {
       type: 'youtube',
       url: `https://www.youtube.com/watch?v=${entry.videoId}`,
@@ -225,8 +245,9 @@ export default async (request) => {
     };
     const body = JSON.stringify(videoSource);
     let entryPublishedCount = 0;
+    let alignThisVideo = false;
 
-    for (const reading of readings) {
+    for (const reading of linkReadings) {
       const key = refKeyFor(reading);
       // Only a video's own daf (not the tail reading it also opens on, for
       // the *previous* daf) is ever eligible to replace an existing link.
@@ -254,12 +275,47 @@ export default async (request) => {
             // leave it alone rather than risk clobbering something unknown.
           }
         }
-        if (!existingLink || existingLink.videoId === entry.videoId) continue; // already up to date, tail reading, or unreadable
-        if (existingLink.locked) continue; // explicitly pinned -- never auto-replaced
-        // Falls through: this video's own daf, the existing link isn't
-        // locked, and it points at a different video (the
-        // unedited-cut-replaced-by-the-finished-edit case) -- overwrite it
-        // below instead of skipping.
+        if (!existingLink) continue; // unreadable — leave it alone
+        if (existingLink.videoId === entry.videoId && !existingLink.liveBroadcast) continue;
+        const aligned = existingLink.liveBroadcast
+          ? await editIsAligned(entry.videoId, { ...parsed, maggid: maggid.id })
+          : false;
+        const decision = decideUpload({
+          existing: existingLink,
+          videoId: entry.videoId,
+          aligned,
+          now: new Date(),
+        });
+        if (decision.action === 'keep' || decision.action === 'same') continue;
+        if (decision.action === 'hold') {
+          // The player keeps the live video until the edit's own alignment
+          // file exists. Remember the edit and align it; do not swap yet.
+          const held = {
+            ...existingLink,
+            pendingEdit: decision.dispatch
+              ? pendingEditRecord(entry.videoId, videoSource.label, videoSource.coveredRefs)
+              : { ...existingLink.pendingEdit },
+          };
+          const holdResponse = await fetch(
+            `https://api.github.com/repos/${OWNER}/${REPO}/contents/video-links/${key}.json`,
+            {
+              method: 'PUT',
+              headers,
+              body: JSON.stringify({
+                message: `Hold ${refDisplay(reading)} on the live recording until ${entry.videoId} is synced`,
+                content: Buffer.from(JSON.stringify(held, null, 2) + '\n', 'utf8').toString('base64'),
+                branch: 'results',
+                ...(existingSha ? { sha: existingSha } : {}),
+              }),
+            }
+          );
+          if (holdResponse.ok && decision.dispatch) alignThisVideo = true;
+          else if (!holdResponse.ok) skipped.push({ ref: refDisplay(reading), videoId: entry.videoId, reason: `hold failed (${holdResponse.status})` });
+          continue;
+        }
+        // 'swap' writes the edit below and does not start another job:
+        // the alignment file is what made the swap allowed.
+        reading.suppressDispatch = decision.action === 'swap';
       }
       try {
         const putResponse = await fetch(
@@ -281,6 +337,7 @@ export default async (request) => {
           existingKeys.add(key);
           published.push({ ref: refDisplay(reading), videoId: entry.videoId });
           entryPublishedCount++;
+          if (!reading.suppressDispatch) alignThisVideo = true;
           catalogUpdates.push({
             tractate: reading.tractate,
             daf: reading.daf,
@@ -301,7 +358,7 @@ export default async (request) => {
     // One job per video, covering every ref it actually got linked to this
     // run -- not one per reading, and not for a video that turned out to be
     // already up to date (entryPublishedCount stays 0 for those).
-    if (autoSyncEnabled && entryPublishedCount && !maggid.keyPrefix) {
+    if (autoSyncEnabled && alignThisVideo && !maggid.keyPrefix) {
       try {
         const dispatchResponse = await fetch(
           `https://api.github.com/repos/${OWNER}/${REPO}/dispatches`,
