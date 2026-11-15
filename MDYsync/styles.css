@@ -825,13 +825,11 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .video-frame.is-snug .pc-transport .play-button { width: 38px; height: 38px; }
 .video-frame.is-snug .pc-pill { height: 32px; padding: 0 9px; font-size: 12px; gap: 5px; }
 .video-frame.is-snug .chapter-marker-he { display: none; }
-/* Vaater is worth an icon at every width but its text label is the first
-   thing this tier can give up -- freeing enough room that the labels which
-   actually matter here, the two "where does the daf go" pill buttons, stay
-   readable through the whole common range of real desktop widths (measured
-   540-800px in the real split layout) instead of also disappearing. */
-.video-frame.is-snug .vaater-button-label { display: none; }
-.video-frame.is-snug .vaater-button { padding: 0 9px; }
+/* The word stays at every width, including a phone. Hiding it left a
+   26px icon that read as no button at all. */
+.video-frame.is-snug .vaater-button,
+.video-frame.is-compact .vaater-button,
+.video-frame.is-tiny .vaater-button { padding: 0 8px 0 6px; flex-shrink: 0; }
 
 /* Compact: reading mode's floating mini-player, and phones. */
 .video-frame.is-compact .player-topbar { height: 38px; padding: 0 9px; }

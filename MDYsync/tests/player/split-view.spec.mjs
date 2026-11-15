@@ -1,6 +1,6 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, devices } from '@playwright/test';
 import { preparePage, failOnPageError } from '../support/harness.mjs';
-import { USERS } from '../fixtures/dataset.mjs';
+import { USERS, buildDatabase, sessionFor } from '../fixtures/dataset.mjs';
 
 // The unified viewing-mode system: the prominent 3-button selector above the
 // player, and the new Split View mode (video and daf in separate,
@@ -64,6 +64,73 @@ async function settleSplitChrome(page) {
   });
 }
 
+test.describe('a signed-in phone keeps Split and shows Vaater', () => {
+  const iphone = devices['iPhone 13'];
+  test.use({
+    viewport: iphone.viewport,
+    userAgent: iphone.userAgent,
+    deviceScaleFactor: iphone.deviceScaleFactor,
+    isMobile: iphone.isMobile,
+    hasTouch: iphone.hasTouch,
+  });
+
+  test('a stale Daf-on-video value and a saved overlay do not beat Split, in portrait and landscape', async ({ page }) => {
+    failOnPageError(page);
+    const db = buildDatabase();
+    db.preferences.push({
+      user_id: USERS.ordinary.id,
+      data: { enabled: true, viewerMode: 'daf-on-video', mode: 'full', opacity: '50', opacityTarget: 'both', idleMode: 'dim', zoom: '100' },
+    });
+    const session = sessionFor(USERS.ordinary);
+    session.user.user_metadata = { default_view_mode: 'split' };
+    await page.addInitScript(() => {
+      if (sessionStorage.getItem('stale-view-planted')) return;
+      localStorage.setItem('dafsync-viewer-mode', JSON.stringify({ v: 2, explicit: true, mode: 'daf-on-video' }));
+      sessionStorage.setItem('dafsync-viewer-mode', 'daf-on-video');
+      sessionStorage.setItem('dafsync-overlay-enabled', '1');
+      sessionStorage.setItem('stale-view-planted', '1');
+    });
+    await preparePage(page, { db, session });
+    await page.goto('/player/?ref=Bekhorot%2041a&mode=daf-on-video');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+    expect(await page.evaluate(() => localStorage.getItem('dafsync-viewer-mode'))).toBeNull();
+    expect(await page.evaluate(() => sessionStorage.getItem('dafsync-viewer-mode'))).toBeNull();
+    const reasons = await page.evaluate(() => (window.__dafsyncViewLog || []).map((entry) => entry.reason));
+    expect(reasons).toContain('account-default');
+    await page.reload();
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+    await page.evaluate(() => {
+      const box = document.getElementById('overlayToggle');
+      box.checked = true;
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+      document.getElementById('videoFrame')?.classList.remove('controls-hidden');
+    });
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+    const button = page.locator('#vaaterButton');
+    await expect(button).toBeVisible();
+    await expect(button.locator('.vaater-button-label')).toBeVisible();
+    await page.screenshot({ path: 'test-results/iphone-portrait-split-vaater.png' });
+
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.evaluate(() => document.getElementById('videoFrame')?.classList.remove('controls-hidden'));
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+    await expect(button).toBeVisible();
+    await expect(button.locator('.vaater-button-label')).toBeVisible();
+    await page.screenshot({ path: 'test-results/iphone-landscape-split-vaater.png' });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openSplitTools(page);
+    await page.click('#viewerModeDafOnVideoButton');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('daf-on-video');
+    await page.reload();
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('daf-on-video');
+    await page.evaluate(() => document.getElementById('videoFrame')?.classList.remove('controls-hidden'));
+    await expect(button).toBeVisible();
+    await expect(button.locator('.vaater-button-label')).toBeVisible();
+    await page.screenshot({ path: 'test-results/iphone-portrait-overlay-vaater.png' });
+  });
+});
+
 test.describe('Unified viewing modes — the prominent selector', () => {
   test('the page loads into standard mode, not Split View, exactly as before this feature existed', async ({ page }) => {
     failOnPageError(page);
@@ -78,6 +145,45 @@ test.describe('Unified viewing modes — the prominent selector', () => {
     await expect(page.locator('#viewerModeVideoOnDafButton')).toHaveAttribute('aria-pressed', 'false');
     await expect(page.locator('.watch-layout')).not.toHaveClass(/split-active/);
     await expect(page.locator('body')).not.toHaveClass(/split-view-active/);
+  });
+
+  test('an old overlay preference does not replace the account default or a saved Split choice', async ({ page }) => {
+    failOnPageError(page);
+    const db = buildDatabase();
+    db.preferences.push({
+      user_id: USERS.ordinary.id,
+      data: { enabled: true, mode: 'full', opacity: '50', opacityTarget: 'both', idleMode: 'dim', zoom: '100' },
+    });
+    const session = sessionFor(USERS.ordinary);
+    session.user.user_metadata = { default_view_mode: 'split' };
+    await preparePage(page, { db, session });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+    await page.reload();
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+  });
+
+  test('choosing Split sticks across a refresh, and Vaater stays on the video', async ({ page }, testInfo) => {
+    failOnPageError(page);
+    await preparePage(page, { user: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
+    await enterSplitView(page);
+    await page.reload();
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+    await page.evaluate(() => {
+      state.segments = [
+        { start: 0, end: 4, estimated: false, ref: 'Chullin 89a' },
+        { start: 12, end: 16, estimated: false, ref: 'Chullin 89a' },
+      ];
+      updateVaaterButtonUi(0);
+      document.getElementById('videoFrame')?.classList.remove('controls-hidden');
+    });
+    const button = page.locator('#vaaterButton');
+    await expect(button).toBeVisible();
+    await expect(button.locator('.vaater-button-label')).toBeVisible();
+    await expect(button.locator('.vaater-button-label')).toHaveText('Vaater');
+    void testInfo;
   });
 
   test('clicking Split view enters it, and it stays reachable across a switch to the other two modes', async ({ page }) => {

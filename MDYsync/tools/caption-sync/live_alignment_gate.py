@@ -16,7 +16,7 @@ The Hebrew 40 file is the one whose caption box locked onto the wrong part
 of the picture. Everything else that was actually read sits above 40% real
 segments and hundreds of real words. The gates sit in the gap:
 
-  downloaded duration within 2 seconds of YouTube's lengthSeconds
+  downloaded duration within max(30 seconds, 1% of YouTube's length)
   at least 200 highlight samples (65 fails; the readable runs are far above)
   at least 20% of segments from a real caption match (6% fails; 43% passes)
 
@@ -26,12 +26,21 @@ voice engine. The recording stays on the site, unsynced, until the edit.
 
 from datetime import datetime, timezone
 
-DURATION_TOLERANCE_SECONDS = 2
+# A finished live file is a few seconds shorter than YouTube's lengthSeconds
+# once the container is trimmed (Bekhorot 58a: 4440.27s downloaded, 4450s
+# reported). The allowance is the larger of 30 seconds and 1% of the
+# YouTube length.
+DURATION_TOLERANCE_SECONDS = 30
+DURATION_TOLERANCE_RATIO = 0.01
 MIN_HIGHLIGHT_SAMPLES = 200
 MIN_REAL_SEGMENT_RATIO = 0.20
 
 
-def duration_ok(downloaded_seconds, youtube_seconds, tolerance=DURATION_TOLERANCE_SECONDS):
+def duration_allowance(youtube_seconds, floor=DURATION_TOLERANCE_SECONDS, ratio=DURATION_TOLERANCE_RATIO):
+    return max(float(floor), abs(float(youtube_seconds)) * float(ratio))
+
+
+def duration_ok(downloaded_seconds, youtube_seconds, tolerance=None):
     try:
         downloaded = float(downloaded_seconds)
         youtube = float(youtube_seconds)
@@ -39,7 +48,8 @@ def duration_ok(downloaded_seconds, youtube_seconds, tolerance=DURATION_TOLERANC
         return False
     if downloaded <= 0 or youtube <= 0:
         return False
-    return abs(downloaded - youtube) <= tolerance
+    allowed = duration_allowance(youtube) if tolerance is None else float(tolerance)
+    return abs(downloaded - youtube) <= allowed
 
 
 def captions_ok(highlight_samples, real_segments, total_segments,

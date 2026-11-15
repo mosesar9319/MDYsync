@@ -1076,8 +1076,10 @@ function updateVaaterButtonUi(time = getCurrentTime()) {
   const target = nextReadingTime(time);
   const available = state.segments.some((segment) => segment && !segment.estimated && Number.isFinite(Number(segment.start)));
   for (const button of vaaterButtonEls) {
-    button.hidden = !available;
-    button.disabled = target === null;
+    // Stay on the bar in every view, including a live recording that has
+    // no alignment yet. Disabled, not removed, when there is nowhere to jump.
+    button.hidden = false;
+    button.disabled = !available || target === null;
     button.title = target === null
       ? 'Nothing further ahead to skip to'
       : 'Vaater — skip ahead to the next synced phrase';
@@ -6009,7 +6011,7 @@ function setReadingMode(enabled) {
   loadReadingVideoPreferences();
   updateReadingVideoFollowUi();
 
-  toggle.addEventListener('click', () => setViewerMode(state.readingModeEnabled ? 'split' : 'video-on-daf'));
+  toggle.addEventListener('click', () => setViewerMode(state.readingModeEnabled ? 'split' : 'video-on-daf', { persist: true }));
   follow?.addEventListener('click', () => setReadingVideoFollow(!state.readingVideoFollow, { announce: true }));
 
   // The YouTube iframe is cross-origin, so touch events inside it cannot
@@ -6291,7 +6293,7 @@ function setReadingMode(enabled) {
   document.addEventListener('webkitfullscreenchange', handleReadingModeFullscreenChange);
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && state.readingModeEnabled && !document.fullscreenElement && !document.querySelector('dialog[open]')) {
-      setViewerMode('split');
+      setViewerMode('split', { persist: true });
     }
   });
   $('dafScroll')?.addEventListener('scroll', () => {
@@ -6331,6 +6333,25 @@ const SPLIT_VIEW_MIN_RATIO = 0.22;
 const SPLIT_VIEW_MAX_RATIO = 0.78;
 const SPLIT_VIDEO_MAX_ZOOM = 5;
 const VIEWER_MODES = ['standard', 'daf-on-video', 'video-on-daf', 'split'];
+// The old key stored the overlay preference as if it were the view. It is
+// deleted once and never read again. A choice made after that lives here.
+const LEGACY_VIEW_KEYS = [
+  'dafsync-viewer-mode',
+  'dafsync-view',
+  'dafsync-view-mode',
+  'dafsync.viewMode',
+  'dafsync.viewerMode',
+  'dafsync-overlay',
+  'dafsync-overlay-enabled',
+  'dafsync.overlay',
+  'dafsync.overlayEnabled',
+];
+const VIEW_MIGRATION_KEY = 'dafsync-view-migrated';
+const VIEW_CHOICE_KEY = 'dafsync-view-choice';
+// Set only by a tap after the migration, so a late sign-in cannot replace it.
+let viewerModeExplicit = false;
+let consumedUrlMode = null;
+const viewDecisionLog = [];
 let splitDividerDrag = null;
 let splitVideoZoomIndicatorTimer = null;
 let splitVideoLastTapAt = 0;
@@ -6964,13 +6985,13 @@ function requestExitSplit() {
   // (a second history.back) when the browser finishes leaving fullscreen.
   if (document.fullscreenElement || document.webkitFullscreenElement) suppressSplitExitOnFullscreenChange = true;
   exitFullscreenIfActive();
-  setViewerMode('standard');
+  setViewerMode('standard', { persist: true });
   if (!(document.fullscreenElement || document.webkitFullscreenElement)) suppressSplitExitOnFullscreenChange = false;
 }
 
 function toggleSplitViewerMode() {
   if (state.viewerMode === 'split') requestExitSplit();
-  else setViewerMode('split');
+  else setViewerMode('split', { persist: true });
 }
 
 function ensureSplitBackButton() {
@@ -7166,21 +7187,121 @@ function resetSplitVideoZoom({ announce = true } = {}) {
   setSplitVideoZoom(1, { panX: 0, panY: 0, announce });
 }
 
-// ?mode=split | daf-on-video | video-on-daf: open the page in that mode. The
-// parameter is taken off the address first, so a reload or a shared link
-// opens normally, and Back from the mode returns to the plain player.
-function applyRequestedViewerMode() {
+function readSavedViewerMode() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(VIEW_CHOICE_KEY) || 'null');
+    if (parsed && parsed.v === 1 && parsed.explicit === true && VIEWER_MODES.includes(parsed.mode)) return parsed.mode;
+  } catch { /* not a choice */ }
+  return '';
+}
+
+// Once per browser: throw away every stored view that predates the account
+// default. That includes the overlay checkbox's old local value and any
+// session copy. A choice saved after this flag is left alone.
+function migrateLegacyViewStorage() {
+  const removed = [];
+  let already = false;
+  try {
+    already = localStorage.getItem(VIEW_MIGRATION_KEY) === '1';
+    if (!already) {
+      for (const store of [localStorage, sessionStorage]) {
+        const prefix = store === sessionStorage ? 'session:' : '';
+        for (const key of LEGACY_VIEW_KEYS) {
+          if (store.getItem(key) != null) {
+            removed.push(prefix + key);
+            store.removeItem(key);
+          }
+        }
+      }
+      for (const id of ['overlayToggle', 'overlayToggleInVideo']) {
+        const box = document.getElementById(id);
+        if (!box) continue;
+        box.autocomplete = 'off';
+        if (box.checked) {
+          box.checked = false;
+          removed.push('checkbox:' + id);
+        }
+      }
+      localStorage.setItem(VIEW_MIGRATION_KEY, '1');
+    }
+  } catch { /* private mode */ }
+  return { already, removed };
+}
+
+function profileViewerMode() {
+  const chosen = window.DafSyncAuth?.getUser?.()?.user_metadata?.default_view_mode;
+  return VIEWER_MODES.includes(chosen) ? chosen : '';
+}
+
+// ?mode= is stripped from the address. It opens that mode only when the
+// account has no default. It never outranks default_view_mode.
+function consumeUrlMode() {
+  if (consumedUrlMode !== null) return consumedUrlMode;
   const url = new URL(window.location.href);
-  const mode = url.searchParams.get('mode');
-  if (!mode) return;
-  url.searchParams.delete('mode');
-  try { history.replaceState(history.state, '', url.pathname + url.search + url.hash); } catch { /* keep the address */ }
-  if (mode !== 'standard' && VIEWER_MODES.includes(mode)) setViewerMode(mode);
+  const mode = url.searchParams.get('mode') || '';
+  if (url.searchParams.has('mode')) {
+    url.searchParams.delete('mode');
+    try { history.replaceState(history.state, '', url.pathname + url.search + url.hash); } catch { /* keep the address */ }
+  }
+  consumedUrlMode = VIEWER_MODES.includes(mode) ? mode : '';
+  return consumedUrlMode;
+}
+
+function decideViewerMode() {
+  const migration = migrateLegacyViewStorage();
+  const urlMode = consumeUrlMode();
+  const choice = readSavedViewerMode();
+  const profile = profileViewerMode();
+  const signedIn = Boolean(window.DafSyncAuth?.getUser?.());
+  let mode = '';
+  let reason = 'built-in-standard';
+  if (choice) {
+    mode = choice;
+    reason = 'explicit-choice';
+  } else if (profile) {
+    mode = profile;
+    reason = 'account-default';
+  } else if (urlMode) {
+    mode = urlMode;
+    reason = 'url';
+  }
+  const decision = {
+    reason,
+    mode: mode || 'standard',
+    urlMode: urlMode || null,
+    choice: choice || null,
+    accountDefault: profile || null,
+    signedIn,
+    migration,
+    mobile: window.matchMedia('(pointer: coarse), (hover: none), (max-width: 760px)').matches,
+    live: Boolean(state.videoSource?.liveBroadcast),
+  };
+  viewDecisionLog.push(decision);
+  window.__dafsyncViewLog = viewDecisionLog;
+  console.info('[dafsync view]', decision);
+  return decision;
+}
+
+function applyInitialViewerMode() {
+  const decision = decideViewerMode();
+  if (viewerModeExplicit && decision.reason !== 'explicit-choice') return;
+  if (!decision.mode || decision.reason === 'built-in-standard') return;
+  if (decision.reason === 'explicit-choice') viewerModeExplicit = true;
+  setViewerMode(decision.mode);
+}
+
+function rememberViewerMode(mode) {
+  viewerModeExplicit = true;
+  try {
+    localStorage.setItem(VIEW_MIGRATION_KEY, '1');
+    localStorage.setItem(VIEW_CHOICE_KEY, JSON.stringify({ v: 1, explicit: true, mode }));
+  } catch { /* private mode */ }
 }
 
 // --- The one authoritative mode switch -------------------------------------
-function setViewerMode(mode) {
+function setViewerMode(mode, options = {}) {
   const nextMode = VIEWER_MODES.includes(mode) ? mode : 'standard';
+  if (options.persist) rememberViewerMode(nextMode);
   if (nextMode === state.viewerMode) return;
   state.viewerMode = nextMode;
   // An open daf picker is positioned against the split video. Leaving Split
@@ -7282,12 +7403,12 @@ function announceViewerMode(mode) {
       window.addEventListener('resize', () => updateViewerModeBarHeight());
     }
   }
-  // Every page loads into 'standard' -- the same plain .watch-layout grid
-  // shown before this feature existed -- unless the link asks for a mode
-  // (?mode=, which a shiur opened from the home page carries: the reader's
-  // chosen default, Split unless they changed it).
+  // Standard until a link, a saved choice, or the account default says
+  // otherwise. The account default can arrive a moment later, when sign-in
+  // resolves; a choice already made is left alone.
   if (container) updateViewerModeUi();
-  if (container) setTimeout(applyRequestedViewerMode, 0);
+  if (container) setTimeout(applyInitialViewerMode, 0);
+  window.applyInitialViewerMode = applyInitialViewerMode;
   if (!container || !divider) return;
 
   function ratioFromPoint(clientX, clientY) {
@@ -7400,8 +7521,8 @@ function announceViewerMode(mode) {
   // Tapping the mode that is already on returns to Standard. Sending that
   // tap to Split left no way back from Daf on video / Video on daf except
   // the Split button itself.
-  $('viewerModeDafOnVideoButton')?.addEventListener('click', () => setViewerMode(state.viewerMode === 'daf-on-video' ? 'standard' : 'daf-on-video'));
-  $('viewerModeVideoOnDafButton')?.addEventListener('click', () => setViewerMode(state.viewerMode === 'video-on-daf' ? 'standard' : 'video-on-daf'));
+  $('viewerModeDafOnVideoButton')?.addEventListener('click', () => setViewerMode(state.viewerMode === 'daf-on-video' ? 'standard' : 'daf-on-video', { persist: true }));
+  $('viewerModeVideoOnDafButton')?.addEventListener('click', () => setViewerMode(state.viewerMode === 'video-on-daf' ? 'standard' : 'video-on-daf', { persist: true }));
   $('splitExitButton')?.addEventListener('click', () => requestExitSplit());
   // The X leaves Split on the press itself. Waiting for click loses the
   // tap: while the bar is fading it already has pointer-events:none, so the
@@ -7688,7 +7809,7 @@ function announceViewerMode(mode) {
     const wantsSplit = Boolean(history.state?.split);
     if (wantsSplit === (state.viewerMode === 'split')) return;
     splitHistoryQuiet = true;
-    try { setViewerMode(wantsSplit ? 'split' : 'standard'); }
+    try { setViewerMode(wantsSplit ? 'split' : 'standard', { persist: true }); }
     finally { splitHistoryQuiet = false; }
   });
   ensureSplitChromeWake();
@@ -10854,9 +10975,22 @@ if (window.matchMedia('(max-width: 760px), (pointer: coarse)').matches) {
   for (const el of overlayOpacitySliderEls) el.value = '90';
 }
 
+let overlayCheckboxPressed = false;
+document.addEventListener('pointerdown', (event) => {
+  const el = event.target instanceof Element ? event.target : null;
+  const label = el?.closest?.('label');
+  overlayCheckboxPressed = Boolean(
+    el && (el.id === 'overlayToggle' || el.id === 'overlayToggleInVideo'
+      || label?.querySelector?.('#overlayToggle, #overlayToggleInVideo'))
+  );
+}, true);
 for (const el of overlayToggleEls) el.addEventListener('change', (event) => {
+  // The box used to be the saved "open in Daf on video" setting. A phone
+  // also restores a checked box by itself. Only a finger on this box counts.
+  if (!event.isTrusted || !overlayCheckboxPressed) return;
+  overlayCheckboxPressed = false;
   syncGroupValue(overlayToggleEls, event, 'checked');
-  setViewerMode(event.target.checked ? 'daf-on-video' : 'split');
+  setViewerMode(event.target.checked ? 'daf-on-video' : 'split', { persist: true });
   // The rest of the overlay's own display settings (style/opacity/zoom/etc)
   // live tucked away in a <details> dropdown so they don't clutter the
   // video by default -- open (and close) the canonical, always-in-page-flow
@@ -11576,6 +11710,7 @@ for (const el of scrubberEls) {
 for (const el of volumeSliderEls) el.addEventListener('input', (event) => setVolume(Number(event.target.value)));
 for (const button of muteButtonEls) button.addEventListener('click', () => setMuted(!state.muted));
 for (const button of vaaterButtonEls) button.addEventListener('click', skipToNextReading);
+updateVaaterButtonUi(0);
 
 function switchDafView(mode) {
   // Not every page that loads app.js has all three views -- watch/index.html

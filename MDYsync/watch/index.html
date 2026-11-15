@@ -272,7 +272,7 @@
               </button>
               <button class="icon-button" id="forwardButton" aria-label="Forward 10 seconds">+10</button>
               <button class="vaater-button" id="vaaterButton" type="button" aria-label="Vaater -- skip ahead to the daf's next aligned word" title="Vaater -- skip ahead to the daf's next aligned word" hidden>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 6v12l8-6-8-6Z" fill="currentColor"/><path d="M11 6v12l8-6-8-6Z" fill="currentColor"/><rect x="19.5" y="6" width="2.2" height="12" rx="1" fill="currentColor"/></svg>Vaater
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 6v12l8-6-8-6Z" fill="currentColor"/><path d="M11 6v12l8-6-8-6Z" fill="currentColor"/><rect x="19.5" y="6" width="2.2" height="12" rx="1" fill="currentColor"/></svg><span class="vaater-button-label">Vaater</span>
               </button>
               <div class="control-divider"></div>
               <button class="icon-button volume-button" id="muteButton" aria-label="Mute">
@@ -312,7 +312,7 @@
 
           <div class="overlay-controls" id="overlayControls">
             <label class="toggle-label">
-              <input type="checkbox" id="overlayToggle" />
+              <input type="checkbox" id="overlayToggle" autocomplete="off" />
               <span class="toggle"></span>
               Overlay Vilna page on video <em>(experimental)</em>
             </label>
@@ -779,8 +779,8 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="../vendor/supabase-js.min.js"></script>
   <script src="../auth.js"></script>
-  <script src="../app.js" defer></script>
-  <script src="../account-features.js" defer></script>
+  <script src="../app.js?v=202c" defer></script>
+  <script src="../account-features.js?v=202c" defer></script>
   <script src="../notes-format.js" defer></script>
   <script src="../notes.js" defer></script>
   <script src="../highlights.js" defer></script>

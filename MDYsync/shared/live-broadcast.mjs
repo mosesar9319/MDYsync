@@ -80,6 +80,30 @@ export function feedEntryIsRecent(entry, now) {
   return isWithinLookback(entry.published, now);
 }
 
+// A livestream the site already linked. The Live-tab feed drops a finished
+// recording, and that feed also answers 404, so the ten-minute length check
+// has to be able to find these from the catalog alone.
+const LIVE_CATALOG_COMBOS = ['regularEn', 'regularHe', 'chazarahEn', 'chazarahHe'];
+
+export function linkedLiveEntries(catalog) {
+  const entries = [];
+  const seen = new Set();
+  const tractates = catalog?.tractates;
+  if (!tractates || typeof tractates !== 'object') return entries;
+  for (const rows of Object.values(tractates)) {
+    if (!Array.isArray(rows)) continue;
+    for (const row of rows) {
+      for (const key of LIVE_CATALOG_COMBOS) {
+        const combo = row?.[key];
+        if (!combo?.liveBroadcast || !combo.videoId || combo.liveUnavailable || seen.has(combo.videoId)) continue;
+        seen.add(combo.videoId);
+        entries.push({ videoId: combo.videoId, title: combo.label || '' });
+      }
+    }
+  }
+  return entries;
+}
+
 // 'keep' leaves the link alone. 'update' rewrites the same video id's
 // status and length. 'replace' points the daf at a different id.
 //

@@ -37,7 +37,7 @@ A `202` from the hub means it accepted the request and will call the callback wi
 
 Do not subscribe a deploy-preview URL. The preview cron does not run, and that callback goes away when the preview does.
 
-The five-minute Live-tab poll does not need the hub. It is the backup if a push is missed. It still needs `YOUTUBE_API_KEY`, because a feed entry is not linked until `videos.list` says the video is a broadcast. That RSS answers 200, 404, and 500 with no pattern, so one miss is retried twice and then the cycle does nothing rather than guessing.
+The five-minute Live-tab poll does not need the hub. It is the backup if a push is missed. It still needs `YOUTUBE_API_KEY`, because a feed entry is not linked until `videos.list` says the video is a broadcast. That RSS answers 200, 404, and 500 with no pattern, so one miss is retried twice. A finished recording also drops off that feed, so the poll rechecks every catalog row still marked live. That second look is what records the length again and, once it has held for ten minutes, starts alignment. A feed miss no longer skips those rows.
 
 ## After the stream ends (phase 2)
 
@@ -49,7 +49,7 @@ The alignment is published only at `results/by-video/<id>.json` (Hebrew recordin
 
 Two gates, either of which leaves the recording on the site with no highlight:
 
-- **Length.** The OpenCV duration of the download (frame count ÷ fps, the same clock the aligner uses) must be within 2 seconds of the YouTube length the poll sent. Otherwise the outcome is `rejected-length` and nothing is published.
+- **Length.** The OpenCV duration of the download (frame count ÷ fps, the same clock the aligner uses) must be within the larger of 30 seconds and 1% of the YouTube length the poll sent. Otherwise the outcome is `rejected-length` and nothing is published. Bekhorot 58a (4440.27s downloaded, 4450s reported) is inside that allowance.
 - **Captions.** At least 200 highlighted-caption samples, and at least 20% of the phrases from a real match rather than a guess. The Hebrew Bekhorot 40 live file (`4vSdKjq5P6s`) had 65 samples and 11 of 198 phrases real (6%). The other Bekhorot 39–41 live files that actually read the caption band were at 43–53% real phrases, with hundreds of real words (one English run logged 4,896 samples). The thresholds sit in that gap. There is no voice fallback.
 
 Each job writes `results/live-outcomes/<videoId>.json` with `outcome` of `synced`, `rejected-length`, or `rejected-captions`. After a week, that folder is the tally. A video that already has an outcome, or a `by-video` alignment, or a dispatch from the last 6 hours, is not queued again. Only the recording the site is keeping (the one on the air, or the longest finished one) is queued.

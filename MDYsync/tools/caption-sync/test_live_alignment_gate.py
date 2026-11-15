@@ -22,10 +22,19 @@ MEASURED = [
 
 
 class GateTests(unittest.TestCase):
-    def test_duration_within_two_seconds(self):
+    def test_duration_allows_thirty_seconds_or_one_percent(self):
         self.assertTrue(duration_ok(4497.4, 4497))
         self.assertTrue(duration_ok(4499, 4497))
-        self.assertFalse(duration_ok(4490, 4497))
+        # Seven seconds used to fail the 2s gate. It is inside 1% of ~75 minutes.
+        self.assertTrue(duration_ok(4490, 4497))
+        # Bekhorot 58a, run 43691341016: 4440.27s downloaded, 4450s on YouTube.
+        self.assertTrue(duration_ok(4440.27, 4450))
+        # A short file is held to 30 seconds, not to 1% (which would be tighter).
+        self.assertTrue(duration_ok(970, 1000))
+        self.assertFalse(duration_ok(960, 1000))
+        # A long file is held to 1% once that is more than 30 seconds.
+        self.assertTrue(duration_ok(5050, 5000))
+        self.assertFalse(duration_ok(5060, 5000))
         self.assertFalse(duration_ok(None, 4497))
         self.assertFalse(duration_ok(100, 0))
 

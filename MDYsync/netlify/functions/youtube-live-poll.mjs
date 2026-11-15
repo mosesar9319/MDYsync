@@ -1,9 +1,11 @@
 // Backup for the WebSub push. Every five minutes, on the production
 // deploy only (Netlify does not run scheduled functions on previews),
 // read the channel's Live-tab RSS and confirm each recent id with
-// videos.list. Also renews the hub lease three times a day.
+// videos.list. A recording the site already linked is checked the same
+// way even after it leaves that feed, which is what starts alignment
+// once the length has held. Also renews the hub lease three times a day.
 //
-// search.list is not called. OCR is not started.
+// search.list is not called.
 
 import { pollLive, webSubCallbackFromEnv } from '../../shared/live-publish.mjs';
 
