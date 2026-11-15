@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-15T06:25:04.174Z",
+  "generatedAt": "2026-11-15T08:01:12.154Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -1260,6 +1260,34 @@
           "videoId": "7IFmU0t2DeY",
           "label": "CHAZARAH - Bechoros Daf 56 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "VphPMfA8q4M",
+          "label": "חזרה - בכורות דף נו | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        }
+      },
+      {
+        "daf": 57,
+        "chazarahEn": {
+          "videoId": "VmXxLfeOIlA",
+          "label": "CHAZARAH - Bechoros Daf 57 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "FlA8dV76Fzg",
+          "label": "חזרה - בכורות דף נז | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "9iVLJsKT1J0",
+          "label": "מרכז דף יומי - בכורות דף נז. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
+        "regularEn": {
+          "videoId": "lfdIFy-lMZE",
+          "label": "Daf Yomi Bechoros Daf 57 by R' Eli Stefansky",
+          "amud": "a"
         }
       },
       {
@@ -1271,6 +1299,11 @@
           "liveBroadcast": true,
           "liveStatus": "finished",
           "durationSeconds": 4450
+        },
+        "regularHe": {
+          "videoId": "cTWsuqpiNUA",
+          "label": "מרכז דף יומי - בכורות דף נח. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
         }
       }
     ],
