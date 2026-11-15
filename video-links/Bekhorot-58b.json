@@ -17,5 +17,15 @@
   "lengthCheck": {
     "seconds": 4450,
     "firstSeenAt": "2026-11-15T06:25:01.334Z"
+  },
+  "pendingEdit": {
+    "videoId": "0n7fE-jS0NE",
+    "label": "Daf Yomi Bechoros Daf 58 by R' Eli Stefansky",
+    "coveredRefs": [
+      "Bekhorot 57b",
+      "Bekhorot 58a",
+      "Bekhorot 58b"
+    ],
+    "dispatchedAt": "2026-11-15T12:00:57.972Z"
   }
 }
