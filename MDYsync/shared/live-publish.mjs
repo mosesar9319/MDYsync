@@ -8,6 +8,7 @@ import {
   buildTalmudLookup,
   parseChannelTitle,
   amudimForDaf,
+  readingsForVideo,
   refKeyFor,
   refDisplay,
   plainRef,
@@ -19,6 +20,7 @@ import {
   isWithinLookback,
   selectRecording,
   shouldDispatchLiveAlignment,
+  advanceLengthCheck,
   videosListUrl,
   parseFeedEntries,
   liveTabFeed,
@@ -30,6 +32,7 @@ import {
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
 const TALMUD_INDEX_URL = `https://raw.githubusercontent.com/${OWNER}/${REPO}/main/MDYsync/talmud_index.json`;
+const SETTINGS_URL = `https://raw.githubusercontent.com/${OWNER}/${REPO}/results/settings.json`;
 
 function comboKeyFor(language) {
   return language === 'he' ? 'regularHe' : 'regularEn';
@@ -152,17 +155,53 @@ async function applyCatalog(fetchImpl, token, reading, video, label) {
   return 'catalog updated';
 }
 
-export async function publishGroups({ groups, fetchImpl, token }) {
+function byVideoPath(language, videoId) {
+  return `by-video/${language === 'he' ? 'Hebrew-' : ''}${videoId}.json`;
+}
+
+async function existsOnResults(fetchImpl, token, path) {
+  const response = await fetchImpl(
+    `https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}?ref=results`,
+    { headers: githubHeaders(token) }
+  );
+  if (response.status === 404) return false;
+  if (!response.ok) throw new Error(`GitHub contents ${path} returned ${response.status}`);
+  return true;
+}
+
+async function dispatchLiveOcr(fetchImpl, token, { video, refs, expectedDurationSeconds }) {
+  const jobId = crypto.randomUUID().replace(/-/g, '');
+  const response = await fetchImpl(
+    `https://api.github.com/repos/${OWNER}/${REPO}/dispatches`,
+    {
+      method: 'POST',
+      headers: githubHeaders(token),
+      body: JSON.stringify({
+        event_type: 'run-ocr-job',
+        client_payload: {
+          driveUrl: null,
+          youtubeUrl: `https://www.youtube.com/watch?v=${video.videoId}`,
+          refs,
+          jobId,
+          variant: 'regular',
+          language: video.language,
+          liveRecording: true,
+          expectedDurationSeconds,
+        },
+      }),
+    }
+  );
+  if (!(response.ok || response.status === 204)) {
+    throw new Error(`alignment dispatch returned ${response.status}`);
+  }
+  return jobId;
+}
+
+export async function publishGroups({ groups, fetchImpl, token, lookup, autoSync = false, now = new Date() }) {
   const published = [];
   const skipped = [];
+  const dispatched = [];
   for (const group of groups) {
-    // Phase 2 turns this on for a finished recording whose file length
-    // matches YouTube. Until then the call is the hook and the answer is no.
-    for (const video of group.videos) {
-      if (shouldDispatchLiveAlignment(video)) {
-        throw new Error('Phase 1 must not dispatch a live alignment');
-      }
-    }
     const amudA = group.readings.find((reading) => reading.amud === 'a') || group.readings[0];
     let reads;
     try {
@@ -182,7 +221,9 @@ export async function publishGroups({ groups, fetchImpl, token }) {
     }
     const anchor = reads.find((item) => item.reading.amud === 'a') || reads[0];
     const decision = selectRecording(anchor.file, group.videos);
-    if (decision.action === 'keep' || !decision.video) {
+    // 'keep' with a video still needs the length check: the id did not
+    // change, and the second stable reading is what starts alignment.
+    if (!decision.video) {
       skipped.push({
         ref: refDisplay(amudA),
         videoId: group.videos.map((video) => video.videoId).join(','),
@@ -190,21 +231,80 @@ export async function publishGroups({ groups, fetchImpl, token }) {
       });
       continue;
     }
-    const source = liveVideoSource(decision.video, group.readings);
-    const message = decision.action === 'update'
-      ? `Update live ${refDisplay(amudA)} (${decision.video.videoId})`
-      : `Link live ${refDisplay(amudA)} to ${decision.video.videoId}`;
+    const chosen = decision.video;
+    const same = anchor.file?.videoId === chosen.videoId;
+    const priorCheck = same ? anchor.file?.lengthCheck : null;
+    let lengthCheck = priorCheck || null;
+    let stable = false;
+    if (chosen.liveStatus === 'finished' && Number(chosen.durationSeconds) > 0) {
+      const advanced = advanceLengthCheck(priorCheck, chosen.durationSeconds, now);
+      lengthCheck = advanced.lengthCheck;
+      stable = advanced.stable;
+    }
+    let outcome = same ? anchor.file?.alignmentOutcome || null : null;
+    let alreadyAligned = false;
+    let dispatchedAt = same ? anchor.file?.alignmentDispatchedAt || null : null;
+    if (chosen.liveStatus === 'finished') {
+      try {
+        if (!outcome && await existsOnResults(fetchImpl, token, `live-outcomes/${chosen.videoId}.json`)) {
+          outcome = 'recorded';
+        }
+        alreadyAligned = await existsOnResults(fetchImpl, token, byVideoPath(amudA.language, chosen.videoId));
+      } catch (error) {
+        skipped.push({ ref: refDisplay(amudA), videoId: chosen.videoId, reason: error.message });
+        continue;
+      }
+    }
+    const dispatch = shouldDispatchLiveAlignment({
+      autoSync,
+      liveStatus: chosen.liveStatus,
+      actualEndTime: chosen.actualEndTime,
+      lengthStable: stable,
+      isKept: true,
+      alreadyAligned,
+      outcome,
+      dispatchedAt,
+    });
+    if (dispatch) dispatchedAt = now.toISOString();
+    const source = {
+      ...liveVideoSource(chosen, group.readings),
+      ...(lengthCheck ? { lengthCheck } : {}),
+      ...(dispatchedAt ? { alignmentDispatchedAt: dispatchedAt } : {}),
+      ...(outcome ? { alignmentOutcome: outcome } : {}),
+    };
+    const trackingChanged = JSON.stringify(lengthCheck || null) !== JSON.stringify(priorCheck || null)
+      || (dispatch && dispatchedAt !== anchor.file?.alignmentDispatchedAt);
+    if (decision.action === 'keep' && !trackingChanged) {
+      skipped.push({
+        ref: refDisplay(amudA),
+        videoId: chosen.videoId,
+        reason: decision.reason,
+      });
+      continue;
+    }
+    const message = decision.action === 'replace'
+      ? `Link live ${refDisplay(amudA)} to ${chosen.videoId}`
+      : `Update live ${refDisplay(amudA)} (${chosen.videoId})`;
     try {
       for (const item of reads) {
         await writeJsonFile(fetchImpl, token, item.path, source, message, item.sha);
-        published.push({ ref: refDisplay(item.reading), videoId: decision.video.videoId, action: decision.action });
+        published.push({ ref: refDisplay(item.reading), videoId: chosen.videoId, action: decision.action });
       }
-      await applyCatalog(fetchImpl, token, anchor.reading, decision.video, source.label);
+      await applyCatalog(fetchImpl, token, anchor.reading, chosen, source.label);
+      if (dispatch) {
+        const refs = readingsForVideo(group.parsed, lookup).map((reading) => plainRef(reading));
+        const jobId = await dispatchLiveOcr(fetchImpl, token, {
+          video: { videoId: chosen.videoId, language: amudA.language },
+          refs,
+          expectedDurationSeconds: Number(lengthCheck.seconds),
+        });
+        dispatched.push({ videoId: chosen.videoId, jobId });
+      }
     } catch (error) {
-      skipped.push({ ref: refDisplay(amudA), videoId: decision.video.videoId, reason: error.message });
+      skipped.push({ ref: refDisplay(amudA), videoId: chosen.videoId, reason: error.message });
     }
   }
-  return { published, skipped, dispatched: false };
+  return { published, skipped, dispatched };
 }
 
 export async function loadLookup(fetchImpl) {
@@ -230,11 +330,21 @@ export async function verifyVideoIds(ids, { fetchImpl, apiKey }) {
   return { videos, error: null };
 }
 
-export async function ingestDescribed(videos, { fetchImpl, token, lookup, now = new Date() }) {
+export async function ingestDescribed(videos, { fetchImpl, token, lookup, autoSync = false, now = new Date() }) {
   const recent = videos.filter((video) => video.liveStatus === 'live' || isWithinLookback(video.publishedAt, now));
   const groups = planGroups(recent, lookup);
-  if (!token) return { published: [], skipped: [{ reason: 'GitHub token is not set' }], dispatched: false };
-  return publishGroups({ groups, fetchImpl, token });
+  if (!token) return { published: [], skipped: [{ reason: 'GitHub token is not set' }], dispatched: [] };
+  return publishGroups({ groups, fetchImpl, token, lookup, autoSync, now });
+}
+
+export async function readAutoSync(fetchImpl) {
+  try {
+    const response = await fetchImpl(`${SETTINGS_URL}?t=${Date.now()}`);
+    if (!response.ok) return false;
+    return Boolean((await response.json()).autoSyncNewUploads);
+  } catch {
+    return false;
+  }
 }
 
 // The public playlist RSS answers 200, then 404, then 500, with no
@@ -263,8 +373,9 @@ export async function pollLive({ fetchImpl, token, apiKey, callback, verifyToken
     return { renewed, published: [], skipped: [], error: verified.error, dispatched: false };
   }
   const lookup = await loadLookup(fetchImpl);
-  const result = await ingestDescribed(verified.videos, { fetchImpl, token, lookup, now });
-  return { renewed, ...result, checked: recentIds };
+  const autoSync = await readAutoSync(fetchImpl);
+  const result = await ingestDescribed(verified.videos, { fetchImpl, token, lookup, autoSync, now });
+  return { renewed, autoSync, ...result, checked: recentIds };
 }
 
 async function maybeRenewLease({ fetchImpl, callback, verifyToken, now }) {

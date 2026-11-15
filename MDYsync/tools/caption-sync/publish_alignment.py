@@ -157,8 +157,14 @@ def video_key(video_id=None, video_url=None, job_id=None, prefix=''):
 
 
 def publish(alignment, refs, out_dir, job_id=None, variant=None, language=None,
-            video_id=None, video_url=None, voice=False, maggid=None):
-    """Writes the by-video file and the primary by-ref files. Returns a report."""
+            video_id=None, video_url=None, voice=False, maggid=None, video_only=False):
+    """Writes the by-video file and, unless video_only, the primary by-ref files.
+
+    A finished live recording is video_only. Its timestamps belong to that
+    video id and must not become the daf's by-ref alignment, which is what
+    the player uses for a normal upload. Phase 3's edited upload writes
+    by-ref when its own job finishes.
+    """
     prefix = key_prefix(variant, language, voice, maggid)
     own_refs, context_refs = split_refs(refs)
     # A YouTube job passes the watch URL; the id inside it is the stable key
@@ -188,12 +194,13 @@ def publish(alignment, refs, out_dir, job_id=None, variant=None, language=None,
         json.dump(alignment, f, ensure_ascii=False, indent=2)
     written.append(f'by-video/{vkey}.json')
 
-    os.makedirs(os.path.join(out_dir, 'by-ref'), exist_ok=True)
-    for ref in own_refs:
-        key = ref_key(ref, prefix)
-        with open(os.path.join(out_dir, 'by-ref', f'{key}.json'), 'w', encoding='utf-8') as f:
-            json.dump(alignment, f, ensure_ascii=False, indent=2)
-        written.append(f'by-ref/{key}.json')
+    if not video_only:
+        os.makedirs(os.path.join(out_dir, 'by-ref'), exist_ok=True)
+        for ref in own_refs:
+            key = ref_key(ref, prefix)
+            with open(os.path.join(out_dir, 'by-ref', f'{key}.json'), 'w', encoding='utf-8') as f:
+                json.dump(alignment, f, ensure_ascii=False, indent=2)
+            written.append(f'by-ref/{key}.json')
 
     return {
         'videoKey': vkey,
@@ -217,6 +224,8 @@ def main():
     p.add_argument('--maggid', help="Another maggid's id (e.g. 'bornstein'): publish under their key prefix.")
     p.add_argument('--voice', action='store_true',
                    help="Publish under the voice engine's own 'Voice-' key namespace.")
+    p.add_argument('--video-only', action='store_true',
+                   help='Write by-video/<id>.json only. Used for a finished live recording.')
     args = p.parse_args()
 
     with open(args.alignment, encoding='utf-8') as f:
@@ -225,6 +234,7 @@ def main():
         alignment, json.loads(args.refs_json), args.out_dir,
         job_id=args.job_id, variant=args.variant, language=args.language,
         video_id=args.video_id, video_url=args.video_url, voice=args.voice, maggid=args.maggid,
+        video_only=args.video_only,
     )
     for path in report['written']:
         print(f'Published {path}')

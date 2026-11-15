@@ -820,6 +820,28 @@ def build_outputs(canon, segments, events, duration, video_path, refs,
     return alignment, word_map
 
 
+def _probe_duration(path):
+    """Same clock caption_ocr_align uses later: OpenCV frame count / fps."""
+    cap = cv2.VideoCapture(path)
+    fps = cap.get(cv2.CAP_PROP_FPS) or 0
+    nframes = cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0
+    cap.release()
+    if fps <= 0 or nframes <= 0:
+        return None
+    return float(nframes) / float(fps)
+
+
+def _write_outcome(path, document):
+    if not path:
+        print(json.dumps(document))
+        return
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(document, handle, ensure_ascii=False, indent=2)
+        handle.write("\n")
+    print(f"Wrote {path} ({document.get('outcome')})")
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -838,6 +860,13 @@ def main():
     p.add_argument("--sample-fps", type=float, default=3.0)
     p.add_argument("--out-dir", default="out")
     p.add_argument("--debug", action="store_true")
+    # Finished live recordings only. A normal upload leaves these unset.
+    p.add_argument("--expect-duration", type=float, default=None,
+                   help="YouTube lengthSeconds. Refuse to align if the file differs by more than 2s.")
+    p.add_argument("--live-caption-gate", action="store_true",
+                   help="Refuse a guessed timeline when burned-in captions were barely read.")
+    p.add_argument("--outcome", default=None, help="Where to write synced/rejected-length/rejected-captions JSON.")
+    p.add_argument("--video-id", default=None)
     args = p.parse_args()
 
     if args.refs_json:
@@ -848,6 +877,18 @@ def main():
         p.error("one of --refs or --refs-json is required")
 
     crop = tuple(int(v) for v in args.crop.split(",")) if args.crop else None
+    if args.expect_duration is not None:
+        from live_alignment_gate import duration_ok, outcome_document
+        probed = _probe_duration(args.video)
+        if not duration_ok(probed, args.expect_duration):
+            _write_outcome(args.outcome, outcome_document(
+                'rejected-length',
+                videoId=args.video_id,
+                downloadedDurationSeconds=None if probed is None else round(probed, 2),
+                youtubeLengthSeconds=args.expect_duration,
+            ))
+            print(f"Rejected: downloaded duration {probed} vs YouTube {args.expect_duration}s")
+            return
     canon, segments, events, duration = process_video(
         args.video, refs, crop=crop, sample_fps=args.sample_fps,
         out_dir=args.out_dir, debug=args.debug)
@@ -856,6 +897,22 @@ def main():
         sys.exit(1)
     alignment, word_map = build_outputs(
         canon, segments, events, duration, args.video, refs)
+    if args.live_caption_gate:
+        from live_alignment_gate import captions_ok, outcome_document
+        real = sum(1 for segment in alignment['segments'] if not segment.get('estimated'))
+        total = len(alignment['segments'])
+        if not captions_ok(len(events), real, total):
+            _write_outcome(args.outcome, outcome_document(
+                'rejected-captions',
+                videoId=args.video_id,
+                highlightSamples=len(events),
+                realSegments=real,
+                segments=total,
+                realSegmentRatio=round(real / total, 4) if total else 0,
+                downloadedDurationSeconds=alignment['duration'],
+            ))
+            print(f"Rejected: {len(events)} highlight samples, {real}/{total} segments real")
+            return
 
     a_path = os.path.join(args.out_dir, "alignment.json")
     w_path = os.path.join(args.out_dir, "wordmap.json")
@@ -865,6 +922,20 @@ def main():
               ensure_ascii=False, indent=2)
     print(f"Wrote {a_path} ({len(alignment['segments'])} segments)")
     print(f"Wrote {w_path} ({len(word_map['entries'])} word-span entries)")
+    if args.outcome:
+        from live_alignment_gate import outcome_document
+        real = sum(1 for segment in alignment['segments'] if not segment.get('estimated'))
+        total = len(alignment['segments'])
+        _write_outcome(args.outcome, outcome_document(
+            'synced',
+            videoId=args.video_id,
+            highlightSamples=len(events),
+            realSegments=real,
+            segments=total,
+            realSegmentRatio=round(real / total, 4) if total else 0,
+            downloadedDurationSeconds=alignment['duration'],
+            youtubeLengthSeconds=args.expect_duration,
+        ))
 
 
 if __name__ == "__main__":
