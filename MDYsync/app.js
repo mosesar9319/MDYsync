@@ -1076,8 +1076,10 @@ function updateVaaterButtonUi(time = getCurrentTime()) {
   const target = nextReadingTime(time);
   const available = state.segments.some((segment) => segment && !segment.estimated && Number.isFinite(Number(segment.start)));
   for (const button of vaaterButtonEls) {
-    button.hidden = !available;
-    button.disabled = target === null;
+    // Stay on the bar in every view, including a live recording that has
+    // no alignment yet. Disabled, not removed, when there is nowhere to jump.
+    button.hidden = false;
+    button.disabled = !available || target === null;
     button.title = target === null
       ? 'Nothing further ahead to skip to'
       : 'Vaater — skip ahead to the next synced phrase';
@@ -7173,11 +7175,15 @@ function resetSplitVideoZoom({ announce = true } = {}) {
 
 function readSavedViewerMode() {
   try {
-    const value = localStorage.getItem(VIEWER_MODE_KEY);
-    return VIEWER_MODES.includes(value) ? value : '';
-  } catch {
-    return '';
-  }
+    const raw = localStorage.getItem(VIEWER_MODE_KEY);
+    if (!raw) return '';
+    const parsed = JSON.parse(raw);
+    // A bare string is stale. The overlay preference used to write one
+    // (and a phone can keep it), which pinned every later visit to Daf
+    // on video. Only a choice the reader actually made is kept.
+    if (parsed && parsed.v === 2 && parsed.explicit === true && VIEWER_MODES.includes(parsed.mode)) return parsed.mode;
+  } catch { /* not a choice */ }
+  return '';
 }
 
 function profileViewerMode() {
@@ -7220,7 +7226,7 @@ function applyInitialViewerMode() {
 
 function rememberViewerMode(mode) {
   viewerModeExplicit = true;
-  try { localStorage.setItem(VIEWER_MODE_KEY, mode); } catch { /* private mode */ }
+  try { localStorage.setItem(VIEWER_MODE_KEY, JSON.stringify({ v: 2, explicit: true, mode })); } catch { /* private mode */ }
   document.dispatchEvent(new CustomEvent('dafsync-viewer-mode'));
 }
 
@@ -10901,7 +10907,13 @@ if (window.matchMedia('(max-width: 760px), (pointer: coarse)').matches) {
   for (const el of overlayOpacitySliderEls) el.value = '90';
 }
 
+let viewerChoiceArmed = false;
+document.addEventListener('pointerdown', () => { viewerChoiceArmed = true; }, { capture: true, once: true });
 for (const el of overlayToggleEls) el.addEventListener('change', (event) => {
+  // A phone restores the old checked box on its own, and that change is
+  // not a choice. Ignore it, and ignore anything dispatched while saved
+  // overlay settings are being applied.
+  if (!event.isTrusted || !viewerChoiceArmed) return;
   syncGroupValue(overlayToggleEls, event, 'checked');
   setViewerMode(event.target.checked ? 'daf-on-video' : 'split', { persist: true });
   // The rest of the overlay's own display settings (style/opacity/zoom/etc)
@@ -11623,6 +11635,7 @@ for (const el of scrubberEls) {
 for (const el of volumeSliderEls) el.addEventListener('input', (event) => setVolume(Number(event.target.value)));
 for (const button of muteButtonEls) button.addEventListener('click', () => setMuted(!state.muted));
 for (const button of vaaterButtonEls) button.addEventListener('click', skipToNextReading);
+updateVaaterButtonUi(0);
 
 function switchDafView(mode) {
   // Not every page that loads app.js has all three views -- watch/index.html

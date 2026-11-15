@@ -825,16 +825,11 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .video-frame.is-snug .pc-transport .play-button { width: 38px; height: 38px; }
 .video-frame.is-snug .pc-pill { height: 32px; padding: 0 9px; font-size: 12px; gap: 5px; }
 .video-frame.is-snug .chapter-marker-he { display: none; }
-/* Vaater keeps its name on a computer. A phone hides the word and keeps
-   the skip icon, because the full word is what used to shove the button
-   off the edge of a narrow bar. The frame's own is-compact tier is not
-   enough: a Split column around 700px steps into that tier while the
-   window is still a desktop. */
-@media (max-width: 760px) {
-  .video-frame.is-compact .vaater-button-label,
-  .video-frame.is-tiny .vaater-button-label { display: none; }
-}
-.video-frame.is-snug .vaater-button { padding: 0 10px 0 8px; }
+/* The word stays at every width, including a phone. Hiding it left a
+   26px icon that read as no button at all. */
+.video-frame.is-snug .vaater-button,
+.video-frame.is-compact .vaater-button,
+.video-frame.is-tiny .vaater-button { padding: 0 8px 0 6px; flex-shrink: 0; }
 
 /* Compact: reading mode's floating mini-player, and phones. */
 .video-frame.is-compact .player-topbar { height: 38px; padding: 0 9px; }
