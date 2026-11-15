@@ -54,9 +54,21 @@ Two gates, either of which leaves the recording on the site with no highlight:
 
 Each job writes `results/live-outcomes/<videoId>.json` with `outcome` of `synced`, `rejected-length`, or `rejected-captions`. After a week, that folder is the tally. A video that already has an outcome, or a `by-video` alignment, or a dispatch from the last 6 hours, is not queued again. Only the recording the site is keeping (the one on the air, or the longest finished one) is queued.
 
-### The first real shiur after this is merged
+### When the edited shiur is posted (phase 3)
+
+The hourly Videos-tab sync is what sees the edited upload. It matches the live recording by tractate, daf, language, and variant (and maggid, for a channel other than Mercaz). It does not change the link yet. It stores `pendingEdit` on the live link and starts the normal caption job (`autoSyncNewUploads`, the same switch). The player keeps the live video and, if phase 2 synced it, that recording's own timestamps.
+
+The next poll (about five minutes) or the next hourly sync, whichever runs after `results/by-video/<edited id>.json` exists, writes the edited video into the video link and the catalog together. The link no longer has `liveBroadcast`, so a live id cannot take the daf back. The edit's job also writes `by-ref/`, in the same commit as `by-video/`, so the player loads the edit against the edit's timestamps.
+
+A shiur's opening on the previous amud is still sent to the caption job, so that opening can be matched. It is not written as the previous daf's video link. That daf keeps its own recording.
+
+If Mercaz makes the live video private before the edit's alignment is ready, the poll marks the link `liveUnavailable`. The player leaves the embed blank, keeps the daf, and says the edited shiur will show up when its sync is ready. A private id is not linked again. If the edit's alignment is already there when the live video disappears, the poll swaps straight to the edit.
+
+## The first real shiur after this is merged
 
 1. Confirm `autoSyncNewUploads` is on (it is the admin switch already used for new uploads).
 2. When the stream ends, wait about 15 minutes. The link's `lengthCheck.firstSeenAt` should be at least 10 minutes old and the next poll should dispatch `run-ocr-job` with `liveRecording: true`.
 3. The Actions log for that job should download without `--live-from-start`, then either publish `by-video/<id>.json` or write `live-outcomes/<id>.json` with `rejected-length` or `rejected-captions`.
 4. Open that daf. The highlight should follow this recording. It should not follow any other video's timestamps. If the outcome is a rejection, the daf is on screen and nothing is highlighted.
+5. When the edited upload appears, the link should gain `pendingEdit` and stay on the live video. A normal (not `liveRecording`) caption job should start for the edit. The previous daf's link should not change.
+6. After that job publishes `by-video/<edited id>.json`, the next poll should point the link and the catalog at the edit, with no `liveBroadcast` flag. Opening the daf then plays the edit, highlighted from the edit's own timestamps. The live id should not come back, including after Mercaz makes it private. If the live video is taken down first, the page should show the daf and a short note instead of a broken player.

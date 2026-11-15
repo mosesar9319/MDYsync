@@ -267,7 +267,7 @@ test('the channel sync still handles Mercaz Daf Yomi exactly as before, beside t
   assert.deepEqual(keys, [
     'video-links/Bekhorot-2a.json', 'video-links/Bekhorot-2b.json',
     'video-links/Bornstein-Bekhorot-2a.json', 'video-links/Bornstein-Bekhorot-2b.json',
-    'video-links/Chullin-142a.json', // ...except the previous tractate's last amud, which his shiur opens on
+    // The shiur opens on Chullin 142, but that amud keeps its own link.
   ]);
   const catalog = puts.find((p) => p.path === 'catalog.json').content;
   assert.equal(catalog.tractates.Bekhorot[0].regularEn.videoId, 'CNu3Ba5XCao');

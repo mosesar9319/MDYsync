@@ -79,7 +79,7 @@ test('videos.list describes a broadcast and ignores a normal upload', () => {
   const upload = describeLiveVideo({ id: 'finalcut111', snippet: { liveBroadcastContent: 'none', title: 'edited' } });
   assert.equal(upload, null);
   assert.equal(videosListUrl(['aK6dGXjrTDw'], 'key').includes('search'), false);
-  assert.match(videosListUrl(['aK6dGXjrTDw'], 'key'), /part=snippet,contentDetails,liveStreamingDetails/);
+  assert.match(videosListUrl(['aK6dGXjrTDw'], 'key'), /part=snippet,contentDetails,liveStreamingDetails,status/);
 });
 
 test('an edited link is never replaced, and two live ids keep the first', () => {
@@ -154,7 +154,7 @@ function githubFetch({ files, puts, calls }) {
       return new Response(`<feed><entry><yt:videoId>aK6dGXjrTDw</yt:videoId><title>${ENGLISH_LIVE.snippet.title}</title><published>${ENGLISH_LIVE.snippet.publishedAt}</published></entry><entry><yt:videoId>old00000001</yt:videoId><title>Daf Yomi Menachos daf 10</title><published>2018-01-01T00:00:00Z</published></entry></feed>`);
     }
     if (url.includes('googleapis.com/youtube/v3/videos')) {
-      assert.match(url, /part=snippet,contentDetails,liveStreamingDetails/);
+      assert.match(url, /part=snippet,contentDetails,liveStreamingDetails,status/);
       assert.match(url, /aK6dGXjrTDw/);
       assert.equal(url.includes('old00000001'), false);
       return json({ items: [ENGLISH_LIVE] });
