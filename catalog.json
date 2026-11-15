@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-14T21:01:01.137Z",
+  "generatedAt": "2026-11-15T06:25:04.174Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -1260,6 +1260,17 @@
           "videoId": "7IFmU0t2DeY",
           "label": "CHAZARAH - Bechoros Daf 56 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
+        }
+      },
+      {
+        "daf": 58,
+        "regularEn": {
+          "videoId": "T70KGQVCsCw",
+          "label": "Daf Yomi Bechoros Daf 58 by R’ Eli Stefansky (unedited)",
+          "amud": "a",
+          "liveBroadcast": true,
+          "liveStatus": "finished",
+          "durationSeconds": 4450
         }
       }
     ],
