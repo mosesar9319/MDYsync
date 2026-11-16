@@ -1,8 +1,8 @@
 name: Test shiur run (both voice engines)
 
 # Runs the regular and/or the live voice engine on a TEST SHIUR -- the video the
-# voice models are tuned on (currently R' Sruly Bornstein's "Bechoros 2",
-# Zsy7oDUP6Pw) -- and saves each result as the next numbered run under
+# voice models are tuned on (currently R' Sruly Bornstein's "Bechoros 58",
+# TWCiP96dKXU; before it "Bechoros 2", Zsy7oDUP6Pw) -- and saves each result as the next numbered run under
 # test-runs/<videoId>/ on the results branch. The player offers every run in two
 # dropdowns (one per engine) to every reader, so a change to an engine can be
 # judged by playing the same stretch of the same shiur under the old and new runs.
@@ -16,6 +16,17 @@ name: Test shiur run (both voice engines)
 #
 # Run it from main after merging a change to either engine: the number and the
 # note ("what changed") are what tell the runs apart afterwards.
+#
+# The regular engine can be run more than one way, to compare them on the same
+# shiur (each is its own numbered run, named with how it was made):
+#   aligner   path   -- the whole shiur as one ordered path (path_align.py)
+#             phrase -- the older phrase-by-phrase matcher alone
+#   witnesses which transcripts the path is given: "hints,plain" (two
+#             transcriptions), "hints" (one), "hints,plain,slow" (three; "slow"
+#             is the audio played at 0.75 speed).
+#
+# The first job also makes sure the video IS a test shiur on the results branch
+# (its video-links files, and the catalog), so a new one needs nothing by hand.
 
 on:
   workflow_dispatch:
@@ -23,11 +34,11 @@ on:
       video_id:
         description: 'YouTube video id of the test shiur'
         required: true
-        default: 'Zsy7oDUP6Pw'
+        default: 'TWCiP96dKXU'
       refs:
         description: 'The dapim the shiur covers, comma separated'
         required: true
-        default: 'Bekhorot 2a,Bekhorot 2b'
+        default: 'Bekhorot 58a,Bekhorot 58b'
       maggid:
         description: "The maggid's id (bornstein), or empty for Mercaz Daf Yomi"
         required: false
@@ -37,6 +48,15 @@ on:
         type: choice
         options: [both, regular, live]
         default: both
+      aligner:
+        description: 'Regular engine: path (whole shiur as one path) or phrase (the older matcher)'
+        type: choice
+        options: [path, phrase]
+        default: path
+      witnesses:
+        description: 'Regular engine, path only: transcripts to use (hints / hints,plain / hints,plain,slow)'
+        required: false
+        default: 'hints,plain'
       notes:
         description: 'What changed since the last run (shown in the dropdown)'
         required: false
@@ -46,6 +66,46 @@ permissions:
   contents: write
 
 jobs:
+  register:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Make sure the video is a test shiur on the results branch
+        env:
+          VIDEO_ID: ${{ inputs.video_id }}
+          REFS: ${{ inputs.refs }}
+          MAGGID: ${{ inputs.maggid }}
+        run: |
+          set -e
+          git config user.name "dafsync-bot"
+          git config user.email "dafsync-bot@users.noreply.github.com"
+          git fetch origin results
+          git worktree add /tmp/results-checkout origin/results
+          node MDYsync/tools/test-shiur/register.mjs --results /tmp/results-checkout \
+            --video-id "$VIDEO_ID" --refs "$REFS" ${MAGGID:+--maggid "$MAGGID"}
+          node MDYsync/tools/build-video-catalog.mjs --results /tmp/results-checkout
+          cd /tmp/results-checkout
+          git add video-links catalog.json
+          if git diff --cached --quiet; then
+            echo "Already a test shiur; nothing to change."
+            exit 0
+          fi
+          git commit -m "Mark ${VIDEO_ID} as a test shiur"
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:results; then
+              break
+            fi
+            git fetch origin results
+            git rebase origin/results
+            sleep 2
+          done
+
   regular:
     if: inputs.engines == 'both' || inputs.engines == 'regular'
     runs-on: ubuntu-latest
@@ -58,11 +118,19 @@ jobs:
           REFS: ${{ inputs.refs }}
           MAGGID: ${{ inputs.maggid }}
           NOTES: ${{ inputs.notes }}
+          ALIGNER: ${{ inputs.aligner }}
+          WITNESSES: ${{ inputs.witnesses }}
         run: |
           set -e
           python3 - <<'PY' > payload.json
           import json, os, uuid
           refs = [r.strip() for r in os.environ['REFS'].split(',') if r.strip()]
+          aligner = os.environ.get('ALIGNER') or 'path'
+          witnesses = (os.environ.get('WITNESSES') or 'hints,plain').replace(' ', '')
+          # How the run was made goes into its name, so two ways of running the
+          # same engine can be told apart in the dropdown.
+          made = 'phrase matcher' if aligner == 'phrase' else 'path: ' + witnesses.replace(',', ' + ')
+          notes = os.environ.get('NOTES', '').strip()
           payload = {
               'youtubeUrl': 'https://www.youtube.com/watch?v=' + os.environ['VIDEO_ID'],
               'refs': refs,
@@ -70,7 +138,9 @@ jobs:
               'variant': 'regular',
               'language': 'en',
               'testRun': 'true',
-              'testNotes': os.environ.get('NOTES', ''),
+              'testNotes': f'{notes} ({made})' if notes else made,
+              'aligner': aligner,
+              'witnesses': witnesses,
           }
           if os.environ.get('MAGGID'):
               payload['maggid'] = os.environ['MAGGID']

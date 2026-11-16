@@ -1,0 +1,212 @@
+#!/usr/bin/env python3
+"""Unit tests for path_align.py (the voice engine's path alignment) and the parts of
+voice_align.py that feed it. Needs what the voice job installs
+(requirements-voice.txt); faster-whisper itself is not needed.
+`python3 test_path_align.py`."""
+import json
+import os
+import sys
+import tempfile
+import types
+import unittest
+from unittest import mock
+
+# voice_align.py imports the local speech model at the top; these tests never use it.
+sys.modules.setdefault('faster_whisper', types.SimpleNamespace(WhisperModel=object))
+
+import path_align as PA  # noqa: E402
+import voice_align as VA  # noqa: E402
+from caption_ocr_align import CanonWord, normalize_word  # noqa: E402
+
+# The Mishnah that opens Bekhorot, as Sefaria gives it.
+MISHNAH = ('הַלּוֹקֵחַ עוּבַּר חֲמוֹרוֹ שֶׁל נָכְרִי, וְהַמּוֹכֵר לוֹ, אַף עַל פִּי שֶׁאֵינוֹ רַשַּׁאי, '
+           'הַמִּשְׁתַּתֵּף לוֹ, וְהַמְקַבֵּל הֵימֶנּוּ, וְהַנּוֹתֵן לוֹ בְּקַבָּלָה — פָּטוּר מִן הַבְּכוֹרָה, '
+           'שֶׁנֶּאֱמַר: ״בְּיִשְׂרָאֵל״, אֲבָל לֹא בַּאֲחֵרִים.')
+ENGLISH = frozenset('the of a an and or in is it to he she owns somebody if that this was with not but'.split())
+
+
+def canon_from(text, ref='Bekhorot 2a:1'):
+    words = []
+    for j, w in enumerate(text.split()):
+        n = normalize_word(w)
+        if n:
+            words.append(CanonWord(ref, 0, j, w, n))
+    return words
+
+
+def said(*phrases, start=100.0, gap=4.0):
+    """A transcript: each phrase's words 0.4s apart, phrases `gap` seconds apart."""
+    words, t = [], start
+    for phrase in phrases:
+        for w in phrase.split():
+            words.append({'text': w, 'start': round(t, 2), 'end': round(t + 0.3, 2)})
+            t += 0.4
+        t += gap
+    return words
+
+
+def spans(events):
+    return [(e.start_idx, e.end_idx) for e in events]
+
+
+class Skeletons(unittest.TestCase):
+    def test_the_daf_is_read_as_an_ashkenazi_reader_says_it(self):
+        self.assertEqual(PA.ashkenazi_skeleton('וְהַמּוֹכֵר'), 'vhmxr')      # cholam is a vowel, kaf without a dagesh is ch
+        self.assertEqual(PA.ashkenazi_skeleton('בְּקַבָּלָה'), 'bkbl')        # final heh is silent
+        self.assertEqual(PA.ashkenazi_skeleton('שֶׁנֶּאֱמַר:'), 'Snmr')
+        self.assertEqual(PA.ashkenazi_skeleton('הַבְּכוֹרָה,'), 'hbxr')
+        self.assertEqual(PA.ashkenazi_skeleton('מַתְנִי׳'), 'msn')           # tav without a dagesh is s
+        self.assertEqual(PA.ashkenazi_skeleton('תּוֹרָה'), 'tr')             # with one it is t
+        self.assertEqual(PA.ashkenazi_skeleton('יִשְׂרָאֵל'), 'ysrl')         # sin, not shin
+
+    def test_english_letter_spellings_come_to_the_same_skeleton(self):
+        self.assertEqual(PA.latin_skeleton('Vehamoicher'), 'vhmxr')
+        self.assertEqual(PA.latin_skeleton("b'kabalah,"), 'bkbl')
+        self.assertEqual(PA.latin_skeleton('shenemar.'), 'Snmr')
+        self.assertEqual(PA.fold(PA.latin_skeleton('habechira')), PA.fold(PA.ashkenazi_skeleton('הַבְּכוֹרָה')))
+
+
+class Path(unittest.TestCase):
+    def setUp(self):
+        self.canon = canon_from(MISHNAH)
+
+    def align(self, *transcripts, **kw):
+        return PA.align_path(self.canon, list(transcripts), VA.phonetic, english=ENGLISH, **kw)
+
+    def test_english_letter_reading_is_placed_in_order(self):
+        # What the transcriber really wrote for this Mishnah (Lakewood Daf Yomi, Bechoros 2).
+        events, stats = self.align(said(
+            'Uber chamoraishel oved kochavim', 'If somebody purchases the uber of a chamor',
+            'Vehamoicher lai', 'Af alpisha ini Rashi', 'Hamishtataf lei', "va'amkabli menu",
+            'vehanoisen lebekabalah', 'patum min habechira shenemar', 'aval lo beacheirim'))
+        placed = spans(events)
+        self.assertIn((5, 6), placed)       # וְהַמּוֹכֵר לוֹ
+        self.assertIn((7, 11), placed)      # אַף עַל פִּי שֶׁאֵינוֹ רַשַּׁאי
+        self.assertIn((16, 18), placed)     # וְהַנּוֹתֵן לוֹ בְּקַבָּלָה
+        self.assertIn((24, 26), placed)     # אֲבָל לֹא בַּאֲחֵרִים
+        self.assertEqual(sorted(placed), placed, 'the path reads on through the daf')
+        self.assertTrue(all(e.source.startswith('path-latin') for e in events))
+        self.assertGreaterEqual(stats['dafWordsHeard'], 18)
+        self.assertEqual(stats['aligner'], 'path')
+
+    def test_plain_english_is_not_read_as_the_daf(self):
+        # "owns an" has the consonants of וְהַנּוֹתֵן, and so has nothing to do with it.
+        events, _ = self.align(said('somebody owns an animal', 'and he was with it'))
+        self.assertEqual(events, [])
+
+    def test_hebrew_letter_reading_is_placed_too(self):
+        events, _ = self.align(said('והמוכר לו', 'the seller', 'אף על פי שאינו רשאי', 'פטור מן הבכורה'))
+        self.assertEqual(spans(events), [(5, 6), (7, 11), (19, 21)])
+        self.assertTrue(all(e.source == 'path-hebrew' for e in events))
+
+    def test_a_short_fragment_goes_where_the_path_is(self):
+        # "לו" follows three different words of this Mishnah. Read after "והמקבל הימנו
+        # והנותן", it is the third one -- not the first that looks like it.
+        events, _ = self.align(said('והמקבל הימנו', 'והנותן', 'לו בקבלה'))
+        self.assertEqual(spans(events)[-1], (17, 18))
+
+    def test_two_transcripts_are_two_witnesses_on_one_clock(self):
+        hinted = said('והמוכר לו', 'xx xx', 'xx xx xx', start=100)
+        plain = said('qq qq', 'Af alpisha ini Rashi', 'patum min habechira', start=100)
+        events, stats = self.align(hinted, plain)
+        self.assertEqual(spans(events), [(5, 6), (7, 11), (19, 21)])
+        self.assertEqual(stats['witnesses'], 2)
+        # The same words heard by both are placed once.
+        both, _ = self.align(said('והמוכר לו'), said('Vehamoicher lai'))
+        self.assertEqual(spans(both), [(5, 6)])
+
+    def test_a_proposal_competes_like_anything_else(self):
+        proposals = [(300.0, 301.0, 12, 15, 90.0, 'heard by the phrase matcher', 'llm-rescue')]
+        events, stats = self.align(said('והמוכר לו', 'אף על פי שאינו רשאי'), proposals=proposals,
+                                   source_labels={'llm-rescue': 'LLM rescue (Claude)'})
+        self.assertEqual(spans(events), [(5, 6), (7, 11), (12, 15)])
+        self.assertEqual(stats['bySource']['llm-rescue'], {'label': 'LLM rescue (Claude)', 'runs': 1, 'words': 4})
+
+    def test_a_second_look_fills_a_gap_between_two_placed_phrases(self):
+        # "אמשטיף" alone is too far from "המשתתף" to be placed anywhere on the daf; between
+        # "אף על פי שאינו רשאי" and "והמקבל הימנו" there is nothing else it can be.
+        transcript = said('אף על פי שאינו רשאי', 'אמשטיף', 'והמקבל הימנו')
+        without, _ = self.align(transcript, gaps=False)
+        self.assertEqual(spans(without), [(7, 11), (14, 15)])
+        events, _ = self.align(transcript)
+        self.assertEqual(spans(events), [(7, 11), (12, 12), (14, 15)])
+        self.assertEqual(events[1].source, 'path-hebrew-gap')
+
+    def test_nothing_heard_is_an_empty_result_not_an_error(self):
+        events, stats = self.align(said('nothing of the kind', 'at all'))
+        self.assertEqual((events, stats['dafWordsHeard']), ([], 0))
+        self.assertEqual(PA.align_path(self.canon, [[]], VA.phonetic, english=ENGLISH)[0], [])
+
+
+class Witnesses(unittest.TestCase):
+    def test_which_extra_transcripts_are_asked_for(self):
+        self.assertEqual(VA.parse_witnesses('hints,plain'), ['plain'])
+        self.assertEqual(VA.parse_witnesses(' Slow , plain,hints'), ['plain', 'slow'])
+        self.assertEqual(VA.parse_witnesses('hints'), [])
+        self.assertEqual(VA.parse_witnesses(''), [])
+        with self.assertRaises(ValueError):
+            VA.parse_witnesses('hints,fast')
+
+    def test_a_saved_transcript_loads_in_either_shape(self):
+        with tempfile.TemporaryDirectory() as d:
+            a = os.path.join(d, 'a.json')
+            with open(a, 'w') as f:
+                json.dump({'status': 'done', 'seconds': 12.5, 'words': [['Rabosai', 1.0, 1.4]]}, f)
+            b = os.path.join(d, 'b.json')
+            with open(b, 'w', encoding='utf-8') as f:
+                json.dump([{'text': 'אמר', 'start': 2.0, 'end': 2.2}], f, ensure_ascii=False)
+            self.assertEqual(VA.load_transcript_file(a), ([{'text': 'Rabosai', 'start': 1.0, 'end': 1.4}], 12.5))
+            self.assertEqual(VA.load_transcript_file(b), ([{'text': 'אמר', 'start': 2.0, 'end': 2.2}], 2.2))
+
+    def test_a_slowed_transcript_comes_back_on_the_real_clock(self):
+        response = {'language_code': 'eng', 'audio_duration_secs': 80.0,
+                    'words': [{'type': 'word', 'text': 'omar', 'start': 40.0, 'end': 44.0}]}
+
+        class Reply:
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def read(self): return json.dumps(response).encode()
+
+        with tempfile.TemporaryDirectory() as d:
+            audio = os.path.join(d, 'shiur.mp3')
+            slowed = os.path.join(d, 'shiur.tempo0.75.mp3')
+            with open(audio, 'wb') as f:
+                f.write(b'real')
+
+            def fake_slowed_copy(path, tempo):
+                with open(slowed, 'wb') as f:
+                    f.write(b'slowed')
+                return slowed
+
+            with mock.patch.object(VA, 'slowed_copy', side_effect=fake_slowed_copy) as slow, \
+                    mock.patch('urllib.request.urlopen', return_value=Reply()) as sent:
+                words, duration = VA.transcribe_elevenlabs(audio, keyterms=['אמר'], api_key='k', tempo=0.75)
+            slow.assert_called_once_with(audio, 0.75)
+            self.assertIn(b'slowed', sent.call_args[0][0].data)       # the slowed copy is what was sent
+            self.assertFalse(os.path.exists(slowed))                  # and is not left behind
+            self.assertEqual((words[0]['start'], words[0]['end'], duration), (30.0, 33.0, 60.0))
+
+
+class Scoring(unittest.TestCase):
+    def test_a_voice_alignment_is_scored_against_the_captions(self):
+        import score_against_captions as SC
+        ref = 'Bekhorot 40a:1'
+        captions = {'wordTimeline': [
+            {'start': 100, 'end': 110, 'ref': ref, 'w0': 0, 'w1': 4},
+            {'start': 110, 'end': 300, 'ref': ref, 'w0': 5, 'w1': 9},      # trusted for 20s only
+            {'start': 300, 'end': 310, 'ref': 'Bekhorot 40a:2', 'w0': 0, 'w1': 4},
+        ]}
+        voice = {
+            'segments': [{'start': 100, 'ref': ref, 'w0': 0, 'w1': 4}, {'start': 110, 'ref': ref, 'w0': 40, 'w1': 44}],
+            'wordTimeline': [{'start': 101, 'ref': ref, 'w0': 1, 'w1': 3}, {'start': 112, 'ref': ref, 'w0': 40, 'w1': 44},
+                             {'start': 200, 'ref': ref, 'w0': 20, 'w1': 22}],
+        }
+        r = SC.score(voice, captions)
+        self.assertEqual(r['secondsJudged'], 32)                 # 100..130, and 300
+        # Right for the first ten seconds, and at 300s, where the next line starts one word on.
+        self.assertEqual(round(r['within5Words'] * 32), 11)
+        self.assertEqual((r['placementsRight'], r['placementsWrong'], r['placementsNoCaption']), (1, 1, 1))
+
+
+if __name__ == '__main__':
+    unittest.main()

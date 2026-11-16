@@ -12740,6 +12740,21 @@ function formatVoiceMatchStats(stats, elapsed) {
     lines.push(`(${stats.passes} matching pass${stats.passes === 1 ? '' : 'es'}, `
       + `${stats.llmCalls || 0} LLM call${stats.llmCalls === 1 ? '' : 's'})`);
   }
+  // The path aligner (path_align.py) counts the daf's own words that were heard,
+  // from however many transcripts it was given, not transcribed words matched.
+  if (stats.aligner === 'path') {
+    lines.push('', `Heard ${stats.dafWordsHeard} of the daf's ${stats.dafWords} words (${pct}%) `
+      + `in ${stats.witnesses} transcript${stats.witnesses === 1 ? '' : 's'}:`);
+    for (const source of Object.values(stats.bySource || {})) {
+      lines.push(`  • ${source.label}: ${source.words} words (${source.runs} phrase${source.runs === 1 ? '' : 's'})`);
+    }
+    if (stats.unmatched?.length) {
+      lines.push('', `Sounded like the daf but did not fit its order: ${stats.unmatched.length} `
+        + `phrase${stats.unmatched.length === 1 ? '' : 's'}, for example:`);
+      for (const u of stats.unmatched.slice(0, 10)) lines.push(`  ${formatTime(u.start)}  "${u.text}"`);
+    }
+    return lines;
+  }
   lines.push('', `Matched ${stats.matchedWords} of ${stats.totalWords} transcribed words (${pct}%):`);
   for (const source of Object.values(stats.bySource || {})) {
     lines.push(`  • ${source.label}: ${source.words} words (${source.runs} phrase${source.runs === 1 ? '' : 's'})`);
