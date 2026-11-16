@@ -1,0 +1,17 @@
+{
+  "type": "youtube",
+  "url": "https://www.youtube.com/watch?v=4pTRZq-rr_I",
+  "videoId": "4pTRZq-rr_I",
+  "label": "Daf Yomi Bechoros Daf 59 by R’ Eli Stefansky (unedited)",
+  "coveredRefs": [
+    "Bekhorot 59a",
+    "Bekhorot 59b"
+  ],
+  "source": "live-auto",
+  "liveBroadcast": true,
+  "liveStatus": "live",
+  "durationSeconds": null,
+  "actualStartTime": "2026-11-16T05:15:06Z",
+  "actualEndTime": null,
+  "locked": false
+}
