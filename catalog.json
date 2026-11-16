@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-16T13:01:11.480Z",
+  "generatedAt": "2026-11-16T14:18:50.825Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -469,14 +469,14 @@
           "label": "Daf Yomi Bechoros Daf 22 by R' Eli Stefansky",
           "amud": "a"
         },
-        "regularHe": {
-          "videoId": "azm7FoFrfUk",
-          "label": "מרכז דף יומי - בכורות דף כב. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "chazarahEn": {
           "videoId": "22QQvIfyNN4",
           "label": "CHAZARAH - Bechoros Daf 22 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "azm7FoFrfUk",
+          "label": "מרכז דף יומי - בכורות דף כב. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         },
         "chazarahHe": {
@@ -492,14 +492,14 @@
           "label": "Daf Yomi Bechoros Daf 23 by R' Eli Stefansky",
           "amud": "a"
         },
-        "regularHe": {
-          "videoId": "uOyNaHTIbbo",
-          "label": "מרכז דף יומי - בכורות דף כג. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "chazarahEn": {
           "videoId": "lvJ7u8NbXgk",
           "label": "CHAZARAH - Bechoros Daf 23 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "uOyNaHTIbbo",
+          "label": "מרכז דף יומי - בכורות דף כג. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         },
         "chazarahHe": {
@@ -510,11 +510,6 @@
       },
       {
         "daf": 24,
-        "regularHe": {
-          "videoId": "vuF7Jg6AsqI",
-          "label": "מרכז דף יומי - בכורות דף כד. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "mMgG9XWlztE",
           "label": "Daf Yomi Bechoros Daf 24 by R' Eli Stefansky",
@@ -525,6 +520,11 @@
           "label": "CHAZARAH - Bechoros Daf 24 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "vuF7Jg6AsqI",
+          "label": "מרכז דף יומי - בכורות דף כד. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "vOutom0b5pE",
           "label": "חזרה - בכורות דף כד | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -533,11 +533,6 @@
       },
       {
         "daf": 25,
-        "regularHe": {
-          "videoId": "VTcuGsj_wdY",
-          "label": "מרכז דף יומי - בכורות דף כה. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "_t_l5uKiquA",
           "label": "Daf Yomi Bechoros Daf 25 by R' Eli Stefansky",
@@ -548,6 +543,11 @@
           "label": "CHAZARAH - Bechoros Daf 25 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "VTcuGsj_wdY",
+          "label": "מרכז דף יומי - בכורות דף כה. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "4IX9v9WiBqg",
           "label": "חזרה - בכורות דף כה | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -556,11 +556,6 @@
       },
       {
         "daf": 26,
-        "regularHe": {
-          "videoId": "6j4W00R6ihw",
-          "label": "מרכז דף יומי - בכורות דף כו. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "zr-GOQI0kb0",
           "label": "Daf Yomi Bechoros Daf 26 by R' Eli Stefansky",
@@ -571,6 +566,11 @@
           "label": "CHAZARAH - Bechoros Daf 26 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "6j4W00R6ihw",
+          "label": "מרכז דף יומי - בכורות דף כו. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "smi0UcVjB4o",
           "label": "חזרה - בכורות דף כו | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -579,11 +579,6 @@
       },
       {
         "daf": 27,
-        "regularHe": {
-          "videoId": "FK7gjRkRwCY",
-          "label": "מרכז דף יומי - בכורות דף כז. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "nQ9Jl6-k70w",
           "label": "Daf Yomi Bechoros Daf 27 by R' Eli Stefansky",
@@ -594,6 +589,11 @@
           "label": "CHAZARAH - Bechoros Daf 27 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "FK7gjRkRwCY",
+          "label": "מרכז דף יומי - בכורות דף כז. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "uS566bhgl6A",
           "label": "חזרה - בכורות דף כז | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -602,11 +602,6 @@
       },
       {
         "daf": 28,
-        "regularHe": {
-          "videoId": "47gqMRokX18",
-          "label": "מרכז דף יומי - בכורות דף כח. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "4kYWT4PX-VE",
           "label": "Daf Yomi Bechoros Daf 28 by R' Eli Stefansky",
@@ -617,6 +612,11 @@
           "label": "CHAZARAH - Bechoros Daf 28 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "47gqMRokX18",
+          "label": "מרכז דף יומי - בכורות דף כח. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "Wcx8hqP3vm0",
           "label": "חזרה - בכורות דף כח | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -625,11 +625,6 @@
       },
       {
         "daf": 29,
-        "regularHe": {
-          "videoId": "VCpw5M2Dx4w",
-          "label": "מרכז דף יומי - בכורות דף כט. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "ehNCTt4VY5M",
           "label": "Daf Yomi Bechoros Daf 29 by R' Eli Stefansky",
@@ -640,6 +635,11 @@
           "label": "CHAZARAH - Bechoros Daf 29 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "VCpw5M2Dx4w",
+          "label": "מרכז דף יומי - בכורות דף כט. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "3gvevk3HhJI",
           "label": "חזרה - בכורות דף כט | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -648,11 +648,6 @@
       },
       {
         "daf": 30,
-        "regularHe": {
-          "videoId": "wrGeKLCSPT4",
-          "label": "מרכז דף יומי - בכורות דף ל. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "jHqNjdsZGj8",
           "label": "Daf Yomi Bechoros Daf 30 by R' Eli Stefansky",
@@ -663,6 +658,11 @@
           "label": "CHAZARAH - Bechoros Daf 30 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "wrGeKLCSPT4",
+          "label": "מרכז דף יומי - בכורות דף ל. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "Ct3OE0tuhW4",
           "label": "חזרה - בכורות דף ל | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -671,11 +671,6 @@
       },
       {
         "daf": 31,
-        "regularHe": {
-          "videoId": "bp6xhwW2Mr4",
-          "label": "מרכז דף יומי - בכורות דף לא. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "doF9psgVw3k",
           "label": "Daf Yomi Bechoros Daf 31 by R' Eli Stefansky",
@@ -686,6 +681,11 @@
           "label": "CHAZARAH - Bechoros Daf 31 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "bp6xhwW2Mr4",
+          "label": "מרכז דף יומי - בכורות דף לא. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "ubgGHX5uxtk",
           "label": "חזרה - בכורות דף לא | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -694,11 +694,6 @@
       },
       {
         "daf": 32,
-        "regularHe": {
-          "videoId": "5TG-c8DUQ-o",
-          "label": "מרכז דף יומי - בכורות דף לב. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "m_FhUiZoMK4",
           "label": "Daf Yomi Bechoros Daf 32 by R' Eli Stefansky",
@@ -709,6 +704,11 @@
           "label": "CHAZARAH - Bechoros Daf 32 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "5TG-c8DUQ-o",
+          "label": "מרכז דף יומי - בכורות דף לב. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "giJN_CaYNyY",
           "label": "חזרה - בכורות דף לב | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -717,11 +717,6 @@
       },
       {
         "daf": 33,
-        "regularHe": {
-          "videoId": "I5QcHddUHVs",
-          "label": "מרכז דף יומי - בכורות דף לג. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "dR6De2eXbm8",
           "label": "Daf Yomi Bechoros Daf 33 by R' Eli Stefansky",
@@ -732,6 +727,11 @@
           "label": "CHAZARAH - Bechoros Daf 33 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "I5QcHddUHVs",
+          "label": "מרכז דף יומי - בכורות דף לג. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "fr8woRb8fpI",
           "label": "חזרה - בכורות דף לג | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -740,11 +740,6 @@
       },
       {
         "daf": 34,
-        "regularHe": {
-          "videoId": "Lk86Ad8QwLY",
-          "label": "מרכז דף יומי - בכורות דף לד. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "vXdia7xUSG4",
           "label": "Daf Yomi Bechoros Daf 34 by R' Eli Stefansky",
@@ -755,6 +750,11 @@
           "label": "CHAZARAH - Bechoros Daf 34 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "Lk86Ad8QwLY",
+          "label": "מרכז דף יומי - בכורות דף לד. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "36ddyY1yvNA",
           "label": "חזרה - בכורות דף לד | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -763,11 +763,6 @@
       },
       {
         "daf": 35,
-        "regularHe": {
-          "videoId": "kHepEnm2bm0",
-          "label": "מרכז דף יומי - בכורות דף לה. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "yrugYX-18_k",
           "label": "Daf Yomi Bechoros Daf 35 by R' Eli Stefansky",
@@ -778,6 +773,11 @@
           "label": "CHAZARAH - Bechoros Daf 35 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "kHepEnm2bm0",
+          "label": "מרכז דף יומי - בכורות דף לה. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "mLn_EQddJu4",
           "label": "חזרה - בכורות דף לה | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -786,11 +786,6 @@
       },
       {
         "daf": 36,
-        "regularHe": {
-          "videoId": "Jxp7r2WE3zc",
-          "label": "מרכז דף יומי - בכורות דף לו. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "b5HehEp8AQk",
           "label": "Daf Yomi Bechoros Daf 36 by R' Eli Stefansky",
@@ -801,6 +796,11 @@
           "label": "CHAZARAH - Bechoros Daf 36 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "Jxp7r2WE3zc",
+          "label": "מרכז דף יומי - בכורות דף לו. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "iyW0_FDQ-xE",
           "label": "חזרה - בכורות דף לו | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -809,11 +809,6 @@
       },
       {
         "daf": 37,
-        "regularHe": {
-          "videoId": "MTQE6MZYzuk",
-          "label": "מרכז דף יומי - בכורות דף לז. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "sNgHIEspuCg",
           "label": "Daf Yomi Bechoros Daf 37 by R' Eli Stefansky",
@@ -824,6 +819,11 @@
           "label": "CHAZARAH - Bechoros Daf 37 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "MTQE6MZYzuk",
+          "label": "מרכז דף יומי - בכורות דף לז. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "xTM67YsTV2M",
           "label": "חזרה - בכורות דף לז | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -832,11 +832,6 @@
       },
       {
         "daf": 38,
-        "regularHe": {
-          "videoId": "ZQlVy0fvnrE",
-          "label": "מרכז דף יומי - בכורות דף לח. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "iW4en_Ep1Uk",
           "label": "Daf Yomi Bechoros Daf 38 by R' Eli Stefansky",
@@ -847,6 +842,11 @@
           "label": "CHAZARAH - Bechoros Daf 38 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "ZQlVy0fvnrE",
+          "label": "מרכז דף יומי - בכורות דף לח. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "g268swJSXY8",
           "label": "חזרה - בכורות דף לח | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -855,11 +855,6 @@
       },
       {
         "daf": 39,
-        "regularHe": {
-          "videoId": "Pfg6BnMjOaI",
-          "label": "מרכז דף יומי - בכורות דף לט. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "KWij52_Rouk",
           "label": "Daf Yomi Bechoros Daf 39 by R' Eli Stefansky",
@@ -870,6 +865,11 @@
           "label": "CHAZARAH - Bechoros Daf 39 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "Pfg6BnMjOaI",
+          "label": "מרכז דף יומי - בכורות דף לט. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "-iSHADe5ekw",
           "label": "חזרה - בכורות דף לט | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -878,34 +878,29 @@
       },
       {
         "daf": 40,
-        "regularHe": {
-          "videoId": "GoF19Dow9Hs",
-          "label": "מרכז דף יומי - בכורות דף מ. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "dK7n4zCn5yY",
           "label": "Daf Yomi Bechoros Daf 40 by R' Eli Stefansky",
-          "amud": "a"
-        },
-        "chazarahHe": {
-          "videoId": "XifUheXSYuU",
-          "label": "חזרה - בכורות דף מ | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
         },
         "chazarahEn": {
           "videoId": "OmmbQ407wR8",
           "label": "CHAZARAH - Bechoros Daf 40 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "GoF19Dow9Hs",
+          "label": "מרכז דף יומי - בכורות דף מ. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "XifUheXSYuU",
+          "label": "חזרה - בכורות דף מ | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
         }
       },
       {
         "daf": 41,
-        "regularHe": {
-          "videoId": "ym_NnhNWLAo",
-          "label": "מרכז דף יומי - בכורות דף מא. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "AsP6AYI-3Bs",
           "label": "Daf Yomi Bechoros Daf 41 by R' Eli Stefansky",
@@ -916,6 +911,11 @@
           "label": "CHAZARAH - Bechoros Daf 41 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "ym_NnhNWLAo",
+          "label": "מרכז דף יומי - בכורות דף מא. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "Reo5f-0qVFo",
           "label": "חזרה - בכורות דף מא | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -924,11 +924,6 @@
       },
       {
         "daf": 42,
-        "regularHe": {
-          "videoId": "SeLyWSEWpKI",
-          "label": "מרכז דף יומי - בכורות דף מב. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "iyL2iCHa_CQ",
           "label": "Daf Yomi Bechoros Daf 42 by R' Eli Stefansky",
@@ -939,6 +934,11 @@
           "label": "CHAZARAH - Bechoros Daf 42 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "SeLyWSEWpKI",
+          "label": "מרכז דף יומי - בכורות דף מב. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "xSJsKFDtZAQ",
           "label": "חזרה - בכורות דף מב | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -947,11 +947,6 @@
       },
       {
         "daf": 43,
-        "regularHe": {
-          "videoId": "DWb4zIeYbT0",
-          "label": "מרכז דף יומי - בכורות דף מג. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "T7OlN08pwCg",
           "label": "Daf Yomi Bechoros Daf 43 by R' Eli Stefansky",
@@ -962,6 +957,11 @@
           "label": "CHAZARAH - Bechoros Daf 43 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "DWb4zIeYbT0",
+          "label": "מרכז דף יומי - בכורות דף מג. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "c8hvdwhQHuc",
           "label": "חזרה - בכורות דף מג | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -970,11 +970,6 @@
       },
       {
         "daf": 44,
-        "regularHe": {
-          "videoId": "-ost4pWNq5E",
-          "label": "מרכז דף יומי - בכורות דף מד. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "OTNWDDx8dA0",
           "label": "Daf Yomi Bechoros Daf 44 by R' Eli Stefansky",
@@ -985,6 +980,11 @@
           "label": "CHAZARAH - Bechoros Daf 44 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "-ost4pWNq5E",
+          "label": "מרכז דף יומי - בכורות דף מד. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "4IW5IalrtuY",
           "label": "חזרה - בכורות דף מד | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -993,11 +993,6 @@
       },
       {
         "daf": 45,
-        "regularHe": {
-          "videoId": "Vxm-bkADeek",
-          "label": "מרכז דף יומי - בכורות דף מה. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "ZKvazTDDHUw",
           "label": "Daf Yomi Bechoros Daf 45 by R' Eli Stefansky",
@@ -1008,6 +1003,11 @@
           "label": "CHAZARAH - Bechoros Daf 45 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "Vxm-bkADeek",
+          "label": "מרכז דף יומי - בכורות דף מה. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "9GOrH9MrkR0",
           "label": "חזרה - בכורות דף מה | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -1016,16 +1016,6 @@
       },
       {
         "daf": 46,
-        "regularHe": {
-          "videoId": "90CuUTe-5ts",
-          "label": "מרכז דף יומי - בכורות דף מו. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
-        "chazarahHe": {
-          "videoId": "Kd8n9mfQq48",
-          "label": "חזרה - בכורות דף מו | \"רק הדף\" עם ר' אלי סטפנסקי",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "wZi55idy2PQ",
           "label": "Daf Yomi Bechoros Daf 46 by R' Eli Stefansky",
@@ -1035,38 +1025,43 @@
           "videoId": "Xr_PTNuAeTs",
           "label": "CHAZARAH - Bechoros Daf 46 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "90CuUTe-5ts",
+          "label": "מרכז דף יומי - בכורות דף מו. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "Kd8n9mfQq48",
+          "label": "חזרה - בכורות דף מו | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
         }
       },
       {
         "daf": 47,
-        "regularHe": {
-          "videoId": "H0EocQ5x3dY",
-          "label": "מרכז דף יומי - בכורות דף מז. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "c9b5F8kaLDw",
           "label": "Daf Yomi Bechoros Daf 47 by R' Eli Stefansky",
-          "amud": "a"
-        },
-        "chazarahHe": {
-          "videoId": "J6l9ItXk6K8",
-          "label": "חזרה - בכורות דף מז | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
         },
         "chazarahEn": {
           "videoId": "c-8yk7QKmo0",
           "label": "CHAZARAH - Bechoros Daf 47 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "H0EocQ5x3dY",
+          "label": "מרכז דף יומי - בכורות דף מז. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "J6l9ItXk6K8",
+          "label": "חזרה - בכורות דף מז | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
         }
       },
       {
         "daf": 48,
-        "regularHe": {
-          "videoId": "soO9osABQJU",
-          "label": "מרכז דף יומי - בכורות דף מח. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "_K_FlkIO6ak",
           "label": "Daf Yomi Bechoros Daf 48 by R' Eli Stefansky",
@@ -1077,6 +1072,11 @@
           "label": "CHAZARAH - Bechoros Daf 48 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "soO9osABQJU",
+          "label": "מרכז דף יומי - בכורות דף מח. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "ihCm3X0fNtw",
           "label": "חזרה - בכורות דף מח | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -1085,11 +1085,6 @@
       },
       {
         "daf": 49,
-        "regularHe": {
-          "videoId": "SCf5Ot-v89s",
-          "label": "מרכז דף יומי - בכורות דף מט. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "sR9VXjMAOto",
           "label": "Daf Yomi Bechoros Daf 49 by R' Eli Stefansky",
@@ -1100,6 +1095,11 @@
           "label": "CHAZARAH - Bechoros Daf 49 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "SCf5Ot-v89s",
+          "label": "מרכז דף יומי - בכורות דף מט. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "ck9wtUpB2O0",
           "label": "חזרה - בכורות דף מט | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -1108,16 +1108,6 @@
       },
       {
         "daf": 50,
-        "regularHe": {
-          "videoId": "N3gbxT2n03k",
-          "label": "מרכז דף יומי - בכורות דף נ. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
-        "chazarahHe": {
-          "videoId": "jELE9PA3TSU",
-          "label": "חזרה - בכורות דף נ | \"רק הדף\" עם ר' אלי סטפנסקי",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "XZfqOsYy20A",
           "label": "Daf Yomi Bechoros Daf 50 by R' Eli Stefansky",
@@ -1127,13 +1117,23 @@
           "videoId": "6kLVJzpic6U",
           "label": "CHAZARAH - Bechoros Daf 50 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "N3gbxT2n03k",
+          "label": "מרכז דף יומי - בכורות דף נ. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "jELE9PA3TSU",
+          "label": "חזרה - בכורות דף נ | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
         }
       },
       {
         "daf": 51,
-        "regularHe": {
-          "videoId": "tgnQHNMxeYw",
-          "label": "מרכז דף יומי - בכורות דף נא. - ר' אלי סטפנסקי שליט\"א",
+        "regularEn": {
+          "videoId": "R-TU3NmUzB0",
+          "label": "Daf Yomi Bechoros Daf 51 by R' Eli Stefansky",
           "amud": "a"
         },
         "chazarahEn": {
@@ -1141,9 +1141,9 @@
           "label": "CHAZARAH - Bechoros Daf 51 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
-        "regularEn": {
-          "videoId": "R-TU3NmUzB0",
-          "label": "Daf Yomi Bechoros Daf 51 by R' Eli Stefansky",
+        "regularHe": {
+          "videoId": "tgnQHNMxeYw",
+          "label": "מרכז דף יומי - בכורות דף נא. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         },
         "chazarahHe": {
@@ -1154,11 +1154,6 @@
       },
       {
         "daf": 52,
-        "regularHe": {
-          "videoId": "6-346FfJi1M",
-          "label": "מרכז דף יומי - בכורות דף נב. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "zGY4eAPMiqI",
           "label": "Daf Yomi Bechoros Daf 52 by R' Eli Stefansky",
@@ -1169,6 +1164,11 @@
           "label": "CHAZARAH - Bechoros Daf 52 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "6-346FfJi1M",
+          "label": "מרכז דף יומי - בכורות דף נב. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "nJtVC6JW6IE",
           "label": "חזרה - בכורות דף נב | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -1177,11 +1177,6 @@
       },
       {
         "daf": 53,
-        "regularHe": {
-          "videoId": "y5KMwf0Gs38",
-          "label": "מרכז דף יומי - בכורות דף נג. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "AHNGIEQFLkI",
           "label": "Daf Yomi Bechoros Daf 53 by R' Eli Stefansky",
@@ -1192,6 +1187,11 @@
           "label": "CHAZARAH - Bechoros Daf 53 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "y5KMwf0Gs38",
+          "label": "מרכז דף יומי - בכורות דף נג. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "df0UPtS_awg",
           "label": "חזרה - בכורות דף נג | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -1200,39 +1200,29 @@
       },
       {
         "daf": 54,
-        "regularHe": {
-          "videoId": "C9jrue_NLjU",
-          "label": "מרכז דף יומי - בכורות דף נד. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "1nyB-FS0kow",
           "label": "Daf Yomi Bechoros Daf 54 by R' Eli Stefansky",
-          "amud": "a"
-        },
-        "chazarahHe": {
-          "videoId": "9ZxSU8xDm58",
-          "label": "חזרה - בכורות דף נד | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
         },
         "chazarahEn": {
           "videoId": "aKphsM1fONM",
           "label": "CHAZARAH - Bechoros Daf 54 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "C9jrue_NLjU",
+          "label": "מרכז דף יומי - בכורות דף נד. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "9ZxSU8xDm58",
+          "label": "חזרה - בכורות דף נד | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
         }
       },
       {
         "daf": 55,
-        "regularHe": {
-          "videoId": "cTsMX4hqhqs",
-          "label": "מרכז דף יומי - בכורות דף נה. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
-        "chazarahHe": {
-          "videoId": "p_CeIHGAxnI",
-          "label": "חזרה - בכורות דף נה | \"רק הדף\" עם ר' אלי סטפנסקי",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "pO4zk1_eRE8",
           "label": "Daf Yomi Bechoros Daf 55 by R' Eli Stefansky",
@@ -1242,15 +1232,20 @@
           "videoId": "zGEZxnpy_oc",
           "label": "CHAZARAH - Bechoros Daf 55 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "cTsMX4hqhqs",
+          "label": "מרכז דף יומי - בכורות דף נה. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "p_CeIHGAxnI",
+          "label": "חזרה - בכורות דף נה | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
         }
       },
       {
         "daf": 56,
-        "regularHe": {
-          "videoId": "pcqoTqf-ypI",
-          "label": "מרכז דף יומי - בכורות דף נו. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "BJKVyi_qZaQ",
           "label": "Daf Yomi Bechoros Daf 56 by R' Eli Stefansky",
@@ -1261,6 +1256,11 @@
           "label": "CHAZARAH - Bechoros Daf 56 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
+        "regularHe": {
+          "videoId": "pcqoTqf-ypI",
+          "label": "מרכז דף יומי - בכורות דף נו. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
         "chazarahHe": {
           "videoId": "VphPMfA8q4M",
           "label": "חזרה - בכורות דף נו | \"רק הדף\" עם ר' אלי סטפנסקי",
@@ -1269,14 +1269,14 @@
       },
       {
         "daf": 57,
+        "regularEn": {
+          "videoId": "lfdIFy-lMZE",
+          "label": "Daf Yomi Bechoros Daf 57 by R' Eli Stefansky",
+          "amud": "a"
+        },
         "chazarahEn": {
           "videoId": "VmXxLfeOIlA",
           "label": "CHAZARAH - Bechoros Daf 57 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
-        },
-        "chazarahHe": {
-          "videoId": "FlA8dV76Fzg",
-          "label": "חזרה - בכורות דף נז | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
         },
         "regularHe": {
@@ -1284,9 +1284,9 @@
           "label": "מרכז דף יומי - בכורות דף נז. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         },
-        "regularEn": {
-          "videoId": "lfdIFy-lMZE",
-          "label": "Daf Yomi Bechoros Daf 57 by R' Eli Stefansky",
+        "chazarahHe": {
+          "videoId": "FlA8dV76Fzg",
+          "label": "חזרה - בכורות דף נז | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
         }
       },
@@ -1295,6 +1295,11 @@
         "regularEn": {
           "videoId": "0n7fE-jS0NE",
           "label": "Daf Yomi Bechoros Daf 58 by R' Eli Stefansky",
+          "amud": "a"
+        },
+        "chazarahEn": {
+          "videoId": "wE76tUiqGYM",
+          "label": "CHAZARAH - Bechoros Daf 58 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
         },
         "regularHe": {
@@ -1306,20 +1311,10 @@
           "videoId": "lY5rvGBMDCM",
           "label": "חזרה - בכורות דף נח | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
-        },
-        "chazarahEn": {
-          "videoId": "wE76tUiqGYM",
-          "label": "CHAZARAH - Bechoros Daf 58 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a"
         }
       },
       {
         "daf": 59,
-        "regularHe": {
-          "videoId": "Xv8vbz9YyR4",
-          "label": "מרכז דף יומי - בכורות דף נט. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "-Np-e_3YsI4",
           "label": "Daf Yomi Bechoros Daf 59 by R' Eli Stefansky",
@@ -1328,6 +1323,11 @@
         "chazarahEn": {
           "videoId": "wgZKrUkYFao",
           "label": "CHAZARAH - Bechoros Daf 59 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "Xv8vbz9YyR4",
+          "label": "מרכז דף יומי - בכורות דף נט. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         }
       }
@@ -4577,6 +4577,15 @@
             "regularEn": {
               "videoId": "Zsy7oDUP6Pw",
               "label": "Bechoros 2",
+              "amud": "a",
+              "testShiur": true
+            }
+          },
+          {
+            "daf": 58,
+            "regularEn": {
+              "videoId": "TWCiP96dKXU",
+              "label": "Bechoros 58",
               "amud": "a",
               "testShiur": true
             }
