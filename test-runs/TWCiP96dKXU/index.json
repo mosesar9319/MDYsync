@@ -89,7 +89,29 @@
         "unmatchedWords": 299,
         "durationSeconds": 3814.22
       }
+    },
+    {
+      "id": "regular-5",
+      "engine": "regular",
+      "number": 5,
+      "name": "Regular #5 · 16 Nov 2026 · fill holes, short words, Claude cap (#206) (path: hints + plain)",
+      "notes": "fill holes, short words, Claude cap (#206) (path: hints + plain)",
+      "engineVersion": "f7b1c67",
+      "createdAt": "2026-11-16T17:51:27Z",
+      "file": "regular-5.json",
+      "jobId": "d94ea3c0593142f8ba057b57d82fcb9f",
+      "summary": {
+        "segments": 272,
+        "estimatedSegments": 44,
+        "placements": 471,
+        "placedWords": 1083,
+        "totalRuns": 692,
+        "totalWords": 672,
+        "matchedWords": 614,
+        "unmatchedWords": 58,
+        "durationSeconds": 3814.22
+      }
     }
   ],
-  "updatedAt": "2026-11-16T16:52:27Z"
+  "updatedAt": "2026-11-16T17:51:27Z"
 }
