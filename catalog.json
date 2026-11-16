@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-16T18:59:49.621Z",
+  "generatedAt": "2026-11-16T20:16:37.381Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -4596,7 +4596,25 @@
             }
           },
           {
+            "daf": 57,
+            "regularEn": {
+              "videoId": "TWCiP96dKXU",
+              "label": "Bechoros 58",
+              "amud": "b",
+              "testShiur": true
+            }
+          },
+          {
             "daf": 58,
+            "regularEn": {
+              "videoId": "TWCiP96dKXU",
+              "label": "Bechoros 58",
+              "amud": "a",
+              "testShiur": true
+            }
+          },
+          {
+            "daf": 59,
             "regularEn": {
               "videoId": "TWCiP96dKXU",
               "label": "Bechoros 58",
