@@ -41,6 +41,7 @@ import numpy as np
 from rapidfuzz import fuzz, process
 
 from caption_ocr_align import WordEvent, normalize_word
+from spoken_forms import spoken_witness
 
 # ---------------------------------------------------------------------------
 # Sounds
@@ -200,6 +201,7 @@ SOURCE_PHRASE = "path-phrase"
 SOURCE_LATIN_GAP = "path-latin-gap"
 SOURCE_HEBREW_GAP = "path-hebrew-gap"
 SOURCE_BRIDGE = "path-bridge"
+SOURCE_SPOKEN = "path-spoken"
 PATH_SOURCE_LABELS = {
     SOURCE_BRIDGE: "Filled in between two placed phrases a moment apart (not heard on its own)",
     SOURCE_LATIN: "Read from English-letter spelling",
@@ -207,6 +209,7 @@ PATH_SOURCE_LABELS = {
     SOURCE_LATIN_GAP: "Second look between placed phrases (English letters)",
     SOURCE_HEBREW_GAP: "Second look between placed phrases (Hebrew letters)",
     SOURCE_PHRASE: "Phrase matcher, kept by the path",
+    SOURCE_SPOKEN: "Said another way (a count, a date), written the daf's way",
 }
 
 
@@ -316,12 +319,15 @@ class _Witness:
     """One transcript of the shiur, and the daf, each as the strings the two
     alphabets are compared in."""
 
-    def __init__(self, words, canon, phonetic, english, daf_latin, daf_hebrew):
+    def __init__(self, words, canon, phonetic, english, daf_latin, daf_hebrew, sources=None):
+        self.sources = sources
         self.tokens = build_tokens(words, english)
         self.starts = [t["start"] for t in self.tokens]
         self.daf_latin = daf_latin
         self.daf_hebrew = daf_hebrew
-        self.run_lengths = _hebrew_run_lengths(self.tokens)
+        # A long unbroken run of Hebrew letters is the transcriber's own prose --
+        # except in a rewritten witness, which is nothing but daf-form words.
+        self.run_lengths = [1] * len(self.tokens) if sources else _hebrew_run_lengths(self.tokens)
         for token in self.tokens:
             if token["script"] == "he":
                 token["phon"] = phonetic(token["norm"])
@@ -330,7 +336,7 @@ class _Witness:
                    min_chars=MIN_WINDOW_CHARS):
         """Every place in daf words [lo, hi) each stretch of transcript words [a, b)
         could be, as Candidates on the shiur's clock."""
-        sources = sources or (SOURCE_LATIN, SOURCE_HEBREW)
+        sources = sources or self.sources or (SOURCE_LATIN, SOURCE_HEBREW)
         found = {}
         latin = _transcript_windows(self.tokens, "lat", "sk", lambda i: True, a, b, min_chars)
         _compare(latin, _daf_windows(self.daf_latin, lo, hi, min_chars), sources[0], found, floor, cutoff)
@@ -469,12 +475,12 @@ def fill_gaps(witnesses, placed, short_words=True):
         for witness in witnesses:
             a, b = witness.between(before.t1 - OVERLAP_SLACK_SECONDS - slack, after.t0 + slack)
             if b > a:
+                sources = witness.sources or (SOURCE_LATIN_GAP, SOURCE_HEBREW_GAP)
                 if short:
                     cands += witness.candidates(a, b, lo, hi, _short_gap_floor, GAP_SCORE_CUTOFF,
-                                                (SOURCE_LATIN_GAP, SOURCE_HEBREW_GAP), SHORT_GAP_MIN_CHARS)
+                                                sources, SHORT_GAP_MIN_CHARS)
                 else:
-                    cands += witness.candidates(a, b, lo, hi, _gap_floor, GAP_SCORE_CUTOFF,
-                                                (SOURCE_LATIN_GAP, SOURCE_HEBREW_GAP))
+                    cands += witness.candidates(a, b, lo, hi, _gap_floor, GAP_SCORE_CUTOFF, sources)
         local = [c._replace(s=c.s - lo, e=c.e - lo) for c in cands if c.t1 <= after.t0 + OVERLAP_SLACK_SECONDS + slack]
         for c in best_path(local, hi - lo, forward_only=True):
             found.append(c._replace(s=c.s + lo, e=c.e + lo))
@@ -503,8 +509,40 @@ def bridge_holes(placed):
     return found
 
 
+# The holes a placed path still has: daf words between two neighbouring placements
+# that nothing placed. voice_align.py can listen to just that stretch of the audio
+# again, hinted with just those words (its "relisten" witness).
+HOLE_MAX_DAF_WORDS = 40
+HOLE_MAX_SECONDS = 60.0
+
+
+def find_holes(placed):
+    """[(t0, t1, first daf word, last daf word)] for every hole between two
+    placements next to each other in time and on the daf (the path moving on, not
+    jumping), at most HOLE_MAX_DAF_WORDS and HOLE_MAX_SECONDS long."""
+    holes = []
+    for before, after in zip(placed, placed[1:]):
+        lo, hi = before.e + 1, after.s - 1
+        if not 1 <= hi - lo + 1 <= HOLE_MAX_DAF_WORDS:
+            continue
+        t0, t1 = before.t1, max(before.t1, after.t0)
+        if t1 - t0 > HOLE_MAX_SECONDS:
+            continue
+        holes.append((round(t0, 2), round(t1, 2), lo, hi))
+    return holes
+
+
+def same_words_at(canon, s, e):
+    """Every daf position where canon[s..e]'s words stand, in the same order
+    (s itself included)."""
+    words = [c.norm for c in canon[s:e + 1]]
+    n = len(words)
+    return [k for k in range(len(canon) - n + 1)
+            if canon[k].norm == words[0] and [c.norm for c in canon[k:k + n]] == words] or [s]
+
+
 def align_path(canon, transcripts, phonetic, proposals=(), source_labels=None, english=None, gaps=True,
-               short_words=True, bridges=True, debug=False):
+               short_words=True, bridges=True, spoken=True, debug=False):
     """Place the shiur on the daf.
 
     transcripts: one or more word lists ([{text, start, end}, ...]) of the same
@@ -521,14 +559,31 @@ def align_path(canon, transcripts, phonetic, proposals=(), source_labels=None, e
     daf_latin = [fold(ashkenazi_skeleton(c.text)) for c in canon]
     daf_hebrew = [phonetic(c.norm) for c in canon]
     witnesses = [_Witness(words, canon, phonetic, english, daf_latin, daf_hebrew) for words in transcripts if words]
+    if spoken:
+        # Counts, dates and twins the maggid said another way, written the daf's
+        # way (spoken_forms.py): one more witness per transcript that has any.
+        for words in transcripts:
+            rewritten = spoken_witness(words or [])
+            if rewritten:
+                witnesses.append(_Witness(rewritten, canon, phonetic, english, daf_latin, daf_hebrew,
+                                          sources=(SOURCE_SPOKEN, SOURCE_SPOKEN)))
     cands = []
     for witness in witnesses:
-        cands += witness.candidates()
+        # A rewritten witness only fills holes (fill_gaps): a maggid says a date
+        # again and again while explaining it, and each saying would pull the
+        # path back to that line.
+        if not witness.sources:
+            cands += witness.candidates()
     labels = {**PATH_SOURCE_LABELS, **(source_labels or {})}
     for t0, t1, s, e, score, text, *source in proposals:
         chars = sum(len(c.norm) for c in canon[s:e + 1])
-        cands.append(Candidate(t0, max(t1, t0), s, e, float(max(score, PROPOSAL_MIN_SCORE)), chars,
-                               source[0] if source else SOURCE_PHRASE, text))
+        # The phrase matcher names one place. When the same words stand
+        # elsewhere on the daf too (the Gemara quoting its Mishnah word for
+        # word, often from the amud before), every copy is offered and the path
+        # takes the one it is reading.
+        for start in same_words_at(canon, s, e):
+            cands.append(Candidate(t0, max(t1, t0), start, start + e - s, float(max(score, PROPOSAL_MIN_SCORE)),
+                                   chars, source[0] if source else SOURCE_PHRASE, text))
     placed = best_path(cands, len(canon))
     if gaps:
         placed = sorted(placed + fill_gaps(witnesses, placed, short_words), key=lambda c: (c.t0, c.t1))
@@ -575,10 +630,12 @@ def align_path(canon, transcripts, phonetic, proposals=(), source_labels=None, e
         "excluded": [],
         "passes": 2 if gaps else 1,
         "llmCalls": 0,
-        "witnesses": len(witnesses),
-        "transcriptWords": sum(len(w.tokens) for w in witnesses),
+        "witnesses": sum(1 for w in witnesses if not w.sources),     # transcripts, not rewrites of them
+        "transcriptWords": sum(len(w.tokens) for w in witnesses if not w.sources),
         "dafWords": len(canon),
         "dafWordsHeard": len(heard),
         "dafWordsBridged": len(bridged - heard),
+        # Not published (voice_align.py takes it out): where a re-listen could help.
+        "holes": find_holes(placed),
     }
     return events, stats

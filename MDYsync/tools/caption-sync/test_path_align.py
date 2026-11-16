@@ -15,6 +15,7 @@ from unittest import mock
 sys.modules.setdefault('faster_whisper', types.SimpleNamespace(WhisperModel=object))
 
 import path_align as PA  # noqa: E402
+import spoken_forms as SF  # noqa: E402
 import voice_align as VA  # noqa: E402
 from caption_ocr_align import CanonWord, normalize_word  # noqa: E402
 
@@ -251,6 +252,113 @@ class Witnesses(unittest.TestCase):
             self.assertIn(b'slowed', sent.call_args[0][0].data)       # the slowed copy is what was sent
             self.assertFalse(os.path.exists(slowed))                  # and is not left behind
             self.assertEqual((words[0]['start'], words[0]['end'], duration), (30.0, 33.0, 60.0))
+
+
+COUNTING = ('וּמוֹנִין: אֶחָד, שְׁנַיִם, שְׁלֹשָׁה, אַרְבָּעָה, חֲמִשָּׁה, שִׁשָּׁה, שִׁבְעָה, שְׁמוֹנָה, תִּשְׁעָה, '
+            'וְהַיּוֹצֵא עֲשִׂירִי סוֹקֵר בְּסִיקְרָא')
+
+
+class SpokenForms(unittest.TestCase):
+    """Counts, dates and twins said another way than the daf has them."""
+
+    def rewrite(self, *phrases):
+        return [w['text'] for w in SF.spoken_witness(said(*phrases))]
+
+    def test_a_count_is_written_the_dafs_way(self):
+        self.assertEqual(self.rewrite('And then you count Alef, Beis, Gimel, Daled.'), ['אחד', 'שנים', 'שלשה', 'ארבעה'])
+        self.assertEqual(self.rewrite('It has to be one, two, three.'), ['אחד', 'שנים', 'שלשה'])
+        # Ordinary English is left alone: one number, two in a row, or out of order.
+        self.assertEqual(self.rewrite('one of the animals'), [])
+        self.assertEqual(self.rewrite('one, two'), [])
+        self.assertEqual(self.rewrite('five, two, one'), [])
+
+    def test_a_date_is_written_the_dafs_way(self):
+        self.assertEqual(self.rewrite("It's the twenty-ninth day of Elul."), ['בעשרים', 'ותשעה', 'באלול'])
+        self.assertEqual(self.rewrite('the 29th of Av'), ['בעשרים', 'ותשעה', 'באב'])
+        self.assertEqual(self.rewrite('fifteenth of Nissan'), ['בחמשה', 'עשר', 'בניסן'])
+        self.assertEqual(self.rewrite('Rosh Chodesh Tishrei.'), ['באחד', 'בתשרי'])
+        self.assertEqual(self.rewrite('the twenty-ninth day'), [])          # no month: not a date
+        self.assertEqual(SF.date_number(30), ['שלשים'])
+
+    def test_a_twin_is_written_the_dafs_way(self):
+        self.assertEqual(self.rewrite('Ben Azzai לשיטותיה.'), ['לטעמיה'])
+
+    def test_a_rewritten_count_fills_the_hole_between_two_placed_phrases(self):
+        canon = canon_from(COUNTING)
+        english = ENGLISH | {'then', 'you', 'count'}
+        transcript = said('ומונין', 'And then you count Alef, Beis, Gimel, Daled, He, Vav, Zayin, Chet, Tes.',
+                          'ויוצא העשירי סוקר בסיקרא', gap=0.5)
+        without, _ = PA.align_path(canon, [transcript], VA.phonetic, english=english, spoken=False, bridges=False)
+        self.assertEqual({i for a, b in spans(without) for i in range(a, b + 1)}, {0, 10, 11, 12, 13})
+        events, stats = PA.align_path(canon, [transcript], VA.phonetic, english=english, bridges=False)
+        filled = {i for e in events if e.source == 'path-spoken' for i in range(e.start_idx, e.end_idx + 1)}
+        self.assertEqual(filled, set(range(1, 10)))
+        self.assertEqual(stats['dafWordsHeard'], 14)
+
+    def test_a_rewritten_date_alone_does_not_move_the_path(self):
+        # Said while explaining, with nothing placed around it: not placed.
+        canon = canon_from('רַבִּי מֵאִיר אוֹמֵר: בְּאֶחָד בֶּאֱלוּל רֹאשׁ הַשָּׁנָה לְמַעְשַׂר בְּהֵמָה')
+        events, _ = PA.align_path(canon, [said('So that is Rosh Chodesh Elul for him.')], VA.phonetic, english=ENGLISH)
+        self.assertEqual(events, [])
+
+
+class SameWords(unittest.TestCase):
+    def test_a_phrase_the_daf_repeats_is_offered_at_every_copy(self):
+        # The Gemara quoting its Mishnah word for word: the phrase matcher names
+        # the first copy, the path may take the one it is reading.
+        canon = canon_from('בֶּן עַזַּאי אוֹמֵר: בְּאֶחָד בְּסִיוָן. גְּמָ׳ תַּנְיָא בֶּן עַזַּאי אוֹמֵר: בְּאֶחָד בְּסִיוָן.')
+        self.assertEqual(PA.same_words_at(canon, 0, 2), [0, 7])
+        self.assertEqual(PA.same_words_at(canon, 3, 4), [3, 10])
+        self.assertEqual(PA.same_words_at(canon, 5, 6), [5])
+        transcript = said('גמרא תניא', 'בן עזאי אומר באחד בסיון', gap=0.5)
+        events, _ = PA.align_path(canon, [transcript], VA.phonetic, english=ENGLISH,
+                                  proposals=[(transcript[2]['start'], transcript[-1]['end'], 0, 4, 90, 'בן עזאי אומר באחד בסיון')])
+        self.assertEqual(spans(events)[-1][1], 11)
+
+
+class Relisten(unittest.TestCase):
+    """The holes the path leaves, listened to again on their own."""
+
+    def test_the_path_reports_its_holes(self):
+        canon = canon_from(MISHNAH)
+        transcript = said('אף על פי שאינו רשאי', 'the', 'והמקבל הימנו', gap=0.5)
+        _, stats = PA.align_path(canon, [transcript], VA.phonetic, english=ENGLISH, bridges=False)
+        (t0, t1, lo, hi), = stats['holes']
+        self.assertEqual((lo, hi), (12, 13))
+        self.assertLess(t0, t1)
+
+    def test_only_holes_with_a_word_placed_nowhere_are_listened_to(self):
+        canon = canon_from(MISHNAH)
+        holes = [(10.0, 12.0, 12, 13), (50.0, 51.0, 3, 4), (80.0, 120.0, 20, 21)]
+        clips = VA.relisten_clips(canon, holes, placed_words={3, 4})
+        self.assertEqual([(start, end) for start, end, _ in clips], [(8.0, 14.0), (78.0, 122.0)])
+        # Hinted with the hole's words and two either side.
+        self.assertEqual(clips[0][2], [c.norm for c in canon[10:16]])
+
+    def test_clips_are_widened_merged_and_capped(self):
+        canon = canon_from(MISHNAH)
+        clips = VA.relisten_clips(canon, [(10.0, 10.0, 12, 12), (13.0, 14.0, 13, 13)])
+        self.assertEqual([(start, end) for start, end, _ in clips], [(8.0, 16.0)])
+        with mock.patch.object(VA, 'RELISTEN_MAX_TOTAL_SECONDS', 10.0):
+            clips = VA.relisten_clips(canon, [(10.0, 20.0, 12, 12), (40.0, 41.0, 13, 14)])
+        self.assertEqual([(start, end) for start, end, _ in clips], [(38.0, 43.0)])   # the bigger hole first
+
+    def test_a_relistened_clip_comes_back_on_the_whole_audios_clock(self):
+        canon = canon_from(MISHNAH)
+        heard = []
+
+        def transcribe_clip(path, terms):
+            heard.append(terms)
+            if len(heard) == 2:
+                raise RuntimeError('rate limited')
+            return [{'text': 'המשתתף', 'start': 2.5, 'end': 3.0}]
+
+        with mock.patch.object(VA, 'cut_clip', side_effect=lambda audio, start, end, out: out):
+            words = VA.relisten_holes('shiur.mp3', canon, [(10.0, 12.0, 12, 13), (100.0, 101.0, 14, 14)],
+                                      transcribe_clip=transcribe_clip)
+        self.assertEqual(len(heard), 2)                       # the second failed, the first was kept
+        self.assertEqual(words, [{'text': 'המשתתף', 'start': 10.5, 'end': 11.0}])
+        self.assertEqual(VA.parse_witnesses('hints,plain,relisten'), ['plain', 'relisten'])
 
 
 class Scoring(unittest.TestCase):

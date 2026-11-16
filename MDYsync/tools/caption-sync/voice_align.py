@@ -1404,10 +1404,92 @@ def _anthropic_credentials_available():
 #            maggid says it. Measured on real shiurim, one maggid is heard better
 #            this way and another with hints, so both are asked for by default.
 #   slow  -- with hints, from the audio played at SLOW_TEMPO, for fast reading.
-# Each extra witness is one more ElevenLabs transcription of the whole shiur.
-WITNESS_NAMES = ("hints", "plain", "slow")
+# Each of those is one more ElevenLabs transcription of the whole shiur.
+#   relisten -- made AFTER the path is placed: every hole it left (daf words
+#            between two placed phrases that nothing placed) is cut out of the
+#            audio and transcribed again on its own, hinted with only the daf
+#            words that belong there (relisten_holes). Costs at most
+#            RELISTEN_MAX_TOTAL_SECONDS of extra transcription.
+WITNESS_NAMES = ("hints", "plain", "slow", "relisten")
 DEFAULT_WITNESSES = "hints,plain"
 SLOW_TEMPO = 0.75
+
+
+RELISTEN_PAD_SECONDS = 2.0        # audio kept either side of a hole
+RELISTEN_MIN_CLIP_SECONDS = 3.0   # shorter clips are widened to this
+RELISTEN_MAX_CLIPS = 60
+RELISTEN_MAX_TOTAL_SECONDS = 900.0
+RELISTEN_CONTEXT_WORDS = 2        # daf words either side of a hole also hinted
+
+
+def cut_clip(audio_path, start, end, out_path):
+    """audio_path from start to end seconds, as an mp3. Needs ffmpeg."""
+    import subprocess
+    subprocess.run(
+        ["ffmpeg", "-y", "-loglevel", "error", "-ss", f"{start:.2f}", "-to", f"{end:.2f}", "-i", audio_path,
+         "-vn", "-codec:a", "libmp3lame", "-q:a", "4", out_path],
+        check=True)
+    return out_path
+
+
+def relisten_clips(canon, holes, placed_words=(), duration=None):
+    """Which stretches of the audio to transcribe again, and with which hints:
+    [(start, end, keyterms)] for the path's holes that hold a daf word placed
+    NOWHERE (a hole where the maggid only re-reads what is placed elsewhere is
+    not worth paying for), the most such words first, within RELISTEN_MAX_CLIPS
+    and RELISTEN_MAX_TOTAL_SECONDS. Clips that touch are merged."""
+    placed_words = set(placed_words)
+    missing = {hole: sum(1 for i in range(hole[2], hole[3] + 1) if i not in placed_words) for hole in holes}
+    wanted = sorted((hole for hole in holes if missing[hole]), key=lambda hole: -missing[hole])
+    clips, total = [], 0.0
+    for t0, t1, lo, hi in wanted:
+        start, end = max(0.0, t0 - RELISTEN_PAD_SECONDS), t1 + RELISTEN_PAD_SECONDS
+        if end - start < RELISTEN_MIN_CLIP_SECONDS:
+            middle = (start + end) / 2
+            start, end = max(0.0, middle - RELISTEN_MIN_CLIP_SECONDS / 2), middle + RELISTEN_MIN_CLIP_SECONDS / 2
+        if duration:
+            end = min(end, duration)
+        if end <= start or total + (end - start) > RELISTEN_MAX_TOTAL_SECONDS or len(clips) >= RELISTEN_MAX_CLIPS:
+            continue
+        terms = []
+        for word in canon[max(0, lo - RELISTEN_CONTEXT_WORDS):hi + 1 + RELISTEN_CONTEXT_WORDS]:
+            if len(word.norm) >= 2 and word.norm not in terms:
+                terms.append(word.norm)
+        clips.append([start, end, terms])
+        total += end - start
+    clips.sort()
+    merged = []
+    for clip in clips:
+        if merged and clip[0] <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], clip[1])
+            merged[-1][2] += [term for term in clip[2] if term not in merged[-1][2]]
+        else:
+            merged.append(clip)
+    return [tuple(clip) for clip in merged]
+
+
+def relisten_holes(audio_path, canon, holes, placed_words=(), duration=None, transcribe_clip=None):
+    """The relisten witness: every hole's stretch of audio transcribed again on its
+    own, hinted with that hole's daf words, on the whole audio's clock. One clip
+    failing only loses that clip."""
+    import tempfile
+    transcribe_clip = transcribe_clip or (lambda path, terms: transcribe_elevenlabs(path, keyterms=terms)[0])
+    clips = relisten_clips(canon, holes, placed_words, duration)
+    print(f"Re-listening to {len(clips)} hole(s) the path left "
+          f"({sum(end - start for start, end, _ in clips):.0f}s of audio)")
+    words = []
+    with tempfile.TemporaryDirectory() as folder:
+        for n, (start, end, terms) in enumerate(clips):
+            try:
+                path = cut_clip(audio_path, start, end, os.path.join(folder, f"hole{n}.mp3"))
+                got = transcribe_clip(path, terms)
+            except Exception as error:  # noqa: BLE001
+                print(f"  re-listen {start:.0f}-{end:.0f}s failed ({error}); carrying on.")
+                continue
+            for w in got:
+                if start + w["start"] <= end:
+                    words.append({**w, "start": start + w["start"], "end": min(end, start + w["end"])})
+    return words
 
 
 def parse_witnesses(value):
@@ -1480,6 +1562,8 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
             # alone would have heard, so a failure here never fails the job.
             for name in extra_wanted:
                 try:
+                    if name == "relisten":
+                        continue   # made after the path is placed, below
                     if name == "plain":
                         more, _ = transcribe_elevenlabs(video_path, keyterms=None)
                     else:
@@ -1500,7 +1584,8 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
         for name in extra_wanted:
             try:
                 if name != "plain":
-                    print(f"Witness '{name}' is not made by the local whisper engine; carrying on without it.")
+                    if name != "relisten":
+                        print(f"Witness '{name}' is not made by the local whisper engine; carrying on without it.")
                     continue
                 more, _ = transcribe(video_path, model_size, initial_prompt=None, language=None)
                 extra_transcripts.append(more)
@@ -1556,6 +1641,19 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
             path_events, path_stats = path_align.align_path(
                 canon, [words] + extra_transcripts, phonetic, proposals=proposals,
                 source_labels=MATCH_SOURCE_LABELS, debug=debug)
+            if "relisten" in extra_wanted and path_events and not transcripts and engine == "elevenlabs":
+                # Second round: listen again to just the holes, hinted with just
+                # the words that belong in each, and place the whole path again.
+                placed_words = {i for event in path_events for i in range(event.start_idx, event.end_idx + 1)}
+                again = relisten_holes(video_path, canon, path_stats.get("holes") or [], placed_words, duration)
+                if again:
+                    print(f"Witness 'relisten': {len(again)} words")
+                    first_heard = path_stats["matchedWords"]
+                    path_events, path_stats = path_align.align_path(
+                        canon, [words] + extra_transcripts + [again], phonetic, proposals=proposals,
+                        source_labels=MATCH_SOURCE_LABELS, debug=debug)
+                    path_stats["relisten"] = {"words": len(again), "matchedBefore": first_heard}
+            path_stats.pop("holes", None)
             if path_events:
                 path_stats["llmCalls"] = llm_calls
                 path_stats["phraseMatcher"] = {key: stats[key] for key in ("matchedWords", "totalWords", "passes")}
@@ -1605,8 +1703,9 @@ def main():
     p.add_argument("--witnesses", default=os.environ.get("VOICE_WITNESSES") or DEFAULT_WITNESSES,
                    help=f"Which transcripts the path aligner is given, comma separated, of "
                         f"{', '.join(WITNESS_NAMES)} (default: {DEFAULT_WITNESSES}, or $VOICE_WITNESSES). "
-                        f"'hints' is always made; each other one is a further ElevenLabs "
-                        f"transcription of the whole shiur.")
+                        f"'hints' is always made; plain and slow are each a further ElevenLabs "
+                        f"transcription of the whole shiur; relisten transcribes again only the "
+                        f"stretches the path could not place.")
     p.add_argument("--slow-tempo", type=float, default=SLOW_TEMPO,
                    help=f"Speed of the 'slow' witness's audio (default {SLOW_TEMPO}).")
     p.add_argument("--transcript", action="append", default=[],
