@@ -164,8 +164,12 @@ jobs:
           # voice_align.py also falls back to whisper on its own if the API
           # call fails mid-job, so a rate limit or outage degrades the run
           # rather than failing it.
-          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
-          VOICE_ENGINE: ${{ secrets.ELEVENLABS_API_KEY != '' && 'elevenlabs' || 'whisper' }}
+          # A dispatch may ask for the local whisper model (client_payload.engine:
+          # "whisper") so a comparison run makes no ElevenLabs call. Anything
+          # else, including a normal sync that sends no engine, keeps the
+          # default: ElevenLabs when the secret is set, whisper when it is not.
+          ELEVENLABS_API_KEY: ${{ github.event.client_payload.engine == 'whisper' && '' || secrets.ELEVENLABS_API_KEY }}
+          VOICE_ENGINE: ${{ github.event.client_payload.engine == 'whisper' && 'whisper' || (secrets.ELEVENLABS_API_KEY != '' && 'elevenlabs' || 'whisper') }}
           # How the transcript is placed on the daf, and from which transcripts
           # (see path_align.py and WITNESS_NAMES in voice_align.py). Normally
           # empty, which means the engine's own defaults: the path aligner, with

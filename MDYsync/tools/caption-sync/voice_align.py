@@ -408,13 +408,16 @@ def transcribe_elevenlabs(audio_path, keyterms=None, api_key=None, tempo=1.0):
     return words, duration
 
 
-def transcribe(audio_path, model_size="small", initial_prompt=None):
+def transcribe(audio_path, model_size="small", initial_prompt=None, language="he"):
     print(f"Loading whisper model: {model_size} (CPU, int8)...")
     model = WhisperModel(model_size, device="cpu", compute_type="int8")
-    segments, info = model.transcribe(
-        audio_path, language="he", word_timestamps=True, vad_filter=True,
-        initial_prompt=initial_prompt,
-    )
+    # language=None lets the model pick the alphabet itself. The plain witness
+    # uses that, the same way an ElevenLabs transcript with no hint list writes
+    # the Gemara in English letters. The default stays Hebrew.
+    kwargs = {"word_timestamps": True, "vad_filter": True, "initial_prompt": initial_prompt}
+    if language:
+        kwargs["language"] = language
+    segments, info = model.transcribe(audio_path, **kwargs)
     print(f"Detected/forced language: {info.language} (p={info.language_probability:.2f})")
     words = []
     for seg in segments:
@@ -1464,6 +1467,19 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
         if debug and prompt:
             print(f"Keyterm prompt ({len(prompt.split())} words): {prompt}")
         words, duration = transcribe(video_path, model_size, initial_prompt=prompt)
+        # The same witnesses ElevenLabs would make, from the local model, so a
+        # comparison run can ask for hints + plain without calling ElevenLabs.
+        # "slow" is an ElevenLabs tempo option; the local model does not make it.
+        for name in extra_wanted:
+            try:
+                if name != "plain":
+                    print(f"Witness '{name}' is not made by the local whisper engine; carrying on without it.")
+                    continue
+                more, _ = transcribe(video_path, model_size, initial_prompt=None, language=None)
+                extra_transcripts.append(more)
+                print(f"Witness '{name}': {len(more)} words")
+            except Exception as error:  # noqa: BLE001
+                print(f"Witness '{name}' failed ({error}); carrying on without it.")
     print(f"Transcribed {len(words)} words ({duration:.1f}s audio)")
     runs = hebrew_script_runs(words)
     print(f"{len(runs)} Hebrew-script word runs")
