@@ -253,6 +253,14 @@ jobs:
           # other's result (the player fetches both and lets the reader pick).
           # See publish_alignment.py for why a covered ref no longer
           # automatically gets its own by-ref entry.
+          # The engine also reads the amud before and after a whole daf
+          # (voice_align.neighbor_amudim) and says which refs it read; those are
+          # what the alignment covers. split_refs keeps the extra amudim as
+          # passing through, so their own shiurim are not displaced.
+          if [ -f MDYsync/tools/caption-sync/job-out/refs.json ]; then
+            REFS_JSON="$(cat MDYsync/tools/caption-sync/job-out/refs.json)"
+          fi
+
           python3 MDYsync/tools/caption-sync/publish_alignment.py \
             --alignment MDYsync/tools/caption-sync/job-out/alignment.json \
             --refs-json "$REFS_JSON" \

@@ -361,6 +361,69 @@ class Relisten(unittest.TestCase):
         self.assertEqual(VA.parse_witnesses('hints,plain,relisten'), ['plain', 'relisten'])
 
 
+class AfterTheReading(unittest.TestCase):
+    """Once the daf has been read through, the maggid's quotes are not placed."""
+
+    def test_the_reading_is_the_longest_run_through_the_daf_in_order(self):
+        C = PA.Candidate
+        placed = [C(10, 11, 40, 42, 90, 9, 'x', ''),            # a quote before the reading starts
+                  C(20, 21, 0, 4, 90, 9, 'x', ''), C(30, 31, 5, 9, 90, 9, 'x', ''),
+                  C(40, 41, 3, 4, 90, 9, 'x', ''),              # re-reading a phrase
+                  C(50, 51, 10, 20, 90, 9, 'x', ''), C(60, 61, 21, 30, 90, 9, 'x', ''),
+                  C(90, 91, 2, 3, 90, 9, 'x', ''), C(95, 96, 12, 13, 90, 9, 'x', '')]   # the discussion
+        self.assertEqual(PA.reading_chain(placed), [1, 2, 4, 5])
+        self.assertEqual(PA.end_of_reading(placed), 61)
+        self.assertIsNone(PA.end_of_reading([]))
+
+    def test_quotes_after_the_reading_are_not_placed(self):
+        canon = canon_from(MISHNAH)
+        # (English between the phrases, as a maggid translates as he reads: one
+        # unbroken run of Hebrew letters that long would be the transcriber's prose.)
+        reading = said('הלוקח עובר חמורו של נכרי', 'the', 'והמוכר לו אף על פי שאינו רשאי', 'the',
+                       'והמשתתף לו והמקבל הימנו', 'the', 'והנותן לו בקבלה פטור מן הבכורה', 'the',
+                       'שנאמר בישראל אבל לא באחרים')
+        quotes = said('So that is הלוקח עובר חמורו', 'and again אף על פי שאינו רשאי', start=reading[-1]['end'] + 120)
+        events, stats = PA.align_path(canon, [reading + quotes], VA.phonetic, english=ENGLISH)
+        last_read = reading[-1]['end']
+        self.assertTrue(events)
+        self.assertTrue(all(e.t <= last_read + PA.AFTER_READING_GRACE_SECONDS for e in events))
+        self.assertGreater(stats['droppedAfterReading'], 0)
+        self.assertAlmostEqual(stats['readingEndsAt'], last_read, delta=0.5)
+        kept, _ = PA.align_path(canon, [reading + quotes], VA.phonetic, english=ENGLISH, keep_after_reading=True)
+        self.assertGreater(max(e.t for e in kept), last_read + 100)
+
+
+class NeighborAmudim(unittest.TestCase):
+    """A whole daf's job also reads the amud before and the amud after it."""
+
+    def test_which_amudim_are_added(self):
+        self.assertEqual(VA.neighbor_amudim(['Bekhorot 58a', 'Bekhorot 58b']), ('Bekhorot 57b', 'Bekhorot 59a'))
+        self.assertEqual(VA.neighbor_amudim(['Bekhorot 57b', 'Bekhorot 58a', 'Bekhorot 58b']), (None, 'Bekhorot 59a'))
+        self.assertEqual(VA.neighbor_amudim(['Bava Kamma 2a', 'Bava Kamma 2b']), (None, 'Bava Kamma 3a'))   # no daf 1
+        # One amud, or several dapim: adding could change which daf the job is about.
+        self.assertEqual(VA.neighbor_amudim(['Bekhorot 58b']), (None, None))
+        self.assertEqual(VA.neighbor_amudim(['Bekhorot 58a', 'Bekhorot 58b', 'Bekhorot 60a']), (None, None))
+        self.assertEqual(VA.neighbor_amudim(['Bekhorot 58a', 'Bekhorot 58b', 'Bekhorot 59a', 'Bekhorot 59b']), (None, None))
+        self.assertEqual(VA.neighbor_amudim(['Bekhorot 58a (Chazarah)', 'Bekhorot 58b']), (None, None))
+
+    def test_an_amud_sefaria_does_not_have_is_left_out(self):
+        def load(refs, cache_dir=None):
+            if refs == ['Bekhorot 61b']:
+                raise RuntimeError("Sefaria returned no text for 'Bekhorot 61b'.")
+            return [], []
+        self.assertEqual(VA.with_neighbor_amudim(['Bekhorot 61a', 'Bekhorot 61b'], load=load),
+                         ['Bekhorot 60b', 'Bekhorot 61a', 'Bekhorot 61b', 'Bekhorot 62a'])
+        self.assertEqual(VA.with_neighbor_amudim(['Bekhorot 60a', 'Bekhorot 60b'], load=load),
+                         ['Bekhorot 59b', 'Bekhorot 60a', 'Bekhorot 60b', 'Bekhorot 61a'])
+
+        def gone(refs, cache_dir=None):
+            if refs == ['Bekhorot 62a']:
+                raise RuntimeError('no text')
+            return [], []
+        self.assertEqual(VA.with_neighbor_amudim(['Bekhorot 61a', 'Bekhorot 61b'], load=gone),
+                         ['Bekhorot 60b', 'Bekhorot 61a', 'Bekhorot 61b'])
+
+
 class Scoring(unittest.TestCase):
     def test_a_voice_alignment_is_scored_against_the_captions(self):
         import score_against_captions as SC
