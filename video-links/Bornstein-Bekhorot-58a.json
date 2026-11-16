@@ -1,14 +1,8 @@
 {
+  "label": "Bechoros 58",
+  "locked": true,
+  "source": "manual",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=TWCiP96dKXU",
-  "videoId": "TWCiP96dKXU",
-  "label": "Bechoros 58",
-  "coveredRefs": [
-    "Bekhorot 58a",
-    "Bekhorot 58b"
-  ],
-  "source": "manual",
-  "maggid": "bornstein",
-  "testShiur": true,
-  "locked": true
+  "videoId": "TWCiP96dKXU"
 }
