@@ -4,5 +4,11 @@
   "source": "manual",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=TWCiP96dKXU",
-  "videoId": "TWCiP96dKXU"
+  "videoId": "TWCiP96dKXU",
+  "coveredRefs": [
+    "Bekhorot 58a",
+    "Bekhorot 58b"
+  ],
+  "maggid": "bornstein",
+  "testShiur": true
 }
