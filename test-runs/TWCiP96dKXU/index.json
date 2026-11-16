@@ -45,7 +45,29 @@
         "unmatchedWords": 724,
         "durationSeconds": 3814.22
       }
+    },
+    {
+      "id": "regular-3",
+      "engine": "regular",
+      "number": 3,
+      "name": "Regular #3 · 16 Nov 2026 · path: hints + plain + slow",
+      "notes": "path: hints + plain + slow",
+      "engineVersion": "94f97e3",
+      "createdAt": "2026-11-16T15:19:20Z",
+      "file": "regular-3.json",
+      "jobId": "e7da8ffc4c5d406fb8df91a37cde861b",
+      "summary": {
+        "segments": 318,
+        "estimatedSegments": 63,
+        "placements": 497,
+        "placedWords": 1128,
+        "totalRuns": 732,
+        "totalWords": 672,
+        "matchedWords": 582,
+        "unmatchedWords": 90,
+        "durationSeconds": 3814.22
+      }
     }
   ],
-  "updatedAt": "2026-11-16T15:00:40Z"
+  "updatedAt": "2026-11-16T15:19:20Z"
 }
