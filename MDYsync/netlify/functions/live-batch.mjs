@@ -18,12 +18,7 @@
 // Same Origin allowlist as live-token.mjs -- the only abuse guard for now, an
 // accepted gap for an unlisted experiment, not a production posture.
 
-const ALLOWED_ORIGINS = new Set([
-  'https://dafsync.netlify.app',
-  'https://main--dafsync.netlify.app',
-  'http://localhost:8080',
-]);
-const DEPLOY_PREVIEW_ORIGIN = /^https:\/\/deploy-preview-\d+--dafsync\.netlify\.app$/;
+import { isAllowedPreviewOrigin } from '../../shared/dafsync-config.mjs';
 
 // 16kHz 16-bit mono PCM: 32,000 bytes a second. A segment is one utterance; a
 // minute is far more than any, and keeps the request well under Netlify's 6MB
@@ -76,7 +71,7 @@ export default async (request) => {
     return Response.json({ error: 'Method not allowed' }, { status: 405 });
   }
   const origin = request.headers.get('Origin') || '';
-  if (!ALLOWED_ORIGINS.has(origin) && !DEPLOY_PREVIEW_ORIGIN.test(origin)) {
+  if (!isAllowedPreviewOrigin(origin)) {
     return Response.json({ error: 'Origin not permitted.' }, { status: 403 });
   }
   const apiKey = Netlify.env.get('ELEVENLABS_API_KEY');

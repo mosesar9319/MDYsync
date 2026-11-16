@@ -15,7 +15,7 @@ On the Netlify site, for production functions:
 | `YOUTUBE_API_KEY` | yes | A YouTube Data API v3 key. Used only for `videos.list` (`snippet`, `contentDetails`, `liveStreamingDetails`). The poll checks the handful of recent Live-tab ids every five minutes, about one quota unit each time, a few hundred units a day. Do not point this at `search.list`. |
 | `GITHUB_DISPATCH_TOKEN` | yes | Already used by the hourly sync. Needs permission to write `video-links/` and `catalog.json` on the `results` branch. |
 | `YOUTUBE_WEBSUB_TOKEN` | recommended | A random string. The hub lease renewal sends it as `hub.verify_token`, and the callback rejects a verification that presents a different one. |
-| `YOUTUBE_WEBSUB_CALLBACK` | no | Defaults to `$URL/api/youtube-live-webhook`, which on production is `https://dafsync.netlify.app/api/youtube-live-webhook`. Set it only if the public site URL is different from Netlify's `URL`. |
+| `YOUTUBE_WEBSUB_CALLBACK` | no | Defaults to `$URL/api/youtube-live-webhook`. On production `URL` is the primary domain, so the callback is `https://dafsync.com/api/youtube-live-webhook`. `https://dafsync.netlify.app/api/youtube-live-webhook` still serves the same function, and an existing hub subscription pointed there keeps working until its lease ends. Set this only if the callback should be a host other than Netlify's `URL`. |
 
 `URL` is provided by Netlify. Do not hard-code a secret in the repo.
 
@@ -27,7 +27,7 @@ Scheduled functions run on the published production deploy, not on a deploy prev
 curl -X POST https://pubsubhubbub.appspot.com/subscribe \
   -d "hub.mode=subscribe" \
   -d "hub.topic=https://www.youtube.com/xml/feeds/videos.xml?channel_id=UCKwQa5DB_VR98ac_r-Wyl-g" \
-  -d "hub.callback=https://dafsync.netlify.app/api/youtube-live-webhook" \
+  -d "hub.callback=https://dafsync.com/api/youtube-live-webhook" \
   -d "hub.verify=async" \
   -d "hub.lease_seconds=432000" \
   -d "hub.verify_token=THE_SAME_YOUTUBE_WEBSUB_TOKEN"

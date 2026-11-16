@@ -14,13 +14,10 @@
 // the same daf could reasonably be corrected more than once and every
 // correction is its own useful training example, not just the latest.
 
+import { ALLOWED_ORIGINS } from '../../shared/dafsync-config.mjs';
+
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
-const ALLOWED_ORIGINS = new Set([
-  'https://dafsync.netlify.app',
-  'https://main--dafsync.netlify.app',
-  'http://localhost:8080',
-]);
 
 const MAX_SEGMENTS = 500;
 

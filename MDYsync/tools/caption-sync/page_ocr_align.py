@@ -117,7 +117,7 @@ CROPBOX_HEIGHT_FRAC = 992.575 / 1191.0
 
 # Where the same PDFs are served from when shas.org itself can't be reached with a
 # valid certificate (see fetch_page_pdf). Overridable for a local or preview site.
-PAGE_PROXY_BASE = os.environ.get('DAFSYNC_PAGE_PROXY', 'https://dafsync.netlify.app').rstrip('/')
+PAGE_PROXY_BASE = os.environ.get('DAFSYNC_PAGE_PROXY', 'https://dafsync.com').rstrip('/')
 _PAGE_REQUEST_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
     'Accept': 'application/pdf,*/*',

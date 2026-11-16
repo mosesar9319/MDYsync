@@ -5,15 +5,11 @@
 // `pages/<key>.json` file, following the exact pattern publish-alignment.mjs
 // already established for segment alignments.
 
+import { ALLOWED_ORIGINS } from '../../shared/dafsync-config.mjs';
+
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
 const MAX_PAGEMAP_BYTES = 2 * 1024 * 1024; // generous headroom over any real page's word boxes
-
-const ALLOWED_ORIGINS = new Set([
-  'https://dafsync.netlify.app',
-  'https://main--dafsync.netlify.app',
-  'http://localhost:8080',
-]);
 
 function toBase64Utf8(str) {
   const bytes = new TextEncoder().encode(str);

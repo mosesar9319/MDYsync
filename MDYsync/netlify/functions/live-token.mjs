@@ -9,23 +9,21 @@
 // ElevenLabs' own answer to exactly this: mint it server-side, hand only
 // the token to the browser.
 //
-// Same Origin allowlist as save-settings.mjs/trigger-voice-job.mjs -- the
-// only abuse guard this function has for now. That's an accepted gap for an
-// experiment behind a switch on the Interactive Daf page, not a production posture: once
-// this leaves V1, minting should also require a signed-in session (none of
-// this repo's existing functions check that either, but none of them front
-// a metered paid API the way this one does).
+// Origin allowlist is the shared production list (the same hosts
+// save-settings.mjs and trigger-voice-job.mjs use) plus numbered deploy
+// previews. Unlike those admin functions, Live Follow has to work on a PR's
+// deploy preview too -- that's the only place it can be tried before merging,
+// and the browser sends the preview's own origin with this POST.
+// isAllowedPreviewOrigin is that shared list plus
+// deploy-preview-<n>--dafsync.netlify.app, not every branch deploy.
+//
+// That origin check is the only abuse guard this function has for now. That's
+// an accepted gap for an experiment behind a switch on the Interactive Daf
+// page, not a production posture: once this leaves V1, minting should also
+// require a signed-in session (none of this repo's existing functions check
+// that either, but none of them front a metered paid API the way this one does).
 
-const ALLOWED_ORIGINS = new Set([
-  'https://dafsync.netlify.app',
-  'https://main--dafsync.netlify.app',
-  'http://localhost:8080',
-]);
-// Unlike the admin functions this list is copied from, Live Follow has to
-// work on a PR's deploy preview too -- that's the only place it can be tried
-// before merging, and the browser sends the preview's own origin with this
-// POST, which the fixed list above refused outright.
-const DEPLOY_PREVIEW_ORIGIN = /^https:\/\/deploy-preview-\d+--dafsync\.netlify\.app$/;
+import { isAllowedPreviewOrigin } from '../../shared/dafsync-config.mjs';
 
 export default async (request) => {
   if (request.method !== 'POST') {
@@ -33,7 +31,7 @@ export default async (request) => {
   }
 
   const origin = request.headers.get('Origin') || '';
-  if (!ALLOWED_ORIGINS.has(origin) && !DEPLOY_PREVIEW_ORIGIN.test(origin)) {
+  if (!isAllowedPreviewOrigin(origin)) {
     return Response.json({ error: 'Origin not permitted.' }, { status: 403 });
   }
 
