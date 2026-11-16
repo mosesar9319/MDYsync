@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#132238">
+  <meta name="description" content="DafSync plays Mercaz Daf Yomi shiurim synced word by word to the Talmud. Tap any word to jump to that moment, and follow along as the highlight moves.">
+  <link rel="icon" href="/assets/dafsync-mark.png" type="image/png">
+  <link rel="preload" as="image" href="assets/player-split.webp" type="image/webp" fetchpriority="high">
+  <title>DafSync — Welcome</title>
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../watch-theme.css">
+  <link rel="stylesheet" href="welcome.css">
+</head>
+<body class="welcome-page">
+  <a class="skip" href="#content">Skip to content</a>
+
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="DafSync home"><span class="brand-mark"><img src="/assets/dafsync-lockup.png" alt=""></span></a>
+    <nav class="desktop-navigation" aria-label="Primary navigation"></nav>
+  </aside>
+
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="mobile-brand">
+        <a class="brand" href="/" aria-label="DafSync home">
+          <span class="brand-mark"><img src="/assets/dafsync-mark.png" alt=""></span>
+          <span class="brand-name">DafSync</span>
+        </a>
+      </div>
+      <div class="top-actions">
+        <a class="top-cta" href="/?nav=today">Today’s daf</a>
+      </div>
+    </header>
+
+    <main class="welcome" id="content">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Daf Yomi, word by word</p>
+          <h1>The shiur and the daf, together.</h1>
+          <p class="lede">DafSync plays video shiurim from Mercaz Daf Yomi beside the Talmud page, synced word by word. Tap any word to jump to that moment. As the rabbi reads, the highlight follows.</p>
+          <div class="cta-row">
+            <a class="btn btn-primary" href="/browse/">Start learning</a>
+            <a class="btn btn-secondary" href="/?nav=today">Watch today’s daf</a>
+          </div>
+          <ul class="hero-points">
+            <li>English and Hebrew</li>
+            <li>Regular and Chazarah</li>
+            <li>Tap a word, hear that line</li>
+          </ul>
+        </div>
+        <figure class="shot hero-frame">
+          <img src="assets/player-split.webp" width="1600" height="1089" alt="Split view of Daf Yomi Bechoros Daf 55 by R' Eli Stefansky beside the Vilna page of Bekhorot 55a, with Auto-scroll and Skip to Bekhorot 55a." fetchpriority="high">
+          <figcaption>Split view: the shiur beside the page. The highlight follows the reading.</figcaption>
+        </figure>
+      </section>
+
+      <nav class="jump" aria-label="On this page">
+        <a href="#library">Today’s Daf</a>
+        <a href="#interactive">Interactive Daf</a>
+        <a href="#player">Player</a>
+        <a href="#chaburah">Cloud Chaburah</a>
+        <a href="#tools">Notes and tools</a>
+      </nav>
+
+      <section class="steps" aria-labelledby="how-title">
+        <p class="eyebrow">How it works</p>
+        <h2 id="how-title">Three steps, then you are on the daf.</h2>
+        <p class="section-intro">The same idea runs through every shiur: the video and the words stay locked together.</p>
+        <ol class="step-list">
+          <li class="step">
+            <span class="step-num">01</span>
+            <h3>Choose a daf</h3>
+            <p>Open Today’s Daf, browse the library, or point your camera at a printed page.</p>
+          </li>
+          <li class="step">
+            <span class="step-num">02</span>
+            <h3>Follow the reading</h3>
+            <p>The highlight moves across the words as the shiur plays. Auto-scroll can keep that place in view.</p>
+          </li>
+          <li class="step">
+            <span class="step-num">03</span>
+            <h3>Tap any word</h3>
+            <p>The video jumps to that moment. Vaater skips ahead to the next synced phrase.</p>
+          </li>
+        </ol>
+      </section>
+
+      <section class="feature" id="library">
+        <div class="feature-copy">
+          <p class="eyebrow">Home</p>
+          <h2>Today’s Daf, and the whole library.</h2>
+          <p>The home page leads with the day’s daf and a Watch today’s shiur button, then the shiurim underneath it.</p>
+          <ul>
+            <li>Search shiurim or maggidei shiur.</li>
+            <li>Filter by masechta, language (English or Hebrew), type (Full length or Chazarah), and sort newest or oldest first.</li>
+            <li>Maggidei Shiurim lists the teachers the site follows: R' Eli Stefansky (Mercaz Daf Yomi) and R' Sruly Bornstein (Lakewood Daf Yomi).</li>
+          </ul>
+          <div class="cta-row">
+            <a class="btn btn-primary" href="/?nav=today">Today’s Daf</a>
+            <a class="btn btn-secondary" href="/?nav=maggidei">Maggidei Shiurim</a>
+          </div>
+        </div>
+        <figure class="shot">
+          <img src="assets/library.webp" width="1600" height="1067" alt="Home page with Today’s Daf for Maseches Bekhorot 55, a Watch today’s shiur button, and the shiur library with masechta, language, type, and sort filters." loading="lazy" decoding="async">
+          <figcaption>Today’s Daf above the library. English and Hebrew, full length and Chazarah.</figcaption>
+        </figure>
+      </section>
+
+      <section class="feature feature-flip" id="interactive">
+        <div class="feature-copy">
+          <p class="eyebrow">Interactive Daf</p>
+          <h2>The page itself is the remote.</h2>
+          <p>Pick a masechta and daf, then Regular or Chazarah Daf, in English or Hebrew. A line under the picker says it plainly: tap any word on the page to watch that part of the shiur.</p>
+          <ul>
+            <li>Text, or the Vilna page.</li>
+            <li>Zoom, Fit width, Fit page, and Select text.</li>
+            <li>Previous amud and Next amud, and amud a or b.</li>
+            <li>“The rabbi is discussing” marks the current place. Auto-scroll follows along.</li>
+            <li><span class="badge">Experiment</span> Live follow: follow a shiur being given right now — or a video — on the printed daf. The highlight moves as it is read. Turn it on from this page, from the microphone, tab audio, or a video transcript.</li>
+          </ul>
+          <a class="btn btn-primary" href="/browse/">Open the Interactive Daf</a>
+        </div>
+        <figure class="shot">
+          <img src="assets/interactive.webp" width="1500" height="1021" alt="Interactive Daf for Bekhorot, with Regular, Chazarah Daf, English, and Hebrew, the Live follow experiment, Split view, Daf on video, Video on daf, and the Vilna page." loading="lazy" decoding="async">
+          <figcaption>Live follow is marked Experiment. The Vilna page sits beside the shiur list.</figcaption>
+        </figure>
+      </section>
+
+      <section class="modes" id="player">
+        <p class="eyebrow">The player</p>
+        <h2>Three ways to watch.</h2>
+        <p class="section-intro">Open any shiur and choose how the video and the daf share the screen. The same controls travel with you: Vaater, speed (0.75×, 1×, 1.25×, 1.5×, 2×), Skip to the daf, Notes, and Share.</p>
+        <div class="modes-grid">
+          <figure class="shot">
+            <img src="assets/player-split.webp" width="1600" height="1089" alt="Split view, with the shiur video in one pane and the Vilna daf in the other." loading="lazy" decoding="async">
+            <figcaption><strong>Split view.</strong> Video and daf in their own panes. On a phone they stack in portrait and sit side by side in landscape.</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="assets/player-daf-on-video.webp" width="1400" height="933" alt="Daf on video: the printed daf drawn over the shiur video." loading="lazy" decoding="async">
+            <figcaption><strong>Daf on video.</strong> The printed page drawn over the video.</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="assets/player-video-on-daf.webp" width="1400" height="933" alt="Video on daf: a movable video window over the printed Vilna page, with Following and Exit mode." loading="lazy" decoding="async">
+            <figcaption><strong>Video on daf.</strong> A movable video over the printed page.</figcaption>
+          </figure>
+        </div>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="/?nav=today">Watch today’s daf</a>
+          <a class="btn btn-secondary" href="/player/?view=scan">Daf Scan</a>
+        </div>
+      </section>
+
+      <section class="feature" id="chaburah">
+        <div class="feature-copy">
+          <p class="eyebrow">Cloud Chaburah</p>
+          <h2>A discussion, pinned to the words.</h2>
+          <p>Questions, insights, and sources attached to the daf. Every discussion is anchored to an exact passage. Keep replies tied to the text, and mark an answer when a question is settled.</p>
+          <ul>
+            <li>Browse For you, Today’s daf, Following, Latest, Unanswered, Highlighted, and Saved.</li>
+            <li>Filter by category — Question, Insight, Difficulty, Explanation, Answer, Source, and others.</li>
+            <li>Follow a discussion or Save it. Search across the feed.</li>
+            <li>On a thread, the keyboard: <kbd>/</kbd> search, <kbd>r</kbd> reply, <kbd>u</kbd> first unread, <kbd>j</kbd> <kbd>k</kbd> next and previous branch, <kbd>?</kbd> the shortcut list, <kbd>Esc</kbd> close, <kbd>Ctrl</kbd>+<kbd>Enter</kbd> post.</li>
+          </ul>
+          <a class="btn btn-primary" href="/chaburah/">Open Cloud Chaburah</a>
+        </div>
+        <figure class="shot">
+          <img src="assets/chaburah.webp" width="1500" height="1021" alt="Cloud Chaburah for today’s daf, with Latest selected, a category filter, and Follow and Save on each discussion." loading="lazy" decoding="async">
+          <figcaption>Today’s daf at the top of the feed. Follow and Save sit on every thread.</figcaption>
+        </figure>
+      </section>
+
+      <section class="tools" id="tools">
+        <p class="eyebrow">Around the daf</p>
+        <h2>Notes, a kuntras, your profile, and a camera.</h2>
+        <p class="section-intro">These stay next to the learning, not in a separate app. My Notes and Kuntras Builder are also one click from Cloud Chaburah.</p>
+        <div class="tool-grid">
+          <a class="tool-card" href="/notes/">
+            <span class="tool-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12l4 4v12H4z"/><path d="M16 4v4h4M8 13h8M8 17h5"/></svg></span>
+            <h3>My Notes</h3>
+            <p>Everything you’ve written, across every daf — private by default. Search your notes, switch between Notes and Documents, filter by category and visibility, or import a file.</p>
+            <span class="more">Open My Notes</span>
+          </a>
+          <a class="tool-card" href="/kuntras/">
+            <span class="tool-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h9a3 3 0 0 1 3 3v13H9a3 3 0 0 0-3 3z"/><path d="M6 4a3 3 0 0 0-3 3v13"/></svg></span>
+            <h3>Kuntras Builder</h3>
+            <p>Assemble your notes and writing into your own pamphlet — private, unlisted, or fully public. Public kuntrasim can be searched by anyone.</p>
+            <span class="more">Open Kuntras Builder</span>
+          </a>
+          <a class="tool-card" href="/profile/">
+            <span class="tool-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2"/><path d="M5 19.5v-.5a7 7 0 0 1 14 0v.5"/></svg></span>
+            <h3>Your Profile</h3>
+            <p>Display name and avatar: how you appear across DafSync and Cloud Chaburah. Sign in to edit them. The account menu on the home page opens Edit profile.</p>
+            <span class="more">Edit profile</span>
+          </a>
+          <a class="tool-card" href="/player/?view=scan">
+            <span class="tool-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg></span>
+            <h3>Daf Scan</h3>
+            <p>Point your camera at the header, above the Gemara text, and DafSync opens that daf. You can also choose a photo, or use photo scan instead.</p>
+            <div class="scan-illus" aria-hidden="true">
+              <div class="scan-guide"></div>
+              <p>Point your camera at the header, above the Gemara text.</p>
+              <ul>
+                <li>Choose a photo</li>
+                <li>Use photo scan</li>
+                <li>Full page (testing)</li>
+              </ul>
+            </div>
+            <p><span class="badge">Experiment</span> Full page is a testing mode. The usual scan is the header strip.</p>
+            <span class="more">Open Daf Scan</span>
+          </a>
+          <a class="tool-card" href="/browse/">
+            <span class="tool-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h4l2-5 4 10 2-5h4"/></svg></span>
+            <h3>Live follow</h3>
+            <p><span class="badge">Experiment</span> Follow a shiur being given right now — or a video — on the printed daf. The highlight moves as it is read. Turn it on from the Interactive Daf.</p>
+            <span class="more">Try it on the daf</span>
+          </a>
+          <a class="tool-card" href="/chaburah/">
+            <span class="tool-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 16.5A6.5 6.5 0 1 1 11.4 6H12a4.5 4.5 0 1 1 0 9H7"/></svg></span>
+            <h3>Live discussions</h3>
+            <p>While a shiur or the Interactive Daf is open, Live discussions sits on that daf. The same conversations live in Cloud Chaburah, still tied to the passage.</p>
+            <span class="more">Open Cloud Chaburah</span>
+          </a>
+        </div>
+      </section>
+
+      <section class="close" aria-labelledby="close-title">
+        <p class="eyebrow">Begin</p>
+        <h2 id="close-title">Open today’s daf and tap a word.</h2>
+        <p>The library, the Interactive Daf, and Cloud Chaburah are all one tap from here. English and Hebrew shiurim are both on the page.</p>
+        <div class="cta-row">
+          <a class="btn btn-on-navy" href="/browse/">Start learning</a>
+          <a class="btn btn-ghost-on-navy" href="/?nav=today">Watch today’s daf</a>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <p>DafSync</p>
+        <nav aria-label="Site pages">
+          <a href="/">Home</a>
+          <a href="/?nav=today">Today’s Daf</a>
+          <a href="/browse/">Interactive Daf</a>
+          <a href="/chaburah/">Cloud Chaburah</a>
+          <a href="/notes/">My Notes</a>
+          <a href="/kuntras/">Kuntras Builder</a>
+          <a href="/profile/">Profile</a>
+          <a href="/player/?view=scan">Daf Scan</a>
+        </nav>
+      </footer>
+    </main>
+  </div>
+
+  <script src="../nav.js" defer></script>
+  <script src="../collapse.js" defer></script>
+</body>
+</html>
