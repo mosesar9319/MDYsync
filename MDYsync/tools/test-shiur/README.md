@@ -1,7 +1,8 @@
 # Test shiur
 
 A **test shiur** is a video the voice models are tuned on. Right now that is
-R' Sruly Bornstein's "Bechoros 2" (`Zsy7oDUP6Pw`, Lakewood Daf Yomi).
+R' Sruly Bornstein's "Bechoros 58" (`TWCiP96dKXU`, Lakewood Daf Yomi); before it,
+his "Bechoros 2" (`Zsy7oDUP6Pw`), whose runs are still there.
 
 Every time either voice engine is run on it, the alignment is saved as a new
 **numbered run** (`Regular #1`, `Regular #2`, `Live #1`, ... — numbers count per
@@ -17,7 +18,14 @@ short note on what changed — it becomes part of the run's name in the dropdown
 (`Live #3 · 14 Oct 2026 · pending survives misses`).
 
 * **Regular engine** — dispatches the ordinary voice job with `testRun: true`; it
-  publishes `Regular #N` (and, as always, the default `Voice-` alignment).
+  publishes `Regular #N` (and, as always, the default `Voice-` alignment). Two
+  inputs choose how it runs, and go into the run's name:
+  * `aligner`: `path` (the whole shiur as one ordered path — `path_align.py`) or
+    `phrase` (the older phrase-by-phrase matcher alone).
+  * `witnesses`: which transcripts the path is given — `hints,plain` (the default:
+    one made with the daf's words as a hint list, one without), `hints`, or
+    `hints,plain,slow` (`slow` is the audio played at 0.75 speed). Each one after
+    `hints` is one more ElevenLabs transcription of the shiur.
 * **Live engine** — `live-engine.mjs` transcribes the video with ElevenLabs, plays
   the words through `live-matcher.js` the way Live Follow's video mode does, and
   `caption-sync/test_runs.py` saves it as `Live #N`.
@@ -35,6 +43,23 @@ python3 tools/caption-sync/test_runs.py publish --alignment alignment.json \
 ElevenLabs key; add `--elevenlabs` to ask ElevenLabs directly with
 `ELEVENLABS_API_KEY`. Re-running with `--words words.json` reuses a transcript.)
 
+## Measuring a change: the answer key
+
+A Bornstein shiur has nothing to check a run against but your own ears. A Mercaz
+Daf Yomi shiur does: its burned-in captions say where on the daf the shiur is at
+every moment. So run the voice engine on one, and score the result against its
+caption alignment (`by-ref/<Tractate>-<daf>.json` on the results branch):
+
+```sh
+python3 tools/caption-sync/voice_align.py audio.mp3 --refs-json '["Bekhorot 39b","Bekhorot 40a","Bekhorot 40b"]' --out-dir out
+python3 tools/caption-sync/score_against_captions.py --voice out/alignment.json --captions Bekhorot-40a.json
+```
+
+(`--transcript saved.json`, repeatable, reuses transcripts instead of paying for
+new ones.) On "Bechoros 40" (`dK7n4zCn5yY`), November 2026: the phrase matcher
+without its Claude step kept the highlight within 5 words of the captions 48% of
+the time, the live engine 67%, the path aligner with two transcripts 87%.
+
 ## Where it lives
 
 On the `results` branch:
@@ -48,7 +73,7 @@ test-runs/<videoId>/live-1.json
 
 ## Making another video a test shiur
 
-Add `"testShiur": true, "locked": true` to its `video-links/<key>.json` (the
-backfill tool does it with `--test-video <id>`), rebuild `catalog.json`
-(`tools/build-video-catalog.mjs`), and dispatch the workflow above with its id
-and refs.
+Dispatch the workflow above with its id, refs and maggid. Its first job
+(`tools/test-shiur/register.mjs`, then `tools/build-video-catalog.mjs`) writes the
+`video-links/<key>.json` files with `"testShiur": true, "locked": true` and
+rebuilds `catalog.json`; a daf that already links a different video is left alone.

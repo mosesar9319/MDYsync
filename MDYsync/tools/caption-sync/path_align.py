@@ -1,0 +1,535 @@
+#!/usr/bin/env python3
+"""Path alignment for the voice engine: reads the Gemara out of the WHOLE
+transcript, in either alphabet, and places it along the daf as one ordered path.
+
+Two things voice_align.py's phrase-by-phrase matcher cannot do, both found on real
+shiurim (R' Sruly Bornstein, Lakewood Daf Yomi):
+
+  1. The transcriber writes most of what the maggid reads from the daf in ENGLISH
+     letters, the way he says it -- "Vehamoicher lai", "Af alpisha ini Rashi",
+     "patum min habechira shenemar" -- and only some of it in Hebrew letters. The
+     phrase matcher looks at Hebrew letters alone. Here the daf is turned into the
+     sounds an Ashkenazi reader makes (from its nikud: a tav without a dagesh is
+     "s", a cholam is a vowel and so on) and the English-letter words into the same
+     consonant skeleton, so the two can be compared.
+
+  2. A maggid reads two or three words, translates them, and reads the next two or
+     three. Alone, a fragment that short fits many places on a daf and has to be
+     thrown away. Here every stretch of the transcript that could be daf text keeps
+     ALL the places it could be, and one pass (a Viterbi search) picks the single
+     path through the shiur that explains the most of them while moving through the
+     daf in order -- staying put, stepping forward, or going back a little to
+     re-read are cheap; a far jump has to be paid for by what follows it.
+
+Everything is placed on the shiur's own clock rather than on one transcript's word
+order, so any number of transcripts of the same audio can be given as WITNESSES --
+one made with the daf's words as a hint list (which makes the transcriber write
+Hebrew letters), one without (all English letters), one of the audio slowed down
+-- and each stretch of the shiur is read from whichever heard it best. The phrase
+matcher's own placements (its Claude rescues included) can be handed in as further
+proposals. The path arbitrates everything that is known.
+
+Returns the same WordEvent list and matchStats shape voice_align.py publishes.
+"""
+import bisect
+import heapq
+import re
+import unicodedata
+from collections import namedtuple
+
+import numpy as np
+from rapidfuzz import fuzz, process
+
+from caption_ocr_align import WordEvent, normalize_word
+
+# ---------------------------------------------------------------------------
+# Sounds
+# ---------------------------------------------------------------------------
+_DAGESH, _SHIN_DOT, _SIN_DOT, _HOLAM = "ּ", "ׁ", "ׂ", "ֹ"
+_VOWELS = frozenset("ְֱֲֳִֵֶַָׇֹֺֻ")
+_PLAIN = {
+    "ג": "g", "ד": "d", "ז": "z", "ח": "x", "ט": "t", "ל": "l", "מ": "m", "ם": "m",
+    "נ": "n", "ן": "n", "ס": "s", "צ": "ts", "ץ": "ts", "ק": "k", "ר": "r", "ך": "x", "ף": "f",
+}
+_DOUBLED = re.compile(r"(.)\1+")
+
+
+def ashkenazi_skeleton(vocalized_word):
+    """The consonants of a vocalized word as an Ashkenazi reader says them, in a
+    small Latin alphabet (x = ch, S = sh). Vowels are left out on both sides: they
+    are the least reliable part of a transcript, and the nikud is only needed to
+    tell b from v, k from ch, p from f, t from s, sh from s, and a vav or yud that is
+    a consonant from one that is only a vowel."""
+    letters = []
+    for ch in unicodedata.normalize("NFD", vocalized_word):
+        if "א" <= ch <= "ת":
+            letters.append([ch, ""])
+        elif letters and "֑" <= ch <= "ׇ":
+            letters[-1][1] += ch
+    out = []
+    for k, (ch, marks) in enumerate(letters):
+        dagesh = _DAGESH in marks
+        vowel = any(m in _VOWELS for m in marks)
+        if ch in "אע":
+            continue
+        if ch == "ה":
+            if k < len(letters) - 1 or vowel:
+                out.append("h")
+        elif ch == "ו":
+            if not (_HOLAM in marks or (dagesh and not vowel)):   # not "o", not "u"
+                out.append("v")
+        elif ch == "י":
+            if vowel or dagesh:
+                out.append("y")
+        elif ch == "ב":
+            out.append("b" if dagesh else "v")
+        elif ch == "כ":
+            out.append("k" if dagesh else "x")
+        elif ch == "פ":
+            out.append("p" if dagesh else "f")
+        elif ch == "ת":
+            out.append("t" if dagesh else "s")
+        elif ch == "ש":
+            out.append("s" if _SIN_DOT in marks else "S")
+        else:
+            out.append(_PLAIN.get(ch, ""))
+    return _DOUBLED.sub(r"\1", "".join(out))
+
+
+_LATIN_PAIRS = (
+    ("tch", "x"), ("sch", "S"), ("sh", "S"), ("ch", "x"), ("kh", "x"), ("tz", "ts"),
+    ("th", "s"), ("ph", "f"), ("ck", "k"), ("qu", "k"), ("c", "k"), ("q", "k"),
+    ("w", "v"), ("j", "y"),
+)
+_NOT_LATIN = re.compile(r"[^a-z]")
+_Y_VOWEL = re.compile(r"y(?![aeiou])")
+_LATIN_VOWELS = re.compile(r"[aeiou]")
+
+
+def latin_skeleton(word):
+    """The same consonant skeleton for a word the transcriber spelled in English
+    letters ("Vehamoicher" -> vhmxr)."""
+    w = _NOT_LATIN.sub("", word.lower())
+    for a, b in _LATIN_PAIRS:
+        w = w.replace(a, b)
+    w = _Y_VOWEL.sub("", w)
+    w = _LATIN_VOWELS.sub("", w)
+    if w.endswith("h"):
+        w = w[:-1]
+    return _DOUBLED.sub(r"\1", w)
+
+
+# Sounds a transcriber swaps freely when it spells Hebrew by ear.
+_FOLD = str.maketrans({"z": "s", "f": "v", "p": "b", "d": "t", "g": "k", "y": "", "h": ""})
+
+
+def fold(skeleton):
+    return skeleton.translate(_FOLD)
+
+
+# ---------------------------------------------------------------------------
+# Which English-letter words are just English
+# ---------------------------------------------------------------------------
+COMMON_ENGLISH_WORDS = 5000
+
+
+def load_common_english(n=COMMON_ENGLISH_WORDS):
+    """The n most common English words (wordfreq), so "owns an" is not read as
+    "vehanoisen". Without the package nothing is filtered, and the path has to
+    reject English by itself -- it mostly does, but less cleanly."""
+    try:
+        from wordfreq import top_n_list
+    except ImportError:
+        print("wordfreq is not installed -- English words are not filtered out of the path alignment.")
+        return frozenset()
+    return frozenset(top_n_list("en", n))
+
+
+_HEBREW_LETTER = re.compile(r"[א-ת]")
+_WORD_CHARS = re.compile(r"[^a-z']")
+
+# ---------------------------------------------------------------------------
+# Tuning
+# ---------------------------------------------------------------------------
+MAX_WINDOW_WORDS = 5          # transcript words (and daf words) in one comparison
+MAX_WINDOW_GAP_SECONDS = 2.0  # a longer silence ends a stretch
+MIN_WINDOW_CHARS = 4          # skeleton letters; anything shorter says nothing
+# A stretch this short is only believed where the path already is (see _transition).
+SHORT_WINDOW_CHARS = 5
+# English-letter stretch: at least this share of its skeleton must come from words
+# that are not common English.
+MIN_FOREIGN_SHARE = 0.6
+MAX_HEBREW_RUN_WORDS = 25     # longer Hebrew-letter runs are the transcriber's own prose
+SCORE_CUTOFF = 78
+
+
+def _score_floor(chars):
+    """The shorter the stretch, the closer the match has to be."""
+    if chars <= 4:
+        return 100
+    if chars <= 6:
+        return 88
+    if chars <= 9:
+        return 80
+    return SCORE_CUTOFF
+
+
+# The path. All in "reward units": a perfect match earns REWARD_PER_CHAR per
+# skeleton letter.
+REWARD_PER_CHAR = 0.9
+NEAR_FORWARD_WORDS = 3        # this far ahead is simply reading on
+NEAR_BACK_WORDS = 12          # this far back is re-reading the phrase
+STEP_BACK_COST = 0.8
+FORWARD_COST_PER_WORD = 0.12
+FORWARD_COST_MAX = 14.0
+FAR_BACK_COST = 4.0
+FAR_BACK_COST_PER_WORD = 0.25
+FAR_BACK_COST_MAX = 16.0
+
+MAX_UNMATCHED_LISTED = 200
+# A proposal scored below this by its own matcher still earns a little on the path.
+PROPOSAL_MIN_SCORE = 71.0
+
+# A stretch of the shiur read as a stretch of the daf: seconds t0..t1, daf words
+# s..e, how alike (0-100), how many skeleton letters were compared, who says so.
+Candidate = namedtuple("Candidate", "t0 t1 s e score chars source text")
+
+SOURCE_LATIN = "path-latin"
+SOURCE_HEBREW = "path-hebrew"
+SOURCE_PHRASE = "path-phrase"
+SOURCE_LATIN_GAP = "path-latin-gap"
+SOURCE_HEBREW_GAP = "path-hebrew-gap"
+PATH_SOURCE_LABELS = {
+    SOURCE_LATIN: "Read from English-letter spelling",
+    SOURCE_HEBREW: "Read from Hebrew letters",
+    SOURCE_LATIN_GAP: "Second look between placed phrases (English letters)",
+    SOURCE_HEBREW_GAP: "Second look between placed phrases (Hebrew letters)",
+    SOURCE_PHRASE: "Phrase matcher, kept by the path",
+}
+
+
+def build_tokens(words, english):
+    """One token per transcript word: which alphabet it is in and its skeleton."""
+    tokens = []
+    for w in words:
+        text = w.get("text", "")
+        token = {"text": text, "start": w["start"], "end": w["end"], "script": None, "sk": "", "common": False}
+        if _HEBREW_LETTER.search(text):
+            norm = normalize_word(text)
+            if norm:
+                token.update(script="he", norm=norm)
+        else:
+            sk = fold(latin_skeleton(text))
+            plain = _WORD_CHARS.sub("", text.lower()).strip("'")
+            token.update(script="lat", sk=sk, common=plain in english or plain.replace("'", "") in english)
+        tokens.append(token)
+    return tokens
+
+
+def _hebrew_run_lengths(tokens):
+    """For each token, how many Hebrew-letter words stand in its unbroken run."""
+    lengths = [0] * len(tokens)
+    i = 0
+    while i < len(tokens):
+        if tokens[i]["script"] != "he":
+            i += 1
+            continue
+        j = i
+        while j + 1 < len(tokens) and tokens[j + 1]["script"] == "he":
+            j += 1
+        for k in range(i, j + 1):
+            lengths[k] = j - i + 1
+        i = j + 1
+    return lengths
+
+
+def _daf_windows(strings, lo=0, hi=None):
+    """Every stretch of 1..MAX_WINDOW_WORDS daf words in [lo, hi), as (start, end, joined)."""
+    hi = len(strings) if hi is None else hi
+    out = []
+    for s in range(lo, hi):
+        acc = ""
+        for length in range(1, MAX_WINDOW_WORDS + 1):
+            if s + length > hi:
+                break
+            acc += strings[s + length - 1]
+            if len(acc) >= MIN_WINDOW_CHARS:
+                out.append((s, s + length - 1, acc))
+    return out
+
+
+def _transcript_windows(tokens, script, key, usable, a=0, b=None):
+    """Every stretch of 1..MAX_WINDOW_WORDS consecutive transcript words in [a, b)
+    in one alphabet, as (first index, word count, joined, share that is not common
+    English)."""
+    b = len(tokens) if b is None else b
+    out = []
+    for i in range(a, b):
+        first = tokens[i]
+        if first["script"] != script or not usable(i):
+            continue
+        acc, foreign = "", 0
+        for length in range(1, MAX_WINDOW_WORDS + 1):
+            j = i + length - 1
+            if j >= b:
+                break
+            token = tokens[j]
+            if token["script"] != script or not usable(j):
+                break
+            if length > 1 and token["start"] - tokens[j - 1]["end"] > MAX_WINDOW_GAP_SECONDS:
+                break
+            piece = token[key]
+            acc += piece
+            if not token["common"]:
+                foreign += len(piece)
+            if not piece and length == 1:
+                break
+            if len(acc) >= MIN_WINDOW_CHARS and piece and not token["common"] and not first["common"]:
+                share = foreign / len(acc)
+                if share >= MIN_FOREIGN_SHARE:
+                    out.append((i, length, acc, share))
+    return out
+
+
+def _compare(windows, daf_windows, source, cands, floor=_score_floor, cutoff=SCORE_CUTOFF, batch=4000):
+    daf_strings = [d[2] for d in daf_windows]
+    if not daf_strings:
+        return
+    for b in range(0, len(windows), batch):
+        block = windows[b:b + batch]
+        matrix = process.cdist([w[2] for w in block], daf_strings, scorer=fuzz.ratio,
+                               score_cutoff=cutoff, dtype=np.uint8, workers=-1)
+        rows, cols = np.nonzero(matrix)
+        for q, d in zip(rows.tolist(), cols.tolist()):
+            i, length, text, _share = block[q]
+            s, e, daf_text = daf_windows[d]
+            score = int(matrix[q, d])
+            chars = min(len(text), len(daf_text))
+            if score < floor(chars):
+                continue
+            cands.setdefault(i, []).append((length, s, e, float(score), chars, source))
+
+
+class _Witness:
+    """One transcript of the shiur, and the daf, each as the strings the two
+    alphabets are compared in."""
+
+    def __init__(self, words, canon, phonetic, english, daf_latin, daf_hebrew):
+        self.tokens = build_tokens(words, english)
+        self.starts = [t["start"] for t in self.tokens]
+        self.daf_latin = daf_latin
+        self.daf_hebrew = daf_hebrew
+        self.run_lengths = _hebrew_run_lengths(self.tokens)
+        for token in self.tokens:
+            if token["script"] == "he":
+                token["phon"] = phonetic(token["norm"])
+
+    def candidates(self, a=0, b=None, lo=0, hi=None, floor=_score_floor, cutoff=SCORE_CUTOFF, sources=None):
+        """Every place in daf words [lo, hi) each stretch of transcript words [a, b)
+        could be, as Candidates on the shiur's clock."""
+        sources = sources or (SOURCE_LATIN, SOURCE_HEBREW)
+        found = {}
+        latin = _transcript_windows(self.tokens, "lat", "sk", lambda i: True, a, b)
+        _compare(latin, _daf_windows(self.daf_latin, lo, hi), sources[0], found, floor, cutoff)
+        hebrew = _transcript_windows(self.tokens, "he", "phon",
+                                     lambda i: self.run_lengths[i] <= MAX_HEBREW_RUN_WORDS, a, b)
+        _compare(hebrew, _daf_windows(self.daf_hebrew, lo, hi), sources[1], found, floor, cutoff)
+        out = []
+        for i, places in found.items():
+            for length, s, e, score, chars, source in places:
+                out.append(Candidate(self.tokens[i]["start"], self.tokens[i + length - 1]["end"], s, e, score, chars,
+                                     source, " ".join(t["text"] for t in self.tokens[i:i + length])))
+        return out
+
+    def between(self, t0, t1):
+        """The transcript words that start inside (t0, t1), as an index range."""
+        return bisect.bisect_left(self.starts, t0), bisect.bisect_left(self.starts, t1)
+
+
+def _transition_costs(n_words):
+    """cost[s][p]: what it costs the path to be at daf position p (the word after
+    the last one placed) and place the next stretch starting at s."""
+    p = np.arange(n_words + 1)
+    table = []
+    for s in range(n_words + 1):
+        d = s - p
+        cost = np.zeros(n_words + 1)
+        cost = np.where(d > NEAR_FORWARD_WORDS, np.minimum(FORWARD_COST_MAX, FORWARD_COST_PER_WORD * d), cost)
+        cost = np.where((d < 0) & (d >= -NEAR_BACK_WORDS), STEP_BACK_COST, cost)
+        cost = np.where(d < -NEAR_BACK_WORDS,
+                        np.minimum(FAR_BACK_COST_MAX, FAR_BACK_COST + FAR_BACK_COST_PER_WORD * -d), cost)
+        table.append(cost)
+    return table
+
+
+# Two stretches may share this much of the clock (two witnesses time the same
+# words a little differently).
+OVERLAP_SLACK_SECONDS = 0.05
+
+
+def best_path(cands, n_words, forward_only=False):
+    """The cheapest way through the shiur: every stretch is either not daf text or
+    one of its candidate places, and no two chosen stretches overlap in time.
+    Returns the chosen Candidates in time order.
+    forward_only: the path may not step back at all (used inside a gap, where the
+    two ends are already fixed)."""
+    if not cands or not n_words:
+        return []
+    costs = _transition_costs(n_words)
+    if forward_only:
+        position = np.arange(n_words + 1)
+        costs = [np.where(position > s, np.inf, c) for s, c in enumerate(costs)]
+    near = [np.flatnonzero(c == 0.0) for c in costs]      # positions a short stretch may follow from
+    best = np.zeros(n_words + 1)          # best[p]: cheapest path so far that ends at daf position p
+    owner = [None] * (n_words + 1)        # the record that put it there
+    records = []                          # (previous record, candidate)
+    pending = []                          # heap of (end time, order, daf position, cost, record)
+
+    def settle(until):
+        while pending and pending[0][0] <= until:
+            _t, _n, position, cost, record = heapq.heappop(pending)
+            if cost < best[position] - 1e-12:
+                best[position] = cost
+                owner[position] = record
+
+    for cand in sorted(cands, key=lambda c: (c.t0, c.t1)):
+        settle(cand.t0 + OVERLAP_SLACK_SECONDS)
+        if cand.chars <= SHORT_WINDOW_CHARS:
+            # Too short to move the path: only where the path already is.
+            allowed = near[cand.s]
+            if not len(allowed):
+                continue
+            k = int(allowed[np.argmin(best[allowed])])
+            total = best[k]
+        else:
+            through = best + costs[cand.s]
+            k = int(np.argmin(through))
+            total = through[k]
+        if not np.isfinite(total):
+            continue
+        reward = cand.chars * (cand.score - 70.0) / 30.0 * REWARD_PER_CHAR
+        records.append((owner[k], cand))
+        heapq.heappush(pending, (cand.t1, len(records), cand.e + 1, total - reward, len(records) - 1))
+    settle(float("inf"))
+    record = owner[int(np.argmin(best))]
+    placed = []
+    while record is not None:
+        record, cand = records[record]
+        placed.append(cand)
+    placed.reverse()
+    return placed
+
+
+# A second look at what the path left out. Between two neighbouring placements the
+# daf words that fall between them are the only ones the shiur there can be, so a
+# much looser likeness is enough -- the garbled "מדבר שלשון" is plainly
+# "המדבר של לשונו" once nothing else is on offer.
+GAP_MAX_DAF_WORDS = 80
+GAP_SCORE_CUTOFF = 60
+
+
+def _gap_floor(chars):
+    if chars <= 4:
+        return 90
+    if chars <= 6:
+        return 75
+    if chars <= 9:
+        return 66
+    return GAP_SCORE_CUTOFF
+
+
+def fill_gaps(witnesses, placed):
+    """Placements for the stretches between neighbours on the path (the new ones only)."""
+    found = []
+    for before, after in zip(placed, placed[1:]):
+        lo, hi = before.e + 1, after.s
+        if after.t0 <= before.t1 or hi <= lo or hi - lo > GAP_MAX_DAF_WORDS:
+            continue
+        cands = []
+        for witness in witnesses:
+            a, b = witness.between(before.t1 - OVERLAP_SLACK_SECONDS, after.t0)
+            if b > a:
+                cands += witness.candidates(a, b, lo, hi, _gap_floor, GAP_SCORE_CUTOFF,
+                                            (SOURCE_LATIN_GAP, SOURCE_HEBREW_GAP))
+        local = [c._replace(s=c.s - lo, e=c.e - lo) for c in cands if c.t1 <= after.t0 + OVERLAP_SLACK_SECONDS]
+        for c in best_path(local, hi - lo, forward_only=True):
+            found.append(c._replace(s=c.s + lo, e=c.e + lo))
+    return found
+
+
+def align_path(canon, transcripts, phonetic, proposals=(), source_labels=None, english=None, gaps=True,
+               debug=False):
+    """Place the shiur on the daf.
+
+    transcripts: one or more word lists ([{text, start, end}, ...]) of the same
+        audio, all on the audio's own clock.
+    proposals: placements another matcher already made, as
+        (start seconds, end seconds, daf start, daf end, score, heard text[, source]);
+        they compete on the path like any other candidate. source_labels names
+        their sources for matchStats.
+
+    Returns (events, stats): WordEvents for build_outputs, and matchStats.
+    """
+    if english is None:
+        english = load_common_english()
+    daf_latin = [fold(ashkenazi_skeleton(c.text)) for c in canon]
+    daf_hebrew = [phonetic(c.norm) for c in canon]
+    witnesses = [_Witness(words, canon, phonetic, english, daf_latin, daf_hebrew) for words in transcripts if words]
+    cands = []
+    for witness in witnesses:
+        cands += witness.candidates()
+    labels = {**PATH_SOURCE_LABELS, **(source_labels or {})}
+    for t0, t1, s, e, score, text, *source in proposals:
+        chars = sum(len(c.norm) for c in canon[s:e + 1])
+        cands.append(Candidate(t0, max(t1, t0), s, e, float(max(score, PROPOSAL_MIN_SCORE)), chars,
+                               source[0] if source else SOURCE_PHRASE, text))
+    placed = best_path(cands, len(canon))
+    if gaps:
+        placed = sorted(placed + fill_gaps(witnesses, placed), key=lambda c: (c.t0, c.t1))
+
+    events = []
+    by_source = {}
+    heard = set()
+    for c in placed:
+        events.append(WordEvent(round(c.t0, 2), c.s, c.e, round(c.score, 1), c.text, c.source))
+        bucket = by_source.setdefault(c.source, {"label": labels.get(c.source, c.source), "runs": 0, "words": 0})
+        bucket["runs"] += 1
+        bucket["words"] += c.e - c.s + 1
+        heard.update(range(c.s, c.e + 1))
+        if debug:
+            print(f"  t={c.t0:7.2f}  [{c.s}-{c.e}] {c.score:5.1f} {c.source:16}  {c.text}  =>  "
+                  f"{' '.join(w.text for w in canon[c.s:c.e + 1])}")
+
+    # Stretches that looked like daf text somewhere but did not fit the path: the
+    # longest reading of each moment, once.
+    placed_starts = [c.t0 for c in placed]
+    unmatched = []
+    listed_until = float("-inf")
+    for c in sorted(cands, key=lambda c: (c.t0, -(c.t1 - c.t0))):
+        if c.t0 < listed_until:
+            continue
+        k = bisect.bisect_right(placed_starts, c.t1) - 1
+        if k >= 0 and placed[k].t1 > c.t0:
+            continue
+        listed_until = c.t1
+        unmatched.append({"start": round(c.t0, 2), "end": round(c.t1, 2), "text": c.text, "offeredToLlm": False})
+        if len(unmatched) >= MAX_UNMATCHED_LISTED:
+            break
+    stats = {
+        "aligner": "path",
+        "totalRuns": len(placed) + len(unmatched),
+        "totalWords": len(canon),
+        "matchedWords": len(heard),
+        "unmatchedWords": len(canon) - len(heard),
+        "excludedWords": 0,
+        "bySource": by_source,
+        "unmatched": unmatched,
+        "excluded": [],
+        "passes": 2 if gaps else 1,
+        "llmCalls": 0,
+        "witnesses": len(witnesses),
+        "transcriptWords": sum(len(w.tokens) for w in witnesses),
+        "dafWords": len(canon),
+        "dafWordsHeard": len(heard),
+    }
+    return events, stats
