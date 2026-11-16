@@ -202,22 +202,24 @@ test.describe('live alignments follow taps, the intro, and gaps', () => {
     expect(await page.evaluate(() => state.youtubePlayer.getPlayerState())).toBe(2);
 
     const gap = await page.evaluate(() => {
-      // A phrase can share its start with a longer neighbor, so "3s after
-      // this phrase's end" is only a gap when no other phrase still covers it.
-      // Gaps before the requested amud itself are the review span and stay
-      // on "Reviewing …", not "Between phrases".
+      // A real gap: nothing starts until well after this phrase has ended.
+      // The highlight stays on the phrase until the next one begins, however
+      // long the gap (it used to go dark 3s in). Gaps before the requested amud
+      // itself are the review span, checked separately.
       const own = ownContentStartTime();
       const segments = state.segments;
-      for (let i = 0; i < segments.length; i += 1) {
+      for (let i = 0; i + 1 < segments.length; i += 1) {
         const end = Number(segments[i].end);
-        if (!Number.isFinite(end)) continue;
+        if (!Number.isFinite(end) || segments[i].estimated) continue;
         const time = end + 3.5;
-        if (time <= segments[0].start || findSegmentAt(time) !== -1) continue;
+        if (time <= segments[0].start || Number(segments[i + 1].start) <= time + 0.5) continue;
         if (own != null && time < own) continue;
+        if (findSegmentAt(segments[i].start + 0.01) !== i) continue;
         state.pendingSeek = null;
         state.phrasePin = null;
         updateActiveSegment(true, time);
         return {
+          phrase: i,
           active: state.activeIndex,
           ref: document.getElementById('currentRef').textContent,
         };
@@ -225,8 +227,8 @@ test.describe('live alignments follow taps, the intro, and gaps', () => {
       return null;
     });
     expect(gap).toBeTruthy();
-    expect(gap.active).toBe(-1);
-    expect(gap.ref).toBe('Between phrases');
+    expect(gap.active).toBe(gap.phrase);
+    expect(gap.ref).not.toBe('Between phrases');
     await shot(page, 'bekhorot-30-chazarah-gap');
 
     expect(await page.locator('.daf-segment.estimated').count()).toBeGreaterThan(0);
@@ -282,20 +284,23 @@ test.describe('live alignments follow taps, the intro, and gaps', () => {
     const gap = await page.evaluate(() => {
       const own = ownContentStartTime();
       const segments = state.segments;
-      for (let i = 0; i < segments.length; i += 1) {
+      for (let i = 0; i + 1 < segments.length; i += 1) {
         const end = Number(segments[i].end);
-        if (!Number.isFinite(end)) continue;
+        if (!Number.isFinite(end) || segments[i].estimated) continue;
         const time = end + 3.5;
-        if (time <= segments[0].start || findSegmentAt(time) !== -1) continue;
+        if (time <= segments[0].start || Number(segments[i + 1].start) <= time + 0.5) continue;
         if (own != null && time < own) continue;
+        if (findSegmentAt(segments[i].start + 0.01) !== i) continue;
         state.pendingSeek = null;
         state.phrasePin = null;
         updateActiveSegment(true, time);
-        return state.activeIndex;
+        return { phrase: i, active: state.activeIndex };
       }
       return null;
     });
-    expect(gap).toBe(-1);
+    // Held on the phrase through the gap, not dark.
+    expect(gap).toBeTruthy();
+    expect(gap.active).toBe(gap.phrase);
     await shot(page, 'bekhorot-34a-gap');
   });
 });
@@ -344,16 +349,23 @@ test.describe('the daf page does not chase every phrase and gap', () => {
           if (segment.estimated) continue;
           const end = Number(segment.end);
           if (!Number.isFinite(end)) continue;
-          // Idle starts 3s after the phrase. The hold lasts until end+4s, so
-          // this is the short "Between phrases" flash the status used to show.
+          // Past the 3s a real phrase used to keep before going dark: the
+          // highlight (and the status line, and the page) stay on it.
           const gapAt = end + 3.2;
+          const next = state.segments[i + 1];
+          if (!next || Number(next.start) <= gapAt + 0.5) continue;
           if (findSegmentAt(segment.start + 0.15) !== i) continue;
-          if (findSegmentAt(gapAt) !== -1) continue;
+          if (findSegmentAt(gapAt) !== i) continue;
           state.pendingSeek = null;
           state.phrasePin = null;
           updateActiveSegment(false, segment.start + 0.15);
           const during = document.getElementById('currentRef').textContent;
           const pageDuring = currentVilnaPageKey().key;
+          // A phrase whose own amud is already on the page: the gap after it
+          // must not move the page anywhere. (A held phrase on ANOTHER amud
+          // turns the page once it has lasted VILNA_FOLLOW_HOLD_S, as any
+          // phrase does.)
+          if (pageDuring !== vilnaKeyFromRef(segment.ref)) continue;
           updateActiveSegment(false, gapAt);
           held = {
             during,
@@ -373,7 +385,8 @@ test.describe('the daf page does not chase every phrase and gap', () => {
             const key = segmentDafKey(segment.ref);
             if (!key || key === loaded) continue;
             const gapAt = Number(segment.end) + 6.5;
-            if (!(gapAt < own - 0.2) || findSegmentAt(gapAt) !== -1) continue;
+            const next = state.segments[i + 1];
+            if (!(gapAt < own - 0.2) || !next || Number(next.start) <= gapAt + 0.5) continue;
             state.pendingSeek = null;
             state.phrasePin = null;
             updateActiveSegment(false, segment.start + 0.2);
@@ -391,8 +404,9 @@ test.describe('the daf page does not chase every phrase and gap', () => {
         }
         return { raw, follow, held, loaded, reviewGap };
       });
-      expect(counts.raw, `${label} raw amud changes`).toBeGreaterThan(8);
-      expect(counts.follow, `${label} page turns ${counts.follow} vs raw ${counts.raw}`).toBeLessThan(counts.raw / 3);
+      // Gaps no longer drop the highlight, so they no longer count as a change
+      // of amud at all; what is left are one-off phrases on another amud.
+      expect(counts.follow, `${label} page turns ${counts.follow} vs raw ${counts.raw}`).toBeLessThanOrEqual(counts.raw);
       expect(counts.follow).toBeLessThan(12);
       expect(counts.held, `${label} has a short gap`).toBeTruthy();
       expect(counts.held.gap).toBe(counts.held.during);
