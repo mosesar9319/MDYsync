@@ -179,7 +179,10 @@ jobs:
           # a transcript of the audio slowed to 0.75 speed.
           VOICE_ALIGNER: ${{ github.event.client_payload.aligner }}
           VOICE_WITNESSES: ${{ github.event.client_payload.witnesses }}
-          # Turns on the LLM rescue/refine steps: when deterministic fuzzy/
+          # Lets the LLM rescue/refine steps run where they are on: since
+          # November 2026 only for a phrase-matcher run (aligner "phrase");
+          # the path aligner, the default, leaves Claude out (see
+          # llm_rescue_by_default in voice_align.py). When on: when deterministic fuzzy/
           # phonetic matching can't place a Hebrew-script run anywhere in
           # the daf at all, Claude gets a shot at it using context a
           # string-similarity search can't -- see resolve_ambiguous_run/

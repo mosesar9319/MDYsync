@@ -195,6 +195,15 @@ class ClaudeSpan(unittest.TestCase):
         self.assertFalse(VA.llm_span_plausible(0, 6, [{}] * 4))
 
 
+class ClaudeByDefault(unittest.TestCase):
+    def test_off_for_the_path_aligner_and_up_to_the_credentials_for_the_phrase_matcher(self):
+        with mock.patch.object(VA, '_anthropic_credentials_available', return_value=True):
+            self.assertFalse(VA.llm_rescue_by_default('path'))
+            self.assertTrue(VA.llm_rescue_by_default('phrase'))
+        with mock.patch.object(VA, '_anthropic_credentials_available', return_value=False):
+            self.assertFalse(VA.llm_rescue_by_default('phrase'))
+
+
 class Witnesses(unittest.TestCase):
     def test_which_extra_transcripts_are_asked_for(self):
         self.assertEqual(VA.parse_witnesses('hints,plain'), ['plain'])
