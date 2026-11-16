@@ -199,7 +199,9 @@ SOURCE_HEBREW = "path-hebrew"
 SOURCE_PHRASE = "path-phrase"
 SOURCE_LATIN_GAP = "path-latin-gap"
 SOURCE_HEBREW_GAP = "path-hebrew-gap"
+SOURCE_BRIDGE = "path-bridge"
 PATH_SOURCE_LABELS = {
+    SOURCE_BRIDGE: "Filled in between two placed phrases a moment apart (not heard on its own)",
     SOURCE_LATIN: "Read from English-letter spelling",
     SOURCE_HEBREW: "Read from Hebrew letters",
     SOURCE_LATIN_GAP: "Second look between placed phrases (English letters)",
@@ -243,7 +245,7 @@ def _hebrew_run_lengths(tokens):
     return lengths
 
 
-def _daf_windows(strings, lo=0, hi=None):
+def _daf_windows(strings, lo=0, hi=None, min_chars=MIN_WINDOW_CHARS):
     """Every stretch of 1..MAX_WINDOW_WORDS daf words in [lo, hi), as (start, end, joined)."""
     hi = len(strings) if hi is None else hi
     out = []
@@ -253,12 +255,12 @@ def _daf_windows(strings, lo=0, hi=None):
             if s + length > hi:
                 break
             acc += strings[s + length - 1]
-            if len(acc) >= MIN_WINDOW_CHARS:
+            if len(acc) >= min_chars:
                 out.append((s, s + length - 1, acc))
     return out
 
 
-def _transcript_windows(tokens, script, key, usable, a=0, b=None):
+def _transcript_windows(tokens, script, key, usable, a=0, b=None, min_chars=MIN_WINDOW_CHARS):
     """Every stretch of 1..MAX_WINDOW_WORDS consecutive transcript words in [a, b)
     in one alphabet, as (first index, word count, joined, share that is not common
     English)."""
@@ -284,7 +286,7 @@ def _transcript_windows(tokens, script, key, usable, a=0, b=None):
                 foreign += len(piece)
             if not piece and length == 1:
                 break
-            if len(acc) >= MIN_WINDOW_CHARS and piece and not token["common"] and not first["common"]:
+            if len(acc) >= min_chars and piece and not token["common"] and not first["common"]:
                 share = foreign / len(acc)
                 if share >= MIN_FOREIGN_SHARE:
                     out.append((i, length, acc, share))
@@ -324,16 +326,17 @@ class _Witness:
             if token["script"] == "he":
                 token["phon"] = phonetic(token["norm"])
 
-    def candidates(self, a=0, b=None, lo=0, hi=None, floor=_score_floor, cutoff=SCORE_CUTOFF, sources=None):
+    def candidates(self, a=0, b=None, lo=0, hi=None, floor=_score_floor, cutoff=SCORE_CUTOFF, sources=None,
+                   min_chars=MIN_WINDOW_CHARS):
         """Every place in daf words [lo, hi) each stretch of transcript words [a, b)
         could be, as Candidates on the shiur's clock."""
         sources = sources or (SOURCE_LATIN, SOURCE_HEBREW)
         found = {}
-        latin = _transcript_windows(self.tokens, "lat", "sk", lambda i: True, a, b)
-        _compare(latin, _daf_windows(self.daf_latin, lo, hi), sources[0], found, floor, cutoff)
+        latin = _transcript_windows(self.tokens, "lat", "sk", lambda i: True, a, b, min_chars)
+        _compare(latin, _daf_windows(self.daf_latin, lo, hi, min_chars), sources[0], found, floor, cutoff)
         hebrew = _transcript_windows(self.tokens, "he", "phon",
-                                     lambda i: self.run_lengths[i] <= MAX_HEBREW_RUN_WORDS, a, b)
-        _compare(hebrew, _daf_windows(self.daf_hebrew, lo, hi), sources[1], found, floor, cutoff)
+                                     lambda i: self.run_lengths[i] <= MAX_HEBREW_RUN_WORDS, a, b, min_chars)
+        _compare(hebrew, _daf_windows(self.daf_hebrew, lo, hi, min_chars), sources[1], found, floor, cutoff)
         out = []
         for i, places in found.items():
             for length, s, e, score, chars, source in places:
@@ -438,27 +441,70 @@ def _gap_floor(chars):
     return GAP_SCORE_CUTOFF
 
 
-def fill_gaps(witnesses, placed):
+# A gap of only a word or two between two placed phrases is where the short words
+# end up that the rest of the matcher ignores (סבר, אלו, עד, ליה: under
+# MIN_WINDOW_CHARS letters, they would match by chance anywhere on the daf). Inside
+# such a gap there is nothing else they can be, so they are looked for there --
+# but only as an exact sound match. Two transcripts time the same word a little
+# differently, so the search reaches SHORT_GAP_TIME_SLACK seconds past either end.
+SHORT_GAP_DAF_WORDS = 2
+SHORT_GAP_MIN_CHARS = 2
+SHORT_GAP_TIME_SLACK = 1.0
+
+
+def _short_gap_floor(chars):
+    return 100 if chars <= 3 else _gap_floor(chars)
+
+
+def fill_gaps(witnesses, placed, short_words=True):
     """Placements for the stretches between neighbours on the path (the new ones only)."""
     found = []
     for before, after in zip(placed, placed[1:]):
         lo, hi = before.e + 1, after.s
         if after.t0 <= before.t1 or hi <= lo or hi - lo > GAP_MAX_DAF_WORDS:
             continue
+        short = short_words and hi - lo <= SHORT_GAP_DAF_WORDS
+        slack = SHORT_GAP_TIME_SLACK if short else 0.0
         cands = []
         for witness in witnesses:
-            a, b = witness.between(before.t1 - OVERLAP_SLACK_SECONDS, after.t0)
+            a, b = witness.between(before.t1 - OVERLAP_SLACK_SECONDS - slack, after.t0 + slack)
             if b > a:
-                cands += witness.candidates(a, b, lo, hi, _gap_floor, GAP_SCORE_CUTOFF,
-                                            (SOURCE_LATIN_GAP, SOURCE_HEBREW_GAP))
-        local = [c._replace(s=c.s - lo, e=c.e - lo) for c in cands if c.t1 <= after.t0 + OVERLAP_SLACK_SECONDS]
+                if short:
+                    cands += witness.candidates(a, b, lo, hi, _short_gap_floor, GAP_SCORE_CUTOFF,
+                                                (SOURCE_LATIN_GAP, SOURCE_HEBREW_GAP), SHORT_GAP_MIN_CHARS)
+                else:
+                    cands += witness.candidates(a, b, lo, hi, _gap_floor, GAP_SCORE_CUTOFF,
+                                                (SOURCE_LATIN_GAP, SOURCE_HEBREW_GAP))
+        local = [c._replace(s=c.s - lo, e=c.e - lo) for c in cands if c.t1 <= after.t0 + OVERLAP_SLACK_SECONDS + slack]
         for c in best_path(local, hi - lo, forward_only=True):
             found.append(c._replace(s=c.s + lo, e=c.e + lo))
     return found
 
 
+# A word or two the transcriber garbled between two phrases that were placed a
+# moment apart was read all the same: the maggid does not skip one word of the daf
+# and come straight back. Such words are filled in ("bridged"), and counted apart
+# from what was actually heard.
+BRIDGE_MAX_DAF_WORDS = 2
+BRIDGE_MAX_SECONDS = 4.0
+BRIDGE_SCORE = 60.0
+
+
+def bridge_holes(placed):
+    """Candidates for the one- or two-word holes between consecutive placements
+    (in time) that are BRIDGE_MAX_SECONDS apart or less."""
+    found = []
+    for before, after in zip(placed, placed[1:]):
+        hole = after.s - before.e - 1
+        if not 1 <= hole <= BRIDGE_MAX_DAF_WORDS or not 0 <= after.t0 - before.t0 <= BRIDGE_MAX_SECONDS:
+            continue
+        t = max(before.t0, min(before.t1, after.t0))
+        found.append(Candidate(t, t, before.e + 1, after.s - 1, BRIDGE_SCORE, 0, SOURCE_BRIDGE, ""))
+    return found
+
+
 def align_path(canon, transcripts, phonetic, proposals=(), source_labels=None, english=None, gaps=True,
-               debug=False):
+               short_words=True, bridges=True, debug=False):
     """Place the shiur on the daf.
 
     transcripts: one or more word lists ([{text, start, end}, ...]) of the same
@@ -485,17 +531,19 @@ def align_path(canon, transcripts, phonetic, proposals=(), source_labels=None, e
                                source[0] if source else SOURCE_PHRASE, text))
     placed = best_path(cands, len(canon))
     if gaps:
-        placed = sorted(placed + fill_gaps(witnesses, placed), key=lambda c: (c.t0, c.t1))
+        placed = sorted(placed + fill_gaps(witnesses, placed, short_words), key=lambda c: (c.t0, c.t1))
+    if bridges:
+        placed = sorted(placed + bridge_holes(placed), key=lambda c: (c.t0, c.t1))
 
     events = []
     by_source = {}
-    heard = set()
+    heard, bridged = set(), set()
     for c in placed:
         events.append(WordEvent(round(c.t0, 2), c.s, c.e, round(c.score, 1), c.text, c.source))
         bucket = by_source.setdefault(c.source, {"label": labels.get(c.source, c.source), "runs": 0, "words": 0})
         bucket["runs"] += 1
         bucket["words"] += c.e - c.s + 1
-        heard.update(range(c.s, c.e + 1))
+        (bridged if c.source == SOURCE_BRIDGE else heard).update(range(c.s, c.e + 1))
         if debug:
             print(f"  t={c.t0:7.2f}  [{c.s}-{c.e}] {c.score:5.1f} {c.source:16}  {c.text}  =>  "
                   f"{' '.join(w.text for w in canon[c.s:c.e + 1])}")
@@ -519,8 +567,8 @@ def align_path(canon, transcripts, phonetic, proposals=(), source_labels=None, e
         "aligner": "path",
         "totalRuns": len(placed) + len(unmatched),
         "totalWords": len(canon),
-        "matchedWords": len(heard),
-        "unmatchedWords": len(canon) - len(heard),
+        "matchedWords": len(heard | bridged),
+        "unmatchedWords": len(canon) - len(heard | bridged),
         "excludedWords": 0,
         "bySource": by_source,
         "unmatched": unmatched,
@@ -531,5 +579,6 @@ def align_path(canon, transcripts, phonetic, proposals=(), source_labels=None, e
         "transcriptWords": sum(len(w.tokens) for w in witnesses),
         "dafWords": len(canon),
         "dafWordsHeard": len(heard),
+        "dafWordsBridged": len(bridged - heard),
     }
     return events, stats

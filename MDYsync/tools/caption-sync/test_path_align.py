@@ -138,6 +138,63 @@ class Path(unittest.TestCase):
         self.assertEqual(PA.align_path(self.canon, [[]], VA.phonetic, english=ENGLISH)[0], [])
 
 
+class Holes(unittest.TestCase):
+    """What the path leaves between two placed phrases a moment apart."""
+
+    def setUp(self):
+        self.canon = canon_from(MISHNAH)
+
+    def align(self, transcript, **kw):
+        return PA.align_path(self.canon, [transcript], VA.phonetic, english=ENGLISH, **kw)
+
+    def test_a_garbled_word_or_two_between_close_phrases_is_filled_in(self):
+        # "המשתתף לו" (12-13) came out as nothing usable, between two phrases 3.4s apart.
+        transcript = said('אף על פי שאינו רשאי', 'the', 'והמקבל הימנו', gap=0.5)
+        without, _ = self.align(transcript, bridges=False)
+        self.assertEqual(spans(without), [(7, 11), (14, 15)])
+        events, stats = self.align(transcript)
+        self.assertEqual(spans(events), [(7, 11), (12, 13), (14, 15)])
+        self.assertEqual(events[1].source, 'path-bridge')
+        self.assertEqual(events[1].ocr_text, '')
+        # Counted as filled in, not as heard.
+        self.assertEqual((stats['dafWordsHeard'], stats['dafWordsBridged'], stats['matchedWords']), (7, 2, 9))
+
+    def test_a_longer_hole_or_a_long_pause_is_left_alone(self):
+        three = self.align(said('והמוכר לו', 'the', 'המשתתף לו', gap=0.5))[0]       # 7-11 missing: too many words
+        self.assertEqual(spans(three), [(5, 6), (12, 13)])
+        apart = self.align(said('אף על פי שאינו רשאי', 'the', 'והמקבל הימנו', gap=4.0))[0]   # 10s apart
+        self.assertEqual(spans(apart), [(7, 11), (14, 15)])
+
+    def test_a_short_word_is_looked_for_only_inside_a_small_gap(self):
+        # "לו" alone fits four places in this Mishnah; between "המשתתף" and "והמקבל" it
+        # can only be the one at 13.
+        transcript = said('אף על פי שאינו רשאי', 'המשתתף', 'לו', 'והמקבל הימנו')
+        without, _ = self.align(transcript, short_words=False, bridges=False)
+        self.assertEqual(spans(without), [(7, 11), (12, 12), (14, 15)])
+        events, _ = self.align(transcript, bridges=False)
+        self.assertEqual(spans(events), [(7, 11), (12, 12), (13, 13), (14, 15)])
+        self.assertEqual(events[2].source, 'path-hebrew-gap')
+        # Nowhere else: on its own it is not placed at all.
+        self.assertEqual(self.align(said('לו', 'the', 'לו'))[0], [])
+
+
+class ClaudeSpan(unittest.TestCase):
+    """A Claude placement may not cover more daf words than were heard, plus two."""
+
+    def reply(self, start, end):
+        body = json.dumps({'is_reading_daf_text': True, 'start_index': start, 'end_index': end, 'confidence': 0.9})
+        message = types.SimpleNamespace(content=[types.SimpleNamespace(type='text', text=body)])
+        return types.SimpleNamespace(messages=types.SimpleNamespace(create=lambda **kw: message))
+
+    def test_an_answer_longer_than_what_was_heard_is_refused(self):
+        canon = canon_from(MISHNAH)
+        run = [{'text': 'אלולין', 'start': 1.0, 'end': 1.4}, {'text': 'מתעשרין', 'start': 1.5, 'end': 1.9}]
+        self.assertEqual(VA.resolve_ambiguous_run(canon, 3, run, client=self.reply(0, 3))[:2], (3, 6))
+        self.assertIsNone(VA.resolve_ambiguous_run(canon, 3, run, client=self.reply(0, 10)))
+        self.assertTrue(VA.llm_span_plausible(0, 5, [{}] * 4))
+        self.assertFalse(VA.llm_span_plausible(0, 6, [{}] * 4))
+
+
 class Witnesses(unittest.TestCase):
     def test_which_extra_transcripts_are_asked_for(self):
         self.assertEqual(VA.parse_witnesses('hints,plain'), ['plain'])

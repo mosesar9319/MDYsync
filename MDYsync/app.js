@@ -12743,8 +12743,12 @@ function formatVoiceMatchStats(stats, elapsed) {
   // The path aligner (path_align.py) counts the daf's own words that were heard,
   // from however many transcripts it was given, not transcribed words matched.
   if (stats.aligner === 'path') {
-    lines.push('', `Heard ${stats.dafWordsHeard} of the daf's ${stats.dafWords} words (${pct}%) `
-      + `in ${stats.witnesses} transcript${stats.witnesses === 1 ? '' : 's'}:`);
+    // dafWordsBridged: words filled in between two placed phrases a moment apart
+    // (absent on alignments made before that existed).
+    const bridged = stats.dafWordsBridged || 0;
+    lines.push('', `Placed ${stats.matchedWords} of the daf's ${stats.dafWords} words (${pct}%) `
+      + `from ${stats.witnesses} transcript${stats.witnesses === 1 ? '' : 's'}: `
+      + `${stats.dafWordsHeard} heard${bridged ? `, ${bridged} filled in between them` : ''}.`);
     for (const source of Object.values(stats.bySource || {})) {
       lines.push(`  • ${source.label}: ${source.words} words (${source.runs} phrase${source.runs === 1 ? '' : 's'})`);
     }

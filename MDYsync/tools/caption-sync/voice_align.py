@@ -555,6 +555,19 @@ _LLM_RESCUE_SCHEMA = {
 }
 
 
+# How many more daf words than were heard a Claude placement may cover. A maggid
+# can swallow a word or two, but on Bechoros 58 the model twice spread four heard
+# words ("ואלולין מתעשרין בפני עצמן") over eleven daf words that were never said;
+# a placement that much longer than the transcript is a guess, not a reading.
+LLM_MAX_EXTRA_WORDS = 2
+
+
+def llm_span_plausible(start_index, end_index, run):
+    """Whether a Claude placement of `run` on daf words start..end (inclusive) is
+    no longer than what was heard allows."""
+    return end_index - start_index + 1 <= len(run) + LLM_MAX_EXTRA_WORDS
+
+
 def resolve_ambiguous_run(canon, cursor, run, forward_anchor=None, client=None):
     """When deterministic fuzzy/phonetic matching (match_phrase_dual) can't
     confidently place a Hebrew-script run anywhere in the daf, ask a
@@ -692,6 +705,8 @@ def resolve_ambiguous_run(canon, cursor, run, forward_anchor=None, client=None):
         return None
     if start_index > end_index or start_index < 0 or end_index >= len(window):
         return None  # out-of-range indices -- treat as an unusable response, not a crash
+    if not llm_span_plausible(start_index, end_index, run):
+        return None
 
     s, e = lo + start_index, lo + end_index
     score = confidence * 100
@@ -863,7 +878,8 @@ def resolve_ambiguous_gap(canon, lo, hi, gap_runs, client=None):
     except json.JSONDecodeError:
         return {}
 
-    valid_run_indices = {idx for idx, _ in gap_runs}
+    runs_by_index = dict(gap_runs)
+    valid_run_indices = set(runs_by_index)
     resolved = {}
     for item in result.get("resolutions") or []:
         run_idx = item.get("run_index")
@@ -877,6 +893,8 @@ def resolve_ambiguous_gap(canon, lo, hi, gap_runs, client=None):
             continue
         if start_index > end_index or start_index < 0 or end_index >= len(window):
             continue  # out-of-range indices -- treat as an unusable response, not a crash
+        if not llm_span_plausible(start_index, end_index, runs_by_index[run_idx]):
+            continue
         s, e = lo + start_index, lo + end_index
         resolved[run_idx] = (s, e, confidence * 100, confidence * 100)
 
@@ -1534,7 +1552,8 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
                 path_stats["phraseMatcher"] = {key: stats[key] for key in ("matchedWords", "totalWords", "passes")}
                 events, stats = path_events, path_stats
                 print(f"Path alignment: heard {stats['dafWordsHeard']} of {stats['dafWords']} daf words "
-                      f"from {stats['witnesses']} transcript(s)")
+                      f"from {stats['witnesses']} transcript(s), and filled in "
+                      f"{stats.get('dafWordsBridged', 0)} more between placed phrases")
                 for bucket in stats["bySource"].values():
                     print(f"  {bucket['label']}: {bucket['words']} words ({bucket['runs']} phrases)")
         except Exception as error:  # noqa: BLE001 -- any failure falls back, loudly
