@@ -18,5 +18,15 @@
     "seconds": 3693,
     "firstSeenAt": "2026-11-16T06:18:49.149Z"
   },
-  "alignmentDispatchedAt": "2026-11-16T06:30:12.751Z"
+  "alignmentDispatchedAt": "2026-11-16T06:30:12.751Z",
+  "pendingEdit": {
+    "videoId": "-Np-e_3YsI4",
+    "label": "Daf Yomi Bechoros Daf 59 by R' Eli Stefansky",
+    "coveredRefs": [
+      "Bekhorot 58b",
+      "Bekhorot 59a",
+      "Bekhorot 59b"
+    ],
+    "dispatchedAt": "2026-11-16T11:00:56.993Z"
+  }
 }
