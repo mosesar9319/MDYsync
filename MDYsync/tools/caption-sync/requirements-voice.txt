@@ -12,3 +12,4 @@ opencv-python-headless
 pytesseract
 anthropic
 bgutil-ytdlp-pot-provider
+wordfreq

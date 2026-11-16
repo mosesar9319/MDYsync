@@ -58,6 +58,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from caption_ocr_align import (  # noqa: E402
     CanonWord, WordEvent, build_outputs, load_canonical, normalize_word,
 )
+import path_align  # noqa: E402
 
 BACK_WINDOW = 15
 FWD_WINDOW = 60
@@ -298,7 +299,19 @@ def _multipart_body(fields, file_field, filename, file_bytes):
     return f"multipart/form-data; boundary={boundary}", b"".join(out)
 
 
-def transcribe_elevenlabs(audio_path, keyterms=None, api_key=None):
+def slowed_copy(audio_path, tempo):
+    """The same audio played at `tempo` times its speed (0.75 = slower), pitch
+    kept, as an mp3 beside the original. Needs ffmpeg."""
+    import subprocess
+    out = f"{os.path.splitext(audio_path)[0]}.tempo{tempo:g}.mp3"
+    subprocess.run(
+        ["ffmpeg", "-y", "-loglevel", "error", "-i", audio_path, "-filter:a", f"atempo={tempo:g}",
+         "-vn", "-codec:a", "libmp3lame", "-q:a", "4", out],
+        check=True)
+    return out
+
+
+def transcribe_elevenlabs(audio_path, keyterms=None, api_key=None, tempo=1.0):
     """Transcribe via ElevenLabs Scribe, returning the same (words, duration)
     shape transcribe() does, so everything downstream (hebrew_script_runs and
     the whole matching state machine) is engine-agnostic.
@@ -323,6 +336,10 @@ def transcribe_elevenlabs(audio_path, keyterms=None, api_key=None):
     probability (<= 0), not the 0..1 value Whisper reports, so the two
     aren't numerically comparable. Nothing downstream reads `prob` today;
     if anything ever does, it has to account for which engine produced it.
+
+    tempo: transcribe a copy of the audio played at this speed instead (0.75 =
+    slowed down, for a maggid who reads fast), and put every time back on the
+    real audio's clock, so the result lines up with any other transcript of it.
     """
     import urllib.error
     import urllib.request
@@ -349,8 +366,11 @@ def transcribe_elevenlabs(audio_path, keyterms=None, api_key=None):
         if len(term) < 50:
             fields.append(("keyterms", term))
 
-    with open(audio_path, "rb") as f:
+    upload_path = slowed_copy(audio_path, tempo) if tempo != 1.0 else audio_path
+    with open(upload_path, "rb") as f:
         file_bytes = f.read()
+    if upload_path != audio_path:
+        os.remove(upload_path)
     content_type, body = _multipart_body(
         fields, "file", os.path.basename(audio_path), file_bytes)
 
@@ -374,9 +394,10 @@ def transcribe_elevenlabs(audio_path, keyterms=None, api_key=None):
             continue
         if w.get("start") is None or w.get("end") is None:
             continue
-        words.append({"start": w["start"], "end": w["end"],
+        # A slowed copy runs 1/tempo as long: back onto the real audio's clock.
+        words.append({"start": w["start"] * tempo, "end": w["end"] * tempo,
                       "text": w.get("text", ""), "prob": w.get("logprob")})
-    duration = data.get("audio_duration_secs")
+    duration = (data.get("audio_duration_secs") or 0) * tempo
     if not duration:
         # Same requirement the Whisper path's info.duration comment explains:
         # the player degrades highlighting accuracy when this doesn't match
@@ -1354,15 +1375,61 @@ def _anthropic_credentials_available():
     return False
 
 
+# The transcripts the path aligner is given of one shiur (see path_align.py):
+#   hints -- with the daf's own words as a hint list; the transcriber then writes
+#            much of the reading in Hebrew letters. Always made (the phrase
+#            matcher needs it).
+#   plain -- no hint list: the reading comes out in English letters, the way the
+#            maggid says it. Measured on real shiurim, one maggid is heard better
+#            this way and another with hints, so both are asked for by default.
+#   slow  -- with hints, from the audio played at SLOW_TEMPO, for fast reading.
+# Each extra witness is one more ElevenLabs transcription of the whole shiur.
+WITNESS_NAMES = ("hints", "plain", "slow")
+DEFAULT_WITNESSES = "hints,plain"
+SLOW_TEMPO = 0.75
+
+
+def parse_witnesses(value):
+    """The extra witnesses asked for ('hints' is always made), in a fixed order."""
+    names = [name.strip().lower() for name in str(value or "").split(",") if name.strip()]
+    unknown = [name for name in names if name not in WITNESS_NAMES]
+    if unknown:
+        raise ValueError(f"Unknown witness {unknown[0]!r}: use any of {', '.join(WITNESS_NAMES)}.")
+    return [name for name in WITNESS_NAMES if name in names and name != "hints"]
+
+
+def load_transcript_file(path):
+    """A saved transcript: {"words": [[text, start, end], ...]} (what the site's
+    transcript job stores), a bare list of those, or of {text, start, end}."""
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    rows = data.get("words", []) if isinstance(data, dict) else data
+    words = [{"text": r[0], "start": r[1], "end": r[2]} if isinstance(r, (list, tuple))
+             else {"text": r.get("text", ""), "start": r["start"], "end": r["end"]} for r in rows]
+    duration = (data.get("seconds") if isinstance(data, dict) else None) or (words[-1]["end"] if words else 0.0)
+    return words, duration
+
+
 def process_video(video_path, refs, model_size="small", cache_dir=None, debug=False,
-                  engine="whisper", fallback=True, llm_rescue=None, refine=True):
+                  engine="whisper", fallback=True, llm_rescue=None, refine=True,
+                  aligner="path", witnesses=DEFAULT_WITNESSES, slow_tempo=SLOW_TEMPO, transcripts=None):
     canon, segments = load_canonical(refs, cache_dir)
     print(f"Canonical text: {len(segments)} segments, {len(canon)} words")
     for c in canon:
         c.phon = phonetic(c.norm)
 
     words = duration = None
-    if engine == "elevenlabs":
+    extra_transcripts = []
+    extra_wanted = parse_witnesses(witnesses) if aligner == "path" else []
+    if transcripts:
+        # Saved transcripts instead of a new transcription: the first is the one
+        # the phrase matcher reads, all of them are witnesses for the path.
+        loaded = [load_transcript_file(path) for path in transcripts]
+        words = loaded[0][0]
+        extra_transcripts = [w for w, _ in loaded[1:]]
+        duration = max(d for _, d in loaded)
+        print(f"Using {len(loaded)} saved transcript(s) instead of transcribing.")
+    elif engine == "elevenlabs":
         keyterms = build_keyterm_list(canon, max_terms=ELEVENLABS_MAX_KEYTERMS)
         if debug:
             print(f"Keyterms ({len(keyterms)}): {' '.join(keyterms[:40])}...")
@@ -1378,6 +1445,19 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
             print(f"ElevenLabs transcription failed ({error}); "
                   f"falling back to local whisper.")
             words = duration = None
+        if words is not None:
+            # The path aligner's further witnesses. Losing one only loses what it
+            # alone would have heard, so a failure here never fails the job.
+            for name in extra_wanted:
+                try:
+                    if name == "plain":
+                        more, _ = transcribe_elevenlabs(video_path, keyterms=None)
+                    else:
+                        more, _ = transcribe_elevenlabs(video_path, keyterms=keyterms, tempo=slow_tempo)
+                    extra_transcripts.append(more)
+                    print(f"Witness '{name}': {len(more)} words")
+                except Exception as error:  # noqa: BLE001
+                    print(f"Witness '{name}' failed ({error}); carrying on without it.")
 
     if words is None:
         prompt = build_keyterm_prompt(canon)
@@ -1420,6 +1500,30 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
         print(f"  Excluded (too long to be a daf-text quotation, likely free explanation): "
               f"{stats['excludedWords']} words ({len(stats['excluded'])} runs)")
 
+    if aligner == "path":
+        # Everything above becomes a proposal, and the whole shiur is placed as
+        # one ordered path (path_align.py). If that fails for any reason, the
+        # phrase matcher's own result above is still a complete answer.
+        try:
+            proposals = [
+                (run[0]["start"], run[-1]["end"], match["s"], match["e"], match["score"],
+                 " ".join(w["text"] for w in run), match["source"])
+                for run, match in zip(runs, run_matches) if match is not None
+            ]
+            path_events, path_stats = path_align.align_path(
+                canon, [words] + extra_transcripts, phonetic, proposals=proposals,
+                source_labels=MATCH_SOURCE_LABELS, debug=debug)
+            if path_events:
+                path_stats["llmCalls"] = llm_calls
+                path_stats["phraseMatcher"] = {key: stats[key] for key in ("matchedWords", "totalWords", "passes")}
+                events, stats = path_events, path_stats
+                print(f"Path alignment: heard {stats['dafWordsHeard']} of {stats['dafWords']} daf words "
+                      f"from {stats['witnesses']} transcript(s)")
+                for bucket in stats["bySource"].values():
+                    print(f"  {bucket['label']}: {bucket['words']} words ({bucket['runs']} phrases)")
+        except Exception as error:  # noqa: BLE001 -- any failure falls back, loudly
+            print(f"Path alignment failed ({error!r}); keeping the phrase matcher's result.")
+
     return canon, segments, events, duration, stats
 
 
@@ -1450,6 +1554,20 @@ def main():
                    help="Skip the iterative gap-refinement passes after pass 0 (see "
                         "refine_matches) -- pass 0's own single sweep is the final result. "
                         "Mainly for comparing the two stages against each other.")
+    p.add_argument("--aligner", default=os.environ.get("VOICE_ALIGNER") or "path", choices=["path", "phrase"],
+                   help="'path' (default, or $VOICE_ALIGNER): place the whole shiur as one ordered "
+                        "path, reading Hebrew- and English-letter spellings from every witness "
+                        "(path_align.py). 'phrase': the phrase-by-phrase matcher alone.")
+    p.add_argument("--witnesses", default=os.environ.get("VOICE_WITNESSES") or DEFAULT_WITNESSES,
+                   help=f"Which transcripts the path aligner is given, comma separated, of "
+                        f"{', '.join(WITNESS_NAMES)} (default: {DEFAULT_WITNESSES}, or $VOICE_WITNESSES). "
+                        f"'hints' is always made; each other one is a further ElevenLabs "
+                        f"transcription of the whole shiur.")
+    p.add_argument("--slow-tempo", type=float, default=SLOW_TEMPO,
+                   help=f"Speed of the 'slow' witness's audio (default {SLOW_TEMPO}).")
+    p.add_argument("--transcript", action="append", default=[],
+                   help="A saved transcript (JSON) to use instead of transcribing; repeat for "
+                        "more witnesses. The first is the one made with hints.")
     p.add_argument("--out-dir", default="out")
     p.add_argument("--debug", action="store_true")
     args = p.parse_args()
@@ -1459,7 +1577,8 @@ def main():
     canon, segments, events, duration, stats = process_video(
         args.video, refs, model_size=args.model, cache_dir=args.out_dir, debug=args.debug,
         engine=args.engine, fallback=not args.no_fallback, llm_rescue=args.llm_rescue,
-        refine=args.refine)
+        refine=args.refine, aligner=args.aligner, witnesses=args.witnesses,
+        slow_tempo=args.slow_tempo, transcripts=args.transcript)
     if not events:
         print("No confident matches found -- check the audio and refs.")
         sys.exit(1)
