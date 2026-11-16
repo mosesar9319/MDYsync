@@ -532,6 +532,45 @@ def find_holes(placed):
     return holes
 
 
+# After the maggid has read the daf through, he usually goes on to discuss it,
+# quoting it as he goes ("Hilchos Pesach", "Rosh Hashanah"). Those quotes are
+# short and everywhere, and highlighting each one sent the reader hopping around
+# the daf for the last 25 minutes of R' Bornstein's Bechoros 58. Once the reading
+# is over, nothing more is placed: the highlight stays on the last line read.
+AFTER_READING_GRACE_SECONDS = 20.0
+
+
+def reading_chain(placed):
+    """The reading itself: the placements (indices into placed, in time order)
+    that go through the daf in order -- the longest chain, by daf words, whose
+    starts never move back. Quotes before the reading, re-readings and quotes in
+    the discussion afterwards fall off it."""
+    best, prev = [], []
+    for i, c in enumerate(placed):
+        weight = c.e - c.s + 1
+        top, link = weight, -1
+        for j in range(i):
+            if placed[j].s <= c.s and best[j] + weight > top:
+                top, link = best[j] + weight, j
+        best.append(top)
+        prev.append(link)
+    if not best:
+        return []
+    k = max(range(len(best)), key=lambda i: (best[i], -i))
+    chain = []
+    while k >= 0:
+        chain.append(k)
+        k = prev[k]
+    return chain[::-1]
+
+
+def end_of_reading(placed):
+    """When the maggid finished reading the daf through (the end of
+    reading_chain), or None."""
+    chain = reading_chain(placed)
+    return placed[chain[-1]].t1 if chain else None
+
+
 def same_words_at(canon, s, e):
     """Every daf position where canon[s..e]'s words stand, in the same order
     (s itself included)."""
@@ -542,7 +581,7 @@ def same_words_at(canon, s, e):
 
 
 def align_path(canon, transcripts, phonetic, proposals=(), source_labels=None, english=None, gaps=True,
-               short_words=True, bridges=True, spoken=True, debug=False):
+               short_words=True, bridges=True, spoken=True, keep_after_reading=False, debug=False):
     """Place the shiur on the daf.
 
     transcripts: one or more word lists ([{text, start, end}, ...]) of the same
@@ -589,6 +628,13 @@ def align_path(canon, transcripts, phonetic, proposals=(), source_labels=None, e
         placed = sorted(placed + fill_gaps(witnesses, placed, short_words), key=lambda c: (c.t0, c.t1))
     if bridges:
         placed = sorted(placed + bridge_holes(placed), key=lambda c: (c.t0, c.t1))
+    reading_ends = end_of_reading(placed)
+    dropped_after_reading = 0
+    stop_at = None if keep_after_reading or reading_ends is None else reading_ends + AFTER_READING_GRACE_SECONDS
+    if stop_at is not None:
+        kept = [c for c in placed if c.t0 <= stop_at]
+        dropped_after_reading = len(placed) - len(kept)
+        placed = kept
 
     events = []
     by_source = {}
@@ -609,7 +655,7 @@ def align_path(canon, transcripts, phonetic, proposals=(), source_labels=None, e
     unmatched = []
     listed_until = float("-inf")
     for c in sorted(cands, key=lambda c: (c.t0, -(c.t1 - c.t0))):
-        if c.t0 < listed_until:
+        if c.t0 < listed_until or (stop_at is not None and c.t0 > stop_at):
             continue
         k = bisect.bisect_right(placed_starts, c.t1) - 1
         if k >= 0 and placed[k].t1 > c.t0:
@@ -635,6 +681,8 @@ def align_path(canon, transcripts, phonetic, proposals=(), source_labels=None, e
         "dafWords": len(canon),
         "dafWordsHeard": len(heard),
         "dafWordsBridged": len(bridged - heard),
+        "readingEndsAt": round(reading_ends, 2) if reading_ends is not None else None,
+        "droppedAfterReading": dropped_after_reading,
         # Not published (voice_align.py takes it out): where a re-listen could help.
         "holes": find_holes(placed),
     }

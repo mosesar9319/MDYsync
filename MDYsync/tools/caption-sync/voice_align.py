@@ -1492,6 +1492,59 @@ def relisten_holes(audio_path, canon, holes, placed_words=(), duration=None, tra
     return words
 
 
+# A shiur on one daf often opens a few lines before it ("we are four lines from
+# the bottom of 57b") and runs a few lines past it, so a job for a whole daf
+# also reads the amud before and the amud after. publish_alignment.split_refs
+# treats them as passing through: they never become those amudim's own by-ref
+# alignment, so the shiurim that own them are left alone.
+_AMUD_REF = re.compile(r"^(?P<tractate>.+) (?P<daf>\d+)(?P<amud>[ab])$")
+
+
+def neighbor_amudim(refs):
+    """(amud before, amud after) to add to a job for exactly one whole daf --
+    both amudim of it, and nothing of another daf but those neighbours. None
+    for each that is already there or does not exist (no daf 1). Otherwise
+    (None, None): a job for one amud, or for several dapim, is left as it is,
+    since adding to it could change which daf it is about."""
+    parsed = [_AMUD_REF.match(str(ref).strip()) for ref in refs]
+    if not parsed or not all(parsed):
+        return None, None
+    amudim = {}
+    for m in parsed:
+        amudim.setdefault((m["tractate"], int(m["daf"])), set()).add(m["amud"])
+    whole = [key for key, sides in amudim.items() if sides == {"a", "b"}]
+    if len(whole) != 1:
+        return None, None
+    tractate, daf = whole[0]
+    others = {key: sides for key, sides in amudim.items() if key != whole[0]}
+    if any(key not in ((tractate, daf - 1), (tractate, daf + 1)) for key in others):
+        return None, None
+    before = f"{tractate} {daf - 1}b" if daf > 2 else None
+    after = f"{tractate} {daf + 1}a"
+    present = {str(ref).strip() for ref in refs}
+    return (before if before not in present else None), (after if after not in present else None)
+
+
+def with_neighbor_amudim(refs, cache_dir=None, load=None):
+    """refs with neighbor_amudim added in daf order, leaving out any Sefaria has
+    no text for (the amud after a tractate's last daf)."""
+    load = load or load_canonical
+    before, after = neighbor_amudim(refs)
+    out = list(refs)
+    for ref, at_front in ((before, True), (after, False)):
+        if not ref:
+            continue
+        try:
+            load([ref], cache_dir)
+        except Exception as error:  # noqa: BLE001 -- no such amud, or Sefaria is down: carry on without it
+            print(f"Not adding {ref}: {error}")
+            continue
+        out = [ref] + out if at_front else out + [ref]
+    if out != list(refs):
+        print(f"Also reading the amud before and after the daf: {', '.join(out)}")
+    return out
+
+
 def parse_witnesses(value):
     """The extra witnesses asked for ('hints' is always made), in a fixed order."""
     names = [name.strip().lower() for name in str(value or "").split(",") if name.strip()]
@@ -1524,7 +1577,8 @@ def llm_rescue_by_default(aligner):
 
 def process_video(video_path, refs, model_size="small", cache_dir=None, debug=False,
                   engine="whisper", fallback=True, llm_rescue=None, refine=True,
-                  aligner="path", witnesses=DEFAULT_WITNESSES, slow_tempo=SLOW_TEMPO, transcripts=None):
+                  aligner="path", witnesses=DEFAULT_WITNESSES, slow_tempo=SLOW_TEMPO, transcripts=None,
+                  keep_after_reading=False):
     canon, segments = load_canonical(refs, cache_dir)
     print(f"Canonical text: {len(segments)} segments, {len(canon)} words")
     for c in canon:
@@ -1640,7 +1694,7 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
             ]
             path_events, path_stats = path_align.align_path(
                 canon, [words] + extra_transcripts, phonetic, proposals=proposals,
-                source_labels=MATCH_SOURCE_LABELS, debug=debug)
+                source_labels=MATCH_SOURCE_LABELS, keep_after_reading=keep_after_reading, debug=debug)
             if "relisten" in extra_wanted and path_events and not transcripts and engine == "elevenlabs":
                 # Second round: listen again to just the holes, hinted with just
                 # the words that belong in each, and place the whole path again.
@@ -1651,7 +1705,7 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
                     first_heard = path_stats["matchedWords"]
                     path_events, path_stats = path_align.align_path(
                         canon, [words] + extra_transcripts + [again], phonetic, proposals=proposals,
-                        source_labels=MATCH_SOURCE_LABELS, debug=debug)
+                        source_labels=MATCH_SOURCE_LABELS, keep_after_reading=keep_after_reading, debug=debug)
                     path_stats["relisten"] = {"words": len(again), "matchedBefore": first_heard}
             path_stats.pop("holes", None)
             if path_events:
@@ -1661,6 +1715,9 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
                 print(f"Path alignment: heard {stats['dafWordsHeard']} of {stats['dafWords']} daf words "
                       f"from {stats['witnesses']} transcript(s), and filled in "
                       f"{stats.get('dafWordsBridged', 0)} more between placed phrases")
+                if stats.get("droppedAfterReading"):
+                    print(f"  The reading ends at {stats['readingEndsAt'] / 60:.1f} min; "
+                          f"{stats['droppedAfterReading']} quotes in the discussion after it are not placed")
                 for bucket in stats["bySource"].values():
                     print(f"  {bucket['label']}: {bucket['words']} words ({bucket['runs']} phrases)")
         except Exception as error:  # noqa: BLE001 -- any failure falls back, loudly
@@ -1711,17 +1768,29 @@ def main():
     p.add_argument("--transcript", action="append", default=[],
                    help="A saved transcript (JSON) to use instead of transcribing; repeat for "
                         "more witnesses. The first is the one made with hints.")
+    p.add_argument("--no-neighbors", dest="neighbors", action="store_false",
+                   default=os.environ.get("VOICE_NEIGHBORS", "1") != "0",
+                   help="Do not also read the amud before and after a whole daf (see "
+                        "neighbor_amudim; also off with $VOICE_NEIGHBORS=0).")
+    p.add_argument("--keep-after-reading", action="store_true",
+                   help="Keep placing the maggid's quotes after he has finished reading the "
+                        "daf through (path_align.end_of_reading). By default the highlight "
+                        "stays on the last line read.")
     p.add_argument("--out-dir", default="out")
     p.add_argument("--debug", action="store_true")
     args = p.parse_args()
 
     refs = json.loads(args.refs_json)
     os.makedirs(args.out_dir, exist_ok=True)
+    if args.neighbors:
+        refs = with_neighbor_amudim(refs, args.out_dir)
+    # The refs actually read, for publish_alignment.py (voice-job.yml).
+    json.dump(refs, open(os.path.join(args.out_dir, "refs.json"), "w", encoding="utf-8"), ensure_ascii=False)
     canon, segments, events, duration, stats = process_video(
         args.video, refs, model_size=args.model, cache_dir=args.out_dir, debug=args.debug,
         engine=args.engine, fallback=not args.no_fallback, llm_rescue=args.llm_rescue,
         refine=args.refine, aligner=args.aligner, witnesses=args.witnesses,
-        slow_tempo=args.slow_tempo, transcripts=args.transcript)
+        slow_tempo=args.slow_tempo, transcripts=args.transcript, keep_after_reading=args.keep_after_reading)
     if not events:
         print("No confident matches found -- check the audio and refs.")
         sys.exit(1)
