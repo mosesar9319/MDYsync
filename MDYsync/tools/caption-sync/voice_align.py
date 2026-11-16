@@ -1431,6 +1431,15 @@ def load_transcript_file(path):
     return words, duration
 
 
+def llm_rescue_by_default(aligner):
+    """Whether the Claude rescue step runs when nobody asked either way. Not with
+    the path aligner: on Bechoros 58 (November 2026) it made 110 Claude calls per
+    shiur and the path kept none of their answers (9 words in the run before), so it
+    only cost money and time. The phrase matcher alone still uses it when
+    credentials are there. --llm-rescue turns it on for a path run all the same."""
+    return aligner != "path" and _anthropic_credentials_available()
+
+
 def process_video(video_path, refs, model_size="small", cache_dir=None, debug=False,
                   engine="whisper", fallback=True, llm_rescue=None, refine=True,
                   aligner="path", witnesses=DEFAULT_WITNESSES, slow_tempo=SLOW_TEMPO, transcripts=None):
@@ -1503,7 +1512,7 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
     print(f"{len(runs)} Hebrew-script word runs")
 
     if llm_rescue is None:
-        llm_rescue = _anthropic_credentials_available()
+        llm_rescue = llm_rescue_by_default(aligner)
     run_matches, llm_calls, llm_client, offered_indices = match_runs(canon, runs, debug=debug, llm_rescue=llm_rescue)
 
     refine_passes = 0
@@ -1580,9 +1589,9 @@ def main():
     p.add_argument("--llm-rescue", dest="llm_rescue", action="store_true", default=None,
                    help="Use Claude to resolve Hebrew-script runs deterministic "
                         "matching can't place at all, instead of discarding them "
-                        "(default: on automatically if the anthropic SDK has any "
-                        "usable credentials -- an API key or workload identity "
-                        "federation -- see _anthropic_credentials_available).")
+                        "(default: off with the path aligner; with --aligner phrase, on "
+                        "automatically if the anthropic SDK has any usable credentials -- "
+                        "see llm_rescue_by_default).")
     p.add_argument("--no-llm-rescue", dest="llm_rescue", action="store_false",
                    help="Disable the LLM rescue step even if Anthropic credentials are available.")
     p.add_argument("--no-refine", dest="refine", action="store_false", default=True,
