@@ -23,7 +23,29 @@
         "unmatchedWords": 87,
         "durationSeconds": 3814.22
       }
+    },
+    {
+      "id": "regular-2",
+      "engine": "regular",
+      "number": 2,
+      "name": "Regular #2 · 16 Nov 2026 · phrase matcher",
+      "notes": "phrase matcher",
+      "engineVersion": "94f97e3",
+      "createdAt": "2026-11-16T15:00:40Z",
+      "file": "regular-2.json",
+      "jobId": "18178b8a304740cd83407b1afd704e3c",
+      "summary": {
+        "segments": 207,
+        "estimatedSegments": 53,
+        "placements": 235,
+        "placedWords": 629,
+        "totalRuns": 430,
+        "totalWords": 1414,
+        "matchedWords": 662,
+        "unmatchedWords": 724,
+        "durationSeconds": 3814.22
+      }
     }
   ],
-  "updatedAt": "2026-11-16T14:37:17Z"
+  "updatedAt": "2026-11-16T15:00:40Z"
 }
