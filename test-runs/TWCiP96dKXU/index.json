@@ -67,7 +67,29 @@
         "unmatchedWords": 90,
         "durationSeconds": 3814.22
       }
+    },
+    {
+      "id": "regular-4",
+      "engine": "regular",
+      "number": 4,
+      "name": "Regular #4 · 16 Nov 2026 · whisper small, path: hints + plain",
+      "notes": "whisper small, path: hints + plain",
+      "engineVersion": "d5c3c1d",
+      "createdAt": "2026-11-16T16:52:27Z",
+      "file": "regular-4.json",
+      "jobId": "a7f31fb321b34b1fa5fe6b0c9848a043",
+      "summary": {
+        "segments": 231,
+        "estimatedSegments": 85,
+        "placements": 217,
+        "placedWords": 526,
+        "totalRuns": 442,
+        "totalWords": 672,
+        "matchedWords": 373,
+        "unmatchedWords": 299,
+        "durationSeconds": 3814.22
+      }
     }
   ],
-  "updatedAt": "2026-11-16T15:19:20Z"
+  "updatedAt": "2026-11-16T16:52:27Z"
 }
