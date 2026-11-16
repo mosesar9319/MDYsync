@@ -111,7 +111,29 @@
         "unmatchedWords": 58,
         "durationSeconds": 3814.22
       }
+    },
+    {
+      "id": "regular-6",
+      "engine": "regular",
+      "number": 6,
+      "name": "Regular #6 · 16 Nov 2026 · stop after reading, 57b+59a, counts/dates, re-listen (#207-#210) (path: hints + plain + relisten)",
+      "notes": "stop after reading, 57b+59a, counts/dates, re-listen (#207-#210) (path: hints + plain + relisten)",
+      "engineVersion": "0e098e7",
+      "createdAt": "2026-11-16T20:28:55Z",
+      "file": "regular-6.json",
+      "jobId": "3b86f5283c6e47ce880a0a37a0f44995",
+      "summary": {
+        "segments": 325,
+        "estimatedSegments": 105,
+        "placements": 434,
+        "placedWords": 975,
+        "totalRuns": 661,
+        "totalWords": 1113,
+        "matchedWords": 666,
+        "unmatchedWords": 447,
+        "durationSeconds": 3814.22
+      }
     }
   ],
-  "updatedAt": "2026-11-16T17:51:27Z"
+  "updatedAt": "2026-11-16T20:28:55Z"
 }
