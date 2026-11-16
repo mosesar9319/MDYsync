@@ -361,8 +361,10 @@ const AUTO_SCROLL_RESUME_MS = 4000;
 // A tap lands a little before the phrase so the reader hears its opening,
 // and the highlight is pinned to that phrase until playback catches up.
 const PHRASE_SEEK_LEAD = 0.4;
-// After a phrase's own end, keep the highlight briefly, then go idle so a
-// sponsor slide or explanation doesn't stay lit for minutes.
+// After a phrase's own end, a real phrase keeps the highlight ahead of any
+// estimated row for this long. Either way the highlight then stays on the
+// latest phrase until the next one begins: it never goes dark between
+// phrases, however long the maggid explains (asked for on Bechoros 58).
 const GAP_IDLE_AFTER_END = 3;
 // A one- or two-second silence is not a new place in the shiur. The status
 // line keeps the last amud until the gap has lasted this long.
@@ -1482,13 +1484,6 @@ function findSegmentAt(time) {
   const segment = segments[best];
   const owner = owningRealSegment(segments, time);
   if (owner >= 0 && (!segment || segment.estimated || !segmentStrictlyCovers(segment, time))) return owner;
-  const end = Number(segment.end);
-  const effectiveEnd = Number.isFinite(end) ? end : segment.start;
-  let nextStart = Infinity;
-  for (let i = best + 1; i < segments.length; i++) {
-    if (segments[i].start > segment.start + 0.05) { nextStart = segments[i].start; break; }
-  }
-  if (time >= effectiveEnd + GAP_IDLE_AFTER_END && time < nextStart) return -1;
   return best;
 }
 
