@@ -7,14 +7,10 @@
 // internally, never a real link worth sharing across devices.
 
 import { MAGGIDIM } from '../../shared/maggidim.mjs';
+import { ALLOWED_ORIGINS } from '../../shared/dafsync-config.mjs';
 
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
-const ALLOWED_ORIGINS = new Set([
-  'https://dafsync.netlify.app',
-  'https://main--dafsync.netlify.app',
-  'http://localhost:8080',
-]);
 
 export default async (request) => {
   if (request.method !== 'POST') {

@@ -12,13 +12,10 @@
 // save-voice-correction.mjs: the same daf could reasonably be resynced
 // more than once, and each pass is its own useful example.
 
+import { ALLOWED_ORIGINS } from '../../shared/dafsync-config.mjs';
+
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
-const ALLOWED_ORIGINS = new Set([
-  'https://dafsync.netlify.app',
-  'https://main--dafsync.netlify.app',
-  'http://localhost:8080',
-]);
 
 // A full amud split into short hand-picked phrases can run to several
 // hundred rows -- generous headroom past save-voice-correction.mjs's cap

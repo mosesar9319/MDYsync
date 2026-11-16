@@ -4,13 +4,10 @@
 // is reusable across every viewer who asks for that daf, so there's no
 // per-user job ID here, just a deterministic key from tractate/daf/amud.
 
+import { ALLOWED_ORIGINS } from '../../shared/dafsync-config.mjs';
+
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
-const ALLOWED_ORIGINS = new Set([
-  'https://dafsync.netlify.app',
-  'https://main--dafsync.netlify.app',
-  'http://localhost:8080',
-]);
 
 const MASECHTA_SLUGS = new Set([
   'Berakhot', 'Shabbat', 'Eruvin', 'Pesachim', 'Yoma', 'Sukkah', 'Beitzah', 'Rosh Hashanah',

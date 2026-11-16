@@ -7,14 +7,10 @@
 
 import { MAGGIDIM, maggidById } from '../../shared/maggidim.mjs';
 import { livestreamIdsAmong, MDY_CHANNEL_ID, recentUploadFeedUrl } from '../../shared/youtube-broadcast.mjs';
+import { ALLOWED_ORIGINS } from '../../shared/dafsync-config.mjs';
 
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
-const ALLOWED_ORIGINS = new Set([
-  'https://dafsync.netlify.app',
-  'https://main--dafsync.netlify.app',
-  'http://localhost:8080',
-]);
 
 // Same "authorized channel" restriction trigger-ocr-job.mjs applies to its
 // own YouTube tab, and for the same reason (PRODUCTION_ARCHITECTURE.md's

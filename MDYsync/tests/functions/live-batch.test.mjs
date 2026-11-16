@@ -29,13 +29,13 @@ test('only POST from this site is accepted', async () => {
   const stubs = withStubs();
   try {
     assert.equal((await handler(new Request('https://x.test/', { method: 'GET' }))).status, 405);
-    for (const origin of ['', 'https://evil.example', 'https://deploy-preview-1--dafsync.netlify.app.evil.com', 'https://deploy-preview-x--dafsync.netlify.app']) {
+    for (const origin of ['', 'https://evil.example', 'https://deploy-preview-1--dafsync.netlify.app.evil.com', 'https://deploy-preview-x--dafsync.netlify.app', 'https://some-branch--dafsync.netlify.app', 'http://dafsync.com', 'https://dafsync.com.evil.com']) {
       assert.equal((await post({ audioBase64: audioBase64() }, origin)).status, 403, origin);
     }
-    for (const origin of ['https://dafsync.netlify.app', 'https://main--dafsync.netlify.app', ORIGIN]) {
+    for (const origin of ['https://dafsync.com', 'https://www.dafsync.com', 'https://dafsync.netlify.app', 'https://main--dafsync.netlify.app', ORIGIN]) {
       assert.equal((await post({ audioBase64: audioBase64() }, origin)).status, 200, origin);
     }
-    assert.equal(stubs.calls.length, 3, 'nothing was forwarded for a refused request');
+    assert.equal(stubs.calls.length, 5, 'nothing was forwarded for a refused request');
   } finally { stubs.restore(); }
 });
 

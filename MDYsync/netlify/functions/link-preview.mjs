@@ -26,6 +26,7 @@
 
 import dns from 'node:dns/promises';
 import net from 'node:net';
+import { PUBLIC_SITE_ORIGIN } from '../../shared/dafsync-config.mjs';
 
 const TIMEOUT_MS = 4000;
 const MAX_REDIRECTS = 3;
@@ -124,7 +125,7 @@ async function fetchWithGuards(startUrl) {
         signal: controller.signal,
         headers: {
           // Identifies the fetcher honestly and asks only for HTML.
-          'user-agent': 'DafSync-LinkPreview/1.0 (+https://dafsync.netlify.app)',
+          'user-agent': `DafSync-LinkPreview/1.0 (+${PUBLIC_SITE_ORIGIN})`,
           accept: 'text/html,application/xhtml+xml',
         },
       });

@@ -4,14 +4,10 @@
 // token lives in Netlify's own environment variables, never in the browser.
 
 import { livestreamIdsAmong, MDY_CHANNEL_ID, recentUploadFeedUrl } from '../../shared/youtube-broadcast.mjs';
+import { ALLOWED_ORIGINS } from '../../shared/dafsync-config.mjs';
 
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
-const ALLOWED_ORIGINS = new Set([
-  'https://dafsync.netlify.app',
-  'https://main--dafsync.netlify.app',
-  'http://localhost:8080',
-]);
 
 // A Drive link only ever gets used here because someone deliberately shared
 // it as "Anyone with the link" -- that sharing action is itself an implicit

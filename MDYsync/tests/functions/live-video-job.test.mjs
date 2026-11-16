@@ -203,6 +203,9 @@ test('status: absent, pending, stale pending, and the 400/403 cases', async () =
   assert.equal((await readStatus({ request: get({ url: 'https://vimeo.com/1' }), store })).code, 400);
   assert.equal((await readStatus({ request: get({}), store })).code, 400);
   assert.equal((await readStatus({ request: get({ url: YT }, { Origin: 'https://evil.example' }), store })).code, 403);
+  assert.equal((await readStatus({ request: get({ url: YT }, { Origin: 'https://some-branch--dafsync.netlify.app' }), store })).code, 403);
+  assert.equal((await readStatus({ request: get({ url: YT }, { Origin: 'https://dafsync.com' }), store })).code, 200);
+  assert.equal((await readStatus({ request: get({ url: YT }, { Origin: 'https://www.dafsync.com' }), store })).code, 200);
   assert.equal((await readStatus({ request: get({ url: YT }, { Origin: ORIGIN }), store })).code, 200);
 });
 

@@ -31,14 +31,25 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = 8765
 
-# The real DafSync website (confirmed via the connected Netlify project)
-# plus localhost, for running the site locally during development.
+# The public site, the netlify.app hosts that still serve it, plus localhost
+# for running the site locally during development. Keep this set in step with
+# ALLOWED_ORIGINS in shared/dafsync-config.mjs -- this process can't import
+# that module. Numbered deploy previews are matched below, same host shape
+# as that module's DEPLOY_PREVIEW_ORIGIN, so a preview of the site can still
+# hand a local file to this loopback server.
 ALLOWED_ORIGINS = {
+    "https://dafsync.com",
+    "https://www.dafsync.com",
     "https://dafsync.netlify.app",
     "https://main--dafsync.netlify.app",
     "http://localhost:8080",
     "http://127.0.0.1:8080",
 }
+DEPLOY_PREVIEW_ORIGIN = re.compile(r"^https://deploy-preview-\d+--dafsync\.netlify\.app$")
+
+
+def origin_allowed(origin):
+    return origin in ALLOWED_ORIGINS or bool(DEPLOY_PREVIEW_ORIGIN.fullmatch(origin or ""))
 
 APP_VERSION = "0.3.0"
 
@@ -48,7 +59,7 @@ APP_VERSION = "0.3.0"
 # own copy of these constants.
 CHAZARAH_SUFFIX = " (Chazarah Daf)"
 HEBREW_SUFFIX = " (Hebrew)"
-PUBLISH_ENDPOINT = "https://dafsync.netlify.app/api/publish-alignment"
+PUBLISH_ENDPOINT = "https://dafsync.com/api/publish-alignment"
 
 
 def upload_alignment(alignment, refs, variant, language):
@@ -172,7 +183,7 @@ def make_handler(registry: JobRegistry, gui_queue, engine):
 
         def _cors_headers(self):
             origin = self._origin()
-            if origin in ALLOWED_ORIGINS:
+            if origin_allowed(origin):
                 self.send_header("Access-Control-Allow-Origin", origin)
                 self.send_header("Vary", "Origin")
                 self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -215,7 +226,7 @@ def make_handler(registry: JobRegistry, gui_queue, engine):
                 self._drain()
                 self._send_json(404, {"error": "Not found."})
                 return
-            if self._origin() not in ALLOWED_ORIGINS:
+            if not origin_allowed(self._origin()):
                 # Drain the body before responding: closing the socket while
                 # the client is still mid-upload causes a broken-pipe error
                 # on their end instead of a clean 403 response.

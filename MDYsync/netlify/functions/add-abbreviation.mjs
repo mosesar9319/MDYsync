@@ -7,14 +7,11 @@
 // every future page without needing a deploy; daf-tracer.mjs's caller
 // merges both lists at load time.
 
+import { ALLOWED_ORIGINS } from '../../shared/dafsync-config.mjs';
+
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
 const PATH = 'abbreviation-additions.json';
-const ALLOWED_ORIGINS = new Set([
-  'https://dafsync.netlify.app',
-  'https://main--dafsync.netlify.app',
-  'http://localhost:8080',
-]);
 
 function toBase64Utf8(str) {
   const bytes = new TextEncoder().encode(str);

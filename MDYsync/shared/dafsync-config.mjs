@@ -1,14 +1,20 @@
 // Small, shared constants every Netlify function that talks to DafSync's own
 // GitHub repo (for the results branch's published page data) or needs the
-// site's own CORS allowlist reaches for. Extracted so scan-daf-page.mjs and
-// scan-daf-header.mjs can't drift apart on either -- a new deploy origin
-// added to one and forgotten in the other is exactly the kind of bug two
-// hand-maintained copies eventually produce.
+// site's own CORS allowlist reaches for. One list, imported everywhere, so a
+// new public host added in one function and forgotten in the next can't
+// happen -- that is exactly the kind of bug two hand-maintained copies
+// eventually produce.
 
 export const OWNER = 'mosesar9319';
 export const REPO = 'MDYsync';
 
+// Primary public origin. www.dafsync.com redirects to this host; the
+// netlify.app hosts below keep serving the same site.
+export const PUBLIC_SITE_ORIGIN = 'https://dafsync.com';
+
 export const ALLOWED_ORIGINS = new Set([
+  PUBLIC_SITE_ORIGIN,
+  'https://www.dafsync.com',
   'https://dafsync.netlify.app',
   'https://main--dafsync.netlify.app',
   'http://localhost:8080',
@@ -30,7 +36,18 @@ export const ALLOWED_ORIGINS = new Set([
 // previews without opening it to any other Netlify site.
 const NETLIFY_SUBDOMAIN_ORIGIN = /^https:\/\/[a-z0-9-]+--dafsync\.netlify\.app$/;
 
+// Narrower than NETLIFY_SUBDOMAIN_ORIGIN: numbered PR deploy previews only.
+// Live Follow uses this so an arbitrary branch-deploy hostname cannot mint
+// tokens or start a transcription job. Admin write functions import
+// ALLOWED_ORIGINS alone and do not accept previews at all.
+export const DEPLOY_PREVIEW_ORIGIN = /^https:\/\/deploy-preview-\d+--dafsync\.netlify\.app$/;
+
 export function isAllowedOrigin(origin) {
   if (!origin) return false;
   return ALLOWED_ORIGINS.has(origin) || NETLIFY_SUBDOMAIN_ORIGIN.test(origin);
+}
+
+export function isAllowedPreviewOrigin(origin) {
+  if (!origin) return false;
+  return ALLOWED_ORIGINS.has(origin) || DEPLOY_PREVIEW_ORIGIN.test(origin);
 }

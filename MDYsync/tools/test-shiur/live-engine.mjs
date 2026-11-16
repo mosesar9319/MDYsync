@@ -26,6 +26,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { PUBLIC_SITE_ORIGIN } from '../../shared/dafsync-config.mjs';
 
 const require = createRequire(import.meta.url);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -183,7 +184,7 @@ async function transcribeWithElevenLabs(videoId, { keyterms = [], apiKey = proce
   return { words, seconds: words.length ? words[words.length - 1][2] : 0, languageCode: result.language_code ?? null };
 }
 
-async function fetchTranscript(videoId, { daf = '', keyterms = [], tries = 4,  base = 'https://dafsync.netlify.app', origin = 'https://dafsync.netlify.app', timeoutMs = 20 * 60 * 1000 } = {}) {
+async function fetchTranscript(videoId, { daf = '', keyterms = [], tries = 4,  base = PUBLIC_SITE_ORIGIN, origin = PUBLIC_SITE_ORIGIN, timeoutMs = 20 * 60 * 1000 } = {}) {
   const url = `https://www.youtube.com/watch?v=${videoId}`;
   // The page asks for a transcript with the daf's own words as keyterms (that is what
   // makes the model write the Hebrew phrases in Hebrew letters instead of spelling

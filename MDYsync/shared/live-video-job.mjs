@@ -9,14 +9,11 @@
 
 import { createHash } from 'node:crypto';
 import { getStore } from '@netlify/blobs';
+import { isAllowedPreviewOrigin } from './dafsync-config.mjs';
 
-export const ALLOWED_ORIGINS = new Set([
-  'https://dafsync.netlify.app',
-  'https://main--dafsync.netlify.app',
-  'http://localhost:8080',
-]);
-export const DEPLOY_PREVIEW_ORIGIN = /^https:\/\/deploy-preview-\d+--dafsync\.netlify\.app$/;
-export const isAllowedOrigin = (origin) => ALLOWED_ORIGINS.has(origin) || DEPLOY_PREVIEW_ORIGIN.test(origin);
+// Production hosts (including https://dafsync.com) plus numbered PR deploy
+// previews. Branch-deploy hostnames stay out -- see isAllowedPreviewOrigin.
+export const isAllowedOrigin = isAllowedPreviewOrigin;
 
 // A job that has been "pending" longer than the background function can run
 // (15 minutes) died; start over rather than wait on it.
