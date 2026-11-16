@@ -1,0 +1,29 @@
+{
+  "schema": "dafsync-test-runs-v1",
+  "videoId": "TWCiP96dKXU",
+  "runs": [
+    {
+      "id": "regular-1",
+      "engine": "regular",
+      "number": 1,
+      "name": "Regular #1 · 16 Nov 2026 · path: hints + plain",
+      "notes": "path: hints + plain",
+      "engineVersion": "94f97e3",
+      "createdAt": "2026-11-16T14:37:17Z",
+      "file": "regular-1.json",
+      "jobId": "3766d0cd6b4f4da5b17bbeb85ebf597b",
+      "summary": {
+        "segments": 294,
+        "estimatedSegments": 61,
+        "placements": 384,
+        "placedWords": 978,
+        "totalRuns": 611,
+        "totalWords": 672,
+        "matchedWords": 585,
+        "unmatchedWords": 87,
+        "durationSeconds": 3814.22
+      }
+    }
+  ],
+  "updatedAt": "2026-11-16T14:37:17Z"
+}
