@@ -293,6 +293,20 @@ class SpokenForms(unittest.TestCase):
         self.assertEqual(events, [])
 
 
+class SameWords(unittest.TestCase):
+    def test_a_phrase_the_daf_repeats_is_offered_at_every_copy(self):
+        # The Gemara quoting its Mishnah word for word: the phrase matcher names
+        # the first copy, the path may take the one it is reading.
+        canon = canon_from('בֶּן עַזַּאי אוֹמֵר: בְּאֶחָד בְּסִיוָן. גְּמָ׳ תַּנְיָא בֶּן עַזַּאי אוֹמֵר: בְּאֶחָד בְּסִיוָן.')
+        self.assertEqual(PA.same_words_at(canon, 0, 2), [0, 7])
+        self.assertEqual(PA.same_words_at(canon, 3, 4), [3, 10])
+        self.assertEqual(PA.same_words_at(canon, 5, 6), [5])
+        transcript = said('גמרא תניא', 'בן עזאי אומר באחד בסיון', gap=0.5)
+        events, _ = PA.align_path(canon, [transcript], VA.phonetic, english=ENGLISH,
+                                  proposals=[(transcript[2]['start'], transcript[-1]['end'], 0, 4, 90, 'בן עזאי אומר באחד בסיון')])
+        self.assertEqual(spans(events)[-1][1], 11)
+
+
 class Relisten(unittest.TestCase):
     """The holes the path leaves, listened to again on their own."""
 

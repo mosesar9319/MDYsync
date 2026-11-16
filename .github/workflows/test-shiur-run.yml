@@ -37,9 +37,12 @@ on:
         required: true
         default: 'TWCiP96dKXU'
       refs:
-        description: 'The dapim the shiur covers, comma separated'
+        # Bechoros 58 opens four lines from the bottom of 57b and runs a few
+        # lines into 59a, so both are given; the publisher treats them as
+        # passing through (publish_alignment.split_refs), not as this shiur's own.
+        description: 'The amudim the shiur covers, comma separated (include the amud before and after if it reads into them)'
         required: true
-        default: 'Bekhorot 58a,Bekhorot 58b'
+        default: 'Bekhorot 57b,Bekhorot 58a,Bekhorot 58b,Bekhorot 59a'
       maggid:
         description: "The maggid's id (bornstein), or empty for Mercaz Daf Yomi"
         required: false

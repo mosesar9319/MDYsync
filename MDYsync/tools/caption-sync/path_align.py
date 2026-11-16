@@ -532,6 +532,15 @@ def find_holes(placed):
     return holes
 
 
+def same_words_at(canon, s, e):
+    """Every daf position where canon[s..e]'s words stand, in the same order
+    (s itself included)."""
+    words = [c.norm for c in canon[s:e + 1]]
+    n = len(words)
+    return [k for k in range(len(canon) - n + 1)
+            if canon[k].norm == words[0] and [c.norm for c in canon[k:k + n]] == words] or [s]
+
+
 def align_path(canon, transcripts, phonetic, proposals=(), source_labels=None, english=None, gaps=True,
                short_words=True, bridges=True, spoken=True, debug=False):
     """Place the shiur on the daf.
@@ -568,8 +577,13 @@ def align_path(canon, transcripts, phonetic, proposals=(), source_labels=None, e
     labels = {**PATH_SOURCE_LABELS, **(source_labels or {})}
     for t0, t1, s, e, score, text, *source in proposals:
         chars = sum(len(c.norm) for c in canon[s:e + 1])
-        cands.append(Candidate(t0, max(t1, t0), s, e, float(max(score, PROPOSAL_MIN_SCORE)), chars,
-                               source[0] if source else SOURCE_PHRASE, text))
+        # The phrase matcher names one place. When the same words stand
+        # elsewhere on the daf too (the Gemara quoting its Mishnah word for
+        # word, often from the amud before), every copy is offered and the path
+        # takes the one it is reading.
+        for start in same_words_at(canon, s, e):
+            cands.append(Candidate(t0, max(t1, t0), start, start + e - s, float(max(score, PROPOSAL_MIN_SCORE)),
+                                   chars, source[0] if source else SOURCE_PHRASE, text))
     placed = best_path(cands, len(canon))
     if gaps:
         placed = sorted(placed + fill_gaps(witnesses, placed, short_words), key=lambda c: (c.t0, c.t1))
