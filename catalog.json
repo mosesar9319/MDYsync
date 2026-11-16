@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-16T20:23:05.026Z",
+  "generatedAt": "2026-11-16T20:25:18.829Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -1344,7 +1344,7 @@
           "amud": "a",
           "liveBroadcast": true,
           "liveStatus": "finished",
-          "durationSeconds": 4932
+          "durationSeconds": 4925
         }
       }
     ],
