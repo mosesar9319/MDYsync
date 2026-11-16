@@ -6,6 +6,10 @@
 # existed); the cache still helps on every run where pip resolves to
 # whatever it last resolved to, which is the common case.
 faster-whisper
+# faster-whisper 1.2.1 still passes metadata_errors to av.open. PyAV 19
+# removed that argument, so a local transcription dies before it reads any
+# audio. The ElevenLabs path does not decode with PyAV.
+av<19
 rapidfuzz
 yt-dlp
 opencv-python-headless
