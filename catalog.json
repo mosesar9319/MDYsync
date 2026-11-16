@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-16T08:35:15.948Z",
+  "generatedAt": "2026-11-16T11:25:14.472Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -1321,12 +1321,9 @@
           "amud": "a"
         },
         "regularEn": {
-          "videoId": "4pTRZq-rr_I",
-          "label": "Daf Yomi Bechoros Daf 59 by R’ Eli Stefansky (unedited)",
-          "amud": "a",
-          "liveBroadcast": true,
-          "liveStatus": "finished",
-          "durationSeconds": 3693
+          "videoId": "-Np-e_3YsI4",
+          "label": "Daf Yomi Bechoros Daf 59 by R' Eli Stefansky",
+          "amud": "a"
         }
       }
     ],
