@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-17T20:01:05.476Z",
+  "generatedAt": "2026-11-17T20:19:53.029Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -1366,7 +1366,8 @@
           "label": "מרכז דף יומי -  בכורות דף סא. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
           "amud": "a",
           "liveBroadcast": true,
-          "liveStatus": "live"
+          "liveStatus": "finished",
+          "durationSeconds": 5300
         }
       }
     ],
