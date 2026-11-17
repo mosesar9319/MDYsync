@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-17T12:40:18.562Z",
+  "generatedAt": "2026-11-17T18:55:13.620Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -1352,6 +1352,16 @@
           "videoId": "vuizuyDNTfU",
           "label": "חזרה - בכורות דף ס | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
+        }
+      },
+      {
+        "daf": 61,
+        "regularHe": {
+          "videoId": "7TpK2_tJrto",
+          "label": "מרכז דף יומי -  בכורות דף סא. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
+          "amud": "a",
+          "liveBroadcast": true,
+          "liveStatus": "live"
         }
       }
     ],
