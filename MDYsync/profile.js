@@ -14,7 +14,7 @@
       'pfPreviewAvatar', 'pfPreviewName', 'pfPreviewRole',
       'pfAvatarDialog', 'pfAvatarClose', 'pfAvatarFile', 'pfCropWrap', 'pfCropCanvas', 'pfCropZoom',
       'pfAvatarError', 'pfAvatarCancel', 'pfAvatarSave',
-      'pfDefaultView', 'pfViewStatus',
+      'pfDefaultView', 'pfViewStatus', 'pfVideoSource', 'pfVideoSourceStatus',
     ].forEach((id) => { els[id] = document.getElementById(id); });
   }
 
@@ -78,8 +78,38 @@
     }
   }
 
+  // Where an MDY shiur plays from: MDY's own server (the default, for filtered
+  // devices that block YouTube) or YouTube. Kept on the account, and on this
+  // device -- the player reads this device's choice first (mdy-files.js).
+  const VIDEO_SOURCES = ['mdy', 'youtube'];
+  const VIDEO_SOURCE_DEVICE_KEY = 'dafsync-video-source';
+  function readDeviceVideoSource() {
+    try { return localStorage.getItem(VIDEO_SOURCE_DEVICE_KEY); } catch { return null; }
+  }
+  function renderVideoSource() {
+    if (!els.pfVideoSource) return;
+    const device = readDeviceVideoSource();
+    const account = window.DafSyncAuth?.getUser?.()?.user_metadata?.video_source;
+    const chosen = VIDEO_SOURCES.includes(device) ? device : account;
+    els.pfVideoSource.value = VIDEO_SOURCES.includes(chosen) ? chosen : 'mdy';
+  }
+  async function onVideoSourceChange() {
+    const value = els.pfVideoSource.value;
+    if (!VIDEO_SOURCES.includes(value)) return;
+    try { localStorage.setItem(VIDEO_SOURCE_DEVICE_KEY, value); } catch { /* private mode */ }
+    els.pfVideoSourceStatus.textContent = 'Saving…';
+    try {
+      const { error } = await window.DafSyncAuth.client.auth.updateUser({ data: { video_source: value } });
+      if (error) throw error;
+      els.pfVideoSourceStatus.textContent = 'Saved.';
+    } catch (error) {
+      els.pfVideoSourceStatus.textContent = 'Saved on this device. Could not save to your account; please try again.';
+    }
+  }
+
   function renderProfile() {
     renderDefaultView();
+    renderVideoSource();
     els.pfDisplayName.value = currentProfile?.display_name || '';
     renderAvatarInto(els.pfAvatarPreview, currentProfile);
     renderAvatarInto(els.pfPreviewAvatar, currentProfile);
@@ -287,6 +317,7 @@
     els.pfCropCanvas.addEventListener('pointerleave', onCropPointerUp);
     els.pfAvatarSave.addEventListener('click', onSaveAvatar);
     els.pfDefaultView?.addEventListener('change', onDefaultViewChange);
+    els.pfVideoSource?.addEventListener('change', onVideoSourceChange);
 
     window.DafSyncAuth?.onChange(() => loadProfile());
   }

@@ -53,6 +53,19 @@ const state = {
   toastTimer: null,
   playerType: 'html5',
   videoSource: null,
+  // An MDY shiur playing from MDY's own server instead of YouTube (see
+  // mdy-files.js). state.videoSource stays the YouTube source -- every
+  // alignment and saved link is keyed by its videoId -- and this says what is
+  // actually in the <video>: { url, quality, videoId, ref, expected, checked }.
+  mdyPlayback: null,
+  // The MDY shiur on screen, whichever player it is in -- what the "Play from"
+  // control offers to switch: { parsed, options, ref, videoId }, or null.
+  mdyShiur: null,
+  // Recordings whose MDY file was turned away this visit (videoId -> 'missing' |
+  // 'different'), and ones played from MDY's server even though they differ
+  // because YouTube would not load either.
+  mdyTurnedAway: new Map(),
+  mdyAcceptMismatch: new Set(),
   youtubePlayer: null,
   youtubeApiPromise: null,
   youtubeReady: false,
@@ -8284,7 +8297,10 @@ function applyDuration(duration, resetDefault = true) {
   if (!Number.isFinite(duration) || duration <= 0) return;
   scrubberEls.forEach((el) => { el.max = String(duration); });
   $('duration').textContent = formatTime(duration);
-  if (resetDefault && state.alignmentDuration > 0 && Math.abs(duration - state.alignmentDuration) > 5) {
+  // MDY's file of another recording, played because YouTube would not load,
+  // has already said so in its own words (playFromYouTubeInstead).
+  const knownMismatch = Boolean(state.mdyPlayback && state.mdyAcceptMismatch.has(state.mdyPlayback.videoId));
+  if (resetDefault && !knownMismatch && state.alignmentDuration > 0 && Math.abs(duration - state.alignmentDuration) > 5) {
     showToast(
       `This video is ${formatTime(duration)} long, but the synced daf was built from a ${formatTime(state.alignmentDuration)} video — ` +
       `they don't match, so the highlighting will be off. Load the exact video that was analyzed.`,
@@ -9003,6 +9019,14 @@ function refreshQualityOptions() {
   const control = $('qualityControl');
   const select = $('qualitySelect');
   if (!control || !select) return;
+  // MDY's server keeps each shiur in three sizes and as audio alone.
+  if (state.mdyPlayback && state.playerType === 'html5') {
+    select.innerHTML = MDY.QUALITIES.map((quality) =>
+      `<option value="${quality}"${quality === state.mdyPlayback.quality ? ' selected' : ''}>${MDY.QUALITY_LABELS[quality]}</option>`
+    ).join('');
+    control.hidden = false;
+    return;
+  }
   if (state.playerType !== 'youtube' || !state.youtubeReady || !state.youtubePlayer.getAvailableQualityLevels) {
     control.hidden = true;
     return;
@@ -9527,6 +9551,9 @@ async function loadDaf(refOverride = null, options = {}) {
     state.dafRef = ref;
     resetVilnaFollow(ref);
     state.wordTimeline = [];
+    // No sync, so no recording length to hold a video to (the last daf's
+    // stayed behind here and warned about a mismatch that was not there).
+    state.alignmentDuration = 0;
     const duration = getDuration() || Number(scrubber.max) || 48;
     const length = duration / paragraphs.length;
     state.segments = stabilizeEstimatedSegments(paragraphs.map((paragraph, index) => {
@@ -9593,6 +9620,9 @@ function handleVideoFile(file) {
   if (!file) return;
   cleanupObjectUrl();
   switchPlayerType('html5');
+  state.mdyPlayback = null;
+  state.mdyShiur = null;
+  refreshPlaySourceControl();
   state.objectUrl = URL.createObjectURL(file);
   state.videoSource = { type: 'local', fileName: file.name, label: 'Local file' };
   refreshTestRuns(null);
@@ -10270,10 +10300,212 @@ function startPausedDriftWatch() {
   }, 500);
 }
 
+// ---------------------------------------------------------------------------
+// MDY's own server. Many readers learn on filtered devices that block YouTube.
+// Mercaz Daf Yomi keeps every shiur as plain files on its own server too (see
+// mdy-files.js), so an MDY shiur plays from there by default and YouTube is
+// the fallback: when the file is not there, or is a different recording from
+// the one the daf was synced to. A reader can choose YouTube instead (the
+// "Play from" control in the player's settings, or their profile).
+// ---------------------------------------------------------------------------
+const MDY = window.MdyFiles || null;
+
+function readStoredValue(key) {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+function writeStoredValue(key, value) {
+  try { localStorage.setItem(key, value); } catch { /* private mode */ }
+}
+
+// This device's choice first (a filtered phone and an open computer can want
+// different things), then the account's (profile page), then MDY's server.
+function preferredPlaybackSource() {
+  if (!MDY) return 'youtube';
+  const device = readStoredValue(MDY.SOURCE_STORAGE_KEY);
+  if (MDY.SOURCES.includes(device)) return device;
+  return MDY.normalizeSource(window.DafSyncAuth?.getUser?.()?.user_metadata?.video_source);
+}
+
+function preferredMdyQuality() {
+  const connection = navigator.connection || {};
+  return MDY.defaultQuality({
+    saved: readStoredValue(MDY.QUALITY_STORAGE_KEY),
+    narrowScreen: Boolean(window.matchMedia?.('(max-width: 760px)')?.matches),
+    saveData: Boolean(connection.saveData),
+    slowConnection: /(^|-)2g$/.test(connection.effectiveType || ''),
+  });
+}
+
+// The MDY shiur a YouTube source is, or null (another maggid, a livestream,
+// MDY not loaded).
+function mdyShiurFor(ref, label, extras) {
+  if (!MDY) return null;
+  const parsed = parseDafRef(ref);
+  if (!parsed) return null;
+  const options = { title: label || '', liveBroadcast: Boolean(extras?.liveBroadcast) };
+  return MDY.shiurFolder(parsed, options) ? { parsed, options } : null;
+}
+
+// Puts MDY's file for the shiur on screen into the <video>. resumeAt/resume
+// carry the reader's place across a change of quality or of source.
+function playMdyFile({ quality = preferredMdyQuality(), resumeAt = null, resume = false } = {}) {
+  const shiur = state.mdyShiur;
+  if (!shiur) return;
+  const url = MDY.fileUrl(shiur.parsed, { ...shiur.options, quality });
+  // The sync's own recording length, when the alignment loaded is this daf's.
+  // A daf with no sync yet (loadDaf restores its video before state.dafRef
+  // moves to it) has nothing to compare against.
+  const expected = state.dafRef && refKey(state.dafRef) === refKey(shiur.ref) ? state.alignmentDuration : 0;
+  switchPlayerType('html5');
+  $('videoFrame')?.classList.remove('yt-started', 'yt-playing', 'yt-mask', 'yt-corner', 'yt-corner-out');
+  const same = state.mdyPlayback?.url === url && htmlVideo.getAttribute('src') === url;
+  state.mdyPlayback = {
+    url, quality, videoId: shiur.videoId, ref: shiur.ref, expected,
+    checked: same ? state.mdyPlayback.checked : false,
+  };
+  if (!same) {
+    htmlVideo.poster = MDY.posterUrl(shiur.parsed, shiur.options) || '';
+    htmlVideo.src = url;
+    htmlVideo.load();
+    // .load() resets the rate to 1 -- see handleVideoFile.
+    setPlaybackRate(Number($('speedSelect').value));
+  }
+  $('largePlay').hidden = false;
+  showVideoControls();
+  if (resumeAt != null && resumeAt > 0) seek(resumeAt);
+  if (resume) htmlVideo.play().catch(() => updatePlayUi());
+  refreshQualityOptions();
+  refreshPlaySourceControl();
+}
+
+// Checked once the file's length is known: a file that is a different
+// recording from the sync's would put every highlight in the wrong place.
+// Returns true when it turned the file away.
+function turnAwayMismatchedMdyFile() {
+  const playback = state.mdyPlayback;
+  if (!playback || playback.checked) return false;
+  playback.checked = true;
+  if (state.mdyAcceptMismatch.has(playback.videoId)) return false;
+  if (MDY.sameRecording(htmlVideo.duration, playback.expected)) return false;
+  playFromYouTubeInstead('different');
+  return true;
+}
+
+// Falls back from MDY's file to the YouTube video, keeping the reader's place.
+// reason: 'missing' (MDY's server has no such file) or 'different' (it is
+// another recording). If YouTube will not load either, a different recording
+// still plays from MDY's server -- the shiur with the highlight off beats no
+// shiur at all.
+async function playFromYouTubeInstead(reason) {
+  const playback = state.mdyPlayback;
+  if (!playback) return;
+  state.mdyTurnedAway.set(playback.videoId, reason);
+  const at = Number(htmlVideo.currentTime) || 0;
+  const wasPlaying = !htmlVideo.paused;
+  htmlVideo.pause();
+  htmlVideo.removeAttribute('src');
+  htmlVideo.removeAttribute('poster');
+  htmlVideo.load();
+  state.mdyPlayback = null;
+  try {
+    await ensureYouTubePlayer(playback.videoId);
+    setSourceBadge('YouTube');
+    if (at > 1) seek(at);
+    if (wasPlaying && isPaused()) togglePlay();
+    showToast(reason === 'different'
+      ? "MDY's copy of this shiur is a different recording from the one the daf is synced to, so it is playing from YouTube."
+      : "This shiur isn't on MDY's server, so it is playing from YouTube.");
+  } catch (error) {
+    console.error(error);
+    if (reason === 'different' && state.mdyShiur?.videoId === playback.videoId) {
+      state.mdyTurnedAway.delete(playback.videoId);
+      state.mdyAcceptMismatch.add(playback.videoId);
+      playMdyFile({ quality: playback.quality, resumeAt: at, resume: wasPlaying });
+      setSourceBadge('MDY');
+      showToast("YouTube didn't load, so this shiur is playing from MDY's server. It is a different recording "
+        + 'from the one the daf is synced to, so the highlighted words will be off.', 'error');
+    } else {
+      showToast("This shiur isn't on MDY's server, and YouTube didn't load either.", 'error');
+    }
+  }
+  refreshQualityOptions();
+  refreshPlaySourceControl();
+}
+
+function changeMdyQuality(quality) {
+  const playback = state.mdyPlayback;
+  if (!playback || !MDY.QUALITIES.includes(quality) || quality === playback.quality) return;
+  writeStoredValue(MDY.QUALITY_STORAGE_KEY, quality);
+  playMdyFile({ quality, resumeAt: Number(htmlVideo.currentTime) || 0, resume: !htmlVideo.paused });
+}
+
+// The "Play from" control: shown for an MDY shiur, set to where it is playing.
+function refreshPlaySourceControl() {
+  const control = $('playSourceControl');
+  const select = $('playSourceSelect');
+  if (!control || !select) return;
+  const shiur = state.mdyShiur;
+  const showing = Boolean(shiur && state.videoSource?.videoId === shiur.videoId);
+  control.hidden = !showing;
+  if (showing) select.value = state.mdyPlayback ? 'mdy' : 'youtube';
+}
+
+async function changePlaySource(source) {
+  if (!MDY || !MDY.SOURCES.includes(source)) return;
+  writeStoredValue(MDY.SOURCE_STORAGE_KEY, source);
+  // Signed in: the account remembers it too, for the reader's other devices.
+  const auth = window.DafSyncAuth;
+  if (auth?.getUser?.() && auth.client?.auth?.updateUser) {
+    auth.client.auth.updateUser({ data: { video_source: source } }).catch(() => {});
+  }
+  const shiur = state.mdyShiur;
+  if (!shiur || state.videoSource?.videoId !== shiur.videoId) return;
+  const at = getCurrentTime();
+  const wasPlaying = !isPaused();
+  if (source === 'mdy' && !state.mdyPlayback) {
+    state.mdyTurnedAway.delete(shiur.videoId);
+    playMdyFile({ resumeAt: at, resume: wasPlaying });
+    setSourceBadge('MDY');
+  } else if (source === 'youtube' && state.mdyPlayback) {
+    htmlVideo.pause();
+    htmlVideo.removeAttribute('src');
+    htmlVideo.removeAttribute('poster');
+    htmlVideo.load();
+    state.mdyPlayback = null;
+    try {
+      await ensureYouTubePlayer(shiur.videoId);
+      setSourceBadge('YouTube');
+      if (at > 1) seek(at);
+      if (wasPlaying && isPaused()) togglePlay();
+    } catch (error) {
+      console.error(error);
+      showToast("YouTube didn't load on this device. Switch back to MDY's server to watch.", 'error');
+    }
+    refreshQualityOptions();
+  }
+  refreshPlaySourceControl();
+}
+
 async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs = null, label = null, locked = false, extras = null) {
   if (!validateYouTubeId(videoId)) throw new Error('A valid YouTube video link is required.');
   cleanupObjectUrl();
-  await ensureYouTubePlayer(videoId);
+  // The daf this recording is being loaded for: loadDaf passes it explicitly
+  // (state.dafRef still holds the previous daf at that point).
+  const shiurRef = (Array.isArray(saveRefs) && saveRefs[0]) || state.dafRef;
+  const mdyShiur = mdyShiurFor(shiurRef, label, extras);
+  state.mdyShiur = mdyShiur ? { ...mdyShiur, ref: shiurRef, videoId } : null;
+  const fromMdy = Boolean(mdyShiur) && preferredPlaybackSource() === 'mdy' && !state.mdyTurnedAway.has(videoId);
+  if (fromMdy) {
+    playMdyFile();
+  } else {
+    if (state.mdyPlayback) {
+      htmlVideo.removeAttribute('src');
+      htmlVideo.removeAttribute('poster');
+      htmlVideo.load();
+      state.mdyPlayback = null;
+    }
+    await ensureYouTubePlayer(videoId);
+  }
   const liveBroadcast = Boolean(extras?.liveBroadcast);
   state.videoSource = {
     type: 'youtube',
@@ -10290,8 +10522,9 @@ async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs =
   state.currentProjectId = null;
   $('videoUrl').value = state.videoSource.url;
   $('lectureTitle').textContent = label || `YouTube lecture · ${videoId}`;
-  setSourceBadge(liveBroadcast ? 'Live' : 'YouTube');
+  setSourceBadge(liveBroadcast ? 'Live' : (fromMdy ? 'MDY' : 'YouTube'));
   setSourcePanel('linkSourcePanel');
+  refreshPlaySourceControl();
   // Seeking to 0 on a broadcast that is on the air leaves the live edge
   // and lands in the waiting room. The iframe already opens at live.
   if (state.videoSource.liveStatus !== 'live') seek(0);
@@ -10305,6 +10538,8 @@ async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs =
     showToast(state.videoSource.liveStatus === 'live'
       ? 'Live shiur. The daf is below. Words are not highlighted yet.'
       : 'Live recording. Words are not highlighted until the edited shiur is posted.');
+  } else if (fromMdy) {
+    showToast("Playing from MDY's server.");
   } else {
     showToast('YouTube video connected to the synchronized timeline.');
   }
@@ -10331,6 +10566,9 @@ function loadDirectVideoUrl(url, saveRefs = null, locked = false) {
 
   cleanupObjectUrl();
   switchPlayerType('html5');
+  state.mdyPlayback = null;
+  state.mdyShiur = null;
+  refreshPlaySourceControl();
   state.videoSource = { type: 'direct', url: parsed.href, label: 'Direct link', locked };
   htmlVideo.src = parsed.href;
   htmlVideo.load();
@@ -10564,6 +10802,14 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
     : [];
   state.alignmentDuration = Number(data.duration) || 0;
   state.dafRef = dafRefOverride || data.dafRef || state.dafRef;
+  // An alignment that arrives after MDY's file (switching sync method keeps
+  // the video) is checked against it too.
+  if (state.mdyPlayback && refKey(state.dafRef) === refKey(state.mdyPlayback.ref)
+      && state.mdyPlayback.expected !== state.alignmentDuration) {
+    state.mdyPlayback.expected = state.alignmentDuration;
+    state.mdyPlayback.checked = false;
+    if (htmlVideo.readyState >= 1) turnAwayMismatchedMdyFile();
+  }
   resetVilnaFollow(state.dafRef);
   // A voice-recognition-sourced alignment's segments are the engine's own
   // rough guess (see voice_align.py) -- retaining a copy of exactly what it
@@ -10890,7 +11136,11 @@ function handleScrubPointer(event) {
   $('previewText').textContent = segment?.he || 'No mapped text';
 }
 
-htmlVideo.addEventListener('loadedmetadata', () => { applyDuration(htmlVideo.duration); syncVolumeUi(); });
+htmlVideo.addEventListener('loadedmetadata', () => {
+  if (turnAwayMismatchedMdyFile()) return;
+  applyDuration(htmlVideo.duration);
+  syncVolumeUi();
+});
 htmlVideo.addEventListener('timeupdate', updateTimeline);
 // 'progress' (native, fires as bytes actually download) rather than relying
 // on 'timeupdate' alone -- timeupdate only fires during playback, so the
@@ -10911,7 +11161,13 @@ htmlVideo.addEventListener('click', () => {
   });
 });
 htmlVideo.addEventListener('error', () => {
-  if (state.videoSource.type === 'direct') {
+  // Only an error for the file MDY's server was asked for: removing the src
+  // when switching away fires one too.
+  if (state.mdyPlayback && htmlVideo.getAttribute('src') === state.mdyPlayback.url) {
+    playFromYouTubeInstead('missing');
+    return;
+  }
+  if (state.videoSource?.type === 'direct') {
     showToast('This direct link could not be played. Use a direct MP4/WebM file URL or a YouTube link.', 'error');
   }
 });
@@ -10926,7 +11182,11 @@ $('largePlay').addEventListener('click', togglePlay);
 $('backButton').addEventListener('click', () => seek(getCurrentTime() - 10));
 $('forwardButton').addEventListener('click', () => seek(getCurrentTime() + 10));
 $('speedSelect').addEventListener('change', (event) => setPlaybackRate(Number(event.target.value)));
-$('qualitySelect')?.addEventListener('change', (event) => state.youtubePlayer?.setPlaybackQuality?.(event.target.value));
+$('qualitySelect')?.addEventListener('change', (event) => {
+  if (state.mdyPlayback) changeMdyQuality(event.target.value);
+  else state.youtubePlayer?.setPlaybackQuality?.(event.target.value);
+});
+$('playSourceSelect')?.addEventListener('change', (event) => { changePlaySource(event.target.value); });
 $('fullscreenButton')?.addEventListener('click', toggleVideoFullscreen);
 document.addEventListener('fullscreenchange', () => updateVideoOverlay(getCurrentTime()));
 $('videoVilnaCanvas')?.addEventListener('click', handleVideoOverlayClick);
