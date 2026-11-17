@@ -12249,11 +12249,9 @@ function videoChoicesFor(tractate, daf) {
       });
     }
   }
-  // A livestream is not offered when the daf also has a finished upload.
-  // The only recording being a livestream (already linked, left for the
-  // owner to decide) still plays -- there is nothing else to select.
-  const finished = choices.filter((choice) => !choice.liveBroadcast);
-  return finished.length ? finished : choices;
+  // English and Hebrew are separate shiurim. A finished upload in one
+  // language does not hide the livestream of the other.
+  return choices;
 }
 
 // Lists them above the player when there is more than one; with one (or none) the

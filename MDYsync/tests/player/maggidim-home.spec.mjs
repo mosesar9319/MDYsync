@@ -75,6 +75,24 @@ async function followCard(page, card) {
 }
 
 test.describe('Home page — every maggid side by side', () => {
+  test('a Hebrew edit does not hide the English livestream of the same daf', async ({ page }) => {
+    const catalog = {
+      tractates: {
+        Bekhorot: [
+          {
+            daf: 58,
+            regularEn: { videoId: 'T70KGQVCsCw', label: 'Daf Yomi Bechoros Daf 58 by R’ Eli Stefansky (unedited)', amud: 'a', liveBroadcast: true },
+            regularHe: { videoId: 'cTWsuqpiNUA', label: 'מרכז דף יומי - בכורות דף נח', amud: 'a' },
+          },
+        ],
+      },
+    };
+    await open(page, { catalog });
+    await expect(cards(page)).toHaveCount(2);
+    const text = await cards(page).allInnerTexts();
+    expect(text.some((t) => t.includes('T70') || t.includes('unedited') || t.includes('Bechoros Daf 58'))).toBe(true);
+    expect(text.some((t) => t.includes('בכורות') || t.includes('Hebrew'))).toBe(true);
+  });
   test('a daf both maggidim have shows two cards, each saying whose it is', async ({ page }) => {
     const errors = await open(page);
     await expect(cards(page)).toHaveCount(5);

@@ -2244,15 +2244,11 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       return (state.language === "all" || comboLanguage(key) === state.language)
         && (state.variant === "all" || comboVariant(key) === state.variant);
     }
-    // Used for the hero card and any other single-daf entry point that
-    // doesn't already know which specific combo it wants -- the grid itself
-    // now builds one card per matching combo instead of picking just one.
-    // Drop livestreams when this daf also has a finished upload, keeping
-    // COMBO_KEYS order so the automatic pick matches the player. A daf whose
-    // only recording is a livestream still uses it.
+    // A livestream stays on the homepage until the edited upload of that
+    // same language replaces it. A finished Hebrew shiur must not hide the
+    // English livestream of the same daf, or the other way around.
     function withoutLivestreams(row, keys) {
-      const finished = keys.filter((key) => row[key] && !row[key].liveBroadcast);
-      return finished.length ? finished : keys;
+      return keys.filter((key) => row[key]);
     }
     function bestCombo(row) {
       const matching = COMBO_KEYS.filter((key) => row[key] && comboMatchesFilters(key));

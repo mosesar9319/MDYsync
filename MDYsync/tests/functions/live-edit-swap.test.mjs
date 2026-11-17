@@ -40,6 +40,15 @@ test('the swap waits for the edit alignment, then a live id cannot undo it', () 
   assert.equal(decideUpload({ existing: { videoId: 'edit0000001' }, videoId: 'edit0000001', aligned: true, now }).action, 'same');
 });
 
+test('a Hebrew edit is not linked as the English shiur', () => {
+  const parsed = parseChannelTitle('מרכז דף יומי - בכורות דף נח. - ר\' אלי סטפנסקי שליט"א', lookup);
+  assert.equal(parsed.language, 'he');
+  const readings = readingsForVideo(parsed, lookup);
+  const linked = linkReadingsOnly(parsed, readings);
+  assert.ok(linked.every((reading) => reading.language === 'he' && reading.daf === 58));
+  assert.equal(linked.some((reading) => reading.language === 'en'), false);
+});
+
 test('a lead-in is not a video link for the previous daf', () => {
   const parsed = parseChannelTitle("Daf Yomi Bechoros Daf 4 by R' Eli Stefansky", lookup);
   const readings = readingsForVideo(parsed, lookup);

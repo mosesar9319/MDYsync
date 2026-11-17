@@ -82,12 +82,15 @@ test.describe('Interactive Daf — a daf with several shiurim', () => {
     expect(await page.evaluate(() => state.maggid)).toBeNull();
   });
 
-  test('a livestream is not the shiur that loads when a finished upload is also linked', async ({ page }) => {
+  test('the English livestream stays listed when the Hebrew edit is also linked', async ({ page }) => {
     const asked = await open(page, '/browse/?ref=Bekhorot%204a');
-    await expect(page.locator('#videoChoice')).toBeHidden();
-    await expect.poll(() => loadedVideo(page)).toBe('FFFFFFFFFFF');
-    expect(asked).not.toContain('video-links/Bekhorot-4a.json');
-    expect(asked).toContain('video-links/Hebrew-Bekhorot-4a.json');
+    await expect(page.locator('#videoChoice')).toBeVisible();
+    await expect(options(page)).toHaveCount(2);
+    await expect(options(page).nth(0)).toContainText('English');
+    await expect(options(page).nth(1)).toContainText('Hebrew');
+    await page.waitForTimeout(400);
+    expect(await loadedVideo(page)).toBeNull();
+    expect(asked.filter((p) => p.startsWith('video-links/'))).toEqual([]);
   });
 
   test('a daf with one shiur loads it on its own and shows no list', async ({ page }) => {
