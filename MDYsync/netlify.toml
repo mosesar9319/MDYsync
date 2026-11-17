@@ -137,6 +137,18 @@
   status = 404
   force = true
 
+# The site's own Netlify address served a full second copy of every page.
+# Search engines are told dafsync.com is the real address (each page's
+# canonical link), and this sends people and crawlers there too. Only this
+# exact host matches: deploy previews (deploy-preview-N--dafsync.netlify.app)
+# and branch deploys keep working. Nothing outside the browser calls this
+# host (the GitHub jobs and functions use dafsync.com or the API directly).
+[[redirects]]
+  from = "https://dafsync.netlify.app/*"
+  to = "https://dafsync.com/:splat"
+  status = 301
+  force = true
+
 [[redirects]]
   from = "/studio"
   to = "/studio/"

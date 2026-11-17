@@ -8004,7 +8004,7 @@ function paintRequestedDafSkeleton(fullRef) {
   set('dafTitle', label);
   set('currentRef', `Loading ${label}…`);
   const lecture = $('lectureTitle');
-  if (lecture && /DafSync Studio|No daf loaded/i.test(lecture.textContent)) lecture.textContent = label;
+  if (lecture && /^(DafSync Studio|Daf Yomi shiur|Interactive Daf|No daf loaded)$/i.test(lecture.textContent.trim())) lecture.textContent = label;
   const phrase = $('currentPhrase');
   if (phrase) phrase.textContent = '';
   const translation = $('currentTranslation');

@@ -1,0 +1,5 @@
+# DafSync. Pages that are private to a signed-in reader carry their own
+# noindex tag instead of being blocked here, so search engines can still read
+# that tag. The sitemap line is added with the daf pages.
+User-agent: *
+Allow: /
