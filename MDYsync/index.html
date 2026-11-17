@@ -2153,7 +2153,26 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     // /player/) reads ?ref=/&variant=/&language= itself and looks up the
     // matching video-link/alignment data server-side, so there's no need to
     // pass the videoId through the URL.
+    // Each shiur's own page, /bechoros/58/bornstein/ (netlify/functions/
+    // seo-pages.mjs): the player under an address and a title search engines
+    // can rank. It hands over to /player/?ref=... as it loads, so linking here
+    // instead of to the player changes nothing for the reader. The slugs are
+    // shared/masechtos.mjs's (tests/functions/seo-pages.test.mjs checks they
+    // agree). A livestream still opens the player directly: it is replaced by
+    // its finished upload, so it has no page of its own.
+    const MASECHTA_SLUGS = { "Berakhot": "berachos", "Shabbat": "shabbos", "Eruvin": "eruvin", "Pesachim": "pesachim", "Yoma": "yoma", "Sukkah": "sukkah", "Beitzah": "beitzah", "Rosh Hashanah": "rosh-hashanah", "Taanit": "taanis", "Megillah": "megillah", "Moed Katan": "moed-katan", "Chagigah": "chagigah", "Yevamot": "yevamos", "Ketubot": "kesubos", "Nedarim": "nedarim", "Nazir": "nazir", "Sotah": "sotah", "Gittin": "gittin", "Kiddushin": "kiddushin", "Bava Kamma": "bava-kamma", "Bava Metzia": "bava-metzia", "Bava Batra": "bava-basra", "Sanhedrin": "sanhedrin", "Makkot": "makkos", "Shevuot": "shevuos", "Avodah Zarah": "avodah-zarah", "Horayot": "horayos", "Zevachim": "zevachim", "Menachot": "menachos", "Chullin": "chullin", "Bekhorot": "bechoros", "Arakhin": "arachin", "Temurah": "temurah", "Keritot": "kereisos", "Meilah": "meilah", "Niddah": "niddah" };
+    function shiurPagePath(entry) {
+      const slug = MASECHTA_SLUGS[entry.tractate];
+      if (!slug || entry.liveBroadcast) return "";
+      const segment = [entry.variant === "chazarah" ? "chazarah" : "", entry.language === "he" ? "hebrew" : ""].filter(Boolean).join("-");
+      // No ?mode=: the page opens Split, and the player itself switches to the
+      // reader's own default view when their account has one.
+      return `/${slug}/${entry.daf}/${entry.maggid || DEFAULT_MAGGID}/${segment ? `${segment}/` : ""}`;
+    }
+
     function playerUrl(entry) {
+      const pagePath = shiurPagePath(entry);
+      if (pagePath) return pagePath;
       const params = new URLSearchParams({ ref: `${entry.tractate} ${entry.daf}${entry.amud}` });
       if (entry.variant === "chazarah") params.set("variant", "chazarah");
       if (entry.language === "he") params.set("language", "hebrew");

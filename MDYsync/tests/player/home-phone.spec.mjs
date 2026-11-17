@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { parseRoute, playerUrl } from '../../netlify/functions/seo-pages.mjs';
 import { preparePage, failOnPageError } from '../support/harness.mjs';
 
 // The phone home page, laid out like a video app's feed: a slim top bar
@@ -57,10 +58,21 @@ const cards = (page) => page.locator('#card-grid .shiur-card');
 // A card goes straight to its video; the player is stubbed so the address
 // the card opened can be read.
 async function followCard(page, card) {
+  // A card links to the shiur's own page (/chullin/100/stefansky/,
+  // netlify/functions/seo-pages.mjs), which hands over to the player; a
+  // livestream links to the player directly. Either way, the player address
+  // it ends up on is what is checked.
   let opened = null;
+  const done = { status: 200, contentType: 'text/html', body: '<!doctype html><title>Player</title>' };
   await page.route('**/player/**', (route) => {
     opened = route.request().url();
-    return route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>Player</title>' });
+    return route.fulfill(done);
+  });
+  await page.route((url) => parseRoute(url.pathname)?.kind === 'shiur', (route) => {
+    const url = new URL(route.request().url());
+    const shiur = { ...parseRoute(url.pathname), amud: 'a' };
+    opened = new URL(playerUrl(shiur), url.origin).href;
+    return route.fulfill(done);
   });
   await card.click();
   await expect.poll(() => opened).not.toBeNull();
