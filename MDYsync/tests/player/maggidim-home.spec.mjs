@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { parseRoute, playerUrl } from '../../netlify/functions/seo-pages.mjs';
 import { preparePage, failOnPageError } from '../support/harness.mjs';
 
 // The home page lists every followed maggid's videos side by side, and the
@@ -52,10 +53,21 @@ const cards = (page) => page.locator('#card-grid .shiur-card');
 // A card goes straight to its video. The player itself is stubbed so the
 // address the card opened can be read before the player tidies it up.
 async function followCard(page, card) {
+  // A card links to the shiur's own page (/chullin/100/stefansky/,
+  // netlify/functions/seo-pages.mjs), which hands over to the player; a
+  // livestream links to the player directly. Either way, the player address
+  // it ends up on is what is checked.
   let opened = null;
+  const done = { status: 200, contentType: 'text/html', body: '<!doctype html><title>Player</title>' };
   await page.route('**/player/**', (route) => {
     opened = route.request().url();
-    return route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>Player</title>' });
+    return route.fulfill(done);
+  });
+  await page.route((url) => parseRoute(url.pathname)?.kind === 'shiur', (route) => {
+    const url = new URL(route.request().url());
+    const shiur = { ...parseRoute(url.pathname), amud: 'a' };
+    opened = new URL(playerUrl(shiur), url.origin).href;
+    return route.fulfill(done);
   });
   await card.click();
   await expect.poll(() => opened).not.toBeNull();
@@ -105,21 +117,22 @@ test.describe('Home page — every maggid side by side', () => {
   });
 });
 
-// A shiur opened from the home page starts in the reader's default viewing
-// mode: Split view, unless they chose another on their account page.
+// A shiur opened from the home page starts in Split view, unless the reader
+// chose another on their account page. The card links to the shiur's own page,
+// which opens the player with ?mode=split; the player itself then puts the
+// account's own choice first (app.js decideViewerMode), so the link no longer
+// carries it.
 test.describe('Home page — the viewing mode a shiur opens in', () => {
-  const modeOf = async (page) => (await followCard(page, cards(page).filter({ hasText: 'Stefansky' }).first())).searchParams.get('mode');
+  const card = (page) => cards(page).filter({ hasText: 'Stefansky' }).first();
+  const modeOf = async (page) => (await followCard(page, card(page))).searchParams.get('mode');
   test('Split view for everyone by default, signed in or not', async ({ page }) => {
     await open(page);
     expect(await modeOf(page)).toBe('split');
   });
-  test('the reader\'s own choice, from their account', async ({ page }) => {
+  test('the reader\'s own choice is left to the player, not written into the link', async ({ page }) => {
     await open(page, { session: { user: { id: '11111111-1111-4111-8111-111111111111', email: 'r@example.com', user_metadata: { default_view_mode: 'video-on-daf' } }, access_token: 't' } });
-    expect(await modeOf(page)).toBe('video-on-daf');
-  });
-  test('the regular player carries no mode at all', async ({ page }) => {
-    await open(page, { session: { user: { id: '11111111-1111-4111-8111-111111111111', email: 'r@example.com', user_metadata: { default_view_mode: 'standard' } }, access_token: 't' } });
-    expect(await modeOf(page)).toBeNull();
+    const href = await card(page).getAttribute('href');
+    expect(href).toMatch(/^\/[a-z-]+\/\d+\/stefansky\/$/);
   });
 });
 
