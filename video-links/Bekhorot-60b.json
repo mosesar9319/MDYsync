@@ -1,32 +1,13 @@
 {
   "type": "youtube",
-  "url": "https://www.youtube.com/watch?v=m4RoVdcDckU",
-  "videoId": "m4RoVdcDckU",
-  "label": "Daf Yomi Bechoros Daf 60 by R’ Eli Stefansky (unedited)",
+  "url": "https://www.youtube.com/watch?v=pAljOGkUdWk",
+  "videoId": "pAljOGkUdWk",
+  "label": "Daf Yomi Bechoros Daf 60 by R' Eli Stefansky",
   "coveredRefs": [
+    "Bekhorot 59b",
     "Bekhorot 60a",
     "Bekhorot 60b"
   ],
-  "source": "live-auto",
-  "liveBroadcast": true,
-  "liveStatus": "finished",
-  "durationSeconds": 4142,
-  "actualStartTime": "2026-11-17T05:11:11Z",
-  "actualEndTime": "2026-11-17T06:20:14Z",
-  "locked": false,
-  "lengthCheck": {
-    "seconds": 4142,
-    "firstSeenAt": "2026-11-17T06:22:26.551Z"
-  },
-  "alignmentDispatchedAt": "2026-11-17T06:35:12.018Z",
-  "pendingEdit": {
-    "videoId": "pAljOGkUdWk",
-    "label": "Daf Yomi Bechoros Daf 60 by R' Eli Stefansky",
-    "coveredRefs": [
-      "Bekhorot 59b",
-      "Bekhorot 60a",
-      "Bekhorot 60b"
-    ],
-    "dispatchedAt": "2026-11-17T12:01:03.222Z"
-  }
+  "source": "channel-auto",
+  "locked": false
 }
