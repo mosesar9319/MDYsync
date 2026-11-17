@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-17T06:40:18.990Z",
+  "generatedAt": "2026-11-17T12:01:11.834Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -1350,6 +1350,11 @@
           "liveBroadcast": true,
           "liveStatus": "finished",
           "durationSeconds": 4142
+        },
+        "chazarahHe": {
+          "videoId": "vuizuyDNTfU",
+          "label": "חזרה - בכורות דף ס | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
         }
       }
     ],
