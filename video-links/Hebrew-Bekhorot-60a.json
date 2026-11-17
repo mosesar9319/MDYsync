@@ -1,32 +1,13 @@
 {
   "type": "youtube",
-  "url": "https://www.youtube.com/watch?v=z2ozKOv67ho",
-  "videoId": "z2ozKOv67ho",
-  "label": "מרכז דף יומי -  בכורות דף ס. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
+  "url": "https://www.youtube.com/watch?v=OEUbsHtVplI",
+  "videoId": "OEUbsHtVplI",
+  "label": "מרכז דף יומי - בכורות דף ס. - ר' אלי סטפנסקי שליט\"א",
   "coveredRefs": [
+    "Bekhorot 59b",
     "Bekhorot 60a",
     "Bekhorot 60b"
   ],
-  "source": "live-auto",
-  "liveBroadcast": true,
-  "liveStatus": "finished",
-  "durationSeconds": 4925,
-  "actualStartTime": "2026-11-16T18:58:44Z",
-  "actualEndTime": "2026-11-16T20:20:56Z",
-  "locked": false,
-  "lengthCheck": {
-    "seconds": 4925,
-    "firstSeenAt": "2026-11-16T20:25:15.089Z"
-  },
-  "alignmentDispatchedAt": "2026-11-16T20:40:15.825Z",
-  "pendingEdit": {
-    "videoId": "OEUbsHtVplI",
-    "label": "מרכז דף יומי - בכורות דף ס. - ר' אלי סטפנסקי שליט\"א",
-    "coveredRefs": [
-      "Bekhorot 59b",
-      "Bekhorot 60a",
-      "Bekhorot 60b"
-    ],
-    "dispatchedAt": "2026-11-17T06:00:58.829Z"
-  }
+  "source": "channel-auto",
+  "locked": false
 }
