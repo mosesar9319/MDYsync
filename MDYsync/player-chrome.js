@@ -925,6 +925,9 @@
   // settings -- with its panel portaled to <body> (see above), opened on the
   // press itself, closed by an outside click or Escape.
   function setUpPortalMenu(details, body, anchor, emptyText) {
+    // Named after its <details> (#videoSettingsPanel, #overlaySettingsMenuPanel):
+    // once portaled, the two panels are siblings on <body>.
+    if (!body.id) body.id = `${details.id}Panel`;
     body.classList.add('video-settings-body-portal');
     // --accent/--accent-soft are scoped to .video-frame (see styles.css) for
     // a brighter tuning against its always-dark chrome, on watch/browse/

@@ -389,7 +389,7 @@ test.describe('mobile player layout', () => {
     for (const id of ['splitLayoutToggleButton', 'splitSwapButton', 'splitResetButton']) {
       await expect(page.locator(`#splitLayoutMenu #${id}`), id).toBeVisible();
     }
-    await page.keyboard.press('Escape');
+    await page.locator('#splitLayoutMenuButton').tap();
     await expect(page.locator('#splitLayoutMenu')).toBeHidden();
     const dafRow = panel.locator('#splitToolsDafRow');
     await expect(dafRow.locator('#splitAmudNextButton')).toBeVisible();

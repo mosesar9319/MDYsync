@@ -51,7 +51,7 @@ test.describe('The settings (gear) panel behaves like every other menu in the ba
     await tapGear(page);
 
     expect(await page.evaluate(() => document.getElementById('videoSettings').open)).toBe(true);
-    await expect(page.locator('.video-settings-body')).toBeVisible();
+    await expect(page.locator('#videoSettingsPanel')).toBeVisible();
     expect(await page.evaluate(() => controlsShouldStayVisible())).toBe(true);
   });
 
@@ -62,13 +62,13 @@ test.describe('The settings (gear) panel behaves like every other menu in the ba
     await expect(page.locator('#videoSettings')).toBeAttached();
 
     await tapGear(page);
-    await expect(page.locator('.video-settings-body')).toBeVisible();
+    await expect(page.locator('#videoSettingsPanel')).toBeVisible();
 
     // Nowhere near the panel or the gear -- the top-left corner of the page.
     await page.mouse.click(20, 20);
 
     expect(await page.evaluate(() => document.getElementById('videoSettings').open)).toBe(false);
-    await expect(page.locator('.video-settings-body')).toBeHidden();
+    await expect(page.locator('#videoSettingsPanel')).toBeHidden();
   });
 
   test('Escape closes it too', async ({ page }) => {
@@ -78,12 +78,12 @@ test.describe('The settings (gear) panel behaves like every other menu in the ba
     await expect(page.locator('#videoSettings')).toBeAttached();
 
     await tapGear(page);
-    await expect(page.locator('.video-settings-body')).toBeVisible();
+    await expect(page.locator('#videoSettingsPanel')).toBeVisible();
 
     await page.keyboard.press('Escape');
 
     expect(await page.evaluate(() => document.getElementById('videoSettings').open)).toBe(false);
-    await expect(page.locator('.video-settings-body')).toBeHidden();
+    await expect(page.locator('#videoSettingsPanel')).toBeHidden();
   });
 
   test('a click INSIDE the panel (the quality select, say) does not close it', async ({ page }) => {
@@ -93,17 +93,17 @@ test.describe('The settings (gear) panel behaves like every other menu in the ba
     await expect(page.locator('#videoSettings')).toBeAttached();
 
     await tapGear(page);
-    await expect(page.locator('.video-settings-body')).toBeVisible();
+    await expect(page.locator('#videoSettingsPanel')).toBeVisible();
 
     // The speed control itself lives inside the portaled panel here (it
     // only moves out into the bar's own .pc-tools group once player-chrome.js
     // runs its OWN relocation -- which it does, so this also doubles as
     // proof the outside-click guard checks the portaled panel's current
     // location, not a stale reference to where it started in the DOM).
-    await page.locator('.video-settings-body').click();
+    await page.locator('#videoSettingsPanel').click();
 
     expect(await page.evaluate(() => document.getElementById('videoSettings').open)).toBe(true);
-    await expect(page.locator('.video-settings-body')).toBeVisible();
+    await expect(page.locator('#videoSettingsPanel')).toBeVisible();
   });
 
   test('clicking the gear a second time still closes it (unaffected by the new outside-click handler)', async ({ page }) => {
@@ -113,11 +113,11 @@ test.describe('The settings (gear) panel behaves like every other menu in the ba
     await expect(page.locator('#videoSettings')).toBeAttached();
 
     await tapGear(page);
-    await expect(page.locator('.video-settings-body')).toBeVisible();
+    await expect(page.locator('#videoSettingsPanel')).toBeVisible();
 
     await tapGear(page);
 
     expect(await page.evaluate(() => document.getElementById('videoSettings').open)).toBe(false);
-    await expect(page.locator('.video-settings-body')).toBeHidden();
+    await expect(page.locator('#videoSettingsPanel')).toBeHidden();
   });
 });

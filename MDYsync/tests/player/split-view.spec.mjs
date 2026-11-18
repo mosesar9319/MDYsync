@@ -1017,7 +1017,7 @@ test.describe('Split View — the portaled menus stay usable, not hidden behind 
     await enterSplitView(page);
 
     await page.locator('#videoSettings summary').click();
-    await expect(page.locator('.video-settings-body')).toBeVisible();
+    await expect(page.locator('#videoSettingsPanel')).toBeVisible();
 
     // A plain <button> inside the panel -- unlike selectOption() on a
     // <select>, .click() here does real pixel-based hit-testing, which is
@@ -1032,7 +1032,7 @@ test.describe('Split View — the portaled menus stay usable, not hidden behind 
     await page.locator('#qualitySelect').click();
     await page.keyboard.press('Escape');
 
-    const panelBox = await page.locator('.video-settings-body').boundingBox();
+    const panelBox = await page.locator('#videoSettingsPanel').boundingBox();
     const vw = await page.evaluate(() => window.innerWidth);
     // A corner chosen to sit outside the (bottom-anchored) panel regardless
     // of viewport size, rather than a fixed point that could land inside it
