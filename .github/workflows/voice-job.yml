@@ -2,8 +2,10 @@ name: Server-side voice recognition job
 
 # Triggered by the trigger-voice-job Netlify Function on an admin's behalf
 # (never called directly with a public token) from the sync dialog's "Voice
-# recognition (beta)" tab. Downloads the video (YouTube only for now, same
-# channel restriction trigger-voice-job.mjs enforces before dispatch), runs
+# recognition (beta)" tab. Gets the shiur's audio -- from MDY's own server for
+# a Mercaz Daf Yomi shiur when that is the same recording, otherwise from
+# YouTube (same channel restriction trigger-voice-job.mjs enforces before
+# dispatch) -- runs
 # voice_align.py (a pretrained speech model anchored against the daf's
 # canonical text -- see that script's own docstring), and publishes the
 # result to the `results` branch exactly the way ocr-job.yml does, so the
@@ -96,7 +98,80 @@ jobs:
           docker logs bgutil-provider || true
           exit 1
 
+      # A Mercaz Daf Yomi shiur's audio comes from MDY's own file server when it
+      # can: YouTube more and more often refuses downloads from a server, and
+      # MDY keeps the same recording as a plain mp3 (tools/mdy-audio.mjs, and
+      # mdy-files.js for the addresses). It is used only when it is the same
+      # recording as the YouTube video the player shows -- the same length to
+      # within 3 seconds -- because every timestamp this job writes is
+      # measured against the audio it hears. Anything else (another maggid, a
+      # livestream, no such file, a different length) leaves it to the
+      # YouTube download below. This step never fails the job.
+      - name: Get the audio from MDY's server
+        id: mdy_audio
+        working-directory: MDYsync/tools/caption-sync
+        env:
+          YOUTUBE_URL: ${{ github.event.client_payload.youtubeUrl }}
+          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
+          REFS_JSON: ${{ toJSON(github.event.client_payload.refs) }}
+          VARIANT: ${{ github.event.client_payload.variant }}
+          LANGUAGE: ${{ github.event.client_payload.language }}
+          MAGGID: ${{ github.event.client_payload.maggid }}
+        run: |
+          set +e
+          echo "source=youtube" >> "$GITHUB_OUTPUT"
+          title=$(curl -sf --max-time 20 "https://www.youtube.com/oembed?format=json&url=$(printf '%s' "$YOUTUBE_URL" | jq -sRr @uri)" | jq -r '.title // empty')
+          echo "YouTube title: ${title:-unknown}"
+          url=$(node ../mdy-audio.mjs --refs "$REFS_JSON" --variant "${VARIANT:-regular}" \
+            --language "${LANGUAGE:-en}" --maggid "$MAGGID" --title "$title")
+          if [ -z "$url" ]; then
+            echo "Not a Mercaz Daf Yomi shiur MDY's server keeps; using YouTube."
+            exit 0
+          fi
+          echo "MDY's copy: $url"
+          # The YouTube video's own length, and whether it is (or was) a livestream.
+          youtube_seconds=""
+          live_status=""
+          if [ -n "$YOUTUBE_COOKIES" ]; then
+            printf '%s' "$YOUTUBE_COOKIES" > meta-cookies.txt
+            meta=$(timeout 120 yt-dlp --cookies meta-cookies.txt --remote-components ejs:github \
+              --skip-download --no-warnings --print "%(duration)s %(live_status)s" "$YOUTUBE_URL" 2>/dev/null | tail -1)
+            rm -f meta-cookies.txt
+            youtube_seconds=$(echo "$meta" | awk '{print $1}')
+            live_status=$(echo "$meta" | awk '{print $2}')
+          fi
+          echo "YouTube: ${youtube_seconds:-unknown} seconds, ${live_status:-unknown live status}"
+          case "$live_status" in
+            is_live|is_upcoming|post_live)
+              echo "Still a livestream on YouTube; MDY's edited copy is not that recording. Using YouTube."
+              exit 0 ;;
+          esac
+          if ! curl -sf --retry 3 --max-time 900 -o job-audio.mp3 "$url"; then
+            echo "MDY's server does not have it; using YouTube."
+            rm -f job-audio.mp3
+            exit 0
+          fi
+          mdy_seconds=$(ffprobe -v error -show_entries format=duration -of csv=p=0 job-audio.mp3)
+          echo "MDY's copy: ${mdy_seconds:-unknown} seconds, $(stat -c%s job-audio.mp3) bytes"
+          if [ -z "$mdy_seconds" ] || [ "$(stat -c%s job-audio.mp3)" -lt 100000 ]; then
+            echo "MDY's copy did not download properly; using YouTube."
+            rm -f job-audio.mp3
+            exit 0
+          fi
+          if [ -n "$youtube_seconds" ] && [ "$youtube_seconds" != "NA" ]; then
+            if ! awk -v a="$mdy_seconds" -v b="$youtube_seconds" 'BEGIN { d = a - b; if (d < 0) d = -d; exit !(d <= 3) }'; then
+              echo "MDY's copy is a different recording ($mdy_seconds s against YouTube's $youtube_seconds s); using YouTube."
+              rm -f job-audio.mp3
+              exit 0
+            fi
+          else
+            echo "YouTube's length is unknown (it may be refusing this server); using MDY's copy."
+          fi
+          echo "source=mdy" >> "$GITHUB_OUTPUT"
+          echo "Using MDY's copy of the audio." | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Download the video from YouTube
+        if: steps.mdy_audio.outputs.source != 'mdy'
         working-directory: MDYsync/tools/caption-sync
         env:
           YOUTUBE_URL: ${{ github.event.client_payload.youtubeUrl }}

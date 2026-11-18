@@ -77,7 +77,14 @@ const API_RESPONSES = {
 export async function preparePage(page, options = {}) {
   const db = options.db || buildDatabase();
   const session = options.session !== undefined ? options.session : sessionFor(options.user || null);
-  const control = options.control || {};
+  // The player opens a shiur in Split (app.js builtInViewerMode). The suite
+  // was written against the regular player as the opening layout, so that
+  // stays its starting point unless a spec asks for the site's own default
+  // (builtInViewerMode: null).
+  const control = { ...(options.control || {}) };
+  if (options.builtInViewerMode !== null && control.builtInViewerMode === undefined) {
+    control.builtInViewerMode = options.builtInViewerMode || 'standard';
+  }
 
   await page.route('**/vendor/supabase-js.min.js', (route) =>
     route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: STUB_SOURCE })
@@ -89,6 +96,12 @@ export async function preparePage(page, options = {}) {
   // sees a successful-but-empty stylesheet and falls back to its own font stack.
   await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, (route) =>
     route.fulfill({ status: 200, contentType: 'text/css', body: '' })
+  );
+
+  // MDY's file server (mdy-files.js) is never reached from a test either. A
+  // spec about playing from it routes cdn.mdydaf.com itself (a later route wins).
+  await page.route(/^https:\/\/cdn\.mdydaf\.com\//, (route) =>
+    route.fulfill({ status: 404, contentType: 'text/plain', body: 'not found' })
   );
 
   await page.route('**/api/**', (route) => {
@@ -103,7 +116,7 @@ export async function preparePage(page, options = {}) {
   });
 
   await page.addInitScript(
-    ({ dbJson, sessionJson, controlJson, menuHints }) => {
+    ({ dbJson, sessionJson, controlJson, menuHints, videoSource }) => {
       window.__DAFSYNC_TEST_DB__ = JSON.parse(dbJson);
       window.__DAFSYNC_TEST_SESSION__ = JSON.parse(sessionJson);
       window.__DAFSYNC_TEST_CONTROL__ = JSON.parse(controlJson);
@@ -119,8 +132,21 @@ export async function preparePage(page, options = {}) {
           window.localStorage.setItem('dafsync.split.cueBounces', '2');
         } catch { /* storage blocked */ }
       }
+      // Where an MDY shiur plays from. The site's default is MDY's own server;
+      // the suite was written against the YouTube player and its stand-ins,
+      // so specs play from YouTube unless they ask (videoSource: 'mdy', or
+      // null for no choice made, which is the site's default).
+      if (videoSource) {
+        try { window.localStorage.setItem('dafsync-video-source', videoSource); } catch { /* storage blocked */ }
+      }
     },
-    { dbJson: JSON.stringify(db), sessionJson: JSON.stringify(session), controlJson: JSON.stringify(control), menuHints: Boolean(options.menuHints) }
+    {
+      dbJson: JSON.stringify(db),
+      sessionJson: JSON.stringify(session),
+      controlJson: JSON.stringify(control),
+      menuHints: Boolean(options.menuHints),
+      videoSource: options.videoSource === undefined ? 'youtube' : options.videoSource,
+    }
   );
 
   return { db, session, control };

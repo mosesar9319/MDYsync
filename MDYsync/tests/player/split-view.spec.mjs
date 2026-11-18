@@ -326,6 +326,7 @@ test.describe('Split View — divider and layout', () => {
     const videoFrameHandle = await page.evaluateHandle(() => document.getElementById('videoFrame'));
     const before = await page.evaluate(() => state.splitViewLayout);
     await openSplitTools(page);
+    await page.click('#splitLayoutMenuButton');
     await page.click('#splitLayoutToggleButton');
     await expect.poll(() => page.evaluate(() => state.splitViewLayout)).toBe(before === 'stacked' ? 'side-by-side' : 'stacked');
     await expect.poll(() => page.evaluate(() => state.splitViewLayoutExplicit)).toBe(true);
@@ -341,6 +342,7 @@ test.describe('Split View — divider and layout', () => {
     await expect.poll(() => page.evaluate(() => state.splitViewVideoPosition)).toBe('start');
 
     await openSplitTools(page);
+    await page.click('#splitLayoutMenuButton');
     await page.click('#splitSwapButton');
     await expect.poll(() => page.evaluate(() => state.splitViewVideoPosition)).toBe('end');
     await expect(page.locator('.watch-layout')).toHaveClass(/split-video-end/);
@@ -373,6 +375,7 @@ test.describe('Split View — divider and layout', () => {
     expect(overlap.coversAuto).toBe(false);
     expect(overlap.insideVideo).toBe(true);
 
+    await page.click('#splitLayoutMenuButton');
     await page.click('#splitSwapButton');
     await expect.poll(() => page.evaluate(() => document.body.classList.contains('split-video-at-end'))).toBe(true);
     const swapped = await page.evaluate(() => {
@@ -1014,16 +1017,22 @@ test.describe('Split View — the portaled menus stay usable, not hidden behind 
     await enterSplitView(page);
 
     await page.locator('#videoSettings summary').click();
-    await expect(page.locator('.video-settings-body')).toBeVisible();
+    await expect(page.locator('#videoSettingsPanel')).toBeVisible();
 
-    // A plain <button> inside the panel (the "Daf on video" overlay group's
-    // own reset-position control) -- unlike selectOption() on a <select>,
-    // .click() here does real pixel-based hit-testing, which is exactly
-    // what the occlusion bug broke. Confirms the panel's CONTENTS are
+    // A plain <button> inside the panel -- unlike selectOption() on a
+    // <select>, .click() here does real pixel-based hit-testing, which is
+    // exactly what the occlusion bug broke. Confirms the panel's CONTENTS are
     // reachable, not just that the panel element itself reports visible.
-    await page.locator('#overlayResetPositionButton').click();
+    // (The panel holds only the quality choice now; this daf's test fixture
+    // has no quality levels, so it is shown by hand.)
+    await page.evaluate(() => {
+      document.getElementById('qualitySelect').innerHTML = '<option value="hd720">720p</option><option value="medium">360p</option>';
+      document.getElementById('qualityControl').hidden = false;
+    });
+    await page.locator('#qualitySelect').click();
+    await page.keyboard.press('Escape');
 
-    const panelBox = await page.locator('.video-settings-body').boundingBox();
+    const panelBox = await page.locator('#videoSettingsPanel').boundingBox();
     const vw = await page.evaluate(() => window.innerWidth);
     // A corner chosen to sit outside the (bottom-anchored) panel regardless
     // of viewport size, rather than a fixed point that could land inside it
@@ -1132,10 +1141,30 @@ test.describe('Opening the player in a viewing mode', () => {
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
     expect(new URL(page.url()).pathname).toBe('/player/');
   });
-  test('no mode, or an unknown one, opens the regular player', async ({ page }) => {
-    await preparePage(page, { user: null });
+  test('no mode, or an unknown one, opens a shiur in Split', async ({ page }) => {
+    await preparePage(page, { user: null, builtInViewerMode: null });
     await page.goto('/player/?ref=Chullin%2089a&mode=nonsense');
-    await page.waitForTimeout(300);
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+    await page.goto('/player/?ref=Chullin%2089a');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+  });
+  test('leaving Split on one shiur does not open the next one in the regular player', async ({ page }) => {
+    await preparePage(page, { user: null, builtInViewerMode: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+    await page.evaluate(() => requestExitSplit());
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
+    // The same shiur, reloaded, keeps the reader's choice.
+    await page.reload();
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
+    // Any other shiur opens in Split again.
+    await page.goto('/player/?ref=Chullin%2090a');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+  });
+  test('the Interactive Daf page still opens in its regular layout', async ({ page }) => {
+    await preparePage(page, { user: null, builtInViewerMode: null });
+    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.waitForTimeout(500);
     expect(await page.evaluate(() => state.viewerMode)).toBe('standard');
   });
 });

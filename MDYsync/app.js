@@ -53,6 +53,21 @@ const state = {
   toastTimer: null,
   playerType: 'html5',
   videoSource: null,
+  // An MDY shiur playing from MDY's own server instead of YouTube (see
+  // mdy-files.js). state.videoSource stays the YouTube source -- every
+  // alignment and saved link is keyed by its videoId -- and this says what is
+  // actually in the <video>: { url, quality, videoId, ref, expected, checked }.
+  mdyPlayback: null,
+  // The MDY shiur on screen, whichever player it is in -- what the "Play from"
+  // control offers to switch: { parsed, options, ref, videoId }, or null.
+  mdyShiur: null,
+  // Recordings whose MDY file was turned away this visit (videoId -> 'missing' |
+  // 'different'), and ones played from MDY's server even though they differ
+  // because YouTube would not load either.
+  mdyTurnedAway: new Map(),
+  mdyAcceptMismatch: new Set(),
+  // The video quality to return to from "Listen to audio only".
+  mdyVideoQuality: null,
   youtubePlayer: null,
   youtubeApiPromise: null,
   youtubeReady: false,
@@ -2600,6 +2615,18 @@ function toggleVilnaFullscreen() {
   const wantsSharedSurface = state.readingModeEnabled || state.viewerMode === 'split';
   const target = wantsSharedSurface && watchSurface ? watchSurface : card;
   const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
+  // The video alone is fullscreen (Split's other fullscreen button): switch
+  // straight to the video and the daf, rather than just leaving fullscreen.
+  if (fullscreenElement && fullscreenElement !== target && state.viewerMode === 'split' && target.contains(fullscreenElement)) {
+    const request = target.requestFullscreen || target.webkitRequestFullscreen;
+    if (request) {
+      Promise.resolve(request.call(target)).catch(() => {
+        const exit = document.exitFullscreen || document.webkitExitFullscreen;
+        if (exit) Promise.resolve(exit.call(document)).catch(() => {});
+      });
+      return;
+    }
+  }
   if (fullscreenElement) {
     const exit = document.exitFullscreen || document.webkitExitFullscreen;
     if (state.viewerMode === 'split') suppressSplitExitOnFullscreenChange = true;
@@ -6572,6 +6599,7 @@ function mountPhoneSplitOverlay() {
   // text join the amud arrows in the daf row. The zoom bar is gone on a
   // phone (pinch zooms the page); an admin keeps it for its correction tools.
   const rows = ensureSplitToolsRows(panel);
+  placeSplitMdyAudioControls(true);
   const notes = $('readerDafNotes');
   const zoom = $('vilnaZoomControls');
   const autoScroll = document.querySelector('.header-auto-scroll');
@@ -6640,11 +6668,35 @@ function ensureSplitToolsRows(panel) {
     back.title = 'Show the amud the shiur is on';
     back.hidden = true;
     back.addEventListener('click', returnToShiurAmud);
-    daf.append(step('splitAmudNextButton', '&#8249;', 'Next amud', 1), step('splitAmudPrevButton', '&#8250;', 'Previous amud', -1), splitLiveButton(), back);
+    daf.append(step('splitAmudNextButton', '&#8249;', 'Next amud', 1), step('splitAmudPrevButton', '&#8250;', 'Previous amud', -1), splitLiveButton(), ...splitMdyAudioControls(), back);
     modes.after(daf);
+    refreshMdyAudioControl();
   }
   watchLiveToggle();
   return { modes, daf };
+}
+// An MDY shiur's audio in the drop-down: listen to it alone, or save the mp3
+// (refreshMdyAudioControl keeps both, and the More menu's copies, current).
+function splitMdyAudioControls() {
+  const listen = document.createElement('button');
+  listen.type = 'button';
+  listen.id = 'splitListenButton';
+  listen.className = 'split-mdy-control';
+  listen.hidden = true;
+  listen.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14v-2a8 8 0 0 1 16 0v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="3.5" y="13.5" width="4.5" height="7" rx="1.6" fill="none" stroke="currentColor" stroke-width="2"/><rect x="16" y="13.5" width="4.5" height="7" rx="1.6" fill="none" stroke="currentColor" stroke-width="2"/></svg>'
+    + '<span class="mdy-control-text">Audio only</span>';
+  listen.addEventListener('click', () => toggleMdyListen());
+  const download = document.createElement('a');
+  download.id = 'splitDownloadLink';
+  download.className = 'split-mdy-control';
+  download.hidden = true;
+  download.href = '#';
+  download.setAttribute('download', '');
+  download.title = 'Download the audio (MP3)';
+  download.setAttribute('aria-label', 'Download the audio (MP3)');
+  download.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 19.5h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+    + '<span class="mdy-control-text-static">MP3</span>';
+  return [listen, download];
 }
 // Cloud Chaburah Live from the drop-down: the same panel the floating
 // "Live discussions" button opens (live-chaburah-ui.js), with its count.
@@ -6781,10 +6833,27 @@ function introducePhoneSplitTools() {
 function deskSplitToolsActive() {
   return Boolean(state.splitViewEnabled) && !phoneSplitToolsActive();
 }
+// Where the drop-down's audio controls sit: on a phone, as two icons in the
+// top row beside Layout (the room the Layout menu freed -- the daf row is
+// full); on a computer, in the daf row, where the drop-down is wide.
+function placeSplitMdyAudioControls(phone) {
+  const listen = $('splitListenButton');
+  const download = $('splitDownloadLink');
+  if (!listen || !download) return;
+  const toolbar = $('splitToolbar');
+  const exit = $('splitExitButton');
+  if (phone && toolbar && exit?.parentElement === toolbar) {
+    if (listen.nextElementSibling !== download || download.nextElementSibling !== exit) exit.before(listen, download);
+    return;
+  }
+  const back = $('splitAmudBackButton');
+  if (back && (listen.nextElementSibling !== download || download.nextElementSibling !== back)) back.before(listen, download);
+}
 function mountDeskSplitTools() {
   const panel = $('splitToolsPanel');
   if (!panel) return;
   const rows = ensureSplitToolsRows(panel);
+  placeSplitMdyAudioControls(false);
   for (const node of [document.querySelector('.header-auto-scroll'), $('readerDafNotes')]) {
     if (node && node.parentElement !== rows.daf) {
       rememberPhoneToolsHome(node);
@@ -6877,6 +6946,103 @@ function applySplitViewLayoutToDom() {
   updateSplitViewToolbarUi();
   syncPhoneSplitTools();
 }
+// The three layout tools (stacked / side by side, swap, reset sizes) behind
+// one "Layout" button, so the Split toolbar and the phone's drop-down have
+// room for the audio controls. The three buttons are moved into the menu as
+// they are -- same ids, same listeners -- each with its name beside its icon.
+function buildSplitLayoutMenu() {
+  const toolbar = $('splitToolbar');
+  if (!toolbar || $('splitLayoutMenuButton')) return;
+  const items = [
+    ['splitLayoutToggleButton', state.splitViewLayout === 'stacked' ? 'Side by side' : 'Stacked'],
+    ['splitSwapButton', 'Swap video and daf'],
+    ['splitResetButton', 'Reset sizes'],
+  ].map(([id, text]) => [$(id), text]).filter(([el]) => el);
+  if (!items.length) return;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.id = 'splitLayoutMenuButton';
+  button.className = 'icon-button split-layout-menu-button';
+  button.title = 'Layout';
+  button.setAttribute('aria-label', 'Layout');
+  button.setAttribute('aria-haspopup', 'true');
+  button.setAttribute('aria-expanded', 'false');
+  button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 4v16M12 12h9" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>'
+    + '<span class="split-layout-menu-label">Layout</span>';
+  items[0][0].before(button);
+  const menu = document.createElement('div');
+  menu.id = 'splitLayoutMenu';
+  menu.className = 'split-layout-menu';
+  menu.setAttribute('role', 'menu');
+  menu.hidden = true;
+  for (const [item, text] of items) {
+    item.classList.add('split-layout-menu-item');
+    item.setAttribute('role', 'menuitem');
+    const label = document.createElement('span');
+    label.className = 'split-layout-menu-text';
+    label.textContent = text;
+    item.appendChild(label);
+    menu.appendChild(item);
+    // Each choice closes the menu once it has run.
+    item.addEventListener('click', () => setSplitLayoutMenuOpen(false));
+  }
+  document.body.appendChild(menu);
+  // On the press itself, like the bar's other menus: a phone tap's click can
+  // be lost when the bar moves under the finger (player-chrome.js).
+  let press = null;
+  let swallowUntil = 0;
+  button.addEventListener('pointerdown', (event) => {
+    if (event.button > 0) return;
+    press = { id: event.pointerId, x: event.clientX, y: event.clientY };
+  });
+  button.addEventListener('pointerup', (event) => {
+    if (!press || press.id !== event.pointerId) return;
+    const moved = Math.hypot(event.clientX - press.x, event.clientY - press.y);
+    press = null;
+    if (moved > 10) return;
+    swallowUntil = performance.now() + 700;
+    setSplitLayoutMenuOpen(menu.hidden);
+  });
+  button.addEventListener('pointercancel', () => { press = null; });
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (performance.now() < swallowUntil) return;
+    setSplitLayoutMenuOpen(menu.hidden);
+  });
+  document.addEventListener('pointerdown', (event) => {
+    if (menu.hidden || menu.contains(event.target) || button.contains(event.target)) return;
+    setSplitLayoutMenuOpen(false);
+  }, true);
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !menu.hidden) setSplitLayoutMenuOpen(false);
+  });
+  window.addEventListener('resize', () => { if (!menu.hidden) setSplitLayoutMenuOpen(true); });
+}
+
+function setSplitLayoutMenuOpen(open) {
+  const button = $('splitLayoutMenuButton');
+  const menu = $('splitLayoutMenu');
+  if (!button || !menu) return;
+  button.setAttribute('aria-expanded', String(Boolean(open)));
+  if (!open) {
+    menu.hidden = true;
+    return;
+  }
+  // Fixed to the button, in whatever is fullscreen (a menu left on <body>
+  // is not painted while Split is fullscreen).
+  const host = document.fullscreenElement || document.webkitFullscreenElement || document.body;
+  if (menu.parentElement !== host) host.appendChild(menu);
+  menu.hidden = false;
+  const r = button.getBoundingClientRect();
+  const width = menu.offsetWidth;
+  const height = menu.offsetHeight;
+  const left = Math.max(8, Math.min(window.innerWidth - width - 8, r.right - width));
+  const below = r.bottom + 6;
+  const top = below + height <= window.innerHeight - 8 ? below : Math.max(8, r.top - height - 6);
+  menu.style.left = `${Math.round(left)}px`;
+  menu.style.top = `${Math.round(top)}px`;
+}
+
 function updateSplitViewToolbarUi() {
   const stacked = state.splitViewLayout === 'stacked';
   for (const id of ['splitLayoutToggleButton']) {
@@ -6885,6 +7051,8 @@ function updateSplitViewToolbarUi() {
     button.setAttribute('aria-pressed', String(stacked));
     button.title = stacked ? 'Switch to side by side' : 'Switch to stacked';
     button.setAttribute('aria-label', stacked ? 'Switch to side by side' : 'Switch to stacked');
+    const text = button.querySelector('.split-layout-menu-text');
+    if (text) text.textContent = stacked ? 'Side by side' : 'Stacked';
   }
   const divider = $('splitDivider');
   if (divider) {
@@ -7182,12 +7350,36 @@ function resetSplitVideoZoom({ announce = true } = {}) {
   setSplitVideoZoom(1, { panX: 0, panY: 0, announce });
 }
 
+// The shiur a mode choice belongs to. A mode picked in the player (or left
+// with Back) is kept for that shiur only -- a reload keeps it -- and every
+// other shiur opens in the account default, or Split. Reported directly:
+// keeping it for every shiur meant that leaving Split once (even by pressing
+// Back to get home) opened every later shiur in the regular player.
+function viewerChoiceScope() {
+  const params = new URLSearchParams(window.location.search);
+  return ['ref', 'variant', 'language', 'maggid', 'v']
+    .map((key) => `${key}=${params.get(key) || ''}`).join('&');
+}
+
 function readSavedViewerMode() {
   try {
     const parsed = JSON.parse(localStorage.getItem(VIEW_CHOICE_KEY) || 'null');
-    if (parsed && parsed.v === 1 && parsed.explicit === true && VIEWER_MODES.includes(parsed.mode)) return parsed.mode;
+    if (parsed && parsed.v === 1 && parsed.explicit === true && VIEWER_MODES.includes(parsed.mode)
+        && parsed.scope === viewerChoiceScope()) return parsed.mode;
   } catch { /* not a choice */ }
   return '';
+}
+
+// What a page opens in when nothing else says: Split on the shiur player,
+// the regular layout on the Interactive Daf page and the others.
+function builtInViewerMode() {
+  // The regression suite was written against the regular player as the
+  // opening layout; its harness (tests/support/harness.mjs) asks for that
+  // through the same test-control object the Supabase stand-in reads.
+  // Nothing outside a test run sets it.
+  const forTests = window.__DAFSYNC_TEST_CONTROL__?.builtInViewerMode;
+  if (VIEWER_MODES.includes(forTests)) return forTests;
+  return document.body.classList.contains('player-page') ? 'split' : 'standard';
 }
 
 // Once per browser: throw away every stored view that predates the account
@@ -7249,7 +7441,7 @@ function decideViewerMode() {
   const profile = profileViewerMode();
   const signedIn = Boolean(window.DafSyncAuth?.getUser?.());
   let mode = '';
-  let reason = 'built-in-standard';
+  let reason = builtInViewerMode() === 'split' ? 'built-in-split' : 'built-in-standard';
   if (choice) {
     mode = choice;
     reason = 'explicit-choice';
@@ -7262,7 +7454,7 @@ function decideViewerMode() {
   }
   const decision = {
     reason,
-    mode: mode || 'standard',
+    mode: mode || builtInViewerMode(),
     urlMode: urlMode || null,
     choice: choice || null,
     accountDefault: profile || null,
@@ -7289,7 +7481,7 @@ function rememberViewerMode(mode) {
   viewerModeExplicit = true;
   try {
     localStorage.setItem(VIEW_MIGRATION_KEY, '1');
-    localStorage.setItem(VIEW_CHOICE_KEY, JSON.stringify({ v: 1, explicit: true, mode }));
+    localStorage.setItem(VIEW_CHOICE_KEY, JSON.stringify({ v: 1, explicit: true, mode, scope: viewerChoiceScope() }));
   } catch { /* private mode */ }
 }
 
@@ -7302,6 +7494,7 @@ function setViewerMode(mode, options = {}) {
   // An open daf picker is positioned against the split video. Leaving Split
   // (or switching mode) used to leave that panel stuck over the picture.
   window.closePlayerChromeMenus?.();
+  setSplitLayoutMenuOpen(false);
   // Order matters only a little here (see each function's own early-return
   // guard, which makes calling one already at its target value a no-op) --
   // Split View settles the shared container's own layout first, then each
@@ -7581,59 +7774,7 @@ function announceViewerMode(mode) {
     applySplitViewLayoutToDom();
     saveSplitViewPreferences();
   });
-  // The overlay bar auto-hides with pointer-events:none, and a tap on the
-  // video underneath (pinch surface, wake strip) only reveals or dismisses
-  // chrome — the click never reaches this button. Hit-test through the
-  // hidden bar on pointerdown, in the capture phase, so the first tap
-  // enters fullscreen whether the bar was showing, fading, or just revealed.
-  // pointerdown is the user gesture; waiting for click loses it once the
-  // bar's pointer-events drop mid-press.
-  let swallowSplitFullscreenClick = false;
-  function splitBarControlAt(x, y) {
-    const bar = $('viewerModeSelect');
-    if (!bar || !state.splitViewEnabled) return null;
-    const hidden = document.body.classList.contains('split-chrome-hidden');
-    const previous = hidden
-      ? { pointerEvents: bar.style.pointerEvents, visibility: bar.style.visibility }
-      : null;
-    if (previous) {
-      bar.style.pointerEvents = 'auto';
-      bar.style.visibility = 'visible';
-    }
-    const under = document.elementFromPoint(x, y);
-    if (previous) {
-      bar.style.pointerEvents = previous.pointerEvents;
-      bar.style.visibility = previous.visibility;
-    }
-    const control = under?.closest?.('button');
-    return control && bar.contains(control) ? control : null;
-  }
-  document.addEventListener('pointerdown', (event) => {
-    if (!state.splitViewEnabled || event.button > 0) return;
-    const control = splitBarControlAt(event.clientX, event.clientY);
-    if (control?.id !== 'splitFullscreenButton') return;
-    showSplitChrome();
-    swallowSplitFullscreenClick = true;
-    setTimeout(() => { swallowSplitFullscreenClick = false; }, 700);
-    toggleVilnaFullscreen();
-    event.preventDefault();
-    event.stopPropagation();
-  }, true);
-  document.addEventListener('click', (event) => {
-    if (!swallowSplitFullscreenClick) return;
-    swallowSplitFullscreenClick = false;
-    event.preventDefault();
-    event.stopPropagation();
-  }, true);
-  $('splitFullscreenButton')?.addEventListener('click', (event) => {
-    event.stopPropagation();
-    if (swallowSplitFullscreenClick) {
-      swallowSplitFullscreenClick = false;
-      return;
-    }
-    toggleVilnaFullscreen();
-  });
-
+  buildSplitLayoutMenu();
   // --- Video pinch-zoom/pan gesture surface --------------------------------
   // The YouTube iframe is cross-origin and never bubbles touch events to this
   // page, so (following the exact same reasoning Reading Mode's own pinch
@@ -7934,15 +8075,12 @@ function ensureVideoFullscreenExit() {
   return button;
 }
 
+// The video alone, fullscreen -- in Split view too, where the bar's second
+// fullscreen button (player-chrome.js, #splitFullscreenBarButton) is the one
+// that fills the screen with the video and the daf together
+// (toggleVilnaFullscreen). From that one, this switches to the video alone.
 function toggleVideoFullscreen() {
   ensureVideoFullscreenExit();
-  // Split fullscreen is the shared watch surface (video and daf together,
-  // with "← Daf page" still in the daf header). Fullscreening the video
-  // frame alone drops the daf and the way back.
-  if (state.viewerMode === 'split') {
-    toggleVilnaFullscreen();
-    return;
-  }
   const frame = $('videoFrame');
   const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
   if (fullscreenElement === frame) {
@@ -8284,7 +8422,10 @@ function applyDuration(duration, resetDefault = true) {
   if (!Number.isFinite(duration) || duration <= 0) return;
   scrubberEls.forEach((el) => { el.max = String(duration); });
   $('duration').textContent = formatTime(duration);
-  if (resetDefault && state.alignmentDuration > 0 && Math.abs(duration - state.alignmentDuration) > 5) {
+  // MDY's file of another recording, played because YouTube would not load,
+  // has already said so in its own words (playFromYouTubeInstead).
+  const knownMismatch = Boolean(state.mdyPlayback && state.mdyAcceptMismatch.has(state.mdyPlayback.videoId));
+  if (resetDefault && !knownMismatch && state.alignmentDuration > 0 && Math.abs(duration - state.alignmentDuration) > 5) {
     showToast(
       `This video is ${formatTime(duration)} long, but the synced daf was built from a ${formatTime(state.alignmentDuration)} video — ` +
       `they don't match, so the highlighting will be off. Load the exact video that was analyzed.`,
@@ -9003,6 +9144,14 @@ function refreshQualityOptions() {
   const control = $('qualityControl');
   const select = $('qualitySelect');
   if (!control || !select) return;
+  // MDY's server keeps each shiur in three sizes and as audio alone.
+  if (state.mdyPlayback && state.playerType === 'html5') {
+    select.innerHTML = MDY.QUALITIES.map((quality) =>
+      `<option value="${quality}"${quality === state.mdyPlayback.quality ? ' selected' : ''}>${MDY.QUALITY_LABELS[quality]}</option>`
+    ).join('');
+    control.hidden = false;
+    return;
+  }
   if (state.playerType !== 'youtube' || !state.youtubeReady || !state.youtubePlayer.getAvailableQualityLevels) {
     control.hidden = true;
     return;
@@ -9527,6 +9676,9 @@ async function loadDaf(refOverride = null, options = {}) {
     state.dafRef = ref;
     resetVilnaFollow(ref);
     state.wordTimeline = [];
+    // No sync, so no recording length to hold a video to (the last daf's
+    // stayed behind here and warned about a mismatch that was not there).
+    state.alignmentDuration = 0;
     const duration = getDuration() || Number(scrubber.max) || 48;
     const length = duration / paragraphs.length;
     state.segments = stabilizeEstimatedSegments(paragraphs.map((paragraph, index) => {
@@ -9593,6 +9745,9 @@ function handleVideoFile(file) {
   if (!file) return;
   cleanupObjectUrl();
   switchPlayerType('html5');
+  state.mdyPlayback = null;
+  state.mdyShiur = null;
+  refreshMdyChrome();
   state.objectUrl = URL.createObjectURL(file);
   state.videoSource = { type: 'local', fileName: file.name, label: 'Local file' };
   refreshTestRuns(null);
@@ -9823,7 +9978,17 @@ function setYouTubePoster(videoId) {
   const shield = ensureYouTubeShield();
   if (!shield) return;
   const id = String(videoId || '').replace(/[^A-Za-z0-9_-]/g, '');
-  shield.style.backgroundImage = id ? `url("https://i.ytimg.com/vi/${id}/hqdefault.jpg")` : '';
+  const youtube = id ? `url("https://i.ytimg.com/vi/${id}/hqdefault.jpg")` : '';
+  shield.style.backgroundImage = youtube;
+  // An MDY shiur playing from YouTube shows MDY's own picture once it has
+  // loaded (filtered devices often block YouTube's); YouTube's stays if
+  // MDY's is missing.
+  const mdy = state.mdyShiur?.videoId === id ? mdyPictureUrl(state.mdyShiur) : null;
+  if (mdy) {
+    const picture = new Image();
+    picture.onload = () => { if (state.youtubeCueId === id) shield.style.backgroundImage = `url("${mdy}")`; };
+    picture.src = mdy;
+  }
 }
 // Opening poster only. Once a frame has been shown, this does not swap
 // the picture for the thumbnail.
@@ -10270,10 +10435,276 @@ function startPausedDriftWatch() {
   }, 500);
 }
 
+// ---------------------------------------------------------------------------
+// MDY's own server. Many readers learn on filtered devices that block YouTube.
+// Mercaz Daf Yomi keeps every shiur as plain files on its own server too (see
+// mdy-files.js), so an MDY shiur plays from there by default and YouTube is
+// the fallback: when the file is not there, or is a different recording from
+// the one the daf was synced to. A reader can choose YouTube instead (the
+// "Play from" control in the player's settings, or their profile).
+// ---------------------------------------------------------------------------
+const MDY = window.MdyFiles || null;
+
+function readStoredValue(key) {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+function writeStoredValue(key, value) {
+  try { localStorage.setItem(key, value); } catch { /* private mode */ }
+}
+
+// MDY's server, always, for an MDY shiur (YouTube only as the automatic
+// fallback below). The one exception is a value stored on this device under
+// MDY.SOURCE_STORAGE_KEY -- there is no control for it any more; the test
+// harness uses it to keep the older specs on their YouTube stand-ins.
+function preferredPlaybackSource() {
+  if (!MDY) return 'youtube';
+  return MDY.normalizeSource(readStoredValue(MDY.SOURCE_STORAGE_KEY));
+}
+
+function preferredMdyQuality() {
+  const connection = navigator.connection || {};
+  return MDY.defaultQuality({
+    saved: readStoredValue(MDY.QUALITY_STORAGE_KEY),
+    narrowScreen: Boolean(window.matchMedia?.('(max-width: 760px)')?.matches),
+    saveData: Boolean(connection.saveData),
+    slowConnection: /(^|-)2g$/.test(connection.effectiveType || ''),
+  });
+}
+
+// MDY's picture of the shiur, resized by Netlify's image service and sent
+// from dafsync.com (MDY's originals are 1280x720 PNGs of over a megabyte;
+// netlify.toml allows MDY's server as a source).
+function mdyPictureUrl(shiur, width = 960) {
+  const original = shiur && MDY ? MDY.posterUrl(shiur.parsed, shiur.options) : null;
+  return original ? `/.netlify/images?url=${encodeURIComponent(original)}&w=${width}&fm=webp&q=75` : null;
+}
+
+// The MDY shiur a YouTube source is, or null (another maggid, a livestream,
+// MDY not loaded).
+function mdyShiurFor(ref, label, extras) {
+  if (!MDY) return null;
+  const parsed = parseDafRef(ref);
+  if (!parsed) return null;
+  const options = { title: label || '', liveBroadcast: Boolean(extras?.liveBroadcast) };
+  return MDY.shiurFolder(parsed, options) ? { parsed, options } : null;
+}
+
+// Puts MDY's file for the shiur on screen into the <video>. resumeAt/resume
+// carry the reader's place across a change of quality or of source.
+function playMdyFile({ quality = preferredMdyQuality(), resumeAt = null, resume = false } = {}) {
+  const shiur = state.mdyShiur;
+  if (!shiur) return;
+  const url = MDY.fileUrl(shiur.parsed, { ...shiur.options, quality });
+  // The sync's own recording length, when the alignment loaded is this daf's.
+  // A daf with no sync yet (loadDaf restores its video before state.dafRef
+  // moves to it) has nothing to compare against.
+  const expected = state.dafRef && refKey(state.dafRef) === refKey(shiur.ref) ? state.alignmentDuration : 0;
+  switchPlayerType('html5');
+  $('videoFrame')?.classList.remove('yt-started', 'yt-playing', 'yt-mask', 'yt-corner', 'yt-corner-out');
+  const same = state.mdyPlayback?.url === url && htmlVideo.getAttribute('src') === url;
+  state.mdyPlayback = {
+    url, quality, videoId: shiur.videoId, ref: shiur.ref, expected,
+    checked: same ? state.mdyPlayback.checked : false,
+  };
+  if (!same) {
+    htmlVideo.poster = mdyPictureUrl(shiur) || '';
+    htmlVideo.src = url;
+    htmlVideo.load();
+    // .load() resets the rate to 1 -- see handleVideoFile.
+    setPlaybackRate(Number($('speedSelect').value));
+  }
+  $('largePlay').hidden = false;
+  showVideoControls();
+  if (resumeAt != null && resumeAt > 0) seek(resumeAt);
+  if (resume) htmlVideo.play().catch(() => updatePlayUi());
+  refreshQualityOptions();
+  refreshMdyChrome();
+}
+
+// Checked once the file's length is known: a file that is a different
+// recording from the sync's would put every highlight in the wrong place.
+// Returns true when it turned the file away.
+function turnAwayMismatchedMdyFile() {
+  const playback = state.mdyPlayback;
+  if (!playback || playback.checked) return false;
+  playback.checked = true;
+  if (state.mdyAcceptMismatch.has(playback.videoId)) return false;
+  if (MDY.sameRecording(htmlVideo.duration, playback.expected)) return false;
+  playFromYouTubeInstead('different');
+  return true;
+}
+
+// Falls back from MDY's file to the YouTube video, keeping the reader's place.
+// reason: 'missing' (MDY's server has no such file) or 'different' (it is
+// another recording). If YouTube will not load either, a different recording
+// still plays from MDY's server -- the shiur with the highlight off beats no
+// shiur at all.
+async function playFromYouTubeInstead(reason) {
+  const playback = state.mdyPlayback;
+  if (!playback) return;
+  state.mdyTurnedAway.set(playback.videoId, reason);
+  const at = Number(htmlVideo.currentTime) || 0;
+  const wasPlaying = !htmlVideo.paused;
+  htmlVideo.pause();
+  htmlVideo.removeAttribute('src');
+  htmlVideo.removeAttribute('poster');
+  htmlVideo.load();
+  state.mdyPlayback = null;
+  try {
+    await ensureYouTubePlayer(playback.videoId);
+    setSourceBadge('YouTube');
+    if (at > 1) seek(at);
+    if (wasPlaying && isPaused()) togglePlay();
+    showToast(reason === 'different'
+      ? "MDY's copy of this shiur is a different recording from the one the daf is synced to, so it is playing from YouTube."
+      : "This shiur isn't on MDY's server, so it is playing from YouTube.");
+  } catch (error) {
+    console.error(error);
+    if (reason === 'different' && state.mdyShiur?.videoId === playback.videoId) {
+      state.mdyTurnedAway.delete(playback.videoId);
+      state.mdyAcceptMismatch.add(playback.videoId);
+      playMdyFile({ quality: playback.quality, resumeAt: at, resume: wasPlaying });
+      setSourceBadge('MDY');
+      showToast("YouTube didn't load, so this shiur is playing from MDY's server. It is a different recording "
+        + 'from the one the daf is synced to, so the highlighted words will be off.', 'error');
+    } else {
+      showToast("This shiur isn't on MDY's server, and YouTube didn't load either.", 'error');
+    }
+  }
+  refreshQualityOptions();
+  refreshMdyChrome();
+}
+
+function changeMdyQuality(quality) {
+  const playback = state.mdyPlayback;
+  if (!playback || !MDY.QUALITIES.includes(quality) || quality === playback.quality) return;
+  writeStoredValue(MDY.QUALITY_STORAGE_KEY, quality);
+  if (quality !== 'audio') state.mdyVideoQuality = quality;
+  playMdyFile({ quality, resumeAt: Number(htmlVideo.currentTime) || 0, resume: !htmlVideo.paused });
+}
+
+// Everything in the player's chrome that depends on MDY's server: the
+// captions button goes while a file of MDY's plays (they have no captions),
+// and the audio-only / download controls follow the shiur on screen.
+function refreshMdyChrome() {
+  document.body.classList.toggle('playing-mdy-file', Boolean(state.mdyPlayback));
+  // 2.5x and 3x are offered only for MDY's own files (player-chrome.js);
+  // YouTube's player stops at 2x.
+  if (!state.mdyPlayback && Number($('speedSelect')?.value) > 2) window.setPlayerSpeed?.('2');
+  refreshMdyAudioControl();
+}
+
+// An MDY shiur's audio: listen to it alone (the same file MDY's own site plays
+// as "Audio only"), or save its mp3. The download goes through dafsync.com
+// (netlify.toml's /mdy-audio/ rule): a browser only saves a link under its
+// download name for a file on the page's own site.
+function mdyDownloadName(shiur) {
+  const { parsed, options } = shiur;
+  const daf = MDY.dafFromTitle(options.title) || parsed.daf;
+  // The masechta as MDY and dafsync.com spell it ("Bechoros", not Sefaria's "Bekhorot").
+  const slug = MDY.MASECHTA_SLUGS[parsed.tractate];
+  const masechta = slug ? slug.split('-').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : parsed.tractate;
+  const parts = [
+    `${masechta} ${daf}`,
+    parsed.variant === 'chazarah' ? 'Chazarah' : '',
+    parsed.language === 'he' ? 'Hebrew' : '',
+    "R' Eli Stefansky",
+  ].filter(Boolean);
+  return `${parts.join(' - ')}.mp3`.replace(/[\\/:*?"<>|]+/g, ' ');
+}
+
+// The two controls live in two places: the Split view drop-down (the
+// divider's), and the top bar's More menu everywhere else (player-chrome.js
+// builds that one; styles.css shows each copy only where it belongs).
+const MDY_LISTEN_IDS = ['splitListenButton', 'moreListenButton'];
+const MDY_DOWNLOAD_IDS = ['splitDownloadLink', 'moreDownloadLink'];
+function refreshMdyAudioControl() {
+  const shiur = state.mdyShiur;
+  const showing = Boolean(MDY && shiur && state.videoSource?.videoId === shiur.videoId);
+  const listening = Boolean(state.mdyPlayback && state.mdyPlayback.quality === 'audio');
+  const mp3 = showing ? MDY.fileUrl(shiur.parsed, { ...shiur.options, quality: 'audio' }) : null;
+  for (const id of MDY_LISTEN_IDS) {
+    const button = $(id);
+    if (!button) continue;
+    button.hidden = !showing;
+    const label = listening ? 'Back to video' : 'Listen to audio only';
+    button.setAttribute('aria-pressed', String(listening));
+    button.setAttribute('aria-label', label);
+    button.title = label;
+    const text = button.querySelector('.mdy-control-text');
+    if (text) text.textContent = listening ? 'Video' : 'Audio only';
+    else button.textContent = label;
+  }
+  for (const id of MDY_DOWNLOAD_IDS) {
+    const link = $(id);
+    if (!link) continue;
+    link.hidden = !(showing && mp3);
+    if (showing && mp3) {
+      link.href = `/mdy-audio${mp3.slice(MDY.HOST.length)}`;
+      link.setAttribute('download', mdyDownloadName(shiur));
+    }
+  }
+  // The More button itself, on a page with nothing else in that menu.
+  const more = $('playerMoreMenu');
+  if (more && $('playerMoreButton')) {
+    const anything = [...more.children].some((item) => !item.hidden && !item.classList.contains('player-more-mdy'))
+      || (showing && !document.body.classList.contains('split-view-active'));
+    $('playerMoreButton').hidden = !anything;
+  }
+}
+
+// The video quality to go back to from audio only: the one playing before,
+// else this device's usual one (never audio).
+function mdyVideoQuality() {
+  if (state.mdyVideoQuality && state.mdyVideoQuality !== 'audio') return state.mdyVideoQuality;
+  const connection = navigator.connection || {};
+  return MDY.defaultQuality({
+    narrowScreen: Boolean(window.matchMedia?.('(max-width: 760px)')?.matches),
+    saveData: Boolean(connection.saveData),
+    slowConnection: /(^|-)2g$/.test(connection.effectiveType || ''),
+  });
+}
+
+function toggleMdyListen() {
+  const shiur = state.mdyShiur;
+  if (!MDY || !shiur || state.videoSource?.videoId !== shiur.videoId) return;
+  if (state.mdyPlayback?.quality === 'audio') {
+    changeMdyQuality(mdyVideoQuality());
+  } else if (state.mdyPlayback) {
+    state.mdyVideoQuality = state.mdyPlayback.quality;
+    changeMdyQuality('audio');
+  } else {
+    // Playing from YouTube: MDY's mp3, in place.
+    const at = getCurrentTime();
+    const wasPlaying = !isPaused();
+    if (state.playerType === 'youtube' && state.youtubeReady) state.youtubePlayer.pauseVideo();
+    state.mdyTurnedAway.delete(shiur.videoId);
+    playMdyFile({ quality: 'audio', resumeAt: at, resume: wasPlaying });
+    setSourceBadge('MDY');
+  }
+  refreshMdyAudioControl();
+}
+
 async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs = null, label = null, locked = false, extras = null) {
   if (!validateYouTubeId(videoId)) throw new Error('A valid YouTube video link is required.');
   cleanupObjectUrl();
-  await ensureYouTubePlayer(videoId);
+  // The daf this recording is being loaded for: loadDaf passes it explicitly
+  // (state.dafRef still holds the previous daf at that point).
+  const shiurRef = (Array.isArray(saveRefs) && saveRefs[0]) || state.dafRef;
+  const mdyShiur = mdyShiurFor(shiurRef, label, extras);
+  state.mdyShiur = mdyShiur ? { ...mdyShiur, ref: shiurRef, videoId } : null;
+  const fromMdy = Boolean(mdyShiur) && preferredPlaybackSource() === 'mdy' && !state.mdyTurnedAway.has(videoId);
+  if (fromMdy) {
+    playMdyFile();
+  } else {
+    if (state.mdyPlayback) {
+      htmlVideo.removeAttribute('src');
+      htmlVideo.removeAttribute('poster');
+      htmlVideo.load();
+      state.mdyPlayback = null;
+    }
+    await ensureYouTubePlayer(videoId);
+  }
   const liveBroadcast = Boolean(extras?.liveBroadcast);
   state.videoSource = {
     type: 'youtube',
@@ -10290,8 +10721,9 @@ async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs =
   state.currentProjectId = null;
   $('videoUrl').value = state.videoSource.url;
   $('lectureTitle').textContent = label || `YouTube lecture · ${videoId}`;
-  setSourceBadge(liveBroadcast ? 'Live' : 'YouTube');
+  setSourceBadge(liveBroadcast ? 'Live' : (fromMdy ? 'MDY' : 'YouTube'));
   setSourcePanel('linkSourcePanel');
+  refreshMdyChrome();
   // Seeking to 0 on a broadcast that is on the air leaves the live edge
   // and lands in the waiting room. The iframe already opens at live.
   if (state.videoSource.liveStatus !== 'live') seek(0);
@@ -10305,6 +10737,8 @@ async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs =
     showToast(state.videoSource.liveStatus === 'live'
       ? 'Live shiur. The daf is below. Words are not highlighted yet.'
       : 'Live recording. Words are not highlighted until the edited shiur is posted.');
+  } else if (fromMdy) {
+    showToast("Playing from MDY's server.");
   } else {
     showToast('YouTube video connected to the synchronized timeline.');
   }
@@ -10331,6 +10765,9 @@ function loadDirectVideoUrl(url, saveRefs = null, locked = false) {
 
   cleanupObjectUrl();
   switchPlayerType('html5');
+  state.mdyPlayback = null;
+  state.mdyShiur = null;
+  refreshMdyChrome();
   state.videoSource = { type: 'direct', url: parsed.href, label: 'Direct link', locked };
   htmlVideo.src = parsed.href;
   htmlVideo.load();
@@ -10564,6 +11001,14 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
     : [];
   state.alignmentDuration = Number(data.duration) || 0;
   state.dafRef = dafRefOverride || data.dafRef || state.dafRef;
+  // An alignment that arrives after MDY's file (switching sync method keeps
+  // the video) is checked against it too.
+  if (state.mdyPlayback && refKey(state.dafRef) === refKey(state.mdyPlayback.ref)
+      && state.mdyPlayback.expected !== state.alignmentDuration) {
+    state.mdyPlayback.expected = state.alignmentDuration;
+    state.mdyPlayback.checked = false;
+    if (htmlVideo.readyState >= 1) turnAwayMismatchedMdyFile();
+  }
   resetVilnaFollow(state.dafRef);
   // A voice-recognition-sourced alignment's segments are the engine's own
   // rough guess (see voice_align.py) -- retaining a copy of exactly what it
@@ -10890,7 +11335,11 @@ function handleScrubPointer(event) {
   $('previewText').textContent = segment?.he || 'No mapped text';
 }
 
-htmlVideo.addEventListener('loadedmetadata', () => { applyDuration(htmlVideo.duration); syncVolumeUi(); });
+htmlVideo.addEventListener('loadedmetadata', () => {
+  if (turnAwayMismatchedMdyFile()) return;
+  applyDuration(htmlVideo.duration);
+  syncVolumeUi();
+});
 htmlVideo.addEventListener('timeupdate', updateTimeline);
 // 'progress' (native, fires as bytes actually download) rather than relying
 // on 'timeupdate' alone -- timeupdate only fires during playback, so the
@@ -10911,7 +11360,13 @@ htmlVideo.addEventListener('click', () => {
   });
 });
 htmlVideo.addEventListener('error', () => {
-  if (state.videoSource.type === 'direct') {
+  // Only an error for the file MDY's server was asked for: removing the src
+  // when switching away fires one too.
+  if (state.mdyPlayback && htmlVideo.getAttribute('src') === state.mdyPlayback.url) {
+    playFromYouTubeInstead('missing');
+    return;
+  }
+  if (state.videoSource?.type === 'direct') {
     showToast('This direct link could not be played. Use a direct MP4/WebM file URL or a YouTube link.', 'error');
   }
 });
@@ -10926,7 +11381,10 @@ $('largePlay').addEventListener('click', togglePlay);
 $('backButton').addEventListener('click', () => seek(getCurrentTime() - 10));
 $('forwardButton').addEventListener('click', () => seek(getCurrentTime() + 10));
 $('speedSelect').addEventListener('change', (event) => setPlaybackRate(Number(event.target.value)));
-$('qualitySelect')?.addEventListener('change', (event) => state.youtubePlayer?.setPlaybackQuality?.(event.target.value));
+$('qualitySelect')?.addEventListener('change', (event) => {
+  if (state.mdyPlayback) changeMdyQuality(event.target.value);
+  else state.youtubePlayer?.setPlaybackQuality?.(event.target.value);
+});
 $('fullscreenButton')?.addEventListener('click', toggleVideoFullscreen);
 document.addEventListener('fullscreenchange', () => updateVideoOverlay(getCurrentTime()));
 $('videoVilnaCanvas')?.addEventListener('click', handleVideoOverlayClick);
