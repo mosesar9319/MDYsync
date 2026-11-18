@@ -10746,11 +10746,11 @@ async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs =
   // Seeking to 0 on a broadcast that is on the air leaves the live edge
   // and lands in the waiting room. The iframe already opens at live.
   if (state.videoSource.liveStatus !== 'live') seek(0);
-  saveProjectForRef(state.dafRef, { videoSource: state.videoSource });
+  if (!extras?.noSave) saveProjectForRef(state.dafRef, { videoSource: state.videoSource });
   // The live publisher owns this link. Re-saving it from the player would
   // dispatch save-video-link and drop liveBroadcast (that endpoint only
   // stores a manual link).
-  if (!liveBroadcast) saveVideoLinkForCoveredRefs(state.videoSource, saveRefs);
+  if (!liveBroadcast && !extras?.noSave) saveVideoLinkForCoveredRefs(state.videoSource, saveRefs);
   scheduleNonEssential(() => refreshTestRuns(videoId));
   if (liveBroadcast) {
     showToast(state.videoSource.liveStatus === 'live'
@@ -12783,16 +12783,22 @@ async function loadVideoChoice(choice) {
 // that word. Leaving every mode, or the Close button, puts it away again.
 const BOOK_VIDEO_MODE_KEY = 'dafsync-book-video-mode';
 
-// The shiurim on the site that can play from a word of this amud. MDY's own
-// count only once that amud's sync has finished (list-synced-dapim); another
-// maggid's is offered as the catalog lists it.
+// Every shiur linked to this daf, synced or not (videoChoicesFor: a
+// livestream only where there is nothing finished).
 function bookShiurimFor(ref) {
   if (!state.browseMode) return [];
   const parsed = parseDafRef(ref);
-  if (!parsed) return [];
+  return parsed ? videoChoicesFor(parsed.tractate, parsed.daf) : [];
+}
+
+// MDY's own sync list covers MDY's shiurim; another maggid's is found out
+// when it loads (null: not known yet).
+function bookShiurSynced(choice, ref) {
+  const parsed = parseDafRef(ref);
+  if (!parsed) return false;
+  if (choice.maggid) return null;
   const synced = state.syncedDapim?.[parsed.tractate]?.[`${parsed.daf}${parsed.amud}`] || [];
-  return videoChoicesFor(parsed.tractate, parsed.daf)
-    .filter((choice) => choice.maggid || synced.includes(comboKeyFor(choice.variant, choice.language)));
+  return synced.includes(comboKeyFor(choice.variant, choice.language));
 }
 
 function bookShiurRef(choice, ref) {
@@ -12801,6 +12807,18 @@ function bookShiurRef(choice, ref) {
   const variantSuffix = choice.variant === 'chazarah' ? ' (Chazarah Daf)' : '';
   const languageSuffix = (choice.language === 'he' ? ' (Hebrew)' : '') + maggidMarkerSuffix(choice.maggid);
   return `${parsed.tractate} ${parsed.daf}${parsed.amud}${variantSuffix}${languageSuffix}`;
+}
+
+// MDY's server has an mp3 of each of its own shiurim (not of a livestream,
+// not of another maggid's).
+function bookShiurHasAudio(choice, ref) {
+  return Boolean(mdyShiurFor(bookShiurRef(choice, ref), choice.title, { liveBroadcast: choice.liveBroadcast }));
+}
+
+function bookShiurPicture(choice, ref) {
+  const mdy = mdyShiurFor(bookShiurRef(choice, ref), choice.title, { liveBroadcast: choice.liveBroadcast });
+  const youtube = choice.videoId ? `https://i.ytimg.com/vi/${choice.videoId}/mqdefault.jpg` : '';
+  return { src: (mdy && mdyPictureUrl(mdy, 320)) || youtube, fallback: mdy ? youtube : '' };
 }
 
 function showBookVideo() {
@@ -12827,27 +12845,182 @@ function closeBookVideo() {
   scheduleVilnaPageLayoutRefresh(60);
 }
 
-async function watchShiurFromWord(choice, ref, wordIndex) {
+// Audio or video of the MDY file on screen, without making either the
+// default for the player pages (changeMdyQuality would remember it).
+function setBookShiurListening(audio) {
+  if (!state.mdyShiur) return;
+  const resumeAt = Number(htmlVideo.currentTime) || 0;
+  const resume = !htmlVideo.paused;
+  if (audio && state.mdyPlayback?.quality !== 'audio') {
+    if (state.mdyPlayback) state.mdyVideoQuality = state.mdyPlayback.quality;
+    playMdyFile({ quality: 'audio', resumeAt, resume });
+  } else if (!audio && state.mdyPlayback?.quality === 'audio') {
+    playMdyFile({ quality: mdyVideoQuality(), resumeAt, resume });
+  }
+  document.body.classList.toggle('book-audio', Boolean(audio && state.mdyPlayback?.quality === 'audio'));
+}
+
+// Brings a shiur up over the daf. A synced one starts at the word; one with
+// no sync yet plays from its beginning, with nothing highlighted (there is no
+// timing to highlight by) -- and is played from the catalog, never saved as
+// the daf's video.
+async function watchShiurFromWord(choice, ref, wordIndex, { audio = false } = {}) {
   const full = bookShiurRef(choice, ref);
   if (!full) return;
   state.maggid = choice.maggid;
   setActiveShiurVariant('dafShiurToggle', choice.variant);
   setActiveLanguage('dafLanguageToggle', choice.language);
   showBookVideo();
-  if (state.bookVideoRef !== full || !state.videoSource) {
+  const knownSynced = bookShiurSynced(choice, ref);
+  const same = state.bookVideo?.ref === full && state.videoSource?.videoId === choice.videoId;
+  try {
+    if (!same && knownSynced !== false) {
+      await loadDaf(full, { silent: true });
+    } else if (!same) {
+      state.segments = [];
+      state.activeIndex = -1;
+      state.dafRef = full;
+      await loadYouTubeVideo(`https://www.youtube.com/watch?v=${choice.videoId}`, choice.videoId, [full], choice.title,
+        false, { liveBroadcast: choice.liveBroadcast, noSave: true });
+    }
+  } catch (error) {
+    console.error(error);
+    showToast(`Could not load ${full}: ${error.message}`, 'error');
+    return;
+  }
+  // A maggid's shiur that turned out to have no sync is one played from the start.
+  const synced = same ? state.bookVideo.synced : (knownSynced !== false && state.alignmentStatus !== 'placeholder');
+  state.bookVideo = { choice, ref: full, synced };
+  state.bookVideoRef = full;
+  if (!synced) {
+    state.livePlainDaf = true;
+    state.activeIndex = -1;
+    $('vilnaActiveOverlay').innerHTML = '';
+  }
+  setBookShiurListening(audio);
+  if (synced) await seekToVilnaWord(ref, wordIndex);
+  else if (!same) seek(0);
+  if (isPaused()) await togglePlay();
+  if (!synced && !same) showToast('This shiur is not synced with the daf yet: it plays from the start.');
+}
+
+// While a synced shiur is up, a tap on a word sends it there. Another amud
+// of the same shiur loads first; a word it cannot reach (an amud that shiur
+// has no sync for) is left to the word's menu. Returns whether it seeked.
+async function bookTapWord(word) {
+  const up = state.bookVideo;
+  if (!state.browseMode || !up?.synced || !document.body.classList.contains('book-video-up') || !word) return false;
+  const full = bookShiurRef(up.choice, word.ref);
+  if (full !== up.ref) {
+    if (bookShiurSynced(up.choice, word.ref) === false) return false;
     try {
-      await loadDaf(full);
-      state.bookVideoRef = full;
+      await loadDaf(full, { silent: true });
     } catch (error) {
       console.error(error);
-      showToast(`Could not load ${full}: ${error.message}`, 'error');
-      return;
+      return false;
     }
+    if (state.alignmentStatus === 'placeholder') return false;
+    state.bookVideo = { ...up, ref: full };
+    state.bookVideoRef = full;
+    setBookShiurListening(document.body.classList.contains('book-audio'));
   }
-  await seekToVilnaWord(ref, wordIndex);
+  await seekToVilnaWord(word.ref, word.wordIndex);
   if (isPaused()) await togglePlay();
+  return true;
 }
-window.dafBookVideo = { shiurimFor: bookShiurimFor, watch: watchShiurFromWord, close: closeBookVideo };
+
+// The window "Watch from here" opens: each shiur linked to the daf, with its
+// picture, whether it starts at the word or from the beginning, and Video /
+// Audio where MDY's server has both.
+function ensureBookShiurDialog() {
+  let dialog = $('bookShiurDialog');
+  if (dialog) return dialog;
+  dialog = document.createElement('dialog');
+  dialog.id = 'bookShiurDialog';
+  dialog.className = 'book-shiur-dialog';
+  dialog.innerHTML = `
+    <button class="dialog-close" type="button" aria-label="Close">×</button>
+    <div class="eyebrow">Watch from here</div>
+    <h2 id="bookShiurDialogTitle"></h2>
+    <div class="book-shiur-list" id="bookShiurList"></div>`;
+  dialog.querySelector('.dialog-close').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
+  document.body.appendChild(dialog);
+  return dialog;
+}
+
+function openBookShiurWindow(ref, wordIndex) {
+  const parsed = parseDafRef(ref);
+  const choices = bookShiurimFor(ref);
+  if (!parsed || !choices.length) return;
+  const dialog = ensureBookShiurDialog();
+  $('bookShiurDialogTitle').textContent = `${parsed.tractate} ${parsed.daf}${parsed.amud}`;
+  const list = $('bookShiurList');
+  list.textContent = '';
+  for (const choice of choices) {
+    const synced = bookShiurSynced(choice, ref);
+    const audio = bookShiurHasAudio(choice, ref);
+    const row = document.createElement('div');
+    row.className = 'book-shiur-row';
+    const picture = bookShiurPicture(choice, ref);
+    const frame = document.createElement('div');
+    frame.className = 'book-shiur-thumb';
+    if (picture.src) {
+      const img = document.createElement('img');
+      img.alt = '';
+      img.loading = 'lazy';
+      img.src = picture.src;
+      img.addEventListener('error', () => {
+        if (picture.fallback && img.src !== picture.fallback) img.src = picture.fallback;
+        else img.remove();
+      });
+      frame.appendChild(img);
+    }
+    const info = document.createElement('div');
+    info.className = 'book-shiur-info';
+    const who = document.createElement('strong');
+    who.textContent = `${choice.who.split(' · ')[0]} · ${choice.kind}`;
+    const title = document.createElement('span');
+    title.className = 'book-shiur-title';
+    title.textContent = choice.title;
+    const status = document.createElement('span');
+    status.className = `book-shiur-status${synced === false ? ' is-unsynced' : ''}`;
+    status.textContent = synced === false ? 'Not synced yet · plays from the start' : (synced ? 'Synced · starts at this word' : 'Starts at this word where synced');
+    info.append(who, title, status);
+    const actions = document.createElement('div');
+    actions.className = 'book-shiur-actions';
+    const play = (asAudio) => {
+      dialog.close();
+      watchShiurFromWord(choice, ref, wordIndex, { audio: asAudio });
+    };
+    const videoButton = document.createElement('button');
+    videoButton.type = 'button';
+    videoButton.className = 'button primary small';
+    videoButton.textContent = 'Video';
+    videoButton.addEventListener('click', () => play(false));
+    actions.appendChild(videoButton);
+    if (audio) {
+      const audioButton = document.createElement('button');
+      audioButton.type = 'button';
+      audioButton.className = 'button secondary small';
+      audioButton.textContent = 'Audio';
+      audioButton.addEventListener('click', () => play(true));
+      actions.appendChild(audioButton);
+    }
+    row.append(frame, info, actions);
+    list.appendChild(row);
+  }
+  if (!dialog.open) dialog.showModal();
+}
+
+window.dafBookVideo = {
+  shiurimFor: bookShiurimFor,
+  open: openBookShiurWindow,
+  watch: watchShiurFromWord,
+  tapWord: bookTapWord,
+  canSeek: () => Boolean(state.bookVideo?.synced) && document.body.classList.contains('book-video-up'),
+  close: closeBookVideo,
+};
 $('bookVideoCloseButton')?.addEventListener('click', () => {
   if (state.viewerMode !== 'standard') setViewerMode('standard'); // closes it (see setViewerMode)
   else closeBookVideo();
@@ -12871,7 +13044,19 @@ function onDafPickerChanged() {
     state.browseLoadExplicit = false;
     if (pickedExplicitly && state.dafRef !== ref) {
       showBookVideo();
-      loadDaf(ref).then(() => { state.bookVideoRef = ref; });
+      loadDaf(ref).then(() => {
+        state.bookVideoRef = ref;
+        state.bookVideo = {
+          choice: {
+            maggid: state.maggid || null,
+            variant: activeShiurVariant('dafShiurToggle'),
+            language: activeLanguage('dafLanguageToggle'),
+            videoId: state.videoSource?.videoId || null,
+          },
+          ref,
+          synced: state.alignmentStatus !== 'placeholder',
+        };
+      });
     }
     return;
   }

@@ -113,7 +113,8 @@ async function openBrowse(page, { query = '', serve = {}, errors = null, noTabSh
   if (catalog) await page.route('**/api/get-catalog', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(catalog) }));
   if (synced) await page.route('**/api/list-synced-dapim', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(synced) }));
   if (noTabShare) await page.addInitScript(() => { navigator.mediaDevices.getDisplayMedia = undefined; });
-  await page.goto(`/browse/${query}`);
+  // The Live follow card is shown on this page only with ?lf=1.
+  await page.goto(`/browse/${query}${query.includes('?') ? '&' : '?'}lf=1`);
   await expect.poll(() => page.locator('#dafTractateSelect option').count()).toBeGreaterThan(0);
   return seen;
 }
@@ -560,7 +561,7 @@ test.describe('Live follow — following a reading', () => {
     expect(plain.has('filter_background_audio')).toBe(false);
     expect(plain.get('vad_silence_threshold_secs')).toBe('0.5');
 
-    await page.goto('/browse/?lang=he&filter=1');
+    await page.goto('/browse/?lang=he&filter=1&lf=1');
     await expect.poll(() => page.evaluate(() => typeof dafLiveFollow)).toBe('object');
     await alias(page);
     const tuned = params(await page.evaluate(() => buildWsUrl('tok', ['a'])));

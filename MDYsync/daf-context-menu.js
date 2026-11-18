@@ -502,24 +502,20 @@ function buildMenuItems(target) {
 
   const items = [];
 
-  // The Interactive Daf page: bring the shiur up over the daf, from this word
-  // (app.js, watchShiurFromWord) -- one line for each shiur that is synced
-  // for the word's amud, none where nothing is.
+  // The Interactive Daf page: one line that opens the window of every shiur
+  // linked to this daf (app.js, openBookShiurWindow).
   const shiurim = target.source === 'vilna' && target.word
     ? (window.dafBookVideo?.shiurimFor(target.word.ref) || [])
     : [];
   if (shiurim.length) {
-    const severalMaggidim = new Set(shiurim.map((choice) => choice.maggid || '')).size > 1;
-    for (const choice of shiurim) {
-      const kind = choice.kind.replace('Chazarah Daf', 'Chazarah');
-      const who = severalMaggidim ? `${choice.who.split(' · ')[0]}, ` : '';
-      items.push({
-        label: shiurim.length === 1 ? 'Watch the shiur from here' : `Watch from here: ${who}${kind}`,
+    items.push(
+      {
+        label: 'Watch from here',
         primary: true,
-        onClick: () => window.dafBookVideo.watch(choice, target.word.ref, target.word.wordIndex),
-      });
-    }
-    items.push({ separator: true });
+        onClick: () => window.dafBookVideo.open(target.word.ref, target.word.wordIndex),
+      },
+      { separator: true },
+    );
   }
 
   // Only on the printed Vilna page (target.word) -- the plain text view
@@ -785,6 +781,16 @@ function initDafContextMenu() {
         if (state.liveFollow?.active || state.vilnaSelectTextMode || state.vilnaMarkMode) return;
         const target = vilnaTargetAt(event.clientX, event.clientY);
         if (target) {
+          // A shiur playing over the daf: the tap sends it to the word, and
+          // the menu is a long press (or right-click) away. A word it cannot
+          // reach gets the menu after all.
+          if (window.dafBookVideo?.canSeek()) {
+            const { clientX, clientY } = event;
+            window.dafBookVideo.tapWord(target.word).then((seeked) => {
+              if (!seeked) openDafMenu(target, clientX, clientY);
+            });
+            return;
+          }
           openDafMenu(target, event.clientX, event.clientY);
           return;
         }

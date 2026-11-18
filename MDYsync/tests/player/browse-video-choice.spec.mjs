@@ -59,9 +59,9 @@ const ALIGNMENT = {
   wordTimeline: [],
 };
 
-async function open(page, url = '/browse/?ref=Chullin%2091a', { synced = SYNCED } = {}) {
+async function open(page, url = '/browse/?ref=Chullin%2091a', { synced = SYNCED, videoSource } = {}) {
   const asked = [];
-  await preparePage(page);
+  await preparePage(page, videoSource ? { videoSource } : {});
   // No YouTube in the test browser: a stand-in player, ready at once, that notes what it is told.
   await page.addInitScript(() => {
     window.__yt = [];
@@ -131,15 +131,17 @@ test.describe('Interactive Daf — the book on its own', () => {
     await expect(page.locator('#videoChoice')).toBeHidden();
     await expect(page.locator('#viewerModeSelect')).toBeHidden();
     await expect(page.locator('#dafTractateSelect')).toBeVisible();
-    for (const hidden of ['#dafDafSelect', '#dafAmudToggle', '#dafShiurToggle', '#dafLanguageToggle', '#browseNextButton', '#dafCard .view-switch']) {
+    for (const hidden of ['#dafDafSelect', '#dafAmudToggle', '#dafShiurToggle', '#dafLanguageToggle', '#browseNextButton', '#dafCard .view-switch', '#lfPanel']) {
       await expect(page.locator(hidden)).toBeHidden();
     }
     // All of Shas, not only the masechtos with synced dapim (here: one).
     await expect(page.locator('#dafTractateSelect option')).toHaveCount(36);
-    // What stays: the dial, the zoom bar with Select text, Live follow.
+    // What stays: the dial and the zoom bar with Select text.
     await expect(page.locator('#dafBookDrum')).toBeVisible();
     await expect(page.locator('#vilnaSelectTextModeButton')).toBeVisible();
-    await expect(page.locator('#lfToggle')).toBeVisible();
+    // The masechta picker is light, with dark writing: readable without opening it.
+    const colors = await page.locator('#dafTractateSelect').evaluate((el) => [getComputedStyle(el).backgroundColor, getComputedStyle(el).color]);
+    expect(colors).toEqual(['rgb(255, 255, 255)', 'rgb(19, 34, 56)']);
     await expect(page.locator('#dafTitle')).toHaveText('Chullin 91a');
   });
 
@@ -154,21 +156,14 @@ test.describe('Interactive Daf — the book on its own', () => {
     expect(await videoUp(page)).toBe(false);
   });
 
-  test('a tap on a word opens its menu, with a line for each shiur that is synced for the amud', async ({ page }) => {
+  test('a tap on a word opens its menu, with one line to watch the shiur from there', async ({ page }) => {
     await open(page);
     await tapWord(page, 7);
     await expect(menuItems(page).first()).toBeVisible();
-    // The unsynced Chazarah recording is not offered.
-    expect(await watchLines(page).allTextContents()).toEqual([
-      "Watch from here: R' Eli Stefansky, English",
-      "Watch from here: R' Eli Stefansky, Hebrew",
-      "Watch from here: R' Sruly Bornstein, English",
-    ]);
-    // The rest of the menu is as it was.
+    expect(await watchLines(page).allTextContents()).toEqual(['Watch from here']);
     await expect(menuItems(page).filter({ hasText: 'Add note here' })).toHaveCount(1);
-    // Nothing has loaded yet, and a tap elsewhere only closes the menu.
     expect(await loadedVideo(page)).toBeNull();
-    // (A word the open menu is not lying over.)
+    // A tap elsewhere (a word the open menu is not lying over) only closes it.
     const clear = await page.evaluate(() => {
       const menu = document.querySelector('.daf-context-menu').getBoundingClientRect();
       const r = document.getElementById('vilnaPageCanvas').getBoundingClientRect();
@@ -185,34 +180,106 @@ test.describe('Interactive Daf — the book on its own', () => {
     await expect(page.locator('.daf-context-menu')).toBeHidden();
   });
 
-  test('a daf with nothing synced offers no shiur in the menu', async ({ page }) => {
-    await open(page, '/browse/?ref=Chullin%2091a', { synced: {} });
+  test('Watch from here opens a window of every shiur linked to the daf, synced or not, with its picture', async ({ page }) => {
+    await open(page);
+    // The site's image service, which sends MDY's pictures resized.
+    const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+    await page.route('**/.netlify/images?*', (route) => route.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
     await tapWord(page, 7);
-    await expect(menuItems(page).first()).toBeVisible();
-    // MDY's own are not synced; the other maggid's is offered as the catalog lists it.
-    expect(await watchLines(page).allTextContents()).toEqual(['Watch the shiur from here']);
+    await watchLines(page).click();
+    const rows = page.locator('#bookShiurList .book-shiur-row');
+    await expect(rows).toHaveCount(4);
+    await expect(page.locator('#bookShiurDialogTitle')).toHaveText('Chullin 91a');
+    const seen = await rows.evaluateAll((list) => list.map((row) => ({
+      who: row.querySelector('strong').textContent,
+      status: row.querySelector('.book-shiur-status').textContent,
+      buttons: [...row.querySelectorAll('button')].map((b) => b.textContent),
+      picture: row.querySelector('img')?.getAttribute('src') || '',
+    })));
+    expect(seen.map((r) => [r.who, r.status, r.buttons.join('/')])).toEqual([
+      ["R' Eli Stefansky · English", 'Synced · starts at this word', 'Video/Audio'],
+      ["R' Eli Stefansky · Hebrew", 'Synced · starts at this word', 'Video/Audio'],
+      ["R' Eli Stefansky · Chazarah Daf, English", 'Not synced yet · plays from the start', 'Video/Audio'],
+      // Another maggid's: YouTube only, so no audio; its sync is found out when it loads.
+      ["R' Sruly Bornstein · English", 'Starts at this word where synced', 'Video'],
+    ]);
+    // MDY's picture through the site's image service; YouTube's for another maggid.
+    expect(seen[0].picture).toContain('/.netlify/images?url=');
+    expect(seen[0].picture).toContain(encodeURIComponent('https://cdn.mdydaf.com/shiur/english/chullin/thumb/91.png'));
+    expect(seen[3].picture).toBe('https://i.ytimg.com/vi/Zsy7oDUP6Pw/mqdefault.jpg');
   });
 
   test('choosing a shiur floats its video over the daf, at that word', async ({ page }) => {
     await open(page);
     await tapWord(page, 7); // in the second phrase, which starts at 1:00
-    await watchLines(page).nth(1).click(); // the Hebrew shiur
+    await watchLines(page).click();
+    await page.locator('#bookShiurList .book-shiur-row').nth(1).locator('button', { hasText: 'Video' }).click(); // Hebrew
     await expect.poll(() => loadedVideo(page)).toBe('BBBBBBBBBBB');
     expect(await videoUp(page)).toBe(true);
     await expect(page.locator('body')).toHaveAttribute('data-viewer-mode', 'video-on-daf');
     await expect(page.locator('#videoFrame')).toBeVisible();
     await expect(page.locator('#viewerModeSelect')).toBeVisible();
-    // The video was sent to the phrase the word is in, and told to play.
     await expect.poll(() => page.evaluate(() => window.__yt.filter(([name]) => name === 'seekTo').map(([, t]) => Math.round(t)).pop())).toBe(60);
     await expect.poll(() => page.evaluate(() => window.__yt.some(([name]) => name === 'playVideo'))).toBe(true);
-    // The book keeps its own name, whichever shiur is up.
     await expect(page.locator('#dafTitle')).toHaveText('Chullin 91a');
+  });
+
+  test('while a shiur is up, a tap on a word sends it there, and a long press opens the menu', async ({ page }) => {
+    await open(page);
+    await tapWord(page, 7);
+    await watchLines(page).click();
+    await page.locator('#bookShiurList .book-shiur-row').first().locator('button', { hasText: 'Video' }).click();
+    await expect.poll(() => loadedVideo(page)).toBe('AAAAAAAAAAA');
+    await expect.poll(() => page.evaluate(() => window.__yt.filter(([name]) => name === 'seekTo').map(([, t]) => Math.round(t)).pop())).toBe(60);
+    // The first phrase starts at 0:30. A tap there: no menu, the shiur goes to it.
+    await page.evaluate(() => { document.body.classList.remove('reading-mode-active'); }); // the float is not over the words in this check
+    await tapWord(page, 2);
+    await expect.poll(() => page.evaluate(() => window.__yt.filter(([name]) => name === 'seekTo').map(([, t]) => Math.round(t)).pop())).toBe(30);
+    await expect(page.locator('.daf-context-menu')).toBeHidden();
+    // A right-click (a long press on a phone) still opens the menu.
+    const point = await page.evaluate(() => {
+      const b = state.vilnaPageMap.wordBoxes.find((x) => x.ref === 'Chullin 91a.1' && x.wordIndex === 7);
+      const r = document.getElementById('vilnaPageCanvas').getBoundingClientRect();
+      return { x: r.left + (b.x + b.w / 2) * r.width, y: r.top + (b.y + b.h / 2) * r.height };
+    });
+    await page.mouse.click(point.x, point.y, { button: 'right' });
+    await expect(menuItems(page).first()).toBeVisible();
+  });
+
+  test('a shiur with no sync yet plays from its beginning, highlights nothing, and saves nothing', async ({ page }) => {
+    const writes = [];
+    await open(page);
+    page.on('request', (request) => { if (request.method() !== 'GET') writes.push(request.url()); });
+    await tapWord(page, 7);
+    await watchLines(page).click();
+    await page.locator('#bookShiurList .book-shiur-row').nth(2).locator('button', { hasText: 'Video' }).click(); // Chazarah, not synced
+    await expect.poll(() => loadedVideo(page)).toBe('DDDDDDDDDDD');
+    await expect.poll(() => page.evaluate(() => window.__yt.filter(([name]) => name === 'seekTo').map(([, t]) => Math.round(t)).pop())).toBe(0);
+    expect(await page.evaluate(() => state.bookVideo.synced)).toBe(false);
+    await expect(page.locator('#toast')).toContainText('not synced');
+    await expect(page.locator('#vilnaActiveOverlay > *')).toHaveCount(0);
+    expect(writes.filter((url) => /save-video-link|video-links/.test(url))).toEqual([]);
+    // A tap on a word opens the menu: there is nowhere in it to send this shiur.
+    expect(await page.evaluate(() => window.dafBookVideo.canSeek())).toBe(false);
+  });
+
+  test('Audio plays MDY’s mp3 of the shiur, over the daf, from the word', async ({ page }) => {
+    await open(page, '/browse/?ref=Chullin%2091a', { videoSource: 'mdy' });
+    await tapWord(page, 7);
+    await watchLines(page).click();
+    const mp3 = page.waitForRequest('https://cdn.mdydaf.com/shiur/english/chullin/mp3/91.mp3');
+    await page.locator('#bookShiurList .book-shiur-row').first().locator('button', { hasText: 'Audio' }).click();
+    await mp3;
+    await expect.poll(() => page.evaluate(() => document.body.classList.contains('book-audio'))).toBe(true);
+    // Listening here is not made the player pages' default.
+    expect(await page.evaluate(() => localStorage.getItem('dafsync-mdy-quality'))).not.toBe('audio');
   });
 
   test('Split view and Daf on video are one tap away, and Close puts the book back', async ({ page }) => {
     await open(page);
     await tapWord(page, 7);
-    await watchLines(page).first().click();
+    await watchLines(page).click();
+    await page.locator('#bookShiurList .book-shiur-row').first().locator('button', { hasText: 'Video' }).click();
     await expect.poll(() => loadedVideo(page)).toBe('AAAAAAAAAAA');
     await page.locator('#viewerModeDafOnVideoButton').click();
     await expect(page.locator('body')).toHaveAttribute('data-viewer-mode', 'daf-on-video');
@@ -220,13 +287,14 @@ test.describe('Interactive Daf — the book on its own', () => {
     await page.evaluate(() => document.getElementById('viewerModeSplitButton').click());
     await expect(page.locator('body')).toHaveAttribute('data-viewer-mode', 'split');
     expect(await videoUp(page)).toBe(true);
-    // The mode last used is the one the next shiur comes up in.
     expect(await page.evaluate(() => localStorage.getItem('dafsync-book-video-mode'))).toBe('split');
     await page.evaluate(() => document.getElementById('bookVideoCloseButton').click());
     await expect(page.locator('body')).toHaveAttribute('data-viewer-mode', 'standard');
     expect(await videoUp(page)).toBe(false);
     await expect(page.locator('.player-card')).toBeHidden();
     await expect.poll(() => page.evaluate(() => window.__yt.some(([name]) => name === 'pauseVideo'))).toBe(true);
+    // Closed, a tap opens the menu again.
+    expect(await page.evaluate(() => window.dafBookVideo.canSeek())).toBe(false);
   });
 
   test('a daf whose words are still being prepared says so when tapped', async ({ page }) => {

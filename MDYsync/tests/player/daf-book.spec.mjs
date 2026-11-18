@@ -240,15 +240,23 @@ test.describe('Interactive Daf as a sefer', () => {
     await expect.poll(() => page.evaluate(() => state.browsePageRef), { timeout: 8000 }).toMatch(/^Chullin 8[34]a$/);
   });
 
-  test('the page sound starts on and its switch is remembered', async ({ page }) => {
+  test('the dial has no sound switch beside it, and is as wide as the page under it', async ({ page }) => {
     await open(page);
-    const button = page.locator('#dafBookSoundButton');
-    await expect(button).toHaveAttribute('aria-pressed', 'true');
-    await button.click();
-    await expect(button).toHaveAttribute('aria-pressed', 'false');
-    expect(await page.evaluate(() => localStorage.getItem('dafsync-book-sound'))).toBe('off');
-    await page.reload();
-    await expect(page.locator('#dafBookSoundButton')).toHaveAttribute('aria-pressed', 'false');
+    await readyOn(page, 'Chullin|86|a');
+    await expect(page.locator('#dafBookSoundButton')).toHaveCount(0);
+    const [drum, canvas] = await Promise.all(['#dafBookDrum', '#vilnaPageCanvas'].map((sel) => page.locator(sel).boundingBox()));
+    expect(Math.abs(drum.width - canvas.width)).toBeLessThan(3);
+    expect(Math.abs((drum.x + drum.width / 2) - (canvas.x + canvas.width / 2))).toBeLessThan(3);
+  });
+
+  test('switching to a masechta that opens on daf 2 draws the dial there', async ({ page }) => {
+    await open(page, '/browse/');
+    await page.locator('.daf-book-cover').click();
+    await expect(page.locator('.daf-book-cover')).toHaveCount(0, { timeout: 3000 });
+    await page.locator('#dafTractateSelect').selectOption('Arakhin');
+    const drum = page.locator('#dafBookDrum');
+    await expect(drum).toHaveAttribute('aria-valuetext', 'Arakhin 2');
+    await expect(page.locator('.dbd-tick.is-current .dbd-num')).toHaveText('2');
   });
 
   test('with reduced motion the arrows step plainly, with no turning leaf', async ({ page }) => {
