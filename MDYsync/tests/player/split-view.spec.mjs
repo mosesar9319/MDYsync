@@ -1132,10 +1132,30 @@ test.describe('Opening the player in a viewing mode', () => {
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
     expect(new URL(page.url()).pathname).toBe('/player/');
   });
-  test('no mode, or an unknown one, opens the regular player', async ({ page }) => {
-    await preparePage(page, { user: null });
+  test('no mode, or an unknown one, opens a shiur in Split', async ({ page }) => {
+    await preparePage(page, { user: null, builtInViewerMode: null });
     await page.goto('/player/?ref=Chullin%2089a&mode=nonsense');
-    await page.waitForTimeout(300);
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+    await page.goto('/player/?ref=Chullin%2089a');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+  });
+  test('leaving Split on one shiur does not open the next one in the regular player', async ({ page }) => {
+    await preparePage(page, { user: null, builtInViewerMode: null });
+    await page.goto('/player/?ref=Chullin%2089a');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+    await page.evaluate(() => requestExitSplit());
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
+    // The same shiur, reloaded, keeps the reader's choice.
+    await page.reload();
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('standard');
+    // Any other shiur opens in Split again.
+    await page.goto('/player/?ref=Chullin%2090a');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+  });
+  test('the Interactive Daf page still opens in its regular layout', async ({ page }) => {
+    await preparePage(page, { user: null, builtInViewerMode: null });
+    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.waitForTimeout(500);
     expect(await page.evaluate(() => state.viewerMode)).toBe('standard');
   });
 });

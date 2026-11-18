@@ -7220,6 +7220,12 @@ function readSavedViewerMode() {
 // What a page opens in when nothing else says: Split on the shiur player,
 // the regular layout on the Interactive Daf page and the others.
 function builtInViewerMode() {
+  // The regression suite was written against the regular player as the
+  // opening layout; its harness (tests/support/harness.mjs) asks for that
+  // through the same test-control object the Supabase stand-in reads.
+  // Nothing outside a test run sets it.
+  const forTests = window.__DAFSYNC_TEST_CONTROL__?.builtInViewerMode;
+  if (VIEWER_MODES.includes(forTests)) return forTests;
   return document.body.classList.contains('player-page') ? 'split' : 'standard';
 }
 
