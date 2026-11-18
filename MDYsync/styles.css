@@ -531,6 +531,10 @@ h2 { margin-bottom: 0; }
 .mdy-audio-actions a:hover { background: rgba(255,255,255,.18); }
 .mdy-audio-actions button[aria-pressed="true"] { background: #2f6ea5; border-color: #2f6ea5; }
 .video-settings-overlay-group { display: flex; flex-direction: column; gap: 8px; }
+/* The Daf on video settings only mean anything in Daf on video mode
+   (body[data-viewer-mode], set by app.js's setViewerMode), so the gear only
+   shows them there. */
+body:not([data-viewer-mode="daf-on-video"]) .video-settings-overlay-group { display: none; }
 /* Reparented to <body> by player-chrome.js (see there for why) -- position
    and right/bottom are then set inline per open, anchored to the gear's own
    screen coordinates; this covers everything that isn't per-instance

@@ -899,6 +899,20 @@
       settingsBody.hidden = !settingsDetails.open;
       if (settingsDetails.open) positionSettingsPanel();
     });
+    // Reported directly: tapping the gear did nothing. The <details>' own
+    // open/close only happens on the click a tap is meant to synthesize, and
+    // on a phone that click often never comes (the bar reflows between the
+    // finger lifting and the click -- see bindPressToggle) -- the same
+    // failure every other menu in this bar was already moved off. The gear
+    // now toggles on the press itself, like them, and its native toggle is
+    // turned off so the two can't undo each other. Covers its "Settings" row
+    // in the More tray too: the caption next to the icon used to fall
+    // through to "close the tray", since the row has no <button> to forward
+    // the tap to.
+    const gearSummary = settingsDetails.querySelector('summary');
+    gearSummary?.addEventListener('click', (event) => event.preventDefault());
+    const gearAnchor = settingsStack || settingsDetails;
+    bindPressToggle(gearAnchor, () => settingsDetails.open, (open) => { settingsDetails.open = open; });
     // Keeps the panel anchored to the gear through a window resize (the
     // reading-mode mini player itself doesn't fire one when just dragged/
     // resized by hand, but its own resize listener in app.js re-lays-out the

@@ -7197,12 +7197,30 @@ function resetSplitVideoZoom({ announce = true } = {}) {
   setSplitVideoZoom(1, { panX: 0, panY: 0, announce });
 }
 
+// The shiur a mode choice belongs to. A mode picked in the player (or left
+// with Back) is kept for that shiur only -- a reload keeps it -- and every
+// other shiur opens in the account default, or Split. Reported directly:
+// keeping it for every shiur meant that leaving Split once (even by pressing
+// Back to get home) opened every later shiur in the regular player.
+function viewerChoiceScope() {
+  const params = new URLSearchParams(window.location.search);
+  return ['ref', 'variant', 'language', 'maggid', 'v']
+    .map((key) => `${key}=${params.get(key) || ''}`).join('&');
+}
+
 function readSavedViewerMode() {
   try {
     const parsed = JSON.parse(localStorage.getItem(VIEW_CHOICE_KEY) || 'null');
-    if (parsed && parsed.v === 1 && parsed.explicit === true && VIEWER_MODES.includes(parsed.mode)) return parsed.mode;
+    if (parsed && parsed.v === 1 && parsed.explicit === true && VIEWER_MODES.includes(parsed.mode)
+        && parsed.scope === viewerChoiceScope()) return parsed.mode;
   } catch { /* not a choice */ }
   return '';
+}
+
+// What a page opens in when nothing else says: Split on the shiur player,
+// the regular layout on the Interactive Daf page and the others.
+function builtInViewerMode() {
+  return document.body.classList.contains('player-page') ? 'split' : 'standard';
 }
 
 // Once per browser: throw away every stored view that predates the account
@@ -7264,7 +7282,7 @@ function decideViewerMode() {
   const profile = profileViewerMode();
   const signedIn = Boolean(window.DafSyncAuth?.getUser?.());
   let mode = '';
-  let reason = 'built-in-standard';
+  let reason = builtInViewerMode() === 'split' ? 'built-in-split' : 'built-in-standard';
   if (choice) {
     mode = choice;
     reason = 'explicit-choice';
@@ -7277,7 +7295,7 @@ function decideViewerMode() {
   }
   const decision = {
     reason,
-    mode: mode || 'standard',
+    mode: mode || builtInViewerMode(),
     urlMode: urlMode || null,
     choice: choice || null,
     accountDefault: profile || null,
@@ -7304,7 +7322,7 @@ function rememberViewerMode(mode) {
   viewerModeExplicit = true;
   try {
     localStorage.setItem(VIEW_MIGRATION_KEY, '1');
-    localStorage.setItem(VIEW_CHOICE_KEY, JSON.stringify({ v: 1, explicit: true, mode }));
+    localStorage.setItem(VIEW_CHOICE_KEY, JSON.stringify({ v: 1, explicit: true, mode, scope: viewerChoiceScope() }));
   } catch { /* private mode */ }
 }
 
