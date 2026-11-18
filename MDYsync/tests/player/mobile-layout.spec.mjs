@@ -1488,6 +1488,7 @@ test.describe('mobile player layout', () => {
         ...layout,
         selectFits: fits(select),
         chipFits: fits(chip),
+        chipShown: Boolean(chip && chip.getBoundingClientRect().width > 0),
         labelFits: fits(label),
         autoFits: fits(auto),
         dafPageFits: fits(dafPage),
@@ -1497,7 +1498,8 @@ test.describe('mobile player layout', () => {
     // No zoom bar on a phone (pinch zooms the page); Select text is in the daf row.
     expect(zoom.zoomShown).toBe(false);
     expect(zoom.selectFits).toBe(true);
-    expect(zoom.chipFits).toBe(true);
+    // The Skip chip is no longer in the drop-down, even with a review to skip.
+    expect(zoom.chipShown).toBe(false);
     expect(zoom.labelFits).toBe(true);
     expect(zoom.notesClip).toBeLessThanOrEqual(1);
     expect(zoom.autoFits).toBe(true);
