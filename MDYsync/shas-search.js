@@ -272,6 +272,9 @@ function initShasSearch() {
     // #autoScroll handling) -- no separate render/scroll of this file's own
     // needed.
     shasFlashRef = segmentRef;
+    // The spans may already be drawn with this segment active (the first
+    // one always is), and seekToSegment then has nothing to redraw.
+    if (typeof renderDaf === 'function') renderDaf();
     seekToSegment(index);
     const hlQuery = params.get('hlQuery');
     if (hlQuery) showShasBackBanner(hlQuery);

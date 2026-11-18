@@ -293,7 +293,9 @@ body[data-page="browse"] #dafAmudToggle,
 body[data-page="browse"] .picker-toggle-row,
 body[data-page="browse"] .browse-nav,
 body[data-page="browse"] #videoChoice,
-body[data-page="browse"] #dafCard .view-switch { display: none !important; }
+body[data-page="browse"] #dafCard:not([data-daf-view="text"]) .view-switch { display: none !important; }
+/* (The plain-text view is reached only from a Search in Shas result, which
+   shows the found line there; its switch is the way back to the printed page.) */
 body[data-page="browse"]:not(.book-video-up) .watch-layout > .player-card,
 body[data-page="browse"]:not(.book-video-up) #viewerModeSelect,
 body[data-page="browse"] #dafCard .reading-mode-entry { display: none !important; }
@@ -320,3 +322,4 @@ body[data-page="browse"].book-video-up.reading-mode-active #viewerModeSelect {
   backdrop-filter: blur(6px);
   box-shadow: 0 6px 16px rgba(29,57,88,.10);
 }
+.daf-book-dial.is-waiting { visibility: hidden; }

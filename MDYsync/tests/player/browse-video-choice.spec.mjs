@@ -236,8 +236,12 @@ test.describe('Interactive Daf — the book on its own', () => {
     await page.locator('#dafNextAmudButton').click(); // 91b: no word positions yet
     await expect.poll(() => page.evaluate(() => state.vilnaPageMapStatus)).toEqual({ ref: 'Chullin 91b', status: 'preparing' });
     await expect(page.locator('.daf-book-stage')).toHaveCount(0, { timeout: 5000 });
+    await page.evaluate(() => new Promise((done) => {
+      document.getElementById('vilnaPageWrap').scrollIntoView({ block: 'start', behavior: 'instant' });
+      requestAnimationFrame(() => requestAnimationFrame(done));
+    }));
     const box = await page.locator('#vilnaPageCanvas').boundingBox();
-    await page.mouse.click(box.x + box.width / 2, Math.min(box.y + 200, page.viewportSize().height - 160));
+    await page.mouse.click(box.x + box.width / 2, box.y + 150);
     await expect(page.locator('#toast')).toContainText('being prepared');
     await expect(page.locator('.daf-context-menu')).toBeHidden();
   });

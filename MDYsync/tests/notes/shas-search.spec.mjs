@@ -228,6 +228,8 @@ test.describe('opening a result', () => {
     await expect(flashed).toContainText('ארבעה');
     // The flashed segment's own span, not some unrelated one.
     await expect(page.locator('.daf-segment mark.daf-search-flash')).toHaveCount(1);
+    // The text view is where a result is shown; the way back to the printed page is offered there.
+    await expect(page.locator('#dafCard .view-switch button[data-view="page"]')).toBeVisible();
 
     // Text view, not the Vilna page -- the whole point of loadDaf's own
     // Sefaria-fallback path is that it works with no Vilna page sync at all.

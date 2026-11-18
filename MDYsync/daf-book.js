@@ -490,7 +490,7 @@
   const dial = document.createElement('div');
   dial.className = 'daf-book-dial';
   dial.id = 'dafBookDial';
-  dial.hidden = true;
+  dial.classList.add('is-waiting'); // its room is kept from the start, so the page below never jumps
   dial.innerHTML = `
     <div class="daf-book-drum" id="dafBookDrum" role="slider" tabindex="0" aria-label="Daf">
       <div class="dbd-knurl"></div>
@@ -575,7 +575,7 @@
     const p = here();
     if (!p) return;
     if (p.tractate !== dialTractate && !buildDial(p.tractate)) return;
-    dial.hidden = false;
+    dial.classList.remove('is-waiting');
     if (dialHeld) return;
     const index = dialDapim.indexOf(p.daf);
     if (index === -1 || (index === dialValue && dialPainted)) return;

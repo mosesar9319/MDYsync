@@ -42,7 +42,7 @@ test.describe('Video player -- playback speed survives a new video load', () => 
     failOnPageError(page, errors);
     await preparePage(page, { user: null });
     await stubPrintedPage(page);
-    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.goto('/watch/');
     await expect(page.locator('#speedSelect')).toBeAttached();
 
     await chooseSpeed(page, '1.5');
@@ -66,7 +66,7 @@ test.describe('Video player -- playback speed survives a new video load', () => 
 
   test('choosing a local video file resyncs the chosen speed the same way', async ({ page }) => {
     await preparePage(page, { user: null });
-    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.goto('/watch/');
     await expect(page.locator('#speedSelect')).toBeAttached();
 
     await chooseSpeed(page, '0.75');
@@ -84,7 +84,7 @@ test.describe('Video player -- playback speed survives a new video load', () => 
 
   test('sanity: load() really does reset playbackRate on its own, so the fix above is not a no-op assertion', async ({ page }) => {
     await preparePage(page, { user: null });
-    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.goto('/watch/');
     const result = await page.evaluate(() => {
       const v = document.getElementById('video');
       v.playbackRate = 1.5;
@@ -109,7 +109,7 @@ test.describe('Video player -- playback speed survives a new video load', () => 
 test.describe('Video player -- picking the rate already shown still re-applies it', () => {
   test('reselecting the displayed value fires a real resync, not a no-op', async ({ page }) => {
     await preparePage(page, { user: null });
-    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.goto('/watch/');
     await expect(page.locator('#speedSelect')).toBeAttached();
 
     // Simulate the drift directly, the same silent desync load() causes:

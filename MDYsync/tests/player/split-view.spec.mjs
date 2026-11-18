@@ -135,7 +135,7 @@ test.describe('Unified viewing modes — the prominent selector', () => {
   test('the page loads into standard mode, not Split View, exactly as before this feature existed', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
-    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.goto('/player/?ref=Chullin%2089a');
     await expect(page.locator('#viewerModeSplitButton')).toBeAttached();
     await dismissErrorBanner(page);
 
@@ -320,7 +320,7 @@ test.describe('Split View — divider and layout', () => {
   test('the layout toggle switches side-by-side and stacked without reloading the video', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
-    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.goto('/player/?ref=Chullin%2089a');
     await enterSplitView(page);
 
     const videoFrameHandle = await page.evaluateHandle(() => document.getElementById('videoFrame'));
@@ -482,7 +482,7 @@ test.describe('Split View — video zoom', () => {
   test('setSplitVideoZoom stays clamped to 5x, and resetSplitVideoZoom returns to 1x', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
-    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.goto('/player/?ref=Chullin%2089a');
     await enterSplitView(page);
 
     await page.evaluate(() => { for (let i = 0; i < 30; i += 1) setSplitVideoZoom(state.splitVideoZoom + 0.25); });
@@ -999,7 +999,7 @@ test.describe('Split View — the portaled menus stay usable, not hidden behind 
   test('choosing a playback speed actually works while Split View is active', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
-    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.goto('/player/?ref=Chullin%2089a');
     await enterSplitView(page);
 
     await page.locator('#speedSelect').click();
@@ -1013,10 +1013,17 @@ test.describe('Split View — the portaled menus stay usable, not hidden behind 
   test('a real control inside the settings panel is actually clickable, and the panel still closes on an outside click', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
-    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.goto('/player/?ref=Chullin%2089a');
     await enterSplitView(page);
 
-    await page.locator('#videoSettings summary').click();
+    // On a narrow bar the gear sits in the More tray.
+    const gear = page.locator('#videoSettings summary');
+    if (await gear.isVisible()) {
+      await gear.click();
+    } else {
+      if (!(await page.locator('#toolsMoreMenu').isVisible())) await page.locator('#toolsMoreButton').click();
+      await page.locator('#toolsMoreMenu .pc-stack', { has: page.locator('#videoSettings') }).click();
+    }
     await expect(page.locator('#videoSettingsPanel')).toBeVisible();
 
     // A plain <button> inside the panel -- unlike selectOption() on a
@@ -1073,7 +1080,7 @@ test.describe('Split View — tapping the video does not manufacture a pause', (
   test('a plain tap never pauses (or plays) a YouTube video', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
-    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.goto('/player/?ref=Chullin%2089a');
     await enterSplitView(page);
 
     const result = await page.evaluate(async () => {
@@ -1096,7 +1103,7 @@ test.describe('Split View — tapping the video does not manufacture a pause', (
   test('a finger tap never plays or pauses a direct-link <video> either', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
-    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.goto('/player/?ref=Chullin%2089a');
     await enterSplitView(page);
 
     const before = await page.evaluate(() => document.getElementById('video').paused);
@@ -1108,7 +1115,7 @@ test.describe('Split View — tapping the video does not manufacture a pause', (
   test('a mouse click still toggles play/pause for a direct-link <video>, as on YouTube desktop', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
-    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.goto('/player/?ref=Chullin%2089a');
     await enterSplitView(page);
 
     const before = await page.evaluate(() => document.getElementById('video').paused);

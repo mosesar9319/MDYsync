@@ -34,7 +34,7 @@ test.describe('Reading Mode mini player — resizing', () => {
   test('the resize handle is visible and reachable once Reading Mode is on', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
-    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.goto('/player/?ref=Chullin%2089a');
     await expect(page.locator('#readingModeButton')).toBeAttached();
 
     // Never visible before Reading Mode is entered.
@@ -94,7 +94,7 @@ test.describe('Reading Mode mini player — resizing', () => {
   test('dragging the resize handle actually makes the mini player bigger', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
-    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.goto('/player/?ref=Chullin%2089a');
     await page.click('#readingModeButton');
     await expect(page.locator('#readingVideoFloat')).toBeVisible();
     await waitForMiniPlayerSettled(page);
@@ -109,7 +109,7 @@ test.describe('Reading Mode mini player — resizing', () => {
   test('dragging the handle the other way makes it smaller, down to the floor', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
-    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.goto('/player/?ref=Chullin%2089a');
     await page.click('#readingModeButton');
     await expect(page.locator('#readingVideoFloat')).toBeVisible();
     await waitForMiniPlayerSettled(page);
@@ -126,7 +126,7 @@ test.describe('Reading Mode mini player — fullscreen', () => {
   test('the mini player\'s own fullscreen button targets #videoFrame', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
-    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.goto('/player/?ref=Chullin%2089a');
     await page.click('#readingModeButton');
     await expect(page.locator('#readingVideoFloat')).toBeVisible();
 
@@ -144,7 +144,7 @@ test.describe('Reading Mode mini player — fullscreen', () => {
     // this scenario silently did nothing at all.
     failOnPageError(page);
     await preparePage(page, { user: null });
-    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.goto('/player/?ref=Chullin%2089a');
     await expect(page.locator('#fullscreenButton')).toBeAttached();
 
     const usedFallback = await page.evaluate(() => {
@@ -167,7 +167,7 @@ test.describe('Reading Mode mini player — fullscreen', () => {
   test('exiting also falls back to the WebKit-prefixed API when needed', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
-    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.goto('/player/?ref=Chullin%2089a');
     await page.click('#fullscreenButton');
     await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(true);
 
@@ -213,7 +213,7 @@ test.describe('Reading Mode mini player — tapping the video does not manufactu
   test('a plain tap never pauses (or plays) a YouTube video', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
-    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.goto('/player/?ref=Chullin%2089a');
     await page.click('#readingModeButton');
     await expect(page.locator('#readingVideoFloat')).toBeVisible();
 
@@ -237,7 +237,7 @@ test.describe('Reading Mode mini player — tapping the video does not manufactu
   test('a finger tap never plays or pauses a direct-link <video> either', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
-    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.goto('/player/?ref=Chullin%2089a');
     await page.click('#readingModeButton');
     await expect(page.locator('#readingVideoFloat')).toBeVisible();
 
@@ -250,7 +250,7 @@ test.describe('Reading Mode mini player — tapping the video does not manufactu
   test('a mouse click still toggles play/pause for a direct-link <video>, as on YouTube desktop', async ({ page }) => {
     failOnPageError(page);
     await preparePage(page, { user: null });
-    await page.goto('/browse/?ref=Chullin%2089a');
+    await page.goto('/player/?ref=Chullin%2089a');
     await page.click('#readingModeButton');
     await expect(page.locator('#readingVideoFloat')).toBeVisible();
 
