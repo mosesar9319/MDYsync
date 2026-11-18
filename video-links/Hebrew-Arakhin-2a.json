@@ -9,9 +9,13 @@
   ],
   "source": "live-auto",
   "liveBroadcast": true,
-  "liveStatus": "live",
-  "durationSeconds": 4944,
+  "liveStatus": "finished",
+  "durationSeconds": 4937,
   "actualStartTime": "2026-11-18T18:57:10Z",
-  "actualEndTime": null,
-  "locked": false
+  "actualEndTime": "2026-11-18T20:19:34Z",
+  "locked": false,
+  "lengthCheck": {
+    "seconds": 4937,
+    "firstSeenAt": "2026-11-18T20:25:12.483Z"
+  }
 }
