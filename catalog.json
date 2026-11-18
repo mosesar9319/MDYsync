@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-18T15:01:10.205Z",
+  "generatedAt": "2026-11-18T19:00:18.843Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -4610,6 +4610,18 @@
           "videoId": "2s3d2_CEw58",
           "label": "Daf Yomi Chullin Daf 2 by R' Eli Stefansky",
           "amud": "a"
+        }
+      }
+    ],
+    "Arakhin": [
+      {
+        "daf": 2,
+        "regularHe": {
+          "videoId": "o8D-SlbnNds",
+          "label": "מרכז דף יומי -  ערכין דף ב. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
+          "amud": "a",
+          "liveBroadcast": true,
+          "liveStatus": "live"
         }
       }
     ]
