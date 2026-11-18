@@ -24,6 +24,8 @@ import { preparePage, failOnPageError } from '../support/harness.mjs';
 // else being tested here.
 async function primeVideoSource(page) {
   await page.evaluate(() => {
+    // The Interactive Daf page keeps its player out of sight until a video is up.
+    document.body.classList.add('book-video-up');
     state.videoSource = { type: 'direct', url: 'https://example.invalid/a-shiur.mp4' };
     updatePlayUi();
   });

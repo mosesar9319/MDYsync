@@ -2738,11 +2738,14 @@ function renderVilnaWordBoxes() {
     const onLeave = () => { for (const el of els) el.classList.remove('phrase-hover'); };
     const onClick = () => {
       hapticTap();
-      // The Daf browser has its own video player on the same page -- a
-      // click plays into that in place instead of navigating away (same
-      // idea as the scan feature's tapScannedWord).
-      if (state.browseMode) playWordInline(segment.ref, wordIndex);
-      else if (state.vilnaMarkMode) markSegmentAtVilnaWord(segment.ref, wordIndex);
+      // The Interactive Daf page is the book on its own: a tap on a word
+      // opens that word's menu (daf-context-menu.js listens on the page
+      // itself, so every word answers, not only the phrases drawn here), and
+      // the menu is where a shiur is brought up. Live follow keeps its own
+      // tap: it says where the reading is.
+      if (state.browseMode) {
+        if (state.liveFollow?.active) playWordInline(segment.ref, wordIndex);
+      } else if (state.vilnaMarkMode) markSegmentAtVilnaWord(segment.ref, wordIndex);
       else if (state.segments.includes(segment)) activatePhrase(state.segments.indexOf(segment));
       else seekToVilnaWord(segment.ref, wordIndex);
     };
@@ -3173,7 +3176,7 @@ async function playWordInline(ref, wordIndex) {
   // Only meaningful once the layout collapses to a single column (see the
   // 1120px breakpoint in browse/index.html) -- side by side on a wider
   // screen the video is already in view, and this is a harmless no-op.
-  playerCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (!state.browseMode) playerCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
   // ref here is a word box's own per-paragraph ref (e.g. "Berakhot 2a:3" --
   // see page_ocr_align.py/caption_ocr_align.py's shared load_canonical()),
   // but state.dafRef is always the plain daf-level ref (loadDaf() strips
@@ -7470,6 +7473,9 @@ function decideViewerMode() {
 }
 
 function applyInitialViewerMode() {
+  // The Interactive Daf page opens as the book alone; a viewing mode there
+  // belongs to a shiur that has been brought up (see showBookVideo).
+  if (state.browseMode) return;
   const decision = decideViewerMode();
   if (viewerModeExplicit && decision.reason !== 'explicit-choice') return;
   if (!decision.mode || decision.reason === 'built-in-standard') return;
@@ -7478,6 +7484,14 @@ function applyInitialViewerMode() {
 }
 
 function rememberViewerMode(mode) {
+  // The book page keeps its own choice (how a shiur comes up over the daf),
+  // apart from the player pages' per-shiur one.
+  if (state.browseMode) {
+    if (mode !== 'standard') {
+      try { localStorage.setItem(BOOK_VIDEO_MODE_KEY, mode); } catch { /* private mode */ }
+    }
+    return;
+  }
   viewerModeExplicit = true;
   try {
     localStorage.setItem(VIEW_MIGRATION_KEY, '1');
@@ -7495,6 +7509,9 @@ function setViewerMode(mode, options = {}) {
   // (or switching mode) used to leave that panel stuck over the picture.
   window.closePlayerChromeMenus?.();
   setSplitLayoutMenuOpen(false);
+  // The Interactive Daf page keeps its player out of sight until a video is
+  // up; every one of these modes is a way of showing it.
+  if (state.browseMode && nextMode !== 'standard') document.body.classList.add('book-video-up');
   // Order matters only a little here (see each function's own early-return
   // guard, which makes calling one already at its target value a no-op) --
   // Split View settles the shared container's own layout first, then each
@@ -7507,6 +7524,8 @@ function setViewerMode(mode, options = {}) {
   document.body.dataset.viewerMode = nextMode;
   updateViewerModeUi();
   announceViewerMode(nextMode);
+  // On the book page, leaving all three modes puts the shiur away.
+  if (state.browseMode && nextMode === 'standard') closeBookVideo();
 }
 
 function updateViewerModeUi() {
@@ -9715,7 +9734,7 @@ async function loadDaf(refOverride = null, options = {}) {
     state.usingDefaultAlignment = !state.livePlainDaf;
     state.alignmentStatus = state.livePlainDaf ? 'live' : 'placeholder';
     updateAlignmentStatus();
-    $('dafTitle').textContent = heRef || ref;
+    $('dafTitle').textContent = state.browseMode && state.browsePageRef ? realDafRef(state.browsePageRef) : (heRef || ref);
     renderDaf();
     if (!state.livePlainDaf || preferredVideoSource?.liveStatus !== 'live') seek(0);
     if (!options.silent) {
@@ -11028,7 +11047,8 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
   if (deferPage) state.deferVilnaRaster = true;
   $('dafRef').value = state.dafRef;
   syncDafPickerFromRef(state.dafRef);
-  $('dafTitle').textContent = state.dafRef;
+  // The Interactive Daf page names the amud on its page, not the shiur that is up.
+  $('dafTitle').textContent = state.browseMode && state.browsePageRef ? realDafRef(state.browsePageRef) : state.dafRef;
   if (Number(data.duration) > 0) applyDuration(Number(data.duration), false);
   renderDaf();
   saveProjectForRef(state.dafRef, {
@@ -12473,12 +12493,9 @@ async function loadTalmudIndex() {
   $('syncTractateSelect').disabled = activeTractateNames.length <= 1;
   onSyncTractateChange();
   if ($('dafTractateSelect') && !$('dafTractateSelect').options.length) {
-    // Unlike the sync dialog's own tractate picker above (which needs
-    // every active tractate -- an admin syncs *unsynced* dapim from
-    // there), a tractate with nothing synced yet is skipped entirely here.
-    const dafPickerTractateNames = state.browseMode && state.syncedDapim
-      ? activeTractateNames.filter((name) => Object.keys(state.syncedDapim[name] || {}).length)
-      : activeTractateNames;
+    // Every masechta: the printed daf is there for all of Shas. Which dapim
+    // have a shiur to bring up is the word menu's business (bookShiurimFor).
+    const dafPickerTractateNames = activeTractateNames;
     $('dafTractateSelect').innerHTML = dafPickerTractateNames
       .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
     $('dafTractateSelect').disabled = dafPickerTractateNames.length <= 1;
@@ -12660,7 +12677,8 @@ function dafPickerRef() {
 function showBrowsePage(ref) {
   state.browsePageRef = ref;
   const titleEl = $('dafTitle');
-  if (titleEl) titleEl.textContent = ref;
+  // The book's own name: the amud, whichever shiur was last brought up.
+  if (titleEl) titleEl.textContent = realDafRef(ref);
   renderVilnaPage();
   renderVideoChoice();
 }
@@ -12757,6 +12775,84 @@ async function loadVideoChoice(choice) {
   renderVideoChoice();
 }
 
+// --- Interactive Daf: a shiur is brought up from a word's menu ---------------
+// The page is the book alone until then: no player, no list of shiurim. The
+// menu lists the shiurim that are synced for the word's amud; choosing one
+// loads it, floats the video over the daf (Video on daf -- or the mode last
+// used there: Split view and Daf on video are one tap away), and starts it at
+// that word. Leaving every mode, or the Close button, puts it away again.
+const BOOK_VIDEO_MODE_KEY = 'dafsync-book-video-mode';
+
+// The shiurim on the site that can play from a word of this amud. MDY's own
+// count only once that amud's sync has finished (list-synced-dapim); another
+// maggid's is offered as the catalog lists it.
+function bookShiurimFor(ref) {
+  if (!state.browseMode) return [];
+  const parsed = parseDafRef(ref);
+  if (!parsed) return [];
+  const synced = state.syncedDapim?.[parsed.tractate]?.[`${parsed.daf}${parsed.amud}`] || [];
+  return videoChoicesFor(parsed.tractate, parsed.daf)
+    .filter((choice) => choice.maggid || synced.includes(comboKeyFor(choice.variant, choice.language)));
+}
+
+function bookShiurRef(choice, ref) {
+  const parsed = parseDafRef(ref);
+  if (!parsed) return '';
+  const variantSuffix = choice.variant === 'chazarah' ? ' (Chazarah Daf)' : '';
+  const languageSuffix = (choice.language === 'he' ? ' (Hebrew)' : '') + maggidMarkerSuffix(choice.maggid);
+  return `${parsed.tractate} ${parsed.daf}${parsed.amud}${variantSuffix}${languageSuffix}`;
+}
+
+function showBookVideo() {
+  if (!state.browseMode) return;
+  document.body.classList.add('book-video-up');
+  if (state.viewerMode !== 'standard') return;
+  let mode = 'video-on-daf';
+  try {
+    const saved = localStorage.getItem(BOOK_VIDEO_MODE_KEY);
+    if (VIEWER_MODES.includes(saved) && saved !== 'standard') mode = saved;
+  } catch { /* private mode */ }
+  setViewerMode(mode);
+}
+
+function closeBookVideo() {
+  if (!state.browseMode || !document.body.classList.contains('book-video-up')) return;
+  document.body.classList.remove('book-video-up');
+  try { if (!isPaused()) togglePlay(); } catch { /* nothing playing */ }
+  const fullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+  if (fullscreen) {
+    try { (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch { /* already out */ }
+  }
+  if (state.viewerMode !== 'standard') setViewerMode('standard');
+  scheduleVilnaPageLayoutRefresh(60);
+}
+
+async function watchShiurFromWord(choice, ref, wordIndex) {
+  const full = bookShiurRef(choice, ref);
+  if (!full) return;
+  state.maggid = choice.maggid;
+  setActiveShiurVariant('dafShiurToggle', choice.variant);
+  setActiveLanguage('dafLanguageToggle', choice.language);
+  showBookVideo();
+  if (state.bookVideoRef !== full || !state.videoSource) {
+    try {
+      await loadDaf(full);
+      state.bookVideoRef = full;
+    } catch (error) {
+      console.error(error);
+      showToast(`Could not load ${full}: ${error.message}`, 'error');
+      return;
+    }
+  }
+  await seekToVilnaWord(ref, wordIndex);
+  if (isPaused()) await togglePlay();
+}
+window.dafBookVideo = { shiurimFor: bookShiurimFor, watch: watchShiurFromWord, close: closeBookVideo };
+$('bookVideoCloseButton')?.addEventListener('click', () => {
+  if (state.viewerMode !== 'standard') setViewerMode('standard'); // closes it (see setViewerMode)
+  else closeBookVideo();
+});
+
 function onDafPickerChanged() {
   // The picker has no control for another maggid's shiur (the list above the player
   // does), so a new pick starts from the default one unless a link named it.
@@ -12768,48 +12864,15 @@ function onDafPickerChanged() {
   if (state.liveFollow?.active) return window.dafLiveFollow?.pickerChanged(ref);
   if (state.browseMode) {
     showBrowsePage(ref);
-    // A daf with more than one shiur on the site loads none of them: the list above the
-    // player offers them (showBrowsePage drew it). Only a link that names a shiur itself
-    // (variant, language or maggid in the address) loads straight away.
+    // The book on its own: a shiur comes up when a word's menu asks for one.
+    // Only a link that names a shiur itself (a variant, a language or a
+    // maggid in the address) brings it up straight away.
     const pickedExplicitly = state.browseLoadExplicit;
     state.browseLoadExplicit = false;
-    if (!pickedExplicitly && (state.videoChoices || []).length > 1) return;
-    // Filtering livestreams can leave one finished shiur that isn't the
-    // toggle's default (English regular). Load that one instead of the
-    // live recording the default toggle would have fetched.
-    if (!pickedExplicitly && (state.videoChoices || []).length === 1) {
-      const only = state.videoChoices[0];
-      const toggleMatches = !only.maggid
-        && only.variant === activeShiurVariant('dafShiurToggle')
-        && only.language === activeLanguage('dafLanguageToggle');
-      if (!toggleMatches) {
-        state.maggid = only.maggid;
-        setActiveShiurVariant('dafShiurToggle', only.variant);
-        setActiveLanguage('dafLanguageToggle', only.language);
-        const redirected = dafPickerRef();
-        if (redirected && state.dafRef !== redirected) loadDaf(redirected).then(() => renderVideoChoice());
-        return;
-      }
+    if (pickedExplicitly && state.dafRef !== ref) {
+      showBookVideo();
+      loadDaf(ref).then(() => { state.bookVideoRef = ref; });
     }
-    // The Daf browser used to leave it at that -- a real report confirmed
-    // the video panel just stayed empty here, unlike every other page that
-    // embeds this same player DOM, where picking a daf always loads its
-    // video too. state.syncedDapim (already loaded for this picker's own
-    // enable/disable logic -- see refreshDafPickerVariantLanguage) is
-    // reused to check whether the CURRENT variant/language selection
-    // actually has a synced video before loading anything, rather than
-    // guessing from a failed fetch; a daf with no synced recording at all
-    // correctly stays page-only. Skipped when this exact ref is already
-    // loaded (stepping between two amudim one recording covers, or picking
-    // the daf that's already playing) so it never restarts playback the
-    // reader is mid-listening to.
-    const tractate = $('dafTractateSelect')?.value;
-    const daf = $('dafDafSelect')?.value;
-    const amud = activeAmud('dafAmudToggle');
-    const combos = state.syncedDapim?.[tractate]?.[`${daf}${amud}`] || [];
-    const wantsCombo = comboKeyFor(activeShiurVariant('dafShiurToggle'), activeLanguage('dafLanguageToggle'));
-    const namedMaggid = Boolean(state.maggid) && (state.videoChoices || []).some((c) => c.maggid === state.maggid);
-    if ((combos.includes(wantsCombo) || namedMaggid) && state.dafRef !== ref) loadDaf(ref).then(() => renderVideoChoice());
     return;
   }
   loadDaf(ref);

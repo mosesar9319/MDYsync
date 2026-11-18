@@ -1183,6 +1183,9 @@ async function loadLiveVideo() {
     return false;
   }
   if (live.videoFollow) stopLiveFollow();
+  // The Interactive Daf page keeps its player out of sight until a video is
+  // brought up; this is one.
+  document.body.classList.add('book-video-up');
   const button = $('lfVideoLoadButton');
   button.disabled = true;
   setVideoMessage('Loading the video…');
@@ -1769,7 +1772,10 @@ $('lfStartButton')?.addEventListener('click', () => {
 // The page's own daf picker sits at the top of the page: take the reader to it.
 $('lfChooseDafButton')?.addEventListener('click', () => {
   const field = document.querySelector('.setup-field.ref-field');
-  const select = $('dafDafSelect');
+  // Where the page shows only the masechta picker (the Interactive Daf page:
+  // its dial has the daf), that is the one to land on.
+  const dafSelect = $('dafDafSelect');
+  const select = dafSelect && dafSelect.offsetParent !== null ? dafSelect : $('dafTractateSelect');
   if (!field) return;
   field.scrollIntoView({ behavior: 'smooth', block: 'center' });
   field.classList.remove('lf-picker-flash');

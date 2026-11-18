@@ -64,7 +64,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Frank+Ruhl+Libre:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../styles.css" />
-  <link rel="stylesheet" href="../daf-book.css?v=1" />
+  <link rel="stylesheet" href="../daf-book.css?v=2" />
   <link rel="stylesheet" href="../watch-theme.css" />
   <link rel="stylesheet" href="../live-follow.css" />
   <link rel="stylesheet" href="../live-chaburah.css" />
@@ -581,7 +581,7 @@
         </div>
 
         <div class="setup-field ref-field">
-          <label>Daf reference</label>
+          <label for="dafTractateSelect">Masechta</label>
           <div class="daf-picker-row">
             <select id="dafTractateSelect" aria-label="Tractate"></select>
             <select id="dafDafSelect" class="daf-picker-narrow" aria-label="Daf"></select>
@@ -696,6 +696,11 @@
         <button type="button" class="viewer-mode-button" id="viewerModeVideoOnDafButton" aria-pressed="false" title="Video on daf: a movable video over the printed daf">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="5.5" y="12" width="8.5" height="5.5" rx="1" fill="currentColor" opacity=".25"/><path d="m9 13.4 3.2 1.85L9 17.1v-3.7Z" fill="currentColor"/><path d="M7 8h10" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
           <span>Video on daf</span>
+        </button>
+        <!-- Puts the shiur away: the page goes back to the book on its own. -->
+        <button type="button" class="viewer-mode-button book-video-close" id="bookVideoCloseButton" title="Close the video and go back to the daf on its own">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <span>Close video</span>
         </button>
       </div>
       <div id="viewerModeAnnouncer" class="sr-only" role="status" aria-live="polite"></div>
@@ -1035,11 +1040,12 @@
     <div class="eyebrow">Guide</div>
     <h2>How to use Interactive Daf</h2>
     <ol>
-      <li>Pick a tractate, daf, and amud above, or use the arrows beside the daf name (as in a Hebrew book, ‹ goes forward to the next amud and › goes back) or the "Next amud"/"Previous amud" buttons to flip through in order &mdash; a video that is playing keeps playing.</li>
-      <li>Tap any word on the page to play the shiur right here, starting at the exact moment it's discussed.</li>
-      <li>Switch English/Hebrew and Regular/Chazarah Daf above to browse whichever recording you want a tapped word to jump to.</li>
+      <li>Pick a masechta above. Spin the dial to choose a daf, and swipe the page sideways (or use the arrows beside the daf name) to turn to the next or previous amud. As in a Hebrew book, a swipe to the right, or ‹, goes forward.</li>
+      <li>Tap any word on the page for its menu: add a note, look the word up, copy it, start a discussion.</li>
+      <li>On a daf that has a synced shiur, the menu also offers "Watch from here" for each shiur. The video comes up over the daf, playing from that word.</li>
+      <li>While the video is up, switch to Split view or Daf on video with the buttons above the daf, or press "Close video" to go back to the daf on its own.</li>
     </ol>
-    <p class="dialog-note">Tapping a word only works for a daf that already has a synced shiur -- others will show what's available once it does.</p>
+    <p class="dialog-note">"Watch from here" appears only for dapim that already have a synced shiur.</p>
   </dialog>
 
   <dialog id="syncDialog">
@@ -1318,7 +1324,7 @@
   <script src="../vendor/supabase-js.min.js"></script>
   <script src="../auth.js"></script>
   <script src="../mdy-files.js?v=1" defer></script>
-  <script src="../app.js?v=202cq" defer></script>
+  <script src="../app.js?v=202cr" defer></script>
   <script src="../account-features.js?v=202c" defer></script>
   <script src="../notes-format.js" defer></script>
   <script src="../notes.js" defer></script>
@@ -1331,7 +1337,7 @@
   <script src="../live-matcher.js" defer></script>
   <script src="../live-video.js" defer></script>
   <script src="../live-follow.js" defer></script>
-  <script src="../daf-book.js?v=1" defer></script>
+  <script src="../daf-book.js?v=2" defer></script>
   <script src="../player-chrome.js" defer></script>
   <script src="../nav.js" defer></script>
   <script src="../collapse.js" defer></script>

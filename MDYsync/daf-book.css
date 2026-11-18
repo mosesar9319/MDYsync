@@ -280,3 +280,43 @@ body.split-view-active .daf-book-dial { margin: 6px 8px 8px; }
 @media (prefers-reduced-motion: reduce) {
   .daf-book-stage.is-leaving { transition: none; }
 }
+
+/* --- The page is the book alone -----------------------------------------------
+   No player and no list of shiurim: a shiur is brought up from a word's menu
+   (app.js, watchShiurFromWord), which sets body.book-video-up; closing it
+   takes the class off again. The masechta is the only pick -- the dial has
+   the daf, and a swipe or the arrows the amud. */
+body[data-page="browse"] .setup-strip .video-field,
+body[data-page="browse"] .setup-strip .action-field,
+body[data-page="browse"] #dafDafSelect,
+body[data-page="browse"] #dafAmudToggle,
+body[data-page="browse"] .picker-toggle-row,
+body[data-page="browse"] .browse-nav,
+body[data-page="browse"] #videoChoice,
+body[data-page="browse"] #dafCard .view-switch { display: none !important; }
+body[data-page="browse"]:not(.book-video-up) .watch-layout > .player-card,
+body[data-page="browse"]:not(.book-video-up) #viewerModeSelect,
+body[data-page="browse"] #dafCard .reading-mode-entry { display: none !important; }
+body[data-page="browse"]:not(.book-video-up) .workspace { grid-template-columns: minmax(0, 1fr); }
+body[data-page="browse"]:not(.book-video-up) #dafCard { width: min(100%, 980px); margin-inline: auto; }
+body[data-page="browse"] .setup-strip { display: flex; align-items: center; }
+body[data-page="browse"] .setup-strip .ref-field { flex: 1; min-width: 0; }
+body[data-page="browse"] .setup-strip .daf-picker-row { display: block; }
+body[data-page="browse"] #dafTractateSelect { width: 100%; max-width: 420px; }
+.viewer-mode-button.book-video-close { margin-inline-start: auto; }
+/* The word menu's lines that bring the shiur up. */
+.daf-context-item.is-primary { font-weight: 700; }
+body[data-page="browse"] .setup-strip .ref-field { border-left: 0 !important; padding-left: 0 !important; border-top: 0 !important; }
+/* While the video floats over the daf, the ways to change that (Split view,
+   Daf on video, Close) stay in reach as the daf scrolls. */
+body[data-page="browse"].book-video-up.reading-mode-active #viewerModeSelect {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  margin-inline: -8px;
+  padding: 8px;
+  border-radius: 0 0 16px 16px;
+  background: rgba(244,247,251,.94);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 6px 16px rgba(29,57,88,.10);
+}

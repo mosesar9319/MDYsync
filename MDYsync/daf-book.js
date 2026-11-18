@@ -654,6 +654,9 @@
     keyTimer = setTimeout(() => { dialHeld = null; flyTo(dialDapim[Math.round(dialValue)]); }, 650);
   });
   window.addEventListener('resize', () => { dialPainted = false; paintDial(); });
+  // The drum changes width without the window doing so (a video coming up
+  // beside the daf, the side menu folding): its marks are placed in pixels.
+  if (window.ResizeObserver) new ResizeObserver(() => { dialPainted = false; paintDial(); }).observe(drum);
 
   // Riffle to a daf: a few quick leaves, then its amud a.
   async function flyTo(daf) {
