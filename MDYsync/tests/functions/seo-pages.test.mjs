@@ -229,7 +229,7 @@ test('pictures: MDY\u2019s own, resized and sent from dafsync.com, when its serv
   assert.equal(pictures.get(chazarah58.videoId), null);
 
   const html = dafPage(BECHOROS, 58, SHIURIM, { pictures });
-  assert.ok(html.includes('src="https://dafsync.com/.netlify/images?url=https%3A%2F%2Fcdn.mdydaf.com%2Fshiur%2Fenglish%2Fbechoros%2Fthumb%2F58.png&amp;w=320&amp;fm=webp&amp;q=75"'));
+  assert.ok(html.includes('src="/.netlify/images?url=https%3A%2F%2Fcdn.mdydaf.com%2Fshiur%2Fenglish%2Fbechoros%2Fthumb%2F58.png&amp;w=320&amp;fm=webp&amp;q=75"'));
   assert.ok(html.includes(`src="https://i.ytimg.com/vi/${chazarah58.videoId}/mqdefault.jpg"`));
   assert.ok(html.includes(`src="https://i.ytimg.com/vi/${bornstein58.videoId}/mqdefault.jpg"`));
 

@@ -222,8 +222,11 @@ export function mdyPoster(s) {
     { title: s.label },
   );
 }
-export function resizedPicture(original, width, format = 'webp') {
-  return `${PUBLIC_SITE_ORIGIN}/.netlify/images?url=${encodeURIComponent(original)}&w=${width}&fm=${format}&q=75`;
+// Absolute for what other sites read (og:image, the VideoObject); relative
+// for the page's own <img>, so it works on deploy previews too.
+export function resizedPicture(original, width, format = 'webp', { absolute = true } = {}) {
+  const path = `/.netlify/images?url=${encodeURIComponent(original)}&w=${width}&fm=${format}&q=75`;
+  return absolute ? `${PUBLIC_SITE_ORIGIN}${path}` : path;
 }
 const youtubePicture = (s, size = 'hq') => `https://i.ytimg.com/vi/${s.videoId}/${size}default.jpg`;
 const PICTURE_CHECK_MS = 3000;
@@ -359,7 +362,7 @@ export function dafPage(masechta, daf, shiurim, { text = '', details = {}, pictu
   const prev = [...dapim].reverse().find((d) => d < daf);
   const next = dapim.find((d) => d > daf);
   const picture = (s) => (pictures.get(s.videoId)
-    ? `src="${escapeHtml(resizedPicture(pictures.get(s.videoId), 320))}"`
+    ? `src="${escapeHtml(resizedPicture(pictures.get(s.videoId), 320, 'webp', { absolute: false }))}"`
     : `src="${escapeHtml(youtubePicture(s, 'mq'))}"`);
   const items = here.map((s) => `<li><a href="${shiurPath(s)}"><img ${picture(s)} alt="" loading="lazy" width="160" height="90"><span><strong>${escapeHtml(maggidName(s.maggidId))}</strong><small>${escapeHtml([maggidChannel(s.maggidId), s.variant.label].filter(Boolean).join(' · '))}</small><br>${escapeHtml(s.label)}</span></a></li>`).join('\n');
   const spellings = otherSpellings(masechta);
