@@ -20,6 +20,7 @@ import {
 } from '../../shared/masechtos.mjs';
 import { MAGGIDIM, DEFAULT_MAGGID_ID, maggidById } from '../../shared/maggidim.mjs';
 import { OWNER, REPO, PUBLIC_SITE_ORIGIN } from '../../shared/dafsync-config.mjs';
+import MdyFiles from '../../mdy-files.js';
 
 // The four recordings a daf can have, in the order a page lists them, and
 // the address segment each one's shiur page gets after the maggid.
@@ -207,7 +208,43 @@ function breadcrumbs(items) {
   };
 }
 
-function videoObject(s, details) {
+// A shiur's picture. A Mercaz Daf Yomi shiur's comes from MDY's own server
+// (mdy-files.js) -- filtered devices often block YouTube's -- resized by
+// Netlify's image service, since MDY's originals are 1280x720 PNGs of over a
+// megabyte (netlify.toml allows MDY's server as a source). Every other
+// shiur's, and one MDY's server does not have, is YouTube's.
+export function mdyPoster(s) {
+  return MdyFiles.posterUrl(
+    {
+      tractate: s.masechta.name, daf: s.daf, variant: s.variant.variant || 'regular',
+      language: s.variant.language === 'hebrew' ? 'he' : 'en', maggid: s.maggidId,
+    },
+    { title: s.label },
+  );
+}
+export function resizedPicture(original, width, format = 'webp') {
+  return `${PUBLIC_SITE_ORIGIN}/.netlify/images?url=${encodeURIComponent(original)}&w=${width}&fm=${format}&q=75`;
+}
+const youtubePicture = (s, size = 'hq') => `https://i.ytimg.com/vi/${s.videoId}/${size}default.jpg`;
+const PICTURE_CHECK_MS = 3000;
+
+// Which of a page's shiurim MDY's server has a picture for (videoId -> its
+// address). Asked once per page build; the CDN keeps the page for an hour.
+export async function shiurPictures(list) {
+  const found = await Promise.all(list.map(async (s) => {
+    const poster = mdyPoster(s);
+    if (!poster) return null;
+    try {
+      const response = await fetch(poster, { method: 'HEAD', signal: AbortSignal.timeout(PICTURE_CHECK_MS) });
+      return response.ok ? poster : null;
+    } catch {
+      return null;
+    }
+  }));
+  return new Map(list.map((s, i) => [s.videoId, found[i]]));
+}
+
+function videoObject(s, details, pictures = new Map()) {
   const d = details?.[s.videoId];
   if (!d?.publishedAt) return null;
   return {
@@ -215,7 +252,7 @@ function videoObject(s, details) {
     '@type': 'VideoObject',
     name: s.label || `${dafName(s.masechta, s.daf)} — ${maggidName(s.maggidId)}`,
     description: shiurDescription(s),
-    thumbnailUrl: `https://i.ytimg.com/vi/${s.videoId}/hqdefault.jpg`,
+    thumbnailUrl: pictures.get(s.videoId) ? resizedPicture(pictures.get(s.videoId), 1280, 'jpg') : youtubePicture(s),
     uploadDate: d.publishedAt,
     ...(d.duration ? { duration: d.duration } : {}),
     embedUrl: `https://www.youtube.com/embed/${s.videoId}`,
@@ -313,7 +350,7 @@ ${items}
   });
 }
 
-export function dafPage(masechta, daf, shiurim, { text = '', details = {} } = {}) {
+export function dafPage(masechta, daf, shiurim, { text = '', details = {}, pictures = new Map() } = {}) {
   const here = shiurim.filter((s) => s.masechta === masechta && s.daf === daf);
   const name = displayName(masechta);
   const title = dafName(masechta, daf);
@@ -321,7 +358,10 @@ export function dafPage(masechta, daf, shiurim, { text = '', details = {} } = {}
   const dapim = [...new Set(shiurim.filter((s) => s.masechta === masechta).map((s) => s.daf))].sort((a, b) => a - b);
   const prev = [...dapim].reverse().find((d) => d < daf);
   const next = dapim.find((d) => d > daf);
-  const items = here.map((s) => `<li><a href="${shiurPath(s)}"><img src="https://i.ytimg.com/vi/${escapeHtml(s.videoId)}/mqdefault.jpg" alt="" loading="lazy" width="160" height="90"><span><strong>${escapeHtml(maggidName(s.maggidId))}</strong><small>${escapeHtml([maggidChannel(s.maggidId), s.variant.label].filter(Boolean).join(' · '))}</small><br>${escapeHtml(s.label)}</span></a></li>`).join('\n');
+  const picture = (s) => (pictures.get(s.videoId)
+    ? `src="${escapeHtml(resizedPicture(pictures.get(s.videoId), 320))}"`
+    : `src="${escapeHtml(youtubePicture(s, 'mq'))}"`);
+  const items = here.map((s) => `<li><a href="${shiurPath(s)}"><img ${picture(s)} alt="" loading="lazy" width="160" height="90"><span><strong>${escapeHtml(maggidName(s.maggidId))}</strong><small>${escapeHtml([maggidChannel(s.maggidId), s.variant.label].filter(Boolean).join(' · '))}</small><br>${escapeHtml(s.label)}</span></a></li>`).join('\n');
   const spellings = otherSpellings(masechta);
   const ref = `${masechta.name} ${daf}a`;
   const body = `<nav class="crumbs" aria-label="Breadcrumb"><a href="/">DafSync</a> › <a href="${masechtaPath(masechta)}">${escapeHtml(name)}</a> › Daf ${daf}</nav>
@@ -347,7 +387,7 @@ ${next ? `<a rel="next" href="${dafPath(masechta, next)}">${escapeHtml(name)} ${
     body,
     ld: jsonLd([
       breadcrumbs([['DafSync', '/'], [name, masechtaPath(masechta)], [`Daf ${daf}`, dafPath(masechta, daf)]]),
-      ...here.map((s) => videoObject(s, details)),
+      ...here.map((s) => videoObject(s, details, pictures)),
     ]),
   });
 }
@@ -359,7 +399,7 @@ ${next ? `<a rel="next" href="${dafPath(masechta, next)}">${escapeHtml(name)} ${
 // Takes the player's head tags that describe the page and puts this shiur's
 // in their place; the first thing the page runs moves the address bar to the
 // player's own address, so everything below works as on /player/.
-export function shiurPage(playerHtml, shiur, { mode = 'split', details = {} } = {}) {
+export function shiurPage(playerHtml, shiur, { mode = 'split', details = {}, pictures = new Map() } = {}) {
   const title = shiurTitle(shiur);
   const description = shiurDescription(shiur);
   const path = shiurPath(shiur);
@@ -374,11 +414,11 @@ export function shiurPage(playerHtml, shiur, { mode = 'split', details = {} } = 
   <meta property="og:url" content="${absolute(path)}">
   <meta property="og:title" content="${escapeHtml(title)}">
   <meta property="og:description" content="${escapeHtml(description)}">
-  <meta property="og:image" content="https://i.ytimg.com/vi/${escapeHtml(shiur.videoId)}/hqdefault.jpg">
+  <meta property="og:image" content="${escapeHtml(pictures.get(shiur.videoId) ? resizedPicture(pictures.get(shiur.videoId), 1200, 'jpg') : youtubePicture(shiur))}">
   <meta name="twitter:card" content="summary_large_image">
   ${jsonLd([
     breadcrumbs([['DafSync', '/'], [name, masechtaPath(shiur.masechta)], [`Daf ${shiur.daf}`, dafPath(shiur.masechta, shiur.daf)], [maggidName(shiur.maggidId), path]]),
-    videoObject(shiur, details),
+    videoObject(shiur, details, pictures),
   ])}`;
   let html = playerHtml
     .replace(/<title>[\s\S]*?<\/title>\s*/i, '')
@@ -460,11 +500,12 @@ export async function handle(request, env = {}) {
   if (route.kind === 'daf') {
     const here = shiurim.filter((s) => s.masechta === route.masechta && s.daf === route.daf);
     if (!here.length) return notFound(`No shiurim on ${dafName(route.masechta, route.daf)} yet.`);
-    const [text, details] = await Promise.all([
+    const [text, details, pictures] = await Promise.all([
       openingLines(route.masechta, route.daf),
       videoDetails(here.map((s) => s.videoId), env.YOUTUBE_API_KEY),
+      shiurPictures(here),
     ]);
-    return new Response(dafPage(route.masechta, route.daf, shiurim, { text, details }), { headers: PAGE_HEADERS });
+    return new Response(dafPage(route.masechta, route.daf, shiurim, { text, details, pictures }), { headers: PAGE_HEADERS });
   }
   const shiur = shiurim.find((s) => s.masechta === route.masechta && s.daf === route.daf
     && s.maggidId === route.maggidId && s.variant === route.variant);
@@ -472,13 +513,14 @@ export async function handle(request, env = {}) {
     const daf = shiurim.some((s) => s.masechta === route.masechta && s.daf === route.daf);
     return daf ? Response.redirect(`${url.origin}${dafPath(route.masechta, route.daf)}`, 302) : notFound();
   }
-  const [playerResponse, details] = await Promise.all([
+  const [playerResponse, details, pictures] = await Promise.all([
     fetchWithTimeout(new URL('/player/index.html', url.origin)),
     videoDetails([shiur.videoId], env.YOUTUBE_API_KEY),
+    shiurPictures([shiur]),
   ]);
   if (!playerResponse.ok) throw new Error(`player page: ${playerResponse.status}`);
   const mode = /^[a-z-]{1,20}$/.test(url.searchParams.get('mode') || '') ? url.searchParams.get('mode') : 'split';
-  return new Response(shiurPage(await playerResponse.text(), shiur, { mode, details }), { headers: PAGE_HEADERS });
+  return new Response(shiurPage(await playerResponse.text(), shiur, { mode, details, pictures }), { headers: PAGE_HEADERS });
 }
 
 export default async (request) => handle(request, {

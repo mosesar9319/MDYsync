@@ -2044,6 +2044,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
   <script src="vendor/supabase-js.min.js"></script>
   <script src="auth.js"></script>
   <script src="collapse.js" defer></script>
+  <script src="mdy-files.js?v=1"></script>
   <script>
   (() => {
     const iconPaths = {
@@ -2415,6 +2416,55 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
     }
 
+    // A Mercaz Daf Yomi shiur's picture comes from MDY's own server (filtered
+    // devices often block YouTube's pictures), resized by Netlify's image
+    // service and sent from dafsync.com -- MDY's originals are 1280x720 PNGs
+    // of over a megabyte. YouTube's picture is the fallback when MDY's is
+    // missing (mdy-files.js has the addresses), and for every other maggid.
+    function mdyThumbUrl(shiur) {
+      const files = window.MdyFiles;
+      if (!files || !shiur) return null;
+      const poster = files.posterUrl(
+        { tractate: shiur.tractate, daf: Number(shiur.daf), variant: shiur.variant, language: shiur.language, maggid: shiur.maggid || null },
+        { title: shiur.title || "", liveBroadcast: Boolean(shiur.liveBroadcast) },
+      );
+      return poster ? `/.netlify/images?url=${encodeURIComponent(poster)}&w=480&fm=webp&q=70` : null;
+    }
+    function shiurOfCombo(row, combo) {
+      return { ...entryForCombo(row, combo), title: row[combo].label || "" };
+    }
+    // src plus the YouTube fallback, for an <img> written as markup.
+    function thumbAttrs(videoId, shiur) {
+      const youtube = thumbUrl(videoId);
+      const mdy = mdyThumbUrl(shiur);
+      if (!mdy) return `src="${escapeHtml(youtube)}"`;
+      return `src="${escapeHtml(mdy)}" data-fallback="${escapeHtml(youtube)}" onerror="this.onerror=null;this.src=this.dataset.fallback"`;
+    }
+    // The same for an <img> already on the page.
+    function setThumb(img, videoId, shiur) {
+      const youtube = thumbUrl(videoId);
+      const mdy = mdyThumbUrl(shiur);
+      img.onerror = mdy ? () => { img.onerror = null; img.src = youtube; } : null;
+      img.src = mdy || youtube;
+    }
+    // A remembered shiur's daf and recording, from the catalog when it is
+    // still listed, otherwise from its own address.
+    function shiurOfHistory(entry) {
+      for (const row of state.catalog.concat(state.maggidRows)) {
+        const combo = COMBO_KEYS.find((key) => row[key]?.videoId === entry.videoId);
+        if (combo) return shiurOfCombo(row, combo);
+      }
+      const params = new URLSearchParams(String(entry.url || "").split("?")[1] || "");
+      const match = /^\s*([A-Za-z][A-Za-z' ]*?)\s+(\d{1,3})[ab]/.exec(params.get("ref") || entry.ref || "");
+      if (!match) return null;
+      return {
+        tractate: match[1], daf: Number(match[2]),
+        variant: params.get("variant") === "chazarah" ? "chazarah" : "regular",
+        language: ["he", "hebrew"].includes(params.get("language")) ? "he" : "en",
+        maggid: params.get("maggid") || DEFAULT_MAGGID,
+      };
+    }
+
     const COMBO_LABELS = {
       regularEn: "English", chazarahEn: "English · Chazarah",
       regularHe: "Hebrew", chazarahHe: "Hebrew · Chazarah",
@@ -2450,7 +2500,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       // new tab like any link.
       return `<a class="shiur-card" data-card="${index}" href="${escapeHtml(playerUrl(entryForCombo(row, combo)))}">
         <span class="thumbnail">
-          <img class="thumb-img" src="${thumbUrl(videoId)}" alt="" loading="lazy" />
+          <img class="thumb-img" ${thumbAttrs(videoId, shiurOfCombo(row, combo))} alt="" loading="lazy" />
           <span class="thumbnail-play">${icon("play", 20)}</span>
           ${isTodayRow(row) ? `<span class="thumb-badge is-today">Today</span>` : ""}
         </span>
@@ -2550,7 +2600,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       const details = historyDetails(entry);
       const percent = entry.duration > 0 ? Math.min(100, Math.max(2, (entry.time / entry.duration) * 100)) : 0;
       const progress = percent ? `<span class="continue-progress"><span style="width:${percent.toFixed(1)}%"></span></span>` : "";
-      const picture = `<span class="thumbnail"><img class="thumb-img" src="${thumbUrl(entry.videoId)}" alt="" loading="lazy" />${progress}</span>`;
+      const picture = `<span class="thumbnail"><img class="thumb-img" ${thumbAttrs(entry.videoId, shiurOfHistory(entry))} alt="" loading="lazy" />${progress}</span>`;
       return wide
         ? `<a class="continue-card is-wide" href="${escapeHtml(historyUrl(entry))}">${picture}<span class="card-copy"><strong dir="auto">${escapeHtml(details.title)}</strong><span></span><span class="card-meta-phone">${escapeHtml(details.meta)}</span>${avatarMarkup(details.maggid)}</span></a>`
         : `<a class="continue-card" href="${escapeHtml(historyUrl(entry))}">${picture}<strong dir="auto">${escapeHtml(details.title)}</strong><small>${escapeHtml(details.meta)}</small></a>`;
@@ -2663,7 +2713,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       const entry = entryForCombo(row, combo);
       document.querySelector("#shiur-title").textContent = videoLabel(row, combo);
       document.querySelector("#modal-teacher").textContent = `${maggidName(rowMaggid(row))} · ${dafLabel(row)} · ${COMBO_LABELS[combo]}`;
-      document.querySelector("#modal-thumb").src = thumbUrl(row[combo].videoId);
+      setThumb(document.querySelector("#modal-thumb"), row[combo].videoId, shiurOfCombo(row, combo));
       document.querySelector("#modal-watch-link").href = playerUrl(entry);
       document.querySelectorAll("#modal-variant-toggle button").forEach((button) => {
         button.classList.toggle("active", button.dataset.combo === combo);

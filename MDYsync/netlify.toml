@@ -154,12 +154,36 @@
   to = "/studio/"
   status = 301
 
+# A Mercaz Daf Yomi shiur's mp3, sent from dafsync.com so the player's
+# "Download audio" link saves it (a browser only honors a link's download
+# name for a file on the page's own site, and MDY's server sends no header
+# that would let another site's page save it). Only MDY's mp3 folders, so
+# this address cannot be used to pull MDY's video files through the site.
+# The player still streams from MDY's server directly (mdy-files.js); only
+# downloads pass through here, and they count toward the site's bandwidth.
+[[redirects]]
+  from = "/mdy-audio/:kind/:language/:masechta/mp3/:file"
+  to = "https://cdn.mdydaf.com/:kind/:language/:masechta/mp3/:file"
+  status = 200
+  force = true
+
+# MDY's shiur pictures (1280x720 PNGs of over a megabyte each) are shown
+# resized, through Netlify's image service: /.netlify/images?url=<MDY's
+# picture>&w=480&fm=webp (index.html, seo-pages.mjs, app.js).
+[images]
+  remote_images = ["https://cdn\\.mdydaf\\.com/.*"]
+
 [[headers]]
   for = "/*"
   [headers.values]
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+[[headers]]
+  for = "/mdy-audio/*"
+  [headers.values]
+    Content-Disposition = "attachment"
 
 [[headers]]
   for = "/assets/*"

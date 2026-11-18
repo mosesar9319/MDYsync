@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { MASECHTOS } from '../../shared/masechtos.mjs';
+import { mdyAudioUrl, dafOfReadings } from '../../tools/mdy-audio.mjs';
 
 const require = createRequire(import.meta.url);
 const M = require('../../mdy-files.js');
@@ -76,4 +77,17 @@ test('the quality a reader starts on, and where they play from', () => {
   assert.equal(M.normalizeSource('youtube'), 'youtube');
   assert.equal(M.normalizeSource(undefined), 'mdy');
   assert.equal(M.normalizeSource('vimeo'), 'mdy');
+});
+
+test('the voice job\u2019s audio: the daf most of the readings are on, or the title\u2019s', () => {
+  assert.deepEqual(dafOfReadings(['Bekhorot 57b', 'Bekhorot 58a', 'Bekhorot 58b', 'Bekhorot 59a']), { tractate: 'Bekhorot', daf: 58 });
+  assert.deepEqual(dafOfReadings(['Chullin 86a']), { tractate: 'Chullin', daf: 86 });
+  assert.equal(dafOfReadings([]), null);
+  assert.equal(dafOfReadings(['nonsense']), null);
+  assert.equal(mdyAudioUrl({ refs: ['Bekhorot 57b', 'Bekhorot 58a', 'Bekhorot 58b', 'Bekhorot 59a'] }),
+    'https://cdn.mdydaf.com/shiur/english/bechoros/mp3/58.mp3');
+  assert.equal(mdyAudioUrl({ refs: ['Chullin 93b'], variant: 'chazarah', language: 'he', title: "Daf Yomi Chullin Daf 94 by R' Eli Stefansky" }),
+    'https://cdn.mdydaf.com/nbtd/hebrew/chullin/mp3/94.mp3');
+  // Another maggid's shiur is not on MDY's server.
+  assert.equal(mdyAudioUrl({ refs: ['Bekhorot 2a', 'Bekhorot 2b'], maggid: 'bornstein' }), null);
 });

@@ -827,6 +827,12 @@
                       <option value="youtube">YouTube</option>
                     </select>
                   </label>
+                  <!-- An MDY shiur's audio: listen to it alone, or save the mp3
+                       (app.js refreshMdyAudioControl; hidden for anything else). -->
+                  <div class="mdy-audio-actions" id="mdyAudioControl" hidden>
+                    <button type="button" id="mdyListenButton" aria-pressed="false">Listen to audio only</button>
+                    <a id="mdyDownloadLink" href="#" download>Download audio (MP3)</a>
+                  </div>
                 </div>
               </details>
               <button class="video-fullscreen-button" id="fullscreenButton" aria-label="Fullscreen" title="Fullscreen">
@@ -1329,7 +1335,7 @@
   <script src="../vendor/supabase-js.min.js"></script>
   <script src="../auth.js"></script>
   <script src="../mdy-files.js?v=1" defer></script>
-  <script src="../app.js?v=202cm" defer></script>
+  <script src="../app.js?v=202cn" defer></script>
   <script src="../account-features.js?v=202c" defer></script>
   <script src="../notes-format.js" defer></script>
   <script src="../notes.js" defer></script>

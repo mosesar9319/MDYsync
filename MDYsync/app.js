@@ -66,6 +66,8 @@ const state = {
   // because YouTube would not load either.
   mdyTurnedAway: new Map(),
   mdyAcceptMismatch: new Set(),
+  // The video quality to return to from "Listen to audio only".
+  mdyVideoQuality: null,
   youtubePlayer: null,
   youtubeApiPromise: null,
   youtubeReady: false,
@@ -9853,7 +9855,11 @@ function setYouTubePoster(videoId) {
   const shield = ensureYouTubeShield();
   if (!shield) return;
   const id = String(videoId || '').replace(/[^A-Za-z0-9_-]/g, '');
-  shield.style.backgroundImage = id ? `url("https://i.ytimg.com/vi/${id}/hqdefault.jpg")` : '';
+  const youtube = id ? `url("https://i.ytimg.com/vi/${id}/hqdefault.jpg")` : '';
+  // An MDY shiur playing from YouTube shows MDY's own picture, with YouTube's
+  // underneath in case MDY's is missing.
+  const mdy = state.mdyShiur?.videoId === id ? mdyPictureUrl(state.mdyShiur) : null;
+  shield.style.backgroundImage = mdy && youtube ? `url("${mdy}"), ${youtube}` : youtube;
 }
 // Opening poster only. Once a frame has been shown, this does not swap
 // the picture for the thumbnail.
@@ -10336,6 +10342,14 @@ function preferredMdyQuality() {
   });
 }
 
+// MDY's picture of the shiur, resized by Netlify's image service and sent
+// from dafsync.com (MDY's originals are 1280x720 PNGs of over a megabyte;
+// netlify.toml allows MDY's server as a source).
+function mdyPictureUrl(shiur, width = 960) {
+  const original = shiur && MDY ? MDY.posterUrl(shiur.parsed, shiur.options) : null;
+  return original ? `/.netlify/images?url=${encodeURIComponent(original)}&w=${width}&fm=webp&q=75` : null;
+}
+
 // The MDY shiur a YouTube source is, or null (another maggid, a livestream,
 // MDY not loaded).
 function mdyShiurFor(ref, label, extras) {
@@ -10364,7 +10378,7 @@ function playMdyFile({ quality = preferredMdyQuality(), resumeAt = null, resume 
     checked: same ? state.mdyPlayback.checked : false,
   };
   if (!same) {
-    htmlVideo.poster = MDY.posterUrl(shiur.parsed, shiur.options) || '';
+    htmlVideo.poster = mdyPictureUrl(shiur) || '';
     htmlVideo.src = url;
     htmlVideo.load();
     // .load() resets the rate to 1 -- see handleVideoFile.
@@ -10436,6 +10450,7 @@ function changeMdyQuality(quality) {
   const playback = state.mdyPlayback;
   if (!playback || !MDY.QUALITIES.includes(quality) || quality === playback.quality) return;
   writeStoredValue(MDY.QUALITY_STORAGE_KEY, quality);
+  if (quality !== 'audio') state.mdyVideoQuality = quality;
   playMdyFile({ quality, resumeAt: Number(htmlVideo.currentTime) || 0, resume: !htmlVideo.paused });
 }
 
@@ -10448,6 +10463,79 @@ function refreshPlaySourceControl() {
   const showing = Boolean(shiur && state.videoSource?.videoId === shiur.videoId);
   control.hidden = !showing;
   if (showing) select.value = state.mdyPlayback ? 'mdy' : 'youtube';
+  refreshMdyAudioControl();
+}
+
+// An MDY shiur's audio: listen to it alone (the same file MDY's own site plays
+// as "Audio only"), or save its mp3. The download goes through dafsync.com
+// (netlify.toml's /mdy-audio/ rule): a browser only saves a link under its
+// download name for a file on the page's own site.
+function mdyDownloadName(shiur) {
+  const { parsed, options } = shiur;
+  const daf = MDY.dafFromTitle(options.title) || parsed.daf;
+  // The masechta as MDY and dafsync.com spell it ("Bechoros", not Sefaria's "Bekhorot").
+  const slug = MDY.MASECHTA_SLUGS[parsed.tractate];
+  const masechta = slug ? slug.split('-').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : parsed.tractate;
+  const parts = [
+    `${masechta} ${daf}`,
+    parsed.variant === 'chazarah' ? 'Chazarah' : '',
+    parsed.language === 'he' ? 'Hebrew' : '',
+    "R' Eli Stefansky",
+  ].filter(Boolean);
+  return `${parts.join(' - ')}.mp3`.replace(/[\\/:*?"<>|]+/g, ' ');
+}
+
+function refreshMdyAudioControl() {
+  const control = $('mdyAudioControl');
+  if (!control) return;
+  const shiur = state.mdyShiur;
+  const showing = Boolean(MDY && shiur && state.videoSource?.videoId === shiur.videoId);
+  control.hidden = !showing;
+  if (!showing) return;
+  const listening = state.mdyPlayback?.quality === 'audio';
+  const listen = $('mdyListenButton');
+  if (listen) {
+    listen.textContent = listening ? 'Back to video' : 'Listen to audio only';
+    listen.setAttribute('aria-pressed', String(listening));
+  }
+  const link = $('mdyDownloadLink');
+  const mp3 = MDY.fileUrl(shiur.parsed, { ...shiur.options, quality: 'audio' });
+  if (link && mp3) {
+    link.href = `/mdy-audio${mp3.slice(MDY.HOST.length)}`;
+    link.setAttribute('download', mdyDownloadName(shiur));
+  }
+}
+
+// The video quality to go back to from audio only: the one playing before,
+// else this device's usual one (never audio).
+function mdyVideoQuality() {
+  if (state.mdyVideoQuality && state.mdyVideoQuality !== 'audio') return state.mdyVideoQuality;
+  const connection = navigator.connection || {};
+  return MDY.defaultQuality({
+    narrowScreen: Boolean(window.matchMedia?.('(max-width: 760px)')?.matches),
+    saveData: Boolean(connection.saveData),
+    slowConnection: /(^|-)2g$/.test(connection.effectiveType || ''),
+  });
+}
+
+function toggleMdyListen() {
+  const shiur = state.mdyShiur;
+  if (!MDY || !shiur || state.videoSource?.videoId !== shiur.videoId) return;
+  if (state.mdyPlayback?.quality === 'audio') {
+    changeMdyQuality(mdyVideoQuality());
+  } else if (state.mdyPlayback) {
+    state.mdyVideoQuality = state.mdyPlayback.quality;
+    changeMdyQuality('audio');
+  } else {
+    // Playing from YouTube: MDY's mp3, in place.
+    const at = getCurrentTime();
+    const wasPlaying = !isPaused();
+    if (state.playerType === 'youtube' && state.youtubeReady) state.youtubePlayer.pauseVideo();
+    state.mdyTurnedAway.delete(shiur.videoId);
+    playMdyFile({ quality: 'audio', resumeAt: at, resume: wasPlaying });
+    setSourceBadge('MDY');
+  }
+  refreshMdyAudioControl();
 }
 
 async function changePlaySource(source) {
@@ -11187,6 +11275,7 @@ $('qualitySelect')?.addEventListener('change', (event) => {
   else state.youtubePlayer?.setPlaybackQuality?.(event.target.value);
 });
 $('playSourceSelect')?.addEventListener('change', (event) => { changePlaySource(event.target.value); });
+$('mdyListenButton')?.addEventListener('click', toggleMdyListen);
 $('fullscreenButton')?.addEventListener('click', toggleVideoFullscreen);
 document.addEventListener('fullscreenchange', () => updateVideoOverlay(getCurrentTime()));
 $('videoVilnaCanvas')?.addEventListener('click', handleVideoOverlayClick);

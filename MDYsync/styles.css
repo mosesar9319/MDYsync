@@ -519,6 +519,17 @@ h2 { margin-bottom: 0; }
 }
 .video-settings-body select { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.25); color: #fff; border-radius: 6px; padding: 4px 6px; }
 .quality-control { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: inherit; font-size: 12px; }
+/* An MDY shiur's audio: listen to it alone, or save the mp3 (app.js). */
+.mdy-audio-actions { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.15); }
+.mdy-audio-actions button,
+.mdy-audio-actions a {
+  display: block; min-height: 32px; padding: 7px 10px; border-radius: 6px; box-sizing: border-box;
+  border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.1); color: #fff;
+  font: inherit; text-align: center; text-decoration: none; cursor: pointer;
+}
+.mdy-audio-actions button:hover,
+.mdy-audio-actions a:hover { background: rgba(255,255,255,.18); }
+.mdy-audio-actions button[aria-pressed="true"] { background: #2f6ea5; border-color: #2f6ea5; }
 .video-settings-overlay-group { display: flex; flex-direction: column; gap: 8px; }
 /* Reparented to <body> by player-chrome.js (see there for why) -- position
    and right/bottom are then set inline per open, anchored to the gear's own

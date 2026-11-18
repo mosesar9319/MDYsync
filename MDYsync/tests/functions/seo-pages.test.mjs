@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   config, parseRoute, shiurimFromCatalog, masechtaPage, dafPage, shiurPage, sitemap, handle,
-  playerUrl, shiurPath, resetCatalogCache,
+  playerUrl, shiurPath, resetCatalogCache, mdyPoster, shiurPictures,
 } from '../../netlify/functions/seo-pages.mjs';
 import { MASECHTOS, MASECHTA_SLUGS, masechtaBySlug, hebrewNumeral, otherSpellings } from '../../shared/masechtos.mjs';
 
@@ -198,4 +198,43 @@ test('the handler: Sefaria down still gives the page, the catalog down gives a 5
     assert.equal(res.status, 503);
     assert.equal(res.headers.get('Retry-After'), '60');
   });
+});
+
+test('pictures: MDY\u2019s own, resized and sent from dafsync.com, when its server has one; YouTube\u2019s otherwise', async () => {
+  const mdy58 = SHIURIM.find((s) => s.daf === 58 && s.maggidId === 'stefansky' && s.variant.key === 'regularEn');
+  const chazarah58 = SHIURIM.find((s) => s.daf === 58 && s.variant.key === 'chazarahEn');
+  const bornstein58 = SHIURIM.find((s) => s.daf === 58 && s.maggidId === 'bornstein');
+  assert.equal(mdyPoster(mdy58), 'https://cdn.mdydaf.com/shiur/english/bechoros/thumb/58.png');
+  assert.equal(mdyPoster(chazarah58), 'https://cdn.mdydaf.com/nbtd/english/bechoros/thumb/58.png');
+  assert.equal(mdyPoster(bornstein58), null);
+
+  const asked = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    asked.push(`${init.method || 'GET'} ${url}`);
+    return new Response(null, { status: String(url).includes('/shiur/') ? 200 : 404 });
+  };
+  let pictures;
+  try {
+    pictures = await shiurPictures([mdy58, chazarah58, bornstein58]);
+  } finally {
+    globalThis.fetch = original;
+  }
+  // Only MDY's shiurim are asked about, and only with HEAD.
+  assert.deepEqual(asked, [
+    'HEAD https://cdn.mdydaf.com/shiur/english/bechoros/thumb/58.png',
+    'HEAD https://cdn.mdydaf.com/nbtd/english/bechoros/thumb/58.png',
+  ]);
+  assert.equal(pictures.get(mdy58.videoId), 'https://cdn.mdydaf.com/shiur/english/bechoros/thumb/58.png');
+  assert.equal(pictures.get(chazarah58.videoId), null);
+
+  const html = dafPage(BECHOROS, 58, SHIURIM, { pictures });
+  assert.ok(html.includes('src="https://dafsync.com/.netlify/images?url=https%3A%2F%2Fcdn.mdydaf.com%2Fshiur%2Fenglish%2Fbechoros%2Fthumb%2F58.png&amp;w=320&amp;fm=webp&amp;q=75"'));
+  assert.ok(html.includes(`src="https://i.ytimg.com/vi/${chazarah58.videoId}/mqdefault.jpg"`));
+  assert.ok(html.includes(`src="https://i.ytimg.com/vi/${bornstein58.videoId}/mqdefault.jpg"`));
+
+  const page = shiurPage(PLAYER_HTML, mdy58, { pictures });
+  assert.match(page, /<meta property="og:image" content="https:\/\/dafsync\.com\/\.netlify\/images\?url=https%3A%2F%2Fcdn\.mdydaf\.com%2Fshiur%2Fenglish%2Fbechoros%2Fthumb%2F58\.png&amp;w=1200&amp;fm=jpg&amp;q=75">/);
+  const fallback = shiurPage(PLAYER_HTML, bornstein58, {});
+  assert.match(fallback, new RegExp(`<meta property="og:image" content="https://i\\.ytimg\\.com/vi/${bornstein58.videoId}/hqdefault\\.jpg">`));
 });

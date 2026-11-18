@@ -198,4 +198,39 @@ test.describe('MDY shiurim from MDY’s own server', () => {
     await page.waitForFunction(() => state.playerType === 'youtube' && state.mdyPlayback === null);
     expect(await page.evaluate(() => document.getElementById('video').getAttribute('src'))).toBeNull();
   });
+
+  test('listen to the audio alone, and back to the video, in place; the mp3 downloads from dafsync.com', async ({ page }) => {
+    await openShiur(page, { videoSource: 'mdy' });
+    await page.waitForFunction(() => document.getElementById('video').readyState >= 1, null, { timeout: 15000 });
+    const before = await page.evaluate(() => state.mdyPlayback.url);
+    const link = await page.evaluate(() => ({
+      hidden: document.getElementById('mdyAudioControl').hidden,
+      href: document.getElementById('mdyDownloadLink').getAttribute('href'),
+      name: document.getElementById('mdyDownloadLink').getAttribute('download'),
+    }));
+    expect(link.hidden).toBe(false);
+    expect(link.href).toBe('/mdy-audio/shiur/english/chullin/mp3/89.mp3');
+    expect(link.name).toBe("Chullin 89 - R' Eli Stefansky.mp3");
+
+    await page.evaluate(() => { document.getElementById('video').currentTime = 5; });
+    await page.waitForFunction(() => Math.abs(document.getElementById('video').currentTime - 5) < 0.5);
+    await page.evaluate(() => toggleMdyListen());
+    await page.waitForFunction((mp3) => document.getElementById('video').getAttribute('src') === mp3, MDY_MP3);
+    await page.waitForFunction(() => Math.abs(document.getElementById('video').currentTime - 5) < 0.6, null, { timeout: 15000 });
+    expect(await page.evaluate(() => document.getElementById('mdyListenButton').getAttribute('aria-pressed'))).toBe('true');
+
+    await page.evaluate(() => toggleMdyListen());
+    await page.waitForFunction((url) => document.getElementById('video').getAttribute('src') === url, before);
+    expect(await page.evaluate(() => document.getElementById('mdyListenButton').textContent)).toBe('Listen to audio only');
+  });
+
+  test('from YouTube, "listen to audio only" switches to MDY\u2019s mp3 in place', async ({ page }) => {
+    await openShiur(page, { videoSource: 'youtube' });
+    await page.waitForFunction(() => state.playerType === 'youtube' && window.__ytCued === 'mdyTest0001', null, { timeout: 15000 });
+    expect(await page.evaluate(() => document.getElementById('mdyAudioControl').hidden)).toBe(false);
+    await page.evaluate(() => { window.__yt._time = 3; });
+    await page.evaluate(() => toggleMdyListen());
+    await page.waitForFunction((mp3) => state.playerType === 'html5' && document.getElementById('video').getAttribute('src') === mp3, MDY_MP3);
+    await page.waitForFunction(() => Math.abs(document.getElementById('video').currentTime - 3) < 0.6, null, { timeout: 15000 });
+  });
 });
