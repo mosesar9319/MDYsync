@@ -134,14 +134,18 @@ test.describe('MDY shiurim from MDY’s own server', () => {
     // Same recording: the highlight's clock is the file's clock.
     await page.evaluate(() => { document.getElementById('video').currentTime = 6; });
     await page.waitForFunction(() => Math.abs(getCurrentTime() - 6) < 0.5);
-    const control = await page.evaluate(() => ({
-      hidden: document.getElementById('playSourceControl').hidden,
-      value: document.getElementById('playSourceSelect').value,
+    const chrome = await page.evaluate(() => ({
       qualities: [...document.getElementById('qualitySelect').options].map((o) => o.value),
+      gear: document.querySelector('#videoSettings summary').getAttribute('aria-label'),
+      // No "Play from" choice any more: MDY first, YouTube only as the fallback.
+      playFrom: Boolean(document.getElementById('playSourceSelect')),
+      // MDY's files have no captions, so no captions button while one plays.
+      captions: getComputedStyle(document.getElementById('captionsStack')).display,
     }));
-    expect(control.hidden).toBe(false);
-    expect(control.value).toBe('mdy');
-    expect(control.qualities).toEqual(['360', '720', '1080', 'audio']);
+    expect(chrome.qualities).toEqual(['360', '720', '1080', 'audio']);
+    expect(chrome.gear).toBe('Quality');
+    expect(chrome.playFrom).toBe(false);
+    expect(chrome.captions).toBe('none');
   });
 
   test('a change of quality keeps the place, and audio only is the mp3', async ({ page }) => {
@@ -162,7 +166,8 @@ test.describe('MDY shiurim from MDY’s own server', () => {
     expect(now.mdy).toBeNull();
     expect(now.badge).toBe('YouTube');
     await expect(page.locator('#toast')).toContainText("isn't on MDY's server");
-    expect(await page.evaluate(() => document.getElementById('playSourceSelect').value)).toBe('youtube');
+    // YouTube has captions, so the button is back.
+    expect(await page.evaluate(() => document.body.classList.contains('playing-mdy-file'))).toBe(false);
   });
 
   test('a different recording from the synced one falls back to YouTube', async ({ page }) => {
@@ -181,53 +186,56 @@ test.describe('MDY shiurim from MDY’s own server', () => {
     await expect(page.locator('#toast')).toContainText("YouTube didn't load");
   });
 
-  test('a reader who chooses YouTube gets YouTube, and can switch back in place', async ({ page }) => {
-    const requests = await openShiur(page, { videoSource: 'youtube' });
-    await page.waitForFunction(() => state.playerType === 'youtube' && window.__ytCued === 'mdyTest0001', null, { timeout: 15000 });
-    expect(requests.mdy.filter((url) => url.endsWith('.mp4'))).toEqual([]);
-    expect(await page.evaluate(() => document.getElementById('playSourceSelect').value)).toBe('youtube');
-
-    await page.evaluate(() => { window.__yt._time = 4; });
-    await page.evaluate(() => changePlaySource('mdy'));
-    await page.waitForFunction(() => state.playerType === 'html5' && document.getElementById('video').readyState >= 1, null, { timeout: 15000 });
-    await page.waitForFunction(() => Math.abs(document.getElementById('video').currentTime - 4) < 0.6, null, { timeout: 15000 });
-    expect(await page.evaluate(() => localStorage.getItem('dafsync-video-source'))).toBe('mdy');
-    expect((await playing(page)).badge).toBe('MDY');
-
-    await page.evaluate(() => changePlaySource('youtube'));
-    await page.waitForFunction(() => state.playerType === 'youtube' && state.mdyPlayback === null);
-    expect(await page.evaluate(() => document.getElementById('video').getAttribute('src'))).toBeNull();
-  });
-
-  test('listen to the audio alone, and back to the video, in place; the mp3 downloads from dafsync.com', async ({ page }) => {
+  test('listen to the audio alone and back, in place, from More; the mp3 downloads from dafsync.com', async ({ page }) => {
     await openShiur(page, { videoSource: 'mdy' });
     await page.waitForFunction(() => document.getElementById('video').readyState >= 1, null, { timeout: 15000 });
     const before = await page.evaluate(() => state.mdyPlayback.url);
     const link = await page.evaluate(() => ({
-      hidden: document.getElementById('mdyAudioControl').hidden,
-      href: document.getElementById('mdyDownloadLink').getAttribute('href'),
-      name: document.getElementById('mdyDownloadLink').getAttribute('download'),
+      hidden: document.getElementById('moreDownloadLink').hidden,
+      href: document.getElementById('moreDownloadLink').getAttribute('href'),
+      name: document.getElementById('moreDownloadLink').getAttribute('download'),
+      listen: document.getElementById('moreListenButton').hidden,
     }));
     expect(link.hidden).toBe(false);
+    expect(link.listen).toBe(false);
     expect(link.href).toBe('/mdy-audio/shiur/english/chullin/mp3/89.mp3');
     expect(link.name).toBe("Chullin 89 - R' Eli Stefansky.mp3");
 
     await page.evaluate(() => { document.getElementById('video').currentTime = 5; });
     await page.waitForFunction(() => Math.abs(document.getElementById('video').currentTime - 5) < 0.5);
-    await page.evaluate(() => toggleMdyListen());
+    await page.evaluate(() => document.getElementById('moreListenButton').click());
     await page.waitForFunction((mp3) => document.getElementById('video').getAttribute('src') === mp3, MDY_MP3);
     await page.waitForFunction(() => Math.abs(document.getElementById('video').currentTime - 5) < 0.6, null, { timeout: 15000 });
-    expect(await page.evaluate(() => document.getElementById('mdyListenButton').getAttribute('aria-pressed'))).toBe('true');
+    expect(await page.evaluate(() => document.getElementById('moreListenButton').textContent)).toBe('Back to video');
 
-    await page.evaluate(() => toggleMdyListen());
+    await page.evaluate(() => document.getElementById('moreListenButton').click());
     await page.waitForFunction((url) => document.getElementById('video').getAttribute('src') === url, before);
-    expect(await page.evaluate(() => document.getElementById('mdyListenButton').textContent)).toBe('Listen to audio only');
+    expect(await page.evaluate(() => document.getElementById('moreListenButton').textContent)).toBe('Listen to audio only');
+  });
+
+  test('in Split view the audio controls are in the divider\u2019s drop-down, not More', async ({ page }) => {
+    await openShiur(page, { videoSource: 'mdy' });
+    await page.waitForFunction(() => document.getElementById('video').readyState >= 1, null, { timeout: 15000 });
+    await page.evaluate(() => setViewerMode('split'));
+    await page.evaluate(() => setSplitToolsOpen(true));
+    await expect(page.locator('#splitListenButton')).toBeVisible();
+    await expect(page.locator('#splitDownloadLink')).toBeVisible();
+    expect(await page.locator('#splitDownloadLink').getAttribute('href')).toBe('/mdy-audio/shiur/english/chullin/mp3/89.mp3');
+    expect(await page.evaluate(() => getComputedStyle(document.getElementById('moreListenButton')).display)).toBe('none');
+    // "Skip to" is no longer in the drop-down.
+    expect(await page.evaluate(() => {
+      const chip = document.getElementById('skipToDafChip');
+      return !chip || !document.getElementById('splitToolsPanel').contains(chip) || getComputedStyle(chip).display === 'none';
+    })).toBe(true);
+    await page.locator('#splitListenButton').click();
+    await page.waitForFunction((mp3) => document.getElementById('video').getAttribute('src') === mp3, MDY_MP3);
+    expect(await page.locator('#splitListenButton').getAttribute('aria-pressed')).toBe('true');
   });
 
   test('from YouTube, "listen to audio only" switches to MDY\u2019s mp3 in place', async ({ page }) => {
     await openShiur(page, { videoSource: 'youtube' });
     await page.waitForFunction(() => state.playerType === 'youtube' && window.__ytCued === 'mdyTest0001', null, { timeout: 15000 });
-    expect(await page.evaluate(() => document.getElementById('mdyAudioControl').hidden)).toBe(false);
+    expect(await page.evaluate(() => document.getElementById('moreListenButton').hidden)).toBe(false);
     await page.evaluate(() => { window.__yt._time = 3; });
     await page.evaluate(() => toggleMdyListen());
     await page.waitForFunction((mp3) => state.playerType === 'html5' && document.getElementById('video').getAttribute('src') === mp3, MDY_MP3);

@@ -280,7 +280,7 @@ test.describe('mobile player layout', () => {
     expect(overlay).toEqual(phone ? { mode: 'strip', opacity: 0.9, select: 'strip' } : { mode: 'full', opacity: 0.5, select: 'full' });
   });
 
-  test('the phone Split drop-down is two rows, the Skip chip at the end of the daf row', async ({ page }) => {
+  test('the phone Split drop-down is two rows, with no Skip chip in it', async ({ page }) => {
     test.skip(test.info().project.name !== 'mobile', 'touch');
     test.setTimeout(90000);
     for (const width of [412, 360]) {
@@ -291,11 +291,13 @@ test.describe('mobile player layout', () => {
       await page.locator('#splitDivider').tap();
       const panel = page.locator('#splitToolsPanel');
       await expect(panel).toBeVisible();
-      // At 0:00 the shiur is still in its lead-in: the chip offers the jump.
-      const chip = panel.locator('#splitToolsDafRow #skipToDafChip');
-      await expect(chip).toBeVisible();
-      await expect(chip).toHaveAttribute('data-short', /^Skip to \d+:\d\d$/);
-      await expect(chip).toHaveAttribute('aria-label', /^Skip to Bekhorot 30a \(/);
+      // At 0:00 the shiur is still in its lead-in, but the drop-down no longer
+      // offers the jump (the reader asked for the room).
+      await expect(panel.locator('#skipToDafChip')).toBeHidden();
+      // The layout tools are one Layout button; the audio controls sit beside it.
+      await expect(panel.locator('#splitLayoutMenuButton')).toBeVisible();
+      await expect(panel.locator('#splitListenButton')).toBeVisible();
+      await expect(panel.locator('#splitDownloadLink')).toBeVisible();
       const rows = await page.evaluate(() => {
         const visible = [...document.querySelectorAll('#splitToolsPanel .split-tools-scroll > *')]
           .filter((el) => el.getBoundingClientRect().height > 0);
@@ -379,9 +381,16 @@ test.describe('mobile player layout', () => {
     await page.locator('#splitDivider').tap();
     const panel = page.locator('#splitToolsPanel');
     await expect(panel).toBeVisible();
-    for (const id of ['viewerModeSplitButton', 'viewerModeDafOnVideoButton', 'viewerModeVideoOnDafButton', 'splitLayoutToggleButton', 'splitSwapButton', 'splitResetButton', 'splitFullscreenButton', 'splitExitButton']) {
+    for (const id of ['viewerModeSplitButton', 'viewerModeDafOnVideoButton', 'viewerModeVideoOnDafButton', 'splitLayoutMenuButton', 'splitFullscreenButton', 'splitExitButton']) {
       await expect(panel.locator(`#${id}`), id).toBeVisible();
     }
+    // The three layout tools are behind the Layout button.
+    await page.locator('#splitLayoutMenuButton').tap();
+    for (const id of ['splitLayoutToggleButton', 'splitSwapButton', 'splitResetButton']) {
+      await expect(page.locator(`#splitLayoutMenu #${id}`), id).toBeVisible();
+    }
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#splitLayoutMenu')).toBeHidden();
     const dafRow = panel.locator('#splitToolsDafRow');
     await expect(dafRow.locator('#splitAmudNextButton')).toBeVisible();
     await expect(dafRow.locator('#splitAmudPrevButton')).toBeVisible();

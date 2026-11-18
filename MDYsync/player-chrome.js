@@ -219,7 +219,32 @@
     });
     moreMenu.appendChild(button);
   }
+  // An MDY shiur's audio (app.js refreshMdyAudioControl keeps these current
+  // and shows them only for an MDY shiur). In Split view the same two live in
+  // the divider's drop-down instead (styles.css hides these there).
+  if ($('video')) {
+    const listen = document.createElement('button');
+    listen.type = 'button';
+    listen.id = 'moreListenButton';
+    listen.className = 'player-chrome-menu-item player-more-mdy';
+    listen.hidden = true;
+    listen.textContent = 'Listen to audio only';
+    listen.addEventListener('click', () => {
+      closeMenus();
+      window.toggleMdyListen?.();
+    });
+    const download = document.createElement('a');
+    download.id = 'moreDownloadLink';
+    download.className = 'player-chrome-menu-item player-more-mdy';
+    download.hidden = true;
+    download.href = '#';
+    download.setAttribute('download', '');
+    download.textContent = 'Download audio (MP3)';
+    download.addEventListener('click', () => closeMenus());
+    moreMenu.append(listen, download);
+  }
   if (!moreItems.length) $('playerMoreButton').hidden = true;
+  window.refreshMdyAudioControl?.();
 
   let topbarOpenedAt = 0;
   function closeMenus(except = null) {
@@ -567,8 +592,24 @@
     if (typeof window.setCaptionsEnabled === 'function') window.setCaptionsEnabled(next);
   });
 
-  const settingsStack = $('videoSettings') ? stack($('videoSettings'), 'Settings') : null;
+  // The gear holds only the video's quality now (MDY's sizes and audio only,
+  // or YouTube's levels), so it is called that.
+  const settingsStack = $('videoSettings') ? stack($('videoSettings'), 'Quality') : null;
   if (settingsStack) tools.appendChild(settingsStack);
+  // The Daf on video settings (style, opacity, zoom...) have their own
+  // button, shown only in Daf on video mode (styles.css, keyed off
+  // body[data-viewer-mode]). Same <details> pattern as the gear, set up by
+  // the same portal code below.
+  let overlaySettingsDetails = null;
+  let overlaySettingsStack = null;
+  if ($('overlayToggle')) {
+    overlaySettingsDetails = document.createElement('details');
+    overlaySettingsDetails.className = 'video-settings overlay-settings-menu';
+    overlaySettingsDetails.id = 'overlaySettingsMenu';
+    overlaySettingsDetails.innerHTML = `<summary aria-label="Daf on video settings" title="Daf on video settings">${ICONS.dafOnVideo}</summary><div class="video-settings-body"></div>`;
+    overlaySettingsStack = stack(overlaySettingsDetails, 'Daf settings', 'overlaySettingsStack');
+    tools.appendChild(overlaySettingsStack);
+  }
   const fullscreenStack = $('fullscreenButton') ? stack($('fullscreenButton'), 'Fullscreen') : null;
   if (fullscreenStack) tools.appendChild(fullscreenStack);
 
@@ -715,8 +756,10 @@
     closeMenus();
     closeToolsMenu();
     closeSpeedMenu();
-    const settings = $('videoSettings');
-    if (settings?.open) settings.open = false;
+    for (const id of ['videoSettings', 'overlaySettingsMenu']) {
+      const menu = $(id);
+      if (menu?.open) menu.open = false;
+    }
   };
   window.addEventListener('resize', () => { if (!toolsMoreMenu.hidden) positionToolsMenu(); });
 
@@ -734,7 +777,7 @@
   // so a resize that frees up room brings a control back to exactly where
   // it started rather than leaving it stranded in the menu from a previous,
   // narrower pass.
-  const TOOLS_ORDER = [speedStack, captionsStack, settingsStack, hasSplitView && splitViewButton, dafOnVideoButton, hasReadingMode && videoOnDafButton, pipStack, toolsMoreStack, fullscreenStack].filter(Boolean);
+  const TOOLS_ORDER = [speedStack, captionsStack, settingsStack, overlaySettingsStack, hasSplitView && splitViewButton, dafOnVideoButton, hasReadingMode && videoOnDafButton, pipStack, toolsMoreStack, fullscreenStack].filter(Boolean);
   // Overflow priority, most disposable first -- the mirror image of
   // TOOLS_ORDER's own tail: PiP is a pure convenience, the two older pills
   // exist because reading mode/the overlay each have their own separate,
@@ -747,7 +790,7 @@
   // the bar (re-pinned at the end of fitChrome). Speed is last here so it
   // leaves only after every wider control already has, which is what keeps
   // the phone bar inside the frame.
-  const OVERFLOW_PRIORITY = [pipStack, hasReadingMode && videoOnDafButton, dafOnVideoButton, hasSplitView && splitViewButton, settingsStack, captionsStack, speedStack].filter(Boolean);
+  const OVERFLOW_PRIORITY = [pipStack, hasReadingMode && videoOnDafButton, dafOnVideoButton, hasSplitView && splitViewButton, overlaySettingsStack, settingsStack, captionsStack, speedStack].filter(Boolean);
 
   // The old bar's hand-placed spacers/dividers did the job .pc-group's own
   // space-between layout now does.
@@ -838,7 +881,7 @@
       const overlayGroup = document.createElement('div');
       overlayGroup.className = 'video-settings-overlay-group';
       overlayGroup.append(heading, ...moving);
-      settingsBody.append(overlayGroup);
+      (overlaySettingsDetails?.querySelector('.video-settings-body') || settingsBody).append(overlayGroup);
     }
   }
   // What's left of each page's old overlay row is just the toggle app.js
@@ -878,89 +921,73 @@
   // instead, from the <details>' own 'toggle' event -- the one native signal
   // that still fires correctly regardless of where its content physically
   // lives in the DOM.
-  const settingsDetails = $('videoSettings');
-  if (settingsBody && settingsDetails) {
-    settingsBody.classList.add('video-settings-body-portal');
+  // One <details> menu in the bar -- the gear (Quality) or the Daf on video
+  // settings -- with its panel portaled to <body> (see above), opened on the
+  // press itself, closed by an outside click or Escape.
+  function setUpPortalMenu(details, body, anchor, emptyText) {
+    body.classList.add('video-settings-body-portal');
     // --accent/--accent-soft are scoped to .video-frame (see styles.css) for
     // a brighter tuning against its always-dark chrome, on watch/browse/
     // studio's otherwise light theme included -- copied onto the portaled
     // panel explicitly so it keeps that same tuning once it's no longer a
     // descendant of .video-frame to inherit it from.
     const frameAccent = getComputedStyle(frame);
-    settingsBody.style.setProperty('--accent', frameAccent.getPropertyValue('--accent'));
-    settingsBody.style.setProperty('--accent-soft', frameAccent.getPropertyValue('--accent-soft'));
-    attachChromeMenu(settingsBody);
-    settingsBody.hidden = true;
-
-    function positionSettingsPanel() {
-      placeChromeMenu(settingsBody, settingsDetails, 'end');
-    }
-    // Every row in the panel shows only when it applies (quality once the
-    // video reports its sizes, MDY's rows for an MDY shiur, the Daf on video
-    // settings in that mode), so it can have nothing in it -- say so rather
-    // than open an empty box.
-    const emptyNote = document.createElement('p');
-    emptyNote.className = 'video-settings-empty';
-    emptyNote.textContent = 'No settings for this video yet. Quality appears once it starts playing.';
-    emptyNote.hidden = true;
-    settingsBody.prepend(emptyNote);
-    function noteIfEmpty() {
+    body.style.setProperty('--accent', frameAccent.getPropertyValue('--accent'));
+    body.style.setProperty('--accent-soft', frameAccent.getPropertyValue('--accent-soft'));
+    attachChromeMenu(body);
+    body.hidden = true;
+    const position = () => placeChromeMenu(body, details, 'end');
+    // Every row shows only when it applies (quality once the video reports
+    // its sizes), so a panel can have nothing in it -- say so rather than
+    // open an empty box.
+    let emptyNote = null;
+    if (emptyText) {
+      emptyNote = document.createElement('p');
+      emptyNote.className = 'video-settings-empty';
+      emptyNote.textContent = emptyText;
       emptyNote.hidden = true;
-      const shown = [...settingsBody.children].some((child) => child !== emptyNote
-        && !child.hidden && getComputedStyle(child).display !== 'none');
-      emptyNote.hidden = shown;
+      body.prepend(emptyNote);
     }
-    settingsDetails.addEventListener('toggle', () => {
-      settingsBody.hidden = !settingsDetails.open;
-      if (settingsDetails.open) {
-        noteIfEmpty();
-        positionSettingsPanel();
+    details.addEventListener('toggle', () => {
+      body.hidden = !details.open;
+      if (!details.open) return;
+      if (emptyNote) {
+        emptyNote.hidden = true;
+        emptyNote.hidden = [...body.children].some((child) => child !== emptyNote
+          && !child.hidden && getComputedStyle(child).display !== 'none');
       }
+      position();
     });
     // Reported directly: tapping the gear did nothing. The <details>' own
     // open/close only happens on the click a tap is meant to synthesize, and
     // on a phone that click often never comes (the bar reflows between the
     // finger lifting and the click -- see bindPressToggle) -- the same
-    // failure every other menu in this bar was already moved off. The gear
-    // now toggles on the press itself, like them, and its native toggle is
-    // turned off so the two can't undo each other. Covers its "Settings" row
-    // in the More tray too: the caption next to the icon used to fall
-    // through to "close the tray", since the row has no <button> to forward
-    // the tap to.
-    const gearSummary = settingsDetails.querySelector('summary');
-    gearSummary?.addEventListener('click', (event) => event.preventDefault());
-    const gearAnchor = settingsStack || settingsDetails;
-    bindPressToggle(gearAnchor, () => settingsDetails.open, (open) => { settingsDetails.open = open; });
-    // Keeps the panel anchored to the gear through a window resize (the
-    // reading-mode mini player itself doesn't fire one when just dragged/
-    // resized by hand, but its own resize listener in app.js re-lays-out the
-    // float on every window resize regardless, which can move the gear) --
-    // only while actually open, since a closed (hidden) panel has nothing
-    // worth repositioning.
-    window.addEventListener('resize', () => { if (settingsDetails.open) positionSettingsPanel(); });
-
-    // Reported directly: the panel, once opened, never went away again
-    // except by tapping the tiny gear a second time -- every other menu in
-    // this bar (the daf picker, "More", the speed listbox, the tools
-    // overflow tray) closes on an outside click, but a native <details>'s
-    // own browser behaviour does NOT do that on its own; something has to
-    // ask for it explicitly, the same as those other menus already do, and
-    // nothing here ever did. Left open, position:fixed and z-index:30 (see
-    // .video-settings-body-portal), it sat on top of the video indefinitely
-    // -- and kept the control bar itself pinned visible too, since
-    // controlsShouldStayVisible (app.js) treats #videoSettings.open as a
-    // reason never to auto-hide. Setting .open = false queues the exact
-    // same native 'toggle' event a second click on the summary would have,
-    // so the listener above is still what actually hides the panel; this
-    // only ever asks for that toggle, the same division every other menu's
-    // own outside-click handler already keeps.
+    // failure every other menu in this bar was already moved off. It now
+    // toggles on the press itself, like them, and its native toggle is
+    // turned off so the two can't undo each other. That covers its row in
+    // the More tray too: the caption next to the icon used to fall through
+    // to "close the tray", since the row has no <button> to forward to.
+    details.querySelector('summary')?.addEventListener('click', (event) => event.preventDefault());
+    bindPressToggle(anchor || details, () => details.open, (open) => { details.open = open; });
+    window.addEventListener('resize', () => { if (details.open) position(); });
+    // A native <details> does not close on an outside click the way every
+    // other menu in this bar does; asked for explicitly. Setting .open
+    // queues the same 'toggle' event, so the listener above still hides it.
     document.addEventListener('click', (event) => {
-      if (!settingsDetails.open || settingsDetails.contains(event.target) || settingsBody.contains(event.target)) return;
-      settingsDetails.open = false;
+      if (!details.open || details.contains(event.target) || body.contains(event.target)) return;
+      details.open = false;
     });
     document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && settingsDetails.open) settingsDetails.open = false;
+      if (event.key === 'Escape' && details.open) details.open = false;
     });
+  }
+  const settingsDetails = $('videoSettings');
+  if (settingsBody && settingsDetails) {
+    setUpPortalMenu(settingsDetails, settingsBody, settingsStack,
+      'No quality choices for this video yet. They appear once it starts playing.');
+  }
+  if (overlaySettingsDetails) {
+    setUpPortalMenu(overlaySettingsDetails, overlaySettingsDetails.querySelector('.video-settings-body'), overlaySettingsStack, null);
   }
 
   function repositionOpenChromeMenus() {

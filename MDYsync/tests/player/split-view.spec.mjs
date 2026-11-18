@@ -326,6 +326,7 @@ test.describe('Split View — divider and layout', () => {
     const videoFrameHandle = await page.evaluateHandle(() => document.getElementById('videoFrame'));
     const before = await page.evaluate(() => state.splitViewLayout);
     await openSplitTools(page);
+    await page.click('#splitLayoutMenuButton');
     await page.click('#splitLayoutToggleButton');
     await expect.poll(() => page.evaluate(() => state.splitViewLayout)).toBe(before === 'stacked' ? 'side-by-side' : 'stacked');
     await expect.poll(() => page.evaluate(() => state.splitViewLayoutExplicit)).toBe(true);
@@ -341,6 +342,7 @@ test.describe('Split View — divider and layout', () => {
     await expect.poll(() => page.evaluate(() => state.splitViewVideoPosition)).toBe('start');
 
     await openSplitTools(page);
+    await page.click('#splitLayoutMenuButton');
     await page.click('#splitSwapButton');
     await expect.poll(() => page.evaluate(() => state.splitViewVideoPosition)).toBe('end');
     await expect(page.locator('.watch-layout')).toHaveClass(/split-video-end/);
@@ -373,6 +375,7 @@ test.describe('Split View — divider and layout', () => {
     expect(overlap.coversAuto).toBe(false);
     expect(overlap.insideVideo).toBe(true);
 
+    await page.click('#splitLayoutMenuButton');
     await page.click('#splitSwapButton');
     await expect.poll(() => page.evaluate(() => document.body.classList.contains('split-video-at-end'))).toBe(true);
     const swapped = await page.evaluate(() => {
@@ -1020,11 +1023,14 @@ test.describe('Split View — the portaled menus stay usable, not hidden behind 
     // <select>, .click() here does real pixel-based hit-testing, which is
     // exactly what the occlusion bug broke. Confirms the panel's CONTENTS are
     // reachable, not just that the panel element itself reports visible.
-    // (The Daf on video settings this used to click are shown only in that
-    // mode now, so the MDY audio row stands in, shown by hand: this daf's
-    // test fixture plays from YouTube.)
-    await page.evaluate(() => { document.getElementById('mdyAudioControl').hidden = false; });
-    await page.locator('#mdyListenButton').click();
+    // (The panel holds only the quality choice now; this daf's test fixture
+    // has no quality levels, so it is shown by hand.)
+    await page.evaluate(() => {
+      document.getElementById('qualitySelect').innerHTML = '<option value="hd720">720p</option><option value="medium">360p</option>';
+      document.getElementById('qualityControl').hidden = false;
+    });
+    await page.locator('#qualitySelect').click();
+    await page.keyboard.press('Escape');
 
     const panelBox = await page.locator('.video-settings-body').boundingBox();
     const vw = await page.evaluate(() => window.innerWidth);

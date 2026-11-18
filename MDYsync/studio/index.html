@@ -285,7 +285,7 @@
               <input id="volumeSlider" class="volume-slider" type="range" min="0" max="100" step="1" value="100" aria-label="Volume" />
               <div class="control-divider control-divider-end"></div>
               <details class="video-settings" id="videoSettings">
-                <summary aria-label="Video settings"></summary>
+                <summary aria-label="Quality" title="Quality"></summary>
                 <div class="video-settings-body">
                   <div class="speed-control">
                     <span id="speedControlCaption">Speed</span>
@@ -305,21 +305,6 @@
                   <label class="quality-control" id="qualityControl" hidden>Quality
                     <select id="qualitySelect"></select>
                   </label>
-                  <!-- An MDY shiur plays from MDY's own server unless the reader picks
-                       YouTube here (app.js refreshPlaySourceControl; hidden for anything
-                       that is not an MDY shiur). -->
-                  <label class="quality-control" id="playSourceControl" hidden>Play from
-                    <select id="playSourceSelect">
-                      <option value="mdy">MDY's server</option>
-                      <option value="youtube">YouTube</option>
-                    </select>
-                  </label>
-                  <!-- An MDY shiur's audio: listen to it alone, or save the mp3
-                       (app.js refreshMdyAudioControl; hidden for anything else). -->
-                  <div class="mdy-audio-actions" id="mdyAudioControl" hidden>
-                    <button type="button" id="mdyListenButton" aria-pressed="false">Listen to audio only</button>
-                    <a id="mdyDownloadLink" href="#" download>Download audio (MP3)</a>
-                  </div>
                 </div>
               </details>
               <button class="video-fullscreen-button" id="fullscreenButton" aria-label="Fullscreen" title="Fullscreen">
@@ -771,7 +756,7 @@
   <script src="../chabura-core.js" defer></script>
   <script src="../profile-data.js" defer></script>
   <script src="../mdy-files.js?v=1" defer></script>
-  <script src="../app.js?v=202cn" defer></script>
+  <script src="../app.js?v=202co" defer></script>
   <script src="../catalog.js" defer></script>
   <script src="../account-features.js?v=202c" defer></script>
   <script src="../notes-format.js" defer></script>

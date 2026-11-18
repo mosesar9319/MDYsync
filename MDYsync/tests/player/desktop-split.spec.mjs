@@ -266,6 +266,7 @@ test.describe('Split View opens side by side on a computer', () => {
   test('stacked chosen with the layout button sticks on the next visit', async ({ page }) => {
     await openPlayer(page);
     await openSplit(page);
+    await page.locator('#splitLayoutMenuButton').click();
     await page.locator('#splitLayoutToggleButton').click();
     expect(await page.evaluate(() => state.splitViewLayout)).toBe('stacked');
     await page.reload();

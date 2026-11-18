@@ -239,6 +239,7 @@ test.describe('phone speed, more menu, and captions', () => {
     await revealChrome(page);
     await page.click('#playerDafButton');
     await expect(page.locator('#playerDafMenu')).toBeVisible();
+    await page.click('#splitLayoutMenuButton');
     await page.click('#splitLayoutToggleButton');
     await expect(page.locator('#playerDafMenu')).toBeHidden();
   });
