@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-18T11:35:15.437Z",
+  "generatedAt": "2026-11-18T13:30:16.138Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -1362,12 +1362,9 @@
       {
         "daf": 61,
         "regularHe": {
-          "videoId": "7TpK2_tJrto",
-          "label": "מרכז דף יומי -  בכורות דף סא. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
-          "amud": "a",
-          "liveBroadcast": true,
-          "liveStatus": "finished",
-          "durationSeconds": 5291
+          "videoId": "5NikyWa4o1A",
+          "label": "מרכז דף יומי - בכורות דף סא. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "YPlS157SipA",
