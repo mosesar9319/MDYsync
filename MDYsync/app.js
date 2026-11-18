@@ -9856,10 +9856,16 @@ function setYouTubePoster(videoId) {
   if (!shield) return;
   const id = String(videoId || '').replace(/[^A-Za-z0-9_-]/g, '');
   const youtube = id ? `url("https://i.ytimg.com/vi/${id}/hqdefault.jpg")` : '';
-  // An MDY shiur playing from YouTube shows MDY's own picture, with YouTube's
-  // underneath in case MDY's is missing.
+  shield.style.backgroundImage = youtube;
+  // An MDY shiur playing from YouTube shows MDY's own picture once it has
+  // loaded (filtered devices often block YouTube's); YouTube's stays if
+  // MDY's is missing.
   const mdy = state.mdyShiur?.videoId === id ? mdyPictureUrl(state.mdyShiur) : null;
-  shield.style.backgroundImage = mdy && youtube ? `url("${mdy}"), ${youtube}` : youtube;
+  if (mdy) {
+    const picture = new Image();
+    picture.onload = () => { if (state.youtubeCueId === id) shield.style.backgroundImage = `url("${mdy}")`; };
+    picture.src = mdy;
+  }
 }
 // Opening poster only. Once a frame has been shown, this does not swap
 // the picture for the thumbnail.
