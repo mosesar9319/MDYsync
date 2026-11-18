@@ -1,12 +1,8 @@
 {
+  "label": "Daf Yomi Bechoros Daf 61 by R' Eli Stefansky",
+  "locked": false,
+  "source": "manual",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=YPlS157SipA",
-  "videoId": "YPlS157SipA",
-  "label": "Daf Yomi Bechoros Daf 61 by R' Eli Stefansky",
-  "coveredRefs": [
-    "Bekhorot 60b",
-    "Bekhorot 61a"
-  ],
-  "source": "channel-auto",
-  "locked": false
+  "videoId": "YPlS157SipA"
 }
