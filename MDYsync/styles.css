@@ -525,6 +525,10 @@ body:not([data-viewer-mode="daf-on-video"]) #overlaySettingsStack { display: non
 #overlaySettingsMenu summary svg { width: 18px; height: 18px; }
 /* MDY's files have no captions, so no captions button while one plays (app.js refreshMdyChrome). */
 body.playing-mdy-file #captionsStack { display: none !important; }
+/* 2.5x and 3x only for MDY's own files; YouTube's player stops at 2x. */
+body:not(.playing-mdy-file) #speedMenu .speed-mdy-only { display: none; }
+/* Split view's second fullscreen button: the video and the daf together. */
+body:not(.split-view-active) #splitFullscreenStack { display: none !important; }
 /* An MDY shiur's audio: in the Split drop-down while in Split view, in the
    top bar's More menu everywhere else (app.js, player-chrome.js). */
 body.split-view-active .player-more-mdy { display: none !important; }

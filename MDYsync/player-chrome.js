@@ -411,6 +411,12 @@
       { value: '1.25', label: '1.25\u00d7' },
       { value: '1.5', label: '1.5\u00d7' },
       { value: '2', label: '2\u00d7' },
+      // Only for a file of MDY's, played in the page's own <video>: YouTube's
+      // embedded player stops at 2x and ignores anything faster. styles.css
+      // shows these while body.playing-mdy-file (app.js refreshMdyChrome),
+      // which also steps a faster rate back to 2x if YouTube takes over.
+      { value: '2.5', label: '2.5\u00d7', mdyOnly: true },
+      { value: '3', label: '3\u00d7', mdyOnly: true },
     ];
     // speedButton.querySelector(...), not $('speedSelectValue') --
     // deliberately. #speedSelect (and the whole `tools` group it's built
@@ -458,6 +464,7 @@
       li.id = `speedOption-${rate.value}`;
       li.dataset.value = rate.value;
       li.setAttribute('aria-selected', 'false');
+      if (rate.mdyOnly) li.classList.add('speed-mdy-only');
       li.textContent = rate.label;
       // click, not pointerdown/touchstart -- exactly the event every other
       // control in this bar already activates on, and the one event a plain
@@ -491,6 +498,8 @@
       if (fireChange) speedButton.dispatchEvent(new Event('change', { bubbles: true }));
     }
     selectSpeed(speedButton.value);
+    // For app.js: step the rate back when a faster one stops being possible.
+    window.setPlayerSpeed = (value) => selectSpeed(String(value), { fireChange: true });
 
     // aria-activedescendant, not per-option tabindex: focus stays on the
     // listbox itself while arrow keys move a highlighted option, the
@@ -538,7 +547,7 @@
       else closeSpeedMenu();
     });
     speedMenu.addEventListener('keydown', (event) => {
-      const items = [...speedMenu.children];
+      const items = [...speedMenu.children].filter((item) => item.offsetParent !== null);
       const idx = items.indexOf(activeOption());
       if (event.key === 'ArrowDown') { event.preventDefault(); setActiveOption(items[Math.min(items.length - 1, idx + 1)]); }
       else if (event.key === 'ArrowUp') { event.preventDefault(); setActiveOption(items[Math.max(0, idx - 1)]); }
@@ -609,6 +618,27 @@
     overlaySettingsDetails.innerHTML = `<summary aria-label="Daf on video settings" title="Daf on video settings">${ICONS.dafOnVideo}</summary><div class="video-settings-body"></div>`;
     overlaySettingsStack = stack(overlaySettingsDetails, 'Daf settings', 'overlaySettingsStack');
     tools.appendChild(overlaySettingsStack);
+  }
+  // In Split view the bar has two fullscreen buttons: the usual one fills
+  // the screen with the video alone, and this one with the video and the
+  // daf together (app.js toggleVilnaFullscreen -- what the Split toolbar's
+  // own fullscreen button did before it was removed). Shown only in Split
+  // (styles.css); the usual one's caption reads "Video" there.
+  let splitFullscreenStack = null;
+  if ($('fullscreenButton') && document.querySelector('.watch-layout')) {
+    const splitFullscreen = document.createElement('button');
+    splitFullscreen.type = 'button';
+    splitFullscreen.className = 'icon-button';
+    splitFullscreen.id = 'splitFullscreenBarButton';
+    splitFullscreen.title = 'Fullscreen: video and daf';
+    splitFullscreen.setAttribute('aria-label', 'Fullscreen: video and daf');
+    splitFullscreen.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8V3h5M21 8V3h-5M3 16v5h5M21 16v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 7v10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+    splitFullscreen.addEventListener('click', (event) => {
+      event.stopPropagation();
+      window.toggleVilnaFullscreen?.();
+    });
+    splitFullscreenStack = stack(splitFullscreen, 'Video + daf', 'splitFullscreenStack');
+    tools.appendChild(splitFullscreenStack);
   }
   const fullscreenStack = $('fullscreenButton') ? stack($('fullscreenButton'), 'Fullscreen') : null;
   if (fullscreenStack) tools.appendChild(fullscreenStack);
@@ -777,7 +807,7 @@
   // so a resize that frees up room brings a control back to exactly where
   // it started rather than leaving it stranded in the menu from a previous,
   // narrower pass.
-  const TOOLS_ORDER = [speedStack, captionsStack, settingsStack, overlaySettingsStack, hasSplitView && splitViewButton, dafOnVideoButton, hasReadingMode && videoOnDafButton, pipStack, toolsMoreStack, fullscreenStack].filter(Boolean);
+  const TOOLS_ORDER = [speedStack, captionsStack, settingsStack, overlaySettingsStack, hasSplitView && splitViewButton, dafOnVideoButton, hasReadingMode && videoOnDafButton, pipStack, toolsMoreStack, splitFullscreenStack, fullscreenStack].filter(Boolean);
   // Overflow priority, most disposable first -- the mirror image of
   // TOOLS_ORDER's own tail: PiP is a pure convenience, the two older pills
   // exist because reading mode/the overlay each have their own separate,
@@ -833,6 +863,9 @@
     dafOnVideoButton.setAttribute('aria-pressed', String(frame.classList.contains('overlay-on')));
     videoOnDafButton.setAttribute('aria-pressed', String(document.body.classList.contains('reading-mode-active')));
     if (hasSplitView) splitViewButton.setAttribute('aria-pressed', String(document.body.classList.contains('split-view-active')));
+    // Beside "Video + daf", the usual fullscreen button is the video alone.
+    const fullscreenCaption = fullscreenStack?.querySelector('.pc-label');
+    if (fullscreenCaption) fullscreenCaption.textContent = document.body.classList.contains('split-view-active') ? 'Video' : 'Fullscreen';
     const favorite = $('favoriteButton');
     if (favorite) {
       $('playerBookmarkButton').hidden = favorite.hidden;
@@ -1360,6 +1393,7 @@
     // same reason the reorder above is: reparenting a node mid-touch (this
     // whole function can run on the very touchstart that reveals the bar)
     // is what was confirmed to leave the page unresponsive on a real device.
+    if (splitFullscreenStack && splitFullscreenStack.parentElement === tools && fullscreenStack?.previousElementSibling !== splitFullscreenStack) tools.appendChild(splitFullscreenStack);
     if (fullscreenStack && tools.lastElementChild !== fullscreenStack) tools.appendChild(fullscreenStack);
     fittedWidth = frame.clientWidth;
 

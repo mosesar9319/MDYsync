@@ -2615,6 +2615,18 @@ function toggleVilnaFullscreen() {
   const wantsSharedSurface = state.readingModeEnabled || state.viewerMode === 'split';
   const target = wantsSharedSurface && watchSurface ? watchSurface : card;
   const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
+  // The video alone is fullscreen (Split's other fullscreen button): switch
+  // straight to the video and the daf, rather than just leaving fullscreen.
+  if (fullscreenElement && fullscreenElement !== target && state.viewerMode === 'split' && target.contains(fullscreenElement)) {
+    const request = target.requestFullscreen || target.webkitRequestFullscreen;
+    if (request) {
+      Promise.resolve(request.call(target)).catch(() => {
+        const exit = document.exitFullscreen || document.webkitExitFullscreen;
+        if (exit) Promise.resolve(exit.call(document)).catch(() => {});
+      });
+      return;
+    }
+  }
   if (fullscreenElement) {
     const exit = document.exitFullscreen || document.webkitExitFullscreen;
     if (state.viewerMode === 'split') suppressSplitExitOnFullscreenChange = true;
@@ -6829,9 +6841,9 @@ function placeSplitMdyAudioControls(phone) {
   const download = $('splitDownloadLink');
   if (!listen || !download) return;
   const toolbar = $('splitToolbar');
-  const fullscreen = $('splitFullscreenButton');
-  if (phone && toolbar && fullscreen?.parentElement === toolbar) {
-    if (listen.nextElementSibling !== download || download.nextElementSibling !== fullscreen) fullscreen.before(listen, download);
+  const exit = $('splitExitButton');
+  if (phone && toolbar && exit?.parentElement === toolbar) {
+    if (listen.nextElementSibling !== download || download.nextElementSibling !== exit) exit.before(listen, download);
     return;
   }
   const back = $('splitAmudBackButton');
@@ -7763,59 +7775,6 @@ function announceViewerMode(mode) {
     saveSplitViewPreferences();
   });
   buildSplitLayoutMenu();
-  // The overlay bar auto-hides with pointer-events:none, and a tap on the
-  // video underneath (pinch surface, wake strip) only reveals or dismisses
-  // chrome — the click never reaches this button. Hit-test through the
-  // hidden bar on pointerdown, in the capture phase, so the first tap
-  // enters fullscreen whether the bar was showing, fading, or just revealed.
-  // pointerdown is the user gesture; waiting for click loses it once the
-  // bar's pointer-events drop mid-press.
-  let swallowSplitFullscreenClick = false;
-  function splitBarControlAt(x, y) {
-    const bar = $('viewerModeSelect');
-    if (!bar || !state.splitViewEnabled) return null;
-    const hidden = document.body.classList.contains('split-chrome-hidden');
-    const previous = hidden
-      ? { pointerEvents: bar.style.pointerEvents, visibility: bar.style.visibility }
-      : null;
-    if (previous) {
-      bar.style.pointerEvents = 'auto';
-      bar.style.visibility = 'visible';
-    }
-    const under = document.elementFromPoint(x, y);
-    if (previous) {
-      bar.style.pointerEvents = previous.pointerEvents;
-      bar.style.visibility = previous.visibility;
-    }
-    const control = under?.closest?.('button');
-    return control && bar.contains(control) ? control : null;
-  }
-  document.addEventListener('pointerdown', (event) => {
-    if (!state.splitViewEnabled || event.button > 0) return;
-    const control = splitBarControlAt(event.clientX, event.clientY);
-    if (control?.id !== 'splitFullscreenButton') return;
-    showSplitChrome();
-    swallowSplitFullscreenClick = true;
-    setTimeout(() => { swallowSplitFullscreenClick = false; }, 700);
-    toggleVilnaFullscreen();
-    event.preventDefault();
-    event.stopPropagation();
-  }, true);
-  document.addEventListener('click', (event) => {
-    if (!swallowSplitFullscreenClick) return;
-    swallowSplitFullscreenClick = false;
-    event.preventDefault();
-    event.stopPropagation();
-  }, true);
-  $('splitFullscreenButton')?.addEventListener('click', (event) => {
-    event.stopPropagation();
-    if (swallowSplitFullscreenClick) {
-      swallowSplitFullscreenClick = false;
-      return;
-    }
-    toggleVilnaFullscreen();
-  });
-
   // --- Video pinch-zoom/pan gesture surface --------------------------------
   // The YouTube iframe is cross-origin and never bubbles touch events to this
   // page, so (following the exact same reasoning Reading Mode's own pinch
@@ -8116,15 +8075,12 @@ function ensureVideoFullscreenExit() {
   return button;
 }
 
+// The video alone, fullscreen -- in Split view too, where the bar's second
+// fullscreen button (player-chrome.js, #splitFullscreenBarButton) is the one
+// that fills the screen with the video and the daf together
+// (toggleVilnaFullscreen). From that one, this switches to the video alone.
 function toggleVideoFullscreen() {
   ensureVideoFullscreenExit();
-  // Split fullscreen is the shared watch surface (video and daf together,
-  // with "← Daf page" still in the daf header). Fullscreening the video
-  // frame alone drops the daf and the way back.
-  if (state.viewerMode === 'split') {
-    toggleVilnaFullscreen();
-    return;
-  }
   const frame = $('videoFrame');
   const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
   if (fullscreenElement === frame) {
@@ -10632,6 +10588,9 @@ function changeMdyQuality(quality) {
 // and the audio-only / download controls follow the shiur on screen.
 function refreshMdyChrome() {
   document.body.classList.toggle('playing-mdy-file', Boolean(state.mdyPlayback));
+  // 2.5x and 3x are offered only for MDY's own files (player-chrome.js);
+  // YouTube's player stops at 2x.
+  if (!state.mdyPlayback && Number($('speedSelect')?.value) > 2) window.setPlayerSpeed?.('2');
   refreshMdyAudioControl();
 }
 

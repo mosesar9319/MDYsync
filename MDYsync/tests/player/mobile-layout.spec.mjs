@@ -197,7 +197,7 @@ test.describe('mobile player layout', () => {
     for (const layout of ['regular', 'split', 'split fullscreen']) {
       if (layout === 'split') await page.click('#viewerModeSplitButton');
       if (layout === 'split fullscreen') {
-        await page.evaluate(() => document.getElementById('splitFullscreenButton').click());
+        await page.evaluate(() => document.getElementById('splitFullscreenBarButton').click());
         await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(true);
       }
       await page.waitForTimeout(300);
@@ -381,7 +381,7 @@ test.describe('mobile player layout', () => {
     await page.locator('#splitDivider').tap();
     const panel = page.locator('#splitToolsPanel');
     await expect(panel).toBeVisible();
-    for (const id of ['viewerModeSplitButton', 'viewerModeDafOnVideoButton', 'viewerModeVideoOnDafButton', 'splitLayoutMenuButton', 'splitFullscreenButton', 'splitExitButton']) {
+    for (const id of ['viewerModeSplitButton', 'viewerModeDafOnVideoButton', 'viewerModeVideoOnDafButton', 'splitLayoutMenuButton', 'splitExitButton']) {
       await expect(panel.locator(`#${id}`), id).toBeVisible();
     }
     // The three layout tools are behind the Layout button.
@@ -1066,15 +1066,10 @@ test.describe('mobile player layout', () => {
     await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
     await page.click('#viewerModeSplitButton');
     await expect(page.locator('body')).toHaveClass(/split-view-active/);
-    await openSplitTools(page);
-    const button = await page.locator('#splitFullscreenButton').boundingBox();
-    const hit = await page.evaluate(({ x, y }) => {
-      const el = document.elementFromPoint(x, y);
-      return el?.closest?.('#splitFullscreenButton')?.id || el?.id || '';
-    }, { x: button.x + button.width / 2, y: button.y + button.height / 2 });
-    expect(hit).toBe('splitFullscreenButton');
+    // The control bar's "Video + daf" button (the Split toolbar's own
+    // fullscreen button is gone).
     const before = await page.evaluate(() => window.__yt.getPlayerState());
-    await page.touchscreen.tap(button.x + button.width / 2, button.y + button.height / 2);
+    await page.evaluate(() => document.getElementById('splitFullscreenBarButton').click());
     await page.waitForTimeout(200);
     const after = await page.evaluate(() => ({
       state: window.__yt.getPlayerState(),
@@ -1112,27 +1107,30 @@ test.describe('mobile player layout', () => {
     await page.evaluate(() => document.exitFullscreen());
   });
 
-  test('split fullscreen enters on the first tap after the player chrome has hidden', async ({ page }) => {
+  test('in Split the bar has two fullscreen buttons: the video alone, and the video with the daf', async ({ page }) => {
     test.skip(test.info().project.name !== 'mobile', 'phone split fullscreen');
     test.setTimeout(60000);
     await page.setViewportSize({ width: 400, height: 985 });
     await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    // Outside Split: one fullscreen button.
+    expect(await page.evaluate(() => getComputedStyle(document.getElementById('splitFullscreenStack')).display)).toBe('none');
     await page.click('#viewerModeSplitButton');
     await expect(page.locator('body')).toHaveClass(/split-view-active/);
-    await openSplitTools(page);
-    const button = await page.locator('#splitFullscreenButton').boundingBox();
-    await page.evaluate(() => document.body.classList.add('split-chrome-hidden'));
-    const reachable = await page.evaluate(({ x, y }) => {
-      const el = document.elementFromPoint(x, y);
-      return el?.closest?.('#splitFullscreenButton')?.id || '';
-    }, { x: button.x + button.width / 2, y: button.y + button.height / 2 });
-    expect(reachable).toBe('splitFullscreenButton');
-    await page.touchscreen.tap(button.x + button.width / 2, button.y + button.height / 2);
+    expect(await page.evaluate(() => getComputedStyle(document.getElementById('splitFullscreenStack')).display)).not.toBe('none');
+    expect(await page.evaluate(() => document.querySelector('#fullscreenButton').closest('.pc-stack').querySelector('.pc-label').textContent)).toBe('Video');
+    expect(await page.locator('#splitFullscreenButton').count()).toBe(0);
+    await page.evaluate(() => document.getElementById('fullscreenButton').click());
     await page.waitForTimeout(300);
-    const opened = await page.evaluate(() => document.fullscreenElement?.className || '');
-    test.skip(!opened.includes('watch-layout'), `fullscreen unavailable (${opened})`);
-    expect(opened).toContain('split-active');
+    const videoOnly = await page.evaluate(() => document.fullscreenElement?.id || '');
+    test.skip(videoOnly !== 'videoFrame', `fullscreen unavailable (${videoOnly})`);
+    // From the video alone straight to the video and the daf.
+    await page.evaluate(() => document.getElementById('splitFullscreenBarButton').click());
+    await page.waitForTimeout(300);
+    const both = await page.evaluate(() => document.fullscreenElement?.className || '');
+    expect(both).toContain('watch-layout');
+    expect(await page.evaluate(() => Boolean(document.fullscreenElement?.querySelector('#dafCard')))).toBe(true);
     await page.evaluate(() => document.exitFullscreen());
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
   });
 
   test('split fullscreen in landscape stays side by side', async ({ page }) => {
@@ -1141,7 +1139,7 @@ test.describe('mobile player layout', () => {
     await page.setViewportSize({ width: 985, height: 400 });
     await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
     await page.click('#viewerModeSplitButton');
-    await page.click('#fullscreenButton');
+    await page.evaluate(() => document.getElementById('splitFullscreenBarButton').click());
     const opened = await page.evaluate(() => document.fullscreenElement?.className || '');
     test.skip(!String(opened).includes('watch-layout'), `fullscreen unavailable (${opened})`);
     const geo = await page.evaluate(() => {
