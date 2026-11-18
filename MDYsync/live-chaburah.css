@@ -235,3 +235,7 @@ body.split-tools-desk #splitToolsPanel .split-live-button .split-live-count {
 #dafCard .daf-tools:has(> .live-toggle.in-heading),
 #dafCard .daf-heading-tools:has(> .live-toggle.in-heading) { flex-wrap: wrap; row-gap: 8px; }
 .live-toggle.in-heading { flex: none; max-width: 100%; }
+/* The daf's name keeps its full width; when the heading is too narrow for both,
+   the button's row moves below the name instead of squeezing it to "Chullin…". */
+#dafCard .daf-heading:has(> .daf-heading-tools > .live-toggle.in-heading) { flex-wrap: wrap; row-gap: 8px; }
+#dafCard .daf-heading:has(> .daf-heading-tools > .live-toggle.in-heading) > div:first-child { flex: 1 0 auto; max-width: 100%; }

@@ -342,6 +342,10 @@ test.describe('The other reading pages', () => {
       expect(await toggle.evaluate((el) => [getComputedStyle(el).position, Boolean(el.closest('#dafCard'))])).toEqual(['static', true]);
       // The page does not grow sideways for it.
       expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+      // Nor does it squeeze the daf's name.
+      if (url.startsWith('/browse/')) {
+        expect(await page.locator('#dafTitle').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+      }
     }
   });
 
