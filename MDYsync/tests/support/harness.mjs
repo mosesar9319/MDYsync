@@ -85,6 +85,10 @@ export async function preparePage(page, options = {}) {
   if (options.builtInViewerMode !== null && control.builtInViewerMode === undefined) {
     control.builtInViewerMode = options.builtInViewerMode || 'standard';
   }
+  // A plain visit to the Interactive Daf page opens on the masechta's cover
+  // (daf-book.js). The suite reaches that page plainly to test the page itself,
+  // so the cover stays off unless a spec asks for it (bookCover: true).
+  if (control.bookCover === undefined) control.bookCover = Boolean(options.bookCover);
 
   await page.route('**/vendor/supabase-js.min.js', (route) =>
     route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: STUB_SOURCE })

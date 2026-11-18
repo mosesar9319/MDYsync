@@ -12872,22 +12872,37 @@ function stepBrowseDaf(direction) {
     }
   }
 
-  $('dafTractateSelect').value = nextTractate;
+  goToBrowseAmud(nextTractate, nextDaf, nextSide);
+}
+
+// Puts the picker on one amud and turns the printed page there, as stepping
+// does: the page and nothing else (Live follow excepted). The page-as-a-book
+// dial (daf-book.js) jumps with this.
+function goToBrowseAmud(tractate, daf, side) {
+  $('dafTractateSelect').value = tractate;
   refreshDafPickerOptions();
-  $('dafDafSelect').value = String(nextDaf);
+  $('dafDafSelect').value = String(daf);
   refreshDafPickerAmud();
   document.querySelectorAll('#dafAmudToggle .amud-option').forEach((button) => {
-    if (!button.disabled) button.classList.toggle('active', button.dataset.side === nextSide);
+    if (!button.disabled) button.classList.toggle('active', button.dataset.side === side);
   });
   // refreshDafPickerAmud() above already calls this, but at that point the
   // active amud is still whatever it was before this step; the reassignment
-  // to nextSide happens right above, so this needs one more call now that the
+  // to side happens right above, so this needs one more call now that the
   // real target amud is in place.
   refreshDafPickerVariantLanguage();
   const ref = dafPickerRef();
   if (!ref) return;
   if (state.liveFollow?.active) onDafPickerChanged();
   else showBrowsePage(ref);
+}
+
+// The next/previous amud buttons on the Interactive Daf page: the page turns
+// like a page of a sefer (daf-book.js) where it can, and steps plainly where
+// it can't (the text view, reduced motion, the page still loading).
+function turnBrowseAmud(direction) {
+  if (window.dafBook?.turn(direction)) return;
+  stepBrowseDaf(direction);
 }
 
 // The amud before or after one, across dafim and tractates (the index's
@@ -12929,7 +12944,7 @@ function neighborAmud(tractate, daf, amud, direction) {
 // until it is turned back to the shiur's own amud (or "Back to the shiur").
 function stepViewedAmud(direction) {
   if (state.browseMode) {
-    stepBrowseDaf(direction);
+    turnBrowseAmud(direction);
     return;
   }
   const { parsed } = currentVilnaPageKey();
@@ -13638,10 +13653,10 @@ document.querySelectorAll('#dafLanguageToggle .language-option').forEach((button
 });
 // Only present on browse/index.html -- optional chaining makes this a no-op
 // everywhere else, same pattern as the camera-scan listeners above.
-$('browsePrevButton')?.addEventListener('click', () => stepBrowseDaf(-1));
-$('browseNextButton')?.addEventListener('click', () => stepBrowseDaf(1));
-$('dafPrevAmudButton')?.addEventListener('click', () => stepBrowseDaf(-1));
-$('dafNextAmudButton')?.addEventListener('click', () => stepBrowseDaf(1));
+$('browsePrevButton')?.addEventListener('click', () => turnBrowseAmud(-1));
+$('browseNextButton')?.addEventListener('click', () => turnBrowseAmud(1));
+$('dafPrevAmudButton')?.addEventListener('click', () => turnBrowseAmud(-1));
+$('dafNextAmudButton')?.addEventListener('click', () => turnBrowseAmud(1));
 // A catalog link (?ref=Chullin+86a&variant=chazarah&language=hebrew) should
 // land straight on that daf instead of the built-in demo. The picker it
 // feeds needs the tractate index, but the daf itself does not: paint the
