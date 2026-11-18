@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-18T20:01:05.872Z",
+  "generatedAt": "2026-11-18T20:20:31.668Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -4626,7 +4626,8 @@
           "label": "מרכז דף יומי -  ערכין דף ב. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
           "amud": "a",
           "liveBroadcast": true,
-          "liveStatus": "live"
+          "liveStatus": "live",
+          "durationSeconds": 4944
         }
       }
     ]
