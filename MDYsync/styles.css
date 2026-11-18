@@ -535,6 +535,7 @@ h2 { margin-bottom: 0; }
    (body[data-viewer-mode], set by app.js's setViewerMode), so the gear only
    shows them there. */
 body:not([data-viewer-mode="daf-on-video"]) .video-settings-overlay-group { display: none; }
+.video-settings-empty { margin: 0; max-width: 220px; color: rgba(255,255,255,.75); font-size: 12px; line-height: 1.4; }
 /* Reparented to <body> by player-chrome.js (see there for why) -- position
    and right/bottom are then set inline per open, anchored to the gear's own
    screen coordinates; this covers everything that isn't per-instance

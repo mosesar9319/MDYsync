@@ -895,9 +895,27 @@
     function positionSettingsPanel() {
       placeChromeMenu(settingsBody, settingsDetails, 'end');
     }
+    // Every row in the panel shows only when it applies (quality once the
+    // video reports its sizes, MDY's rows for an MDY shiur, the Daf on video
+    // settings in that mode), so it can have nothing in it -- say so rather
+    // than open an empty box.
+    const emptyNote = document.createElement('p');
+    emptyNote.className = 'video-settings-empty';
+    emptyNote.textContent = 'No settings for this video yet. Quality appears once it starts playing.';
+    emptyNote.hidden = true;
+    settingsBody.prepend(emptyNote);
+    function noteIfEmpty() {
+      emptyNote.hidden = true;
+      const shown = [...settingsBody.children].some((child) => child !== emptyNote
+        && !child.hidden && getComputedStyle(child).display !== 'none');
+      emptyNote.hidden = shown;
+    }
     settingsDetails.addEventListener('toggle', () => {
       settingsBody.hidden = !settingsDetails.open;
-      if (settingsDetails.open) positionSettingsPanel();
+      if (settingsDetails.open) {
+        noteIfEmpty();
+        positionSettingsPanel();
+      }
     });
     // Reported directly: tapping the gear did nothing. The <details>' own
     // open/close only happens on the click a tap is meant to synthesize, and

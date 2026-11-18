@@ -1016,12 +1016,15 @@ test.describe('Split View — the portaled menus stay usable, not hidden behind 
     await page.locator('#videoSettings summary').click();
     await expect(page.locator('.video-settings-body')).toBeVisible();
 
-    // A plain <button> inside the panel (the "Daf on video" overlay group's
-    // own reset-position control) -- unlike selectOption() on a <select>,
-    // .click() here does real pixel-based hit-testing, which is exactly
-    // what the occlusion bug broke. Confirms the panel's CONTENTS are
+    // A plain <button> inside the panel -- unlike selectOption() on a
+    // <select>, .click() here does real pixel-based hit-testing, which is
+    // exactly what the occlusion bug broke. Confirms the panel's CONTENTS are
     // reachable, not just that the panel element itself reports visible.
-    await page.locator('#overlayResetPositionButton').click();
+    // (The Daf on video settings this used to click are shown only in that
+    // mode now, so the MDY audio row stands in, shown by hand: this daf's
+    // test fixture plays from YouTube.)
+    await page.evaluate(() => { document.getElementById('mdyAudioControl').hidden = false; });
+    await page.locator('#mdyListenButton').click();
 
     const panelBox = await page.locator('.video-settings-body').boundingBox();
     const vw = await page.evaluate(() => window.innerWidth);
