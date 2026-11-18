@@ -703,8 +703,9 @@
   // masechta's cover; a link to a particular daf goes straight to the page.
   const params = new URLSearchParams(location.search);
   // Live follow (the experiment) is off this page's view; ?lf=1 brings its
-  // card back, for trying it out and for its tests.
-  if (params.get('lf') === '1') document.body.classList.add('lf-allowed');
+  // card back, for trying it out and for its tests, and so does the old
+  // /live/ address (it forwards here as ?live=1 and turns Live follow on).
+  if (params.get('lf') === '1' || params.has('live')) document.body.classList.add('lf-allowed');
   const fromMenu = !params.has('ref') && !params.get('view') && !params.has('scan')
     && window.__DAFSYNC_TEST_CONTROL__?.bookCover !== false;
   let cover = null;
