@@ -275,6 +275,39 @@ test.describe('Interactive Daf — the book on its own', () => {
     expect(await page.evaluate(() => localStorage.getItem('dafsync-mdy-quality'))).not.toBe('audio');
   });
 
+  test('audio alone: a slim bar at the bottom instead of the video player, with a way back to the video', async ({ page }) => {
+    await open(page, '/browse/?ref=Chullin%2091a', { videoSource: 'mdy' });
+    // MDY's mp3 starts and keeps loading (no answer here), so the page stays on it.
+    await page.route('https://cdn.mdydaf.com/**/mp3/*.mp3', () => {});
+    await tapWord(page, 7);
+    await watchLines(page).click();
+    await page.locator('#bookShiurList .book-shiur-row').first().locator('button', { hasText: 'Audio' }).click();
+    const bar = page.locator('#audioBar');
+    await expect(bar).toBeVisible();
+    await expect(page.locator('.player-card')).toBeHidden();
+    await expect(page.locator('#viewerModeSelect')).toBeHidden();
+    for (const id of ['#audioBarPlay', '#audioBarBack', '#audioBarForward', '#audioBarSpeed', '#audioBarVideo', '#audioBarClose']) {
+      await expect(bar.locator(id)).toBeVisible();
+    }
+    // Slim, at the bottom of the screen, above the phone's bottom bar where there is one.
+    const box = await bar.boundingBox();
+    expect(box.height).toBeLessThan(80);
+    const navTop = await page.evaluate(() => {
+      const nav = document.querySelector('.mobile-nav');
+      return nav && getComputedStyle(nav).display !== 'none' ? nav.getBoundingClientRect().top : window.innerHeight;
+    });
+    // Phones: flush on the bottom bar. Desktop: a card floating 16px off the bottom.
+    const gap = navTop - (box.y + box.height);
+    expect(gap).toBeGreaterThanOrEqual(-1);
+    expect(gap).toBeLessThan(20);
+    await bar.locator('#audioBarSpeed').click();
+    await expect(bar.locator('#audioBarSpeed')).toHaveText('1.25×');
+    // Video brings the player back.
+    await bar.locator('#audioBarVideo').click();
+    await expect(bar).toBeHidden();
+    await expect(page.locator('#videoFrame')).toBeVisible();
+  });
+
   test('Split view and Daf on video are one tap away, and Close puts the book back', async ({ page }) => {
     await open(page);
     await tapWord(page, 7);

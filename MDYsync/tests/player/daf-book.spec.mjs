@@ -259,6 +259,23 @@ test.describe('Interactive Daf as a sefer', () => {
     await expect(page.locator('.dbd-tick.is-current .dbd-num')).toHaveText('2');
   });
 
+  test('a daf whose drawing the phone dropped while away is drawn again on coming back', async ({ page }) => {
+    await open(page);
+    await readyOn(page, 'Chullin|86|a');
+    // What a phone does to a big canvas in the background: its pixels go.
+    await page.evaluate(() => {
+      const canvas = document.getElementById('vilnaPageCanvas');
+      canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    });
+    const alpha = () => page.evaluate(() => {
+      const canvas = document.getElementById('vilnaPageCanvas');
+      return canvas.getContext('2d').getImageData(Math.floor(canvas.width / 2), 4, 1, 1).data[3];
+    });
+    expect(await alpha()).toBe(0);
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect.poll(alpha).toBe(255);
+  });
+
   test('with reduced motion the arrows step plainly, with no turning leaf', async ({ page }) => {
     await open(page, '/browse/?ref=Chullin%2086a', { reducedMotion: true });
     await readyOn(page, 'Chullin|86|a');

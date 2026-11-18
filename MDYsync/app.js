@@ -2573,6 +2573,41 @@ async function rerenderVilnaPageForZoom() {
   window.dispatchEvent(new CustomEvent('dafsync:vilna-page', { detail: { reason: 'raster' } }));
 }
 
+// A phone drops a large canvas's pixels while the browser is in the
+// background, and the daf came back white until a zoom drew it again. Coming
+// back, it is drawn again from the page already loaded (no new download).
+async function redrawVilnaPageAfterReturn() {
+  const page = state.vilnaPdfPage;
+  const canvas = $('vilnaPageCanvas');
+  if (!page || !canvas || canvas.hidden || !canvas.width) return;
+  const containerWidth = state.vilnaPdfContainerWidth || canvas.clientWidth || 640;
+  const baseViewport = page.getViewport({ scale: 1 });
+  const scale = vilnaPageRenderScale(baseViewport.width, containerWidth, Math.max(1, state.vilnaPageZoom));
+  await renderVilnaCanvas(page, canvas, page.getViewport({ scale }));
+  state.vilnaOverlayKey = '';
+  updateVilnaOverlay(getCurrentTime());
+  window.dispatchEvent(new CustomEvent('dafsync:vilna-page', { detail: { reason: 'raster' } }));
+}
+let vilnaHiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { vilnaHiddenAt = Date.now(); return; }
+  if (vilnaHiddenAt && Date.now() - vilnaHiddenAt > 400) redrawVilnaPageAfterReturn().catch(() => {});
+});
+// Back from another app without the tab ever reporting hidden (some phones),
+// or restored from the back/forward cache.
+window.addEventListener('pageshow', (event) => { if (event.persisted) redrawVilnaPageAfterReturn().catch(() => {}); });
+window.addEventListener('focus', () => {
+  if (vilnaHiddenAt && Date.now() - vilnaHiddenAt > 400) return; // the visibilitychange above has it
+  const canvas = $('vilnaPageCanvas');
+  if (!canvas || canvas.hidden || !canvas.width) return;
+  // Only when the pixels really went: one pixel of the page's paper is white
+  // with full opacity; a dropped canvas reads as transparent.
+  try {
+    const [, , , alpha] = canvas.getContext('2d').getImageData(Math.floor(canvas.width / 2), 4, 1, 1).data;
+    if (alpha === 0) redrawVilnaPageAfterReturn().catch(() => {});
+  } catch { /* unreadable: leave it */ }
+});
+
 // Set when Split should survive leaving fullscreen (the fullscreen button,
 // or an Esc that a menu already consumed). A bare fullscreenchange — Chrome
 // eats Esc to leave fullscreen and never delivers the key — leaves Split too.
@@ -6701,7 +6736,7 @@ function splitMdyAudioControls() {
     + '<span class="mdy-control-text-static">MP3</span>';
   return [listen, download];
 }
-// Cloud Chaburah Live from the drop-down: the same panel the floating
+// Cloud Chaburah Live from the drop-down: the same panel the daf heading's
 // "Live discussions" button opens (live-chaburah-ui.js), with its count.
 function splitLiveButton() {
   const button = document.createElement('button');
@@ -6711,8 +6746,10 @@ function splitLiveButton() {
   button.hidden = true;
   button.setAttribute('aria-label', 'Live discussions');
   button.title = 'Live discussions on this daf';
-  button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>'
-    + '<span class="split-live-dot" aria-hidden="true"></span><span class="split-live-count" hidden></span>';
+  // Named, not an icon alone: the floating button is gone, so this is the
+  // way to the discussions while Split is on.
+  button.innerHTML = '<span class="split-live-dot" aria-hidden="true"></span><span class="split-live-label">Live discussions</span>'
+    + '<span class="split-live-count" hidden></span>';
   button.addEventListener('click', () => {
     if (document.fullscreenElement || document.webkitFullscreenElement) exitFullscreenIfActive();
     setSplitToolsOpen(false);
@@ -10607,10 +10644,148 @@ function changeMdyQuality(quality) {
 // and the audio-only / download controls follow the shiur on screen.
 function refreshMdyChrome() {
   document.body.classList.toggle('playing-mdy-file', Boolean(state.mdyPlayback));
+  // Audio only: a slim bar at the bottom of the screen instead of the player.
+  queueMicrotask(updateAudioBar);
   // 2.5x and 3x are offered only for MDY's own files (player-chrome.js);
   // YouTube's player stops at 2x.
   if (!state.mdyPlayback && Number($('speedSelect')?.value) > 2) window.setPlayerSpeed?.('2');
   refreshMdyAudioControl();
+}
+
+// ---------------------------------------------------------------------------
+// The audio bar. While a shiur plays as audio alone (MDY's mp3), the video
+// player is put away and this slim bar sits at the bottom of the screen, just
+// above the phone's bottom bar: the shiur's picture and name, its time, a seek
+// bar, back/forward 10 seconds, play/pause, speed, and Video to bring the
+// picture back. On the Interactive Daf page it also closes the shiur. Split
+// view and Daf on video have nothing to show while it is up, so the page
+// steps out of them and goes back when the video returns.
+// ---------------------------------------------------------------------------
+const AUDIO_BAR_RATES = ['1', '1.25', '1.5', '2', '2.5', '3', '0.75'];
+let audioBarPrevMode = null;
+function audioBarWanted() {
+  if (state.mdyPlayback?.quality !== 'audio') return false;
+  return !state.browseMode || document.body.classList.contains('book-video-up');
+}
+function ensureAudioBar() {
+  let bar = $('audioBar');
+  if (bar) return bar;
+  bar = document.createElement('div');
+  bar.id = 'audioBar';
+  bar.className = 'audio-bar';
+  bar.setAttribute('role', 'region');
+  bar.setAttribute('aria-label', 'Audio player');
+  bar.hidden = true;
+  bar.innerHTML = `
+    <input class="audio-bar-seek" id="audioBarSeek" type="range" min="0" max="100" step="0.1" value="0" aria-label="Position in the shiur" />
+    <div class="audio-bar-row">
+      <img class="audio-bar-picture" id="audioBarPicture" alt="" />
+      <div class="audio-bar-text">
+        <strong class="audio-bar-title" id="audioBarTitle"></strong>
+        <span class="audio-bar-time" id="audioBarTime">0:00</span>
+      </div>
+      <button type="button" class="audio-bar-button" id="audioBarBack" aria-label="Back 10 seconds" title="Back 10 seconds">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><text x="12" y="15.5" text-anchor="middle" font-size="7.5" font-weight="700" fill="currentColor">10</text></svg>
+      </button>
+      <button type="button" class="audio-bar-button audio-bar-play" id="audioBarPlay" aria-label="Play">
+        <svg class="audio-bar-icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></svg>
+        <svg class="audio-bar-icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/></svg>
+      </button>
+      <button type="button" class="audio-bar-button" id="audioBarForward" aria-label="Forward 10 seconds" title="Forward 10 seconds">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7M20 4v4.5h-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><text x="12" y="15.5" text-anchor="middle" font-size="7.5" font-weight="700" fill="currentColor">10</text></svg>
+      </button>
+      <button type="button" class="audio-bar-pill" id="audioBarSpeed" aria-label="Playback speed" title="Playback speed">1×</button>
+      <button type="button" class="audio-bar-pill" id="audioBarVideo" title="Show the video">Video</button>
+      <button type="button" class="audio-bar-button audio-bar-close" id="audioBarClose" aria-label="Close the shiur" title="Close the shiur">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      </button>
+    </div>`;
+  document.body.appendChild(bar);
+  const seekInput = bar.querySelector('#audioBarSeek');
+  let dragging = false;
+  seekInput.addEventListener('input', () => { dragging = true; paintAudioBarTime(Number(seekInput.value)); });
+  seekInput.addEventListener('change', () => { dragging = false; seek(Number(seekInput.value)); });
+  bar.querySelector('#audioBarPlay').addEventListener('click', () => togglePlay());
+  bar.querySelector('#audioBarBack').addEventListener('click', () => seek(Math.max(0, getCurrentTime() - 10)));
+  bar.querySelector('#audioBarForward').addEventListener('click', () => seek(Math.min(getDuration() || Infinity, getCurrentTime() + 10)));
+  bar.querySelector('#audioBarSpeed').addEventListener('click', () => {
+    const now = String(Number($('speedSelect')?.value) || 1);
+    const next = AUDIO_BAR_RATES[(AUDIO_BAR_RATES.indexOf(now) + 1) % AUDIO_BAR_RATES.length];
+    if (window.setPlayerSpeed) window.setPlayerSpeed(next);
+    else setPlaybackRate(Number(next));
+    paintAudioBar();
+  });
+  bar.querySelector('#audioBarVideo').addEventListener('click', () => {
+    if (state.browseMode && typeof setBookShiurListening === 'function') setBookShiurListening(false);
+    else if (state.mdyPlayback?.quality === 'audio') changeMdyQuality(mdyVideoQuality());
+  });
+  bar.querySelector('#audioBarClose').addEventListener('click', () => {
+    if (state.viewerMode !== 'standard') setViewerMode('standard');
+    else closeBookVideo();
+  });
+  for (const type of ['timeupdate', 'play', 'pause', 'durationchange', 'ratechange']) {
+    htmlVideo.addEventListener(type, () => { if (!bar.hidden && !(type === 'timeupdate' && dragging)) paintAudioBar(); });
+  }
+  window.addEventListener('resize', placeAudioBar);
+  return bar;
+}
+function paintAudioBarTime(at) {
+  const duration = Number(htmlVideo.duration) || getDuration() || 0;
+  $('audioBarTime').textContent = duration ? `${formatTime(at)} / ${formatTime(duration)}` : formatTime(at);
+}
+function paintAudioBar() {
+  const bar = $('audioBar');
+  if (!bar || bar.hidden) return;
+  const duration = Number(htmlVideo.duration) || 0;
+  const at = Number(htmlVideo.currentTime) || 0;
+  const seekInput = $('audioBarSeek');
+  seekInput.max = String(duration || 100);
+  seekInput.value = String(at);
+  seekInput.style.setProperty('--audio-progress', `${duration ? (at / duration) * 100 : 0}%`);
+  paintAudioBarTime(at);
+  const playing = !htmlVideo.paused;
+  bar.classList.toggle('is-playing', playing);
+  $('audioBarPlay').setAttribute('aria-label', playing ? 'Pause' : 'Play');
+  $('audioBarSpeed').textContent = `${Number($('speedSelect')?.value) || 1}×`;
+}
+function placeAudioBar() {
+  const bar = $('audioBar');
+  if (!bar || bar.hidden) return;
+  const nav = document.querySelector('.mobile-nav');
+  const navHeight = nav && getComputedStyle(nav).display !== 'none' ? nav.getBoundingClientRect().height : 0;
+  bar.style.setProperty('--audio-bar-bottom', `${Math.round(navHeight)}px`);
+  document.body.style.setProperty('--audio-bar-room', `${Math.round(navHeight + bar.getBoundingClientRect().height + 8)}px`);
+}
+function updateAudioBar() {
+  const want = audioBarWanted();
+  const bar = want ? ensureAudioBar() : $('audioBar');
+  if (!bar) return;
+  if (want === !bar.hidden) {
+    if (want) paintAudioBar();
+    return;
+  }
+  bar.hidden = !want;
+  document.body.classList.toggle('audio-bar-up', want);
+  if (want) {
+    const shiur = state.mdyShiur;
+    $('audioBarPicture').src = (shiur && mdyPictureUrl(shiur, 160)) || '';
+    $('audioBarPicture').hidden = !$('audioBarPicture').src;
+    $('audioBarTitle').textContent = state.videoSource?.label || $('lectureTitle')?.textContent || 'Shiur';
+    $('audioBarClose').hidden = !state.browseMode;
+    // Split view and Daf on video have nothing to show without the picture.
+    if (state.viewerMode === 'split' || state.viewerMode === 'daf-on-video') {
+      audioBarPrevMode = state.viewerMode;
+      setViewerMode(state.browseMode ? 'video-on-daf' : 'standard');
+    }
+    placeAudioBar();
+    paintAudioBar();
+  } else {
+    document.body.style.removeProperty('--audio-bar-room');
+    if (audioBarPrevMode && state.mdyPlayback && (!state.browseMode || document.body.classList.contains('book-video-up'))) {
+      setViewerMode(audioBarPrevMode);
+    }
+    audioBarPrevMode = null;
+  }
 }
 
 // An MDY shiur's audio: listen to it alone (the same file MDY's own site plays
@@ -12842,6 +13017,7 @@ function closeBookVideo() {
     try { (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch { /* already out */ }
   }
   if (state.viewerMode !== 'standard') setViewerMode('standard');
+  updateAudioBar();
   scheduleVilnaPageLayoutRefresh(60);
 }
 
@@ -12858,6 +13034,7 @@ function setBookShiurListening(audio) {
     playMdyFile({ quality: mdyVideoQuality(), resumeAt, resume });
   }
   document.body.classList.toggle('book-audio', Boolean(audio && state.mdyPlayback?.quality === 'audio'));
+  updateAudioBar();
 }
 
 // Brings a shiur up over the daf. A synced one starts at the word; one with
