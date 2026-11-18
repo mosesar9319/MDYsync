@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-18T05:30:14.664Z",
+  "generatedAt": "2026-11-18T06:20:14.861Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -1374,7 +1374,8 @@
           "label": "Daf Yomi Bechoros Daf 61 by R’ Eli Stefansky (unedited)",
           "amud": "a",
           "liveBroadcast": true,
-          "liveStatus": "live"
+          "liveStatus": "finished",
+          "durationSeconds": 3931
         }
       }
     ],
