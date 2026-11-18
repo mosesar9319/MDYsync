@@ -17,5 +17,14 @@
     "seconds": 5291,
     "firstSeenAt": "2026-11-17T20:25:11.412Z"
   },
-  "alignmentDispatchedAt": "2026-11-18T08:40:14.644Z"
+  "alignmentDispatchedAt": "2026-11-18T08:40:14.644Z",
+  "pendingEdit": {
+    "videoId": "5NikyWa4o1A",
+    "label": "מרכז דף יומי - בכורות דף סא. - ר' אלי סטפנסקי שליט\"א",
+    "coveredRefs": [
+      "Bekhorot 60b",
+      "Bekhorot 61a"
+    ],
+    "dispatchedAt": "2026-11-18T13:01:03.690Z"
+  }
 }
