@@ -215,9 +215,11 @@ test.describe('Video player -- the speed menu', () => {
 
     expect(await page.locator('#speedMenu').isHidden()).toBe(false);
     expect(await page.locator('#speedSelect').getAttribute('aria-expanded')).toBe('true');
-    await expect(page.locator('#speedMenu li')).toHaveCount(5);
-    expect(await page.locator('#speedMenu li').allTextContents())
+    // 2.5× and 3× are listed only while one of MDY's own files plays.
+    await expect(page.locator('#speedMenu li:visible')).toHaveCount(5);
+    expect(await page.locator('#speedMenu li:visible').allTextContents())
       .toEqual(['0.75×', '1×', '1.25×', '1.5×', '2×']);
+    expect(await page.locator('#speedMenu li.speed-mdy-only').allTextContents()).toEqual(['2.5×', '3×']);
     expect(await page.locator('#speedMenu li[data-value="1"]').getAttribute('aria-selected')).toBe('true');
     expect(await page.locator('#speedMenu li[data-value="1.5"]').getAttribute('aria-selected')).toBe('false');
 

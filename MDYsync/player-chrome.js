@@ -864,11 +864,17 @@
     videoOnDafButton.setAttribute('aria-pressed', String(document.body.classList.contains('reading-mode-active')));
     if (hasSplitView) splitViewButton.setAttribute('aria-pressed', String(document.body.classList.contains('split-view-active')));
     // Beside "Video + daf", the usual fullscreen button is the video alone.
+    // Written only when it differs: this runs on every class change of the
+    // frame, fitChrome's tier changes included, and any write here is a
+    // mutation inside the bar that re-runs fitChrome. Writing the same word
+    // each time made the two run each other forever (the page froze on a
+    // phone turned sideways in Split).
     const fullscreenCaption = fullscreenStack?.querySelector('.pc-label');
-    if (fullscreenCaption) fullscreenCaption.textContent = document.body.classList.contains('split-view-active') ? 'Video' : 'Fullscreen';
+    const fullscreenWord = document.body.classList.contains('split-view-active') ? 'Video' : 'Fullscreen';
+    if (fullscreenCaption && fullscreenCaption.textContent !== fullscreenWord) fullscreenCaption.textContent = fullscreenWord;
     const favorite = $('favoriteButton');
     if (favorite) {
-      $('playerBookmarkButton').hidden = favorite.hidden;
+      if ($('playerBookmarkButton').hidden !== favorite.hidden) $('playerBookmarkButton').hidden = favorite.hidden;
       $('playerBookmarkButton').setAttribute('aria-pressed', String(favorite.classList.contains('is-favorited')));
     }
   }

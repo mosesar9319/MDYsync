@@ -1133,6 +1133,40 @@ test.describe('mobile player layout', () => {
     await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
   });
 
+  // The bar's "Video" caption used to be rewritten on every class change of
+  // the frame, which re-ran the bar's fitting, which changed the frame's
+  // classes again: turning the phone in Split froze the page for good.
+  test('turning the phone in Split, in and out of fullscreen, leaves the page working', async ({ page }) => {
+    test.skip(test.info().project.name !== 'mobile', 'phone rotation');
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 400, height: 985 });
+    await openLive(page, '/player/?ref=Bekhorot+30a&variant=chazarah');
+    await page.click('#viewerModeSplitButton');
+    await expect(page.locator('body')).toHaveClass(/split-view-active/);
+    const responsive = () => Promise.race([
+      page.evaluate(() => 'ok'),
+      new Promise((resolve) => setTimeout(() => resolve('frozen'), 5000)),
+    ]);
+    for (const button of [null, 'splitFullscreenBarButton', 'fullscreenButton']) {
+      if (button) await page.evaluate((id) => document.getElementById(id).click(), button);
+      for (const size of [{ width: 985, height: 400 }, { width: 400, height: 985 }, { width: 985, height: 400 }]) {
+        // This test browser cannot resize a fullscreen window; rotation
+        // outside fullscreen froze the page just the same.
+        const resized = await page.setViewportSize(size).then(() => true, (error) => {
+          if (/fullscreen window/.test(error.message)) return false;
+          throw error;
+        });
+        if (!resized) break;
+        await page.waitForTimeout(400);
+        expect(await responsive(), `${button || 'no fullscreen'} at ${size.width}x${size.height}`).toBe('ok');
+      }
+      await page.evaluate(() => document.fullscreenElement && document.exitFullscreen());
+      await page.waitForTimeout(300);
+      await page.setViewportSize({ width: 400, height: 985 });
+    }
+    expect(await page.evaluate(() => document.querySelector('#fullscreenButton').closest('.pc-stack').querySelector('.pc-label').textContent)).toBe('Video');
+  });
+
   test('split fullscreen in landscape stays side by side', async ({ page }) => {
     test.skip(test.info().project.name !== 'mobile', 'landscape phone');
     test.setTimeout(60000);
@@ -1454,6 +1488,7 @@ test.describe('mobile player layout', () => {
         ...layout,
         selectFits: fits(select),
         chipFits: fits(chip),
+        chipShown: Boolean(chip && chip.getBoundingClientRect().width > 0),
         labelFits: fits(label),
         autoFits: fits(auto),
         dafPageFits: fits(dafPage),
@@ -1463,7 +1498,8 @@ test.describe('mobile player layout', () => {
     // No zoom bar on a phone (pinch zooms the page); Select text is in the daf row.
     expect(zoom.zoomShown).toBe(false);
     expect(zoom.selectFits).toBe(true);
-    expect(zoom.chipFits).toBe(true);
+    // The Skip chip is no longer in the drop-down, even with a review to skip.
+    expect(zoom.chipShown).toBe(false);
     expect(zoom.labelFits).toBe(true);
     expect(zoom.notesClip).toBeLessThanOrEqual(1);
     expect(zoom.autoFits).toBe(true);
