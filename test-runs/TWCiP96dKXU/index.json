@@ -133,7 +133,29 @@
         "unmatchedWords": 447,
         "durationSeconds": 3814.22
       }
+    },
+    {
+      "id": "regular-7",
+      "engine": "regular",
+      "number": 7,
+      "name": "Regular #7 · 19 Nov 2026 · v3 test 1: hints only (same as #6 on v2) (path: hints + relisten, Scribe v3)",
+      "notes": "v3 test 1: hints only (same as #6 on v2) (path: hints + relisten, Scribe v3)",
+      "engineVersion": "06ce5fe",
+      "createdAt": "2026-11-19T00:21:53Z",
+      "file": "regular-7.json",
+      "jobId": "855c741a1352410092a6daa9d99ceec6",
+      "summary": {
+        "segments": 328,
+        "estimatedSegments": 103,
+        "placements": 443,
+        "placedWords": 953,
+        "totalRuns": 666,
+        "totalWords": 1113,
+        "matchedWords": 663,
+        "unmatchedWords": 450,
+        "durationSeconds": 3814.22
+      }
     }
   ],
-  "updatedAt": "2026-11-16T20:28:55Z"
+  "updatedAt": "2026-11-19T00:21:53Z"
 }
