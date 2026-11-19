@@ -95,6 +95,9 @@ const state = {
   // of its own. The daf stays on screen and nothing is highlighted.
   // Same rule as shouldHighlightWords() in shared/live-broadcast.mjs.
   livePlainDaf: false,
+  // A shiur with no sync of its own (see unsyncedDafShown): the daf is shown
+  // without a highlight, and a tap says so instead of seeking.
+  unsyncedDaf: false,
   editingIndex: 0,
   phraseEditMode: false,
   vilnaMarkMode: false,
@@ -580,6 +583,7 @@ function restoreDraftForCurrentProject() {
     state.editingIndex = Math.min(Number(data.editingIndex) || 0, state.segments.length - 1);
     state.alignmentStatus = data.alignmentStatus || 'in-progress';
     state.usingDefaultAlignment = false;
+    state.unsyncedDaf = false;
     renderDaf();
     updateAlignmentStatus();
     showToast(`Restored the saved ${state.dafRef || 'daf'} alignment draft.`);
@@ -3344,8 +3348,22 @@ function flashSeekPending() {
 // Seek to this phrase's own start (a fraction early) and pin the highlight
 // on it directly, so a shared start time or the lead-in offset can't light
 // the neighboring phrase instead.
+// The placeholder timing (each line given an equal share of the recording) is
+// a starting point for an admin syncing by hand in the studio. Anywhere else it
+// was played as if it were a sync: R' Bornstein's unsynced Bechoros shiurim
+// lit a new line every few minutes and seeked on every tap, none of it related
+// to what he was saying.
+function unsyncedDafShown() {
+  return !location.pathname.includes('/studio');
+}
+
+function sayNotSynced() {
+  showToast("This shiur isn't synced with the daf yet, so words can't be tapped to jump to them.");
+}
+
 function activatePhrase(index) {
   if (state.livePlainDaf) return;
+  if (state.unsyncedDaf) { sayNotSynced(); return; }
   const resolved = nearestSamePhrase(index);
   const segment = state.segments[resolved];
   if (!segment) return;
@@ -3359,6 +3377,7 @@ function activatePhrase(index) {
 async function seekToVilnaWord(ref, wordIndex) {
   if (state.liveFollow?.active) return window.dafLiveFollow?.tapWord(ref, wordIndex);
   if (state.livePlainDaf) return;
+  if (state.unsyncedDaf) { sayNotSynced(); return; }
   // state.forwardAlignment.ref is the NEXT daf (the recording to load), while
   // `ref` here is a paragraph ("Bekhorot 30b.4"). Comparing them never
   // matched, so the lead-in redirect never ran. Match on coverage instead:
@@ -8420,7 +8439,7 @@ function scrollActiveIntoView(force) {
 }
 
 function updateActiveSegment(force = false, timeOverride = null) {
-  if (state.livePlainDaf) return;
+  if (state.livePlainDaf || state.unsyncedDaf) return;
   const time = timeOverride ?? getCurrentTime();
   let jumpedBack = false;
   let jumpedForward = false;
@@ -9042,6 +9061,7 @@ function markHereAndAdvance() {
   const nextStart = state.segments[index + 1]?.start;
   if (segment.end <= time) segment.end = nextStart > time ? nextStart : time + 3;
   state.usingDefaultAlignment = false;
+  state.unsyncedDaf = false;
   state.alignmentStatus = index === state.segments.length - 1 ? 'complete' : 'in-progress';
   updateAlignmentStatus();
   if (index < state.segments.length - 1) state.editingIndex += 1;
@@ -9332,6 +9352,7 @@ function setSegmentStart(index, time) {
   state.segments[index].estimated = false;
   normalizeSegmentOrder(index, 'start');
   state.usingDefaultAlignment = false;
+  state.unsyncedDaf = false;
   state.alignmentStatus = index === state.segments.length - 1 ? 'complete' : 'in-progress';
   updateAlignmentStatus();
   renderDaf();
@@ -9371,6 +9392,7 @@ function splitSegmentAtWord(index, wordIndex) {
   state.segments.splice(index + 1, 0, newSegment);
   if (state.editingIndex > index) state.editingIndex += 1;
   state.usingDefaultAlignment = false;
+  state.unsyncedDaf = false;
   renderDaf();
   saveDraft(true);
 }
@@ -9391,6 +9413,7 @@ function mergeSegmentWithNext(index) {
   else if (state.editingIndex === index + 1) state.editingIndex = index;
   state.activeIndex = Math.min(state.activeIndex, state.segments.length - 1);
   state.usingDefaultAlignment = false;
+  state.unsyncedDaf = false;
   renderDaf();
   saveDraft(true);
 }
@@ -9667,6 +9690,7 @@ async function loadDaf(refOverride = null, options = {}) {
   // daf's by-ref file is still the previous recording, or not written yet)
   // must not be laid on top of the live player.
   state.livePlainDaf = liveBroadcastHidesHighlight(preferredVideoSource, serverAlignment);
+  state.unsyncedDaf = false;
   syncLiveBroadcastChrome(preferredVideoSource, state.livePlainDaf);
   if (serverAlignment && !state.livePlainDaf) {
     // The server's own videoSource is never actually playable -- it's
@@ -9773,7 +9797,8 @@ async function loadDaf(refOverride = null, options = {}) {
         estimated: true,
       };
     }));
-    state.activeIndex = state.livePlainDaf ? -1 : 0;
+    state.unsyncedDaf = !state.livePlainDaf && unsyncedDafShown();
+    state.activeIndex = (state.livePlainDaf || state.unsyncedDaf) ? -1 : 0;
     state.editingIndex = 0;
     // Reaching this branch at all means there was no real synced alignment
     // to load (checked above, before the Sefaria fetch) -- these segments
@@ -9799,7 +9824,9 @@ async function loadDaf(refOverride = null, options = {}) {
         ? (preferredVideoSource?.liveStatus === 'live'
           ? 'Live shiur. The daf is below. Words are not highlighted yet.'
           : 'Live recording. Words are not highlighted until the edited shiur is posted.')
-        : `Loaded ${paragraphs.length} text segments from Sefaria.`);
+        : state.unsyncedDaf
+          ? "This shiur isn't synced with the daf yet. The daf is below, without highlighting."
+          : `Loaded ${paragraphs.length} text segments from Sefaria.`);
     }
   } catch (error) {
     console.error(error);
@@ -11381,6 +11408,7 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
   state.alignmentStatus = data.alignmentStatus || 'in-progress';
   state.editingIndex = Math.min(Number(data.editingIndex) || 0, state.segments.length - 1);
   state.usingDefaultAlignment = false;
+  state.unsyncedDaf = false;
   updateAlignmentStatus();
   const deferPage = Boolean(restoreSource && data.videoSource?.type === 'youtube');
   if (deferPage) state.deferVilnaRaster = true;
@@ -11735,6 +11763,7 @@ function autoAlignTranscript(transcript) {
     };
   });
   state.usingDefaultAlignment = false;
+  state.unsyncedDaf = false;
   state.alignmentStatus = 'in-progress';
   updateAlignmentStatus();
   renderDaf();
@@ -12037,6 +12066,14 @@ $('vilnaPageWrap')?.addEventListener('click', (event) => {
   const inGemara = block
     ? x >= block.left && x <= block.right && y >= block.top && y <= block.bottom
     : x >= 0.15 && x <= 0.855;
+  if (state.unsyncedDaf) { sayNotSynced(); return; }
+  // No word map for this page picture (pages/<amud>.json was never made, e.g.
+  // all of Eruchin, whose pages could not be read while Google Cloud Vision's
+  // billing was off): its words cannot be found on the picture at all.
+  if (!state.vilnaPageMap && inGemara) {
+    showToast("This page's words can't be tapped yet: its word map hasn't been made. The text view is synced.");
+    return;
+  }
   showToast(inGemara ? 'No timing for this word' : 'Only the Gemara text is synced');
 });
 // The mouse wheel zooms with Ctrl (or ⌘) held anywhere on the page, and
