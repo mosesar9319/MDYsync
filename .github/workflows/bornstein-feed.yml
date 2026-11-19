@@ -52,12 +52,16 @@ jobs:
             node MDYsync/tools/lakewood-import.mjs --results /tmp/results > /tmp/import.json
             node MDYsync/tools/build-video-catalog.mjs --results /tmp/results
             cd /tmp/results
-            git add -A video-links maggidim catalog.json by-ref by-video test-runs settings.json
+            # catalog.json carries the time it was made, so on its own it always
+            # differs: it is only committed when something it is made from changed
+            # (otherwise every hour left a commit that changed nothing).
+            git add -A video-links maggidim by-ref by-video test-runs settings.json
             if git diff --cached --quiet; then
               echo "Nothing new in the feed."
               cd - > /dev/null
               break
             fi
+            git add catalog.json
             git commit -q -m "R' Bornstein's shiurim from Lakewood Daf Yomi's feed"
             if git push origin HEAD:results; then
               cd - > /dev/null

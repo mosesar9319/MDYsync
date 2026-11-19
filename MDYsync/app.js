@@ -13893,9 +13893,19 @@ function formatVoiceMatchStats(stats, elapsed) {
     // dafWordsBridged: words filled in between two placed phrases a moment apart
     // (absent on alignments made before that existed).
     const bridged = stats.dafWordsBridged || 0;
+    // dafWordsPatched: placed by Claude from the transcript between two placed
+    // phrases. dafWordsExplained: lines the maggid explains without reading them,
+    // which are highlighted but never counted as matched (llm_patch.py).
+    const patched = stats.dafWordsPatched || 0;
+    const explained = stats.dafWordsExplained || 0;
     lines.push('', `Placed ${stats.matchedWords} of the daf's ${stats.dafWords} words (${pct}%) `
       + `from ${stats.witnesses} transcript${stats.witnesses === 1 ? '' : 's'}: `
-      + `${stats.dafWordsHeard} heard${bridged ? `, ${bridged} filled in between them` : ''}.`);
+      + `${stats.dafWordsHeard} heard${bridged ? `, ${bridged} filled in between them` : ''}`
+      + `${patched ? `, ${patched} placed by Claude` : ''}.`);
+    if (explained) {
+      lines.push(`${explained} more word${explained === 1 ? ' is' : 's are'} explained without being read: `
+        + 'highlighted, not counted.');
+    }
     for (const source of Object.values(stats.bySource || {})) {
       lines.push(`  • ${source.label}: ${source.words} words (${source.runs} phrase${source.runs === 1 ? '' : 's'})`);
     }
