@@ -1,4 +1,4 @@
-// tools/lakewood-audio.mjs: R' Bornstein's mp3 for a sync job, from Lakewood Daf
+// shared/lakewood-feed.mjs: R' Bornstein's mp3 for a daf, from Lakewood Daf
 // Yomi's own podcast feed instead of YouTube.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildTalmudLookup } from '../../shared/mdy-channel.mjs';
-import { durationSeconds, feedItems, itemForReadings } from '../../tools/lakewood-audio.mjs';
+import { durationSeconds, feedItems, itemForReadings } from '../../shared/lakewood-feed.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const lookup = buildTalmudLookup(JSON.parse(fs.readFileSync(path.join(HERE, '..', '..', 'talmud_index.json'), 'utf8')));
