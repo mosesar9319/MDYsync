@@ -11533,7 +11533,8 @@ async function switchSyncMethod(method) {
 // either engine is kept as its own numbered alignment (test-runs/<videoId>/ on the
 // results branch, written by tools/caption-sync/test_runs.py) instead of replacing
 // the last. Every reader is shown one of them: the run that matched the most of
-// the daf's words to the audio, unless an admin has chosen another for everyone
+// the daf's words to the audio (the newest, of runs that are all but level; see
+// shownTestRun), unless an admin has chosen another for everyone
 // (settings.json's shownTestRun, saved by save-settings.mjs). The box that lists
 // them is for admins only (styles.css, body.is-admin): "Regular engine" lists the
 // regular voice engine's runs, "Live engine" the live engine's. Picking one there
@@ -11550,13 +11551,22 @@ function testRunMatchedWords(run) {
 }
 
 // The run every reader sees: an admin's choice when it is still one of the runs,
-// else the one with the most daf words matched (the newest on a tie).
+// else the newest of the runs that matched the most daf words. "The most" takes
+// in any run within TEST_RUN_NEAR_TIE of the top count: an engine that gives up
+// a few words to be right is not passed over for the run it replaced. (November
+// 2026: placed on one straight path, R' Bornstein's Eruchin 2 matched 492 words
+// where the older run, straightened after the fact, kept 496 -- and the older
+// one was shown.)
+const TEST_RUN_NEAR_TIE = 0.02;
 function shownTestRun(runs, chosenId) {
   const chosen = runs.find((run) => run.id === chosenId);
   if (chosen) return { id: chosen.id, why: 'admin' };
-  const best = [...runs].sort((a, b) => testRunMatchedWords(b) - testRunMatchedWords(a)
-    || String(b.createdAt || '').localeCompare(String(a.createdAt || '')) || (b.number || 0) - (a.number || 0))[0];
-  return best ? { id: best.id, why: 'best' } : { id: null, why: null };
+  if (!runs.length) return { id: null, why: null };
+  const most = Math.max(...runs.map(testRunMatchedWords));
+  const best = runs.filter((run) => testRunMatchedWords(run) >= most * (1 - TEST_RUN_NEAR_TIE))
+    .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')) || (b.number || 0) - (a.number || 0)
+      || testRunMatchedWords(b) - testRunMatchedWords(a))[0];
+  return { id: best.id, why: testRunMatchedWords(best) < most ? 'newest' : 'best' };
 }
 
 // Every page that plays a shiur shows the chosen run; only the player page has
@@ -11594,9 +11604,9 @@ function testRunNoteText(testRuns) {
   const active = testRuns.runs.find((run) => run.id === testRuns.activeId);
   const everyone = testRuns.runs.find((run) => run.id === testRuns.everyoneId);
   if (!everyone) return active ? `Showing ${active.name}.` : 'Showing the default alignment. Pick a run to compare.';
-  const why = testRuns.everyoneWhy === 'admin'
-    ? 'chosen by an admin'
-    : `the most daf words matched (${testRunMatchedWords(everyone)})`;
+  const matched = testRunMatchedWords(everyone);
+  const why = { admin: 'chosen by an admin', newest: `the newest of the runs that matched the most daf words (${matched})` }[testRuns.everyoneWhy]
+    || `the most daf words matched (${matched})`;
   if (!active || active.id === everyone.id) return `Everyone sees ${everyone.name}: ${why}.`;
   return `You are previewing ${active.name}. Everyone sees ${everyone.name}: ${why}.`;
 }

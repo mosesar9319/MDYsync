@@ -55,23 +55,67 @@ def needs_straightening(alignment):
     return bool(alignment.get('wordTimeline'))
 
 
-def straighten(alignment, cache_dir=None, load=load_canonical):
-    """alignment on one straight path, in place. Returns a short account of what
-    changed ({placementsBefore, placementsAfter, wordsBefore, wordsAfter}), or
-    None when there was nothing to do."""
-    if not needs_straightening(alignment):
-        return None
-    refs = refs_of(alignment)
-    canon, segments = load(refs, cache_dir)
+def timeline_events(alignment, canon):
+    """A sync's placements as the engine's own events, from its wordTimeline."""
     index = {(c.ref, c.word_index): n for n, c in enumerate(canon)}
     events = []
-    for entry in alignment['wordTimeline']:
+    for entry in alignment.get('wordTimeline') or []:
         first = index.get((entry.get('ref'), entry.get('w0')))
         last = index.get((entry.get('ref'), entry.get('w1')))
         if first is None or last is None or last < first:
             continue
         events.append(WordEvent(float(entry['start']), first, last, 0.0, entry.get('heardText') or '',
                                 entry.get('source') or ''))
+    return events
+
+
+def recount(alignment, canon, events, primary_refs=None):
+    """The path aligner's counts in matchStats, made from the events a sync now
+    holds. The daf a shiur is measured against is its own (primaryRefs, which
+    publish_alignment.py stamps on a published sync; a test run has none, so
+    primary_refs passes its shiur's). Returns whether anything changed."""
+    stats = alignment.setdefault('matchStats', {})
+    if stats.get('aligner') != 'path':
+        return False
+    before = {key: stats.get(key) for key in COUNTS}
+    placed = {i for e in events for i in range(e.start_idx, e.end_idx + 1)}
+    own_refs = {str(r).replace('.', ' ') for r in alignment.get('primaryRefs') or primary_refs or []}
+    primary = [i for i, c in enumerate(canon) if c.ref.rsplit(':', 1)[0] in own_refs] if own_refs else None
+    if primary is not None and len(primary) in (0, len(canon)):
+        primary = None
+    counted = path_align.counted_words(canon, primary, placed)
+    bridged = {i for e in events if e.source == path_align.SOURCE_BRIDGE for i in range(e.start_idx, e.end_idx + 1)}
+    stats.update({
+        'totalWords': len(counted), 'matchedWords': len(placed & counted),
+        'unmatchedWords': len(counted - placed), 'dafWords': len(counted),
+        'dafWordsHeard': len((placed - bridged) & counted), 'dafWordsBridged': len(bridged & counted),
+    })
+    return before != {key: stats.get(key) for key in COUNTS}
+
+
+COUNTS = ('totalWords', 'matchedWords', 'unmatchedWords', 'dafWords', 'dafWordsHeard', 'dafWordsBridged')
+
+
+def straighten(alignment, cache_dir=None, load=load_canonical, primary_refs=None):
+    """alignment on one straight path, in place. Returns a short account of what
+    changed ({placementsBefore, placementsAfter, wordsBefore, wordsAfter}), or
+    None when there was nothing to do.
+
+    A sync straightened before its shiur's own daf was known (a test run, counted
+    against the neighbouring amudim too) is counted again, and nothing else of
+    it is touched."""
+    if not needs_straightening(alignment):
+        stats = alignment.get('matchStats') if isinstance(alignment, dict) else None
+        if (not isinstance(stats, dict) or not stats.get('straightened') or alignment.get('primaryRefs')
+                or not primary_refs or alignment.get('generator') != 'voice_align.py'):
+            return None
+        canon, _ = load(refs_of(alignment), cache_dir)
+        if not recount(alignment, canon, timeline_events(alignment, canon), primary_refs):
+            return None
+        return dict(stats['straightened'], recounted=True)
+    refs = refs_of(alignment)
+    canon, segments = load(refs, cache_dir)
+    events = timeline_events(alignment, canon)
     if not events:
         return None
     before = {i for e in events for i in range(e.start_idx, e.end_idx + 1)}
@@ -88,19 +132,8 @@ def straighten(alignment, cache_dir=None, load=load_canonical):
     alignment['wordTimeline'] = made['wordTimeline']
 
     stats = alignment.setdefault('matchStats', {})
+    recount(alignment, canon, kept, primary_refs)
     if stats.get('aligner') == 'path':
-        own_refs = {str(r).replace('.', ' ') for r in alignment.get('primaryRefs') or []}
-        primary = [i for i, c in enumerate(canon) if c.ref.rsplit(':', 1)[0] in own_refs] if own_refs else None
-        if primary is not None and len(primary) in (0, len(canon)):
-            primary = None
-        counted = path_align.counted_words(canon, primary, after)
-        bridged = {i for e in kept if e.source == path_align.SOURCE_BRIDGE for i in range(e.start_idx, e.end_idx + 1)}
-        heard = after - bridged
-        stats.update({
-            'totalWords': len(counted), 'matchedWords': len(after & counted),
-            'unmatchedWords': len(counted - after), 'dafWords': len(counted),
-            'dafWordsHeard': len(heard & counted), 'dafWordsBridged': len(bridged & counted),
-        })
         by_source = {}
         for e in kept:
             label = (stats.get('bySource') or {}).get(e.source, {}).get('label') \
@@ -123,6 +156,9 @@ def straighten_results(results_dir, video_id=None, cache_dir=None, log=print):
     patterns = ['by-ref/Voice-*.json', 'by-video/Voice-*.json', 'test-runs/*/regular-*.json']
     changed = []
     touched_runs = {}
+    # A test run does not say which daf is its shiur's own; the published sync of
+    # the same recording does (by-ref and by-video come first).
+    own_daf = {}
     for pattern in patterns:
         for path in sorted(glob.glob(os.path.join(results_dir, pattern))):
             try:
@@ -130,10 +166,13 @@ def straighten_results(results_dir, video_id=None, cache_dir=None, log=print):
                     alignment = json.load(f)
             except (OSError, ValueError):
                 continue
-            if video_id and alignment.get('videoId') != video_id:
+            if not isinstance(alignment, dict) or (video_id and alignment.get('videoId') != video_id):
                 continue
+            recording = alignment.get('videoId') or os.path.basename(os.path.dirname(path))
+            if alignment.get('primaryRefs'):
+                own_daf.setdefault(recording, alignment['primaryRefs'])
             try:
-                change = straighten(alignment, cache_dir)
+                change = straighten(alignment, cache_dir, primary_refs=own_daf.get(recording))
             except Exception as error:  # noqa: BLE001 -- one bad file does not stop the rest
                 log(f'Could not straighten {os.path.relpath(path, results_dir)}: {error}')
                 continue
@@ -143,8 +182,12 @@ def straighten_results(results_dir, video_id=None, cache_dir=None, log=print):
                 json.dump(alignment, f, ensure_ascii=False, indent=2)
             relative = os.path.relpath(path, results_dir)
             changed.append(relative)
-            log(f"{relative}: {change['placementsBefore']} placements -> {change['placementsAfter']}, "
-                f"{change['wordsBefore']} daf words -> {change['wordsAfter']}")
+            if change.get('recounted'):
+                stats = alignment['matchStats']
+                log(f"{relative}: counted again, {stats.get('matchedWords')} of {stats.get('totalWords')} daf words")
+            else:
+                log(f"{relative}: {change['placementsBefore']} placements -> {change['placementsAfter']}, "
+                    f"{change['wordsBefore']} daf words -> {change['wordsAfter']}")
             if relative.startswith('test-runs' + os.sep):
                 touched_runs.setdefault(os.path.dirname(path), {})[os.path.basename(path)] = alignment
     # The numbers each run is listed with (and chosen by) follow the file.

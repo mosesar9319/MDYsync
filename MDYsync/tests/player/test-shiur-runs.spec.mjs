@@ -184,6 +184,29 @@ test.describe('Test shiur — one dropdown per engine, numbered runs', () => {
     ]);
   });
 
+  // R' Bornstein's Eruchin 2 (November 2026): placed on one straight path the
+  // shiur matched 492 words; the older run, straightened after the fact, kept
+  // 496 and was the one shown.
+  test('of runs that matched all but the same number of daf words, the newest is shown', async ({ page }) => {
+    const runs = [
+      { ...RUNS[0], createdAt: '2026-11-19T10:17:26Z', summary: { matchedWords: 496 } },
+      { ...RUNS[2], createdAt: '2026-11-19T17:44:44Z', summary: { matchedWords: 492 } },
+    ];
+    await open(page, { files: { ...FILES, 'test-runs/Zsy7oDUP6Pw/index.json': { videoId: VIDEO, runs } } });
+    await showVideo(page);
+    await expect.poll(() => page.evaluate(() => state.testRuns?.activeId)).toBe('regular-2');
+    await expect(page.locator('#testRunNote')).toHaveText(
+      'Everyone sees Regular #2 · 11 Oct 2026 · pending survives misses: the newest of the runs that matched the most daf words (492).');
+    // A newer run that is clearly behind is not shown for being newer.
+    await page.evaluate(() => {
+      const [older, newer] = state.testRuns.runs;
+      window.__shown = [shownTestRun([older, { ...newer, summary: { matchedWords: 480 } }]),
+        shownTestRun([{ ...older, createdAt: '2026-11-20T00:00:00Z' }, newer]), shownTestRun([])];
+    });
+    expect(await page.evaluate(() => window.__shown)).toEqual([
+      { id: 'regular-1', why: 'best' }, { id: 'regular-1', why: 'best' }, { id: null, why: null }]);
+  });
+
   test('picking a run loads that alignment; picking from the other dropdown swaps it, and the first resets', async ({ page }) => {
     await open(page);
     await showVideo(page);
