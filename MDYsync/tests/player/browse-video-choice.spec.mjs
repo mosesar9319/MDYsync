@@ -287,9 +287,12 @@ test.describe('Interactive Daf — the book on its own', () => {
     await expect(bar).toBeVisible();
     await expect(page.locator('.player-card')).toBeHidden();
     await expect(page.locator('#viewerModeSelect')).toBeHidden();
-    for (const id of ['#audioBarPlay', '#audioBarBack', '#audioBarForward', '#audioBarSpeed', '#audioBarVideo', '#audioBarClose']) {
+    for (const id of ['#audioBarPlay', '#audioBarBack', '#audioBarForward', '#audioBarSpeed', '#audioBarDownload', '#audioBarVideo', '#audioBarClose']) {
       await expect(bar.locator(id)).toBeVisible();
     }
+    // MDY's mp3, saved through dafsync.com.
+    await expect(bar.locator('#audioBarDownload')).toHaveAttribute('href', '/mdy-audio/shiur/english/chullin/mp3/91.mp3');
+    await expect(bar.locator('#audioBarDownload')).toHaveAttribute('download', "Chullin 91 - R' Eli Stefansky.mp3");
     // Slim, at the bottom of the screen, above the phone's bottom bar where there is one.
     const box = await bar.boundingBox();
     expect(box.height).toBeLessThan(80);
@@ -332,6 +335,11 @@ test.describe('Interactive Daf — the book on its own', () => {
     // Nothing to switch to: no video.
     await expect(bar.locator('#audioBarVideo')).toBeHidden();
     await expect(bar.locator('#audioBarPlay')).toBeVisible();
+    // The MP3 is saved through dafsync.com, under the shiur's name.
+    const download = bar.locator('#audioBarDownload');
+    await expect(download).toBeVisible();
+    await expect(download).toHaveAttribute('href', '/lakewood-audio/Chulin%2091_1.mp3');
+    await expect(download).toHaveAttribute('download', "Chullin 91 - R' Sruly Bornstein.mp3");
     expect(await page.evaluate(() => window.__yt.length)).toBe(0); // YouTube was never asked
   });
 

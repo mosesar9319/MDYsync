@@ -10742,6 +10742,9 @@ function ensureAudioBar() {
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7M20 4v4.5h-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><text x="12" y="15.5" text-anchor="middle" font-size="7.5" font-weight="700" fill="currentColor">10</text></svg>
       </button>
       <button type="button" class="audio-bar-pill" id="audioBarSpeed" aria-label="Playback speed" title="Playback speed">1×</button>
+      <a class="audio-bar-pill audio-bar-download" id="audioBarDownload" href="#" download aria-label="Download the MP3" title="Download the MP3">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>MP3</span>
+      </a>
       <button type="button" class="audio-bar-pill" id="audioBarVideo" title="Show the video">Video</button>
       <button type="button" class="audio-bar-button audio-bar-close" id="audioBarClose" aria-label="Close the shiur" title="Close the shiur">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
@@ -10803,10 +10806,22 @@ function placeAudioBar() {
   bar.style.setProperty('--audio-bar-bottom', `${Math.round(navHeight)}px`);
   document.body.style.setProperty('--audio-bar-room', `${Math.round(navHeight + bar.getBoundingClientRect().height + 8)}px`);
 }
+// The audio bar's MP3 button follows the shiur on screen.
+function refreshAudioBarDownload() {
+  const link = $('audioBarDownload');
+  if (!link) return;
+  const download = state.mdyShiur ? ownDownload(state.mdyShiur) : null;
+  link.hidden = !download;
+  if (download) {
+    link.href = download.href;
+    link.setAttribute('download', download.name);
+  }
+}
 function updateAudioBar() {
   const want = audioBarWanted();
   const bar = want ? ensureAudioBar() : $('audioBar');
   if (!bar) return;
+  if (want) refreshAudioBarDownload();
   if (want === !bar.hidden) {
     if (want) paintAudioBar();
     return;
@@ -10843,17 +10858,33 @@ function updateAudioBar() {
 // download name for a file on the page's own site.
 function mdyDownloadName(shiur) {
   const { parsed, options } = shiur;
-  const daf = MDY.dafFromTitle(options.title) || parsed.daf;
+  const lakewood = isLakewoodShiur(shiur);
+  const daf = (!lakewood && MDY?.dafFromTitle(options.title)) || parsed.daf;
   // The masechta as MDY and dafsync.com spell it ("Bechoros", not Sefaria's "Bekhorot").
-  const slug = MDY.MASECHTA_SLUGS[parsed.tractate];
+  const slug = MDY?.MASECHTA_SLUGS[parsed.tractate];
   const masechta = slug ? slug.split('-').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : parsed.tractate;
   const parts = [
     `${masechta} ${daf}`,
     parsed.variant === 'chazarah' ? 'Chazarah' : '',
     parsed.language === 'he' ? 'Hebrew' : '',
-    "R' Eli Stefansky",
+    lakewood ? "R' Sruly Bornstein" : "R' Eli Stefansky",
   ].filter(Boolean);
   return `${parts.join(' - ')}.mp3`.replace(/[\\/:*?"<>|]+/g, ' ');
+}
+
+// Where the shiur's mp3 is saved from: always through dafsync.com, which sends it
+// as a download (netlify.toml's /mdy-audio/ and /lakewood-audio/ rules) -- a
+// browser saves a link under its download name only for a file on the page's own
+// site. { href, name }, or null when the shiur has no mp3.
+function ownDownload(shiur) {
+  const mp3 = ownFileUrl(shiur, 'audio');
+  if (!mp3) return null;
+  if (isLakewoodShiur(shiur)) {
+    // Their feed's link redirects to their file store under the same file name.
+    const file = mp3.split('/').pop();
+    return file ? { href: `/lakewood-audio/${file}`, name: mdyDownloadName(shiur) } : null;
+  }
+  return { href: `/mdy-audio${mp3.slice(MDY.HOST.length)}`, name: mdyDownloadName(shiur) };
 }
 
 // The two controls live in two places: the Split view drop-down (the
@@ -10866,7 +10897,7 @@ function refreshMdyAudioControl() {
   const lakewood = isLakewoodShiur(shiur);
   const showing = Boolean((MDY || lakewood) && shiur && state.videoSource?.videoId === shiur.videoId);
   const listening = Boolean(state.mdyPlayback && state.mdyPlayback.quality === 'audio');
-  const mp3 = showing ? ownFileUrl(shiur, 'audio') : null;
+  const download = showing ? ownDownload(shiur) : null;
   for (const id of MDY_LISTEN_IDS) {
     const button = $(id);
     if (!button) continue;
@@ -10883,17 +10914,10 @@ function refreshMdyAudioControl() {
   for (const id of MDY_DOWNLOAD_IDS) {
     const link = $(id);
     if (!link) continue;
-    link.hidden = !(showing && mp3);
-    if (showing && mp3 && lakewood) {
-      // Their own server's file, as their feed gives it.
-      link.href = mp3;
-      link.setAttribute('download', '');
-      link.target = '_blank';
-      link.rel = 'noopener';
-    } else if (showing && mp3) {
-      link.href = `/mdy-audio${mp3.slice(MDY.HOST.length)}`;
-      link.setAttribute('download', mdyDownloadName(shiur));
-      link.removeAttribute('target');
+    link.hidden = !download;
+    if (download) {
+      link.href = download.href;
+      link.setAttribute('download', download.name);
     }
   }
   // The More button itself, on a page with nothing else in that menu.

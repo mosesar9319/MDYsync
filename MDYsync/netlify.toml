@@ -167,6 +167,15 @@
   status = 200
   force = true
 
+# R' Bornstein's mp3, sent from dafsync.com the same way so "Download the MP3"
+# saves it. Lakewood Daf Yomi's feed links to their app's server, which redirects
+# to this file store under the same file name; only their audio folder (aud/d).
+[[redirects]]
+  from = "/lakewood-audio/*"
+  to = "https://lkwd-daf-yomi.nyc3.cdn.digitaloceanspaces.com/aud/d/:splat"
+  status = 200
+  force = true
+
 # MDY's shiur pictures (1280x720 PNGs of over a megabyte each) are shown
 # resized, through Netlify's image service: /.netlify/images?url=<MDY's
 # picture>&w=480&fm=webp (index.html, seo-pages.mjs, app.js).
@@ -184,6 +193,11 @@
 
 [[headers]]
   for = "/mdy-audio/*"
+  [headers.values]
+    Content-Disposition = "attachment"
+
+[[headers]]
+  for = "/lakewood-audio/*"
   [headers.values]
     Content-Disposition = "attachment"
 

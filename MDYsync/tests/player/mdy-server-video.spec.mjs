@@ -297,6 +297,8 @@ test.describe('R’ Bornstein’s shiurim from Lakewood Daf Yomi’s server', ()
     const bar = page.locator('#audioBar');
     await expect(bar).toBeVisible();
     await expect(bar.locator('#audioBarVideo')).toBeHidden();
+    await expect(bar.locator('#audioBarDownload')).toHaveAttribute('href', '/lakewood-audio/Chulin%2089_1.mp3');
+    await expect(bar.locator('#audioBarDownload')).toHaveAttribute('download', "Chullin 89 - R' Sruly Bornstein.mp3");
     await expect(page.locator('.player-card')).toBeHidden();
     // Nothing about video: no quality choice, no "back to video".
     expect(await page.evaluate(() => ({
