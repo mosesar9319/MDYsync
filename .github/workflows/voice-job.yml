@@ -535,3 +535,43 @@ jobs:
             git rebase origin/results
             sleep 2
           done
+
+      # A new shiur's holes are answered by Claude in a Claude Code session, not
+      # by the API (tools/caption-sync/llm_patch.py; the steps are the skill
+      # .claude/skills/patch-voice-sync). This tells that session's scheduled
+      # task there is a shiur to do: one run a shiur, and none while there is
+      # nothing new. The task's address and its token are the repository secrets
+      # CLAUDE_PATCH_FIRE_URL and CLAUDE_PATCH_FIRE_TOKEN (the task's API trigger,
+      # made on claude.ai/code/routines); without them this does nothing. A call
+      # that fails never fails the sync: the shiur is synced either way, and can
+      # be patched by asking for it.
+      - name: Tell Claude there is a shiur to patch
+        env:
+          FIRE_URL: ${{ secrets.CLAUDE_PATCH_FIRE_URL }}
+          FIRE_TOKEN: ${{ secrets.CLAUDE_PATCH_FIRE_TOKEN }}
+          VIDEO_ID: ${{ github.event.client_payload.videoId }}
+          TEST_RUN: ${{ github.event.client_payload.testRun }}
+        run: |
+          if [ -z "$FIRE_URL" ] || [ -z "$FIRE_TOKEN" ]; then
+            echo "No Claude task is set up for patching; nothing to tell."
+            exit 0
+          fi
+          if [ "$TEST_RUN" = "true" ]; then
+            echo "A test run is not patched."
+            exit 0
+          fi
+          case "$VIDEO_ID" in
+            *[!A-Za-z0-9_-]*|'') echo "No video id to pass on; nothing to tell."; exit 0 ;;
+          esac
+          if [ ! -f MDYsync/tools/caption-sync/job-out/transcripts.json ]; then
+            echo "No transcripts were kept; nothing to patch from."
+            exit 0
+          fi
+          # The body is one line of data; the task's own prompt says what to do with it.
+          code="$(curl -sS -m 30 -o /dev/null -w '%{http_code}' -X POST "$FIRE_URL" \
+            -H "Authorization: Bearer $FIRE_TOKEN" \
+            -H "anthropic-beta: experimental-cc-routine-2026-04-01" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "Content-Type: application/json" \
+            -d "{\"text\": \"video_id=${VIDEO_ID}\"}" || true)"
+          echo "Claude's task answered ${code:-nothing}."
