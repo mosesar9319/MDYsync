@@ -3445,9 +3445,9 @@
   "matchStats": {
     "aligner": "path",
     "totalRuns": 718,
-    "totalWords": 895,
+    "totalWords": 570,
     "matchedWords": 496,
-    "unmatchedWords": 399,
+    "unmatchedWords": 74,
     "excludedWords": 0,
     "bySource": {
       "path-latin": {
@@ -4698,7 +4698,7 @@
     "llmCalls": 1,
     "witnesses": 2,
     "transcriptWords": 13077,
-    "dafWords": 895,
+    "dafWords": 570,
     "dafWordsHeard": 371,
     "dafWordsBridged": 125,
     "wordsRead": 895,
