@@ -13,6 +13,11 @@ name: Place a shiur again from its saved transcripts (no ElevenLabs)
 # is scoped to this repository's main branch. From any other branch the request
 # is refused and the shiur is placed without it.
 #
+# When tools/caption-sync/patch-answers/<video id>.json is on the branch, the
+# holes are filled from it instead of by the API: the answers Claude gave in a
+# Claude Code session (voice_align.py --patch-questions, then --patch-answers),
+# run through the same checks. Then "claude" is not needed and costs nothing.
+#
 # The result is filed as the shiur's next numbered test run
 # (tools/caption-sync/test_runs.py). The player shows a shiur's run with the most
 # daf words matched unless an admin picked another, so a better placement is
@@ -100,9 +105,17 @@ jobs:
           fi
           python3 saved_transcripts.py meta --file "$saved" > /tmp/job.json
           cat /tmp/job.json
+          answers="patch-answers/${VIDEO_ID}.json"
+          if [ -f "$answers" ]; then
+            echo "Filling the holes from $answers (answered in a Claude Code session), not the API."
+            export VOICE_LLM_PATCH=0
+          else
+            answers=""
+          fi
           python3 voice_align.py job-audio.mp3 \
             --refs-json "$(python3 -c "import json; print(json.dumps(json.load(open('/tmp/job.json'))['refs']))")" \
             --saved-transcripts "$saved" \
+            ${answers:+--patch-answers "$answers"} \
             --out-dir job-out
 
       - name: File the result

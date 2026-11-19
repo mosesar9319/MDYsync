@@ -1784,7 +1784,7 @@ def llm_patch_by_default():
     return os.environ.get("VOICE_LLM_PATCH", "1") != "0" and _anthropic_credentials_available()
 
 
-def apply_llm_patch(canon, events, stats, heard, primary, duration, client=None, ask_claude=None):
+def apply_llm_patch(canon, events, stats, heard, primary, duration, client=None, ask_claude=None, model=None):
     """Claude's placements for the holes (llm_patch.patch), added to the path's
     events and counted in its stats: words he read are matched (dafWordsPatched),
     words he only explained are highlighted and counted apart (dafWordsExplained),
@@ -1793,6 +1793,8 @@ def apply_llm_patch(canon, events, stats, heard, primary, duration, client=None,
     placed = {i for event in events for i in range(event.start_idx, event.end_idx + 1)}
     counted = path_align.counted_words(canon, primary, placed)
     kwargs = {"ask_claude": ask_claude} if ask_claude else {}
+    if model:
+        kwargs["model"] = model
     new_events, used = llm_patch.patch(canon, events, counted, heard, duration, client=client,
                                        refresh=_refresh_github_oidc_token, **kwargs)
     read, explained = set(), set()
@@ -1818,7 +1820,8 @@ def apply_llm_patch(canon, events, stats, heard, primary, duration, client=None,
 def process_video(video_path, refs, model_size="small", cache_dir=None, debug=False,
                   engine="whisper", fallback=True, llm_rescue=None, refine=True,
                   aligner="path", witnesses=DEFAULT_WITNESSES, slow_tempo=SLOW_TEMPO, transcripts=None,
-                  keep_after_reading=False, primary_refs=None, saved_witnesses=None, llm_patch=None):
+                  keep_after_reading=False, primary_refs=None, saved_witnesses=None, llm_patch=None,
+                  patch_questions=None, patch_answers=None):
     canon, segments = load_canonical(refs, cache_dir)
     print(f"Canonical text: {len(segments)} segments, {len(canon)} words")
     for c in canon:
@@ -1972,7 +1975,28 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
                         primary=primary)
                     path_stats["relisten"] = {"words": len(again), "matchedBefore": first_heard}
             path_stats.pop("holes", None)
-            if path_events and (llm_patch_by_default() if llm_patch is None else llm_patch):
+            if path_events and patch_questions:
+                # The holes, written out to be answered in a Claude Code session
+                # (llm_patch.questions); nothing is patched here.
+                import llm_patch as _llm_patch
+                placed = {i for e in path_events for i in range(e.start_idx, e.end_idx + 1)}
+                counted = path_align.counted_words(canon, primary, placed)
+                asked = _llm_patch.questions(canon, words, _llm_patch.find_gaps(canon, path_events, counted, words,
+                                                                               duration))
+                with open(patch_questions, "w", encoding="utf-8") as f:
+                    json.dump(asked, f, ensure_ascii=False, indent=1)
+                print(f"Wrote {len(asked['holes'])} hole(s) to {patch_questions}")
+            elif path_events and patch_answers:
+                # Answers given in a Claude Code session instead of by the API.
+                import llm_patch as _llm_patch
+                answers = _llm_patch.load_answers(patch_answers)
+                path_events = apply_llm_patch(canon, path_events, path_stats, words, primary, duration,
+                                              client=object(), ask_claude=_llm_patch.ask_from_answers(answers),
+                                              model=_llm_patch.IN_SESSION_MODEL)
+                print(f"Applied {len(answers)} answer(s) from {patch_answers}: placed "
+                      f"{path_stats['dafWordsPatched']} daf words that were read; "
+                      f"{path_stats['dafWordsExplained']} more are explained without being read")
+            elif path_events and (llm_patch_by_default() if llm_patch is None else llm_patch):
                 # Last: Claude reads each hole with the transcript of just that
                 # stretch (llm_patch.py). Losing it only loses what it would
                 # have placed.
@@ -2062,6 +2086,12 @@ def main():
                         "wherever the job has Anthropic credentials, unless $VOICE_LLM_PATCH is 0.")
     p.add_argument("--no-llm-patch", dest="llm_patch", action="store_false",
                    help="Do not ask Claude about the holes.")
+    p.add_argument("--patch-questions",
+                   help="Write the holes the path leaves to this file, as Claude would be asked about "
+                        "them (llm_patch.questions), to be answered in a Claude Code session; no API call.")
+    p.add_argument("--patch-answers",
+                   help="Fill the holes from this answers file (llm_patch.ANSWERS_SCHEMA) instead of "
+                        "asking Claude through the API.")
     p.add_argument("--no-neighbors", dest="neighbors", action="store_false",
                    default=os.environ.get("VOICE_NEIGHBORS", "1") != "0",
                    help="Do not also read the amud before and after a whole daf (see "
@@ -2093,7 +2123,8 @@ def main():
         engine=args.engine, fallback=not args.no_fallback, llm_rescue=args.llm_rescue,
         refine=args.refine, aligner=args.aligner, witnesses=args.witnesses,
         slow_tempo=args.slow_tempo, transcripts=args.transcript, keep_after_reading=args.keep_after_reading,
-        primary_refs=primary_refs, saved_witnesses=saved_witnesses, llm_patch=args.llm_patch)
+        primary_refs=primary_refs, saved_witnesses=saved_witnesses, llm_patch=args.llm_patch,
+        patch_questions=args.patch_questions, patch_answers=args.patch_answers)
     if saved_seconds:
         duration = max(duration, saved_seconds)
     if HEARD_WITNESSES and not reading_saved:
