@@ -10,12 +10,16 @@
 //
 // A daf that already has a DIFFERENT video linked under the same key is left
 // alone (and reported): replacing somebody's link is not this tool's call.
+//
+// R' Bornstein's shiurim are named by Lakewood Daf Yomi's own id ("L0213147286",
+// shared/lakewood-feed.mjs): the link is then their feed's mp3, never YouTube.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { refKeyFor } from '../../shared/mdy-channel.mjs';
 import { maggidById } from '../../shared/maggidim.mjs';
+import { FEED_URL, feedItems, isLakewoodId, lakewoodEpisodeId } from '../../shared/lakewood-feed.mjs';
 
 const REF = /^(.+) (\d+)([ab])$/;
 
@@ -28,8 +32,10 @@ export function parseRefs(value) {
 }
 
 // Returns { written: [keys], kept: [{ key, videoId }] }.
-export function registerTestShiur({ resultsDir, videoId, refs, maggid = '', label = '' }) {
-  if (!/^[\w-]{11}$/.test(String(videoId || ''))) throw new Error(`Not a YouTube video id: "${videoId}".`);
+// lakewood: { url, seconds } of the feed's episode, for a Lakewood id.
+export function registerTestShiur({ resultsDir, videoId, refs, maggid = '', label = '', lakewood = null }) {
+  if (!/^[\w-]{11}$/.test(String(videoId || ''))) throw new Error(`Not a video id: "${videoId}".`);
+  if (isLakewoodId(videoId) && !lakewood?.url) throw new Error(`Lakewood Daf Yomi's feed has no episode ${videoId}.`);
   if (maggid && !maggidById(maggid)) throw new Error(`Unknown maggid "${maggid}".`);
   const readings = parseRefs(refs);
   if (!readings.length) throw new Error('No dapim given.');
@@ -48,8 +54,14 @@ export function registerTestShiur({ resultsDir, videoId, refs, maggid = '', labe
     }
     const link = {
       ...(existing || {}),
-      type: 'youtube',
-      url: `https://www.youtube.com/watch?v=${videoId}`,
+      ...(lakewood ? {
+        type: 'lakewood',
+        url: lakewood.url,
+        ...(lakewood.seconds ? { seconds: lakewood.seconds } : {}),
+      } : {
+        type: 'youtube',
+        url: `https://www.youtube.com/watch?v=${videoId}`,
+      }),
       videoId,
       label: String(label || existing?.label || `${reading.tractate} ${reading.daf}`).slice(0, 100),
       coveredRefs: readings.map((r) => r.ref),
@@ -90,9 +102,22 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     console.error('Usage: node register.mjs --results <dir> --video-id <id> --refs "Bekhorot 58a,Bekhorot 58b" [--maggid bornstein] [--label "..."]');
     process.exit(2);
   }
-  const label = args.label || await videoTitle(args.videoId);
+  let lakewood = null;
+  let label = args.label || '';
+  if (isLakewoodId(args.videoId)) {
+    // From Lakewood Daf Yomi's own feed; YouTube is never asked.
+    const response = await fetch(FEED_URL, { signal: AbortSignal.timeout(30000) });
+    if (!response.ok) throw new Error(`Lakewood Daf Yomi's feed answered ${response.status}`);
+    const item = feedItems(await response.text()).find((i) => lakewoodEpisodeId(i.url) === args.videoId);
+    if (item) {
+      lakewood = { url: item.url, seconds: item.seconds };
+      label = label || item.title;
+    }
+  } else if (!label) {
+    label = await videoTitle(args.videoId);
+  }
   const { written, kept } = registerTestShiur({
-    resultsDir: args.results, videoId: args.videoId, refs: args.refs, maggid: args.maggid || '', label,
+    resultsDir: args.results, videoId: args.videoId, refs: args.refs, maggid: args.maggid || '', label, lakewood,
   });
   for (const key of written) console.log(`Test shiur link: video-links/${key}.json -> ${args.videoId}`);
   for (const { key, videoId } of kept) console.log(`Left alone: video-links/${key}.json already links ${videoId}.`);

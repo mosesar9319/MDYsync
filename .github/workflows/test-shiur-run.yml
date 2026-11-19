@@ -34,9 +34,12 @@ on:
   workflow_dispatch:
     inputs:
       video_id:
-        description: 'YouTube video id of the test shiur'
+        # R' Bornstein's shiurim are named by Lakewood Daf Yomi's own id ("L" and
+        # ten digits, tools/lakewood-import.mjs) and come from their feed, never
+        # YouTube; Bechoros 58 is L0213147286.
+        description: 'The test shiur: its Lakewood Daf Yomi id (L0213147286), or a Mercaz Daf Yomi YouTube id'
         required: true
-        default: 'TWCiP96dKXU'
+        default: 'L0213147286'
       refs:
         # Bechoros 58 opens four lines from the bottom of 57b and runs a few
         # lines into 59a, so both are given; the publisher treats them as
@@ -145,8 +148,12 @@ jobs:
           if stt_model != 'scribe_v2':
               made += ', ' + stt_model.replace('scribe_v', 'Scribe v')
           notes = os.environ.get('NOTES', '').strip()
+          video_id = os.environ['VIDEO_ID']
+          # A Lakewood Daf Yomi shiur is named by its own id; the voice job takes
+          # its audio from their feed (voice-job.yml), never from YouTube.
+          lakewood = video_id.startswith('L') and video_id[1:].isdigit() and len(video_id) == 11
           payload = {
-              'youtubeUrl': 'https://www.youtube.com/watch?v=' + os.environ['VIDEO_ID'],
+              **({'videoId': video_id} if lakewood else {'youtubeUrl': 'https://www.youtube.com/watch?v=' + video_id}),
               'refs': refs,
               'jobId': uuid.uuid4().hex,
               'variant': 'regular',

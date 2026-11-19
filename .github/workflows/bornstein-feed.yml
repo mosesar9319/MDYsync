@@ -1,0 +1,89 @@
+name: R' Bornstein's shiurim (Lakewood Daf Yomi feed)
+
+# Every hour: reads Lakewood Daf Yomi's own podcast feed -- never YouTube -- and
+#   1. links every daf shiur in it on DafSync (tools/lakewood-import.mjs), so a
+#      new shiur is there to listen to within the hour, and rebuilds catalog.json;
+#   2. starts the voice sync of each new shiur from Eruchin 2 on
+#      (tools/lakewood-sync.mjs), unless the ElevenLabs credits are running low,
+#      in which case it waits and tries again next hour.
+# The sync itself runs in voice-job.yml, with the feed's mp3.
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bornstein-feed
+  cancel-in-progress: false
+
+jobs:
+  feed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Link the feed's shiurim on DafSync
+        run: |
+          set -e
+          git config user.name "dafsync-bot"
+          git config user.email "dafsync-bot@users.noreply.github.com"
+          # Done from a fresh copy of the results branch each try, so another
+          # writer pushing in between (the channel sync, a sync job) never leaves
+          # a conflict: the import and the catalog are simply made again.
+          for attempt in 1 2 3 4 5; do
+            rm -rf /tmp/results
+            git worktree prune
+            git fetch origin results
+            git worktree add --detach /tmp/results origin/results
+            node MDYsync/tools/lakewood-import.mjs --results /tmp/results > /tmp/import.json
+            node MDYsync/tools/build-video-catalog.mjs --results /tmp/results
+            cd /tmp/results
+            git add -A video-links maggidim catalog.json by-ref by-video test-runs settings.json
+            if git diff --cached --quiet; then
+              echo "Nothing new in the feed."
+              cd - > /dev/null
+              break
+            fi
+            git commit -q -m "R' Bornstein's shiurim from Lakewood Daf Yomi's feed"
+            if git push origin HEAD:results; then
+              cd - > /dev/null
+              break
+            fi
+            cd - > /dev/null
+            sleep $((attempt * 3))
+          done
+
+      - name: Start the voice sync of new shiurim
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+        run: |
+          set -e
+          rm -rf /tmp/results
+          git worktree prune
+          git fetch origin results
+          git worktree add --detach /tmp/results origin/results
+          node MDYsync/tools/lakewood-sync.mjs --results /tmp/results --items /tmp/import.json
+          cd /tmp/results
+          git add -A maggidim/bornstein-sync.json 2>/dev/null || true
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -q -m "Voice syncs started for R' Bornstein's new shiurim"
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:results; then
+              break
+            fi
+            git fetch origin results
+            git rebase origin/results
+            sleep 2
+          done

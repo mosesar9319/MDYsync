@@ -31,20 +31,22 @@ const FAKE_PDFJS = `
   }`;
 
 const link = (videoId, label) => ({ type: 'youtube', videoId, url: `https://www.youtube.com/watch?v=${videoId}`, label });
+const LAKEWOOD_91 = 'https://lakewoodafyomi.appspot.com/m5/X/Chulin%2091_91.mp3';
 const CATALOG = {
   tractates: {
     Chullin: [
       { daf: 91, regularEn: { videoId: 'AAAAAAAAAAA', label: 'Daf Yomi Chullin Daf 91', amud: 'a' }, regularHe: { videoId: 'BBBBBBBBBBB', label: 'מרכז דף יומי חולין', amud: 'a' }, chazarahEn: { videoId: 'DDDDDDDDDDD', label: 'Chazarah, not synced', amud: 'a' } },
     ],
   },
-  maggidim: { bornstein: { tractates: { Chullin: [{ daf: 91, regularEn: { videoId: 'Zsy7oDUP6Pw', label: 'Chullin 91', amud: 'a' } }] } } },
+  // R' Bornstein's shiurim come from Lakewood Daf Yomi's own feed, named by their own id (tools/lakewood-import.mjs).
+  maggidim: { bornstein: { tractates: { Chullin: [{ daf: 91, regularEn: { videoId: 'L0000000091', label: 'Chulin 91', amud: 'a', source: 'lakewood', url: LAKEWOOD_91 } }] } } },
 };
 // The Chazarah recording is linked but its sync has not finished.
 const SYNCED = { Chullin: { '91a': ['regularEn', 'regularHe'] } };
 const LINKS = {
   'video-links/Chullin-91a.json': link('AAAAAAAAAAA', 'Daf Yomi Chullin Daf 91'),
   'video-links/Hebrew-Chullin-91a.json': link('BBBBBBBBBBB', 'Hebrew'),
-  'video-links/Bornstein-Chullin-91a.json': link('Zsy7oDUP6Pw', 'Chullin 91'),
+  'video-links/Bornstein-Chullin-91a.json': { type: 'lakewood', videoId: 'L0000000091', url: LAKEWOOD_91, label: 'Chulin 91', source: 'lakewood-feed', maggid: 'bornstein' },
 };
 // Two phrases of the daf's first paragraph: its first five words at 0:30, the next five at 1:00.
 const ALIGNMENT = {
@@ -203,10 +205,10 @@ test.describe('Interactive Daf — the book on its own', () => {
       // R' Bornstein's: audio only, from Lakewood Daf Yomi's server; its sync is found out when it loads.
       ["R' Sruly Bornstein · English", 'Starts at this word where synced', 'Audio'],
     ]);
-    // MDY's picture, and Lakewood Daf Yomi's, through the site's image service -- never YouTube's.
+    // MDY's picture through the site's image service; R' Bornstein's own picture for his -- never YouTube's.
     expect(seen[0].picture).toContain('/.netlify/images?url=');
     expect(seen[0].picture).toContain(encodeURIComponent('https://cdn.mdydaf.com/shiur/english/chullin/thumb/91.png'));
-    expect(seen[3].picture).toContain(encodeURIComponent('https://app.daf-yomi.net/images/daf-podcast-2.jpeg'));
+    expect(seen[3].picture).toBe('/assets/maggidim/bornstein-v1.jpg');
     expect(seen.map((r) => r.picture).join(' ')).not.toContain('ytimg');
   });
 
@@ -314,7 +316,7 @@ test.describe('Interactive Daf — the book on its own', () => {
 
   test("R' Bornstein's shiur plays as audio from Lakewood Daf Yomi's server, never from YouTube", async ({ page }) => {
     await open(page, '/browse/?ref=Chullin%2091a', { videoSource: 'mdy' });
-    const LAKEWOOD = 'https://lakewoodafyomi.appspot.com/m5/X/Chulin%2091_1.mp3';
+    const LAKEWOOD = LAKEWOOD_91;
     const lookups = [];
     await page.route('**/api/lakewood-audio?*', (route) => {
       lookups.push(Object.fromEntries(new URL(route.request().url()).searchParams));
@@ -329,7 +331,9 @@ test.describe('Interactive Daf — the book on its own', () => {
     await expect(row.locator('button')).toHaveText(['Audio']);
     await row.locator('button', { hasText: 'Audio' }).click();
     await expect.poll(() => page.evaluate(() => document.querySelector('video')?.getAttribute('src'))).toBe(LAKEWOOD);
-    expect(lookups).toEqual([{ tractate: 'Chullin', daf: '91' }]);
+    // The link has the feed's address: nothing to look up, and it is a Lakewood source.
+    expect(lookups).toEqual([]);
+    expect(await page.evaluate(() => ({ type: state.videoSource.type, id: state.videoSource.videoId }))).toEqual({ type: 'lakewood', id: 'L0000000091' });
     const bar = page.locator('#audioBar');
     await expect(bar).toBeVisible();
     // Nothing to switch to: no video.
@@ -338,20 +342,20 @@ test.describe('Interactive Daf — the book on its own', () => {
     // The MP3 is saved through dafsync.com, under the shiur's name.
     const download = bar.locator('#audioBarDownload');
     await expect(download).toBeVisible();
-    await expect(download).toHaveAttribute('href', '/lakewood-audio/Chulin%2091_1.mp3');
+    await expect(download).toHaveAttribute('href', '/lakewood-audio/Chulin%2091_91.mp3');
     await expect(download).toHaveAttribute('download', "Chullin 91 - R' Sruly Bornstein.mp3");
     expect(await page.evaluate(() => window.__yt.length)).toBe(0); // YouTube was never asked
   });
 
-  test("R' Bornstein's daf that Lakewood Daf Yomi's server no longer has says so, and does not turn to YouTube", async ({ page }) => {
+  test("R' Bornstein's shiur that does not load from Lakewood Daf Yomi's server says so, and does not turn to YouTube", async ({ page }) => {
     await open(page, '/browse/?ref=Chullin%2091a', { videoSource: 'mdy' });
-    await page.route('**/api/lakewood-audio?*', (route) => route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"none"}' }));
+    await page.route('https://lakewoodafyomi.appspot.com/**', (route) => route.fulfill({ status: 404, body: '' }));
     await tapWord(page, 7);
     await watchLines(page).click();
     await page.locator('#bookShiurList .book-shiur-row').nth(3).locator('button', { hasText: 'Audio' }).click();
-    await expect(page.locator('.toast')).toContainText("isn't on Lakewood Daf Yomi's server");
+    await expect(page.locator('.toast')).toContainText("didn't load from Lakewood Daf Yomi's server");
     expect(await page.evaluate(() => window.__yt.length)).toBe(0);
-    expect(await page.evaluate(() => document.querySelector('video')?.getAttribute('src') || null)).toBeNull();
+    expect(await page.evaluate(() => state.videoSource?.type)).toBe('lakewood');
   });
 
   test('Split view and Daf on video are one tap away, and Close puts the book back', async ({ page }) => {

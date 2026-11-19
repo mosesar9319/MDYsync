@@ -11,8 +11,10 @@ const M = require('../../mdy-files.js');
 
 const ref = (tractate, daf, extra = {}) => ({ tractate, daf, amud: 'a', variant: 'regular', language: 'en', maggid: null, ...extra });
 
-test('every masechta is spelled the way dafsync.com spells it, which is how MDY does', () => {
-  assert.deepEqual(M.MASECHTA_SLUGS, Object.fromEntries(MASECHTOS.map((m) => [m.name, m.slug])));
+test('every masechta is spelled the way MDY does: dafsync.com\'s spelling, or shas.org\'s where dafsync.com has its own', () => {
+  // dafsync.com says "Eruchin"; MDY, like shas.org, files it under "arachin".
+  assert.deepEqual(M.MASECHTA_SLUGS, Object.fromEntries(MASECHTOS.map((m) => [m.name, m.shasSlug || m.slug])));
+  assert.equal(M.MASECHTA_SLUGS.Arakhin, 'arachin');
 });
 
 test('the address of each kind of shiur, in each quality', () => {

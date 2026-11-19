@@ -36,7 +36,10 @@ export const MASECHTOS = [
   { name: "Menachot", slug: "menachos", hebrew: "מנחות", startDaf: 2, endDaf: 110, endSide: "a" },
   { name: "Chullin", slug: "chullin", hebrew: "חולין", startDaf: 2, endDaf: 142, endSide: "a" },
   { name: "Bekhorot", slug: "bechoros", hebrew: "בכורות", startDaf: 2, endDaf: 61, endSide: "a" },
-  { name: "Arakhin", slug: "arachin", hebrew: "ערכין", startDaf: 2, endDaf: 34, endSide: "a" },
+  // "Eruchin", as Lakewood Daf Yomi and most Daf Yomi shiurim say it; shas.org
+  // files its daf pages under "arachin" (shasSlug), and dafsync.com/arachin/
+  // goes on to /eruchin/ (netlify.toml).
+  { name: "Arakhin", slug: "eruchin", shasSlug: "arachin", hebrew: "ערכין", startDaf: 2, endDaf: 34, endSide: "a" },
   { name: "Temurah", slug: "temurah", hebrew: "תמורה", startDaf: 2, endDaf: 34, endSide: "a" },
   { name: "Keritot", slug: "kereisos", hebrew: "כריתות", startDaf: 2, endDaf: 28, endSide: "b" },
   { name: "Meilah", slug: "meilah", hebrew: "מעילה", startDaf: 2, endDaf: 22, endSide: "a" },
@@ -45,8 +48,9 @@ export const MASECHTOS = [
 const BY_NAME = new Map(MASECHTOS.map((m) => [m.name, m]));
 const BY_SLUG = new Map(MASECHTOS.map((m) => [m.slug, m]));
 
-// Sefaria name -> address slug, as daf-page.mjs has always used it.
-export const MASECHTA_SLUGS = Object.fromEntries(MASECHTOS.map((m) => [m.name, m.slug]));
+// Sefaria name -> the slug shas.org files its daf pages under (daf-page.mjs):
+// dafsync.com's own address slug, except where a masechta has its own shasSlug.
+export const MASECHTA_SLUGS = Object.fromEntries(MASECHTOS.map((m) => [m.name, m.shasSlug || m.slug]));
 
 export function masechtaByName(name) {
   return BY_NAME.get(name) || null;
@@ -61,12 +65,14 @@ export function displayName(masechta) {
   return masechta.slug.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
-// The other ways people spell it in a search: Sefaria's ("Bekhorot") and the
-// modern Israeli one ("Bechorot"), leaving out any that equal the display name.
+// The other ways people spell it in a search: Sefaria's ("Bekhorot"), the
+// modern Israeli one ("Bechorot") and an older address's ("Arachin"), leaving
+// out any that equal the display name.
 export function otherSpellings(masechta) {
   const shown = displayName(masechta);
   const israeli = masechta.name.replace(/kh/g, 'ch').replace(/Kh/g, 'Ch');
-  return [...new Set([masechta.name, israeli])].filter((s) => s !== shown);
+  const older = masechta.shasSlug ? displayName({ slug: masechta.shasSlug }) : null;
+  return [...new Set([masechta.name, israeli, older].filter(Boolean))].filter((s) => s !== shown);
 }
 
 // Hebrew numerals as a daf is numbered: 58 -> נח, 15 -> טו, 16 -> טז.

@@ -39,7 +39,10 @@ test('every masechta has an address, and the home page links with the same slugs
   assert.deepEqual(config.path, expected);
   const home = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const table = JSON.parse(`{${/const MASECHTA_SLUGS = \{([^}]*)\};/.exec(home)[1]}}`);
-  assert.deepEqual(table, MASECHTA_SLUGS);
+  assert.deepEqual(table, Object.fromEntries(MASECHTOS.map((m) => [m.name, m.slug])));
+  // Eruchin's address is its own; shas.org's daf pages stay under "arachin".
+  assert.equal(table.Arakhin, 'eruchin');
+  assert.equal(MASECHTA_SLUGS.Arakhin, 'arachin');
   // No slug may shadow a real page of the site.
   for (const m of MASECHTOS) assert.equal(fs.existsSync(path.join(ROOT, m.slug)), false, m.slug);
 });
@@ -49,6 +52,7 @@ test('names, numerals and spellings', () => {
   assert.equal(hebrewNumeral(15), 'טו');
   assert.equal(hebrewNumeral(16), 'טז');
   assert.equal(hebrewNumeral(120), 'קכ');
+  assert.deepEqual(otherSpellings(masechtaBySlug('eruchin')), ['Arakhin', 'Arachin']);
   assert.deepEqual(otherSpellings(BECHOROS), ['Bekhorot', 'Bechorot']);
 });
 
@@ -79,7 +83,7 @@ test('the catalog becomes one shiur per recording, livestreams and unknown masec
 });
 
 test('a daf page: its title, heading, every shiur, the daf text, and its neighbours', () => {
-  const html = dafPage(BECHOROS, 58, SHIURIM, { text: 'אמר רב', details: { 'TWCiP96dKXU': { publishedAt: '2026-06-01T10:00:00Z', duration: 'PT1H4M' } } });
+  const html = dafPage(BECHOROS, 58, SHIURIM, { text: 'אמר רב', details: { '0n7fE-jS0NE': { publishedAt: '2026-06-01T10:00:00Z', duration: 'PT1H4M' }, 'TWCiP96dKXU': { publishedAt: '2026-06-02T10:00:00Z' } } });
   assert.match(html, /<title>Bechoros 58 Daf Yomi Shiur — Video with the Daf Synced \| DafSync<\/title>/);
   assert.match(html, /<link rel="canonical" href="https:\/\/dafsync.com\/bechoros\/58\/">/);
   assert.match(html, /<h1>Bechoros 58 <span class="he" lang="he" dir="rtl">בכורות נח<\/span><\/h1>/);
@@ -93,8 +97,9 @@ test('a daf page: its title, heading, every shiur, the daf text, and its neighbo
   assert.match(html, /rel="prev" href="\/bechoros\/57\/"/);
   assert.doesNotMatch(html, /rel="next"/);
   const ld = [...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
-  assert.deepEqual(ld.map((o) => o['@type']), ['BreadcrumbList', 'VideoObject']);   // only the video with a known date
-  assert.equal(ld[1].embedUrl, 'https://www.youtube.com/embed/TWCiP96dKXU');
+  // Only the video with a known date; R' Bornstein's shiur is audio from Lakewood Daf Yomi, not a video.
+  assert.deepEqual(ld.map((o) => o['@type']), ['BreadcrumbList', 'VideoObject']);
+  assert.equal(ld[1].embedUrl, 'https://www.youtube.com/embed/0n7fE-jS0NE');
   assert.equal(ld[1].uploadDate, '2026-06-01T10:00:00Z');
 });
 
@@ -231,10 +236,12 @@ test('pictures: MDY\u2019s own, resized and sent from dafsync.com, when its serv
   const html = dafPage(BECHOROS, 58, SHIURIM, { pictures });
   assert.ok(html.includes('src="/.netlify/images?url=https%3A%2F%2Fcdn.mdydaf.com%2Fshiur%2Fenglish%2Fbechoros%2Fthumb%2F58.png&amp;w=320&amp;fm=webp&amp;q=75"'));
   assert.ok(html.includes(`src="https://i.ytimg.com/vi/${chazarah58.videoId}/mqdefault.jpg"`));
-  assert.ok(html.includes(`src="https://i.ytimg.com/vi/${bornstein58.videoId}/mqdefault.jpg"`));
+  // R' Bornstein's shiurim show his picture, never YouTube's.
+  assert.ok(html.includes('src="https://dafsync.com/assets/maggidim/bornstein-v1.jpg"'));
+  assert.ok(!html.includes(`i.ytimg.com/vi/${bornstein58.videoId}`));
 
   const page = shiurPage(PLAYER_HTML, mdy58, { pictures });
   assert.match(page, /<meta property="og:image" content="https:\/\/dafsync\.com\/\.netlify\/images\?url=https%3A%2F%2Fcdn\.mdydaf\.com%2Fshiur%2Fenglish%2Fbechoros%2Fthumb%2F58\.png&amp;w=1200&amp;fm=jpg&amp;q=75">/);
   const fallback = shiurPage(PLAYER_HTML, bornstein58, {});
-  assert.match(fallback, new RegExp(`<meta property="og:image" content="https://i\\.ytimg\\.com/vi/${bornstein58.videoId}/hqdefault\\.jpg">`));
+  assert.match(fallback, /<meta property="og:image" content="https:\/\/dafsync\.com\/assets\/maggidim\/bornstein-v1\.jpg">/);
 });

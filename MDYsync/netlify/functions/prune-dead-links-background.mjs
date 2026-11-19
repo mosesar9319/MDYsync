@@ -1,3 +1,4 @@
+import { isLakewoodId } from '../../shared/lakewood-feed.mjs';
 // Scheduled job: finds every currently-linked video (video-links/*.json and
 // the catalog.json summary built from it) whose YouTube video is no longer
 // reachable -- deleted, made private, whatever -- and removes it.
@@ -88,10 +89,13 @@ export default async () => {
     return Response.json({ error: `Could not list video links: ${error.message}` }, { status: 502 });
   }
 
-  const videoLinkFiles = await pool(videoLinkEntries, 10, async (entry) => {
+  // R' Bornstein's shiurim come from Lakewood Daf Yomi's feed, not YouTube
+  // (type 'lakewood', ids "L" + ten digits): YouTube is never asked about them,
+  // and they are never pruned here.
+  const videoLinkFiles = (await pool(videoLinkEntries, 10, async (entry) => {
     const content = await fetchJson(`${RAW_BASE}/${entry.path}`);
-    return { ...entry, videoId: content?.videoId || null };
-  });
+    return { ...entry, videoId: content?.videoId || null, lakewood: content?.type === 'lakewood' || isLakewoodId(content?.videoId) };
+  })).filter((f) => !f.lakewood);
 
   const catalog = await fetchJson(`${RAW_BASE}/catalog.json`) || { tractates: {} };
 
@@ -100,7 +104,9 @@ export default async () => {
   for (const tractates of tractateMaps(catalog)) {
     for (const tractate of Object.keys(tractates)) {
       for (const row of tractates[tractate]) {
-        for (const key of COMBO_KEYS) if (row[key]?.videoId) allVideoIds.add(row[key].videoId);
+        for (const key of COMBO_KEYS) {
+          if (row[key]?.videoId && row[key].source !== 'lakewood' && !isLakewoodId(row[key].videoId)) allVideoIds.add(row[key].videoId);
+        }
       }
     }
   }
