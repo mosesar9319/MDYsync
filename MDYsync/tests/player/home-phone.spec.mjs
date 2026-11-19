@@ -286,6 +286,39 @@ test.describe('Desktop home is unchanged', () => {
     await expect(page.locator('#modal')).toBeHidden();
   });
 
+  // The day Eruchin began, MDY's English shiur was not linked and the banner
+  // offered his Hebrew one alone, though R' Bornstein's English shiur of the
+  // same daf was on the site.
+  test('the Today’s Daf banner offers every maggid’s shiur on the daf, English first', async ({ page }) => {
+    const both = JSON.parse(JSON.stringify(CATALOG));
+    both.tractates.Chullin[0] = { daf: 89, regularHe: { videoId: 'TODAYhe0001', label: 'חולין פט', amud: 'a' } };
+    both.maggidim.bornstein.tractates.Chullin = [{ daf: 89, regularEn: { videoId: 'L0000000089', label: 'Chulin 89', amud: 'a' } }];
+    await open(page);
+    await page.route('**/api/get-catalog', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(both) }));
+    await page.reload();
+    await expect(page.locator('#hero-card')).toBeVisible();
+    await page.locator('#hero-card').click();
+    await expect(page.locator('#modal-variant-toggle button')).toHaveText(['R’ Eli Stefansky · Hebrew', 'R’ Sruly Bornstein · English']);
+    // It opens on the English shiur, as a card or the player would.
+    await expect(page.locator('#modal-variant-toggle button.active')).toHaveText('R’ Sruly Bornstein · English');
+    await expect(page.locator('#modal-teacher')).toContainText('R’ Sruly Bornstein');
+    expect(new URL(await page.locator('#modal-watch-link').getAttribute('href'), 'https://dafsync.com').pathname).toContain('bornstein');
+    await page.locator('#modal-variant-toggle button', { hasText: 'Stefansky' }).click();
+    await expect(page.locator('#modal-teacher')).toContainText('R’ Eli Stefansky');
+    expect(await page.locator('#modal-watch-link').getAttribute('href')).not.toContain('bornstein');
+    await page.locator('#modal-close').click();
+
+    // Only another maggid has today's daf: the banner is his, not "isn't linked yet".
+    const only = JSON.parse(JSON.stringify(both));
+    only.tractates.Chullin = only.tractates.Chullin.filter((row) => row.daf !== 89);
+    await page.route('**/api/get-catalog', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(only) }));
+    await page.reload();
+    await expect(page.locator('#hero-card')).toBeVisible();
+    await page.locator('#hero-card').click();
+    await expect(page.locator('#modal-variant-toggle button')).toHaveCount(0);
+    await expect(page.locator('#modal-teacher')).toContainText('R’ Sruly Bornstein');
+  });
+
   test('dark mode does not change the desktop page', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await open(page);
