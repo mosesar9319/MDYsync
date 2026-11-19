@@ -297,7 +297,7 @@ test.describe('R’ Bornstein’s shiurim from Lakewood Daf Yomi’s server', ()
   // As tools/lakewood-import.mjs writes it: Lakewood's own id and the feed's mp3.
   const BORNSTEIN_LINK = { type: 'lakewood', videoId: 'L0000000089', url: LAKEWOOD, label: 'Chulin 89', source: 'lakewood-feed', maggid: 'bornstein' };
 
-  async function openBornstein(page, { found = true, synced = true } = {}) {
+  async function openBornstein(page, { found = true, synced = true, voice = false } = {}) {
     await preparePage(page, { user: null, videoSource: 'mdy' });
     const requests = { lakewood: [], lookups: [], youtube: 0 };
     await page.route('**/api/lakewood-audio?*', (route) => {
@@ -323,7 +323,9 @@ test.describe('R’ Bornstein’s shiurim from Lakewood Daf Yomi’s server', ()
     await page.route('**/api/get-results-file**', (route) => {
       const path = new URL(route.request().url()).searchParams.get('path') || '';
       if (path === 'by-ref/Bornstein-Chullin-89a.json' && synced) {
-        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...alignment(CLIP_SECONDS), dafRef: 'Chullin 89a (Bornstein)' }) });
+        const voiceSync = voice ? { generator: 'voice_align.py', matchStats: { aligner: 'path', straightPath: true } } : {};
+        return route.fulfill({ status: 200, contentType: 'application/json',
+          body: JSON.stringify({ ...alignment(CLIP_SECONDS), dafRef: 'Chullin 89a (Bornstein)', ...voiceSync }) });
       }
       if (path === 'video-links/Bornstein-Chullin-89a.json') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(BORNSTEIN_LINK) });
       return route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"missing"}' });
@@ -361,6 +363,70 @@ test.describe('R’ Bornstein’s shiurim from Lakewood Daf Yomi’s server', ()
     await page.waitForFunction(() => Math.abs(getCurrentTime() - 6) < 0.5);
   });
 
+  test("the audio bar's Vaater skips on to the daf's next synced phrase, as the video player's does", async ({ page }) => {
+    await openBornstein(page);
+    await page.waitForFunction(() => document.getElementById('video').readyState >= 1, null, { timeout: 15000 });
+    const vaater = page.locator('#audioBar #audioBarVaater');
+    await expect(vaater).toBeVisible();
+    await expect(vaater).toBeEnabled();
+    const where = () => page.evaluate(() => Math.round(document.getElementById('video').currentTime));
+    // The sync's phrases start at 1s and 5s.
+    await vaater.click();
+    await expect.poll(where).toBe(1);
+    // (A second press inside 2.5s chains on from the end of the phrase it went
+    // to -- skipToNextReading -- which in this sync is where the next begins.)
+    await page.waitForTimeout(2600);
+    await vaater.click();
+    await expect.poll(where).toBe(5);
+    // Past the last phrase there is nowhere to go.
+    await page.evaluate(() => { seek(11); updateVaaterButtonUi(11); });
+    await expect(vaater).toBeDisabled();
+  });
+
+  // R' Bornstein's Eruchin 2: he reads line 1 at 11:58 and explains it, and
+  // the line stays lit until he reads on. As a caption sync's "held" line it
+  // was jumped over, and Vaater went from the start of the shiur to 15:23.
+  test('in a voice sync Vaater lands on every phrase, though he explained it at length', async ({ page }) => {
+    await openBornstein(page, { voice: true });
+    await page.waitForFunction(() => state.segments.length > 0, null, { timeout: 15000 });
+    const held = (voice) => page.evaluate((straight) => {
+      state.straightPathSync = straight;
+      state.activeIndex = -1;
+      state.segments = [
+        { ref: 'Chullin 89a:1', w0: 0, w1: 0, start: 718, end: 718, he: 'א' },        // as voice_align.py writes them: ending where they start
+        { ref: 'Chullin 89a:1', w0: 1, w1: 1, start: 718.06, end: 731, he: 'ב' },     // then 13s of explanation
+        { ref: 'Chullin 89a:1', w0: 2, w1: 2, start: 731, end: 751, he: 'ג' },
+        { ref: 'Chullin 89a:2', w0: 0, w1: 4, start: 751, end: 754, he: 'ד ה ו ז ח' },
+        { ref: 'Chullin 89a:2', w0: 5, w1: 6, start: 754, end: 760, he: 'ט י' },
+      ];
+      return nextReadingTime(0);
+    }, voice);
+    expect(await page.evaluate(() => state.straightPathSync)).toBe(true);   // from the file
+    expect(await held(true)).toBe(718);
+    // A caption sync keeps skipping a line held far longer than reading it takes.
+    expect(await held(false)).toBe(751);
+  });
+
+  test('the speed picker on a narrow phone: the arrows for Vaater, the list above the bar', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 740 });
+    await openBornstein(page);
+    await page.waitForFunction(() => document.getElementById('video').readyState >= 1, null, { timeout: 15000 });
+    const bar = page.locator('#audioBar');
+    // Everything on one row, nothing pushed off the screen.
+    const right = await page.evaluate(() => Math.max(...[...document.querySelectorAll('#audioBar .audio-bar-row > *')]
+      .filter((el) => el.offsetParent !== null).map((el) => el.getBoundingClientRect().right)));
+    expect(right).toBeLessThanOrEqual(360);
+    await bar.locator('#audioBarSpeed').click();
+    const list = page.locator('#audioBarSpeedMenu');
+    await expect(list).toBeVisible();
+    const box = await list.boundingBox();
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(360);
+    await list.locator('li', { hasText: '2×' }).click();
+    await expect(bar.locator('#audioBarSpeed')).toHaveText('2×');
+    expect(await page.evaluate(() => document.getElementById('video').playbackRate)).toBe(2);
+  });
+
   // His shiurim before Eruchin 2 are linked to listen to, with no sync. The daf
   // used to be given placeholder timing (each line an equal share of the hour),
   // which lit lines and seeked on taps as if it were a sync of what he says.
@@ -374,6 +440,14 @@ test.describe('R’ Bornstein’s shiurim from Lakewood Daf Yomi’s server', ()
     const before = await page.evaluate(() => getCurrentTime());
     await page.evaluate(() => seekToVilnaWord(state.segments[1].ref, 0));
     await expect(page.locator('.toast')).toContainText("isn't synced with the daf yet");
+    expect(Math.abs((await page.evaluate(() => getCurrentTime())) - before)).toBeLessThan(0.5);
+    // The audio bar's Vaater has no phrase to go to either.
+    await page.evaluate(() => { document.querySelectorAll('.toast').forEach((t) => { t.textContent = ''; }); });
+    const vaater = page.locator('#audioBar #audioBarVaater');
+    if (await vaater.isEnabled()) {
+      await vaater.click();
+      await expect(page.locator('.toast')).toContainText("isn't synced with the daf yet");
+    }
     expect(Math.abs((await page.evaluate(() => getCurrentTime())) - before)).toBeLessThan(0.5);
   });
 

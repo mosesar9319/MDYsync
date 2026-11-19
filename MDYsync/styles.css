@@ -4818,7 +4818,20 @@ body.split-tools-desk #splitToolsPanel #readerDafNotes:not(:has(> :not([hidden])
 .audio-bar-download { display: inline-flex; align-items: center; gap: 3px; text-decoration: none; line-height: 1; }
 .audio-bar-download[hidden] { display: none; }
 .audio-bar-download svg { width: 14px; height: 14px; }
+/* Vaater: the video player's own button, as one of the bar's pills. */
+.audio-bar-vaater { display: inline-flex; align-items: center; gap: 3px; line-height: 1; }
+.audio-bar-vaater svg { width: 14px; height: 14px; }
+.audio-bar-vaater:disabled { opacity: .4; cursor: default; }
+.audio-bar-pill[aria-expanded="true"] { background: rgba(255,255,255,.22); }
+/* The speed picker opens above the bar (app.js, audioBarSpeedMenu). */
+.audio-bar-speed-menu { min-width: 76px; }
+.audio-bar-speed-menu li { text-align: center; }
+.audio-bar-speed-menu li:focus { outline: none; background: rgba(255,255,255,.12); color: #fff; }
+.audio-bar-speed-menu li[aria-selected="true"] { color: #f4d68f; }
+.audio-bar-speed-menu[hidden] { display: none; }
 @media (max-width: 420px) {
+  .audio-bar-vaater span { display: none; } /* the arrows alone on a narrow phone */
+  .audio-bar-vaater { width: 30px; justify-content: center; padding: 0; }
   .audio-bar-row { gap: 3px; }
   .audio-bar-button { width: 30px; height: 30px; }
   .audio-bar-play { width: 38px; height: 38px; }
