@@ -2136,8 +2136,11 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     // (catalog.json already collapses each daf's own two amudim down to
     // one video, see tools/build-video-catalog.mjs); the channel itself
     // publishes one video per daf, so that's what the front end lists.
+    // How a masechta's name is shown (the data keeps Sefaria's name).
+    const TRACTATE_DISPLAY_NAMES = { Arakhin: "Eruchin" };
+    const displayTractate = (name) => TRACTATE_DISPLAY_NAMES[name] || name;
     function dafLabel(row) {
-      return `${row.tractate} ${row.daf}`;
+      return `${displayTractate(row.tractate)} ${row.daf}`;
     }
 
     // The reader should see the exact same title the video has on the MDY
@@ -2690,7 +2693,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       }
       if (state.tractate !== "all") rows = rows.filter((row) => row.tractate === state.tractate);
       const needle = state.query.trim().toLowerCase();
-      if (needle) rows = rows.filter((row) => dafLabel(row).toLowerCase().includes(needle));
+      if (needle) rows = rows.filter((row) => [dafLabel(row), `${row.tractate} ${row.daf}`].some((text) => text.toLowerCase().includes(needle)));
 
       const items = [];
       for (const row of rows) {
@@ -2909,7 +2912,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       if (phone) {
         renderChips();
         if (state.filter === "Today" && !state.catalogLoading && !state.catalogFailed && !items.length && state.today) {
-          emptyTitle.textContent = `${state.today.tractate} ${state.today.daf} isn’t linked yet`;
+          emptyTitle.textContent = `${displayTractate(state.today.tractate)} ${state.today.daf} isn’t linked yet`;
           emptyMessage.textContent = "Check back a little later.";
           emptyClearButton.hidden = true;
         }
@@ -2956,13 +2959,13 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         // couldn't check, which is a different message than "not synced yet".
         loading.textContent = state.catalogFailed
           ? "Couldn’t load today’s daf. Try refreshing the page."
-          : `${state.today.tractate} ${state.today.daf} isn’t linked yet.`;
+          : `${displayTractate(state.today.tractate)} ${state.today.daf} isn’t linked yet.`;
         return;
       }
       loading.hidden = true;
       hero.hidden = false;
-      document.querySelector("#hero-kicker").textContent = `DAF YOMI • ${row.tractate.toUpperCase()}`;
-      document.querySelector("#hero-title").textContent = `Maseches ${row.tractate} ${row.daf}`;
+      document.querySelector("#hero-kicker").textContent = `DAF YOMI • ${displayTractate(row.tractate).toUpperCase()}`;
+      document.querySelector("#hero-title").textContent = `Maseches ${displayTractate(row.tractate)} ${row.daf}`;
       document.querySelector("#hero-actions").innerHTML = `<span class="watch-button">${icon("play", 18)} Watch today’s shiur</span>`;
       hero.onclick = () => openShiur(row);
     }
@@ -3068,7 +3071,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         (tractate) => state.catalog.concat(state.maggidRows).some((row) => row.tractate === tractate)
       );
       tractateFilter.innerHTML = `<option value="all">All</option>` + tractatesWithContent
-        .map((tractate) => `<option value="${escapeHtml(tractate)}">${escapeHtml(tractate)}</option>`).join("");
+        .map((tractate) => `<option value="${escapeHtml(tractate)}">${escapeHtml(displayTractate(tractate))}</option>`).join("");
       // Fixed, not built from the catalog's own tractate names -- a
       // per-tractate filter chip row is its own feature (see the
       // "Masechtos" tab note above) that hasn't been rebuilt; SITE_TRACTATES
