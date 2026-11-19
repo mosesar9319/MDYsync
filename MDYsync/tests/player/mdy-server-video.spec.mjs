@@ -148,6 +148,53 @@ test.describe('MDY shiurim from MDY’s own server', () => {
     expect(chrome.captions).toBe('none');
   });
 
+  // A reader paused a shiur, left the tab for a few minutes and came back: each
+  // tap on a word moved the highlight, and the recording stayed where it was.
+  test('a seek the player does not make is sent again, and then on a fresh load of the file', async ({ page }) => {
+    await openShiur(page);
+    await page.waitForFunction(() => document.getElementById('video').readyState >= 1, null, { timeout: 15000 });
+    // The element takes the first `drop` seeks and stays where it is.
+    const dropSeeks = (drop) => page.evaluate((count) => {
+      const video = document.getElementById('video');
+      const real = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'currentTime');
+      window.__sent = [];
+      window.__loads = 0;
+      Object.defineProperty(video, 'currentTime', {
+        configurable: true,
+        get() { return real.get.call(this); },
+        set(value) { window.__sent.push(value); if (window.__sent.length > count) real.set.call(this, value); },
+      });
+      if (!video.__load) {
+        video.__load = video.load;
+        video.load = function load() { window.__loads += 1; return video.__load.call(this); };
+      }
+    }, drop);
+    const where = () => page.evaluate(() => Math.round(document.getElementById('video').currentTime));
+
+    await dropSeeks(1);
+    await page.evaluate(() => activatePhrase(1));          // the second phrase starts at 5s
+    expect(await where()).toBe(0);
+    await expect.poll(where, { timeout: 6000 }).toBe(5);
+    expect(await page.evaluate(() => ({ sent: window.__sent.length, loads: window.__loads }))).toEqual({ sent: 2, loads: 0 });
+
+    // Twice ignored: the file is loaded afresh, and the seek made there.
+    await page.evaluate(() => seek(0));
+    await expect.poll(where, { timeout: 6000 }).toBe(0);
+    await dropSeeks(2);
+    await page.evaluate(() => activatePhrase(1));
+    await expect.poll(where, { timeout: 12000 }).toBe(5);
+    expect(await page.evaluate(() => window.__loads)).toBe(1);
+
+    // A seek that landed is left alone, and so is the scrubber's own.
+    await dropSeeks(0);
+    await page.evaluate(() => seek(8));
+    await page.waitForTimeout(1900);
+    expect(await page.evaluate(() => ({ sent: window.__sent, loads: window.__loads }))).toEqual({ sent: [8], loads: 0 });
+    await page.evaluate(() => { seek(2); applyScrubSeek(9, true); });
+    await page.waitForTimeout(1900);
+    expect(await where()).toBe(9);
+  });
+
   test('a change of quality keeps the place, and audio only is the mp3', async ({ page }) => {
     await openShiur(page, { videoSource: 'mdy' });
     await page.waitForFunction(() => document.getElementById('video').readyState >= 1, null, { timeout: 15000 });

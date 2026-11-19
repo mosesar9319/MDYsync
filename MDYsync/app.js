@@ -8961,18 +8961,82 @@ function seekYouTubePlayer(time, allowSeekAhead, attempt = 0, generation = ++see
 // video) before this fires, the stale listener must not seek the new video
 // to the old target.
 let htmlSeekToken = 0;
-function seekHtmlVideo(time) {
-  const token = ++htmlSeekToken;
+// A seek the element is given is not always a seek it makes. A reader paused
+// R' Bornstein's shiur, left the tab for a few minutes and came back: every tap
+// on a word moved the highlight and the audio stayed where it was, though Play
+// still played (November 2026). So a seek is checked. If the element is not
+// where it was sent, it is sent again; if that fails too, the file is loaded
+// afresh and it is sent there once more. A newer seek, a scrub or another
+// recording ends the check.
+const HTML_SEEK_CHECK_MS = 1500;
+const HTML_SEEK_TOLERANCE_SECONDS = 1.5;
+const HTML_SEEK_MAX_WAITS = 8;     // checks spent waiting on a seek that is still on its way (buffering)
+let htmlSeekCheckTimer = 0;
+
+function htmlSeekLanded(wanted) {
+  const now = Number(htmlVideo.currentTime) || 0;
+  // Paused, the clock sits on the target; playing, it has moved on from it.
+  const played = htmlVideo.paused ? 0
+    : ((performance.now() - wanted.sentAt) / 1000) * Math.max(1, Number(htmlVideo.playbackRate) || 1);
+  return now >= wanted.time - HTML_SEEK_TOLERANCE_SECONDS && now <= wanted.time + HTML_SEEK_TOLERANCE_SECONDS + played;
+}
+
+function sendHtmlSeek(wanted) {
+  wanted.sentAt = performance.now();
   if (htmlVideo.readyState >= 1) {
-    htmlVideo.currentTime = time;
+    htmlVideo.currentTime = wanted.time;
+  } else if (!wanted.awaitingMetadata) {
+    wanted.awaitingMetadata = true;
+    const onLoadedMetadata = () => {
+      htmlVideo.removeEventListener('loadedmetadata', onLoadedMetadata);
+      wanted.awaitingMetadata = false;
+      if (wanted.token !== htmlSeekToken) return; // superseded by a newer seek/video since
+      wanted.sentAt = performance.now();
+      htmlVideo.currentTime = wanted.time;
+      if (wanted.resumePlaying) htmlVideo.play().catch(() => {});
+    };
+    htmlVideo.addEventListener('loadedmetadata', onLoadedMetadata);
+  }
+  window.clearTimeout(htmlSeekCheckTimer);
+  htmlSeekCheckTimer = window.setTimeout(() => checkHtmlSeek(wanted), HTML_SEEK_CHECK_MS);
+}
+
+function checkHtmlSeek(wanted) {
+  if (wanted.token !== htmlSeekToken || htmlVideo.getAttribute('src') !== wanted.src) return;
+  if (htmlSeekLanded(wanted)) return;
+  const fetching = htmlVideo.networkState === 2;
+  // The file itself is still on its way: sendHtmlSeek's listener seeks when it is here.
+  if (htmlVideo.readyState < 1 && fetching) return;
+  // Still fetching the place it was sent to: a slow connection, not a seek that went missing.
+  if (htmlVideo.seeking && fetching && wanted.waits < HTML_SEEK_MAX_WAITS) {
+    wanted.waits += 1;
+    htmlSeekCheckTimer = window.setTimeout(() => checkHtmlSeek(wanted), HTML_SEEK_CHECK_MS);
     return;
   }
-  const onLoadedMetadata = () => {
-    htmlVideo.removeEventListener('loadedmetadata', onLoadedMetadata);
-    if (token !== htmlSeekToken) return; // superseded by a newer seek/video since
-    htmlVideo.currentTime = time;
-  };
-  htmlVideo.addEventListener('loadedmetadata', onLoadedMetadata);
+  if (wanted.tries >= 2) return;
+  // Once more as it is; then, or when the element holds nothing at all and is
+  // fetching nothing, the file is loaded afresh and it is sent there.
+  wanted.tries = htmlVideo.readyState < 1 ? 2 : wanted.tries + 1;
+  if (wanted.tries === 2 && wanted.src) {
+    wanted.resumePlaying = !htmlVideo.paused;
+    const rate = htmlVideo.playbackRate;
+    htmlVideo.load();
+    htmlVideo.playbackRate = rate;   // .load() puts the rate back to 1
+  }
+  sendHtmlSeek(wanted);
+}
+
+// What ends the check without another seek through seekHtmlVideo: the scrubber
+// sets the clock itself, many times a second.
+function cancelHtmlSeekCheck() {
+  htmlSeekToken += 1;
+  window.clearTimeout(htmlSeekCheckTimer);
+}
+
+function seekHtmlVideo(time) {
+  sendHtmlSeek({
+    time, token: ++htmlSeekToken, src: htmlVideo.getAttribute('src'), tries: 0, waits: 0, resumePlaying: false, awaitingMetadata: false,
+  });
 }
 
 function flushQueuedSeek() {
@@ -12525,6 +12589,7 @@ function applyScrubSeek(time, allowSeekAhead) {
     if (state.youtubeReady && state.youtubePlayer?.seekTo) seekYouTubePlayer(time, allowSeekAhead);
     else state.queuedSeek = { time, allowSeekAhead };
   } else if (htmlVideo.readyState >= 1) {
+    cancelHtmlSeekCheck();
     htmlVideo.currentTime = time;
   }
 }
