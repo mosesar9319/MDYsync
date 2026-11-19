@@ -74,6 +74,10 @@ const BERNSTEIN_TRACTATE_ALIASES = {
   menachos: 'menachot',
   yevamos: 'yevamot',
   bechoros: 'bekhorot',
+  // Lakewood Daf Yomi's podcast feed titles Arakhin "Eruchin 2" (its file is
+  // "Arachin 2"; see tools/lakewood-audio.mjs).
+  eruchin: 'arakhin',
+  arachin: 'arakhin',
 };
 
 // Lakewood Daf Yomi's daf videos are titled "<Tractate> <N>" ("Bechoros 22",

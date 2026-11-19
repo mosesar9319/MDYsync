@@ -80,10 +80,12 @@ jobs:
       # see ocr-job.yml's own copy of these two steps for the full story on
       # why both this and the PO token provider below are needed.
       - uses: denoland/setup-deno@v2
+        if: github.event.client_payload.maggid != 'bornstein'
         with:
           deno-version: v2.x
 
       - name: Start the PO token provider
+        if: github.event.client_payload.maggid != 'bornstein'
         run: |
           docker run --name bgutil-provider -d -p 4416:4416 \
             brainicism/bgutil-ytdlp-pot-provider
@@ -107,8 +109,47 @@ jobs:
       # measured against the audio it hears. Anything else (another maggid, a
       # livestream, no such file, a different length) leaves it to the
       # YouTube download below. This step never fails the job.
+      # R' Sruly Bornstein's shiurim never come from YouTube: Lakewood Daf Yomi
+      # publish every daf's shiur as an mp3 on their own server, through their
+      # app's podcast feed (tools/lakewood-audio.mjs). It is the same recording
+      # as the YouTube video (Bechoros 58: 3814.27 s here, 3814.2 s on YouTube).
+      # The feed keeps about the last 250 shiurim; a daf it no longer has fails
+      # the job with that reason rather than falling back to YouTube.
+      - name: Get R' Bornstein's audio from Lakewood Daf Yomi's server
+        if: github.event.client_payload.maggid == 'bornstein'
+        working-directory: MDYsync/tools/caption-sync
+        env:
+          REFS_JSON: ${{ toJSON(github.event.client_payload.refs) }}
+        run: |
+          set -e
+          found=$(node ../lakewood-audio.mjs --refs "$REFS_JSON")
+          if [ -z "$found" ]; then
+            echo "Lakewood Daf Yomi's feed has no shiur on this daf (it keeps about the last 250)." \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          url="${found%% *}"
+          feed_seconds="${found#* }"
+          echo "Lakewood Daf Yomi's copy: $url (${feed_seconds} s in the feed)"
+          curl -sfL --retry 3 --max-time 900 -o job-audio.mp3 "$url"
+          seconds=$(ffprobe -v error -show_entries format=duration -of csv=p=0 job-audio.mp3)
+          size=$(stat -c%s job-audio.mp3)
+          echo "Downloaded: ${seconds:-unknown} seconds, $size bytes"
+          if [ -z "$seconds" ] || [ "$size" -lt 100000 ]; then
+            echo "Lakewood Daf Yomi's copy did not download properly." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          if [ -n "$feed_seconds" ] && [ "$feed_seconds" != "$url" ] && \
+             ! awk -v a="$seconds" -v b="$feed_seconds" 'BEGIN { d = a - b; if (d < 0) d = -d; exit !(d <= 3) }'; then
+            echo "The file is ${seconds} s but the feed says ${feed_seconds} s; it did not download whole." \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "Using Lakewood Daf Yomi's copy of the audio." | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Get the audio from MDY's server
         id: mdy_audio
+        if: github.event.client_payload.maggid != 'bornstein'
         working-directory: MDYsync/tools/caption-sync
         env:
           YOUTUBE_URL: ${{ github.event.client_payload.youtubeUrl }}
@@ -171,7 +212,7 @@ jobs:
           echo "Using MDY's copy of the audio." | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Download the video from YouTube
-        if: steps.mdy_audio.outputs.source != 'mdy'
+        if: steps.mdy_audio.outputs.source != 'mdy' && github.event.client_payload.maggid != 'bornstein'
         working-directory: MDYsync/tools/caption-sync
         env:
           YOUTUBE_URL: ${{ github.event.client_payload.youtubeUrl }}
