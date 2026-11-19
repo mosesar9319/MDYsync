@@ -1150,6 +1150,10 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .test-run-field select { width: 100%; min-width: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line, #d9e1eb); background: var(--paper, #fff); color: var(--ink, #132238); font-size: 13px; text-overflow: ellipsis; }
 .test-run-field select:disabled { opacity: .55; }
 .test-runs-note { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+.test-runs-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.test-runs-actions:not(:has(button:not([hidden]))) { display: none; }
+/* Comparing alignments is for admins; every other reader just sees the chosen one. */
+body:not(.is-admin) .test-runs { display: none !important; }
 .sync-method-switch { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: rgba(0,0,0,.18); border: 1px solid var(--line); }
 .sync-method-switch button { border: 0; background: transparent; color: var(--muted); border-radius: 8px; padding: 7px 10px; cursor: pointer; font-size: 13px; }
 .sync-method-switch button.active { background: rgba(255,255,255,.08); color: var(--text); }

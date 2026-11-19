@@ -3,8 +3,9 @@ import { preparePage, stubPrintedPage } from '../support/harness.mjs';
 
 // Another maggid's recording (R' Sruly Bornstein, Lakewood Daf Yomi) plays through
 // the same player under its own key prefix; and a TEST SHIUR -- the video the voice
-// models are tuned on -- offers every numbered run of both engines in two
-// dropdowns, to every reader.
+// models are tuned on -- has numbered runs of both engines. Every reader is shown
+// the run with the most daf words matched (or the one an admin chose for everyone);
+// only an admin sees the two dropdowns to compare them.
 
 const VIDEO = 'Zsy7oDUP6Pw';
 
@@ -50,10 +51,12 @@ async function open(page, { url = '/player/?ref=Bekhorot%202a&maggid=bornstein',
 }
 
 // What the player does once a YouTube video is loaded, without needing YouTube.
-const showVideo = (page, videoId = VIDEO) => page.evaluate(async (id) => {
+// admin: what auth.js does once an admin's profile loads.
+const showVideo = (page, videoId = VIDEO, { admin = true } = {}) => page.evaluate(async ({ id, asAdmin }) => {
+  document.body.classList.toggle('is-admin', asAdmin);
   state.videoSource = { type: 'youtube', videoId: id, url: `https://www.youtube.com/watch?v=${id}`, label: 'Bechoros 2' };
   await refreshTestRuns(id);
-}, videoId);
+}, { id: videoId, asAdmin: admin });
 
 test.describe('Another maggid\'s recording', () => {
   test('?maggid=bornstein looks everything up under the Bornstein prefix', async ({ page }) => {
@@ -117,15 +120,68 @@ test.describe('Test shiur — one dropdown per engine, numbered runs', () => {
       'Choose a live engine alignment…',
       'Live #1 · 10 Oct 2026 · baseline — 284 words placed',
     ]);
-    await expect(page.locator('#testRunNote')).toHaveText('Showing the default alignment. Pick a run to compare.');
+    // The run with the most daf words matched is the one shown, to everyone.
+    await expect(page.locator('#testRunRegularSelect')).toHaveValue('regular-2');
+    await expect(page.locator('#testRunNote')).toHaveText(
+      'Everyone sees Regular #2 · 11 Oct 2026 · pending survives misses: the most daf words matched (430).');
   });
 
-  test('it is there for every reader, signed in or not', async ({ page }) => {
+  test('only an admin sees the box; every reader is shown the run with the most daf words matched', async ({ page }) => {
     await open(page);
-    await showVideo(page);
+    await showVideo(page, VIDEO, { admin: false });
+    await expect(page.locator('#testRuns')).toBeHidden();
+    await expect.poll(() => page.evaluate(() => state.testRuns?.activeId)).toBe('regular-2');
+    expect(await page.evaluate(() => Math.max(...state.segments.map((s) => s.start)))).toBe(220);
+    // An admin's profile arriving later brings the box up.
+    await page.evaluate(() => document.body.classList.add('is-admin'));
     await expect(page.locator('#testRuns')).toBeVisible();
-    expect(await page.evaluate(() => document.querySelector('#testRuns').closest('.admin-only'))).toBeNull();
-    expect(await page.locator('#testRuns').evaluate((el) => el.classList.contains('admin-only'))).toBe(false);
+  });
+
+  test("an admin's choice is what everyone sees, until it is put back", async ({ page }) => {
+    const settingsPosts = [];
+    await open(page, { files: { ...FILES, 'settings.json': { shownTestRun: { [VIDEO]: 'live-1' } } } });
+    await page.route('**/api/save-settings', async (route) => {
+      settingsPosts.push(route.request().postDataJSON());
+      return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+    });
+    // A reader: the admin's choice, not the most words matched.
+    await showVideo(page, VIDEO, { admin: false });
+    await expect.poll(() => page.evaluate(() => state.testRuns?.activeId)).toBe('live-1');
+    expect(await page.evaluate(() => Math.max(...state.segments.map((s) => s.start)))).toBe(320);
+    // An admin previews another run; the note says what everyone sees.
+    await showVideo(page);
+    await expect(page.locator('#testRunNote')).toHaveText('Everyone sees Live #1 · 10 Oct 2026 · baseline: chosen by an admin.');
+    await expect(page.locator('#testRunShowEveryone')).toBeHidden();
+    await page.locator('#testRunRegularSelect').selectOption('regular-1');
+    await expect(page.locator('#testRunNote')).toHaveText(
+      'You are previewing Regular #1 · 10 Oct 2026 · baseline. Everyone sees Live #1 · 10 Oct 2026 · baseline: chosen by an admin.');
+    // ...and makes it the one everyone sees.
+    await page.locator('#testRunShowEveryone').click();
+    await expect.poll(() => settingsPosts.length).toBe(1);
+    expect(settingsPosts[0]).toEqual({ shownTestRunVideoId: VIDEO, shownTestRun: 'regular-1' });
+    await expect(page.locator('#testRunNote')).toHaveText('Everyone sees Regular #1 · 10 Oct 2026 · baseline: chosen by an admin.');
+    await expect(page.locator('#testRunShowEveryone')).toBeHidden();
+    // Back to the automatic choice: the most daf words matched.
+    await page.locator('#testRunAutomatic').click();
+    await expect.poll(() => settingsPosts.length).toBe(2);
+    expect(settingsPosts[1]).toEqual({ shownTestRunVideoId: VIDEO, shownTestRun: null });
+    await expect.poll(() => page.evaluate(() => state.testRuns.activeId)).toBe('regular-2');
+    await expect(page.locator('#testRunAutomatic')).toBeHidden();
+  });
+
+  test('the run with the most daf words matched wins over one that placed more words', async ({ page }) => {
+    const runs = [
+      { ...RUNS[0], summary: { placedWords: 978, matchedWords: 585 } },
+      { ...RUNS[2], summary: { placedWords: 640, matchedWords: 697 } },
+    ];
+    await open(page, { files: { ...FILES, 'test-runs/Zsy7oDUP6Pw/index.json': { videoId: VIDEO, runs } } });
+    await showVideo(page);
+    await expect.poll(() => page.evaluate(() => state.testRuns?.activeId)).toBe('regular-2');
+    await expect(page.locator('#testRunRegularSelect option')).toHaveText([
+      'Choose a regular engine alignment…',
+      'Regular #2 · 11 Oct 2026 · pending survives misses — 697 daf words matched',
+      'Regular #1 · 10 Oct 2026 · baseline — 585 daf words matched',
+    ]);
   });
 
   test('picking a run loads that alignment; picking from the other dropdown swaps it, and the first resets', async ({ page }) => {
@@ -135,7 +191,8 @@ test.describe('Test shiur — one dropdown per engine, numbered runs', () => {
     await expect.poll(() => page.evaluate(() => state.testRuns.activeId)).toBe('regular-1');
     expect(await page.evaluate(() => state.segments.filter((s) => s.start > 0).map((s) => s.start))).toEqual([100, 120]);
     expect(await page.evaluate(() => state.wordTimeline[0].heardText)).toBe('regular');
-    await expect(page.locator('#testRunNote')).toHaveText('Showing Regular #1 · 10 Oct 2026 · baseline.');
+    await expect(page.locator('#testRunNote')).toHaveText(
+      'You are previewing Regular #1 · 10 Oct 2026 · baseline. Everyone sees Regular #2 · 11 Oct 2026 · pending survives misses: the most daf words matched (430).');
 
     await page.locator('#testRunLiveSelect').selectOption('live-1');
     await expect.poll(() => page.evaluate(() => state.testRuns.activeId)).toBe('live-1');
@@ -173,6 +230,8 @@ test.describe('Test shiur — one dropdown per engine, numbered runs', () => {
     await open(page, { files });
     await showVideo(page);
     const before = await page.evaluate(() => state.segments.length);
+    // The shown run (regular-2, the most words) could not be loaded: nothing changed, quietly.
+    expect(await page.evaluate(() => state.testRuns.activeId)).toBeNull();
     await page.locator('#testRunRegularSelect').selectOption('regular-2');
     await expect(page.locator('.toast, #toast').first()).toContainText('Could not load that alignment');
     expect(await page.evaluate(() => state.segments.length)).toBe(before);
