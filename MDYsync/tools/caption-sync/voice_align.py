@@ -44,6 +44,7 @@ about, leaving everything else for manual correction the same way an OCR
 sync's rough spots already get corrected today.
 """
 import argparse
+import dataclasses
 import json
 import os
 import re
@@ -1768,6 +1769,14 @@ def primary_word_indices(canon, primary_refs):
     return indices if indices and len(indices) < len(canon) else None
 
 
+def straight_events(events):
+    """WordEvents on one straight path (path_align.straight_chain): each daf
+    word once, never a step back."""
+    return path_align.straight_chain(
+        events, lambda event: event.t, lambda event: (event.start_idx, event.end_idx),
+        lambda event, first: dataclasses.replace(event, start_idx=first))
+
+
 def llm_patch_by_default():
     """Whether Claude is asked about the holes the path leaves (llm_patch.py) when
     nobody said either way: wherever the job can reach Claude, unless
@@ -1800,7 +1809,10 @@ def apply_llm_patch(canon, events, stats, heard, primary, duration, client=None,
     stats["matchedWords"] += stats["dafWordsPatched"]
     stats["unmatchedWords"] -= stats["dafWordsPatched"]
     stats["claude"] = used
-    return sorted(list(events) + new_events, key=lambda event: (event.t, event.start_idx))
+    merged = sorted(list(events) + new_events, key=lambda event: (event.t, event.start_idx))
+    # Claude's placements lie inside holes, in order, so the path stays straight;
+    # this holds it to that whatever came back.
+    return straight_events(merged) if stats.get("straightPath") else merged
 
 
 def process_video(video_path, refs, model_size="small", cache_dir=None, debug=False,
@@ -2104,7 +2116,8 @@ def main():
 
     alignment, word_map = build_outputs(
         canon, segments, events, duration, args.video, refs,
-        generator="voice_align.py", title_prefix="Voice recognition alignment")
+        generator="voice_align.py", title_prefix="Voice recognition alignment",
+        straight=bool(stats.get("straightPath")))
     # Embedded straight into the published alignment (publish_alignment.py
     # dumps this dict as-is) so the reader who ran the sync can see the
     # rundown -- which tool matched how much, and what was never matched at
