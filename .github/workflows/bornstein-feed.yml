@@ -11,6 +11,10 @@ name: R' Bornstein's shiurim (Lakewood Daf Yomi feed)
 on:
   schedule:
     - cron: '17 * * * *'
+  # The site starts it every hour too (netlify/functions/bornstein-feed-tick.mjs),
+  # because GitHub's own schedule cannot be relied on to fire.
+  repository_dispatch:
+    types: [bornstein-feed]
   workflow_dispatch:
     inputs:
       resync:
