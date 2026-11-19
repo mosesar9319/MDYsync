@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-19T21:01:10.348Z",
+  "generatedAt": "2026-11-19T23:01:10.588Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -4629,6 +4629,11 @@
         "regularEn": {
           "videoId": "p0kSAIw99HM",
           "label": "Daf Yomi Arachin Daf 2 by R' Eli Stefansky",
+          "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "eI-V9wG3hsw",
+          "label": "חזרה - ערכין דף ב | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
         }
       },
