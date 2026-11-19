@@ -155,7 +155,29 @@
         "unmatchedWords": 450,
         "durationSeconds": 3814.22
       }
+    },
+    {
+      "id": "regular-8",
+      "engine": "regular",
+      "number": 8,
+      "name": "Regular #8 · 19 Nov 2026 · test 2: v2 hints + plain (compare #6 without plain); credits by pass (path: hints + plain + relisten)",
+      "notes": "test 2: v2 hints + plain (compare #6 without plain); credits by pass (path: hints + plain + relisten)",
+      "engineVersion": "966cc7c",
+      "createdAt": "2026-11-19T05:13:16Z",
+      "file": "regular-8.json",
+      "jobId": "e7d1b06ab7ae46778ac8c1fa770f18a5",
+      "summary": {
+        "segments": 305,
+        "estimatedSegments": 93,
+        "placements": 437,
+        "placedWords": 1003,
+        "totalRuns": 661,
+        "totalWords": 1113,
+        "matchedWords": 697,
+        "unmatchedWords": 416,
+        "durationSeconds": 3814.22
+      }
     }
   ],
-  "updatedAt": "2026-11-19T00:21:53Z"
+  "updatedAt": "2026-11-19T05:13:16Z"
 }
