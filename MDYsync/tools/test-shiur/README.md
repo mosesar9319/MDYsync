@@ -22,13 +22,13 @@ short note on what changed — it becomes part of the run's name in the dropdown
   inputs choose how it runs, and go into the run's name:
   * `aligner`: `path` (the whole shiur as one ordered path — `path_align.py`) or
     `phrase` (the older phrase-by-phrase matcher alone).
-  * `witnesses`: which transcripts the path is given — `hints,plain` (the default:
-    one made with the daf's words as a hint list, one without), `hints`, or
-    `hints,plain,slow` (`slow` is the audio played at 0.75 speed). `plain` and
-    `slow` are each one more ElevenLabs transcription of the whole shiur. Adding
-    `relisten` (e.g. `hints,plain,relisten`) makes the engine listen again to just
-    the holes the path left, each clip hinted with only the daf words that belong
-    there (at most 15 minutes of extra audio).
+  * `witnesses`: which transcripts the path is given — `hints,relisten` (the
+    default: one made with the daf's words as a hint list, then a second listen to
+    just the holes the path left, each clip hinted with only the daf words that
+    belong there, at most 15 minutes of extra audio), `hints`, `hints,plain` (adds
+    one made without the hint list), or `hints,plain,slow` (`slow` is the audio
+    played at 0.75 speed). `plain` and `slow` are each one more ElevenLabs
+    transcription of the whole shiur — about 1,000 credits an hour each.
 * **Live engine** — `live-engine.mjs` transcribes the video with ElevenLabs, plays
   the words through `live-matcher.js` the way Live Follow's video mode does, and
   `caption-sync/test_runs.py` saves it as `Live #N`.

@@ -21,10 +21,11 @@ name: Test shiur run (both voice engines)
 # shiur (each is its own numbered run, named with how it was made):
 #   aligner   path   -- the whole shiur as one ordered path (path_align.py)
 #             phrase -- the older phrase-by-phrase matcher alone
-#   witnesses which transcripts the path is given: "hints,plain" (two
-#             transcriptions), "hints" (one), "hints,plain,slow" (three; "slow"
-#             is the audio played at 0.75 speed). Add "relisten" to listen again
-#             to just the holes the path left (voice_align.relisten_holes).
+#   witnesses which transcripts the path is given: "hints,relisten" (the
+#             default: one transcription, then a second listen to just the holes
+#             the path left -- voice_align.relisten_holes), "hints" (one),
+#             "hints,plain" (two), "hints,plain,slow" (three; "slow" is the audio
+#             played at 0.75 speed).
 #
 # The first job also makes sure the video IS a test shiur on the results branch
 # (its video-links files, and the catalog), so a new one needs nothing by hand.
@@ -58,9 +59,9 @@ on:
         options: [path, phrase]
         default: path
       witnesses:
-        description: 'Regular engine, path only: transcripts to use (hints / hints,plain / hints,plain,slow / hints,plain,relisten)'
+        description: 'Regular engine, path only: transcripts to use (hints,relisten / hints / hints,plain / hints,plain,relisten / hints,plain,slow)'
         required: false
-        default: 'hints,plain'
+        default: 'hints,relisten'
       stt_model:
         description: 'Regular engine: the ElevenLabs Scribe model to transcribe with'
         type: choice
@@ -136,7 +137,7 @@ jobs:
           import json, os, uuid
           refs = [r.strip() for r in os.environ['REFS'].split(',') if r.strip()]
           aligner = os.environ.get('ALIGNER') or 'path'
-          witnesses = (os.environ.get('WITNESSES') or 'hints,plain').replace(' ', '')
+          witnesses = (os.environ.get('WITNESSES') or 'hints,relisten').replace(' ', '')
           # How the run was made goes into its name, so two ways of running the
           # same engine can be told apart in the dropdown.
           made = 'phrase matcher' if aligner == 'phrase' else 'path: ' + witnesses.replace(',', ' + ')
@@ -159,7 +160,7 @@ jobs:
           # matcher does not read them).
           if aligner != 'path':
               payload['aligner'] = aligner
-          elif witnesses != 'hints,plain':
+          elif witnesses != 'hints,relisten':
               payload['witnesses'] = witnesses
           if stt_model != 'scribe_v2':
               payload['sttModel'] = stt_model

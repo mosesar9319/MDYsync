@@ -1535,17 +1535,21 @@ def _anthropic_credentials_available():
 #            much of the reading in Hebrew letters. Always made (the phrase
 #            matcher needs it).
 #   plain -- no hint list: the reading comes out in English letters, the way the
-#            maggid says it. Measured on real shiurim, one maggid is heard better
-#            this way and another with hints, so both are asked for by default.
+#            maggid says it. Measured on Bechoros 58 (R' Bornstein, Nov 2026): it
+#            adds about 5% more daf words placed (697 against 666) for about 1,060
+#            more credits an hour of shiur, so it is no longer made by default.
 #   slow  -- with hints, from the audio played at SLOW_TEMPO, for fast reading.
 # Each of those is one more ElevenLabs transcription of the whole shiur.
 #   relisten -- made AFTER the path is placed: every hole it left (daf words
 #            between two placed phrases that nothing placed) is cut out of the
 #            audio and transcribed again on its own, hinted with only the daf
 #            words that belong there (relisten_holes). Costs at most
-#            RELISTEN_MAX_TOTAL_SECONDS of extra transcription.
+#            RELISTEN_MAX_TOTAL_SECONDS of extra transcription (on Bechoros 58,
+#            67 credits for 7 minutes in 22 clips).
+# The default, hints + relisten, costs about 1,450 credits for an hour of shiur
+# (hints alone about 1,325); hints + plain was about 2,400.
 WITNESS_NAMES = ("hints", "plain", "slow", "relisten")
-DEFAULT_WITNESSES = "hints,plain"
+DEFAULT_WITNESSES = "hints,relisten"
 SLOW_TEMPO = 0.75
 
 

@@ -289,8 +289,9 @@ jobs:
           # How the transcript is placed on the daf, and from which transcripts
           # (see path_align.py and WITNESS_NAMES in voice_align.py). Normally
           # empty, which means the engine's own defaults: the path aligner, with
-          # two transcripts (one made with the daf's words as hints, one
-          # without). The test-shiur workflow sets them to compare: "phrase"
+          # one transcript made with the daf's words as hints and a second
+          # listen to the holes it left ("hints,relisten"; DEFAULT_WITNESSES in
+          # voice_align.py). The test-shiur workflow sets them to compare: "phrase"
           # is the old phrase-by-phrase matcher alone; "hints,plain,slow" adds
           # a transcript of the audio slowed to 0.75 speed.
           VOICE_ALIGNER: ${{ github.event.client_payload.aligner }}
