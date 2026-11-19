@@ -22,6 +22,15 @@ def daf(refs, cache_dir=None):
     return canon, segments
 
 
+def two_amudim(refs, cache_dir=None):
+    """The shiur's own amud and the one after it, a line each."""
+    canon, segments = [], []
+    for n, (ref, text) in enumerate((('Bekhorot 2a:1', LINE_1), ('Bekhorot 2b:1', LINE_2))):
+        segments.append({'ref': ref, 'he': text, 'en': ''})
+        canon += [CanonWord(ref, n, j, w, normalize_word(w)) for j, w in enumerate(text.split())]
+    return canon, segments
+
+
 def published(events, **extra):
     """An alignment as the voice job published it before the path was straight."""
     canon, segments = daf(None)
@@ -79,9 +88,30 @@ class Straightened(unittest.TestCase):
         self.assertEqual((alignment['matchStats']['totalWords'], alignment['matchStats']['matchedWords']), (900, 300))
         self.assertTrue(alignment['matchStats']['straightPath'])
 
+    def test_a_test_run_is_counted_against_its_shiurs_own_daf(self):
+        # A test run does not say which amud is the shiur's own: without it the
+        # neighbouring amud he never opened counts against him (Eruchin 2's run
+        # went from 498 of 570 to 496 of 895).
+        own = [WordEvent(100.0, 0, 4, 90.0, 'reads line 1', 'path-latin'),
+               WordEvent(130.0, 0, 1, 90.0, 'says it again', 'path-latin')]
+        run = published(own, coveredRefs=['Bekhorot 2a', 'Bekhorot 2b'])
+        del run['primaryRefs']
+        late = json.loads(json.dumps(run))
+        SA.straighten(run, load=two_amudim, primary_refs=['Bekhorot 2a'])
+        self.assertEqual((run['matchStats']['matchedWords'], run['matchStats']['totalWords']), (5, 7))
+        # One straightened before that was known is counted again, and only that.
+        SA.straighten(late, load=two_amudim)
+        self.assertEqual((late['matchStats']['matchedWords'], late['matchStats']['totalWords']), (5, 14))
+        timeline = json.dumps(late['wordTimeline'])
+        change = SA.straighten(late, load=two_amudim, primary_refs=['Bekhorot 2a'])
+        self.assertTrue(change['recounted'])
+        self.assertEqual((late['matchStats']['matchedWords'], late['matchStats']['totalWords']), (5, 7))
+        self.assertEqual(json.dumps(late['wordTimeline']), timeline)
+        self.assertIsNone(SA.straighten(late, load=two_amudim, primary_refs=['Bekhorot 2a']))
+
     def test_the_results_branch_is_gone_over_and_the_runs_index_follows(self):
         real_load, SA.load_canonical = SA.load_canonical, daf
-        defaults, SA.straighten.__defaults__ = SA.straighten.__defaults__, (None, daf)
+        defaults, SA.straighten.__defaults__ = SA.straighten.__defaults__, (None, daf, None)
         try:
             with tempfile.TemporaryDirectory() as results:
                 paths = {'by-ref/Voice-Bornstein-Bekhorot-2a.json': published(REPEATS),
