@@ -45,7 +45,29 @@
         "unmatchedWords": 78,
         "durationSeconds": 3487.25
       }
+    },
+    {
+      "id": "regular-3",
+      "engine": "regular",
+      "number": 3,
+      "name": "Regular #3 · 19 Nov 2026 · placed again from saved transcripts (main): read-on: words garbled right after a read phrase",
+      "notes": "placed again from saved transcripts (main): read-on: words garbled right after a read phrase",
+      "engineVersion": "a7880ab",
+      "createdAt": "2026-11-19T19:58:38Z",
+      "file": "regular-3.json",
+      "jobId": "realign-44603733084",
+      "summary": {
+        "segments": 194,
+        "estimatedSegments": 83,
+        "placements": 231,
+        "placedWords": 508,
+        "totalRuns": 427,
+        "totalWords": 570,
+        "matchedWords": 497,
+        "unmatchedWords": 73,
+        "durationSeconds": 3487.25
+      }
     }
   ],
-  "updatedAt": "2026-11-19T17:44:44Z"
+  "updatedAt": "2026-11-19T19:58:38Z"
 }

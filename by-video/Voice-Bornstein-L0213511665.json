@@ -193,19 +193,10 @@
     {
       "ref": "Arakhin 2a:5",
       "start": 1131.24,
-      "end": 1131.24,
-      "he": "לְאֵתוֹיֵי מַאי? לְאֵתוֹיֵי מְנוָּּול",
+      "end": 1132.76,
+      "he": "לְאֵתוֹיֵי מַאי? לְאֵתוֹיֵי מְנוָּּול וּמוּכֵּה שְׁחִין.",
       "w0": 2,
-      "w1": 5
-    },
-    {
-      "ref": "Arakhin 2a:5",
-      "start": 1131.24,
-      "end": 1131.26,
-      "he": "וּמוּכֵּה שְׁחִין.",
-      "w0": 6,
-      "w1": 7,
-      "estimated": true
+      "w1": 7
     },
     {
       "ref": "Arakhin 2a:6",
@@ -799,16 +790,16 @@
       "ref": "Arakhin 2b:5",
       "start": 2515.75,
       "end": 2515.89,
-      "he": "בְּלוּלָב״ — לְאֵיתוֹיֵי מַאי? לְאֵיתוֹיֵי",
+      "he": "בְּלוּלָב״ — לְאֵיתוֹיֵי מַאי? לְאֵיתוֹיֵי קָטָן הַיּוֹדֵעַ לְנַעְנֵעַ,",
       "w0": 2,
-      "w1": 6
+      "w1": 9
     },
     {
       "ref": "Arakhin 2b:5",
       "start": 2518.09,
       "end": 2518.09,
-      "he": "קָטָן הַיּוֹדֵעַ לְנַעְנֵעַ, דִּתְנַן: קָטָן הַיּוֹדֵעַ לְנַעְנֵעַ",
-      "w0": 7,
+      "he": "דִּתְנַן: קָטָן הַיּוֹדֵעַ לְנַעְנֵעַ",
+      "w0": 10,
       "w1": 13
     },
     {
@@ -863,7 +854,7 @@
     {
       "ref": "Arakhin 2b:7",
       "start": 2545.77,
-      "end": 2548.17,
+      "end": 2547.07,
       "he": "״הַכֹּל חַיָּיבִין בִּתְפִילִּין״ — לְאֵיתוֹיֵי מַאי? לְאֵיתוֹיֵי קָטָן הַיּוֹדֵעַ לִשְׁמוֹר",
       "w0": 0,
       "w1": 9
@@ -919,19 +910,10 @@
     },
     {
       "ref": "Arakhin 2b:9",
-      "start": 2628.41,
-      "end": 2628.42,
-      "he": "לְאֵיתוֹיֵי",
-      "w0": 11,
-      "w1": 11,
-      "estimated": true
-    },
-    {
-      "ref": "Arakhin 2b:9",
-      "start": 2628.41,
+      "start": 2627.81,
       "end": 2630.13,
-      "he": "חִיגֵּר בְּיוֹם רִאשׁוֹן וְנִתְפַּשֵּׁט בְּיוֹם שֵׁנִי.",
-      "w0": 12,
+      "he": "לְאֵיתוֹיֵי חִיגֵּר בְּיוֹם רִאשׁוֹן וְנִתְפַּשֵּׁט בְּיוֹם שֵׁנִי.",
+      "w0": 11,
       "w1": 17
     },
     {
@@ -946,17 +928,17 @@
     {
       "ref": "Arakhin 2b:10",
       "start": 2659.83,
-      "end": 2659.83,
-      "he": "לְמַאן דְּאָמַר: כּוּלָּן",
+      "end": 2660.33,
+      "he": "לְמַאן דְּאָמַר: כּוּלָּן תַּשְׁלוּמִין זֶה",
       "w0": 1,
-      "w1": 3
+      "w1": 5
     },
     {
       "ref": "Arakhin 2b:10",
       "start": 2668.57,
-      "end": 2668.6,
-      "he": "תַּשְׁלוּמִין זֶה לָזֶה,",
-      "w0": 4,
+      "end": 2668.58,
+      "he": "לָזֶה,",
+      "w0": 6,
       "w1": 6,
       "estimated": true
     },
@@ -1901,12 +1883,21 @@
     },
     {
       "start": 1131.24,
-      "end": 1147.22,
+      "end": 1132.76,
       "ref": "Arakhin 2a:5",
       "w0": 4,
       "w1": 5,
       "heardText": "Laasui yayi menuvah",
       "source": "path-latin"
+    },
+    {
+      "start": 1132.76,
+      "end": 1147.22,
+      "ref": "Arakhin 2a:5",
+      "w0": 6,
+      "w1": 7,
+      "heardText": "u'mokashim.",
+      "source": "path-latin-gap"
     },
     {
       "start": 1147.22,
@@ -2810,7 +2801,7 @@
     },
     {
       "start": 2515.89,
-      "end": 2518.09,
+      "end": 2515.89,
       "ref": "Arakhin 2b:5",
       "w0": 4,
       "w1": 6,
@@ -2818,13 +2809,13 @@
       "source": "path-bridge"
     },
     {
-      "start": 2518.09,
+      "start": 2515.89,
       "end": 2518.09,
       "ref": "Arakhin 2b:5",
       "w0": 7,
       "w1": 9,
-      "heardText": "קטן, היודע לנענע.",
-      "source": "path-hebrew"
+      "heardText": "",
+      "source": "path-bridge"
     },
     {
       "start": 2518.09,
@@ -2945,7 +2936,7 @@
     },
     {
       "start": 2547.07,
-      "end": 2548.17,
+      "end": 2547.07,
       "ref": "Arakhin 2b:7",
       "w0": 4,
       "w1": 6,
@@ -2953,13 +2944,13 @@
       "source": "path-bridge"
     },
     {
-      "start": 2548.17,
+      "start": 2547.07,
       "end": 2548.17,
       "ref": "Arakhin 2b:7",
       "w0": 7,
       "w1": 9,
-      "heardText": "קטן היודע לשמור",
-      "source": "path-hebrew"
+      "heardText": "",
+      "source": "path-bridge"
     },
     {
       "start": 2548.17,
@@ -3089,12 +3080,21 @@
     },
     {
       "start": 2621.01,
-      "end": 2628.41,
+      "end": 2627.81,
       "ref": "Arakhin 2b:9",
       "w0": 7,
       "w1": 10,
       "heardText": "חורין פטור מן הריה.",
       "source": "path-hebrew"
+    },
+    {
+      "start": 2627.81,
+      "end": 2628.41,
+      "ref": "Arakhin 2b:9",
+      "w0": 11,
+      "w1": 11,
+      "heardText": "לעשוי",
+      "source": "path-hebrew-gap"
     },
     {
       "start": 2628.41,
@@ -3139,16 +3139,25 @@
       "w0": 16,
       "w1": 17,
       "heardText": "פשוט ביום שני.",
-      "source": "deterministic-local"
+      "source": "path-hebrew"
     },
     {
       "start": 2659.83,
-      "end": 2668.57,
+      "end": 2660.33,
       "ref": "Arakhin 2b:10",
       "w0": 1,
       "w1": 3,
       "heardText": "למאן דאמר כולי",
       "source": "path-hebrew"
+    },
+    {
+      "start": 2660.33,
+      "end": 2668.57,
+      "ref": "Arakhin 2b:10",
+      "w0": 4,
+      "w1": 5,
+      "heardText": "תשלום אזל וזה.",
+      "source": "path-hebrew-gap"
     },
     {
       "start": 2668.57,
@@ -3720,10 +3729,10 @@
   ],
   "matchStats": {
     "aligner": "path",
-    "totalRuns": 424,
+    "totalRuns": 427,
     "totalWords": 570,
-    "matchedWords": 492,
-    "unmatchedWords": 78,
+    "matchedWords": 497,
+    "unmatchedWords": 73,
     "excludedWords": 0,
     "bySource": {
       "path-latin": {
@@ -3733,23 +3742,23 @@
       },
       "path-latin-gap": {
         "label": "Second look between placed phrases (English letters)",
-        "runs": 7,
-        "words": 9
+        "runs": 8,
+        "words": 11
       },
       "path-hebrew": {
         "label": "Read from Hebrew letters",
-        "runs": 132,
-        "words": 323
+        "runs": 131,
+        "words": 319
       },
       "path-bridge": {
         "label": "Filled in between two placed phrases a moment apart (not heard on its own)",
-        "runs": 39,
-        "words": 61
+        "runs": 41,
+        "words": 67
       },
       "path-hebrew-gap": {
         "label": "Second look between placed phrases (Hebrew letters)",
-        "runs": 17,
-        "words": 33
+        "runs": 19,
+        "words": 36
       },
       "deterministic-relocalized": {
         "label": "Deterministic matching (re-checked between anchors)",
@@ -3758,8 +3767,8 @@
       },
       "deterministic-local": {
         "label": "Deterministic matching (locked tracking)",
-        "runs": 7,
-        "words": 17
+        "runs": 6,
+        "words": 15
       },
       "deterministic-global": {
         "label": "Deterministic matching (relocalized)",
@@ -4975,8 +4984,8 @@
     "witnesses": 2,
     "transcriptWords": 13077,
     "dafWords": 570,
-    "dafWordsHeard": 431,
-    "dafWordsBridged": 61,
+    "dafWordsHeard": 430,
+    "dafWordsBridged": 67,
     "wordsRead": 895,
     "ownDafWords": 570,
     "readingEndsAt": 2851.79,
@@ -4993,7 +5002,7 @@
     "model": "scribe_v2",
     "placedAgain": true
   },
-  "jobId": "realign-44580338951",
+  "jobId": "realign-44603733084",
   "videoId": "L0213511665",
   "videoUrl": "https://lakewoodafyomi.appspot.com/m5/CAEQganyigEaIGA1BHyb6BpTyF8k_ydIUDIwhdVPIWV4MSoQNqxptJ_-IiBdDpl_4ulK7KAa-dOBw9aVgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQXJhY2hpbiAyXzIxMzUxMTY2NS5tcDM/Arachin%202_213511665.mp3",
   "coveredRefs": [
