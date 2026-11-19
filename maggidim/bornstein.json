@@ -1,14 +1,2256 @@
 {
   "maggid": "bornstein",
-  "channelId": "UCyk5Q9nuhwqJC_-zrP2Ojcg",
-  "generatedAt": "2026-10-10T22:25:57.178Z",
+  "source": "https://app.daf-yomi.net/podcasts/DafYomi.xml",
   "videos": [
     {
-      "videoId": "Zsy7oDUP6Pw",
-      "title": "Bechoros 2",
-      "published": null,
+      "videoId": "L0213511665",
+      "title": "Eruchin 2",
+      "published": "2026-11-19T04:47:41.000Z",
+      "tractate": "Arakhin",
+      "daf": 2,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQganyigEaIGA1BHyb6BpTyF8k_ydIUDIwhdVPIWV4MSoQNqxptJ_-IiBdDpl_4ulK7KAa-dOBw9aVgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQXJhY2hpbiAyXzIxMzUxMTY2NS5tcDM/Arachin%202_213511665.mp3",
+      "seconds": 3487
+    },
+    {
+      "videoId": "L0213377535",
+      "title": "Bechoros 61",
+      "published": "2026-11-17T15:32:15.000Z",
       "tractate": "Bekhorot",
-      "daf": 2
+      "daf": 61,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwejmgAEaIOZq9uYLqhEaxMQj5TwGrsWOTtC-pE2E5akEdt1XDabrIiDZL3cBnMw1lDSVw_MfBZORgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgNjFfMjEzMzc3NTM1Lm1wMw/Bechoros%2061_213377535.mp3",
+      "seconds": 2894
+    },
+    {
+      "videoId": "L0213292952",
+      "title": "Bechoros 60",
+      "published": "2026-11-16T16:02:26.000Z",
+      "tractate": "Bekhorot",
+      "daf": 60,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkd65hAEaIO5bOLUo_3wv6GsKeI9FqTu_TbqTOb8_eeZiM0duYG55IiB9xdzlSz6GqdhKcEXqUhfDgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgNjBfMjEzMjkyOTUyLm1wMw/Bechoros%2060_213292952.mp3",
+      "seconds": 1996
+    },
+    {
+      "videoId": "L0213147286",
+      "title": "Bechoros 58",
+      "published": "2026-11-14T23:34:45.000Z",
+      "tractate": "Bekhorot",
+      "daf": 58,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8uPriwEaIFZ6z5sDPxDpvG-yskZdS6Z6g3xwZClcrIDEd2oR0zWeIiC6dxa8qkM0ud6bV8wM0GBrgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgNThfMjEzMTQ3Mjg2Lm1wMw/Bechoros%2058_213147286.mp3",
+      "seconds": 3814
+    },
+    {
+      "videoId": "L0213022570",
+      "title": "Bechoros 57",
+      "published": "2026-11-13T12:56:10.000Z",
+      "tractate": "Bekhorot",
+      "daf": 57,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQsYC8gwEaIHMoBmES5qDFeIVhUJzcSauH5TOJUte9LYmVJjr4GWImIiCOspN5Ccze4UjjNITiGRFxgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgNTdfMjEzMDIyNTcwLm1wMw/Bechoros%2057_213022570.mp3",
+      "seconds": 3367
+    },
+    {
+      "videoId": "L0212933636",
+      "title": "Bechoros 56",
+      "published": "2026-11-12T12:13:55.000Z",
+      "tractate": "Bekhorot",
+      "daf": 56,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8ePriwEaIL85uJVWbkJejmkWncHHDay5oyoJAdbpatA-lmbit7HAIiAquEDlBba0iEpSUJioB4GggoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgNTZfMjEyOTMzNjM2Lm1wMw/Bechoros%2056_212933636.mp3",
+      "seconds": 3612
+    },
+    {
+      "videoId": "L0212849285",
+      "title": "Bechoros 55",
+      "published": "2026-11-11T12:48:05.000Z",
+      "tractate": "Bekhorot",
+      "daf": 55,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQsprmgAEaIGNu7KQBR9aqzaKijjiOv9nSvbiotLbh0MsNJobTUpdfIiC4qV7mcfMnyaviaWuqitO_goAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgNTVfMjEyODQ5Mjg1Lm1wMw/Bechoros%2055_212849285.mp3",
+      "seconds": 3507
+    },
+    {
+      "videoId": "L0212779679",
+      "title": "Bechoros 54",
+      "published": "2026-11-10T17:27:59.000Z",
+      "tractate": "Bekhorot",
+      "daf": 54,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQsZrmgAEaIEgl1QTYQN9XguhMiURt9LkRilwIeqYJq_qdL6FSPu6LIiAY48aEIIdiBFkDs47DFVhhgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgNTRfMjEyNzc5Njc5Lm1wMw/Bechoros%2054_212779679.mp3",
+      "seconds": 2689
+    },
+    {
+      "videoId": "L0212735738",
+      "title": "Bechoros 53",
+      "published": "2026-11-10T05:15:33.000Z",
+      "tractate": "Bekhorot",
+      "daf": 53,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkb__fhog3RiXySGYP6Zv_yyES3l6IRVMHNlb02c08XfjTEICOPMiIM6w_A3roJ64rJLJr2SEvHaCgAC1RdByYmxBKIVygiCjKh9hdWQvZC9CZWNob3JvcyA1M18yMTI3MzU3MzgubXAz/Bechoros%2053_212735738.mp3",
+      "seconds": 3194
+    },
+    {
+      "videoId": "L0212647261",
+      "title": "Bechoros 52",
+      "published": "2026-11-09T04:40:57.000Z",
+      "tractate": "Bekhorot",
+      "daf": 52,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwtqvhgEaIBY-gYRkQ44iScYS5X-DC8LWaum1Pd1wQD8_Q7Xy3uwDIiDfad0iA2tm5rxKFOOIW3hAgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgNTJfMjEyNjQ3MjYxLm1wMw/Bechoros%2052_212647261.mp3",
+      "seconds": 5880
+    },
+    {
+      "videoId": "L0212590569",
+      "title": "Bechoros 51",
+      "published": "2026-11-08T12:56:05.000Z",
+      "tractate": "Bekhorot",
+      "daf": 51,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwdqvhgEaICP8M5K129SEF8wBDW5LIVT-7Sgh3lm9y4sPLorcTuRuIiBDvr4kz_Q4agiAAWd0RES5goAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgNTFfMjEyNTkwNTY5Lm1wMw/Bechoros%2051_212590569.mp3",
+      "seconds": 3455
+    },
+    {
+      "videoId": "L0212416755",
+      "title": "Bechoros 50",
+      "published": "2026-11-06T12:39:10.000Z",
+      "tractate": "Bekhorot",
+      "daf": 50,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgfH-fhogBaHLtaCGbHpBdxcQ3fE7KgMbk9UddZH3FfFGuPp2GQ0iIJ1d10SEjy9hzLU6YNto-J2CgAC1RdByYmxBKIVygiCjKh9hdWQvZC9CZWNob3JvcyA1MF8yMTI0MTY3NTUubXAz/Bechoros%2050_212416755.mp3",
+      "seconds": 3638
+    },
+    {
+      "videoId": "L0212337642",
+      "title": "Bechoros 49",
+      "published": "2026-11-05T14:40:42.000Z",
+      "tractate": "Bekhorot",
+      "daf": 49,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgarjgQEaIBF0Ep_951huGe3jbMKtT4KbngsOEWDKPGpD51eUQ_ReIiDB3X6I-5-TrU418uDPiqPdgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgNDlfMjEyMzM3NjQyLm1wMw/Bechoros%2049_212337642.mp3",
+      "seconds": 3488
+    },
+    {
+      "videoId": "L0212280876",
+      "title": "Bechoros 48",
+      "published": "2026-11-04T22:54:31.000Z",
+      "tractate": "Bekhorot",
+      "daf": 48,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkbyGfRogEbM-WgUouJc4-mk0x_gvbBIwSVCiQknTA2WKyaKFFuoiIB9olHR1Knk6QgQ56autxCaCgAC1RdByYmxBKIVygiCjKh9hdWQvZC9CZWNob3JvcyA0OF8yMTIyODA4NzYubXAz/Bechoros%2048_212280876.mp3",
+      "seconds": 4010
+    },
+    {
+      "videoId": "L0213231329",
+      "title": "Bechoros 59",
+      "published": "2026-11-04T17:54:20.000Z",
+      "tractate": "Bekhorot",
+      "daf": 59,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4fawhgEaIC5XDddTQkvk5iAu_DghiWDMIx-9z5eSnzTI5GZJGS9qIiAoMhYcycmvA57yuPcuMSEbgoAAtUXQcmJsQSiFcoIgoypEYXVkL2QvQmVjaG9yb3MgNTkgLSBUaGlzIERhZiBoYXMgbm90IHlldCBiZWVuIHVwbG9hZGVkXzIxMzIzMTMyOS5tcDM/Bechoros%2059%20-%20This%20Daf%20has%20not%20yet%20been%20uploaded_213231329.mp3",
+      "seconds": 6
+    },
+    {
+      "videoId": "L0212161690",
+      "title": "Bechoros 47",
+      "published": "2026-11-03T13:48:09.000Z",
+      "tractate": "Bekhorot",
+      "daf": 47,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4fO3hAEaICp0z0Ky5R70yVGT-KPH7DYvSnr37nBztACHFIOYzfpOIiCydVrrAcfEtPLtT5lEgO62goAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgNDdfMjEyMTYxNjkwLm1wMw/Bechoros%2047_212161690.mp3",
+      "seconds": 3625
+    },
+    {
+      "videoId": "L0212089739",
+      "title": "Bechoros 46",
+      "published": "2026-11-02T17:48:58.000Z",
+      "tractate": "Bekhorot",
+      "daf": 46,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwfDvigEaIDmsB8sk8hT9aou0sI_w8zXP4dv0hX0n1weav1--rXLcIiCHxMJyn_2nvNHqYG7JSxpTgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgNDZfMjEyMDg5NzM5Lm1wMw/Bechoros%2046_212089739.mp3",
+      "seconds": 3252
+    },
+    {
+      "videoId": "L0212089730",
+      "title": "Bechoros 45",
+      "published": "2026-11-02T17:48:50.000Z",
+      "tractate": "Bekhorot",
+      "daf": 45,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0bqkiAEaIB4qe3cFp8YTvzFMFhHIdUC0SiMleQpM5qU9Kc27ICeVIiCMBGR175bS8WC4Zmn9ijdPgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgNDVfMjEyMDg5NzMwLm1wMw/Bechoros%2045_212089730.mp3",
+      "seconds": 4001
+    },
+    {
+      "videoId": "L0211943270",
+      "title": "Bechoros 44",
+      "published": "2026-11-01T01:07:50.000Z",
+      "tractate": "Bekhorot",
+      "daf": 44,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8YrcjAEaINFDSO3KfiTPSvuYv-yN-ktomzfF-gzHjayOZ6Lt-8zcIiDnssVWxvLzLwaXoEMAbfl1goAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgNDRfMjExOTQzMjcwLm1wMw/Bechoros%2044_211943270.mp3",
+      "seconds": 3694
+    },
+    {
+      "videoId": "L0211841244",
+      "title": "Bechoros 43",
+      "published": "2026-10-30T20:47:20.000Z",
+      "tractate": "Bekhorot",
+      "daf": 43,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkYbuigEaIL_tgj7IvvDenX7BcVX3E-0d6t7oOPhjGMJigi3mhUS9IiD_2hCLuwHV-S3d-RLXNZ_xgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgNDNfMjExODQxMjQ0Lm1wMw/Bechoros%2043_211841244.mp3",
+      "seconds": 2735
+    },
+    {
+      "videoId": "L0211723469",
+      "title": "Bechoros 42",
+      "published": "2026-10-29T12:04:23.000Z",
+      "tractate": "Bekhorot",
+      "daf": 42,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkaaZhwEaIA7uL5liMzyAU1t2Ux0OMk9GmNfD3nOoPan6VdA3xbICIiApNUfH8SKIW3UhbdS9c84EgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgNDJfMjExNzIzNDY5Lm1wMw/Bechoros%2042_211723469.mp3",
+      "seconds": 3610
+    },
+    {
+      "videoId": "L0211641430",
+      "title": "Bechoros 41",
+      "published": "2026-10-28T13:17:09.000Z",
+      "tractate": "Bekhorot",
+      "daf": 41,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0Y_KjgEaIBuxzI_VguwXUQm3QxD7czy1Pl5KotxkPcLm4ZRMYFMrIiBizyCWnFmKc4XvmP0R_LdEgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgNDFfMjExNjQxNDMwLm1wMw/Bechoros%2041_211641430.mp3",
+      "seconds": 3286
+    },
+    {
+      "videoId": "L0211588734",
+      "title": "Bechoros 40",
+      "published": "2026-10-27T22:38:50.000Z",
+      "tractate": "Bekhorot",
+      "daf": 40,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8dH3iQEaIOYBH6plmxcrfwITOmlfee5g-_70y8sXUfB-ofKQcpd3IiDzRS3vYrMOoODxn6hI7cgigoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgNDBfMjExNTg4NzM0Lm1wMw/Bechoros%2040_211588734.mp3",
+      "seconds": 3591
+    },
+    {
+      "videoId": "L0211502210",
+      "title": "Bechoros 39",
+      "published": "2026-10-26T22:36:49.000Z",
+      "tractate": "Bekhorot",
+      "daf": 39,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8eHjgAEaIB_EYTvi2rCG-lKmqGcIBnG5Rn5G8DSvkSwgTR5Py16UIiAiqebT8ipnRxnIn2z7KlkLgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgMzlfMjExNTAyMjEwLm1wMw/Bechoros%2039_211502210.mp3",
+      "seconds": 3653
+    },
+    {
+      "videoId": "L0211500082",
+      "title": "Bechoros 38",
+      "published": "2026-10-26T22:01:16.000Z",
+      "tractate": "Bekhorot",
+      "daf": 38,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4YP3iQEaIBaDpwGJaW3lsCLMKuWUUROdefo8wJRicOf1xDXQhetBIiAEi3CICvrF-V7b1JEL1IjdgoAAtUXQcmJsQSiFcoIgoypEYXVkL2QvQmVjaG9yb3MgMzggLSBUaGlzIERhZiBoYXMgbm90IHlldCBiZWVuIHVwbG9hZGVkXzIxMTUwMDA4Mi5tcDM/Bechoros%2038%20-%20This%20Daf%20has%20not%20yet%20been%20uploaded_211500082.mp3",
+      "seconds": 6
+    },
+    {
+      "videoId": "L0211213672",
+      "title": "Bechoros 37",
+      "published": "2026-10-23T14:27:46.000Z",
+      "tractate": "Bekhorot",
+      "daf": 37,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0cfqiwEaIOB-S-jllFFwXsX3tzMXda8i0YpXtYIaouk56tcfgnR7IiCe4b5HMOoF9Iy1KTLYFLQDgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgMzdfMjExMjEzNjcyLm1wMw/Bechoros%2037_211213672.mp3",
+      "seconds": 3299
+    },
+    {
+      "videoId": "L0211147707",
+      "title": "Bechoros 36",
+      "published": "2026-10-22T20:08:26.000Z",
+      "tractate": "Bekhorot",
+      "daf": 36,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8ensigEaINDAOiFd13KUtrZUEI62HmB0x-TyWQByxpUjPNvYlPVwIiA5WvD8MAzZUjadEfqEZadtgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgMzZfMjExMTQ3NzA3Lm1wMw/Bechoros%2036_211147707.mp3",
+      "seconds": 3646
+    },
+    {
+      "videoId": "L0211126246",
+      "title": "Bechoros 35",
+      "published": "2026-10-22T14:10:46.000Z",
+      "tractate": "Bekhorot",
+      "daf": 35,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0Yb9fhoguethZJ5l_6MT8lXx-4lrB3F-D6RwFgUK1rRy-BPoxhkiIEOp60An1lc0a5s2dbQLbyOCgAC1RdByYmxBKIVygiCjKh9hdWQvZC9CZWNob3JvcyAzNV8yMTExMjYyNDYubXAz/Bechoros%2035_211126246.mp3",
+      "seconds": 3554
+    },
+    {
+      "videoId": "L0211038703",
+      "title": "Bechoros 34",
+      "published": "2026-10-21T13:51:36.000Z",
+      "tractate": "Bekhorot",
+      "daf": 34,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4dyGiQEaICB4iQXquRn8yENtnJwT7sN7fW6wabh0v0i_qhJRcmCiIiCDLsYillTnALZuY2dFqqf2goAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgMzRfMjExMDM4NzAzLm1wMw/Bechoros%2034_211038703.mp3",
+      "seconds": 3611
+    },
+    {
+      "videoId": "L0210949119",
+      "title": "Bechoros 33",
+      "published": "2026-10-20T12:58:38.000Z",
+      "tractate": "Bekhorot",
+      "daf": 33,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwfnpiwEaIIDpwENYlGFCnnChQDPhKNIXV5OPcx759G1lipYuqHA2IiDeI3-q5h_NN8wnnLN86UJJgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgMzNfMjEwOTQ5MTE5Lm1wMw/Bechoros%2033_210949119.mp3",
+      "seconds": 3607
+    },
+    {
+      "videoId": "L0210874185",
+      "title": "Bechoros 32",
+      "published": "2026-10-19T16:46:37.000Z",
+      "tractate": "Bekhorot",
+      "daf": 32,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0eqdhQEaIDvH2CDdKeVlPVycuNrPOGfKVrY5v7efJDA9uXSPYAd-IiCHPpUyj8EuDlGnJkDXsL9YgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgMzJfMjEwODc0MTg1Lm1wMw/Bechoros%2032_210874185.mp3",
+      "seconds": 3607
+    },
+    {
+      "videoId": "L0210800916",
+      "title": "Bechoros 31",
+      "published": "2026-10-18T19:48:33.000Z",
+      "tractate": "Bekhorot",
+      "daf": 31,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwZydhQEaINW5pQR3Z736PezqxD94oW7auTg8pKfo172wJOzuHfLCIiAODS_TFkOMh33kpSF_0tFVgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgMzFfMjEwODAwOTE2Lm1wMw/Bechoros%2031_210800916.mp3",
+      "seconds": 3594
+    },
+    {
+      "videoId": "L0210730584",
+      "title": "Bechoros 30",
+      "published": "2026-10-18T00:16:21.000Z",
+      "tractate": "Bekhorot",
+      "daf": 30,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQociZfhog1RFEyQA-FJbQX7ACZl5s_V2Zt_tMgDxbsg3X2fPnTjwiIBe-FuDoiPwWf80mlscZYAOCgAC1RdByYmxBKIVygiCjKh9hdWQvZC9CZWNob3JvcyAzMF8yMTA3MzA1ODQubXAz/Bechoros%2030_210730584.mp3",
+      "seconds": 3605
+    },
+    {
+      "videoId": "L0210575853",
+      "title": "Bechoros 29",
+      "published": "2026-10-16T05:17:26.000Z",
+      "tractate": "Bekhorot",
+      "daf": 29,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4Y3igQEaIEsIq9gL8hT_0TvsGsQVcMuCu7G8KKpOX3WuOeh7J9ANIiBu-3TPK1sM5yEgVyWjJ2xbgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgMjlfMjEwNTc1ODUzLm1wMw/Bechoros%2029_210575853.mp3",
+      "seconds": 3601
+    },
+    {
+      "videoId": "L0210527530",
+      "title": "Bechoros 28",
+      "published": "2026-10-15T15:52:06.000Z",
+      "tractate": "Bekhorot",
+      "daf": 28,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkfqYfhogm3gvF7wqefQqsx6Qul7b1C_tPdJnlUfIytssCDU66WciID8QZGQ6ExAn_CzH60DMwQuCgAC1RdByYmxBKIVygiCjKh9hdWQvZC9CZWNob3JvcyAyOF8yMTA1Mjc1MzAubXAz/Bechoros%2028_210527530.mp3",
+      "seconds": 3984
+    },
+    {
+      "videoId": "L0210400517",
+      "title": "Bechoros 27",
+      "published": "2026-10-14T04:35:16.000Z",
+      "tractate": "Bekhorot",
+      "daf": 27,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0b_hgQEaINWnidHM13qynX-Aj1A4VyzNBbucbgYCT8-_TBqVtwcWIiCCVdfl06_fltTTzB3f8uhRgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgMjdfMjEwNDAwNTE3Lm1wMw/Bechoros%2027_210400517.mp3",
+      "seconds": 3597
+    },
+    {
+      "videoId": "L0210364484",
+      "title": "Bechoros 26",
+      "published": "2026-10-13T18:34:39.000Z",
+      "tractate": "Bekhorot",
+      "daf": 26,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQsZ6jiAEaIBuRyl1QE1NusmipyYbPnVPtk5pBJ-1sx9UTs9R-pFa2IiBwB4Mlu9g3jsiTc5V62lU3goAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgMjZfMjEwMzY0NDg0Lm1wMw/Bechoros%2026_210364484.mp3",
+      "seconds": 3437
+    },
+    {
+      "videoId": "L0210304010",
+      "title": "Bechoros 25",
+      "published": "2026-10-13T01:46:50.000Z",
+      "tractate": "Bekhorot",
+      "daf": 25,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQodCiiAEaINIFUSHzXH7ImURFSSxbxVPO58FrPJZTQ2pDrmdYaBLIIiCJSAhb1xPtDszrtflBTviagoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgMjVfMjEwMzA0MDEwLm1wMw/Bechoros%2025_210304010.mp3",
+      "seconds": 3648
+    },
+    {
+      "videoId": "L0210270957",
+      "title": "Bechoros 23",
+      "published": "2026-10-12T16:36:06.000Z",
+      "tractate": "Bekhorot",
+      "daf": 23,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQobu1hAEaILXxAY3ZbKZ2j2VnPSZ0rozQNNodGXahQBWpb-5goIpaIiC1xAg4N2phUP1tCPOJzTZlgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgMjNfMjEwMjcwOTU3Lm1wMw/Bechoros%2023_210270957.mp3",
+      "seconds": 2868
+    },
+    {
+      "videoId": "L0210271035",
+      "title": "Bechoros 24",
+      "published": "2026-10-12T14:51:29.000Z",
+      "tractate": "Bekhorot",
+      "daf": 24,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgayYfhogGqG47EobJSOEupkHfR7LJMDPWJ8giKu7oL-9xC0UM6MiIEhm9i_YxDZkVruR74Ej1qaCgAC1RdByYmxBKIVygiCjKh9hdWQvZC9CZWNob3JvcyAyNF8yMTAyNzEwMzUubXAz/Bechoros%2024_210271035.mp3",
+      "seconds": 3566
+    },
+    {
+      "videoId": "L0210007707",
+      "title": "Bechoros 22",
+      "published": "2026-10-09T15:28:22.000Z",
+      "tractate": "Bekhorot",
+      "daf": 22,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0cXigAEaIIeRg-JaV3RR7JSLq9Y52eEhXKV3KAX3p2B_mFdXjVLDIiBdN7ZzG5or6wKyW5knAzJqgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgMjJfMjEwMDA3NzA3Lm1wMw/Bechoros%2022_210007707.mp3",
+      "seconds": 3499
+    },
+    {
+      "videoId": "L0209917493",
+      "title": "Bechoros 21",
+      "published": "2026-10-08T14:24:48.000Z",
+      "tractate": "Bekhorot",
+      "daf": 21,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkdaDiQEaIIDPm2YSsWzKTtr2yb_Cq6rVLPqIz0eXpmMqK6MpWslZIiD8DW7K1KuDJvQSqKjL89FCgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgMjFfMjA5OTE3NDkzLm1wMw/Bechoros%2021_209917493.mp3",
+      "seconds": 3058
+    },
+    {
+      "videoId": "L0209828615",
+      "title": "Bechoros 20",
+      "published": "2026-10-07T13:43:26.000Z",
+      "tractate": "Bekhorot",
+      "daf": 20,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0cTxiQEaIB0ybt_xfHMRnQrzf1zprpBYhM-SFzS2kwWz3-w-UsP1IiCe3_uNZpH74lnpNWQNJ3f6goAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgMjBfMjA5ODI4NjE1Lm1wMw/Bechoros%2020_209828615.mp3",
+      "seconds": 3638
+    },
+    {
+      "videoId": "L0209709026",
+      "title": "Bechoros 19",
+      "published": "2026-10-06T04:30:23.000Z",
+      "tractate": "Bekhorot",
+      "daf": 19,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQos2phgEaII1ZK0lIHnYLnTBbUVQArsX6WHmppkd3VQZabDrnGNzyIiDFBm-zVIfqFn1BaHEDjk0fgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgMTlfMjA5NzA5MDI2Lm1wMw/Bechoros%2019_209709026.mp3",
+      "seconds": 3582
+    },
+    {
+      "videoId": "L0209703405",
+      "title": "Bechoros 18",
+      "published": "2026-10-06T02:56:43.000Z",
+      "tractate": "Bekhorot",
+      "daf": 18,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8uWgiAEaIK2N-ICmI7VhMUjzLGAjVnVPaxQEUWCGDcC7vS-h2VmNIiD13IMBijxu1ouFMr55jUMfgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgMThfMjA5NzAzNDA1Lm1wMw/Bechoros%2018_209703405.mp3",
+      "seconds": 3671
+    },
+    {
+      "videoId": "L0209666264",
+      "title": "Bechoros 17",
+      "published": "2026-10-05T16:37:58.000Z",
+      "tractate": "Bekhorot",
+      "daf": 17,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwtDxfxogiIRVq0XqYVT3DFfAcppI-0z4wlBygQecgrvS8ECKCIEiIH2nUTgscHxXcmq9j7R_t5SCgAC1RdByYmxBKIVygiCjKh9hdWQvZC9CZWNob3JvcyAxN18yMDk2NjYyNjQubXAz/Bechoros%2017_209666264.mp3",
+      "seconds": 4182
+    },
+    {
+      "videoId": "L0209409232",
+      "title": "Bechoros 16",
+      "published": "2026-10-02T17:13:47.000Z",
+      "tractate": "Bekhorot",
+      "daf": 16,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgbShiAEaIGrf2Jq1LzJBSCAoVa4PyUVXhTJnRm5JEPdpdT-vfJNLIiA_64MCva3IuGcfy_HTUtcpgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgMTZfMjA5NDA5MjMyLm1wMw/Bechoros%2016_209409232.mp3",
+      "seconds": 3448
+    },
+    {
+      "videoId": "L0209408388",
+      "title": "Bechoros 15",
+      "published": "2026-10-02T16:59:45.000Z",
+      "tractate": "Bekhorot",
+      "daf": 15,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8rH5fhogn_EpEakUYI--YWyEMZGwj1zox38-63o6aLP2Tao89sgiIOdbtW2arS1YSqDttYQzvcOCgAC1RdByYmxBKIVygiCjKh9hdWQvZC9CZWNob3JvcyAxNV8yMDk0MDgzODgubXAz/Bechoros%2015_209408388.mp3",
+      "seconds": 3739
+    },
+    {
+      "videoId": "L0209407793",
+      "title": "Bechoros 14",
+      "published": "2026-10-02T16:49:48.000Z",
+      "tractate": "Bekhorot",
+      "daf": 14,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwdDxfxog6NXgP2ioh8gBmjsMGAzCxTntc4MxAZG0Chs-Gb11MMgiIGn_F7_Y3LrAFxSvonez84eCgAC1RdByYmxBKIVygiCjKh9hdWQvZC9CZWNob3JvcyAxNF8yMDk0MDc3OTMubXAz/Bechoros%2014_209407793.mp3",
+      "seconds": 4665
+    },
+    {
+      "videoId": "L0209316218",
+      "title": "Bechoros 13",
+      "published": "2026-10-01T15:24:09.000Z",
+      "tractate": "Bekhorot",
+      "daf": 13,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwfbwiQEaICoucPaY-J5H4jgkBzfr-QN6qB2vTm1Vdob6-F2oaQnKIiDlamjGMoXLc3XyvH9ag4rjgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgMTNfMjA5MzE2MjE4Lm1wMw/Bechoros%2013_209316218.mp3",
+      "seconds": 4441
+    },
+    {
+      "videoId": "L0209089661",
+      "title": "Bechoros 12",
+      "published": "2026-09-29T00:27:37.000Z",
+      "tractate": "Bekhorot",
+      "daf": 12,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgYnHjgEaIDBlC0EYuq2G13cCJrzs0H7sjE_QXlfkhC8Q3IvUWj0jIiC0uQMF0d-yvl5F81XJS-p6goAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgMTJfMjA5MDg5NjYxLm1wMw/Bechoros%2012_209089661.mp3",
+      "seconds": 3888
+    },
+    {
+      "videoId": "L0209083918",
+      "title": "Bechoros 11",
+      "published": "2026-09-28T22:51:54.000Z",
+      "tractate": "Bekhorot",
+      "daf": 11,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwZ-WhwEaIFAkUAmWsl4dhVW3kohhoCJHp9tDAZBYZ4WmTMbpe4csIiChfllMOhQJ8aVTmvCWasMxgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgMTFfMjA5MDgzOTE4Lm1wMw/Bechoros%2011_209083918.mp3",
+      "seconds": 4140
+    },
+    {
+      "videoId": "L0209082321",
+      "title": "Bechoros 10",
+      "published": "2026-09-28T22:25:18.000Z",
+      "tractate": "Bekhorot",
+      "daf": 10,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8eWgiAEaIKtNIrb-6Ak707Zdnv7NkZn8Nau7l52hDpn7sbixCQNEIiBTMtPgNK1kebRfBkqBvCdYgoAAtUXQcmJsQSiFcoIgoypEYXVkL2QvQmVjaG9yb3MgMTAgLSBUaGlzIERhZiBoYXMgbm90IHlldCBiZWVuIHVwbG9hZGVkXzIwOTA4MjMyMS5tcDM/Bechoros%2010%20-%20This%20Daf%20has%20not%20yet%20been%20uploaded_209082321.mp3",
+      "seconds": 6
+    },
+    {
+      "videoId": "L0209062731",
+      "title": "Bechoros 9",
+      "published": "2026-09-28T16:58:47.000Z",
+      "tractate": "Bekhorot",
+      "daf": 9,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkoffgQEaIIaLO9N2rck3xvY8ephn3rIglfKJbAXSSjkO0JCHhq9YIiArqwitz-c2Lg0WOXL8fVW4goAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQmVjaG9yb3MgOV8yMDkwNjI3MzEubXAz/Bechoros%209_209062731.mp3",
+      "seconds": 5798
+    },
+    {
+      "videoId": "L0208794415",
+      "title": "Bechoros 8",
+      "published": "2026-09-25T14:26:49.000Z",
+      "tractate": "Bekhorot",
+      "daf": 8,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8bH5fhogim288wW9ZBO6h02drMQwFU660bjZNXYrrIwQY7VbVu8iIMQg2k3v10Hc6PgoHtR5geuCgAC1RdByYmxBKIVygiCjKh5hdWQvZC9CZWNob3JvcyA4XzIwODc5NDQxNS5tcDM/Bechoros%208_208794415.mp3",
+      "seconds": 4194
+    },
+    {
+      "videoId": "L0208710938",
+      "title": "Bechoros 7",
+      "published": "2026-09-24T15:15:35.000Z",
+      "tractate": "Bekhorot",
+      "daf": 7,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQoYCchQEaIBXeVKTQsQ-AiaY9ARZtR-C-dXqgzZFkWbNEzgpTyWHqIiBZSFN1LkgKgHko_Dl_0g8VgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQmVjaG9yb3MgN18yMDg3MTA5MzgubXAz/Bechoros%207_208710938.mp3",
+      "seconds": 2689
+    },
+    {
+      "videoId": "L0208709456",
+      "title": "Bechoros 6",
+      "published": "2026-09-24T14:50:52.000Z",
+      "tractate": "Bekhorot",
+      "daf": 6,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQoc2phgEaII2xg-oq5yUzV42qsMUTHXQ3ZRjUph9rlLynmwAsWz0BIiAOny7f7K_ShR8U5IUYJ6x2goAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQmVjaG9yb3MgNl8yMDg3MDk0NTYubXAz/Bechoros%206_208709456.mp3",
+      "seconds": 5722
+    },
+    {
+      "videoId": "L0208625546",
+      "title": "Bechoros 5",
+      "published": "2026-09-23T15:32:22.000Z",
+      "tractate": "Bekhorot",
+      "daf": 5,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQsYLxfxoghoJy4-eA3yE2te6eDRnQ8CFCluerJ15QVJn_Q5alRL0iIDBU8qZ7LjsyThFgALaqPAyCgAC1RdByYmxBKIVygiCjKh5hdWQvZC9CZWNob3JvcyA1XzIwODYyNTU0Ni5tcDM/Bechoros%205_208625546.mp3",
+      "seconds": 5173
+    },
+    {
+      "videoId": "L0208534268",
+      "title": "Bechoros 4",
+      "published": "2026-09-22T14:11:04.000Z",
+      "tractate": "Bekhorot",
+      "daf": 4,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0e7ajAEaINjYyggjRp8VqCe54cRap6PiF_KYrh3BhqHk0EluGsZrIiAahUg8j9QPGAP3ltG3Yre2goAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQmVjaG9yb3MgNF8yMDg1MzQyNjgubXAz/Bechoros%204_208534268.mp3",
+      "seconds": 3936
+    },
+    {
+      "videoId": "L0208548279",
+      "title": "Bechoros 3",
+      "published": "2026-09-20T17:25:11.000Z",
+      "tractate": "Bekhorot",
+      "daf": 3,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8fLmiwEaIKqpoTL4RMIahdjxMSik_GtUalqREExzRUWvWN2tRxoOIiDVmBpzUchAtKymVqgHcfmqgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQmVjaG9yb3MgM18yMDg1NDgyNzkubXAz/Bechoros%203_208548279.mp3",
+      "seconds": 3963
+    },
+    {
+      "videoId": "L0208322651",
+      "title": "Bechoros 2",
+      "published": "2026-09-20T03:24:07.000Z",
+      "tractate": "Bekhorot",
+      "daf": 2,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkY3ggAEaIK_def42Vu_oVvYssRbyQCkllwZL0DdQDAGNmxGBHP73IiCIvCZJtuLwohRgKfnNQqIdgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQmVjaG9yb3MgMl8yMDgzMjI2NTEubXAz/Bechoros%202_208322651.mp3",
+      "seconds": 4910
+    },
+    {
+      "videoId": "L0208196019",
+      "title": "Chulin 142",
+      "published": "2026-09-18T16:13:39.000Z",
+      "tractate": "Chullin",
+      "daf": 142,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkf-ohgEaIBxMggO0iw-iSrcoe4T9K5CyVJCL7gwKEpKolkJF1Mp5IiBpWQEq8I7d4jIc_OA6Z3JGgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDE0Ml8yMDgxOTYwMTkubXAz/Chulin%20142_208196019.mp3",
+      "seconds": 5243
+    },
+    {
+      "videoId": "L0208191186",
+      "title": "Chulin 141",
+      "published": "2026-09-18T14:53:34.000Z",
+      "tractate": "Chullin",
+      "daf": 141,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQsajwiQEaINWoffOAtLz5VmHEJOitj3ngb31va9yUNkcz31HNJ8oAIiBJgVg9uie0exSrq9fW3PWhgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDE0MV8yMDgxOTExODYubXAz/Chulin%20141_208191186.mp3",
+      "seconds": 5550
+    },
+    {
+      "videoId": "L0208058602",
+      "title": "Chulin 140",
+      "published": "2026-09-17T02:03:18.000Z",
+      "tractate": "Chullin",
+      "daf": 140,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkpbagQEaIDlRdRI8Ql30hjCK3zTZRQx4Ncasrbm3xOV3aaaordVkIiA2Hz8y352JYGsYJI0qdlzUgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDE0MF8yMDgwNTg2MDIubXAz/Chulin%20140_208058602.mp3",
+      "seconds": 6758
+    },
+    {
+      "videoId": "L0207939782",
+      "title": "Chulin 139",
+      "published": "2026-09-15T17:02:58.000Z",
+      "tractate": "Chullin",
+      "daf": 139,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0au4gwEaIOiaVPMbtDta5NPzYFUHQdpjPGBtw74n7C8HP6RMBG7wIiAV-IhFYhis2cnStzRJFIZ_goAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDEzOV8yMDc5Mzk3ODIubXAz/Chulin%20139_207939782.mp3",
+      "seconds": 7583
+    },
+    {
+      "videoId": "L0207849892",
+      "title": "Chulin 138",
+      "published": "2026-09-14T16:04:48.000Z",
+      "tractate": "Chullin",
+      "daf": 138,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0bSyhAEaIK8kUEf9RWVC82A6O_dODwXwSZ9FjhjGl23Owi9urhEJIiA4xHfKIHwFlcIqW_43WWQtgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDEzOF8yMDc4NDk4OTIubXAz/Chulin%20138_207849892.mp3",
+      "seconds": 3235
+    },
+    {
+      "videoId": "L0207799828",
+      "title": "Chulin 137",
+      "published": "2026-09-14T02:10:24.000Z",
+      "tractate": "Chullin",
+      "daf": 137,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgZjvfxogrCNVZA7_MzSKG1BZa4wxnkqGSuJtuvW-opDsYS1zuDkiIHVQ3OH_zwoc5QuXTlhoCMaCgAC1RdByYmxBKIVygiCjKh5hdWQvZC9DaHVsaW4gMTM3XzIwNzc5OTgyOC5tcDM/Chulin%20137_207799828.mp3",
+      "seconds": 4248
+    },
+    {
+      "videoId": "L0207501530",
+      "title": "Chulin 136",
+      "published": "2026-09-10T15:18:47.000Z",
+      "tractate": "Chullin",
+      "daf": 136,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8cnufxogC3tR0c2pC5CagE3Wm8o06xycdevYSkgF8QHhHd7exWsiIDK7SPGe6GVeot-__xzecWOCgAC1RdByYmxBKIVygiCjKh5hdWQvZC9DaHVsaW4gMTM2XzIwNzUwMTUzMC5tcDM/Chulin%20136_207501530.mp3",
+      "seconds": 3446
+    },
+    {
+      "videoId": "L0207499812",
+      "title": "Chulin 135",
+      "published": "2026-09-10T14:50:08.000Z",
+      "tractate": "Chullin",
+      "daf": 135,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4eP4fhogGcxtQQPXO4MEbG5Q6OCyfDbsyeRbCy0c5Wk_7jvQ1x0iIEFZAFMo1LWDeIMeKgOXxb-CgAC1RdByYmxBKIVygiCjKh5hdWQvZC9DaHVsaW4gMTM1XzIwNzQ5OTgxMi5tcDM/Chulin%20135_207499812.mp3",
+      "seconds": 4749
+    },
+    {
+      "videoId": "L0207439910",
+      "title": "Chulin 134",
+      "published": "2026-09-09T22:11:45.000Z",
+      "tractate": "Chullin",
+      "daf": 134,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQseeCfRogyP61d1lfKLK47vcwItF7slAu1DrI3avhO3UoQ0erSwEiIMUnoH-kkzsIt2DPBRjZny6CgAC1RdByYmxBKIVygiCjKh5hdWQvZC9DaHVsaW4gMTM0XzIwNzQzOTkxMC5tcDM/Chulin%20134_207439910.mp3",
+      "seconds": 3491
+    },
+    {
+      "videoId": "L0207415078",
+      "title": "Chulin 133",
+      "published": "2026-09-09T15:17:55.000Z",
+      "tractate": "Chullin",
+      "daf": 133,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0cmfiAEaIEsEoCWx_WAOupapNANyx9WNXqa23Etok-Wk7xD-iC83IiDAs9ih2TP61VVOmQFM4OtHgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDEzM18yMDc0MTUwNzgubXAz/Chulin%20133_207415078.mp3",
+      "seconds": 3366
+    },
+    {
+      "videoId": "L0207413266",
+      "title": "Chulin 132",
+      "published": "2026-09-09T14:47:42.000Z",
+      "tractate": "Chullin",
+      "daf": 132,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQsZHsfxogyX_nuQCDu9KpCRWAB2hJzQ3RUUYL9OFpXvSxfWxczlsiIKUggGuZMdkyVcYilgjqMTmCgAC1RdByYmxBKIVygiCjKh5hdWQvZC9DaHVsaW4gMTMyXzIwNzQxMzI2Ni5tcDM/Chulin%20132_207413266.mp3",
+      "seconds": 3267
+    },
+    {
+      "videoId": "L0207251362",
+      "title": "Chulin 131",
+      "published": "2026-09-07T17:49:21.000Z",
+      "tractate": "Chullin",
+      "daf": 131,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwbjPjQEaIAo31kEqW09R6WbJ6BhTGlQUfBKMiG9y_kJ5Zzj5sOQAIiD3-1IXMcFQO6T5X3AGArLOgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDEzMV8yMDcyNTEzNjIubXAz/Chulin%20131_207251362.mp3",
+      "seconds": 4815
+    },
+    {
+      "videoId": "L0207164237",
+      "title": "Chulin 130",
+      "published": "2026-09-06T17:37:12.000Z",
+      "tractate": "Chullin",
+      "daf": 130,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQsbrkiwEaIFV9CcoyiW0VR4teRww0qXJrCgvAKKBA2Cj0rPN5iEzfIiC6YDbFmnD28kmpY2abd8qvgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDEzMF8yMDcxNjQyMzcubXAz/Chulin%20130_207164237.mp3",
+      "seconds": 4660
+    },
+    {
+      "videoId": "L0206984064",
+      "title": "Chulin 129",
+      "published": "2026-09-04T15:34:21.000Z",
+      "tractate": "Chullin",
+      "daf": 129,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQocPrfxogkPFZy2Fa_3n_OTDtKqmEJlnDQIKM4go3skWhQI7wPnsiIAAAnR_0-yq-OAN8RoLBo4KCgAC1RdByYmxBKIVygiCjKh5hdWQvZC9DaHVsaW4gMTI5XzIwNjk4NDA2NC5tcDM/Chulin%20129_206984064.mp3",
+      "seconds": 5606
+    },
+    {
+      "videoId": "L0206979376",
+      "title": "Chulin 128",
+      "published": "2026-09-04T14:16:12.000Z",
+      "tractate": "Chullin",
+      "daf": 128,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0cGWfhogq4ly5W2p2NxSdcUZZq9HFDpMTmcaGN-KJnNbyr4roBAiIKKKKgS_nrfT8vh9YQaAoieCgAC1RdByYmxBKIVygiCjKh5hdWQvZC9DaHVsaW4gMTI4XzIwNjk3OTM3Ni5tcDM/Chulin%20128_206979376.mp3",
+      "seconds": 6119
+    },
+    {
+      "videoId": "L0206894621",
+      "title": "Chulin 127",
+      "published": "2026-09-03T14:43:40.000Z",
+      "tractate": "Chullin",
+      "daf": 127,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4aLegAEaIAIy8VS5QAyRtdSsCJ_AgE9S9MjQAJq4DJQshuuB35xzIiDNpG8kSJqVdSMJE3U-2OFggoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDEyN18yMDY4OTQ2MjEubXAz/Chulin%20127_206894621.mp3",
+      "seconds": 4601
+    },
+    {
+      "videoId": "L0206894376",
+      "title": "Chulin 126",
+      "published": "2026-09-03T14:39:32.000Z",
+      "tractate": "Chullin",
+      "daf": 126,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkcuBfRogi0tBFDAujzcHIcYmZgNbv0_5Tl9lSjDQwiPJIiwcddsiIDgRmzeOdniFEckGZj-MsgGCgAC1RdByYmxBKIVygiCjKkNhdWQvZC9DaHVsaW4gMTI2IC0gVGhpcyBEYWYgaGFzIG5vdCB5ZXQgYmVlbiB1cGxvYWRlZF8yMDY4OTQzNzYubXAz/Chulin%20126%20-%20This%20Daf%20has%20not%20yet%20been%20uploaded_206894376.mp3",
+      "seconds": 6
+    },
+    {
+      "videoId": "L0206736705",
+      "title": "Chulin 125",
+      "published": "2026-09-01T18:51:40.000Z",
+      "tractate": "Chullin",
+      "daf": 125,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwfOVfhogDoYvsujmycM4QqAst5IkJgUt6iKqjy7Izl1nSTM4rbEiID6Gkw1ch9ZkaPAhTGFj1TaCgAC1RdByYmxBKIVygiCjKh5hdWQvZC9DaHVsaW4gMTI1XzIwNjczNjcwNS5tcDM/Chulin%20125_206736705.mp3",
+      "seconds": 3005
+    },
+    {
+      "videoId": "L0206640968",
+      "title": "Chulin 124",
+      "published": "2026-08-31T16:16:03.000Z",
+      "tractate": "Chullin",
+      "daf": 124,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQoezjiwEaIKbEH8brtb7jSU_7RcF8rnIQhYD_kwVZQYQSehFj5UUAIiA-gWlylL7USL0ZwogEhFrtgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDEyNF8yMDY2NDA5NjgubXAz/Chulin%20124_206640968.mp3",
+      "seconds": 3563
+    },
+    {
+      "videoId": "L0206557968",
+      "title": "Chulin 123",
+      "published": "2026-08-30T17:12:45.000Z",
+      "tractate": "Chullin",
+      "daf": 123,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8eKnhgEaICtz9lbiIbMR8aIeXNtyoOZ6uv5OIpScE0loYOv-PFIlIiDnTHICY9alPvnxD67rkLsMgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDEyM18yMDY1NTc5NjgubXAz/Chulin%20123_206557968.mp3",
+      "seconds": 7348
+    },
+    {
+      "videoId": "L0206508612",
+      "title": "Chulin 122",
+      "published": "2026-08-30T03:30:25.000Z",
+      "tractate": "Chullin",
+      "daf": 122,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8fnYgQEaIKyG596v_r8xGlrRScH2NbqsRhDV6-hTBLbAGSETPMs7IiBu8s7nHM0n1zXxe_zcB091goAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDEyMl8yMDY1MDg2MTIubXAz/Chulin%20122_206508612.mp3",
+      "seconds": 3209
+    },
+    {
+      "videoId": "L0206373007",
+      "title": "Chulin 121",
+      "published": "2026-08-28T13:50:41.000Z",
+      "tractate": "Chullin",
+      "daf": 121,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4ZSnhgEaIEYvCNwilEdEZXNZ87EsICQ2VhADrl04wsXDq9SWVaQDIiCMrrP3UbjtIxGASk3KZUt-goAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDEyMV8yMDYzNzMwMDcubXAz/Chulin%20121_206373007.mp3",
+      "seconds": 2727
+    },
+    {
+      "videoId": "L0206281776",
+      "title": "Chulin 120",
+      "published": "2026-08-27T12:29:32.000Z",
+      "tractate": "Chullin",
+      "daf": 120,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQodeUfhogTTOkecL2ro_Wxska4AYS2riNDADzKt5P6s1NX3K2FEAiICz_H_GInN1AVNSnt8Uhch6CgAC1RdByYmxBKIVygiCjKh5hdWQvZC9DaHVsaW4gMTIwXzIwNjI4MTc3Ni5tcDM/Chulin%20120_206281776.mp3",
+      "seconds": 3590
+    },
+    {
+      "videoId": "L0206207214",
+      "title": "Chulin 119",
+      "published": "2026-08-26T15:46:53.000Z",
+      "tractate": "Chullin",
+      "daf": 119,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgb7uiQEaIG2giWVBanq1mspSify5XMoo9BAkR_wrdEMKKqNpESyrIiAVa0stsjlK2fFt7eSFI3EugoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDExOV8yMDYyMDcyMTQubXAz/Chulin%20119_206207214.mp3",
+      "seconds": 3404
+    },
+    {
+      "videoId": "L0206298315",
+      "title": "Chulin 118",
+      "published": "2026-08-25T20:06:56.000Z",
+      "tractate": "Chullin",
+      "daf": 118,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgcOciAEaICrRyCtRhT0vw_B0ayqrY_DUAIhtKov-W509u1eWifG-IiBfoKtFQbkDRxUu5JL1X8I1goAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDExOF8yMDYyOTgzMTUubXAz/Chulin%20118_206298315.mp3",
+      "seconds": 2898
+    },
+    {
+      "videoId": "L0206083402",
+      "title": "Chulin 117",
+      "published": "2026-08-25T05:23:38.000Z",
+      "tractate": "Chullin",
+      "daf": 117,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkYmUfhogKyYR7CyWnJNd-uuCH_QWg1sin4_PUzfKM9bQos2NkG0iIN2KbWjXGGwIK8xaJsh67s2CgAC1RdByYmxBKIVygiCjKh5hdWQvZC9DaHVsaW4gMTE3XzIwNjA4MzQwMi5tcDM/Chulin%20117_206083402.mp3",
+      "seconds": 6340
+    },
+    {
+      "videoId": "L0205955012",
+      "title": "Chulin 116",
+      "published": "2026-08-23T17:43:27.000Z",
+      "tractate": "Chullin",
+      "daf": 116,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8fSbiAEaIMxoLAosj95Q8ghjQjjOKjVobS1HgbiE2JIWd5-Ss9v9IiBOm9B1sSrKJerpt9K-_GQmgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDExNl8yMDU5NTUwMTIubXAz/Chulin%20116_205955012.mp3",
+      "seconds": 6676
+    },
+    {
+      "videoId": "L0205902510",
+      "title": "Chulin 115",
+      "published": "2026-08-23T03:08:29.000Z",
+      "tractate": "Chullin",
+      "daf": 115,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQsYGAiQEaIOKvhH3D0Lj7IKROkakz1UPpfSjEZBArELmv207cLmDxIiDEVlviKf_wTiySkH2vZVpBgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDExNV8yMDU5MDI1MTAubXAz/Chulin%20115_205902510.mp3",
+      "seconds": 3239
+    },
+    {
+      "videoId": "L0205901891",
+      "title": "Chulin 114",
+      "published": "2026-08-23T02:58:08.000Z",
+      "tractate": "Chullin",
+      "daf": 114,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8eySfhog5RWGHmmoBPO5bLKoNM_wshHlHfoSRzvTA9Q0YCPVwqsiIArssQLTFYPNB339lDKPIY6CgAC1RdByYmxBKIVygiCjKjZhdWQvZC9UaGlzIERhZiBoYXMgbm90IHlldCBiZWVuIHVwbG9hZGVkXzIwNTkwMTg5MS5tcDM/This%20Daf%20has%20not%20yet%20been%20uploaded_205901891.mp3",
+      "seconds": 6
+    },
+    {
+      "videoId": "L0205775782",
+      "title": "Chulin 113",
+      "published": "2026-08-21T15:56:21.000Z",
+      "tractate": "Chullin",
+      "daf": 113,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4ceZhQEaINjTrO6eSYCMRXd0XhtAkP4kJ6ELJuc9QJMwSl5IhtQwIiBaNUIytxv2O-AUHfSqugq8goAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDExM18yMDU3NzU3ODIubXAz/Chulin%20113_205775782.mp3",
+      "seconds": 3293
+    },
+    {
+      "videoId": "L0205775583",
+      "title": "Chulin 112",
+      "published": "2026-08-19T11:59:40.000Z",
+      "tractate": "Chullin",
+      "daf": 112,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4eD_fBogr1UV0addCyZdGvuIDnrlDPY1Kdr6AFFdYS0wS1Q5x6UiIK-_U3FRPtJJ5ieJI_5xV4SCgAC1RdByYmxBKIVygiCjKh5hdWQvZC9DaHVsaW4gMTEyXzIwNTc3NTU4My5tcDM/Chulin%20112_205775583.mp3",
+      "seconds": 3552
+    },
+    {
+      "videoId": "L0205513276",
+      "title": "Chulin 111",
+      "published": "2026-08-18T15:01:12.000Z",
+      "tractate": "Chullin",
+      "daf": 111,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0d3XgQEaIL7UWa8J8_Pe-YtKzffvJPnJxdJxSGP0hsq-6N-qeANTIiDFoACGHlQQ4nSnr5W_alrLgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDExMV8yMDU1MTMyNzYubXAz/Chulin%20111_205513276.mp3",
+      "seconds": 2805
+    },
+    {
+      "videoId": "L0205424178",
+      "title": "Chulin 110",
+      "published": "2026-08-17T14:16:18.000Z",
+      "tractate": "Chullin",
+      "daf": 110,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0dCRfhog0MVuh9TNSexMeA5pCaKJw5Jxp4A1SFw8IiVEKEQJm9MiIPpKaQwCJsCfEZDKBtV4XzyCgAC1RdByYmxBKIVygiCjKh5hdWQvZC9DaHVsaW4gMTEwXzIwNTQyNDE3OC5tcDM/Chulin%20110_205424178.mp3",
+      "seconds": 3235
+    },
+    {
+      "videoId": "L0205359585",
+      "title": "Chulin 109",
+      "published": "2026-08-16T20:19:42.000Z",
+      "tractate": "Chullin",
+      "daf": 109,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwYKRfhogYxlkyw7t-Pj6tphyMU10j_z0G0N2MmKqWBq-BY82yKwiIDPFhR_MQbrDYdLSPNlxhHWCgAC1RdByYmxBKIVygiCjKh5hdWQvZC9DaHVsaW4gMTA5XzIwNTM1OTU4NS5tcDM/Chulin%20109_205359585.mp3",
+      "seconds": 2898
+    },
+    {
+      "videoId": "L0205177802",
+      "title": "Chulin 108",
+      "published": "2026-08-14T17:49:58.000Z",
+      "tractate": "Chullin",
+      "daf": 108,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkd31fhogoMypB-WLG7e_EfEgxupQCI5aQEomuN7a77zsCUjXUu8iIPTdzTvuQCNx8ELr_gyKhziCgAC1RdByYmxBKIVygiCjKh5hdWQvZC9DaHVsaW4gMTA4XzIwNTE3NzgwMi5tcDM/Chulin%20108_205177802.mp3",
+      "seconds": 5134
+    },
+    {
+      "videoId": "L0205133316",
+      "title": "Chulin 107",
+      "published": "2026-08-14T05:28:35.000Z",
+      "tractate": "Chullin",
+      "daf": 107,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4ezFjgEaIP1pHENl1rhHoZMTMnQiMASjAs1kRydwCrM2njNlDq1nIiCmTvU0COWbsmT1SO8a6fcqgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDEwN18yMDUxMzMzMTYubXAz/Chulin%20107_205133316.mp3",
+      "seconds": 2994
+    },
+    {
+      "videoId": "L0205133225",
+      "title": "Chulin 106",
+      "published": "2026-08-14T05:27:01.000Z",
+      "tractate": "Chullin",
+      "daf": 106,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4aabiAEaIDfUiM_QR5HhjocuteF9a6NZ93MWhZJ9x8D0lOgYOp3UIiD1_IkXHm331jAlvZkLlxRmgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDEwNl8yMDUxMzMyMjUubXAz/Chulin%20106_205133225.mp3",
+      "seconds": 4206
+    },
+    {
+      "videoId": "L0204989457",
+      "title": "Chulin 105",
+      "published": "2026-08-12T13:30:53.000Z",
+      "tractate": "Chullin",
+      "daf": 105,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4cvWjAEaIEnwGUc2Psmp6uCIDgyQGv1AJLkjsoKMuZ4QEHdXqPExIiCKNIJQP9OdB0D11ygBSe8pgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDEwNV8yMDQ5ODk0NTcubXAz/Chulin%20105_204989457.mp3",
+      "seconds": 3454
+    },
+    {
+      "videoId": "L0204905438",
+      "title": "Chulin 104",
+      "published": "2026-08-11T14:10:34.000Z",
+      "tractate": "Chullin",
+      "daf": 104,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0bzofxogaIouqfJEpb10TOAcnKFd5Xm_32Ex_4TO_iQ1K4ua44siICSRYsEZ5k1IXrvfxix5kRmCgAC1RdByYmxBKIVygiCjKh5hdWQvZC9DaHVsaW4gMTA0XzIwNDkwNTQzOC5tcDM/Chulin%20104_204905438.mp3",
+      "seconds": 4723
+    },
+    {
+      "videoId": "L0204820499",
+      "title": "Chulin 103",
+      "published": "2026-08-10T14:34:54.000Z",
+      "tractate": "Chullin",
+      "daf": 103,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQoePpigEaIEUKmnsDTokaw1vpsej1vRHiRqBAPWH6YRkJ_XdlZvGCIiCICMxZrvu1WsfTEnFouWaRgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDEwM18yMDQ4MjA0OTkubXAz/Chulin%20103_204820499.mp3",
+      "seconds": 4024
+    },
+    {
+      "videoId": "L0204754901",
+      "title": "Chulin 102",
+      "published": "2026-08-09T20:21:37.000Z",
+      "tractate": "Chullin",
+      "daf": 102,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8d-uhAEaINZT4sK1W5zfz5xc_Xo2k8BujNE8IJjaVBj7IthZSChbIiB-6RfdRKJepVTj1vX9gg7PgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDEwMl8yMDQ3NTQ5MDEubXAz/Chulin%20102_204754901.mp3",
+      "seconds": 5346
+    },
+    {
+      "videoId": "L0204694023",
+      "title": "Chulin 101",
+      "published": "2026-08-09T03:30:56.000Z",
+      "tractate": "Chullin",
+      "daf": 101,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgZf-iAEaIFnSf7RaY2j_RgOg1nZ_kPFQiKDjKcy34zry6OxcrSyAIiD-1EBbipBnAZd84dcbd0mYgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDEwMV8yMDQ2OTQwMjMubXAz/Chulin%20101_204694023.mp3",
+      "seconds": 3950
+    },
+    {
+      "videoId": "L0204572471",
+      "title": "Chulin 100",
+      "published": "2026-08-09T03:13:35.000Z",
+      "tractate": "Chullin",
+      "daf": 100,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgaW1gwEaIHPmgb3NChyRozE0tlBJ_nVCQhN6eDXoh_-RDNPt5IBSIiCzZCP8hTLOFt4aBg6b-UBwgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQ2h1bGluIDEwMF8yMDQ1NzI0NzEubXAz/Chulin%20100_204572471.mp3",
+      "seconds": 3575
+    },
+    {
+      "videoId": "L0204569460",
+      "title": "Chulin 99",
+      "published": "2026-08-09T02:57:54.000Z",
+      "tractate": "Chullin",
+      "daf": 99,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0diaiAEaII22y5oSCS195qvoam7cDMFJmbCC9Hd8beXlWE8Fp2TgIiDFWObRd4r_x5qBrM1oPOgygoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDk5XzIwNDU2OTQ2MC5tcDM/Chulin%2099_204569460.mp3",
+      "seconds": 4707
+    },
+    {
+      "videoId": "L0204352882",
+      "title": "Chulin 98",
+      "published": "2026-08-05T04:41:19.000Z",
+      "tractate": "Chullin",
+      "daf": 98,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQsbSQfhog0T1iBBDRxm92UZbCWNWnTjCt0Djf5pDKAuXOn-Bt0u4iIKVpB5JgAB9S6UPWqL0FzBqCgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gOThfMjA0MzUyODgyLm1wMw/Chulin%2098_204352882.mp3",
+      "seconds": 3726
+    },
+    {
+      "videoId": "L0204344383",
+      "title": "Chulin 97",
+      "published": "2026-08-05T02:19:39.000Z",
+      "tractate": "Chullin",
+      "daf": 97,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwcT-fBog75LEbIeeLh4G1YbZGRynSdvsscbR54bt_HwokBnjRlciIKZsnp3Sg8GW6AbQ9FzRqISCgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gOTdfMjA0MzQ0MzgzLm1wMw/Chulin%2097_204344383.mp3",
+      "seconds": 3849
+    },
+    {
+      "videoId": "L0204304719",
+      "title": "Chulin 96",
+      "published": "2026-08-04T18:17:46.000Z",
+      "tractate": "Chullin",
+      "daf": 96,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkc7NjQEaIAkyONwUgDg8h4xwsmE0VZq1ltQECr8qm5hBOR-cbIE1IiAyevfgyzhKFrrz911E-eotgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDk2XzIwNDMwNDcxOS5tcDM/Chulin%2096_204304719.mp3",
+      "seconds": 4661
+    },
+    {
+      "videoId": "L0204214655",
+      "title": "Chulin 95",
+      "published": "2026-08-03T14:17:30.000Z",
+      "tractate": "Chullin",
+      "daf": 95,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkZXpigEaIACq6ZvwT5q8krxG6IaeKX_wCxwoKxM8s9q7_NKZmalLIiC4oRL6DPQmKuPa_jJQAEH0goAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDk1XzIwNDIxNDY1NS5tcDM/Chulin%2095_204214655.mp3",
+      "seconds": 4532
+    },
+    {
+      "videoId": "L0204137841",
+      "title": "Chulin 94",
+      "published": "2026-08-02T16:57:21.000Z",
+      "tractate": "Chullin",
+      "daf": 94,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgdDiiwEaIA_y_a9d4uBwn_4hY2Et6hE6MABPWnZ2Kal6APKhv_HkIiChnkdEi53E3y7U61xeUFr9goAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDk0XzIwNDEzNzg0MS5tcDM/Chulin%2094_204137841.mp3",
+      "seconds": 3588
+    },
+    {
+      "videoId": "L0204137788",
+      "title": "Chulin 93",
+      "published": "2026-08-02T16:56:24.000Z",
+      "tractate": "Chullin",
+      "daf": 93,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8fjnigEaIEdikklIi3ixFDHXlYemIMxMMJxyyR1twInAZv9iSboTIiBONp1XpJdT39gGXG959on5goAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDkzXzIwNDEzNzc4OC5tcDM/Chulin%2093_204137788.mp3",
+      "seconds": 5041
+    },
+    {
+      "videoId": "L0203891191",
+      "title": "Chulin 92",
+      "published": "2026-07-30T20:26:27.000Z",
+      "tractate": "Chullin",
+      "daf": 92,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQktr8fBogSliQWTXxCqSO99ZCpXT5PvUcS7k72Gkfb-Kq1GgfXjIiIIaeFQF76gbK1reTxVGSsLyCgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gOTJfMjAzODkxMTkxLm1wMw/Chulin%2092_203891191.mp3",
+      "seconds": 3448
+    },
+    {
+      "videoId": "L0203824220",
+      "title": "Chulin 91",
+      "published": "2026-07-30T01:50:16.000Z",
+      "tractate": "Chullin",
+      "daf": 91,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwauYhQEaIKyg3ra6zp9l6vKy44OdQc_3qJAHIDV7_Z7tgw40jlVbIiDBc0_8EQCUE4wXylIFBuWOgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDkxXzIwMzgyNDIyMC5tcDM/Chulin%2091_203824220.mp3",
+      "seconds": 3351
+    },
+    {
+      "videoId": "L0203688600",
+      "title": "Chulin 90",
+      "published": "2026-07-28T12:09:56.000Z",
+      "tractate": "Chullin",
+      "daf": 90,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkaXVgQEaICGgOaNlUmiKOJzsYjkiDxIKlBZPtzs_4rXNxR7VNaCFIiB6g74CdTgGpgfkmFlSy39egoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDkwXzIwMzY4ODYwMC5tcDM/Chulin%2090_203688600.mp3",
+      "seconds": 3555
+    },
+    {
+      "videoId": "L0203580488",
+      "title": "Chulin 89",
+      "published": "2026-07-27T06:08:08.000Z",
+      "tractate": "Chullin",
+      "daf": 89,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwdDEjgEaINoacXiOHR_8vspDCjdDS9Uu_PmZ_zplLIxVBwbwe3iMIiBUSCPtflAQ4CuhxpzVpLvMgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDg5XzIwMzU4MDQ4OC5tcDM/Chulin%2089_203580488.mp3",
+      "seconds": 3230
+    },
+    {
+      "videoId": "L0203531537",
+      "title": "Chulin 88",
+      "published": "2026-07-26T16:32:13.000Z",
+      "tractate": "Chullin",
+      "daf": 88,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkdr8fBogx1uTiZTK3fHCjuiKApO0W3S7eVagxIL_U8NQh0eaSiUiIAGXMPrmhqdelYA-pdbL3HGCgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gODhfMjAzNTMxNTM3Lm1wMw/Chulin%2088_203531537.mp3",
+      "seconds": 4240
+    },
+    {
+      "videoId": "L0203481044",
+      "title": "Chulin 87",
+      "published": "2026-07-26T02:30:59.000Z",
+      "tractate": "Chullin",
+      "daf": 87,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8YHiiwEaIJvdoCgjEOH3XmxW5ORUuHYm9lcQOPczRW12RYIyKi9sIiDGarsLfvOaoMa0ANO4ZWdDgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDg3XzIwMzQ4MTA0NC5tcDM/Chulin%2087_203481044.mp3",
+      "seconds": 3574
+    },
+    {
+      "videoId": "L0203369262",
+      "title": "Chulin 86",
+      "published": "2026-07-24T20:07:33.000Z",
+      "tractate": "Chullin",
+      "daf": 86,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQsbyZiAEaIN5AaGKl2sl4U46u1JHRuTqW8ahEJYUOWUg6-uNZBvdpIiCZaROQUTX9JR8R0lrui1bEgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDg2XzIwMzM2OTI2Mi5tcDM/Chulin%2086_203369262.mp3",
+      "seconds": 4989
+    },
+    {
+      "videoId": "L0203182446",
+      "title": "Chulin 85",
+      "published": "2026-07-22T15:34:06.000Z",
+      "tractate": "Chullin",
+      "daf": 85,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQsYLEjgEaIF7vdYVfNAA_aY_hUyum-2dxKsbxnrud2xmZ3hM1V0y1IiC4RUlqTs7MyxV3Scz5nUaMgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDg1XzIwMzE4MjQ0Ni5tcDM/Chulin%2085_203182446.mp3",
+      "seconds": 3787
+    },
+    {
+      "videoId": "L0203181355",
+      "title": "Chulin 84",
+      "published": "2026-07-22T15:15:51.000Z",
+      "tractate": "Chullin",
+      "daf": 84,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4o61ggEaIJRDKEk14qzATqm9TdVa6pm-iDQ2A9_ZZ7QovHOASDIRIiCOA0LR0scPKgz5UL8dwIrNgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDg0XzIwMzE4MTM1NS5tcDM/Chulin%2084_203181355.mp3",
+      "seconds": 3357
+    },
+    {
+      "videoId": "L0203179959",
+      "title": "Chulin 83",
+      "published": "2026-07-22T14:52:35.000Z",
+      "tractate": "Chullin",
+      "daf": 83,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4Y61ggEaIJ_5DbsCvfpcSjMEn9ZKf7fntJnJbDiRNEE6CbQIDMLcIiCRBVE62OykqtA_ooUijP6MgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDgzXzIwMzE3OTk1OS5tcDM/Chulin%2083_203179959.mp3",
+      "seconds": 3917
+    },
+    {
+      "videoId": "L0203093899",
+      "title": "Chulin 82",
+      "published": "2026-07-21T14:58:15.000Z",
+      "tractate": "Chullin",
+      "daf": 82,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwdbyfhogWGQjo5ylcgd_n89twr7BdtpfOzeZK8WDEdCWzi3CYW4iIK9amfxMpmmOd9esx8O6QhCCgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gODJfMjAzMDkzODk5Lm1wMw/Chulin%2082_203093899.mp3",
+      "seconds": 5689
+    },
+    {
+      "videoId": "L0202926527",
+      "title": "Chulin 81",
+      "published": "2026-07-19T16:28:43.000Z",
+      "tractate": "Chullin",
+      "daf": 81,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4aOihgEaIPurs8EsQePH8Pofo-r5_jVssY04OWfpoTjHNoKVLvzmIiD6MyCopxdillxelDFOtnmCgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDgxXzIwMjkyNjUyNy5tcDM/Chulin%2081_202926527.mp3",
+      "seconds": 5285
+    },
+    {
+      "videoId": "L0202878452",
+      "title": "Chulin 80",
+      "published": "2026-07-19T03:07:29.000Z",
+      "tractate": "Chullin",
+      "daf": 80,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQseHUjAEaIMPZ2LQpEM_HQjF3PUyW2Q136I7NkwoKyolHG7tnP-L7IiB7BmHmvTje8kwuI3ilNsoYgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDgwXzIwMjg3ODQ1Mi5tcDM/Chulin%2080_202878452.mp3",
+      "seconds": 4150
+    },
+    {
+      "videoId": "L0202759355",
+      "title": "Chulin 79",
+      "published": "2026-07-17T18:02:35.000Z",
+      "tractate": "Chullin",
+      "daf": 79,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQobrxfhogYCyOOlzcbYR_FqmDRvFlqnjcKm3TgPkvFWkrsCTPQC0iIGokp9rmkVWZ9j__XRZchPaCgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gNzlfMjAyNzU5MzU1Lm1wMw/Chulin%2079_202759355.mp3",
+      "seconds": 3534
+    },
+    {
+      "videoId": "L0202754856",
+      "title": "Chulin 78",
+      "published": "2026-07-17T16:47:32.000Z",
+      "tractate": "Chullin",
+      "daf": 78,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQsd2XhQEaIIeCkAej2TtCCdzCPJpP8JrUDyhq2ZV3HPgixgpoAxf8IiD4L_wQRwQBvoI-wRfnaI5_goAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDc4XzIwMjc1NDg1Ni5tcDM/Chulin%2078_202754856.mp3",
+      "seconds": 4853
+    },
+    {
+      "videoId": "L0202615615",
+      "title": "Chulin 77",
+      "published": "2026-07-16T02:06:51.000Z",
+      "tractate": "Chullin",
+      "daf": 77,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0eXgiwEaICThT1Y2j2guQ0zUSOAQCwCBuQhf9cU18eSqi7im6aUUIiDHaYlw4JY8sBNnvjxGk_ZHgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDc3XzIwMjYxNTYxNS5tcDM/Chulin%2077_202615615.mp3",
+      "seconds": 2458
+    },
+    {
+      "videoId": "L0202404698",
+      "title": "Chulin 76",
+      "published": "2026-07-13T15:31:34.000Z",
+      "tractate": "Chullin",
+      "daf": 76,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkcGWhQEaIMo8u1nhIxZ4UoH-MFEw74oomgPyXUeLN7qXDB5sF-WpIiDaAa-35clob8aduTtkpLb3goAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDc2XzIwMjQwNDY5OC5tcDM/Chulin%2076_202404698.mp3",
+      "seconds": 5161
+    },
+    {
+      "videoId": "L0202328079",
+      "title": "Chulin 75",
+      "published": "2026-07-12T18:14:39.000Z",
+      "tractate": "Chullin",
+      "daf": 75,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8f_ZgAEaIPTppZJ16alKzwb9V1qkGy9vcu2E70iU2tqGI0TJ9r88IiDZYefgGb5r50h4bwGcRR3AgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDc1XzIwMjMyODA3OS5tcDM/Chulin%2075_202328079.mp3",
+      "seconds": 3748
+    },
+    {
+      "videoId": "L0202323517",
+      "title": "Chulin 74",
+      "published": "2026-07-12T16:58:34.000Z",
+      "tractate": "Chullin",
+      "daf": 74,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQofveiwEaIN-6A_BlnWMSQmU7p_8kj8QnHuzPUxB_gBubtnvf1HkxIiBrjrsc4zvG1b4rpyB5YdQ0goAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDc0XzIwMjMyMzUxNy5tcDM/Chulin%2074_202323517.mp3",
+      "seconds": 5804
+    },
+    {
+      "videoId": "L0202271500",
+      "title": "Chulin 73",
+      "published": "2026-07-12T03:10:43.000Z",
+      "tractate": "Chullin",
+      "daf": 73,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkZiPfhoglBSN0DKQ_VEgU18DjEmpBroUF91kMz4-CRpgVJtBwZ0iIMQ_T5CRgZ0ungtTQrysQEuCgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gNzNfMjAyMjcxNTAwLm1wMw/Chulin%2073_202271500.mp3",
+      "seconds": 3025
+    },
+    {
+      "videoId": "L0202157736",
+      "title": "Chulin 72",
+      "published": "2026-07-10T18:55:33.000Z",
+      "tractate": "Chullin",
+      "daf": 72,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4rHZgAEaIHLhk64qJRZ3fuwQnqjp55XnZTiLwDbTodvbfCLZ1cX0IiBdRnYW1yX6HOEh7bd_ccjagoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDcyXzIwMjE1NzczNi5tcDM/Chulin%2072_202157736.mp3",
+      "seconds": 3679
+    },
+    {
+      "videoId": "L0202098109",
+      "title": "Chulin 71",
+      "published": "2026-07-10T02:21:45.000Z",
+      "tractate": "Chullin",
+      "daf": 71,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgYDNjQEaIBglj8HKUJrR2Lq9NI8U6CckDvbepQsBrmk1J8uJCq8OIiDpJMSMncMzps-PQk6Ct9obgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDcxXzIwMjA5ODEwOS5tcDM/Chulin%2071_202098109.mp3",
+      "seconds": 4006
+    },
+    {
+      "videoId": "L0202024223",
+      "title": "Chulin 70",
+      "published": "2026-07-09T05:50:43.000Z",
+      "tractate": "Chullin",
+      "daf": 70,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgdKXiAEaICx15tJgPkFmXmWWQdgAV-0FNu_n8LnvYTCK57fXfYaQIiAdSKEzjgtp0kf8SD-0dDQjgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDcwXzIwMjAyNDIyMy5tcDM/Chulin%2070_202024223.mp3",
+      "seconds": 4756
+    },
+    {
+      "videoId": "L0201970862",
+      "title": "Chulin 69",
+      "published": "2026-07-08T15:00:57.000Z",
+      "tractate": "Chullin",
+      "daf": 69,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgZ7wfhogJDAM00iUGPkDmAlVEWI-jj5aaxYZwigaW6jkKrl6KeoiINecwqrFSXQ16Jnn5t2lMkiCgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gNjlfMjAxOTcwODYyLm1wMw/Chulin%2069_201970862.mp3",
+      "seconds": 5378
+    },
+    {
+      "videoId": "L0201882637",
+      "title": "Chulin 68",
+      "published": "2026-07-07T14:30:33.000Z",
+      "tractate": "Chullin",
+      "daf": 68,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgfOVhQEaIAXqkoAc2Q9M2ZPnQCpnbJZir4jLQkvC48xx4ACJfEgQIiBc1ttgxYbnz7RnxFcrQsZCgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDY4XzIwMTg4MjYzNy5tcDM/Chulin%2068_201882637.mp3",
+      "seconds": 5196
+    },
+    {
+      "videoId": "L0201726899",
+      "title": "Chulin 67",
+      "published": "2026-07-05T19:42:46.000Z",
+      "tractate": "Chullin",
+      "daf": 67,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4e_6fBogkz6RjIL04NajGi_FODyj6lpTI0eRPDd1NV1d3i_nP6kiIGmhNIZ3V5HvWvJ6hook1FqCgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gNjdfMjAxNzI2ODk5Lm1wMw/Chulin%2067_201726899.mp3",
+      "seconds": 6336
+    },
+    {
+      "videoId": "L0201555883",
+      "title": "Chulin 66",
+      "published": "2026-07-05T19:33:31.000Z",
+      "tractate": "Chullin",
+      "daf": 66,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8bHMjQEaIJyamghNsU2ieE9DnC0X1ZUuaRC3kuhY3KImGLoqQZk2IiCcOYp8wGuxVBplWTO6ak10goAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDY2XzIwMTU1NTg4My5tcDM/Chulin%2066_201555883.mp3",
+      "seconds": 4961
+    },
+    {
+      "videoId": "L0201480608",
+      "title": "Chulin 65",
+      "published": "2026-07-02T22:50:04.000Z",
+      "tractate": "Chullin",
+      "daf": 65,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8fuNfhogfu0QKzAOG0MnAlCgUVGPewHdN4diTPgY-JHczQop0UsiIKcDkJ4MAun6fUyKolTm7jGCgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gNjVfMjAxNDgwNjA4Lm1wMw/Chulin%2065_201480608.mp3",
+      "seconds": 5024
+    },
+    {
+      "videoId": "L0201401200",
+      "title": "Chulin 64",
+      "published": "2026-07-02T00:55:07.000Z",
+      "tractate": "Chullin",
+      "daf": 64,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4a2NfhogGR8oE2l3z3DGANbQ8dduLJMNJm5PTPswu72DUIJnNMoiICqpsc5bzWOM0vpxzvoU7huCgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gNjRfMjAxNDAxMjAwLm1wMw/Chulin%2064_201401200.mp3",
+      "seconds": 1928
+    },
+    {
+      "videoId": "L0201328261",
+      "title": "Chulin 63",
+      "published": "2026-07-01T04:32:05.000Z",
+      "tractate": "Chullin",
+      "daf": 63,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4bWWiAEaIDBNUE_m-hNz_OtVLZGvTpeJJL6cX5rGSLBLrUBFw5xNIiCEZnXXEUJ4MJ3DwDl2N5nEgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDYzXzIwMTMyODI2MS5tcDM/Chulin%2063_201328261.mp3",
+      "seconds": 3140
+    },
+    {
+      "videoId": "L0201240589",
+      "title": "Chulin 62",
+      "published": "2026-06-30T06:02:21.000Z",
+      "tractate": "Chullin",
+      "daf": 62,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwZXYgAEaIJGqn4Q-yoMe7UZ-jiWx1dyJnS5w0-Ud5a5kvvM4muFEIiC36Ees_V2fXJAGf2iFQEAGgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDYyXzIwMTI0MDU4OS5tcDM/Chulin%2062_201240589.mp3",
+      "seconds": 3484
+    },
+    {
+      "videoId": "L0201192489",
+      "title": "Chulin 61",
+      "published": "2026-06-29T14:48:06.000Z",
+      "tractate": "Chullin",
+      "daf": 61,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQofLkigEaIOYzi-gxj45-ldR43f0nwY2E-Tx0g8xAt_GAr1VsX8AoIiCn8lFkXIfQwr8yT0dww7NigoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDYxXzIwMTE5MjQ4OS5tcDM/Chulin%2061_201192489.mp3",
+      "seconds": 4445
+    },
+    {
+      "videoId": "L0201111412",
+      "title": "Chulin 60",
+      "published": "2026-06-28T16:16:52.000Z",
+      "tractate": "Chullin",
+      "daf": 60,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkcXTjAEaIOQ0FHeU38oellEE9wCIPRyDVKF7GNyLvpBIZ1AmuhuDIiC2bJt75oSzvcMqgdQw_QWCgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDYwXzIwMTExMTQxMi5tcDM/Chulin%2060_201111412.mp3",
+      "seconds": 4002
+    },
+    {
+      "videoId": "L0200936692",
+      "title": "Chulin 59",
+      "published": "2026-06-26T15:44:47.000Z",
+      "tractate": "Chullin",
+      "daf": 59,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwZmViAEaIDNQfBzjTHjMN3MNhpP_EOdl9QOyh82ss76Jiww-eF0eIiCjfsS2Zsk5gPyxrk6aTRoFgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDU5XzIwMDkzNjY5Mi5tcDM/Chulin%2059_200936692.mp3",
+      "seconds": 6806
+    },
+    {
+      "videoId": "L0200849997",
+      "title": "Chulin 58",
+      "published": "2026-06-26T12:16:26.000Z",
+      "tractate": "Chullin",
+      "daf": 58,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgd_diwEaIPxYY-ETsqbNXzV-pfhmMLiSyfQQP2FCJJrCPn-kodi2IiCWmMLcrELdcS6AxsAvmG72goAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDU4XzIwMDg0OTk5Ny5tcDM/Chulin%2058_200849997.mp3",
+      "seconds": 2129
+    },
+    {
+      "videoId": "L0200849475",
+      "title": "Chulin 57",
+      "published": "2026-06-25T15:31:11.000Z",
+      "tractate": "Chullin",
+      "daf": 57,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8aeOhwEaIBxX5o8Qp1jyXHZK4UBJ5SZbxkK4C6TfUEEW3xi2jylbIiCA0T0MjEojYJ7vVQuBR7jRgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDU3XzIwMDg0OTQ3NS5tcDM/Chulin%2057_200849475.mp3",
+      "seconds": 3205
+    },
+    {
+      "videoId": "L0200757883",
+      "title": "Chulin 56",
+      "published": "2026-06-24T14:04:42.000Z",
+      "tractate": "Chullin",
+      "daf": 56,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8aSVhQEaIMWQXveW3_b3lEUwkGFQZu1yzIPdDqorasipXrEB4j4YIiB34fYSdMPUxKBnAOzKCTDQgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDU2XzIwMDc1Nzg4My5tcDM/Chulin%2056_200757883.mp3",
+      "seconds": 3197
+    },
+    {
+      "videoId": "L0200681508",
+      "title": "Chulin 55",
+      "published": "2026-06-23T16:51:43.000Z",
+      "tractate": "Chullin",
+      "daf": 55,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4ZGuhAEaIBqRJamPyKXZ8OCeYFBDZiLV56WtXSmu-Esb6VJZzPAsIiB0be3Bb9-frBPzGZ4MKLqygoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDU1XzIwMDY4MTUwOC5tcDM/Chulin%2055_200681508.mp3",
+      "seconds": 3609
+    },
+    {
+      "videoId": "L0200589034",
+      "title": "Chulin 54",
+      "published": "2026-06-22T15:10:34.000Z",
+      "tractate": "Chullin",
+      "daf": 54,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQweyygwEaIBUsaJYSugMjbYVF6_LZfpjT5eiSLiGK43Hhtz2KUIeKIiDNumy25Sfsl6iNENdhYR_3goAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDU0XzIwMDU4OTAzNC5tcDM/Chulin%2054_200589034.mp3",
+      "seconds": 3761
+    },
+    {
+      "videoId": "L0200588493",
+      "title": "Chulin 53",
+      "published": "2026-06-22T15:01:29.000Z",
+      "tractate": "Chullin",
+      "daf": 53,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQscuUiAEaIARbyC8opEgcNxAgXpcRSaqxw6I1PCSQDpy_03p3XFAvIiCWXnfnM6E2lf2qmOmC8i7_goAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDUzXzIwMDU4ODQ5My5tcDM/Chulin%2053_200588493.mp3",
+      "seconds": 3900
+    },
+    {
+      "videoId": "L0200506686",
+      "title": "Chulin 52",
+      "published": "2026-06-21T16:18:02.000Z",
+      "tractate": "Chullin",
+      "daf": 52,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4cLciwEaIKQRLc-7bsZCWH2ZQh49hKJqvfA3gVbMj66vDYt4JQC3IiCXgFpK8GBTGguPCKPMa_7qgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDUyXzIwMDUwNjY4Ni5tcDM/Chulin%2052_200506686.mp3",
+      "seconds": 5005
+    },
+    {
+      "videoId": "L0200327269",
+      "title": "Chulin 51",
+      "published": "2026-06-19T14:27:45.000Z",
+      "tractate": "Chullin",
+      "daf": 51,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0cOthAEaIIPKDWoPtfrpLedt2isu0lOoYdHKza7M1rPQmoisV3eyIiCMNOavhp5vV0ijUM0Ed2OCgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDUxXzIwMDMyNzI2OS5tcDM/Chulin%2051_200327269.mp3",
+      "seconds": 4045
+    },
+    {
+      "videoId": "L0200246812",
+      "title": "Chulin 50",
+      "published": "2026-06-18T16:06:48.000Z",
+      "tractate": "Chullin",
+      "daf": 50,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQsZ6ygwEaILjWmjkuVY_VBj18ZeC4bV6bn2l4skQU_VAxFFUGX2mIIiAIzlbMGc1qqIjQHKHTdrmlgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDUwXzIwMDI0NjgxMi5tcDM/Chulin%2050_200246812.mp3",
+      "seconds": 4457
+    },
+    {
+      "videoId": "L0200118530",
+      "title": "Chulin 49",
+      "published": "2026-06-17T19:50:56.000Z",
+      "tractate": "Chullin",
+      "daf": 49,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQoYLRgQEaIMIGOdiYagTUmx6PSf6uq7G30aivEYp4IillSvL7hm2fIiD1QBq1Cr41Iw7PpZ506vdZgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDQ5XzIwMDExODUzMC5tcDM/Chulin%2049_200118530.mp3",
+      "seconds": 3627
+    },
+    {
+      "videoId": "L0200075220",
+      "title": "Chulin 48",
+      "published": "2026-06-16T16:26:57.000Z",
+      "tractate": "Chullin",
+      "daf": 48,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0YiUhQEaIJwa0n1lIKkeLcefDUrUz9rO5lNY32WdGXyxyGht2QmiIiB6nn6TBLgoiG-UeuS3zlz8goAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDQ4XzIwMDA3NTIyMC5tcDM/Chulin%2048_200075220.mp3",
+      "seconds": 3791
+    },
+    {
+      "videoId": "L0200068595",
+      "title": "Chulin 47",
+      "published": "2026-06-16T14:36:31.000Z",
+      "tractate": "Chullin",
+      "daf": 47,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgdbjigEaIDRv-4w6yJXI-KWmkfd7epJKIva6UiDL7y9DVa-HiTzDIiBAuu8L1dTOvwVokOwNKrvsgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDQ3XzIwMDA2ODU5NS5tcDM/Chulin%2047_200068595.mp3",
+      "seconds": 3575
+    },
+    {
+      "videoId": "L0199981605",
+      "title": "Chulin 46",
+      "published": "2026-06-15T14:26:41.000Z",
+      "tractate": "Chullin",
+      "daf": 46,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQka-TiAEaIIEwrQ0zIw0cDXSVDGN6AC2rSbIH-fbmq0JXsbwKa5mzIiCpVDfTODrRVWqqDvbEqCqLgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDQ2XzE5OTk4MTYwNS5tcDM/Chulin%2046_199981605.mp3",
+      "seconds": 4428
+    },
+    {
+      "videoId": "L0199901657",
+      "title": "Chulin 45",
+      "published": "2026-06-14T16:14:13.000Z",
+      "tractate": "Chullin",
+      "daf": 45,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8YfjigEaIEav5D_mYXw-GV0yWvGPMTX2QD1iM7nKetHI7ys6kA46IiAUyf0GzzXppMrYQunp9bYGgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDQ1XzE5OTkwMTY1Ny5tcDM/Chulin%2045_199901657.mp3",
+      "seconds": 4646
+    },
+    {
+      "videoId": "L0199724222",
+      "title": "Chulin 44",
+      "published": "2026-06-12T14:57:02.000Z",
+      "tractate": "Chullin",
+      "daf": 44,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgeGSiAEaIHAJbyonfooJUJrVaNaHzHxws_NZtfECeZgIv9XOs-hkIiD3R9cM3gxgjgIYHdkgEv42goAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDQ0XzE5OTcyNDIyMi5tcDM/Chulin%2044_199724222.mp3",
+      "seconds": 4803
+    },
+    {
+      "videoId": "L0199647825",
+      "title": "Chulin 43",
+      "published": "2026-06-11T17:43:41.000Z",
+      "tractate": "Chullin",
+      "daf": 43,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkavWgAEaIKbJK4GazrkPTkZHpbVLUd6nHIJZSwE1MOEnUTjA6RqAIiAxl-nfhgZfPisitCme8xJ8goAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDQzXzE5OTY0NzgyNS5tcDM/Chulin%2043_199647825.mp3",
+      "seconds": 2773
+    },
+    {
+      "videoId": "L0199560562",
+      "title": "Chulin 42",
+      "published": "2026-06-10T17:29:18.000Z",
+      "tractate": "Chullin",
+      "daf": 42,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQobf4fBogLNW4bxvOX5MA0tEljJf3-3CjS8QPydPExIYI_JzjVmciIOZx4txDriAUU8GpnX-70VyCgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gNDJfMTk5NTYwNTYyLm1wMw/Chulin%2042_199560562.mp3",
+      "seconds": 2783
+    },
+    {
+      "videoId": "L0199547217",
+      "title": "Chulin 41",
+      "published": "2026-06-10T13:46:52.000Z",
+      "tractate": "Chullin",
+      "daf": 41,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkbTQgQEaIB2WIV3iwisFGkom552x58OvL7v00yxPDM1Dxu3i0xrcIiDI7aPOEZGmco9O4dEcNuV3goAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDQxXzE5OTU0NzIxNy5tcDM/Chulin%2041_199547217.mp3",
+      "seconds": 4253
+    },
+    {
+      "videoId": "L0199470006",
+      "title": "Chulin 40",
+      "published": "2026-06-09T16:20:14.000Z",
+      "tractate": "Chullin",
+      "daf": 40,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwbqThQEaIPe_hz9_mk1ygmEOqHGzEmFg5J50BGR3q3X11ZpTU25NIiBEiR2WA-4FBacEe3FSzDzGgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDQwXzE5OTQ3MDAwNi5tcDM/Chulin%2040_199470006.mp3",
+      "seconds": 4350
+    },
+    {
+      "videoId": "L0199396136",
+      "title": "Chulin 39",
+      "published": "2026-06-08T19:49:08.000Z",
+      "tractate": "Chullin",
+      "daf": 39,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgebPgQEaIAg5r9TNn6eo5MrRvPYVf0p5QclKTUtAdjnM6J5Aap_CIiAoQaz68VaLhO_QPUv7fHLlgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDM5XzE5OTM5NjEzNi5tcDM/Chulin%2039_199396136.mp3",
+      "seconds": 4487
+    },
+    {
+      "videoId": "L0199297829",
+      "title": "Chulin 38",
+      "published": "2026-06-07T16:30:29.000Z",
+      "tractate": "Chullin",
+      "daf": 38,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4YHvfhogLmE-NyVyrN8Dyp70vDET-Th197jeOA3Oqo7s8wbpiAQiIL5MuAN5Uy4rrRL_733to6uCgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gMzhfMTk5Mjk3ODI5Lm1wMw/Chulin%2038_199297829.mp3",
+      "seconds": 4431
+    },
+    {
+      "videoId": "L0199117571",
+      "title": "Chulin 37",
+      "published": "2026-06-05T14:26:08.000Z",
+      "tractate": "Chullin",
+      "daf": 37,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwvKzggEaIF3OdXmm5nJHD6Yw43UcxTNY0ZZFtwM98WyIMqISsN5tIiC56yzNsf6NWbnur6AESyGPgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDM3XzE5OTExNzU3MS5tcDM/Chulin%2037_199117571.mp3",
+      "seconds": 3672
+    },
+    {
+      "videoId": "L0199033594",
+      "title": "Chulin 36",
+      "published": "2026-06-04T15:06:29.000Z",
+      "tractate": "Chullin",
+      "daf": 36,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8Y7VgAEaIM7gSxqbVuUNhwfZVQMwiToK0z6P_u4VcG7PuM4LmYmhIiAoigOSdJms5gzkAKqDUj7agoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDM2XzE5OTAzMzU5NC5tcDM/Chulin%2036_199033594.mp3",
+      "seconds": 5569
+    },
+    {
+      "videoId": "L0198972207",
+      "title": "Chulin 35",
+      "published": "2026-06-03T22:03:23.000Z",
+      "tractate": "Chullin",
+      "daf": 35,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8efkfxogGyT6BXu6QRQ386hioU0pDd6VSNJTqT2pr09iETzzLyQiIJGq364UokIg-IL2sTZMelOCgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gMzVfMTk4OTcyMjA3Lm1wMw/Chulin%2035_198972207.mp3",
+      "seconds": 4529
+    },
+    {
+      "videoId": "L0198866016",
+      "title": "Chulin 34",
+      "published": "2026-06-02T16:33:32.000Z",
+      "tractate": "Chullin",
+      "daf": 34,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgZv3fBoghT5_FoA0itodymWLP5QrpHST-KyZCiX_S9ScVi53NCAiID7JEIUh6uUTGUcWfRcy_EiCgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gMzRfMTk4ODY2MDE2Lm1wMw/Chulin%2034_198866016.mp3",
+      "seconds": 3895
+    },
+    {
+      "videoId": "L0198737510",
+      "title": "Chulin 33",
+      "published": "2026-06-01T04:51:47.000Z",
+      "tractate": "Chullin",
+      "daf": 33,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0bPufhoguHvvy-ogKrNT9yq2f_iPi2EypSYDDX9Ke5ADyhPTi6UiIIfejEedQSesmkv2sw1KTDGCgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gMzNfMTk4NzM3NTEwLm1wMw/Chulin%2033_198737510.mp3",
+      "seconds": 3713
+    },
+    {
+      "videoId": "L0198734366",
+      "title": "Chulin 32",
+      "published": "2026-06-01T03:59:22.000Z",
+      "tractate": "Chullin",
+      "daf": 32,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQodmrhAEaINgs7AdJnvW0OPBGHh9wdwxorbBn8rNREi7ys1gO49dgIiBUUxqhiJj1krjhleWq8HRjgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDMyXzE5ODczNDM2Ni5tcDM/Chulin%2032_198734366.mp3",
+      "seconds": 5344
+    },
+    {
+      "videoId": "L0198641006",
+      "title": "Chulin 31",
+      "published": "2026-05-31T02:03:21.000Z",
+      "tractate": "Chullin",
+      "daf": 31,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwd-_jgEaIPh0wwAsMWwq05iBeESRtYiGPMMYJthAJ_xD7p5DuyQtIiD4S-H8lEhOpUH4GTbPLAq5goAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDMxXzE5ODY0MTAwNi5tcDM/Chulin%2031_198641006.mp3",
+      "seconds": 3581
+    },
+    {
+      "videoId": "L0198527598",
+      "title": "Chulin 30",
+      "published": "2026-05-29T18:33:14.000Z",
+      "tractate": "Chullin",
+      "daf": 30,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgYWKhwEaIPSU5sW5BphigIUBWZbFQVFLOkZ7qz7-sT0xwI901MuuIiAovdYtMNyx2U7KkIdZkej3goAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDMwXzE5ODUyNzU5OC5tcDM/Chulin%2030_198527598.mp3",
+      "seconds": 3054
+    },
+    {
+      "videoId": "L0198473407",
+      "title": "Chulin 29",
+      "published": "2026-05-29T03:30:04.000Z",
+      "tractate": "Chullin",
+      "daf": 29,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0fvNgQEaIHkmE9_UDgGb5VLEy-qKh-NdifLMY_x9RPqulV_acS5TIiB5cAv_EEoYZll1ojIbDsJSgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDI5XzE5ODQ3MzQwNy5tcDM/Chulin%2029_198473407.mp3",
+      "seconds": 4322
+    },
+    {
+      "videoId": "L0198341505",
+      "title": "Chulin 28",
+      "published": "2026-05-27T14:51:45.000Z",
+      "tractate": "Chullin",
+      "daf": 28,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwaTTgAEaIBNui12QD-adFwOLwElB5VLPdRME832n-E21SjRuVteEIiDw-YiHIzOcbWxwiUWedbwegoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDI4XzE5ODM0MTUwNS5tcDM/Chulin%2028_198341505.mp3",
+      "seconds": 5191
+    },
+    {
+      "videoId": "L0198253694",
+      "title": "Chulin 27",
+      "published": "2026-05-26T14:28:10.000Z",
+      "tractate": "Chullin",
+      "daf": 27,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwf3ifxogHbgsYA3D1PbjkuWRbUg3RJgTWpq5uEak4UUJT7iBCDIiIEUcoSGaWDdQxSK5AyprFZOCgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gMjdfMTk4MjUzNjk0Lm1wMw/Chulin%2027_198253694.mp3",
+      "seconds": 4697
+    },
+    {
+      "videoId": "L0198176215",
+      "title": "Chulin 26",
+      "published": "2026-05-25T16:56:54.000Z",
+      "tractate": "Chullin",
+      "daf": 26,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0bD1fBogE_r1_dB36uMSl1OqImeReSthbigS5v6v20VOStR49tAiIAQYZ6j_-I9km-YK6fz5CG-CgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gMjZfMTk4MTc2MjE1Lm1wMw/Chulin%2026_198176215.mp3",
+      "seconds": 2922
+    },
+    {
+      "videoId": "L0198175376",
+      "title": "Chulin 25",
+      "published": "2026-05-25T16:43:04.000Z",
+      "tractate": "Chullin",
+      "daf": 25,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwZTniQEaIMPCK8F6xDnwTiN3RlGwDrLtZ8zsgFxFXfA-csNDeXR-IiAVeEPEM8Ix-gn6JLBXiraXgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDI1XzE5ODE3NTM3Ni5tcDM/Chulin%2025_198175376.mp3",
+      "seconds": 4146
+    },
+    {
+      "videoId": "L0198087125",
+      "title": "Chulin 24",
+      "published": "2026-05-24T16:12:01.000Z",
+      "tractate": "Chullin",
+      "daf": 24,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgdmJfhogeir2x_wKcjWLry5vy5h-SxTq2hoCVFoP7HwQGamlRFkiIBpR9AvbXDzkbAHflToMobGCgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gMjRfMTk4MDg3MTI1Lm1wMw/Chulin%2024_198087125.mp3",
+      "seconds": 4109
+    },
+    {
+      "videoId": "L0197824342",
+      "title": "Chulin 23",
+      "published": "2026-05-21T15:12:19.000Z",
+      "tractate": "Chullin",
+      "daf": 23,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQoYraiwEaIAgsdATdcVdVwJj6co3Tv6vWjK8I4dU3NqdL-ZLmE6BSIiDJqwf02s9Kck4wvU4aOrv7goAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDIzXzE5NzgyNDM0Mi5tcDM/Chulin%2023_197824342.mp3",
+      "seconds": 2790
+    },
+    {
+      "videoId": "L0197821507",
+      "title": "Chulin 22",
+      "published": "2026-05-21T14:25:03.000Z",
+      "tractate": "Chullin",
+      "daf": 22,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwa3NgQEaIL-ruJf6JLZ16iJYqKvhERYVcJRnJjNyEYCMcTw_IdHnIiDgoS1XALOHUhzCzJpEq1PigoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDIyXzE5NzgyMTUwNy5tcDM/Chulin%2022_197821507.mp3",
+      "seconds": 3259
+    },
+    {
+      "videoId": "L0197752231",
+      "title": "Chulin 21",
+      "published": "2026-05-20T19:10:27.000Z",
+      "tractate": "Chullin",
+      "daf": 21,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0YzRjAEaIABs-cw1VIHJcoNbr7SZ22ZqMF_ABuEsSB81F00zplzzIiC7wETtMHfw0sGS0iE7V62wgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDIxXzE5Nzc1MjIzMS5tcDM/Chulin%2021_197752231.mp3",
+      "seconds": 5894
+    },
+    {
+      "videoId": "L0197649433",
+      "title": "Chulin 20",
+      "published": "2026-05-19T14:37:09.000Z",
+      "tractate": "Chullin",
+      "daf": 20,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8df4iAEaICJN-57ThwsUVFnWRwMdAIiugYHD39BZFxYxpsG6BTpBIiCnz8KTmq2-NrCuGdP91G-fgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDIwXzE5NzY0OTQzMy5tcDM/Chulin%2020_197649433.mp3",
+      "seconds": 4540
+    },
+    {
+      "videoId": "L0197562103",
+      "title": "Chulin 19",
+      "published": "2026-05-18T14:21:39.000Z",
+      "tractate": "Chullin",
+      "daf": 19,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkbPfigEaINhr4gUEOnq8mPqgOP7bHWCQX-ZjC9gnLkd5KF7DubrmIiA4hYkZ0y8tf7CqqaUQBMt_goAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDE5XzE5NzU2MjEwMy5tcDM/Chulin%2019_197562103.mp3",
+      "seconds": 4545
+    },
+    {
+      "videoId": "L0197484240",
+      "title": "Chulin 18",
+      "published": "2026-05-17T16:43:57.000Z",
+      "tractate": "Chullin",
+      "daf": 18,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8euwggEaIMTb3U11xv6fdGBy5KLaW9oK13f7zYt3cRsZsb6g5d1iIiAITb_w9lgULdlH6Fe5GxctgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDE4XzE5NzQ4NDI0MC5tcDM/Chulin%2018_197484240.mp3",
+      "seconds": 4416
+    },
+    {
+      "videoId": "L0197438293",
+      "title": "Chulin 17",
+      "published": "2026-05-17T03:58:09.000Z",
+      "tractate": "Chullin",
+      "daf": 17,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQsZT0fBogEvqHliPWLmDBnXG8JCHaUX15QGw8jxF-Lj-WnmmfkOkiIL9Ro5w31BB5FirPe2VU5oCCgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gMTdfMTk3NDM4MjkzLm1wMw/Chulin%2017_197438293.mp3",
+      "seconds": 5156
+    },
+    {
+      "videoId": "L0197256556",
+      "title": "Chulin 16",
+      "published": "2026-05-15T01:29:11.000Z",
+      "tractate": "Chullin",
+      "daf": 16,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8YDLdxog8D6OLsDAvCDv_fPd8VhLWKen-q23swP69dXATWNMzU4iIPpt-PM8iLUksicr311sOF-CgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gMTZfMTk3MjU2NTU2Lm1wMw/Chulin%2016_197256556.mp3",
+      "seconds": 3528
+    },
+    {
+      "videoId": "L0197235590",
+      "title": "Chulin 15",
+      "published": "2026-05-14T19:39:46.000Z",
+      "tractate": "Chullin",
+      "daf": 15,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwaCHfhogYOyihMPpWMwkBMERWi39hhRlQmnoCj9kpmaiO89DWOciIGzx_tF1ItLU5iaGjZVhaE6CgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gMTVfMTk3MjM1NTkwLm1wMw/Chulin%2015_197235590.mp3",
+      "seconds": 4181
+    },
+    {
+      "videoId": "L0197131755",
+      "title": "Chulin 14",
+      "published": "2026-05-13T14:49:10.000Z",
+      "tractate": "Chullin",
+      "daf": 14,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwbXWiwEaIMeCOD1UZCjdbl_Wj8bmVYIwuKpf3ZHv_bZf8nbzCHBPIiBleNFW8aL8TbqzVcy6G04RgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDE0XzE5NzEzMTc1NS5tcDM/Chulin%2014_197131755.mp3",
+      "seconds": 4247
+    },
+    {
+      "videoId": "L0197045882",
+      "title": "Chulin 13",
+      "published": "2026-05-12T14:57:58.000Z",
+      "tractate": "Chullin",
+      "daf": 13,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4ZDqfhogPHEkjAp9IBfVZfOnpXNVmsV1Sz5csQMWuGH4lDnIrMsiIIuolM6G4xKL5zKiI9X8wSOCgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gMTNfMTk3MDQ1ODgyLm1wMw/Chulin%2013_197045882.mp3",
+      "seconds": 4210
+    },
+    {
+      "videoId": "L0196957094",
+      "title": "Chulin 12",
+      "published": "2026-05-11T14:18:09.000Z",
+      "tractate": "Chullin",
+      "daf": 12,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgYbOjAEaIBAlguEsR_i89sN9QEQteJuOmMOIvTPG7C2Wr3rQlRZqIiCD5kXS9f8RlLmyU7h1CRo0goAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDEyXzE5Njk1NzA5NC5tcDM/Chulin%2012_196957094.mp3",
+      "seconds": 3852
+    },
+    {
+      "videoId": "L0196880249",
+      "title": "Chulin 11",
+      "published": "2026-05-10T16:57:25.000Z",
+      "tractate": "Chullin",
+      "daf": 11,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0cLpfhogXYL1BewchRjqVrVPsT8uLxrLtYUaDHS5wDefxGCqIf8iIKEJmdNQ30kh6YzAp0k1TCmCgAC1RdByYmxBKIVygiCjKh1hdWQvZC9DaHVsaW4gMTFfMTk2ODgwMjQ5Lm1wMw/Chulin%2011_196880249.mp3",
+      "seconds": 5370
+    },
+    {
+      "videoId": "L0196720327",
+      "title": "Chulin 10",
+      "published": "2026-05-08T20:32:02.000Z",
+      "tractate": "Chullin",
+      "daf": 10,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgeXeigEaIJ4m3BTsvhFND3HFF3kIUaRQxLIwN8pLsNhPPp6ksZtrIiDbNWqUIN75Fj0ocHz3-odlgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQ2h1bGluIDEwXzE5NjcyMDMyNy5tcDM/Chulin%2010_196720327.mp3",
+      "seconds": 3457
+    },
+    {
+      "videoId": "L0196710672",
+      "title": "Chulin 9",
+      "published": "2026-05-08T17:51:19.000Z",
+      "tractate": "Chullin",
+      "daf": 9,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQoeHhfxog8nmzrR6qJ81mS2cqF4qrZ6R2rayHhW9Von6Dy0eK5Y4iIImRmoj1Rdiy2McacXe5i76CgAC1RdByYmxBKIVygiCjKhxhdWQvZC9DaHVsaW4gOV8xOTY3MTA2NzIubXAz/Chulin%209_196710672.mp3",
+      "seconds": 5064
+    },
+    {
+      "videoId": "L0196625843",
+      "title": "Chulin  8",
+      "published": "2026-05-07T18:17:18.000Z",
+      "tractate": "Chullin",
+      "daf": 8,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQoYyPiAEaIMfEoS9bo3B8NKIbhW9aXaW9lWmvksPAREp7Z7q8pAeyIiAjcO6uZvflYSOVi2Q7g41UgoAAtUXQcmJsQSiFcoIgoyocYXVkL2QvQ2h1bGluIDhfMTk2NjI1ODQzLm1wMw/Chulin%208_196625843.mp3",
+      "seconds": 4371
+    },
+    {
+      "videoId": "L0196578964",
+      "title": "Chulin 7",
+      "published": "2026-05-07T05:16:10.000Z",
+      "tractate": "Chullin",
+      "daf": 7,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwfTofhoggIZ7GttVYI0_dCyMepE9DX5Nsw7geqtmY3_PX-UJ1TEiIDtK9RMfNa-B84KydLUkbCSCgAC1RdByYmxBKIVygiCjKhxhdWQvZC9DaHVsaW4gN18xOTY1Nzg5NjQubXAz/Chulin%207_196578964.mp3",
+      "seconds": 4349
+    },
+    {
+      "videoId": "L0196440405",
+      "title": "Chulin 6",
+      "published": "2026-05-05T14:46:42.000Z",
+      "tractate": "Chullin",
+      "daf": 6,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkZPhfxogUTZr4GUX8m9Fzw8tMJsbWTx9bQXSjOx8ijl9KAc8vZ0iIPfNlAvXL7UVHX-UygPtJ3uCgAC1RdByYmxBKIVygiCjKhxhdWQvZC9DaHVsaW4gNl8xOTY0NDA0MDUubXAz/Chulin%206_196440405.mp3",
+      "seconds": 4210
+    },
+    {
+      "videoId": "L0196357726",
+      "title": "Chulin 5",
+      "published": "2026-05-04T15:48:41.000Z",
+      "tractate": "Chullin",
+      "daf": 5,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4Z2wggEaIIeb2RcvYz6FScGqDMUEIuYRTGIEpUb6C5O1JSbto_cgIiAsLZbNRHONtOncRSoMGCsggoAAtUXQcmJsQSiFcoIgoyocYXVkL2QvQ2h1bGluIDVfMTk2MzU3NzI2Lm1wMw/Chulin%205_196357726.mp3",
+      "seconds": 3714
+    },
+    {
+      "videoId": "L0196274656",
+      "title": "Chulin 4",
+      "published": "2026-05-03T16:44:13.000Z",
+      "tractate": "Chullin",
+      "daf": 4,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQopnViwEaIOXuvsvn8NhqgJXvxjkgNcNvQDjF8yAgMwjnEJAQSHNlIiCUroEGy_avOTYxziaCoqTBgoAAtUXQcmJsQSiFcoIgoyocYXVkL2QvQ2h1bGluIDRfMTk2Mjc0NjU2Lm1wMw/Chulin%204_196274656.mp3",
+      "seconds": 5108
+    },
+    {
+      "videoId": "L0196227842",
+      "title": "Chulin 3",
+      "published": "2026-05-03T03:44:09.000Z",
+      "tractate": "Chullin",
+      "daf": 3,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4eiIhwEaICyuGW6jPDplZA05keVGxloY3iYWCYJFoFAf2BddZrdOIiD6X_izNFBhlNHhbzTY6w6hgoAAtUXQcmJsQSiFcoIgoyocYXVkL2QvQ2h1bGluIDNfMTk2MjI3ODQyLm1wMw/Chulin%203_196227842.mp3",
+      "seconds": 3827
+    },
+    {
+      "videoId": "L0196102889",
+      "title": "Chulin 2",
+      "published": "2026-05-01T17:55:23.000Z",
+      "tractate": "Chullin",
+      "daf": 2,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQoZnViwEaIHesW2SmVQpfNjQF602d4kX9sFHZqZZKi1r3w_3JisbBIiCED3zY54kLj1EzKLX_cJZmgoAAtUXQcmJsQSiFcoIgoyocYXVkL2QvQ2h1bGluIDJfMTk2MTAyODg5Lm1wMw/Chulin%202_196102889.mp3",
+      "seconds": 4662
+    },
+    {
+      "videoId": "L0196005533",
+      "title": "Menachos 110",
+      "published": "2026-04-30T13:58:49.000Z",
+      "tractate": "Menachot",
+      "daf": 110,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQstKGfhogHXzNAu_QCASSjJnBVvWEXeole_QarFBMYHDywb7Y64MiIJZPtyo4IhKGBWmzoZV2h4WCgAC1RdByYmxBKIVygiCjKiBhdWQvZC9NZW5hY2hvcyAxMTBfMTk2MDA1NTMzLm1wMw/Menachos%20110_196005533.mp3",
+      "seconds": 3156
+    },
+    {
+      "videoId": "L0195922180",
+      "title": "Menachos 109",
+      "published": "2026-04-29T14:49:39.000Z",
+      "tractate": "Menachot",
+      "daf": 109,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkbaFfhogplk7b7_bvPrsC2sdZyE1q7zXiQ3jdMqhYLwROteldMgiIEwk4xyQ8cwtISgT8yLW1rmCgAC1RdByYmxBKIVygiCjKiBhdWQvZC9NZW5hY2hvcyAxMDlfMTk1OTIyMTgwLm1wMw/Menachos%20109_195922180.mp3",
+      "seconds": 3287
+    },
+    {
+      "videoId": "L0195918321",
+      "title": "Menachos 108",
+      "published": "2026-04-29T13:45:31.000Z",
+      "tractate": "Menachot",
+      "daf": 108,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4enMjAEaIAPVzqWjEMo-WU5pnGlhd4APXW8QIG5l2Fh4QXSVHh3PIiA--QECaxS1DBS-ojbv0Q7YgoAAtUXQcmJsQSiFcoIgoyogYXVkL2QvTWVuYWNob3MgMTA4XzE5NTkxODMyMS5tcDM/Menachos%20108_195918321.mp3",
+      "seconds": 3963
+    },
+    {
+      "videoId": "L0195826403",
+      "title": "Menachos 107",
+      "published": "2026-04-28T12:13:19.000Z",
+      "tractate": "Menachot",
+      "daf": 107,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQw5achgEaIHGiOi69_p_rscfl1-EEVnKT70Uc0Gx5svjAFnA7xj9jIiDw5q7eEEW4kqs8771ZkJKhgoAAtUXQcmJsQSiFcoIgoyogYXVkL2QvTWVuYWNob3MgMTA3XzE5NTgyNjQwMy5tcDM/Menachos%20107_195826403.mp3",
+      "seconds": 2214
+    },
+    {
+      "videoId": "L0195747865",
+      "title": "Menachos 106",
+      "published": "2026-04-27T14:24:21.000Z",
+      "tractate": "Menachot",
+      "daf": 106,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwbPOgAEaIE1GjQBg4GunkIefW2fQD6PZ8yfJiWlv1c8VrInStti9IiCtf4fIj1PDu-ErFkFdP8wcgoAAtUXQcmJsQSiFcoIgoyogYXVkL2QvTWVuYWNob3MgMTA2XzE5NTc0Nzg2NS5tcDM/Menachos%20106_195747865.mp3",
+      "seconds": 4676
+    },
+    {
+      "videoId": "L0195669824",
+      "title": "Menachos 105",
+      "published": "2026-04-26T16:43:41.000Z",
+      "tractate": "Menachot",
+      "daf": 105,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQsbOuggEaICBnVG6Y43La91OfrW5GYFICviTq3mKVeoAlWOy28GpcIiDBpzNABQfxeuc0IyKx-QvBgoAAtUXQcmJsQSiFcoIgoyogYXVkL2QvTWVuYWNob3MgMTA1XzE5NTY2OTgyNC5tcDM/Menachos%20105_195669824.mp3",
+      "seconds": 5690
+    },
+    {
+      "videoId": "L0195487326",
+      "title": "Menachos 104",
+      "published": "2026-04-24T14:02:00.000Z",
+      "tractate": "Menachot",
+      "daf": 104,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQsumKiAEaINwPQpsGoRDywxRlrAVzm9kjGotiqCcimGCSDfPMnCH7IiDZjZmAaiFMaUM4K-TCTBnxgoAAtUXQcmJsQSiFcoIgoyogYXVkL2QvTWVuYWNob3MgMTA0XzE5NTQ4NzMyNi5tcDM/Menachos%20104_195487326.mp3",
+      "seconds": 4127
+    },
+    {
+      "videoId": "L0195392074",
+      "title": "Menachos 103",
+      "published": "2026-04-23T11:34:29.000Z",
+      "tractate": "Menachot",
+      "daf": 103,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkcLaigEaIP2PNq8jEiLLHDCgPsWoPV1Si-bLV_f5w-b14-45fU19IiCQT_2KxkFab3Rpe_yqv-QNgoAAtUXQcmJsQSiFcoIgoyogYXVkL2QvTWVuYWNob3MgMTAzXzE5NTM5MjA3NC5tcDM/Menachos%20103_195392074.mp3",
+      "seconds": 2706
+    },
+    {
+      "videoId": "L0195316361",
+      "title": "Menachos 102",
+      "published": "2026-04-22T14:32:37.000Z",
+      "tractate": "Menachot",
+      "daf": 102,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4b_jiQEaICR7O5AsIAAM-fs272pEih4IFaMh-wmAEmIesiN-C74gIiCTMFoKToFTxk94HpUmoBU2goAAtUXQcmJsQSiFcoIgoyogYXVkL2QvTWVuYWNob3MgMTAyXzE5NTMxNjM2MS5tcDM/Menachos%20102_195316361.mp3",
+      "seconds": 5353
+    },
+    {
+      "videoId": "L0195229525",
+      "title": "Menachos 101",
+      "published": "2026-04-21T20:23:52.000Z",
+      "tractate": "Menachot",
+      "daf": 101,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0f2Cfhogpb6qUBZnfL1XIInGdwsSUDIJRKXlE0_CaMSTZ2qtiSMiIEPnplv3eYU5v73REQgtOC6CgAC1RdByYmxBKIVygiCjKiBhdWQvZC9NZW5hY2hvcyAxMDFfMTk1MjI5NTI1Lm1wMw/Menachos%20101_195229525.mp3",
+      "seconds": 4780
+    },
+    {
+      "videoId": "L0195136494",
+      "title": "Menachos 100",
+      "published": "2026-04-20T12:34:53.000Z",
+      "tractate": "Menachot",
+      "daf": 100,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQsemKiAEaIJ4uZW-GfpQhgWfQxvwz2cxE5wMQ1q9i9eQj553qyVxXIiA9YmSt855vZEBJOGYBEoE2goAAtUXQcmJsQSiFcoIgoyogYXVkL2QvTWVuYWNob3MgMTAwXzE5NTEzNjQ5NC5tcDM/Menachos%20100_195136494.mp3",
+      "seconds": 3282
+    },
+    {
+      "videoId": "L0195058750",
+      "title": "Menachos 99",
+      "published": "2026-04-19T14:59:06.000Z",
+      "tractate": "Menachot",
+      "daf": 99,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQsf6GhwEaIF9jFI-eKzugSLkWsD76DYMKF8fiZejQ-mKddqSuJ6HdIiDLs0_NUW-3v76MwM8uDnWBgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgOTlfMTk1MDU4NzUwLm1wMw/Menachos%2099_195058750.mp3",
+      "seconds": 4480
+    },
+    {
+      "videoId": "L0194893584",
+      "title": "Menachos 98",
+      "published": "2026-04-17T18:23:31.000Z",
+      "tractate": "Menachot",
+      "daf": 98,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwfHvfBogJoURYnpBsQjVdqA1268_dPd3oOoK0ZZQ7fEmiliHk14iIH5uO1hjDGKfYcW4zcyqC0uCgAC1RdByYmxBKIVygiCjKh9hdWQvZC9NZW5hY2hvcyA5OF8xOTQ4OTM1ODQubXAz/Menachos%2098_194893584.mp3",
+      "seconds": 3394
+    },
+    {
+      "videoId": "L0194898181",
+      "title": "Menachos 97",
+      "published": "2026-04-17T18:23:14.000Z",
+      "tractate": "Menachot",
+      "daf": 97,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQse7HgQEaIBPT1i4UAY79rz0Zmk6fTNJXp3ZyuRj1uvSkVJsnZMCJIiDMqG0d02J93gYcGM2YFN2xgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgOTdfMTk0ODk4MTgxLm1wMw/Menachos%2097_194898181.mp3",
+      "seconds": 4253
+    },
+    {
+      "videoId": "L0194763654",
+      "title": "Menachos 96",
+      "published": "2026-04-16T05:00:52.000Z",
+      "tractate": "Menachot",
+      "daf": 96,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0eTJdxogGTNznGgU4SFnXi3I9IxIJQlGgSqolOlYxzEVbZNNO-ciIFX5msqOvTG6J9ilYjo8deCCgAC1RdByYmxBKIVygiCjKh9hdWQvZC9NZW5hY2hvcyA5Nl8xOTQ3NjM2NTQubXAz/Menachos%2096_194763654.mp3",
+      "seconds": 3167
+    },
+    {
+      "videoId": "L0194705135",
+      "title": "Menachos 95",
+      "published": "2026-04-15T12:45:31.000Z",
+      "tractate": "Menachot",
+      "daf": 95,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQsbanhAEaIFUI1qKx6G-vem1G9r28HXZG0jd4QIKChH2XWg1Ri38oIiD68z3qulNA3qCi1pIj_q8GgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgOTVfMTk0NzA1MTM1Lm1wMw/Menachos%2095_194705135.mp3",
+      "seconds": 3477
+    },
+    {
+      "videoId": "L0194626337",
+      "title": "Menachos 94",
+      "published": "2026-04-14T14:52:14.000Z",
+      "tractate": "Menachot",
+      "daf": 94,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4ZevgwEaIFiW6CHWK3WKDg48zTVo4rBxCLwJOepVhPWjZSUgje1DIiCmmcqwy9jNfOiyi_W87TnWgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgOTRfMTk0NjI2MzM3Lm1wMw/Menachos%2094_194626337.mp3",
+      "seconds": 3021
+    },
+    {
+      "videoId": "L0194625881",
+      "title": "Menachos 93",
+      "published": "2026-04-14T14:44:37.000Z",
+      "tractate": "Menachot",
+      "daf": 93,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8bOQhQEaIPaCGh3Nqk3Wo9Vzv2l2TnqChny1nxpl-6PbLDcPlfJIIiDOEtbg2-GTenh42vXjBr6TgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgOTNfMTk0NjI1ODgxLm1wMw/Menachos%2093_194625881.mp3",
+      "seconds": 3816
+    },
+    {
+      "videoId": "L0194537953",
+      "title": "Menachos 92",
+      "published": "2026-04-13T14:19:08.000Z",
+      "tractate": "Menachot",
+      "daf": 92,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQofqahgEaIIk_Er3mMVerIqQ_LpsUGkEXXtTAsiBZvVU1f4oNNRYtIiCBWiBNckklJbS6n9Bx4ZVDgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgOTJfMTk0NTM3OTUzLm1wMw/Menachos%2092_194537953.mp3",
+      "seconds": 4252
+    },
+    {
+      "videoId": "L0194459034",
+      "title": "Menachos 91",
+      "published": "2026-04-12T16:23:49.000Z",
+      "tractate": "Menachot",
+      "daf": 91,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwa-CfhogcHnWLTp0ZrpKlT2b0hx29GYY2dni7I9V5vSoVhYlODAiIH5tLUDzrW6qu6HBcJ2RLx6CgAC1RdByYmxBKIVygiCjKh9hdWQvZC9NZW5hY2hvcyA5MV8xOTQ0NTkwMzQubXAz/Menachos%2091_194459034.mp3",
+      "seconds": 4741
+    },
+    {
+      "videoId": "L0193932362",
+      "title": "Menachos 90",
+      "published": "2026-04-06T14:06:01.000Z",
+      "tractate": "Menachot",
+      "daf": 90,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgcmsggEaIBlLldyG6j4E73wSDivrxwVUoTJiRsSso0vUAoRlMFHOIiBnYGhHRVjkqmfFna9sJIGWgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgOTBfMTkzOTMyMzYyLm1wMw/Menachos%2090_193932362.mp3",
+      "seconds": 3748
+    },
+    {
+      "videoId": "L0193932329",
+      "title": "Menachos 89",
+      "published": "2026-04-06T14:05:28.000Z",
+      "tractate": "Menachot",
+      "daf": 89,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgd6ZhgEaICt0v2F9LMQrdVCM4oPzmDR_rXTowsJm-44pStFv1xG3IiDxMKbO-J4BlTEC2h7ye36BgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgODlfMTkzOTMyMzI5Lm1wMw/Menachos%2089_193932329.mp3",
+      "seconds": 2754
+    },
+    {
+      "videoId": "L0193932304",
+      "title": "Menachos 88",
+      "published": "2026-04-06T14:05:03.000Z",
+      "tractate": "Menachot",
+      "daf": 88,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgrzmfhog-UigaQjaj3-sLV2oC8trWUJyUKWh4ZceEgGgWjF9q4UiIB6nFq_8a6eGePksqIEmM5mCgAC1RdByYmxBKIVygiCjKh9hdWQvZC9NZW5hY2hvcyA4OF8xOTM5MzIzMDQubXAz/Menachos%2088_193932304.mp3",
+      "seconds": 3298
+    },
+    {
+      "videoId": "L0193932281",
+      "title": "Menachos 87",
+      "published": "2026-04-06T14:04:41.000Z",
+      "tractate": "Menachot",
+      "daf": 87,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgcylhAEaIIIM6n_c91CoxGuPS0PLYKyixbwTL9codUnhwwsIvEuOIiAhIgem9U0ENcl634MVitw5goAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgODdfMTkzOTMyMjgxLm1wMw/Menachos%2087_193932281.mp3",
+      "seconds": 2984
+    },
+    {
+      "videoId": "L0193932269",
+      "title": "Menachos 86",
+      "published": "2026-04-06T14:04:26.000Z",
+      "tractate": "Menachot",
+      "daf": 86,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8fbffxogyg3Bm8jD99Fa6a0M6pD4lblmH3NngXsRWVzgrNyoyYsiIHKsE1p-UKdcr-jf473XCqeCgAC1RdByYmxBKIVygiCjKh9hdWQvZC9NZW5hY2hvcyA4Nl8xOTM5MzIyNjkubXAz/Menachos%2086_193932269.mp3",
+      "seconds": 3134
+    },
+    {
+      "videoId": "L0193929893",
+      "title": "Menachos 85",
+      "published": "2026-04-06T13:24:49.000Z",
+      "tractate": "Menachot",
+      "daf": 85,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkYP1iAEaIMlYU-HrZneVvTfYlDltMPWciCvDw6N_ROLmp_Y3z6ssIiDrsZljsbjSRDCKrxthdxaegoAAtUXQcmJsQSiFcoIgoypEYXVkL2QvTWVuYWNob3MgODUgLSBUaGlzIERhZiBoYXMgbm90IHlldCBiZWVuIHVwbG9hZGVkXzE5MzkyOTg5My5tcDM/Menachos%2085%20-%20This%20Daf%20has%20not%20yet%20been%20uploaded_193929893.mp3",
+      "seconds": 6
+    },
+    {
+      "videoId": "L0193514047",
+      "title": "Menachos 84",
+      "published": "2026-04-01T17:54:07.000Z",
+      "tractate": "Menachot",
+      "daf": 84,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4ajffxogPHn3v3mLt1y0iB3Xmlo2W8s_WOnqB2ZWrPRif9yipR8iIOzhlTxGgR06-TOBm4Ct4muCgAC1RdByYmxBKIVygiCjKh9hdWQvZC9NZW5hY2hvcyA4NF8xOTM1MTQwNDcubXAz/Menachos%2084_193514047.mp3",
+      "seconds": 3330
+    },
+    {
+      "videoId": "L0193514011",
+      "title": "Menachos 83",
+      "published": "2026-04-01T17:53:30.000Z",
+      "tractate": "Menachot",
+      "daf": 83,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgbzmfhogNDs0zMU8lM05BWF9w5xbmpMZnXSj8jsB1XsCULsRXwEiIL_aaV1mciQ_iUkk43Ove6iCgAC1RdByYmxBKIVygiCjKh9hdWQvZC9NZW5hY2hvcyA4M18xOTM1MTQwMTEubXAz/Menachos%2083_193514011.mp3",
+      "seconds": 2658
+    },
+    {
+      "videoId": "L0193513923",
+      "title": "Menachos 82",
+      "published": "2026-04-01T17:52:02.000Z",
+      "tractate": "Menachot",
+      "daf": 82,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQsYjFjQEaIJr9lJ4irfX8fyqAUcckTm8bbMvuZzW3WrPEM2q23yNGIiBm0LZfRVXTFExcz-O23ICpgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgODJfMTkzNTEzOTIzLm1wMw/Menachos%2082_193513923.mp3",
+      "seconds": 3310
+    },
+    {
+      "videoId": "L0193513827",
+      "title": "Menachos 81",
+      "published": "2026-04-01T17:50:27.000Z",
+      "tractate": "Menachot",
+      "daf": 81,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8e3lfhoga5uCoHXPPmTaIOTSwr6LFdeZ7ZBVEtptWTUuElNgQAUiICAkU3OzrbZFQ2xNZvBc9SmCgAC1RdByYmxBKIVygiCjKh9hdWQvZC9NZW5hY2hvcyA4MV8xOTM1MTM4MjcubXAz/Menachos%2081_193513827.mp3",
+      "seconds": 3569
+    },
+    {
+      "videoId": "L0193513794",
+      "title": "Menachos 80",
+      "published": "2026-04-01T17:49:54.000Z",
+      "tractate": "Menachot",
+      "daf": 80,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4eKHiAEaINmdejXY0mtVpJmB4AuPxXkMubhSTyBLmJ7yCWrUB2PzIiDbh8f_Jptq_TsDpTeSHpBUgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgODBfMTkzNTEzNzk0Lm1wMw/Menachos%2080_193513794.mp3",
+      "seconds": 3402
+    },
+    {
+      "videoId": "L0193374971",
+      "title": "Menachos 79",
+      "published": "2026-03-31T03:16:10.000Z",
+      "tractate": "Menachot",
+      "daf": 79,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0fHiiQEaIJzOL7X9opYx6t_iJ36WY20bNTSmHABlz96ZqSnBo8-FIiBDg1O6Hy-g7XmRoQQle7c7goAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgNzlfMTkzMzc0OTcxLm1wMw/Menachos%2079_193374971.mp3",
+      "seconds": 2976
+    },
+    {
+      "videoId": "L0193374808",
+      "title": "Menachos 78",
+      "published": "2026-03-31T03:13:24.000Z",
+      "tractate": "Menachot",
+      "daf": 78,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8f2khAEaIKTex82z_4c49M6eC-UoLYOLMx7oWToXswWtMi2rILn3IiCsPUOz4gCd8hRcLmpE-9zPgoAAtUXQcmJsQSiFcoIgoypEYXVkL2QvTWVuYWNob3MgNzggLSBUaGlzIERhZiBoYXMgbm90IHlldCBiZWVuIHVwbG9hZGVkXzE5MzM3NDgwOC5tcDM/Menachos%2078%20-%20This%20Daf%20has%20not%20yet%20been%20uploaded_193374808.mp3",
+      "seconds": 6
+    },
+    {
+      "videoId": "L0193197293",
+      "title": "Menachos 77",
+      "published": "2026-03-29T01:54:49.000Z",
+      "tractate": "Menachot",
+      "daf": 77,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQoa_CgQEaIA5apr-pS-eEfmI-qUpvugG5RQZ44qx9lVAnTSrLkHm6IiAS0_A3UXs3rXlgpMx19KPCgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgNzdfMTkzMTk3MjkzLm1wMw/Menachos%2077_193197293.mp3",
+      "seconds": 3557
+    },
+    {
+      "videoId": "L0193063085",
+      "title": "Menachos 76",
+      "published": "2026-03-27T12:38:01.000Z",
+      "tractate": "Menachot",
+      "daf": 76,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8fqrggEaIMtn4ZEEs7J9nfW2dw03LmcEoJgHi3bTIoIaOvNnyv10IiD0RiKM-S0f_0JJkRKbtUxmgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgNzZfMTkzMDYzMDg1Lm1wMw/Menachos%2076_193063085.mp3",
+      "seconds": 3525
+    },
+    {
+      "videoId": "L0192985151",
+      "title": "Menachos 75",
+      "published": "2026-03-26T14:59:08.000Z",
+      "tractate": "Menachot",
+      "daf": 75,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgfvLgAEaIPjVmi_X7_Owg9Pdg-6R8Yu59ULrOwGlZHiB6LTODfDRIiAkfSGk8Adg0PmFn2K_IIRkgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgNzVfMTkyOTg1MTUxLm1wMw/Menachos%2075_192985151.mp3",
+      "seconds": 2871
+    },
+    {
+      "videoId": "L0192927489",
+      "title": "Menachos 74",
+      "published": "2026-03-25T22:58:05.000Z",
+      "tractate": "Menachot",
+      "daf": 74,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQsfiFiAEaIEmPhvbSi8DNVcXxh-9mzXbvkGtgmjIcHXN0fEZo1JVHIiBhegIm-AQMEG65StJ8DEbhgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgNzRfMTkyOTI3NDg5Lm1wMw/Menachos%2074_192927489.mp3",
+      "seconds": 3796
+    },
+    {
+      "videoId": "L0192809858",
+      "title": "Menachos 73",
+      "published": "2026-03-24T14:17:09.000Z",
+      "tractate": "Menachot",
+      "daf": 73,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkdyEiAEaIEp9hJcznOLxdY-tLk5TVUYum31HN-udbHcsUq022Un2IiCvPFyUFID9l6jXnc5qoknjgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgNzNfMTkyODA5ODU4Lm1wMw/Menachos%2073_192809858.mp3",
+      "seconds": 3311
+    },
+    {
+      "videoId": "L0192755392",
+      "title": "Menachos 72",
+      "published": "2026-03-23T23:09:49.000Z",
+      "tractate": "Menachot",
+      "daf": 72,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0eGjhAEaIN9Ff57GbfT4y2DO4-_zyFxUByfeNn4nyd2KXoO7GNqQIiCzE-lYbVublIvtWnTc2MqcgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgNzJfMTkyNzU1MzkyLm1wMw/Menachos%2072_192755392.mp3",
+      "seconds": 3029
+    },
+    {
+      "videoId": "L0192750200",
+      "title": "Menachos 71",
+      "published": "2026-03-23T21:43:36.000Z",
+      "tractate": "Menachot",
+      "daf": 71,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQgff_fRoge22RrV2gUth_524l5y1gFJc75-tm2wtyMiCGl7JjpdAiIAH9-HANhP2ZjU1Sb_ogmHeCgAC1RdByYmxBKIVygiCjKh9hdWQvZC9NZW5hY2hvcyA3MV8xOTI3NTAyMDAubXAz/Menachos%2071_192750200.mp3",
+      "seconds": 3861
+    },
+    {
+      "videoId": "L0192593771",
+      "title": "Menachos 70",
+      "published": "2026-03-22T02:16:11.000Z",
+      "tractate": "Menachot",
+      "daf": 70,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwpOjhAEaIJ9e55m7YD8R_aGjVRkO9GQxO0VSJaJFsCti9JsG8iKCIiBT0BozVo1esWWIjAFcYtWdgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgNzBfMTkyNTkzNzcxLm1wMw/Menachos%2070_192593771.mp3",
+      "seconds": 5030
+    },
+    {
+      "videoId": "L0192457797",
+      "title": "Menachos 69",
+      "published": "2026-03-20T12:29:53.000Z",
+      "tractate": "Menachot",
+      "daf": 69,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4cGYhgEaIH9ML1SLd115kvjSifC2mxojf--t1uqihU7EGr8wQGe_IiAGC8GwUPVKW0827BTJwgRUgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgNjlfMTkyNDU3Nzk3Lm1wMw/Menachos%2069_192457797.mp3",
+      "seconds": 3383
+    },
+    {
+      "videoId": "L0192418538",
+      "title": "Menachos 68",
+      "published": "2026-03-20T01:35:38.000Z",
+      "tractate": "Menachot",
+      "daf": 68,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQg46EiAEaIOhhXOjQfPU2_7M9CKXSkTdK0L30Gb0WIIW9LRHuxBaZIiAygasvGV9afWrtDnLOIV9RgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgNjhfMTkyNDE4NTM4Lm1wMw/Menachos%2068_192418538.mp3",
+      "seconds": 4682
+    },
+    {
+      "videoId": "L0192373030",
+      "title": "Menachos 67",
+      "published": "2026-03-19T12:57:06.000Z",
+      "tractate": "Menachot",
+      "daf": 67,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8azLgAEaINaoTYI_wZV72dm_BdRL6w0l-MSIA4xP3aWjOvwN27rqIiBDgtWJQvgseFIqBygRktcFgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgNjdfMTkyMzczMDMwLm1wMw/Menachos%2067_192373030.mp3",
+      "seconds": 1715
+    },
+    {
+      "videoId": "L0192207250",
+      "title": "Menachos 66",
+      "published": "2026-03-17T14:54:06.000Z",
+      "tractate": "Menachot",
+      "daf": 66,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4dfYigEaIFpXjVQUjMfXnAzbye-BCYhybCISrvPqeIOJSMlS3aN6IiCs3twNg3igOPKQ6xO5VtMhgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgNjZfMTkyMjA3MjUwLm1wMw/Menachos%2066_192207250.mp3",
+      "seconds": 3040
+    },
+    {
+      "videoId": "L0192123386",
+      "title": "Menachos 65",
+      "published": "2026-03-16T15:36:22.000Z",
+      "tractate": "Menachot",
+      "daf": 65,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0fOXhgEaIDGy3MdlM2WjP5RU3TbjaVjwIPYuFWk8c6t_FgpTtv7sIiBQiBAdWbtUE9YilhiVXSdPgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgNjVfMTkyMTIzMzg2Lm1wMw/Menachos%2065_192123386.mp3",
+      "seconds": 2935
+    },
+    {
+      "videoId": "L0192120860",
+      "title": "Menachos 64",
+      "published": "2026-03-16T14:54:15.000Z",
+      "tractate": "Menachot",
+      "daf": 64,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQod-sgwEaIOnvRfw-I8K7lecM1ZiPeksH4Ake2nPVNZbGBe0R8e5yIiAXrHPlCq2oVZ7SB4WUl7I2goAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgNjRfMTkyMTIwODYwLm1wMw/Menachos%2064_192120860.mp3",
+      "seconds": 4408
+    },
+    {
+      "videoId": "L0191870793",
+      "title": "Menachos 63",
+      "published": "2026-03-13T18:58:24.000Z",
+      "tractate": "Menachot",
+      "daf": 63,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQwaWXhgEaIFwrRZV7Ag4INDLRBIaccf7xsSuhmuJvW2rZIL0bzV5LIiA7Gq_Taw-saE8dzsLNFpmrgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvTWVuYWNob3MgNjNfMTkxODcwNzkzLm1wMw/Menachos%2063_191870793.mp3",
+      "seconds": 3267
     }
   ]
 }
