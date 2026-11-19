@@ -566,19 +566,10 @@
     },
     {
       "ref": "Arakhin 2b:1",
-      "start": 1716.58,
-      "end": 1716.59,
-      "he": "גּוֹי",
-      "w0": 0,
-      "w1": 0,
-      "estimated": true
-    },
-    {
-      "ref": "Arakhin 2b:1",
-      "start": 1716.58,
+      "start": 1715.64,
       "end": 1718.26,
-      "he": "וַחֲבֵירוֹ מֵחַד קְרָא נָפְקִי,",
-      "w0": 1,
+      "he": "גּוֹי וַחֲבֵירוֹ מֵחַד קְרָא נָפְקִי,",
+      "w0": 0,
       "w1": 4
     },
     {
@@ -843,19 +834,10 @@
     {
       "ref": "Arakhin 2b:10",
       "start": 2659.57,
-      "end": 2660.33,
-      "he": "הָנִיחָא לְמַאן דְּאָמַר: כּוּלָּן תַּשְׁלוּמִין זֶה",
+      "end": 2660.77,
+      "he": "הָנִיחָא לְמַאן דְּאָמַר: כּוּלָּן תַּשְׁלוּמִין זֶה לָזֶה,",
       "w0": 0,
-      "w1": 5
-    },
-    {
-      "ref": "Arakhin 2b:10",
-      "start": 2668.57,
-      "end": 2668.58,
-      "he": "לָזֶה,",
-      "w0": 6,
-      "w1": 6,
-      "estimated": true
+      "w1": 6
     },
     {
       "ref": "Arakhin 2b:10",
@@ -2498,12 +2480,21 @@
     },
     {
       "start": 1703.84,
-      "end": 1716.58,
+      "end": 1715.64,
       "ref": "Arakhin 2a:17",
       "w0": 12,
       "w1": 12,
       "heardText": "ליה",
       "source": "deterministic-local"
+    },
+    {
+      "start": 1715.64,
+      "end": 1716.58,
+      "ref": "Arakhin 2b:1",
+      "w0": 0,
+      "w1": 0,
+      "heardText": "אויב כי חביבם",
+      "source": "claude-read"
     },
     {
       "start": 1716.58,
@@ -3133,7 +3124,7 @@
       "w0": 16,
       "w1": 17,
       "heardText": "פשוט ביום שני.",
-      "source": "path-hebrew"
+      "source": "deterministic-local"
     },
     {
       "start": 2659.57,
@@ -3155,12 +3146,21 @@
     },
     {
       "start": 2660.33,
-      "end": 2668.57,
+      "end": 2660.77,
       "ref": "Arakhin 2b:10",
       "w0": 4,
       "w1": 5,
       "heardText": "תשלום אזל וזה.",
       "source": "path-hebrew-gap"
+    },
+    {
+      "start": 2660.77,
+      "end": 2668.57,
+      "ref": "Arakhin 2b:10",
+      "w0": 6,
+      "w1": 6,
+      "heardText": "וזה.",
+      "source": "claude-read"
     },
     {
       "start": 2668.57,
@@ -3797,8 +3797,8 @@
     "aligner": "path",
     "totalRuns": 427,
     "totalWords": 570,
-    "matchedWords": 524,
-    "unmatchedWords": 46,
+    "matchedWords": 526,
+    "unmatchedWords": 44,
     "excludedWords": 0,
     "bySource": {
       "path-latin": {
@@ -3813,8 +3813,8 @@
       },
       "path-hebrew": {
         "label": "Read from Hebrew letters",
-        "runs": 132,
-        "words": 320
+        "runs": 131,
+        "words": 318
       },
       "path-bridge": {
         "label": "Filled in between two placed phrases a moment apart (not heard on its own)",
@@ -3833,8 +3833,8 @@
       },
       "deterministic-local": {
         "label": "Deterministic matching (locked tracking)",
-        "runs": 5,
-        "words": 14
+        "runs": 6,
+        "words": 16
       },
       "deterministic-global": {
         "label": "Deterministic matching (relocalized)",
@@ -3843,8 +3843,8 @@
       },
       "claude-read": {
         "label": "Placed by Claude between two placed phrases (said, but garbled in the transcript)",
-        "runs": 16,
-        "words": 27
+        "runs": 18,
+        "words": 29
       },
       "claude-explained": {
         "label": "Explained without being read (highlighted, not counted as matched)",
@@ -5067,7 +5067,7 @@
     "readingEndsAt": 2851.79,
     "droppedAfterReading": 8,
     "straightPath": true,
-    "dafWordsPatched": 27,
+    "dafWordsPatched": 29,
     "dafWordsExplained": 9,
     "claude": {
       "model": "claude (in a Claude Code session)",
@@ -5076,7 +5076,7 @@
       "calls": 0,
       "inputTokens": 0,
       "outputTokens": 0,
-      "readWords": 27,
+      "readWords": 29,
       "explainedWords": 9
     },
     "phraseMatcher": {
@@ -5090,7 +5090,7 @@
     "model": "scribe_v2",
     "placedAgain": true
   },
-  "jobId": "realign-44607488585",
+  "jobId": "realign-44610591818",
   "videoId": "L0213511665",
   "videoUrl": "https://lakewoodafyomi.appspot.com/m5/CAEQganyigEaIGA1BHyb6BpTyF8k_ydIUDIwhdVPIWV4MSoQNqxptJ_-IiBdDpl_4ulK7KAa-dOBw9aVgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQXJhY2hpbiAyXzIxMzUxMTY2NS5tcDM/Arachin%202_213511665.mp3",
   "coveredRefs": [

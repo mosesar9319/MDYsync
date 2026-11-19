@@ -140,6 +140,19 @@
   },
   {
    "daf": [
+    237,
+    237
+   ],
+   "heard": [
+    5278,
+    5280
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "\"אויב כי חביבם וחבירו מחד\": oved kochavim, his edition's wording for גוי (added on a second reading)"
+  },
+  {
+   "daf": [
     240,
     241
    ],
@@ -189,6 +202,19 @@
    "kind": "read",
    "confidence": 0.85,
    "why": "\"הונך למאן דאמר\": הניחא"
+  },
+  {
+   "daf": [
+    397,
+    397
+   ],
+   "heard": [
+    8588,
+    8588
+   ],
+   "kind": "read",
+   "confidence": 0.75,
+   "why": "\"תשלום אזל וזה\": תשלומין זה לזה; לזה is the last word (added on a second reading)"
   },
   {
    "daf": [

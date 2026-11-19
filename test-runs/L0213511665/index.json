@@ -89,7 +89,29 @@
         "unmatchedWords": 46,
         "durationSeconds": 3487.25
       }
+    },
+    {
+      "id": "regular-5",
+      "engine": "regular",
+      "number": 5,
+      "name": "Regular #5 · 19 Nov 2026 · placed again from saved transcripts (main): holes answered in a Claude Code session: two words added on a second reading",
+      "notes": "placed again from saved transcripts (main): holes answered in a Claude Code session: two words added on a second reading",
+      "engineVersion": "9dc7ddd",
+      "createdAt": "2026-11-19T20:38:16Z",
+      "file": "regular-5.json",
+      "jobId": "realign-44610591818",
+      "summary": {
+        "segments": 179,
+        "estimatedSegments": 62,
+        "placements": 254,
+        "placedWords": 546,
+        "totalRuns": 427,
+        "totalWords": 570,
+        "matchedWords": 526,
+        "unmatchedWords": 44,
+        "durationSeconds": 3487.25
+      }
     }
   ],
-  "updatedAt": "2026-11-19T20:20:08Z"
+  "updatedAt": "2026-11-19T20:38:16Z"
 }
