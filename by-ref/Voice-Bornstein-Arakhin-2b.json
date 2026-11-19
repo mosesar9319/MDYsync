@@ -1550,10 +1550,10 @@
     },
     {
       "ref": "Arakhin 2b:12",
-      "start": 2719.47,
+      "start": 2720.07,
       "end": 2721.21,
-      "he": "לֵירָאוֹת, מַה לִּרְאוֹת בִּשְׁתֵּי עֵינָיו — אַף לֵירָאוֹת בִּשְׁתֵּי",
-      "w0": 22,
+      "he": "מַה לִּרְאוֹת בִּשְׁתֵּי עֵינָיו — אַף לֵירָאוֹת בִּשְׁתֵּי",
+      "w0": 23,
       "w1": 30
     },
     {
@@ -4757,19 +4757,19 @@
       "start": 1916.02,
       "end": 1916.02,
       "ref": "Arakhin 2a:4",
-      "w0": 5,
-      "w1": 5,
-      "heardText": "",
-      "source": "path-bridge"
+      "w0": 4,
+      "w1": 4,
+      "heardText": "LaSuya",
+      "source": "path-latin-gap"
     },
     {
       "start": 1916.02,
       "end": 1916.02,
       "ref": "Arakhin 2a:4",
-      "w0": 4,
-      "w1": 4,
-      "heardText": "LaSuya",
-      "source": "path-latin-gap"
+      "w0": 5,
+      "w1": 5,
+      "heardText": "",
+      "source": "path-bridge"
     },
     {
       "start": 1916.02,
@@ -5774,19 +5774,19 @@
       "start": 2719.47,
       "end": 2719.47,
       "ref": "Arakhin 2b:12",
-      "w0": 24,
-      "w1": 24,
+      "w0": 22,
+      "w1": 22,
       "heardText": "לראות.",
-      "source": "path-hebrew"
+      "source": "path-hebrew-gap"
     },
     {
       "start": 2719.47,
       "end": 2720.07,
       "ref": "Arakhin 2b:12",
-      "w0": 22,
-      "w1": 22,
+      "w0": 24,
+      "w1": 24,
       "heardText": "לראות.",
-      "source": "path-hebrew-gap"
+      "source": "path-hebrew"
     },
     {
       "start": 2720.07,
@@ -7834,7 +7834,7 @@
     ],
     "excluded": [],
     "passes": 2,
-    "llmCalls": 0,
+    "llmCalls": 1,
     "witnesses": 2,
     "transcriptWords": 13077,
     "dafWords": 570,
@@ -7844,9 +7844,17 @@
     "ownDafWords": 570,
     "readingEndsAt": 2852.61,
     "droppedAfterReading": 65,
-    "relisten": {
-      "words": 1425,
-      "matchedBefore": 475
+    "dafWordsPatched": 0,
+    "dafWordsExplained": 0,
+    "claude": {
+      "model": "claude-opus-5-5",
+      "holes": 12,
+      "holeWords": 72,
+      "calls": 1,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "readWords": 0,
+      "explainedWords": 0
     },
     "phraseMatcher": {
       "matchedWords": 737,
@@ -7856,9 +7864,10 @@
   },
   "transcription": {
     "engine": "elevenlabs",
-    "model": "scribe_v2"
+    "model": "scribe_v2",
+    "placedAgain": true
   },
-  "jobId": "c878f35152da447ca3380b3aacbdab13",
+  "jobId": "realign-44504162924",
   "videoId": "L0213511665",
   "videoUrl": "https://lakewoodafyomi.appspot.com/m5/CAEQganyigEaIGA1BHyb6BpTyF8k_ydIUDIwhdVPIWV4MSoQNqxptJ_-IiBdDpl_4ulK7KAa-dOBw9aVgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQXJhY2hpbiAyXzIxMzUxMTY2NS5tcDM/Arachin%202_213511665.mp3",
   "coveredRefs": [
