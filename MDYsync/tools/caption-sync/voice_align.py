@@ -1713,19 +1713,85 @@ def llm_rescue_by_default(aligner):
     return aligner != "path" and _anthropic_credentials_available()
 
 
+# The transcripts a job heard, kept so the shiur never has to be paid for twice:
+# main() writes them to <out-dir>/transcripts.json, voice-job.yml stores that on
+# the results branch, and --saved-transcripts places the shiur again from it --
+# with whatever the engine has learnt since -- without one ElevenLabs credit.
+# Until November 2026 the transcript was thrown away with the job, and trying
+# any change to the engine on a real shiur cost a whole new transcription.
+TRANSCRIPTS_SCHEMA = "dafsync-transcripts-v1"
+HEARD_WITNESSES = []   # [(name, words)] in the order the path is given them
+
+
+def transcripts_bundle(witnesses, duration, engine=None, model=None):
+    """What is saved of a job's transcripts: every witness, word by word."""
+    return {
+        "schema": TRANSCRIPTS_SCHEMA,
+        "seconds": round(float(duration or 0.0), 2),
+        "engine": engine,
+        "model": model,
+        "witnesses": [
+            {"name": name, "words": [[w.get("text", ""), round(w["start"], 3), round(w["end"], 3)] for w in words]}
+            for name, words in witnesses if words
+        ],
+    }
+
+
+def load_transcripts_bundle(path):
+    """A saved bundle (transcripts_bundle; plain or gzipped) as
+    ([(name, words)], seconds, {"engine", "model"}). The first witness is the one
+    made with hints."""
+    import gzip
+    opener = gzip.open if str(path).endswith(".gz") else open
+    with opener(path, "rt", encoding="utf-8") as f:
+        data = json.load(f)
+    if data.get("schema") != TRANSCRIPTS_SCHEMA:
+        raise ValueError(f"{path} is not a saved transcripts file ({TRANSCRIPTS_SCHEMA}).")
+    witnesses = [(w.get("name") or f"witness{n}",
+                  [{"text": row[0], "start": row[1], "end": row[2]} for row in w.get("words", [])])
+                 for n, w in enumerate(data.get("witnesses", []))]
+    witnesses = [(name, words) for name, words in witnesses if words]
+    if not witnesses:
+        raise ValueError(f"{path} holds no transcript.")
+    seconds = data.get("seconds") or max(words[-1]["end"] for _, words in witnesses)
+    return witnesses, seconds, {"engine": data.get("engine") or "elevenlabs", "model": data.get("model")}
+
+
+def primary_word_indices(canon, primary_refs):
+    """The canon words of the shiur's own daf (primary_refs, e.g. ["Arakhin 2a",
+    "Arakhin 2b"]) -- not of the amud read before and after it. None when every
+    ref is the shiur's own."""
+    if not primary_refs:
+        return None
+    own = {str(ref).replace(".", " ") for ref in primary_refs}
+    indices = [i for i, c in enumerate(canon) if c.ref.rsplit(":", 1)[0] in own]
+    return indices if indices and len(indices) < len(canon) else None
+
+
 def process_video(video_path, refs, model_size="small", cache_dir=None, debug=False,
                   engine="whisper", fallback=True, llm_rescue=None, refine=True,
                   aligner="path", witnesses=DEFAULT_WITNESSES, slow_tempo=SLOW_TEMPO, transcripts=None,
-                  keep_after_reading=False):
+                  keep_after_reading=False, primary_refs=None, saved_witnesses=None):
     canon, segments = load_canonical(refs, cache_dir)
     print(f"Canonical text: {len(segments)} segments, {len(canon)} words")
     for c in canon:
         c.phon = phonetic(c.norm)
+    primary = primary_word_indices(canon, primary_refs)
+    del HEARD_WITNESSES[:]
 
     words = duration = None
     extra_transcripts = []
     extra_wanted = parse_witnesses(witnesses) if aligner == "path" else []
-    if transcripts:
+    if saved_witnesses:
+        # A job's own saved transcripts (load_transcripts_bundle): placed again
+        # as they were heard, the re-listened holes included.
+        words = saved_witnesses[0][1]
+        extra_transcripts = [w for _, w in saved_witnesses[1:]]
+        duration = max(w[-1]["end"] for _, w in saved_witnesses)
+        transcripts = transcripts or ["saved"]
+        print(f"Using {len(saved_witnesses)} saved transcript(s) "
+              f"({', '.join(name for name, _ in saved_witnesses)}) instead of transcribing.")
+    elif transcripts:
         # Saved transcripts instead of a new transcription: the first is the one
         # the phrase matcher reads, all of them are witnesses for the path.
         loaded = [load_transcript_file(path) for path in transcripts]
@@ -1764,6 +1830,7 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
                     else:
                         more, _ = transcribe_elevenlabs(video_path, keyterms=keyterms, tempo=slow_tempo)
                     extra_transcripts.append(more)
+                    HEARD_WITNESSES.append((name, more))
                     print(f"Witness '{name}': {len(more)} words")
                 except Exception as error:  # noqa: BLE001
                     print(f"Witness '{name}' failed ({error}); carrying on without it.")
@@ -1785,10 +1852,13 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
                     continue
                 more, _ = transcribe(video_path, model_size, initial_prompt=None, language=None)
                 extra_transcripts.append(more)
+                HEARD_WITNESSES.append((name, more))
                 print(f"Witness '{name}': {len(more)} words")
             except Exception as error:  # noqa: BLE001
                 print(f"Witness '{name}' failed ({error}); carrying on without it.")
     print(f"Transcribed {len(words)} words ({duration:.1f}s audio)")
+    if not saved_witnesses:
+        HEARD_WITNESSES.insert(0, ("hints", words))
     runs = hebrew_script_runs(words)
     print(f"{len(runs)} Hebrew-script word runs")
 
@@ -1836,7 +1906,8 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
             ]
             path_events, path_stats = path_align.align_path(
                 canon, [words] + extra_transcripts, phonetic, proposals=proposals,
-                source_labels=MATCH_SOURCE_LABELS, keep_after_reading=keep_after_reading, debug=debug)
+                source_labels=MATCH_SOURCE_LABELS, keep_after_reading=keep_after_reading, debug=debug,
+                primary=primary)
             if "relisten" in extra_wanted and path_events and not transcripts and engine == "elevenlabs":
                 # Second round: listen again to just the holes, hinted with just
                 # the words that belong in each, and place the whole path again.
@@ -1846,19 +1917,27 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
                 credit_checkpoint("relisten")
                 if again:
                     print(f"Witness 'relisten': {len(again)} words")
+                    HEARD_WITNESSES.append(("relisten", again))
                     first_heard = path_stats["matchedWords"]
                     path_events, path_stats = path_align.align_path(
                         canon, [words] + extra_transcripts + [again], phonetic, proposals=proposals,
-                        source_labels=MATCH_SOURCE_LABELS, keep_after_reading=keep_after_reading, debug=debug)
+                        source_labels=MATCH_SOURCE_LABELS, keep_after_reading=keep_after_reading, debug=debug,
+                        primary=primary)
                     path_stats["relisten"] = {"words": len(again), "matchedBefore": first_heard}
             path_stats.pop("holes", None)
             if path_events:
                 path_stats["llmCalls"] = llm_calls
                 path_stats["phraseMatcher"] = {key: stats[key] for key in ("matchedWords", "totalWords", "passes")}
                 events, stats = path_events, path_stats
+                share = 100 * stats["matchedWords"] / max(1, stats["totalWords"])
                 print(f"Path alignment: heard {stats['dafWordsHeard']} of {stats['dafWords']} daf words "
                       f"from {stats['witnesses']} transcript(s), and filled in "
-                      f"{stats.get('dafWordsBridged', 0)} more between placed phrases")
+                      f"{stats.get('dafWordsBridged', 0)} more between placed phrases: "
+                      f"{stats['matchedWords']} of {stats['totalWords']} ({share:.0f}%)")
+                if stats.get("wordsRead", stats["dafWords"]) != stats["dafWords"]:
+                    print(f"  Counted: the daf's own {stats['ownDafWords']} words and "
+                          f"{stats['dafWords'] - stats['ownDafWords']} in the lines read of the amud before "
+                          f"and after it (of {stats['wordsRead']} words looked at in all)")
                 if stats.get("droppedAfterReading"):
                     print(f"  The reading ends at {stats['readingEndsAt'] / 60:.1f} min; "
                           f"{stats['droppedAfterReading']} quotes in the discussion after it are not placed")
@@ -1912,6 +1991,10 @@ def main():
     p.add_argument("--transcript", action="append", default=[],
                    help="A saved transcript (JSON) to use instead of transcribing; repeat for "
                         "more witnesses. The first is the one made with hints.")
+    p.add_argument("--saved-transcripts",
+                   help="A job's saved transcripts (transcripts.json, or .json.gz, as voice-job.yml "
+                        "stores them on the results branch) to place again instead of transcribing: "
+                        "no audio is read and no ElevenLabs credit is spent.")
     p.add_argument("--no-neighbors", dest="neighbors", action="store_false",
                    default=os.environ.get("VOICE_NEIGHBORS", "1") != "0",
                    help="Do not also read the amud before and after a whole daf (see "
@@ -1925,19 +2008,35 @@ def main():
     args = p.parse_args()
 
     refs = json.loads(args.refs_json)
+    primary_refs = list(refs)
     os.makedirs(args.out_dir, exist_ok=True)
+    saved_witnesses = saved_seconds = saved_heard_by = None
+    if args.saved_transcripts:
+        saved_witnesses, saved_seconds, saved_heard_by = load_transcripts_bundle(args.saved_transcripts)
     if args.neighbors:
         refs = with_neighbor_amudim(refs, args.out_dir)
     # The refs actually read, for publish_alignment.py (voice-job.yml).
     json.dump(refs, open(os.path.join(args.out_dir, "refs.json"), "w", encoding="utf-8"), ensure_ascii=False)
-    balance_before = elevenlabs_balance() if args.engine == "elevenlabs" and not args.transcript else None
+    reading_saved = bool(args.transcript or saved_witnesses)
+    balance_before = elevenlabs_balance() if args.engine == "elevenlabs" and not reading_saved else None
     if balance_before:
         ELEVENLABS_CHECKPOINTS.append(("start", balance_before["used"]))
     canon, segments, events, duration, stats = process_video(
         args.video, refs, model_size=args.model, cache_dir=args.out_dir, debug=args.debug,
         engine=args.engine, fallback=not args.no_fallback, llm_rescue=args.llm_rescue,
         refine=args.refine, aligner=args.aligner, witnesses=args.witnesses,
-        slow_tempo=args.slow_tempo, transcripts=args.transcript, keep_after_reading=args.keep_after_reading)
+        slow_tempo=args.slow_tempo, transcripts=args.transcript, keep_after_reading=args.keep_after_reading,
+        primary_refs=primary_refs, saved_witnesses=saved_witnesses)
+    if saved_seconds:
+        duration = max(duration, saved_seconds)
+    if HEARD_WITNESSES and not reading_saved:
+        # Before anything can fail below: the transcripts are what was paid for.
+        heard_by = ({"engine": "elevenlabs", "model": ELEVENLABS_MODEL} if ELEVENLABS_USAGE["requests"]
+                    else {"engine": "whisper", "model": args.model})
+        t_path = os.path.join(args.out_dir, "transcripts.json")
+        json.dump(transcripts_bundle(HEARD_WITNESSES, duration, **heard_by),
+                  open(t_path, "w", encoding="utf-8"), ensure_ascii=False)
+        print(f"Wrote {t_path} ({', '.join(f'{name}: {len(words)} words' for name, words in HEARD_WITNESSES)})")
     credits = None
     if ELEVENLABS_USAGE["requests"]:
         credits = credits_record(balance_before, elevenlabs_balance(), ELEVENLABS_MODEL, ELEVENLABS_USAGE,
@@ -1958,8 +2057,11 @@ def main():
     # pollServerSyncResult for where this surfaces in the sync dialog.
     alignment["matchStats"] = stats
     # Which speech-to-text model heard this shiur, so two runs can be compared.
-    alignment["transcription"] = ({"engine": "elevenlabs", "model": ELEVENLABS_MODEL}
-                                  if ELEVENLABS_USAGE["requests"] else {"engine": "whisper", "model": args.model})
+    alignment["transcription"] = saved_heard_by or (
+        {"engine": "elevenlabs", "model": ELEVENLABS_MODEL}
+        if ELEVENLABS_USAGE["requests"] else {"engine": "whisper", "model": args.model})
+    if saved_heard_by:
+        alignment["transcription"]["placedAgain"] = True   # from saved transcripts, nothing heard anew
 
     a_path = os.path.join(args.out_dir, "alignment.json")
     w_path = os.path.join(args.out_dir, "wordmap.json")

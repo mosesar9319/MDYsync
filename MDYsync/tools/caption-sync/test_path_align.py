@@ -160,9 +160,20 @@ class Holes(unittest.TestCase):
         # Counted as filled in, not as heard.
         self.assertEqual((stats['dafWordsHeard'], stats['dafWordsBridged'], stats['matchedWords']), (7, 2, 9))
 
+    def test_a_few_words_in_the_time_it_takes_to_read_them_are_filled_in(self):
+        # 7-11 (five words) missing, and under two seconds between the phrases either side.
+        events, stats = self.align(said('והמוכר לו', 'the', 'המשתתף לו', gap=0.5))
+        self.assertEqual(spans(events), [(5, 6), (7, 11), (12, 13)])
+        self.assertEqual(events[1].source, 'path-bridge')
+        self.assertEqual((stats['dafWordsHeard'], stats['dafWordsBridged']), (4, 5))
+
     def test_a_longer_hole_or_a_long_pause_is_left_alone(self):
-        three = self.align(said('והמוכר לו', 'the', 'המשתתף לו', gap=0.5))[0]       # 7-11 missing: too many words
-        self.assertEqual(spans(three), [(5, 6), (12, 13)])
+        # The same five words, but the maggid stopped for eight seconds: he was explaining.
+        paused = self.align(said('והמוכר לו', 'the', 'המשתתף לו', gap=4.0))[0]
+        self.assertEqual(spans(paused), [(5, 6), (12, 13)])
+        # Seven words (2-8) are more than is filled in on trust.
+        long_hole = self.align(said('הלוקח עובר', 'the', 'פי שאינו רשאי', gap=0.5))[0]
+        self.assertEqual(spans(long_hole), [(0, 1), (9, 11)])
         apart = self.align(said('אף על פי שאינו רשאי', 'the', 'והמקבל הימנו', gap=4.0))[0]   # 10s apart
         self.assertEqual(spans(apart), [(7, 11), (14, 15)])
 
@@ -177,6 +188,100 @@ class Holes(unittest.TestCase):
         self.assertEqual(events[2].source, 'path-hebrew-gap')
         # Nowhere else: on its own it is not placed at all.
         self.assertEqual(self.align(said('לו', 'the', 'לו'))[0], [])
+
+
+PROSE = 'שלום לכולם היום אנחנו רוצים לדבר קצת על דברים חשובים מאוד בחיים של כל אדם ואדם בעולם הגדול הזה'
+
+
+class LongHebrewRuns(unittest.TestCase):
+    """A long unbroken stretch in Hebrew letters is mostly the transcriber's own
+    prose, but the maggid's reading can be inside it (Eruchin 2)."""
+
+    def setUp(self):
+        self.canon = canon_from(MISHNAH)
+
+    def align(self, text, **kw):
+        return PA.align_path(self.canon, [said(text, gap=0.5)], VA.phonetic, english=ENGLISH, **kw)[0]
+
+    def test_a_phrase_read_inside_a_long_run_is_placed(self):
+        text = f'{PROSE} אף על פי שאינו רשאי {PROSE}'
+        self.assertGreater(len(text.split()), PA.MAX_HEBREW_RUN_WORDS)
+        self.assertEqual(spans(self.align(text)), [(7, 11)])
+
+    def test_one_word_of_prose_that_stands_on_the_daf_is_not(self):
+        self.assertEqual(spans(self.align(f'{PROSE} המשתתף {PROSE}')), [])
+        # On its own, in a short run, the same word is believed.
+        self.assertEqual(spans(self.align('המשתתף')), [(12, 12)])
+
+
+class Counting(unittest.TestCase):
+    """A shiur is measured against its own daf and the lines it read of the amud
+    before and after it -- not a whole neighbouring amud it never opened."""
+
+    def setUp(self):
+        self.canon = (canon_from(MISHNAH, 'Bekhorot 2a:1')
+                      + canon_from('אמר רבי יוחנן הלכה כרבי יהודה', 'Bekhorot 2b:1')
+                      + canon_from('ורבי שמעון בן לקיש אמר אין הלכה', 'Bekhorot 2b:2'))
+        self.own = VA.primary_word_indices(self.canon, ['Bekhorot 2a'])
+
+    def test_the_shiurs_own_daf_is_told_apart_from_its_neighbours(self):
+        self.assertEqual(self.own, list(range(len(canon_from(MISHNAH)))))
+        self.assertIsNone(VA.primary_word_indices(self.canon, ['Bekhorot 2a', 'Bekhorot 2b']))   # all of it is its own
+        self.assertIsNone(VA.primary_word_indices(self.canon, None))
+
+    def test_a_neighbouring_line_counts_only_once_it_is_read(self):
+        n = len(self.own)
+        self.assertEqual(len(PA.counted_words(self.canon, self.own, {0, 1})), n)
+        self.assertEqual(len(PA.counted_words(self.canon, self.own, {0, n + 1})), n + 6)        # 2b:1 was read
+        self.assertEqual(len(PA.counted_words(self.canon, None, {0})), len(self.canon))
+
+    def test_the_stats_are_out_of_the_words_that_count(self):
+        transcript = said('אף על פי שאינו רשאי', 'the', 'והמקבל הימנו', gap=0.5)
+        _, everything = PA.align_path(self.canon, [transcript], VA.phonetic, english=ENGLISH)
+        _, own = PA.align_path(self.canon, [transcript], VA.phonetic, english=ENGLISH, primary=self.own)
+        self.assertEqual(everything['totalWords'], len(self.canon))
+        self.assertEqual((own['totalWords'], own['dafWords'], own['ownDafWords']), (len(self.own),) * 3)
+        self.assertEqual(own['wordsRead'], len(self.canon))
+        self.assertEqual(own['matchedWords'], everything['matchedWords'])
+        self.assertEqual(own['unmatchedWords'], len(self.own) - own['matchedWords'])
+
+
+class SavedTranscripts(unittest.TestCase):
+    """What a job heard is kept, so the shiur is never paid for twice."""
+
+    def test_a_jobs_transcripts_are_saved_and_read_back(self):
+        hints = said('אף על פי שאינו רשאי', 'the', 'והמקבל הימנו')
+        again = said('המשתתף לו', start=104.0)
+        bundle = VA.transcripts_bundle([('hints', hints), ('relisten', again), ('plain', [])], 3487.25,
+                                       engine='elevenlabs', model='scribe_v2')
+        self.assertEqual([w['name'] for w in bundle['witnesses']], ['hints', 'relisten'])
+        import gzip
+        with tempfile.TemporaryDirectory() as folder:
+            for name, opener in (('t.json', open), ('t.json.gz', gzip.open)):
+                path = os.path.join(folder, name)
+                with opener(path, 'wt', encoding='utf-8') as f:
+                    json.dump(bundle, f, ensure_ascii=False)
+                witnesses, seconds, heard_by = VA.load_transcripts_bundle(path)
+                self.assertEqual(witnesses, [('hints', hints), ('relisten', again)])
+                self.assertEqual(seconds, 3487.25)
+                self.assertEqual(heard_by, {'engine': 'elevenlabs', 'model': 'scribe_v2'})
+            other = os.path.join(folder, 'other.json')
+            json.dump({'words': []}, open(other, 'w'))
+            with self.assertRaises(ValueError):
+                VA.load_transcripts_bundle(other)
+
+
+class Chunks(unittest.TestCase):
+    def test_a_phrase_said_again_never_makes_an_empty_row(self):
+        from caption_ocr_align import _group_real_entries, _segment_phrase_chunks
+        # Words 4-5, then a step back to 2-3 a second later (Eruchin 2 published "w 4-2").
+        entries = [{'start': 10.0, 'end': 10.5, 'w0': 4, 'w1': 5}, {'start': 11.0, 'end': 11.5, 'w0': 2, 'w1': 3},
+                   {'start': 30.0, 'end': 30.5, 'w0': 3, 'w1': 4}]
+        groups = _group_real_entries(entries)
+        self.assertTrue(all(g['w0'] <= g['w1'] for g in groups))
+        chunks = _segment_phrase_chunks(groups, 8, 10.0)
+        self.assertTrue(all(c['w0'] <= c['w1'] for c in chunks))
+        self.assertEqual(chunks[-1]['w1'], 7)
 
 
 class ClaudeSpan(unittest.TestCase):

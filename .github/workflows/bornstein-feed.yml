@@ -12,6 +12,11 @@ on:
   schedule:
     - cron: '17 * * * *'
   workflow_dispatch:
+    inputs:
+      resync:
+        description: "Sync one shiur again though it is synced (its Lakewood Daf Yomi id, e.g. L0213511665); costs ElevenLabs credits"
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -66,13 +71,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          RESYNC: ${{ inputs.resync }}
         run: |
           set -e
           rm -rf /tmp/results
           git worktree prune
           git fetch origin results
           git worktree add --detach /tmp/results origin/results
-          node MDYsync/tools/lakewood-sync.mjs --results /tmp/results --items /tmp/import.json
+          case "$RESYNC" in
+            ''|L[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]) ;;
+            *) echo "Not a Lakewood Daf Yomi id: $RESYNC"; exit 1 ;;
+          esac
+          node MDYsync/tools/lakewood-sync.mjs --results /tmp/results --items /tmp/import.json \
+            ${RESYNC:+--resync "$RESYNC"}
           cd /tmp/results
           git add -A maggidim/bornstein-sync.json 2>/dev/null || true
           if git diff --cached --quiet; then
