@@ -250,7 +250,7 @@ test.describe('R’ Bornstein’s shiurim from Lakewood Daf Yomi’s server', ()
   // As tools/lakewood-import.mjs writes it: Lakewood's own id and the feed's mp3.
   const BORNSTEIN_LINK = { type: 'lakewood', videoId: 'L0000000089', url: LAKEWOOD, label: 'Chulin 89', source: 'lakewood-feed', maggid: 'bornstein' };
 
-  async function openBornstein(page, { found = true, synced = true } = {}) {
+  async function openBornstein(page, { found = true, synced = true, voice = false } = {}) {
     await preparePage(page, { user: null, videoSource: 'mdy' });
     const requests = { lakewood: [], lookups: [], youtube: 0 };
     await page.route('**/api/lakewood-audio?*', (route) => {
@@ -276,7 +276,9 @@ test.describe('R’ Bornstein’s shiurim from Lakewood Daf Yomi’s server', ()
     await page.route('**/api/get-results-file**', (route) => {
       const path = new URL(route.request().url()).searchParams.get('path') || '';
       if (path === 'by-ref/Bornstein-Chullin-89a.json' && synced) {
-        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...alignment(CLIP_SECONDS), dafRef: 'Chullin 89a (Bornstein)' }) });
+        const voiceSync = voice ? { generator: 'voice_align.py', matchStats: { aligner: 'path', straightPath: true } } : {};
+        return route.fulfill({ status: 200, contentType: 'application/json',
+          body: JSON.stringify({ ...alignment(CLIP_SECONDS), dafRef: 'Chullin 89a (Bornstein)', ...voiceSync }) });
       }
       if (path === 'video-links/Bornstein-Chullin-89a.json') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(BORNSTEIN_LINK) });
       return route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"missing"}' });
@@ -332,6 +334,29 @@ test.describe('R’ Bornstein’s shiurim from Lakewood Daf Yomi’s server', ()
     // Past the last phrase there is nowhere to go.
     await page.evaluate(() => { seek(11); updateVaaterButtonUi(11); });
     await expect(vaater).toBeDisabled();
+  });
+
+  // R' Bornstein's Eruchin 2: he reads line 1 at 11:58 and explains it, and
+  // the line stays lit until he reads on. As a caption sync's "held" line it
+  // was jumped over, and Vaater went from the start of the shiur to 15:23.
+  test('in a voice sync Vaater lands on every phrase, though he explained it at length', async ({ page }) => {
+    await openBornstein(page, { voice: true });
+    await page.waitForFunction(() => state.segments.length > 0, null, { timeout: 15000 });
+    const held = (voice) => page.evaluate((straight) => {
+      state.straightPathSync = straight;
+      state.activeIndex = -1;
+      state.segments = [
+        { ref: 'Chullin 89a:1', w0: 0, w1: 1, start: 718, end: 731, he: 'א ב' },      // 2 words, then 13s of explanation
+        { ref: 'Chullin 89a:1', w0: 2, w1: 2, start: 731, end: 751, he: 'ג' },
+        { ref: 'Chullin 89a:2', w0: 0, w1: 4, start: 751, end: 754, he: 'ד ה ו ז ח' },
+        { ref: 'Chullin 89a:2', w0: 5, w1: 6, start: 754, end: 760, he: 'ט י' },
+      ];
+      return nextReadingTime(0);
+    }, voice);
+    expect(await page.evaluate(() => state.straightPathSync)).toBe(true);   // from the file
+    expect(await held(true)).toBe(718);
+    // A caption sync keeps skipping a line held far longer than reading it takes.
+    expect(await held(false)).toBe(751);
   });
 
   test('the speed picker on a narrow phone: the arrows for Vaater, the list above the bar', async ({ page }) => {

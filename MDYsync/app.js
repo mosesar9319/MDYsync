@@ -268,6 +268,9 @@ const state = {
   vilnaOverlaySourceKey: '',
   vilnaOverlaySourceRenderingKey: '',
   voiceCorrectionBaseline: null,
+  // A voice sync placed on one straight path (voice_align.py, November 2026):
+  // every phrase in it is the maggid reading, so Vaater lands on each one.
+  straightPathSync: false,
   // Which synced-alignment methods actually have a published result for the
   // daf currently on screen (raw alignment data or null per method), and
   // which one is driving the daf text/highlighting right now -- see
@@ -1054,6 +1057,11 @@ function isSkippableSegment(index) {
   if (!segment || segment.estimated) return true;
   const duration = Number(segment.end) - Number(segment.start);
   if (!Number.isFinite(duration) || duration < 0.2) return true;
+  // A voice sync's phrase is on screen until the next one he reads, so a line
+  // he read and then explained for a minute looks "held" and was jumped over:
+  // from the start of R' Bornstein's Eruchin 2, Vaater went past the first six
+  // lines (11:58) to 15:23. Everything such a sync placed is reading.
+  if (state.straightPathSync) return false;
   return isIsolatedHit(state.segments, index) || isExplanationPaced(segment);
 }
 
@@ -9814,6 +9822,7 @@ async function loadDaf(refOverride = null, options = {}) {
     // and sat frozen on the last one for the rest of playback, dragging
     // auto-scroll along with it.
     state.usingDefaultAlignment = !state.livePlainDaf;
+    state.straightPathSync = false;
     state.alignmentStatus = state.livePlainDaf ? 'live' : 'placeholder';
     updateAlignmentStatus();
     $('dafTitle').textContent = displayRef(state.browseMode && state.browsePageRef ? realDafRef(state.browsePageRef) : (heRef || ref));
@@ -11494,6 +11503,7 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
   // saveDraft() later bank (guess, correction) pairs as training data.
   // Anything else (an OCR sync, a manual import) has no such baseline to
   // diff against, so this stays null for those.
+  state.straightPathSync = data.generator === 'voice_align.py' && Boolean(data.matchStats?.straightPath);
   state.voiceCorrectionBaseline = data.generator === 'voice_align.py'
     ? { ref: state.dafRef, segments: state.segments.map((s) => ({ ref: s.ref, start: s.start, end: s.end, he: s.he, w0: s.w0, w1: s.w1 })) }
     : null;
