@@ -45,7 +45,29 @@
         "unmatchedWords": 173,
         "durationSeconds": 3672.98
       }
+    },
+    {
+      "id": "regular-3",
+      "engine": "regular",
+      "number": 3,
+      "name": "Regular #3 · 19 Nov 2026 · placed again from saved transcripts (main): holes answered in a Claude Code session (two independent passes agreed)",
+      "notes": "placed again from saved transcripts (main): holes answered in a Claude Code session (two independent passes agreed)",
+      "engineVersion": "9dc7ddd",
+      "createdAt": "2026-11-19T20:32:10Z",
+      "file": "regular-3.json",
+      "jobId": "realign-44609570412",
+      "summary": {
+        "segments": 247,
+        "estimatedSegments": 117,
+        "placements": 272,
+        "placedWords": 631,
+        "totalRuns": 454,
+        "totalWords": 777,
+        "matchedWords": 624,
+        "unmatchedWords": 153,
+        "durationSeconds": 3672.98
+      }
     }
   ],
-  "updatedAt": "2026-11-19T19:58:35Z"
+  "updatedAt": "2026-11-19T20:32:10Z"
 }

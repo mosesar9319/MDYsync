@@ -1,0 +1,194 @@
+{
+ "schema": "dafsync-patch-answers-v1",
+ "videoId": "L0213553074",
+ "placements": [
+  {
+   "daf": [
+    126,
+    126
+   ],
+   "heard": [
+    268,
+    268
+   ],
+   "kind": "read",
+   "confidence": 0.72,
+   "why": "'Hakol Chayav in Beriya' in his opening list of the Hakol sugyos = הכל חייבין בראייה; Beriya is the word"
+  },
+  {
+   "daf": [
+    321,
+    321
+   ],
+   "heard": [
+    551,
+    551
+   ],
+   "kind": "read",
+   "confidence": 0.88,
+   "why": "'Militkua Veyontiv' = מלתקוע ביום טוב, first reading"
+  },
+  {
+   "daf": [
+    458,
+    459
+   ],
+   "heard": [
+    2508,
+    2508
+   ],
+   "kind": "read",
+   "confidence": 0.78,
+   "why": "'דברי תורה כלשון המדבר' = דברה תורה כלשון בני אדם; last word garbled"
+  },
+  {
+   "daf": [
+    523,
+    524
+   ],
+   "heard": [
+    3007,
+    3008
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "'בעור בשרו יקרא מכה' = בעור בשרו מכל מקום, garbled"
+  },
+  {
+   "daf": [
+    560,
+    562
+   ],
+   "heard": [
+    3281,
+    3283
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "'הכול רואה מסיני גוי' = הכל רואין את הנגעים, first reading"
+  },
+  {
+   "daf": [
+    662,
+    663
+   ],
+   "heard": [
+    4196,
+    4197
+   ],
+   "kind": "read",
+   "confidence": 0.88,
+   "why": "'למאן דתניא בבא מהדדי' = ולמאן דתני עבדים בהדיא"
+  },
+  {
+   "daf": [
+    712,
+    713
+   ],
+   "heard": [
+    6316,
+    6317
+   ],
+   "kind": "read",
+   "confidence": 0.88,
+   "why": "'כהנים מצריך לא' = כהנים איצטריכא ליה"
+  },
+  {
+   "daf": [
+    785,
+    785
+   ],
+   "heard": [
+    7356,
+    7356
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'הוי כסיל בשעטנז' = הואיל וכתיב (לא תלבש) שעטנז; כסיל is ksiv"
+  },
+  {
+   "daf": [
+    810,
+    810
+   ],
+   "heard": [
+    7548,
+    7548
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "the abbreviation token קמ\"ל = קא משמע לן; קא is said inside this one heard token (shared with the placed משמע לן)"
+  },
+  {
+   "daf": [
+    829,
+    829
+   ],
+   "heard": [
+    8340,
+    8340
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "'So the Gemara, Kohanim u...' = כהנים (איצטריך ליה), cut off before the rest"
+  },
+  {
+   "daf": [
+    869,
+    869
+   ],
+   "heard": [
+    8454,
+    8455
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "'ein ba b'mitzvah d'rosh nami lo' = אימא במצוה דראש נמי לא"
+  },
+  {
+   "daf": [
+    895,
+    896
+   ],
+   "heard": [
+    8533,
+    8533
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "'Umeishna' = ומאי שנא"
+  },
+  {
+   "daf": [
+    897,
+    897
+   ],
+   "heard": [
+    8537,
+    8537
+   ],
+   "kind": "read",
+   "confidence": 0.88,
+   "why": "'d'yad' after the interjection 'freig the Gemara' = דיד"
+  },
+  {
+   "daf": [
+    898,
+    898
+   ],
+   "heard": [
+    8615,
+    8617
+   ],
+   "kind": "explained",
+   "confidence": 0.78,
+   "why": "'Because it says' right before 'Yilbash al basaro' translates דכתיב, which is not read"
+  }
+ ],
+ "shiur": "R' Sruly Bornstein, Eruchin 3",
+ "refs": [
+  "Arakhin 3a",
+  "Arakhin 3b"
+ ],
+ "answeredBy": "Claude, in a Claude Code session, from voice_align.py --patch-questions (19 Nov 2026); a second, independent pass placed the same 20 of these 21 words"
+}
