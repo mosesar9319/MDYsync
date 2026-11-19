@@ -1,13 +1,1 @@
-{
-  "type": "youtube",
-  "url": "https://www.youtube.com/watch?v=3mfzGcTWJL8",
-  "videoId": "3mfzGcTWJL8",
-  "label": "מרכז דף יומי - ערכין דף ב. - ר' אלי סטפנסקי שליט\"א",
-  "coveredRefs": [
-    "Bekhorot 61a",
-    "Arakhin 2a",
-    "Arakhin 2b"
-  ],
-  "source": "channel-auto",
-  "locked": false
-}
+{"type":"youtube","url":"https://www.youtube.com/watch?v=Np3wL14Pbng","videoId":"Np3wL14Pbng","label":"מרכז דף יומי - ערכין דף ב. - ר' אלי סטפנסקי שליט\"א","coveredRefs":["Bekhorot 61a","Arakhin 2a","Arakhin 2b"],"source":"channel-auto"}
