@@ -12,6 +12,7 @@
 // save-video-link.mjs, ocr-job.yml) that adding another was a bad trade.
 
 import { maggidById, maggidKeyPrefix } from './maggidim.mjs';
+import { MASECHTOS } from './masechtos.mjs';
 
 const GEMATRIA_VALUES = {
   'א': 1, 'ב': 2, 'ג': 3, 'ד': 4, 'ה': 5, 'ו': 6, 'ז': 7, 'ח': 8, 'ט': 9,
@@ -79,20 +80,23 @@ export function plainRef({ tractate, daf, amud }) {
   return `${tractate} ${daf}${amud}`;
 }
 
-// Alternate English spellings the channel has actually been seen using in
-// place of a tractate's canonical Sefaria name in talmud_index.json --
-// confirmed against real channel titles, not guessed, since guessing wrong
-// here would silently misroute a video to the wrong tractate rather than
-// just leave it unmatched (see finish()'s own comment on why an
-// unrecognized name is left unhandled instead of guessed at). Add to this
-// only once a channel title actually uses the spelling.
-const ENGLISH_NAME_ALIASES = {
-  // "Daf Yomi Bechoros Daf 3 by R' Eli Stefansky" / "CHAZARAH - Bechoros
-  // Daf 2 | ..." -- the channel's English titles use the Ashkenazi
-  // transliteration "Bechoros", not Sefaria's "Bekhorot" (the Hebrew
-  // titles already match fine, since the Hebrew name itself is unambiguous).
-  'bechoros': 'bekhorot',
-};
+// How the channel's English titles spell a masechta, where that is not
+// Sefaria's name. Mercaz Daf Yomi writes the Ashkenazi names -- "Daf Yomi
+// Bechoros Daf 3", "Daf Yomi Arachin Daf 2" -- and an unknown name is left
+// unhandled, not guessed at (finish() says why): until November 2026 only
+// "bechoros" was listed here, so on the day Eruchin began the English shiur was
+// passed over while the Hebrew one (ערכין, which needs no alias) was linked.
+//
+// So every masechta's Ashkenazi spelling is known ahead of its first daf: the
+// ones dafsync.com's own addresses and MDY's file server use (masechtos.mjs:
+// slug, and shasSlug where the two differ -- "eruchin" and "arachin"). A
+// spelling no title ever uses changes nothing, and none of them is another
+// masechta's name, so this cannot file a video under the wrong one. A title
+// spelled some third way is still left for a person to link.
+const ENGLISH_NAME_ALIASES = Object.fromEntries(MASECHTOS.flatMap((m) => [m.slug, m.shasSlug]
+  .filter(Boolean)
+  .map((spelling) => [spelling.replace(/-/g, ' '), m.name.toLowerCase()])
+  .filter(([spelling, name]) => spelling !== name)));
 
 export function buildTalmudLookup(talmudIndex) {
   const byName = new Map();
