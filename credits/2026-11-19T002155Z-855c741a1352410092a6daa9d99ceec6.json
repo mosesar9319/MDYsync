@@ -1,0 +1,34 @@
+{
+  "model": "scribe_v3",
+  "requests": 44,
+  "audioMinutes": 76.1,
+  "keytermMinutes": 76.1,
+  "before": {
+    "used": 0,
+    "limit": 30247,
+    "left": 30247,
+    "resetsAt": 1797636300,
+    "tier": "starter"
+  },
+  "after": {
+    "used": 1562,
+    "limit": 30247,
+    "left": 28685,
+    "resetsAt": 1797636300,
+    "tier": "starter"
+  },
+  "creditsUsed": 1562,
+  "creditsLeft": 28685,
+  "creditLimit": 30247,
+  "at": "2026-11-19T002155Z",
+  "jobId": "855c741a1352410092a6daa9d99ceec6",
+  "videoUrl": "https://www.youtube.com/watch?v=TWCiP96dKXU",
+  "maggid": "bornstein",
+  "testRun": true,
+  "refs": [
+    "Bekhorot 57b",
+    "Bekhorot 58a",
+    "Bekhorot 58b",
+    "Bekhorot 59a"
+  ]
+}
