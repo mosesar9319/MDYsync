@@ -250,7 +250,7 @@ test.describe('R’ Bornstein’s shiurim from Lakewood Daf Yomi’s server', ()
   // As tools/lakewood-import.mjs writes it: Lakewood's own id and the feed's mp3.
   const BORNSTEIN_LINK = { type: 'lakewood', videoId: 'L0000000089', url: LAKEWOOD, label: 'Chulin 89', source: 'lakewood-feed', maggid: 'bornstein' };
 
-  async function openBornstein(page, { found = true } = {}) {
+  async function openBornstein(page, { found = true, synced = true } = {}) {
     await preparePage(page, { user: null, videoSource: 'mdy' });
     const requests = { lakewood: [], lookups: [], youtube: 0 };
     await page.route('**/api/lakewood-audio?*', (route) => {
@@ -275,7 +275,7 @@ test.describe('R’ Bornstein’s shiurim from Lakewood Daf Yomi’s server', ()
     await page.route('**/api/daf-page**', (route) => route.fulfill({ status: 200, contentType: 'application/pdf', body: '%PDF-fake' }));
     await page.route('**/api/get-results-file**', (route) => {
       const path = new URL(route.request().url()).searchParams.get('path') || '';
-      if (path === 'by-ref/Bornstein-Chullin-89a.json') {
+      if (path === 'by-ref/Bornstein-Chullin-89a.json' && synced) {
         return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...alignment(CLIP_SECONDS), dafRef: 'Chullin 89a (Bornstein)' }) });
       }
       if (path === 'video-links/Bornstein-Chullin-89a.json') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(BORNSTEIN_LINK) });
@@ -312,6 +312,22 @@ test.describe('R’ Bornstein’s shiurim from Lakewood Daf Yomi’s server', ()
     // The highlight's clock is the file's clock.
     await page.evaluate(() => { document.getElementById('video').currentTime = 6; });
     await page.waitForFunction(() => Math.abs(getCurrentTime() - 6) < 0.5);
+  });
+
+  // His shiurim before Eruchin 2 are linked to listen to, with no sync. The daf
+  // used to be given placeholder timing (each line an equal share of the hour),
+  // which lit lines and seeked on taps as if it were a sync of what he says.
+  test('a shiur with no sync shows the daf without highlighting, and a tap says it is not synced', async ({ page }) => {
+    await openBornstein(page, { synced: false });
+    await page.waitForFunction(() => state.segments.length > 0 && state.alignmentStatus === 'placeholder', null, { timeout: 20000 });
+    expect(await page.evaluate(() => ({ unsynced: state.unsyncedDaf, active: state.activeIndex }))).toEqual({ unsynced: true, active: -1 });
+    await page.evaluate(() => { document.getElementById('video').currentTime = 6; updateActiveSegment(true); });
+    expect(await page.evaluate(() => state.activeIndex)).toBe(-1);
+    await page.evaluate(() => { document.querySelectorAll('.toast').forEach((t) => { t.textContent = ''; }); });
+    const before = await page.evaluate(() => getCurrentTime());
+    await page.evaluate(() => seekToVilnaWord(state.segments[1].ref, 0));
+    await expect(page.locator('.toast')).toContainText("isn't synced with the daf yet");
+    expect(Math.abs((await page.evaluate(() => getCurrentTime())) - before)).toBeLessThan(0.5);
   });
 
   test('a file their server does not send says so, and does not turn to YouTube', async ({ page }) => {
