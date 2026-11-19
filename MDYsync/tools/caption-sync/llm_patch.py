@@ -286,10 +286,19 @@ def ask(client, canon, heard, batch, refresh=None):
 # ---------------------------------------------------------------------------
 # The same questions can be answered by Claude in a Claude Code session, on the
 # owner's own plan, instead of through the API (November 2026: the API account
-# had no credit). voice_align.py --patch-questions writes every hole as patch()
-# would ask about it; the answers go in a file (patch-answers/<video id>.json)
-# and voice_align.py --patch-answers applies them through accept() and the
-# straight path like any answer from the API.
+# had no credit):
+#
+#   git show origin/results:transcripts/<video id>.json.gz > /tmp/t.json.gz
+#   python3 voice_align.py job-audio.mp3 --refs-json '["Arakhin 2a","Arakhin 2b"]' \
+#       --saved-transcripts /tmp/t.json.gz --out-dir /tmp/out --patch-questions /tmp/q.json
+#
+# writes every hole as patch() would ask about it (q.json's "system" says how to
+# answer). The answers, as {"schema": ANSWERS_SCHEMA, "videoId": ..., "placements":
+# [{"daf": [first, last], "heard": [first, last], "kind": "read"|"explained",
+# "confidence": 0.8, "why": "..."}]}, are checked locally with --patch-answers
+# and then given to realign.yml's "answers" input, which keeps them on the
+# results branch (patch-answers/<video id>.json) and applies them through
+# accept() and the straight path like any answer from the API.
 #
 # An answer names daf words and heard words by their place in the whole daf and
 # the whole transcript (not M0.. within one hole), so it still applies when the
