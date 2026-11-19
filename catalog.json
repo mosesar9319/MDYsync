@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-18T20:40:18.474Z",
+  "generatedAt": "2026-11-19T00:02:08.883Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -1338,47 +1338,47 @@
       },
       {
         "daf": 60,
-        "regularHe": {
-          "videoId": "OEUbsHtVplI",
-          "label": "מרכז דף יומי - בכורות דף ס. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "pAljOGkUdWk",
           "label": "Daf Yomi Bechoros Daf 60 by R' Eli Stefansky",
-          "amud": "a"
-        },
-        "chazarahHe": {
-          "videoId": "vuizuyDNTfU",
-          "label": "חזרה - בכורות דף ס | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
         },
         "chazarahEn": {
           "videoId": "nZE43x6NGMg",
           "label": "CHAZARAH - Bechoros Daf 60 | \"Nothing but the Daf\" with R' Eli Stefansky",
           "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "OEUbsHtVplI",
+          "label": "מרכז דף יומי - בכורות דף ס. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "vuizuyDNTfU",
+          "label": "חזרה - בכורות דף ס | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a"
         }
       },
       {
         "daf": 61,
-        "regularHe": {
-          "videoId": "5NikyWa4o1A",
-          "label": "מרכז דף יומי - בכורות דף סא. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "YPlS157SipA",
           "label": "Daf Yomi Bechoros Daf 61 by R' Eli Stefansky",
           "amud": "a"
         },
-        "chazarahHe": {
-          "videoId": "uoQ_VZ6uzkw",
-          "label": "חזרה - בכורות דף סא | \"רק הדף\" עם ר' אלי סטפנסקי",
-          "amud": "a"
-        },
         "chazarahEn": {
           "videoId": "ga3qLfXMrwE",
           "label": "CHAZARAH - Bechoros Daf 61 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "5NikyWa4o1A",
+          "label": "מרכז דף יומי - בכורות דף סא. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "uoQ_VZ6uzkw",
+          "label": "חזרה - בכורות דף סא | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a"
         }
       }
