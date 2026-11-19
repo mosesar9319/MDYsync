@@ -1,0 +1,57 @@
+{
+  "model": "scribe_v2",
+  "requests": 24,
+  "audioMinutes": 134.1,
+  "keytermMinutes": 70.5,
+  "before": {
+    "used": 1582,
+    "limit": 30247,
+    "left": 28665,
+    "resetsAt": 1797636300,
+    "tier": "starter"
+  },
+  "after": {
+    "used": 4034,
+    "limit": 30247,
+    "left": 26213,
+    "resetsAt": 1797636300,
+    "tier": "starter"
+  },
+  "creditsUsed": 2452,
+  "creditsLeft": 26213,
+  "creditLimit": 30247,
+  "passes": [
+    {
+      "pass": "hints",
+      "requests": 1,
+      "audioMinutes": 63.6,
+      "creditsUsed": 1325,
+      "creditsPerAudioMinute": 20.8
+    },
+    {
+      "pass": "plain",
+      "requests": 1,
+      "audioMinutes": 63.6,
+      "creditsUsed": 1060,
+      "creditsPerAudioMinute": 16.7
+    },
+    {
+      "pass": "relisten",
+      "requests": 22,
+      "audioMinutes": 6.9,
+      "creditsUsed": 67,
+      "creditsPerAudioMinute": 9.7
+    }
+  ],
+  "at": "2026-11-19T051320Z",
+  "jobId": "e7d1b06ab7ae46778ac8c1fa770f18a5",
+  "videoUrl": "https://www.youtube.com/watch?v=TWCiP96dKXU",
+  "maggid": "bornstein",
+  "testRun": true,
+  "refs": [
+    "Bekhorot 57b",
+    "Bekhorot 58a",
+    "Bekhorot 58b",
+    "Bekhorot 59a"
+  ]
+}
