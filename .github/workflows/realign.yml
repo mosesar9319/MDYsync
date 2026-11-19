@@ -7,6 +7,12 @@ name: Place a shiur again from its saved transcripts (no ElevenLabs)
 # shiur, or brought to shiurim already synced, without transcribing anything.
 # It reads no audio and makes no ElevenLabs call.
 #
+# With "claude" on (the default), Claude is asked about the holes the path leaves
+# (tools/caption-sync/llm_patch.py), which costs Claude usage -- about what one
+# sync's does -- and only works from main: the Anthropic workload identity rule
+# is scoped to this repository's main branch. From any other branch the request
+# is refused and the shiur is placed without it.
+#
 # The result is filed as the shiur's next numbered test run
 # (tools/caption-sync/test_runs.py). The player shows a shiur's run with the most
 # daf words matched unless an admin picked another, so a better placement is
@@ -24,12 +30,17 @@ on:
         description: "Also replace the shiur's own sync (otherwise it is filed as a test run only)"
         type: boolean
         default: false
+      claude:
+        description: 'Ask Claude about the words the path could not place (costs Claude usage; main branch only)'
+        type: boolean
+        default: true
       notes:
         description: 'A note for the test run (what changed in the engine)'
         default: ''
 
 permissions:
   contents: write
+  id-token: write
 
 concurrency:
   group: realign-${{ inputs.video_id }}
@@ -53,10 +64,28 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r MDYsync/tools/caption-sync/requirements-voice.txt
 
+      # As in voice-job.yml: the job's own GitHub-signed token, which the
+      # anthropic SDK exchanges for a short-lived Anthropic one.
+      - name: Fetch GitHub OIDC token for Anthropic workload identity federation
+        if: inputs.claude
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const token = await core.getIDToken('https://api.anthropic.com');
+            fs.writeFileSync('${{ runner.temp }}/anthropic-oidc-token', token);
+
       - name: Place the shiur again
         working-directory: MDYsync/tools/caption-sync
         env:
           VIDEO_ID: ${{ inputs.video_id }}
+          VOICE_LLM_PATCH: ${{ inputs.claude && '1' || '0' }}
+          # The same workload identity as voice-job.yml (see the notes there).
+          ANTHROPIC_FEDERATION_RULE_ID: fdrl_01AtYN9MAYUPtY4cZQyXsbyc
+          ANTHROPIC_ORGANIZATION_ID: 74d376cd-dbe1-4433-9451-95c6e803b4cf
+          ANTHROPIC_SERVICE_ACCOUNT_ID: svac_01K7UViJoUA8BYZqkTSFrEpu
+          ANTHROPIC_WORKSPACE_ID: wrkspc_01Kd4TUMsuNEyVL7WLvpxiHL
+          ANTHROPIC_IDENTITY_TOKEN_FILE: ${{ runner.temp }}/anthropic-oidc-token
         run: |
           set -e
           case "$VIDEO_ID" in

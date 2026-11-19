@@ -1768,10 +1768,45 @@ def primary_word_indices(canon, primary_refs):
     return indices if indices and len(indices) < len(canon) else None
 
 
+def llm_patch_by_default():
+    """Whether Claude is asked about the holes the path leaves (llm_patch.py) when
+    nobody said either way: wherever the job can reach Claude, unless
+    $VOICE_LLM_PATCH is 0."""
+    return os.environ.get("VOICE_LLM_PATCH", "1") != "0" and _anthropic_credentials_available()
+
+
+def apply_llm_patch(canon, events, stats, heard, primary, duration, client=None, ask_claude=None):
+    """Claude's placements for the holes (llm_patch.patch), added to the path's
+    events and counted in its stats: words he read are matched (dafWordsPatched),
+    words he only explained are highlighted and counted apart (dafWordsExplained),
+    never as matched. Returns the events, in time order."""
+    import llm_patch
+    placed = {i for event in events for i in range(event.start_idx, event.end_idx + 1)}
+    counted = path_align.counted_words(canon, primary, placed)
+    kwargs = {"ask_claude": ask_claude} if ask_claude else {}
+    new_events, used = llm_patch.patch(canon, events, counted, heard, duration, client=client,
+                                       refresh=_refresh_github_oidc_token, **kwargs)
+    read, explained = set(), set()
+    for event in new_events:
+        words = set(range(event.start_idx, event.end_idx + 1)) - placed
+        (read if event.source == llm_patch.SOURCE_READ else explained).update(words)
+        bucket = stats["bySource"].setdefault(
+            event.source, {"label": llm_patch.SOURCE_LABELS[event.source], "runs": 0, "words": 0})
+        bucket["runs"] += 1
+        bucket["words"] += event.end_idx - event.start_idx + 1
+    explained -= read
+    stats["dafWordsPatched"] = len(read & counted)
+    stats["dafWordsExplained"] = len(explained & counted)
+    stats["matchedWords"] += stats["dafWordsPatched"]
+    stats["unmatchedWords"] -= stats["dafWordsPatched"]
+    stats["claude"] = used
+    return sorted(list(events) + new_events, key=lambda event: (event.t, event.start_idx))
+
+
 def process_video(video_path, refs, model_size="small", cache_dir=None, debug=False,
                   engine="whisper", fallback=True, llm_rescue=None, refine=True,
                   aligner="path", witnesses=DEFAULT_WITNESSES, slow_tempo=SLOW_TEMPO, transcripts=None,
-                  keep_after_reading=False, primary_refs=None, saved_witnesses=None):
+                  keep_after_reading=False, primary_refs=None, saved_witnesses=None, llm_patch=None):
     canon, segments = load_canonical(refs, cache_dir)
     print(f"Canonical text: {len(segments)} segments, {len(canon)} words")
     for c in canon:
@@ -1925,14 +1960,29 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
                         primary=primary)
                     path_stats["relisten"] = {"words": len(again), "matchedBefore": first_heard}
             path_stats.pop("holes", None)
+            if path_events and (llm_patch_by_default() if llm_patch is None else llm_patch):
+                # Last: Claude reads each hole with the transcript of just that
+                # stretch (llm_patch.py). Losing it only loses what it would
+                # have placed.
+                try:
+                    path_events = apply_llm_patch(canon, path_events, path_stats, words, primary, duration)
+                    used = path_stats["claude"]
+                    print(f"Claude read {used['holes']} hole(s) holding {used['holeWords']} daf words in "
+                          f"{used['calls']} request(s) ({used['inputTokens']:,} tokens in, "
+                          f"{used['outputTokens']:,} out, {used['model']}): placed "
+                          f"{path_stats['dafWordsPatched']} that were read; {path_stats['dafWordsExplained']} "
+                          f"more are explained without being read (highlighted, not counted)")
+                except Exception as error:  # noqa: BLE001
+                    print(f"Claude's reading of the holes failed ({error!r}); keeping the path as it is.")
             if path_events:
-                path_stats["llmCalls"] = llm_calls
+                path_stats["llmCalls"] = llm_calls + (path_stats.get("claude") or {}).get("calls", 0)
                 path_stats["phraseMatcher"] = {key: stats[key] for key in ("matchedWords", "totalWords", "passes")}
                 events, stats = path_events, path_stats
                 share = 100 * stats["matchedWords"] / max(1, stats["totalWords"])
                 print(f"Path alignment: heard {stats['dafWordsHeard']} of {stats['dafWords']} daf words "
                       f"from {stats['witnesses']} transcript(s), and filled in "
-                      f"{stats.get('dafWordsBridged', 0)} more between placed phrases: "
+                      f"{stats.get('dafWordsBridged', 0)} more between placed phrases"
+                      f"{', and Claude placed %d' % stats['dafWordsPatched'] if stats.get('dafWordsPatched') else ''}: "
                       f"{stats['matchedWords']} of {stats['totalWords']} ({share:.0f}%)")
                 if stats.get("wordsRead", stats["dafWords"]) != stats["dafWords"]:
                     print(f"  Counted: the daf's own {stats['ownDafWords']} words and "
@@ -1995,6 +2045,11 @@ def main():
                    help="A job's saved transcripts (transcripts.json, or .json.gz, as voice-job.yml "
                         "stores them on the results branch) to place again instead of transcribing: "
                         "no audio is read and no ElevenLabs credit is spent.")
+    p.add_argument("--llm-patch", dest="llm_patch", action="store_true", default=None,
+                   help="Ask Claude about the holes the path leaves (llm_patch.py). Default: on "
+                        "wherever the job has Anthropic credentials, unless $VOICE_LLM_PATCH is 0.")
+    p.add_argument("--no-llm-patch", dest="llm_patch", action="store_false",
+                   help="Do not ask Claude about the holes.")
     p.add_argument("--no-neighbors", dest="neighbors", action="store_false",
                    default=os.environ.get("VOICE_NEIGHBORS", "1") != "0",
                    help="Do not also read the amud before and after a whole daf (see "
@@ -2026,7 +2081,7 @@ def main():
         engine=args.engine, fallback=not args.no_fallback, llm_rescue=args.llm_rescue,
         refine=args.refine, aligner=args.aligner, witnesses=args.witnesses,
         slow_tempo=args.slow_tempo, transcripts=args.transcript, keep_after_reading=args.keep_after_reading,
-        primary_refs=primary_refs, saved_witnesses=saved_witnesses)
+        primary_refs=primary_refs, saved_witnesses=saved_witnesses, llm_patch=args.llm_patch)
     if saved_seconds:
         duration = max(duration, saved_seconds)
     if HEARD_WITNESSES and not reading_saved:
