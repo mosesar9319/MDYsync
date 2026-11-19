@@ -374,6 +374,57 @@ class _Witness:
                                      source, " ".join(t["text"] for t in self.tokens[i:i + length])))
         return out
 
+    def adjoining(self, t, lo, hi, after_phrase, limit):
+        """What stands right next to a placed phrase, against the daf words right
+        next to it: the best (score, daf words, Candidate) of the transcript words
+        that follow time t without a pause (after_phrase; else lead up to it)
+        read as daf words lo.. (else ..hi - 1), or None. limit: the time the
+        words may not pass (the next placed phrase; else the one before)."""
+        tokens = self.tokens
+        if after_phrase:
+            i = bisect.bisect_left(self.starts, t - OVERLAP_SLACK_SECONDS)
+            if i >= len(tokens) or tokens[i]["start"] - t > READ_ON_MAX_PAUSE_SECONDS:
+                return None
+            spans = [(i, i + n) for n in range(1, READ_ON_MAX_TOKENS + 1) if i + n <= len(tokens)]
+        else:
+            j = bisect.bisect_right(self.starts, t + OVERLAP_SLACK_SECONDS) - 1
+            while j >= 0 and tokens[j]["end"] > t + OVERLAP_SLACK_SECONDS:
+                j -= 1
+            if j < 0 or t - tokens[j]["end"] > READ_ON_MAX_PAUSE_SECONDS:
+                return None
+            spans = [(j + 1 - n, j + 1) for n in range(1, READ_ON_MAX_TOKENS + 1) if j + 1 - n >= 0]
+        best = None
+        for a, b in spans:
+            stretch = tokens[a:b]
+            script = stretch[0]["script"]
+            if script is None or any(tok["script"] != script or tok["common"] for tok in stretch):
+                break
+            if any(y["start"] - x["end"] > MAX_WINDOW_GAP_SECONDS for x, y in zip(stretch, stretch[1:])):
+                break
+            if (after_phrase and stretch[-1]["end"] > limit + OVERLAP_SLACK_SECONDS) or \
+                    (not after_phrase and stretch[0]["start"] < limit - OVERLAP_SLACK_SECONDS):
+                break
+            key, daf, source = ("sk", self.daf_latin, SOURCE_LATIN_GAP) if script == "lat" \
+                else ("phon", self.daf_hebrew, SOURCE_HEBREW_GAP)
+            heard = "".join(tok[key] for tok in stretch)
+            if len(heard) < READ_ON_MIN_CHARS:
+                continue
+            for n in range(1, hi - lo + 1):
+                s, e = (lo, lo + n - 1) if after_phrase else (hi - n, hi - 1)
+                written = "".join(daf[s:e + 1])
+                chars = min(len(heard), len(written))
+                if chars < READ_ON_MIN_CHARS:
+                    continue
+                score = fuzz.ratio(heard, written)
+                if score < _read_on_floor(chars):
+                    continue
+                rank = (score, n)
+                if best is None or rank > best[:2]:
+                    best = (score, n, Candidate(stretch[0]["start"], stretch[-1]["end"], s, e, float(score), chars,
+                                                self.sources[0] if self.sources else source,
+                                                " ".join(tok["text"] for tok in stretch)))
+        return best
+
     def between(self, t0, t1):
         """The transcript words that start inside (t0, t1), as an index range."""
         return bisect.bisect_left(self.starts, t0), bisect.bisect_left(self.starts, t1)
@@ -509,6 +560,46 @@ def fill_gaps(witnesses, placed, short_words=True):
         local = [c._replace(s=c.s - lo, e=c.e - lo) for c in cands if c.t1 <= after.t0 + OVERLAP_SLACK_SECONDS + slack]
         for c in best_path(local, hi - lo, forward_only=True):
             found.append(c._replace(s=c.s + lo, e=c.e + lo))
+    return found
+
+
+# What the maggid read on to and the transcriber mangled. He reads לאתויי מנוול
+# ומוכה שחין in one breath and then explains for a quarter of a minute; the
+# transcript has "Laasui yayi menuvah u'mokashim." The last word is ומוכה שחין,
+# but as a match it is a poor one (two words run into one, 67 of 100), and
+# anywhere in those fifteen seconds of English it could not be taken. Standing
+# right after a placed phrase, with no pause, against the very daf words that
+# come next, it can: there is little else it could be. The same holds for what
+# leads straight into a placed phrase. (R' Bornstein's Eruchin 2, 18:52: the
+# two words stayed dark while he read them.)
+READ_ON_MAX_DAF_WORDS = 4
+READ_ON_MAX_TOKENS = 3
+READ_ON_MAX_PAUSE_SECONDS = 1.0
+READ_ON_MIN_CHARS = 3
+
+
+def _read_on_floor(chars):
+    if chars <= 3:
+        return 100
+    return 65 if chars <= 5 else GAP_SCORE_CUTOFF
+
+
+def read_on(witnesses, placed):
+    """Placements for the few daf words between two neighbours on the path that
+    the maggid read straight after the first or straight into the second (the
+    new ones only)."""
+    found = []
+    for before, after in zip(placed, placed[1:]):
+        lo, hi = before.e + 1, after.s
+        if not 1 <= hi - lo <= READ_ON_MAX_DAF_WORDS or after.t0 <= before.t1:
+            continue
+        options = []
+        for witness in witnesses:
+            options.append(witness.adjoining(before.t1, lo, hi, True, after.t0))
+            options.append(witness.adjoining(after.t0, lo, hi, False, before.t1))
+        options = [o for o in options if o]
+        if options:
+            found.append(max(options, key=lambda o: o[:2])[2])
     return found
 
 
@@ -912,6 +1003,16 @@ def align_path(canon, transcripts, phonetic, proposals=(), source_labels=None, e
         placed = sorted(placed + bridge_holes(placed), key=lambda c: (c.t0, c.t1))
         if straight:
             placed = _straight(placed)
+    if gaps:
+        # After the bridges: a hole they fill whole is better left to them than
+        # begun here, which would leave a remainder no rule fills.
+        more = read_on(witnesses, placed)
+        if more:
+            placed = sorted(placed + more, key=lambda c: (c.t0, c.t1))
+            if bridges:
+                placed = sorted(placed + bridge_holes(placed), key=lambda c: (c.t0, c.t1))
+            if straight:
+                placed = _straight(placed)
     reading_ends = end_of_reading(placed)
     dropped_after_reading = strays_after
     stop_at = None if keep_after_reading or reading_ends is None else reading_ends + AFTER_READING_GRACE_SECONDS
