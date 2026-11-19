@@ -555,17 +555,17 @@
     {
       "ref": "Arakhin 3a:4",
       "start": 730.19,
-      "end": 730.19,
-      "he": "לְאֵתוֹיֵי מַאי? לְאֵתוֹיֵי תִּינוֹק בֶּן",
+      "end": 731.43,
+      "he": "לְאֵתוֹיֵי מַאי? לְאֵתוֹיֵי תִּינוֹק בֶּן יוֹמוֹ,",
       "w0": 4,
-      "w1": 8
+      "w1": 9
     },
     {
       "ref": "Arakhin 3a:4",
       "start": 742.37,
-      "end": 742.39,
-      "he": "יוֹמוֹ, דְּתַנְיָא:",
-      "w0": 9,
+      "end": 742.38,
+      "he": "דְּתַנְיָא:",
+      "w0": 10,
       "w1": 10,
       "estimated": true
     },
@@ -742,19 +742,10 @@
     },
     {
       "ref": "Arakhin 3a:8",
-      "start": 907.45,
-      "end": 907.46,
-      "he": "לְאֵתוֹיֵי",
-      "w0": 6,
-      "w1": 6,
-      "estimated": true
-    },
-    {
-      "ref": "Arakhin 3a:8",
-      "start": 907.45,
+      "start": 906.73,
       "end": 907.45,
-      "he": "קָטָן. סָלְקָא דַּעְתָּךְ אָמֵינָא:",
-      "w0": 7,
+      "he": "לְאֵתוֹיֵי קָטָן. סָלְקָא דַּעְתָּךְ אָמֵינָא:",
+      "w0": 6,
       "w1": 10
     },
     {
@@ -851,17 +842,17 @@
     {
       "ref": "Arakhin 3a:11",
       "start": 961.87,
-      "end": 961.87,
-      "he": "לָעִנְיָן",
+      "end": 962.27,
+      "he": "לָעִנְיָן שֶׁל מַטָּה",
       "w0": 6,
-      "w1": 6
+      "w1": 8
     },
     {
       "ref": "Arakhin 3a:11",
       "start": 966.23,
-      "end": 966.26,
-      "he": "שֶׁל מַטָּה —",
-      "w0": 7,
+      "end": 966.24,
+      "he": "—",
+      "w0": 9,
       "w1": 9,
       "estimated": true
     },
@@ -956,19 +947,19 @@
     },
     {
       "ref": "Arakhin 3a:14",
-      "start": 1084.57,
-      "end": 1084.59,
-      "he": "— לְאֵתוֹיֵי",
+      "start": 1084.05,
+      "end": 1084.06,
+      "he": "—",
       "w0": 3,
-      "w1": 4,
+      "w1": 3,
       "estimated": true
     },
     {
       "ref": "Arakhin 3a:14",
-      "start": 1084.57,
+      "start": 1084.05,
       "end": 1087.93,
-      "he": "מַאי? לְרַבִּי יְהוּדָה לְאֵתוֹיֵי קָטָן, וּלְרַבָּנַן לְאֵתוֹיֵי אִשָּׁה.",
-      "w0": 5,
+      "he": "לְאֵתוֹיֵי מַאי? לְרַבִּי יְהוּדָה לְאֵתוֹיֵי קָטָן, וּלְרַבָּנַן לְאֵתוֹיֵי אִשָּׁה.",
+      "w0": 4,
       "w1": 12
     },
     {
@@ -1013,37 +1004,28 @@
     },
     {
       "ref": "Arakhin 3a:15",
-      "start": 1142.3,
-      "end": 1142.32,
-      "he": "— לְאֵתוֹיֵי",
+      "start": 1141.64,
+      "end": 1141.65,
+      "he": "—",
       "w0": 3,
-      "w1": 4,
+      "w1": 3,
       "estimated": true
     },
     {
       "ref": "Arakhin 3a:15",
-      "start": 1142.3,
+      "start": 1141.64,
       "end": 1145.02,
-      "he": "מַאי? לְאֵתוֹיֵי עָרֵל, וְכִדְרַבִּי אֶלְעָזָר, דְּאָמַר רַבִּי אֶלְעָזָר:",
-      "w0": 5,
+      "he": "לְאֵתוֹיֵי מַאי? לְאֵתוֹיֵי עָרֵל, וְכִדְרַבִּי אֶלְעָזָר, דְּאָמַר רַבִּי אֶלְעָזָר:",
+      "w0": 4,
       "w1": 12
     },
     {
       "ref": "Arakhin 3a:15",
       "start": 1145.56,
-      "end": 1145.56,
-      "he": "עָרֵל שֶׁהִזָּה",
+      "end": 1146.28,
+      "he": "עָרֵל שֶׁהִזָּה — הַזָּאָתוֹ",
       "w0": 13,
-      "w1": 14
-    },
-    {
-      "ref": "Arakhin 3a:15",
-      "start": 1182.72,
-      "end": 1182.74,
-      "he": "— הַזָּאָתוֹ",
-      "w0": 15,
-      "w1": 16,
-      "estimated": true
+      "w1": 16
     },
     {
       "ref": "Arakhin 3a:15",
@@ -1179,19 +1161,19 @@
     },
     {
       "ref": "Arakhin 3b:3",
-      "start": 1395.6,
-      "end": 1395.62,
-      "he": "— לְאֵתוֹיֵי",
+      "start": 1394.9,
+      "end": 1394.91,
+      "he": "—",
       "w0": 3,
-      "w1": 4,
+      "w1": 3,
       "estimated": true
     },
     {
       "ref": "Arakhin 3b:3",
-      "start": 1395.6,
+      "start": 1394.9,
       "end": 1396.14,
-      "he": "מִנָּוֶה הַיָּפָה לְנָוֶה הָרָעָה,",
-      "w0": 5,
+      "he": "לְאֵתוֹיֵי מִנָּוֶה הַיָּפָה לְנָוֶה הָרָעָה,",
+      "w0": 4,
       "w1": 8
     },
     {
@@ -2623,12 +2605,21 @@
     },
     {
       "start": 730.19,
-      "end": 742.37,
+      "end": 731.43,
       "ref": "Arakhin 3a:4",
       "w0": 4,
       "w1": 8,
       "heardText": "לאתויי מאי לאתויי תינוק בן",
       "source": "path-hebrew"
+    },
+    {
+      "start": 731.43,
+      "end": 742.37,
+      "ref": "Arakhin 3a:4",
+      "w0": 9,
+      "w1": 9,
+      "heardText": "ימאי",
+      "source": "path-hebrew-gap"
     },
     {
       "start": 742.37,
@@ -2974,12 +2965,21 @@
     },
     {
       "start": 899.63,
-      "end": 907.45,
+      "end": 906.73,
       "ref": "Arakhin 3a:8",
       "w0": 0,
       "w1": 5,
       "heardText": "כרת. הכול מטמא בנגעים לא סויא מאי.",
       "source": "deterministic-local"
+    },
+    {
+      "start": 906.73,
+      "end": 907.45,
+      "ref": "Arakhin 3a:8",
+      "w0": 6,
+      "w1": 6,
+      "heardText": "לא סויא",
+      "source": "path-hebrew-gap"
     },
     {
       "start": 907.45,
@@ -3127,12 +3127,21 @@
     },
     {
       "start": 961.87,
-      "end": 966.23,
+      "end": 962.27,
       "ref": "Arakhin 3a:11",
       "w0": 6,
       "w1": 6,
       "heardText": "לענין",
       "source": "path-hebrew"
+    },
+    {
+      "start": 962.27,
+      "end": 966.23,
+      "ref": "Arakhin 3a:11",
+      "w0": 7,
+      "w1": 8,
+      "heardText": "למעט.",
+      "source": "path-hebrew-gap"
     },
     {
       "start": 966.23,
@@ -3334,12 +3343,21 @@
     },
     {
       "start": 1075.99,
-      "end": 1084.57,
+      "end": 1084.05,
       "ref": "Arakhin 3a:14",
       "w0": 1,
       "w1": 2,
       "heardText": "כשר לקדש.",
       "source": "path-hebrew"
+    },
+    {
+      "start": 1084.05,
+      "end": 1084.57,
+      "ref": "Arakhin 3a:14",
+      "w0": 4,
+      "w1": 4,
+      "heardText": "לא סויא",
+      "source": "path-hebrew-gap"
     },
     {
       "start": 1084.57,
@@ -3451,12 +3469,21 @@
     },
     {
       "start": 1137.06,
-      "end": 1142.3,
+      "end": 1141.64,
       "ref": "Arakhin 3a:15",
       "w0": 2,
       "w1": 2,
       "heardText": "הכול כשיר להזוי.",
       "source": "path-hebrew"
+    },
+    {
+      "start": 1141.64,
+      "end": 1142.3,
+      "ref": "Arakhin 3a:15",
+      "w0": 4,
+      "w1": 4,
+      "heardText": "לעשות יהיה",
+      "source": "path-hebrew-gap"
     },
     {
       "start": 1142.3,
@@ -3496,12 +3523,21 @@
     },
     {
       "start": 1145.56,
-      "end": 1182.72,
+      "end": 1146.28,
       "ref": "Arakhin 3a:15",
       "w0": 13,
       "w1": 14,
       "heardText": "ערל שהיא",
       "source": "path-hebrew"
+    },
+    {
+      "start": 1146.28,
+      "end": 1182.72,
+      "ref": "Arakhin 3a:15",
+      "w0": 16,
+      "w1": 16,
+      "heardText": "זאזא",
+      "source": "path-hebrew-gap"
     },
     {
       "start": 1182.72,
@@ -3685,12 +3721,21 @@
     },
     {
       "start": 1360.38,
-      "end": 1395.6,
+      "end": 1394.9,
       "ref": "Arakhin 3b:3",
       "w0": 0,
       "w1": 2,
       "heardText": "הכול מעלין לירושלים.",
       "source": "path-hebrew"
+    },
+    {
+      "start": 1394.9,
+      "end": 1395.6,
+      "ref": "Arakhin 3b:3",
+      "w0": 4,
+      "w1": 4,
+      "heardText": "לעשות יהיה",
+      "source": "path-hebrew-gap"
     },
     {
       "start": 1395.6,
@@ -4460,10 +4505,10 @@
   ],
   "matchStats": {
     "aligner": "path",
-    "totalRuns": 447,
+    "totalRuns": 454,
     "totalWords": 777,
-    "matchedWords": 596,
-    "unmatchedWords": 181,
+    "matchedWords": 604,
+    "unmatchedWords": 173,
     "excludedWords": 0,
     "bySource": {
       "path-latin": {
@@ -4483,8 +4528,8 @@
       },
       "path-hebrew-gap": {
         "label": "Second look between placed phrases (Hebrew letters)",
-        "runs": 8,
-        "words": 14
+        "runs": 15,
+        "words": 22
       },
       "path-bridge": {
         "label": "Filled in between two placed phrases a moment apart (not heard on its own)",
@@ -5290,12 +5335,6 @@
         "offeredToLlm": false
       },
       {
-        "start": 731.29,
-        "end": 731.61,
-        "text": "יום אחד",
-        "offeredToLlm": false
-      },
-      {
         "start": 732.25,
         "end": 732.81,
         "text": "תנא דאמר רבי",
@@ -5702,6 +5741,12 @@
         "end": 994.07,
         "text": "לא סויא",
         "offeredToLlm": false
+      },
+      {
+        "start": 995.03,
+        "end": 995.47,
+        "text": "הכול רואה",
+        "offeredToLlm": false
       }
     ],
     "excluded": [],
@@ -5710,7 +5755,7 @@
     "witnesses": 2,
     "transcriptWords": 14277,
     "dafWords": 777,
-    "dafWordsHeard": 534,
+    "dafWordsHeard": 542,
     "dafWordsBridged": 62,
     "wordsRead": 1429,
     "ownDafWords": 671,
@@ -5728,7 +5773,7 @@
     "model": "scribe_v2",
     "placedAgain": true
   },
-  "jobId": "realign-44580346354",
+  "jobId": "realign-44603738698",
   "videoId": "L0213553074",
   "videoUrl": "https://lakewoodafyomi.appspot.com/m5/CAEQkeSriAEaICqIoruUtU7r6kuEx1IzKkXe51WZTq4jI6O0B-B6fSSBIiCLk52fkR3MCFqljzwzFStOgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQXJhY2hpbiAzXzIxMzU1MzA3NC5tcDM/Arachin%203_213553074.mp3",
   "coveredRefs": [
