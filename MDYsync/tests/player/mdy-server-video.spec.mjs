@@ -346,7 +346,8 @@ test.describe('R’ Bornstein’s shiurim from Lakewood Daf Yomi’s server', ()
       state.straightPathSync = straight;
       state.activeIndex = -1;
       state.segments = [
-        { ref: 'Chullin 89a:1', w0: 0, w1: 1, start: 718, end: 731, he: 'א ב' },      // 2 words, then 13s of explanation
+        { ref: 'Chullin 89a:1', w0: 0, w1: 0, start: 718, end: 718, he: 'א' },        // as voice_align.py writes them: ending where they start
+        { ref: 'Chullin 89a:1', w0: 1, w1: 1, start: 718.06, end: 731, he: 'ב' },     // then 13s of explanation
         { ref: 'Chullin 89a:1', w0: 2, w1: 2, start: 731, end: 751, he: 'ג' },
         { ref: 'Chullin 89a:2', w0: 0, w1: 4, start: 751, end: 754, he: 'ד ה ו ז ח' },
         { ref: 'Chullin 89a:2', w0: 5, w1: 6, start: 754, end: 760, he: 'ט י' },

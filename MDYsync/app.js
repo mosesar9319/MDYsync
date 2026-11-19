@@ -1055,13 +1055,15 @@ function isExplanationPaced(entry) {
 function isSkippableSegment(index) {
   const segment = state.segments[index];
   if (!segment || segment.estimated) return true;
-  const duration = Number(segment.end) - Number(segment.start);
-  if (!Number.isFinite(duration) || duration < 0.2) return true;
   // A voice sync's phrase is on screen until the next one he reads, so a line
   // he read and then explained for a minute looks "held" and was jumped over:
   // from the start of R' Bornstein's Eruchin 2, Vaater went past the first six
-  // lines (11:58) to 15:23. Everything such a sync placed is reading.
-  if (state.straightPathSync) return false;
+  // lines (11:58) to 15:23. Its rows mostly end where they start, too (the
+  // moment the phrase was heard), which the length check below took for blips.
+  // Everything such a sync placed is reading.
+  if (state.straightPathSync) return !Number.isFinite(Number(segment.start));
+  const duration = Number(segment.end) - Number(segment.start);
+  if (!Number.isFinite(duration) || duration < 0.2) return true;
   return isIsolatedHit(state.segments, index) || isExplanationPaced(segment);
 }
 
