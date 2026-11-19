@@ -11443,37 +11443,73 @@ async function switchSyncMethod(method) {
 // A test shiur is a video the maintainers tune the voice models on. Every run of
 // either engine is kept as its own numbered alignment (test-runs/<videoId>/ on the
 // results branch, written by tools/caption-sync/test_runs.py) instead of replacing
-// the last, and the player offers them all, to every reader: "Regular engine"
-// lists the regular voice engine's runs, "Live engine" the live engine's. Picking
-// one swaps the highlighting over to that alignment at the same moment of the
-// video, so two runs can be compared by playing the same stretch under each.
+// the last. Every reader is shown one of them: the run that matched the most of
+// the daf's words to the audio, unless an admin has chosen another for everyone
+// (settings.json's shownTestRun, saved by save-settings.mjs). The box that lists
+// them is for admins only (styles.css, body.is-admin): "Regular engine" lists the
+// regular voice engine's runs, "Live engine" the live engine's. Picking one there
+// swaps the highlighting over to it at the same moment of the video, for that
+// admin alone, so two runs can be compared; "Show this one to everyone" makes it
+// the one every reader sees.
 const TEST_RUN_ENGINES = { regular: 'testRunRegularSelect', live: 'testRunLiveSelect' };
 
+// How many of the daf's words a run matched to the audio (older runs' summaries
+// only say how many it placed).
+function testRunMatchedWords(run) {
+  const summary = run?.summary || {};
+  return Number(summary.matchedWords ?? summary.placedWords ?? 0) || 0;
+}
+
+// The run every reader sees: an admin's choice when it is still one of the runs,
+// else the one with the most daf words matched (the newest on a tie).
+function shownTestRun(runs, chosenId) {
+  const chosen = runs.find((run) => run.id === chosenId);
+  if (chosen) return { id: chosen.id, why: 'admin' };
+  const best = [...runs].sort((a, b) => testRunMatchedWords(b) - testRunMatchedWords(a)
+    || String(b.createdAt || '').localeCompare(String(a.createdAt || '')) || (b.number || 0) - (a.number || 0))[0];
+  return best ? { id: best.id, why: 'best' } : { id: null, why: null };
+}
+
+// Every page that plays a shiur shows the chosen run; only the player page has
+// the box to compare them.
 async function refreshTestRuns(videoId) {
   const panel = $('testRuns');
-  if (!panel) return;
   state.testRuns = null;
-  panel.hidden = true;
+  if (panel) panel.hidden = true;
   if (!/^[A-Za-z0-9_-]{11}$/.test(String(videoId || ''))) return;
-  let index = null;
-  try {
-    const response = await fetch(resultsFileUrl(`test-runs/${videoId}/index.json`, true));
-    if (response.ok) index = await response.json();
-  } catch {
-    // No test runs for this video (the usual case), or no way to reach them.
-  }
+  const readJson = (url) => fetch(url).then((response) => (response.ok ? response.json() : null)).catch(() => null);
+  // No test runs for this video is the usual case; settings.json may not exist.
+  const [index, settings] = await Promise.all([
+    readJson(resultsFileUrl(`test-runs/${videoId}/index.json`, true)),
+    readJson(resultsFileUrl('settings.json', true)),
+  ]);
   // A different video may have been loaded while this was in flight.
   if (state.videoSource?.videoId !== videoId) return;
   const runs = Array.isArray(index?.runs) ? index.runs : [];
   if (!runs.length) return;
-  state.testRuns = { videoId, runs, activeId: null, cache: new Map() };
+  const shown = shownTestRun(runs, settings?.shownTestRun?.[videoId]);
+  state.testRuns = { videoId, runs, activeId: null, cache: new Map(), everyoneId: shown.id, everyoneWhy: shown.why };
   renderTestRunSelects();
-  panel.hidden = false;
+  if (panel) panel.hidden = false;
+  if (shown.id) await applyTestRun(shown.id, { quiet: true });
 }
 
 function testRunOptionLabel(run) {
+  const matched = run.summary?.matchedWords;
+  if (matched != null) return `${run.name} — ${matched} daf words matched`;
   const placed = run.summary?.placedWords;
   return placed != null ? `${run.name} — ${placed} words placed` : run.name;
+}
+
+function testRunNoteText(testRuns) {
+  const active = testRuns.runs.find((run) => run.id === testRuns.activeId);
+  const everyone = testRuns.runs.find((run) => run.id === testRuns.everyoneId);
+  if (!everyone) return active ? `Showing ${active.name}.` : 'Showing the default alignment. Pick a run to compare.';
+  const why = testRuns.everyoneWhy === 'admin'
+    ? 'chosen by an admin'
+    : `the most daf words matched (${testRunMatchedWords(everyone)})`;
+  if (!active || active.id === everyone.id) return `Everyone sees ${everyone.name}: ${why}.`;
+  return `You are previewing ${active.name}. Everyone sees ${everyone.name}: ${why}.`;
 }
 
 function renderTestRunSelects() {
@@ -11498,12 +11534,42 @@ function renderTestRunSelects() {
     select.disabled = !runs.length;
     select.value = runs.some((run) => run.id === testRuns.activeId) ? testRuns.activeId : '';
   }
-  const active = testRuns.runs.find((run) => run.id === testRuns.activeId);
   const note = $('testRunNote');
-  if (note) note.textContent = active ? `Showing ${active.name}.` : 'Showing the default alignment. Pick a run to compare.';
+  if (note) note.textContent = testRunNoteText(testRuns);
+  const showAll = $('testRunShowEveryone');
+  if (showAll) showAll.hidden = !testRuns.activeId || testRuns.activeId === testRuns.everyoneId;
+  const automatic = $('testRunAutomatic');
+  if (automatic) automatic.hidden = testRuns.everyoneWhy !== 'admin';
 }
 
-async function applyTestRun(runId) {
+// An admin makes a run the one every reader sees (runId), or goes back to the
+// run with the most daf words matched (null).
+async function saveShownTestRun(runId) {
+  const testRuns = state.testRuns;
+  if (!testRuns) return;
+  try {
+    const response = await fetch('/api/save-settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shownTestRunVideoId: testRuns.videoId, shownTestRun: runId }),
+    });
+    if (!response.ok) throw new Error(`the server returned ${response.status}`);
+  } catch (error) {
+    showToast(`Could not save that (${error.message}).`, 'error');
+    return;
+  }
+  if (state.testRuns !== testRuns) return;
+  const shown = shownTestRun(testRuns.runs, runId);
+  testRuns.everyoneId = shown.id;
+  testRuns.everyoneWhy = shown.why;
+  const everyone = testRuns.runs.find((run) => run.id === shown.id);
+  if (shown.id && shown.id !== testRuns.activeId) await applyTestRun(shown.id, { quiet: true });
+  else renderTestRunSelects();
+  showToast(runId ? `Everyone now sees ${everyone?.name || 'this run'}.`
+    : `Everyone now sees the run with the most daf words matched${everyone ? ` (${everyone.name})` : ''}.`);
+}
+
+async function applyTestRun(runId, { quiet = false } = {}) {
   const testRuns = state.testRuns;
   const run = testRuns?.runs.find((r) => r.id === runId);
   if (!run) return;
@@ -11523,12 +11589,17 @@ async function applyTestRun(runId) {
     renderTestRunSelects();
     if (await fillMissingDafText(realDafRef(state.dafRef))) renderDaf();
     seek(resumeTime);
-    showToast(`Showing ${run.name}.`);
+    if (!quiet) showToast(`Showing ${run.name}.`);
   } catch (error) {
-    showToast(`Could not load that alignment (${error.message}).`, 'error');
+    if (!quiet) showToast(`Could not load that alignment (${error.message}).`, 'error');
     renderTestRunSelects();
   }
 }
+
+$('testRunShowEveryone')?.addEventListener('click', () => {
+  if (state.testRuns?.activeId) saveShownTestRun(state.testRuns.activeId);
+});
+$('testRunAutomatic')?.addEventListener('click', () => saveShownTestRun(null));
 
 for (const selectId of Object.values(TEST_RUN_ENGINES)) {
   $(selectId)?.addEventListener('change', (event) => {

@@ -11,6 +11,10 @@
 //     alignment are published for it -- overriding loadDaf()'s own
 //     caption-OCR-first default for the specific dapim an admin has
 //     actually compared and judged voice recognition better for.
+//   - shownTestRun: per test-shiur video (keyed by YouTube id), the numbered
+//     run (test-runs/<videoId>/, "regular-6") every reader is shown. Without
+//     one, the player shows the run with the most daf words matched; null
+//     clears an admin's choice back to that.
 
 import { ALLOWED_ORIGINS } from '../../shared/dafsync-config.mjs';
 
@@ -35,10 +39,20 @@ export default async (request) => {
   }
   const hasAutoSync = typeof body?.autoSyncNewUploads === 'boolean';
   const hasPreferredMethod = typeof body?.preferredSyncMethodRef === 'string';
-  if (!hasAutoSync && !hasPreferredMethod) {
+  const hasShownTestRun = typeof body?.shownTestRunVideoId === 'string';
+  if (!hasAutoSync && !hasPreferredMethod && !hasShownTestRun) {
     return Response.json(
-      { error: 'Provide autoSyncNewUploads or preferredSyncMethodRef.' }, { status: 400 }
+      { error: 'Provide autoSyncNewUploads, preferredSyncMethodRef or shownTestRunVideoId.' }, { status: 400 }
     );
+  }
+  if (hasShownTestRun) {
+    if (!/^[A-Za-z0-9_-]{11}$/.test(body.shownTestRunVideoId)) {
+      return Response.json({ error: 'shownTestRunVideoId must be a YouTube video id.' }, { status: 400 });
+    }
+    const run = body.shownTestRun ?? null;
+    if (run !== null && !(typeof run === 'string' && /^(regular|live)-\d{1,4}$/.test(run))) {
+      return Response.json({ error: "shownTestRun must be a run id like 'regular-6', or null." }, { status: 400 });
+    }
   }
   if (hasPreferredMethod) {
     const ref = body.preferredSyncMethodRef.trim();
@@ -95,6 +109,19 @@ export default async (request) => {
     } else {
       settings.preferredSyncMethod[ref] = method;
       message = `Set preferred sync method for ${ref} to ${method}`;
+    }
+  }
+
+  if (hasShownTestRun) {
+    const videoId = body.shownTestRunVideoId;
+    const run = body.shownTestRun ?? null;
+    settings.shownTestRun ||= {};
+    if (run === null) {
+      delete settings.shownTestRun[videoId];
+      message = `Show the best test run of ${videoId} to everyone`;
+    } else {
+      settings.shownTestRun[videoId] = run;
+      message = `Show test run ${run} of ${videoId} to everyone`;
     }
   }
 
