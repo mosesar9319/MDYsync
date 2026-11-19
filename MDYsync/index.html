@@ -2250,20 +2250,14 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       return (state.language === "all" || comboLanguage(key) === state.language)
         && (state.variant === "all" || comboVariant(key) === state.variant);
     }
-    // Used for the hero card and any other single-daf entry point that
-    // doesn't already know which specific combo it wants -- the grid itself
-    // now builds one card per matching combo instead of picking just one.
     // Drop livestreams when this daf also has a finished upload, keeping
     // COMBO_KEYS order so the automatic pick matches the player. A daf whose
-    // only recording is a livestream still uses it.
+    // only recording is a livestream still uses it. (The Today's Daf banner,
+    // which does not know which recording is wanted, offers them all: see
+    // shiurimOnDaf and firstChoice.)
     function withoutLivestreams(row, keys) {
       const finished = keys.filter((key) => row[key] && !row[key].liveBroadcast);
       return finished.length ? finished : keys;
-    }
-    function bestCombo(row) {
-      const matching = COMBO_KEYS.filter((key) => row[key] && comboMatchesFilters(key));
-      const pool = matching.length ? matching : COMBO_KEYS.filter((key) => row[key]);
-      return withoutLivestreams(row, pool)[0];
     }
     function entryForCombo(row, key) {
       return {
@@ -2720,30 +2714,58 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         || COMBO_KEYS.indexOf(a.combo) - COMBO_KEYS.indexOf(b.combo));
     }
 
-    // The modal still offers every combo the daf has (not just the one the
-    // clicked card represented) so switching, say, from regular to Chazarah
-    // doesn't mean closing the modal and hunting for the other card.
-    function selectModalCombo(row, combo) {
+    // Every shiur there is on a daf, whoever gives it: [{ row, combo }], each
+    // maggid's together (the default maggid first), regular English first.
+    // "Watch today's shiur" used to open the default maggid's row alone, so on
+    // the day Eruchin began it offered MDY's Hebrew shiur and never R'
+    // Bornstein's English one, which the Today's Daf tab listed beside it.
+    function shiurimOnDaf(tractate, daf) {
+      const choices = [];
+      for (const row of state.catalog.concat(state.maggidRows)) {
+        if (row.tractate !== tractate || row.daf !== daf) continue;
+        for (const combo of withoutLivestreams(row, COMBO_KEYS.filter((key) => row[key]))) choices.push({ row, combo });
+      }
+      const maggidOrder = (choice) => MAGGIDIM.findIndex((m) => m.id === rowMaggid(choice.row));
+      return choices.sort((x, y) => maggidOrder(x) - maggidOrder(y) || COMBO_KEYS.indexOf(x.combo) - COMBO_KEYS.indexOf(y.combo));
+    }
+
+    // The one the pop-up opens on: what clicking a card would play -- regular
+    // English before the rest (COMBO_KEYS), within the reader's language and
+    // type filters, and of two maggidim's the default maggid's.
+    function firstChoice(choices) {
+      const matching = choices.filter((choice) => comboMatchesFilters(choice.combo));
+      const pool = matching.length ? matching : choices;
+      return pool.reduce((best, choice) => (COMBO_KEYS.indexOf(choice.combo) < COMBO_KEYS.indexOf(best.combo) ? choice : best), pool[0]);
+    }
+
+    // The pop-up offers every shiur of the daf, so going from one to another
+    // (regular to Chazarah, one maggid to another) doesn't mean closing it.
+    function selectModalChoice(choices, index) {
+      const { row, combo } = choices[index];
       const entry = entryForCombo(row, combo);
       document.querySelector("#shiur-title").textContent = videoLabel(row, combo);
       document.querySelector("#modal-teacher").textContent = `${maggidName(rowMaggid(row))} · ${dafLabel(row)} · ${COMBO_LABELS[combo]}`;
       setThumb(document.querySelector("#modal-thumb"), row[combo].videoId, shiurOfCombo(row, combo));
       document.querySelector("#modal-watch-link").href = playerUrl(entry);
       document.querySelectorAll("#modal-variant-toggle button").forEach((button) => {
-        button.classList.toggle("active", button.dataset.combo === combo);
+        button.classList.toggle("active", Number(button.dataset.choice) === index);
       });
     }
 
-    function openShiur(row, combo = bestCombo(row)) {
-      const available = withoutLivestreams(row, COMBO_KEYS.filter((key) => row[key]));
+    function openShiur(choices, chosen = firstChoice(choices)) {
       const toggle = document.querySelector("#modal-variant-toggle");
-      toggle.innerHTML = available.length > 1
-        ? available.map((key) => `<button type="button" data-combo="${key}">${COMBO_LABELS[key]}</button>`).join("")
+      // Whose it is goes on the button only when there is more than one maggid.
+      const severalMaggidim = new Set(choices.map((choice) => rowMaggid(choice.row))).size > 1;
+      const label = (choice) => (severalMaggidim
+        ? `${maggidName(rowMaggid(choice.row))} · ${COMBO_LABELS[choice.combo]}`
+        : COMBO_LABELS[choice.combo]);
+      toggle.innerHTML = choices.length > 1
+        ? choices.map((choice, index) => `<button type="button" data-choice="${index}">${escapeHtml(label(choice))}</button>`).join("")
         : "";
       toggle.querySelectorAll("button").forEach((button) => {
-        button.addEventListener("click", () => selectModalCombo(row, button.dataset.combo));
+        button.addEventListener("click", () => selectModalChoice(choices, Number(button.dataset.choice)));
       });
-      selectModalCombo(row, combo);
+      selectModalChoice(choices, Math.max(0, choices.indexOf(chosen)));
 
       modal.hidden = false;
       document.body.style.overflow = "hidden";
@@ -2952,8 +2974,9 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         loading.textContent = "Could not load today’s daf.";
         return;
       }
-      const row = state.catalog.find((r) => r.tractate === state.today.tractate && r.daf === state.today.daf);
-      if (!row) {
+      // Any maggid's shiur on today's daf, not only the default maggid's.
+      const choices = shiurimOnDaf(state.today.tractate, state.today.daf);
+      if (!choices.length) {
         // catalogFailed means the catalog fetch itself broke (see
         // get-catalog.mjs) -- today's daf may well be linked, we just
         // couldn't check, which is a different message than "not synced yet".
@@ -2964,10 +2987,10 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       }
       loading.hidden = true;
       hero.hidden = false;
-      document.querySelector("#hero-kicker").textContent = `DAF YOMI • ${displayTractate(row.tractate).toUpperCase()}`;
-      document.querySelector("#hero-title").textContent = `Maseches ${displayTractate(row.tractate)} ${row.daf}`;
+      document.querySelector("#hero-kicker").textContent = `DAF YOMI • ${displayTractate(state.today.tractate).toUpperCase()}`;
+      document.querySelector("#hero-title").textContent = `Maseches ${displayTractate(state.today.tractate)} ${state.today.daf}`;
       document.querySelector("#hero-actions").innerHTML = `<span class="watch-button">${icon("play", 18)} Watch today’s shiur</span>`;
-      hero.onclick = () => openShiur(row);
+      hero.onclick = () => openShiur(choices);
     }
 
     function render() {
