@@ -3,7 +3,7 @@ import { parseRoute, playerUrl } from '../../netlify/functions/seo-pages.mjs';
 import { preparePage, failOnPageError } from '../support/harness.mjs';
 
 // The home page lists every followed maggid's videos side by side, and the
-// Maggidei Shiurim tab has a page for each maggid (R' Eli Stefansky, and
+// Maggidei Shiur tab has a page for each maggid (R' Eli Stefansky, and
 // R' Sruly Bornstein of Lakewood Daf Yomi).
 
 const CATALOG = {
@@ -136,7 +136,7 @@ test.describe('Home page — the viewing mode a shiur opens in', () => {
   });
 });
 
-test.describe('Maggidei Shiurim tab', () => {
+test.describe('Maggidei Shiur tab', () => {
   test('lists R’ Eli Stefansky and R’ Sruly Bornstein', async ({ page }) => {
     await open(page, { query: '?nav=maggidei' });
     const names = page.locator('#maggidCards .maggid-card strong');

@@ -1,17 +1,18 @@
 import { test, expect } from '@playwright/test';
 import { preparePage } from '../support/harness.mjs';
 
-// The phone's bottom bar: five tabs with short names that fit side by side
-// (Today's Daf is a chip at the top of the phone home page instead). The
-// desktop sidebar keeps every tab with its full name.
+// The phone's bottom bar: five tabs, each with its full name -- two short
+// lines where it needs them -- side by side without crowding (Today's Daf is a
+// chip at the top of the phone home page instead). The desktop sidebar keeps
+// every tab with its full name too.
 
-const PHONE_TABS = ['Home', 'Daf', 'Chaburah', 'Maggidim', 'Scan'];
-const FULL_NAMES = ['Home', 'Interactive Daf', 'Cloud Chaburah', 'Maggidei Shiurim', 'Daf Scan'];
-const SIDEBAR = ['Home', 'Today’s Daf', 'Interactive Daf', 'Cloud Chaburah', 'Maggidei Shiurim', 'Daf Scan'];
+const FULL_NAMES = ['Home', 'Interactive Daf', 'Cloud Chaburah', 'Maggidei Shiur', 'Daf Scan'];
+const PHONE_TABS = FULL_NAMES;
+const SIDEBAR = ['Home', 'Today’s Daf', 'Interactive Daf', 'Cloud Chaburah', 'Maggidei Shiur', 'Daf Scan'];
 
 for (const [page_, url] of [['home page', '/index.html'], ['Interactive Daf', '/browse/'], ['Cloud Chaburah', '/chaburah/']]) {
   test.describe(`Bottom bar — ${page_}`, () => {
-    test('on a phone: five short tabs that fit, each named in full for screen readers', async ({ page }, info) => {
+    test('on a phone: five tabs with their full names, that fit and do not touch', async ({ page }, info) => {
       test.skip(info.project.name !== 'mobile', 'phone layout');
       await preparePage(page, { user: null });
       for (const width of [412, 360]) {
@@ -25,6 +26,13 @@ for (const [page_, url] of [['home page', '/index.html'], ['Interactive Daf', '/
         // Nothing hidden off the edge.
         const fits = await page.locator('.mobile-nav').evaluate((nav) => nav.scrollWidth <= nav.clientWidth);
         expect(fits).toBe(true);
+        // No name runs into the next one, and none takes more than two lines.
+        const labels = await page.locator('.mobile-nav > a > span, .mobile-nav > button > span').evaluateAll((spans) => spans.map((span) => {
+          const r = span.getBoundingClientRect();
+          return { left: r.left, right: r.right, lines: Math.round(r.height / parseFloat(getComputedStyle(span).lineHeight)) };
+        }));
+        for (let i = 1; i < labels.length; i += 1) expect(labels[i].left).toBeGreaterThanOrEqual(labels[i - 1].right + 4);
+        for (const label of labels) expect(label.lines).toBeLessThanOrEqual(2);
       }
     });
 

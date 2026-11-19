@@ -125,3 +125,22 @@ kbd { color: #17302d; background: rgba(23, 33, 43, 0.08); border: 1px solid rgba
 .admin-badge { color: #fff; }
 
 .now-learning { border-color: var(--line); background: linear-gradient(135deg, rgba(47, 110, 165, .1), rgba(19, 34, 56, .04)); }
+
+/* Text boxes and pickers on the light pages: the dark theme's translucent
+   navy (styles.css) turned grey here, under text that is dark ink on these
+   pages -- a picker could hardly be read until it was opened. White, as the
+   rest of the light theme's surfaces are. The player's own dark controls
+   (speed, quality, the overlay's mode) keep their own, more specific rules. */
+input[type="text"], input[type="number"], input[type="url"], input[type="search"] {
+  background-color: #fff;
+  color: var(--text);
+  border-color: rgba(19, 34, 56, 0.22);
+}
+/* A bare element selector on purpose: any picker with a rule of its own
+   (the gear's quality list, the player's daf menu) still wins. */
+select {
+  background-color: #fff;
+  color: var(--text);
+  border-color: rgba(19, 34, 56, 0.22);
+}
+select option { background: #fff; color: #132238; }

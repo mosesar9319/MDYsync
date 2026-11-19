@@ -323,7 +323,18 @@
     els.composeView.append(composeHead, els.composeQuote, els.composeBody, els.composeError, els.composeNote, els.composeActions);
 
     els.panel.append(head, els.listView, els.chatView, els.composeView);
-    document.body.append(els.toggle, els.panel);
+    // The "Live discussions" button sits in the daf's heading where the page
+    // has one (Split view has its own, in the divider's drop-down); a page
+    // without a daf keeps it floating in the corner.
+    const heading = ['#dafCard .daf-heading-tools', '#dafCard .daf-header .daf-tools', '#dafCard .daf-heading', '#dafCard .daf-header']
+      .map((selector) => document.querySelector(selector)).find(Boolean);
+    if (heading) {
+      els.toggle.classList.add('in-heading');
+      heading.prepend(els.toggle);
+      document.body.append(els.panel);
+    } else {
+      document.body.append(els.toggle, els.panel);
+    }
 
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape' || !L.open) return;

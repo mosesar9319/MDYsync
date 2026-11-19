@@ -1096,6 +1096,7 @@ h1 {
   .mobile-nav a span {
     text-align: center;
     line-height: 1.2;
+    width: min-content;
   }
 
   .mobile-nav button.active,
@@ -1803,7 +1804,8 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     flex: 1 1 0;
     font-size: 11px;
     min-width: 56px;
-    white-space: nowrap;
+    /* Full names, on two short lines where they need it. */
+    white-space: normal;
   }
 
   .mobile-nav button.active,
@@ -1979,7 +1981,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
           <div class="section-heading">
             <div>
               <p class="eyebrow">TEACHERS</p>
-              <h2>Maggidei Shiurim</h2>
+              <h2>Maggidei Shiur</h2>
             </div>
           </div>
           <div class="maggid-list" id="maggidCards"></div>
@@ -2307,18 +2309,18 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       // and both need app.js's daf-loading machinery this lightweight home
       // page deliberately doesn't load. `href` present is what distinguishes
       // a link entry from a filter entry below (see navMarkup/renderNavigation).
-      { label: "Interactive Daf", short: "Daf", icon: "bookOpen", href: "/browse/" },
-      { label: "Cloud Chaburah", short: "Chaburah", icon: "chaburah", href: "/chaburah/" },
+      { label: "Interactive Daf", short: "Interactive Daf", icon: "bookOpen", href: "/browse/" },
+      { label: "Cloud Chaburah", short: "Cloud Chaburah", icon: "chaburah", href: "/chaburah/" },
       // Replaces the old "Masechtos" tab -- a per-tractate browsing tab is
       // its own feature (which masechtot to list, how to source them) that
       // hasn't been rebuilt since SITE_TRACTATES stopped being a single
       // fixed tractate; see loadVideoCatalog's own note below for what
-      // SITE_TRACTATES covers today. Maggidei Shiurim isn't a
+      // SITE_TRACTATES covers today. Maggidei Shiur isn't a
       // filter of the video grid the way the other in-page tabs are -- see
       // renderCards' maggidimActive branch, which swaps in a dedicated
       // section instead.
-      { label: "Maggidei Shiurim", short: "Maggidim", icon: "teacher" },
-      { label: "Daf Scan", short: "Scan", icon: "camera", href: "/player/?view=scan" },
+      { label: "Maggidei Shiur", short: "Maggidei Shiur", icon: "teacher" },
+      { label: "Daf Scan", short: "Daf Scan", icon: "camera", href: "/player/?view=scan" },
     ];
     const state = {
       activeNav: "Home", filter: "All Shiurim", filters: ["All Shiurim"],
@@ -2337,7 +2339,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       catalogLoading: true, catalogFailed: false,
     };
 
-    // A "Today's Daf"/"Maggidei Shiurim" tab tapped from nav.js's shared
+    // A "Today's Daf"/"Maggidei Shiur" tab tapped from nav.js's shared
     // bottom bar on another page links back here as /?nav=today or
     // /?nav=maggidei (nav.js's own NAV_ITEMS build those hrefs) -- land
     // pre-selected instead of always opening on the plain "Home" view,
@@ -2345,7 +2347,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     // navMarkup's click handler below).
     const navParam = new URLSearchParams(location.search).get("nav");
     if (navParam === "today") { state.activeNav = "Today’s Daf"; state.filter = "Today"; }
-    else if (navParam === "maggidei") { state.activeNav = "Maggidei Shiurim"; }
+    else if (navParam === "maggidei") { state.activeNav = "Maggidei Shiur"; }
 
     const desktopNav = document.querySelector(".desktop-navigation");
     const mobileNav = document.querySelector(".mobile-nav");
@@ -2382,13 +2384,13 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         button.addEventListener("click", () => {
           state.activeNav = button.dataset.nav;
           if (state.activeNav === "Today’s Daf") state.filter = "Today";
-          // Maggidei Shiurim doesn't touch state.filter -- it swaps in its
+          // Maggidei Shiur doesn't touch state.filter -- it swaps in its
           // own dedicated section instead of filtering the video grid (see
           // renderCards' maggidimActive branch).
           if (state.activeNav === "Home") { state.filter = "All Shiurim"; state.query = ""; state.maggidFilter = null; }
           // The phone's tabs also clear its chips (All, or Today's Daf).
           state.showContinue = false;
-          if (phoneLayout.matches && state.activeNav !== "Maggidei Shiurim") {
+          if (phoneLayout.matches && state.activeNav !== "Maggidei Shiur") {
             state.variant = state.language = "all";
             variantFilter.value = languageFilter.value = "all";
             state.maggidFilter = null;
@@ -2741,7 +2743,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       document.body.style.overflow = "";
     }
 
-    // The Maggidei Shiurim tab: one card per maggid the site follows.
+    // The Maggidei Shiur tab: one card per maggid the site follows.
     function renderMaggidCards() {
       document.querySelector("#maggidCards").innerHTML = MAGGIDIM.map((maggid) => `
         <button class="maggid-card" data-maggid="${escapeHtml(maggid.id)}" type="button">
@@ -2811,10 +2813,10 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     }
 
     function renderCards() {
-      // Maggidei Shiurim swaps in its own dedicated section (a short
+      // Maggidei Shiur swaps in its own dedicated section (a short
       // teacher list, not a video filter) instead of anything below --
       // hide the usual hero/filter/grid machinery entirely while it's active.
-      const maggidimActive = state.activeNav === "Maggidei Shiurim";
+      const maggidimActive = state.activeNav === "Maggidei Shiur";
       document.querySelector("#maggidimSection").hidden = !maggidimActive;
       document.querySelector("#feedChips").hidden = maggidimActive;
       document.querySelector(".learning-section").hidden = maggidimActive;
@@ -2830,7 +2832,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
 
       const phone = phoneLayout.matches;
       const history = phone ? readWatchHistory() : [];
-      // A maggid's page opened from the Maggidei Shiurim tab keeps its title
+      // A maggid's page opened from the Maggidei Shiur tab keeps its title
       // and way back on the phone; the maggid chips are just a filter.
       const maggidPage = Boolean(state.maggidFilter) && (state.maggidPage || !phone);
       document.querySelector("#maggidBack").hidden = !maggidPage;
@@ -2994,7 +2996,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     });
     document.querySelector("#maggidBack").addEventListener("click", () => {
       state.maggidFilter = null;
-      state.activeNav = "Maggidei Shiurim";
+      state.activeNav = "Maggidei Shiur";
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
     });

@@ -280,3 +280,90 @@ body.split-view-active .daf-book-dial { margin: 6px 8px 8px; }
 @media (prefers-reduced-motion: reduce) {
   .daf-book-stage.is-leaving { transition: none; }
 }
+
+/* --- The page is the book alone -----------------------------------------------
+   No player and no list of shiurim: a shiur is brought up from a word's menu
+   (app.js, watchShiurFromWord), which sets body.book-video-up; closing it
+   takes the class off again. The masechta is the only pick -- the dial has
+   the daf, and a swipe or the arrows the amud. */
+body[data-page="browse"]:not(.lf-allowed) #lfPanel,
+body[data-page="browse"] .setup-strip .video-field,
+body[data-page="browse"] .setup-strip .action-field,
+body[data-page="browse"] #dafDafSelect,
+body[data-page="browse"] #dafAmudToggle,
+body[data-page="browse"] .picker-toggle-row,
+body[data-page="browse"] .browse-nav,
+body[data-page="browse"] #videoChoice,
+body[data-page="browse"] #dafCard:not([data-daf-view="text"]) .view-switch { display: none !important; }
+/* (The plain-text view is reached only from a Search in Shas result, which
+   shows the found line there; its switch is the way back to the printed page.) */
+body[data-page="browse"]:not(.book-video-up) .watch-layout > .player-card,
+body[data-page="browse"]:not(.book-video-up) #viewerModeSelect,
+body[data-page="browse"] #dafCard .reading-mode-entry { display: none !important; }
+body[data-page="browse"]:not(.book-video-up) .workspace { grid-template-columns: minmax(0, 1fr); }
+body[data-page="browse"]:not(.book-video-up) #dafCard { width: min(100%, 980px); margin-inline: auto; }
+body[data-page="browse"] .setup-strip { display: flex; align-items: center; }
+body[data-page="browse"] .setup-strip .ref-field { flex: 1; min-width: 0; }
+body[data-page="browse"] .setup-strip .daf-picker-row { display: block; }
+body[data-page="browse"] #dafTractateSelect { width: 100%; max-width: 420px; }
+.viewer-mode-button.book-video-close { margin-inline-start: auto; }
+/* The word menu's lines that bring the shiur up. */
+.daf-context-item.is-primary { font-weight: 700; }
+body[data-page="browse"] .setup-strip .ref-field { border-left: 0 !important; padding-left: 0 !important; border-top: 0 !important; }
+/* While the video floats over the daf, the ways to change that (Split view,
+   Daf on video, Close) stay in reach as the daf scrolls. */
+body[data-page="browse"].book-video-up.reading-mode-active #viewerModeSelect {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  margin-inline: -8px;
+  padding: 8px;
+  border-radius: 0 0 16px 16px;
+  background: rgba(244,247,251,.94);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 6px 16px rgba(29,57,88,.10);
+}
+.daf-book-dial.is-waiting { visibility: hidden; }
+
+/* The dial is as wide as the page under it, centred on it; the page sound
+   has no switch of its own. */
+.daf-book-dial { justify-content: center; }
+.daf-book-dial .daf-book-drum { flex: 0 1 auto; width: 100%; max-width: var(--book-page-width, 100%); }
+
+/* --- "Watch from here": every shiur linked to the daf ----------------------- */
+.book-shiur-dialog { width: min(620px, calc(100% - 24px)); max-height: min(86vh, 760px); padding: 22px; overflow: auto; }
+.book-shiur-dialog h2 { margin: 2px 0 14px; }
+.book-shiur-list { display: flex; flex-direction: column; gap: 10px; }
+.book-shiur-row {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  grid-template-areas: "thumb info" "thumb actions";
+  gap: 6px 12px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid rgba(19, 34, 56, 0.12);
+  border-radius: 14px;
+  background: rgba(244, 247, 251, 0.6);
+}
+.book-shiur-thumb {
+  grid-area: thumb;
+  width: 128px;
+  aspect-ratio: 16 / 9;
+  border-radius: 9px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #1b2c44, #0e1a2b);
+}
+.book-shiur-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.book-shiur-info { grid-area: info; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.book-shiur-info strong { font-size: 14px; line-height: 1.3; }
+.book-shiur-title { font-size: 12.5px; color: var(--muted, #65748a); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.book-shiur-status { font-size: 12px; font-weight: 700; color: #2f7d4f; }
+.book-shiur-status.is-unsynced { color: #9a6a12; }
+.book-shiur-actions { grid-area: actions; display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 420px) {
+  .book-shiur-row { grid-template-columns: 104px minmax(0, 1fr); }
+  .book-shiur-thumb { width: 104px; }
+}
+/* Audio: the floating player shows the shiur's picture; the mode buttons that
+   only change how a video sits on the page have nothing to do. */
+body.book-audio #viewerModeDafOnVideoButton { display: none; }

@@ -3003,10 +3003,12 @@ mark.daf-search-flash { background: rgba(240, 200, 90, .34); color: inherit; bor
     padding: 4px 1px;
     scroll-snap-align: start;
     text-decoration: none;
-    white-space: nowrap;
+    /* Full names (Interactive Daf, Cloud Chaburah, Maggidei Shiur, Daf Scan),
+       on two short lines where they need it. */
+    white-space: normal;
   }
 
-  /* A two-word label (Cloud Chaburah, Maggidei Shiurim) wraps onto a second
+  /* A two-word label (Cloud Chaburah, Maggidei Shiur) wraps onto a second
      line inside its own tab rather than overflowing sideways into the next
      one -- the gap above keeps neighboring tabs apart even so, this just
      keeps the wrapped pair reading as one centered label instead of a
@@ -3015,6 +3017,9 @@ mark.daf-search-flash { background: rgba(240, 200, 90, .34); color: inherit; bor
   .mobile-nav a span {
     text-align: center;
     line-height: 1.2;
+    /* As wide as the longest word: "Interactive / Daf", "Cloud / Chaburah",
+       one word to a line, with room between the tabs. */
+    width: min-content;
   }
 
   .mobile-nav button.active,
@@ -4722,4 +4727,111 @@ body.split-tools-desk #splitToolsPanel #readerDafNotes:not(:has(> :not([hidden])
 .vilna-align-btn[aria-pressed="true"], #vilnaFitPageButton[aria-pressed="true"] { background: var(--accent-soft, rgba(47, 110, 165, .16)); border-color: var(--accent, #2f6ea5); color: var(--accent, #2f6ea5); }
 @media (max-width: 760px), (hover: none) {
   .vilna-zoom-size, .vilna-align-group { display: none; }
+}
+
+/* A message above the phone's bottom bar (and the audio bar, when it is up),
+   never half under them. */
+@media (max-width: 760px) {
+  .toast {
+    bottom: calc(86px + env(safe-area-inset-bottom));
+    width: max-content;
+    max-width: calc(100vw - 32px);
+    text-align: center;
+  }
+  body.audio-bar-up .toast { bottom: calc(160px + env(safe-area-inset-bottom)); }
+}
+
+
+/* --- The audio bar (app.js, updateAudioBar) ---------------------------------- */
+.audio-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--audio-bar-bottom, 0px);
+  z-index: 35;
+  padding: 0 10px 8px;
+  background: #132238;
+  color: #f4f7fb;
+  box-shadow: 0 -8px 24px rgba(19, 34, 56, .22);
+}
+.audio-bar[hidden] { display: none; }
+.audio-bar-seek {
+  --audio-progress: 0%;
+  display: block;
+  width: calc(100% + 20px);
+  margin: 0 -10px 6px;
+  height: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: linear-gradient(to right, #f4d68f var(--audio-progress), rgba(255,255,255,.22) var(--audio-progress));
+  cursor: pointer;
+}
+.audio-bar-seek::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #f4d68f; border: 0; }
+.audio-bar-seek::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #f4d68f; border: 0; }
+.audio-bar-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.audio-bar-picture { flex: none; width: 46px; height: 26px; border-radius: 4px; object-fit: cover; background: #1b2c44; }
+.audio-bar-picture[hidden] { display: none; }
+.audio-bar-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.audio-bar-title { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.audio-bar-time { font-size: 11.5px; opacity: .75; font-variant-numeric: tabular-nums; }
+.audio-bar-button {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.audio-bar-button svg { width: 22px; height: 22px; }
+.audio-bar-button[hidden] { display: none; }
+.audio-bar-play { width: 40px; height: 40px; background: #f4f7fb; color: #132238; }
+.audio-bar-play svg { width: 20px; height: 20px; }
+.audio-bar-play .audio-bar-icon-pause, .audio-bar.is-playing .audio-bar-play .audio-bar-icon-play { display: none; }
+.audio-bar.is-playing .audio-bar-play .audio-bar-icon-pause { display: block; }
+.audio-bar-pill {
+  flex: none;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid rgba(255,255,255,.3);
+  border-radius: 999px;
+  background: rgba(255,255,255,.08);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.audio-bar-close svg { width: 18px; height: 18px; }
+@media (max-width: 420px) {
+  .audio-bar-row { gap: 3px; }
+  .audio-bar-button { width: 30px; height: 30px; }
+  .audio-bar-play { width: 38px; height: 38px; }
+  .audio-bar-pill { padding: 0 7px; }
+  .audio-bar-picture { display: none; }
+}
+@media (min-width: 761px) {
+  .audio-bar { left: 50%; right: auto; bottom: 16px; width: min(760px, calc(100vw - 32px)); transform: translateX(-50%); border-radius: 14px; padding: 0 12px 8px; overflow: hidden; }
+}
+/* While it is up, the video player is put away and the page keeps room for it. */
+body.audio-bar-up .watch-layout > .player-card,
+body.audio-bar-up .reading-video-float,
+body.audio-bar-up #viewerModeSelect { display: none !important; }
+body.audio-bar-up .watch-layout { grid-template-columns: minmax(0, 1fr) !important; }
+body.audio-bar-up { padding-bottom: var(--audio-bar-room, 0px); }
+
+/* The phone's Split drop-down, second row: room for "Live discussions" by
+   name. "Select text" reads "Select" there, and a very narrow phone lets the
+   row wrap rather than push a control off the edge. */
+@media (max-width: 760px) {
+  body.split-tools-phone.split-tools-open #splitToolsDafRow { flex-wrap: wrap; row-gap: 6px; }
+  body #splitToolsPanel .split-tools-daf .vilna-select-text-toggle { font-size: 0; }
+  body #splitToolsPanel .split-tools-daf .vilna-select-text-toggle::after { content: "Select"; font-size: 12px; }
 }

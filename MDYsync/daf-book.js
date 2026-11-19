@@ -490,28 +490,21 @@
   const dial = document.createElement('div');
   dial.className = 'daf-book-dial';
   dial.id = 'dafBookDial';
-  dial.hidden = true;
+  dial.classList.add('is-waiting'); // its room is kept from the start, so the page below never jumps
   dial.innerHTML = `
     <div class="daf-book-drum" id="dafBookDrum" role="slider" tabindex="0" aria-label="Daf">
       <div class="dbd-knurl"></div>
       <div class="dbd-ticks"></div>
       <div class="dbd-window"></div>
-    </div>
-    <button type="button" class="daf-book-sound" id="dafBookSoundButton" aria-pressed="true">
-      <svg class="dbs-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a8.5 8.5 0 0 1 0 12"/></svg>
-      <svg class="dbs-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 9l5 6"/><path d="M22 9l-5 6"/></svg>
-    </button>`;
+    </div>`;
   const heading = card.querySelector('.daf-heading');
   if (heading) heading.after(dial);
   else card.prepend(dial);
   const drum = dial.querySelector('.daf-book-drum');
   const ticksEl = dial.querySelector('.dbd-ticks');
   const knurl = dial.querySelector('.dbd-knurl');
-  $('dafBookSoundButton').addEventListener('click', () => {
-    setSound(!soundOn);
-    if (soundOn) sounds.tick();
-  });
-  setSound(soundOn);
+  // No switch on the page: the sound is quiet and always on.
+  soundOn = true;
 
   function hebrewNumber(n) {
     const ones = ['', 'א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט'];
@@ -538,6 +531,8 @@
     if (!entry || typeof dafOptionsFor !== 'function') return false;
     dialTractate = tractate;
     dialDapim = dafOptionsFor(entry);
+    // New marks: whatever was drawn before is not them.
+    dialPainted = false;
     ticksEl.replaceChildren();
     dialTicks = dialDapim.map((daf) => {
       const tick = document.createElement('div');
@@ -553,8 +548,8 @@
   let dialPainted = false;
   function paintDial() {
     const width = drum.clientWidth;
-    dialPainted = width > 0;
-    if (!width) return;
+    dialPainted = width > 0 && dialDapim.length > 0;
+    if (!dialPainted) return;
     const center = width / 2;
     dialTicks.forEach((tick, i) => {
       const x = center - (i - dialValue) * TICK;
@@ -575,7 +570,7 @@
     const p = here();
     if (!p) return;
     if (p.tractate !== dialTractate && !buildDial(p.tractate)) return;
-    dial.hidden = false;
+    dial.classList.remove('is-waiting');
     if (dialHeld) return;
     const index = dialDapim.indexOf(p.daf);
     if (index === -1 || (index === dialValue && dialPainted)) return;
@@ -653,7 +648,17 @@
     clearTimeout(keyTimer);
     keyTimer = setTimeout(() => { dialHeld = null; flyTo(dialDapim[Math.round(dialValue)]); }, 650);
   });
-  window.addEventListener('resize', () => { dialPainted = false; paintDial(); });
+  // As wide as the printed page under it, centred on it.
+  function fitDialToPage() {
+    const width = canvas.offsetWidth ? canvas.getBoundingClientRect().width : 0;
+    const next = width > 120 ? `${Math.round(width)}px` : '';
+    if (dial.style.getPropertyValue('--book-page-width') !== next) dial.style.setProperty('--book-page-width', next);
+  }
+  window.addEventListener('resize', () => { fitDialToPage(); dialPainted = false; paintDial(); });
+  if (window.ResizeObserver) new ResizeObserver(fitDialToPage).observe(canvas);
+  // The drum changes width without the window doing so (a video coming up
+  // beside the daf, the side menu folding): its marks are placed in pixels.
+  if (window.ResizeObserver) new ResizeObserver(() => { dialPainted = false; paintDial(); }).observe(drum);
 
   // Riffle to a daf: a few quick leaves, then its amud a.
   async function flyTo(daf) {
@@ -697,6 +702,10 @@
   // On a plain visit (the menu's Interactive Daf), the daf waits behind the
   // masechta's cover; a link to a particular daf goes straight to the page.
   const params = new URLSearchParams(location.search);
+  // Live follow (the experiment) is off this page's view; ?lf=1 brings its
+  // card back, for trying it out and for its tests, and so does the old
+  // /live/ address (it forwards here as ?live=1 and turns Live follow on).
+  if (params.get('lf') === '1' || params.has('live')) document.body.classList.add('lf-allowed');
   const fromMenu = !params.has('ref') && !params.get('view') && !params.has('scan')
     && window.__DAFSYNC_TEST_CONTROL__?.bookCover !== false;
   let cover = null;

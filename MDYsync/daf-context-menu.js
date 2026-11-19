@@ -71,7 +71,7 @@ function renderMenuItems(items) {
   el.innerHTML = items.map((item, index) => {
     if (item.separator) return '<div class="daf-context-sep"></div>';
     const hint = item.hint ? `<span class="daf-context-hint">${escapeHtml(item.hint)}</span>` : '';
-    return `<button type="button" class="daf-context-item" role="menuitem" data-index="${index}"${item.disabled ? ' disabled' : ''}>${escapeHtml(item.label)}${hint}</button>`;
+    return `<button type="button" class="daf-context-item${item.primary ? ' is-primary' : ''}" role="menuitem" data-index="${index}"${item.disabled ? ' disabled' : ''}>${escapeHtml(item.label)}${hint}</button>`;
   }).join('');
   el.querySelectorAll('.daf-context-item').forEach((button) => {
     button.addEventListener('click', () => {
@@ -502,6 +502,22 @@ function buildMenuItems(target) {
 
   const items = [];
 
+  // The Interactive Daf page: one line that opens the window of every shiur
+  // linked to this daf (app.js, openBookShiurWindow).
+  const shiurim = target.source === 'vilna' && target.word
+    ? (window.dafBookVideo?.shiurimFor(target.word.ref) || [])
+    : [];
+  if (shiurim.length) {
+    items.push(
+      {
+        label: 'Watch from here',
+        primary: true,
+        onClick: () => window.dafBookVideo.open(target.word.ref, target.word.wordIndex),
+      },
+      { separator: true },
+    );
+  }
+
   // Only on the printed Vilna page (target.word) -- the plain text view
   // already has real, native browser text selection for this, and has no
   // yellow-highlight overlay of its own to put it into (see Select-text
@@ -610,7 +626,9 @@ function writeFlag(key, value) {
   try { window.localStorage.setItem(key, String(value)); } catch { /* not remembered */ }
 }
 const touchFirst = () => window.matchMedia('(pointer: coarse), (hover: none)').matches;
-const menuGesture = () => (touchFirst() ? 'Hold' : 'Right-click');
+// On the Interactive Daf page a plain tap (or click) on a word opens the menu.
+const tapOpensMenu = () => document.body.dataset.page === 'browse';
+const menuGesture = () => (tapOpensMenu() ? (touchFirst() ? 'Tap' : 'Click') : (touchFirst() ? 'Hold' : 'Right-click'));
 
 let pressRing = null;
 function showPressRing(x, y, durationMs) {
@@ -653,7 +671,9 @@ function showDafMenuHint() {
   menuHintEl.className = 'daf-menu-hint';
   menuHintEl.setAttribute('role', 'status');
   const text = document.createElement('span');
-  text.textContent = `${menuGesture()} any word for more: look it up, add a note, copy, or start a discussion.`;
+  text.textContent = tapOpensMenu()
+    ? `${menuGesture()} any word for more: watch the shiur from there, look it up, add a note, or start a discussion.`
+    : `${menuGesture()} any word for more: look it up, add a note, copy, or start a discussion.`;
   const close = document.createElement('button');
   close.type = 'button';
   close.className = 'daf-menu-hint-close';
@@ -749,6 +769,45 @@ function initDafContextMenu() {
   if (wrap) {
     wrap.addEventListener('contextmenu', (event) => handleDafContextMenu(event, vilnaTargetAt));
     attachLongPress(wrap, vilnaTargetAt);
+    // The Interactive Daf page: a plain tap on a word opens its menu. A tap
+    // while a menu is open only closes that one. Live follow, Select text and
+    // Mark words keep their own meaning for a tap.
+    if (tapOpensMenu()) {
+      let menuWasOpen = false;
+      let wordsNoteAt = 0;
+      wrap.addEventListener('pointerdown', () => { menuWasOpen = Boolean(menuEl && !menuEl.hidden); }, true);
+      wrap.addEventListener('click', (event) => {
+        if (menuWasOpen || event.button !== 0) return;
+        if (state.liveFollow?.active || state.vilnaSelectTextMode || state.vilnaMarkMode) return;
+        const target = vilnaTargetAt(event.clientX, event.clientY);
+        if (target) {
+          // A shiur playing over the daf: the tap sends it to the word, and
+          // the menu is a long press (or right-click) away. A word it cannot
+          // reach gets the menu after all.
+          if (window.dafBookVideo?.canSeek()) {
+            const { clientX, clientY } = event;
+            window.dafBookVideo.tapWord(target.word).then((seeked) => {
+              if (!seeked) openDafMenu(target, clientX, clientY);
+            });
+            return;
+          }
+          openDafMenu(target, event.clientX, event.clientY);
+          return;
+        }
+        // No words to tap yet: a daf opened for the first time has its word
+        // positions prepared on the spot (app.js, loadVilnaPageMap), which
+        // takes a few minutes. Say so, rather than a tap that does nothing.
+        if (state.vilnaPageMap?.wordBoxes?.length || Date.now() - wordsNoteAt < 5000) return;
+        if (typeof showToast !== 'function') return;
+        wordsNoteAt = Date.now();
+        const status = state.vilnaPageMapStatus?.status;
+        if (status === 'preparing' || status === 'loading') {
+          showToast('This page is being prepared so its words can be tapped. It takes a few minutes the first time a daf is opened.');
+        } else if (status === 'unavailable') {
+          showToast('The words on this page can\u2019t be tapped yet. Please try again later.');
+        }
+      });
+    }
   }
   if (page) {
     page.addEventListener('contextmenu', (event) => handleDafContextMenu(event, textTargetAt));

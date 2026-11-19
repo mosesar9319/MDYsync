@@ -183,3 +183,59 @@ body.live-open .live-toggle { display: none; }
 .live-marker:hover, .live-marker:focus-visible { opacity: 1; transform: translate(50%, 2px) scale(1.15); }
 .live-marker-count { pointer-events: none; }
 body.live-open .live-marker { opacity: .8; }
+
+
+/* --- "Live discussions": a named button, never floating over the daf ------- */
+.live-toggle.in-heading {
+  position: static;
+  z-index: auto;
+  padding: 7px 13px;
+  font-size: 13px;
+  box-shadow: none;
+  background: #fff;
+  white-space: nowrap;
+}
+body.split-view-active .live-toggle.in-heading { display: none; }
+body.live-open .live-toggle.in-heading { display: inline-flex; }
+body.live-open .live-toggle.in-heading[hidden] { display: none; }
+
+#splitToolsPanel .split-live-button,
+body.split-tools-desk #splitToolsPanel .split-live-button {
+  width: auto;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 11px 0 10px;
+  border-radius: 999px;
+  border-color: rgba(46, 157, 98, .55);
+  background: #f0faf4;
+  color: #14532d;
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+#splitToolsPanel .split-live-button .split-live-dot,
+body.split-tools-desk #splitToolsPanel .split-live-button .split-live-dot {
+  position: static;
+  box-shadow: none;
+  flex: none;
+}
+#splitToolsPanel .split-live-button .split-live-count,
+body.split-tools-desk #splitToolsPanel .split-live-button .split-live-count {
+  position: static;
+}
+@media (max-width: 760px) {
+  #splitToolsPanel .split-live-button { height: 30px; padding: 0 9px 0 8px; gap: 5px; font-size: 12px; }
+}
+/* A heading that gains the button wraps it to its own line on a narrow
+   screen instead of growing wider than the page. */
+#dafCard .daf-heading:has(> .live-toggle.in-heading),
+#dafCard .daf-header:has(> .live-toggle.in-heading),
+#dafCard .daf-tools:has(> .live-toggle.in-heading),
+#dafCard .daf-heading-tools:has(> .live-toggle.in-heading) { flex-wrap: wrap; row-gap: 8px; }
+.live-toggle.in-heading { flex: none; max-width: 100%; }
+/* The daf's name keeps its full width; when the heading is too narrow for both,
+   the button's row moves below the name instead of squeezing it to "Chullin…". */
+#dafCard .daf-heading:has(> .daf-heading-tools > .live-toggle.in-heading) { flex-wrap: wrap; row-gap: 8px; }
+#dafCard .daf-heading:has(> .daf-heading-tools > .live-toggle.in-heading) > div:first-child { flex: 1 0 auto; max-width: 100%; }

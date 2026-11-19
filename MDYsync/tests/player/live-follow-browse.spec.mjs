@@ -113,17 +113,26 @@ async function openBrowse(page, { query = '', serve = {}, errors = null, noTabSh
   if (catalog) await page.route('**/api/get-catalog', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(catalog) }));
   if (synced) await page.route('**/api/list-synced-dapim', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(synced) }));
   if (noTabShare) await page.addInitScript(() => { navigator.mediaDevices.getDisplayMedia = undefined; });
-  await page.goto(`/browse/${query}`);
+  // The Live follow card is shown on this page only with ?lf=1.
+  await page.goto(`/browse/${query}${query.includes('?') ? '&' : '?'}lf=1`);
   await expect.poll(() => page.locator('#dafTractateSelect option').count()).toBeGreaterThan(0);
   return seen;
 }
 
-// The page's own picker: tractate, daf, then side.
+// The daf and the amud are the dial's and the arrows' to choose now (the page
+// shows only the masechta picker); their own controls still hold the page's
+// state behind them, and are driven directly here.
+const setDaf = (page, daf) => page.evaluate((value) => {
+  const select = document.getElementById('dafDafSelect');
+  select.value = String(value);
+  select.dispatchEvent(new Event('change', { bubbles: true }));
+}, daf);
+const setSide = (page, side) => page.evaluate((s) => document.querySelector(`#dafAmudToggle .amud-option[data-side="${s}"]`).click(), side);
 async function pick(page, ref) {
   const [, tractate, daf, side] = /^(.+?)\s+(\d+)([ab])$/.exec(ref);
   await page.locator('#dafTractateSelect').selectOption(tractate);
-  await page.locator('#dafDafSelect').selectOption(daf);
-  await page.locator(`#dafAmudToggle .amud-option[data-side="${side}"]`).click();
+  await setDaf(page, daf);
+  await setSide(page, side);
 }
 
 // The test hooks, under the short names the tests use. (None of these names is
@@ -207,7 +216,7 @@ test.describe('Live follow — the mode on the Interactive Daf page', () => {
     expect(errors.filter((e) => !/404|Failed to load resource/.test(e))).toEqual([]);
   });
 
-  test('turning it on opens the panel and offers every daf, not just the synced ones', async ({ page }) => {
+  test('turning it on opens the panel, and every daf is offered, not just the synced ones', async ({ page }) => {
     await openBrowse(page);
     const before = await page.locator('#dafTractateSelect option').evaluateAll((o) => o.map((x) => x.value));
     await page.locator('#lfToggle').click();
@@ -215,8 +224,9 @@ test.describe('Live follow — the mode on the Interactive Daf page', () => {
     await expect(page.locator('#lfBody')).toBeVisible();
     expect(await page.evaluate(() => state.liveFollow)).toMatchObject({ active: true });
     const after = await page.locator('#dafTractateSelect option').evaluateAll((o) => o.map((x) => x.value));
+    // The page offers every masechta with or without it.
+    expect(before.length).toBe(36);
     expect(after.length).toBe(36);
-    expect(after.length).toBeGreaterThan(before.length);
     await page.locator('#dafTractateSelect').selectOption('Berakhot');
     expect(await page.locator('#dafDafSelect option').count()).toBe(63); // 2..64, all of them
   });
@@ -280,8 +290,9 @@ test.describe('Live follow — the mode on the Interactive Daf page', () => {
 
   test('the daf picker is on the page itself, not inside the video player', async ({ page }) => {
     await openBrowse(page);
-    expect(await page.evaluate(() => document.getElementById('dafDafSelect').closest('.video-frame'))).toBeNull();
-    await expect(page.locator('#dafDafSelect')).toBeVisible();
+    expect(await page.evaluate(() => document.getElementById('dafTractateSelect').closest('.video-frame'))).toBeNull();
+    await expect(page.locator('#dafTractateSelect')).toBeVisible();
+    await expect(page.locator('#dafBookDrum')).toBeVisible();
     await expect(page.locator('#playerDafButton')).toBeDisabled(); // the player's daf name is only a label
   });
 
@@ -295,7 +306,7 @@ test.describe('Live follow — the mode on the Interactive Daf page', () => {
     expect(options.find(([v]) => v === '120')[1]).toBe('120 · no recording yet');
     // It opens on the first daf that has a recording, not on the tractate's daf 2.
     await expect(page.locator('#dafDafSelect')).toHaveValue('89');
-    await page.locator('#dafDafSelect').selectOption('120');
+    await setDaf(page, 120);
     await expect(page.locator('#dafAmudToggle .amud-option[data-side="b"]')).toBeEnabled();
   });
 
@@ -346,23 +357,10 @@ test.describe('Live follow — the mode on the Interactive Daf page', () => {
     expect(title).toBeLessThan(previous);
     await expect(page.locator('#dafNextAmudButton')).toHaveText('‹');
     await expect(page.locator('#dafPrevAmudButton')).toHaveText('›');
-    // And the same under the picker.
-    expect(await x('#browseNextButton')).toBeLessThan(await x('#browsePrevButton'));
-    await expect(page.locator('#browseNextButton')).toHaveText('‹ Next amud');
-    await expect(page.locator('#browsePrevButton')).toHaveText('Previous amud ›');
     // The left-pointing arrow really does go forward.
     await page.locator('#dafNextAmudButton').click();
     await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 88b');
     await page.locator('#dafPrevAmudButton').click();
-    await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 88a');
-  });
-
-  test('the Previous / Next amud buttons under the picker step the same way', async ({ page }) => {
-    await openBrowse(page, { query: '?ref=Chullin%2088a' });
-    await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 88a');
-    await page.locator('#browseNextButton').click();
-    await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 88b');
-    await page.locator('#browsePrevButton').click();
     await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 88a');
   });
 
@@ -371,8 +369,8 @@ test.describe('Live follow — the mode on the Interactive Daf page', () => {
     await page.locator('#lfToggle').click();
     await page.locator('#lfChooseDafButton').click();
     await expect(page.locator('.setup-field.ref-field')).toHaveClass(/lf-picker-flash/);
-    await expect(page.locator('#dafDafSelect')).toBeFocused();
-    await expect(page.locator('#dafDafSelect')).toBeInViewport();
+    await expect(page.locator('#dafTractateSelect')).toBeFocused();
+    await expect(page.locator('#dafTractateSelect')).toBeInViewport();
   });
 
   test('without a daf chosen, Start says so and starts nothing', async ({ page }) => {
@@ -563,7 +561,7 @@ test.describe('Live follow — following a reading', () => {
     expect(plain.has('filter_background_audio')).toBe(false);
     expect(plain.get('vad_silence_threshold_secs')).toBe('0.5');
 
-    await page.goto('/browse/?lang=he&filter=1');
+    await page.goto('/browse/?lang=he&filter=1&lf=1');
     await expect.poll(() => page.evaluate(() => typeof dafLiveFollow)).toBe('object');
     await alias(page);
     const tuned = params(await page.evaluate(() => buildWsUrl('tok', ['a'])));
@@ -1636,9 +1634,9 @@ test.describe('Live follow — the page\'s own views follow the reading', () => 
     expect(seen.jobs.filter((job) => job.daf === 91 && job.amud === 'a')).toEqual([{ tractate: 'Chullin', daf: 91, amud: 'a' }]);
     expect(await page.evaluate(() => state.vilnaPageMapStatus)).toEqual({ ref: 'Chullin 91a', status: 'preparing' });
     // The text view is where it follows meanwhile, so the note is only for the printed page.
-    await page.locator('.view-switch button[data-view="text"]').click();
+    await page.evaluate(() => document.querySelector('.view-switch button[data-view="text"]').click());
     await expect(banner).toBeHidden();
-    await page.locator('.view-switch button[data-view="page"]').click();
+    await page.evaluate(() => document.querySelector('.view-switch button[data-view="page"]').click());
     await expect(banner).toBeVisible();
     // The job finishes: the next poll finds the map and the note goes.
     ready = true;
@@ -1822,12 +1820,12 @@ test.describe('Live follow — the page\'s own views follow the reading', () => 
   test('the page\'s Previous / Next buttons only turn the page while the daf followed covers it', async ({ page }) => {
     const seen = await openFollowing(page);
     const sefariaBefore = seen.sefaria.length;
-    await page.locator('#browseNextButton').click(); // 91a -> 91b: the second page of the same pair
+    await page.locator('#dafNextAmudButton').click(); // 91a -> 91b: the second page of the same pair
     await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 91b');
     expect(await page.evaluate(() => live.daf.refs)).toEqual(['Chullin 91a', 'Chullin 91b']);
     expect(seen.sefaria.length).toBe(sefariaBefore); // nothing was loaded
     expect(await page.evaluate(() => state.liveFollow.active)).toBe(true);
-    await page.locator('#browseNextButton').click(); // 91b -> 92a: a different daf now
+    await page.locator('#dafNextAmudButton').click(); // 91b -> 92a: a different daf now
     await expect.poll(() => page.evaluate(() => live.daf.refs)).toEqual(['Chullin 91b', 'Chullin 92a', 'Chullin 92b']);
     await expect(page.locator('#lfDafName')).toHaveText('Chullin 92a');
   });
@@ -1855,7 +1853,7 @@ test.describe('Live follow — the page\'s own views follow the reading', () => 
   test('stepping back to the amud before only turns the page: it is already followed', async ({ page }) => {
     const seen = await openFollowing(page, { serve: { before: BEFORE_91A } });
     const loaded = seen.sefaria.length;
-    await page.locator('#browsePrevButton').click();
+    await page.locator('#dafPrevAmudButton').click();
     await expect.poll(() => page.evaluate(() => state.browsePageRef)).toBe('Chullin 90b');
     expect(await page.evaluate(() => live.daf.label)).toBe('Chullin 91a');
     expect(seen.sefaria.length).toBe(loaded);
@@ -1865,7 +1863,7 @@ test.describe('Live follow — the page\'s own views follow the reading', () => 
     const seen = await openBrowse(page);
     await page.locator('#lfToggle').click();
     await page.locator('#dafTractateSelect').selectOption('Berakhot');
-    await page.locator('#dafDafSelect').selectOption('2');
+    await setDaf(page, 2);
     await expect.poll(() => page.evaluate(() => dafLiveFollow.__test.live.daf?.label)).toBe('Berakhot 2a');
     expect(await page.evaluate(() => dafLiveFollow.__test.live.daf.refs)).toEqual(['Berakhot 2a', 'Berakhot 2b']);
     expect(seen.sefaria.some((ref) => /^Berakhot 1/.test(ref))).toBe(false);

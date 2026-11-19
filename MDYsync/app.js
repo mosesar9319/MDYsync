@@ -2573,6 +2573,41 @@ async function rerenderVilnaPageForZoom() {
   window.dispatchEvent(new CustomEvent('dafsync:vilna-page', { detail: { reason: 'raster' } }));
 }
 
+// A phone drops a large canvas's pixels while the browser is in the
+// background, and the daf came back white until a zoom drew it again. Coming
+// back, it is drawn again from the page already loaded (no new download).
+async function redrawVilnaPageAfterReturn() {
+  const page = state.vilnaPdfPage;
+  const canvas = $('vilnaPageCanvas');
+  if (!page || !canvas || canvas.hidden || !canvas.width) return;
+  const containerWidth = state.vilnaPdfContainerWidth || canvas.clientWidth || 640;
+  const baseViewport = page.getViewport({ scale: 1 });
+  const scale = vilnaPageRenderScale(baseViewport.width, containerWidth, Math.max(1, state.vilnaPageZoom));
+  await renderVilnaCanvas(page, canvas, page.getViewport({ scale }));
+  state.vilnaOverlayKey = '';
+  updateVilnaOverlay(getCurrentTime());
+  window.dispatchEvent(new CustomEvent('dafsync:vilna-page', { detail: { reason: 'raster' } }));
+}
+let vilnaHiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { vilnaHiddenAt = Date.now(); return; }
+  if (vilnaHiddenAt && Date.now() - vilnaHiddenAt > 400) redrawVilnaPageAfterReturn().catch(() => {});
+});
+// Back from another app without the tab ever reporting hidden (some phones),
+// or restored from the back/forward cache.
+window.addEventListener('pageshow', (event) => { if (event.persisted) redrawVilnaPageAfterReturn().catch(() => {}); });
+window.addEventListener('focus', () => {
+  if (vilnaHiddenAt && Date.now() - vilnaHiddenAt > 400) return; // the visibilitychange above has it
+  const canvas = $('vilnaPageCanvas');
+  if (!canvas || canvas.hidden || !canvas.width) return;
+  // Only when the pixels really went: one pixel of the page's paper is white
+  // with full opacity; a dropped canvas reads as transparent.
+  try {
+    const [, , , alpha] = canvas.getContext('2d').getImageData(Math.floor(canvas.width / 2), 4, 1, 1).data;
+    if (alpha === 0) redrawVilnaPageAfterReturn().catch(() => {});
+  } catch { /* unreadable: leave it */ }
+});
+
 // Set when Split should survive leaving fullscreen (the fullscreen button,
 // or an Esc that a menu already consumed). A bare fullscreenchange — Chrome
 // eats Esc to leave fullscreen and never delivers the key — leaves Split too.
@@ -2738,11 +2773,14 @@ function renderVilnaWordBoxes() {
     const onLeave = () => { for (const el of els) el.classList.remove('phrase-hover'); };
     const onClick = () => {
       hapticTap();
-      // The Daf browser has its own video player on the same page -- a
-      // click plays into that in place instead of navigating away (same
-      // idea as the scan feature's tapScannedWord).
-      if (state.browseMode) playWordInline(segment.ref, wordIndex);
-      else if (state.vilnaMarkMode) markSegmentAtVilnaWord(segment.ref, wordIndex);
+      // The Interactive Daf page is the book on its own: a tap on a word
+      // opens that word's menu (daf-context-menu.js listens on the page
+      // itself, so every word answers, not only the phrases drawn here), and
+      // the menu is where a shiur is brought up. Live follow keeps its own
+      // tap: it says where the reading is.
+      if (state.browseMode) {
+        if (state.liveFollow?.active) playWordInline(segment.ref, wordIndex);
+      } else if (state.vilnaMarkMode) markSegmentAtVilnaWord(segment.ref, wordIndex);
       else if (state.segments.includes(segment)) activatePhrase(state.segments.indexOf(segment));
       else seekToVilnaWord(segment.ref, wordIndex);
     };
@@ -3173,7 +3211,7 @@ async function playWordInline(ref, wordIndex) {
   // Only meaningful once the layout collapses to a single column (see the
   // 1120px breakpoint in browse/index.html) -- side by side on a wider
   // screen the video is already in view, and this is a harmless no-op.
-  playerCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (!state.browseMode) playerCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
   // ref here is a word box's own per-paragraph ref (e.g. "Berakhot 2a:3" --
   // see page_ocr_align.py/caption_ocr_align.py's shared load_canonical()),
   // but state.dafRef is always the plain daf-level ref (loadDaf() strips
@@ -6698,7 +6736,7 @@ function splitMdyAudioControls() {
     + '<span class="mdy-control-text-static">MP3</span>';
   return [listen, download];
 }
-// Cloud Chaburah Live from the drop-down: the same panel the floating
+// Cloud Chaburah Live from the drop-down: the same panel the daf heading's
 // "Live discussions" button opens (live-chaburah-ui.js), with its count.
 function splitLiveButton() {
   const button = document.createElement('button');
@@ -6708,8 +6746,10 @@ function splitLiveButton() {
   button.hidden = true;
   button.setAttribute('aria-label', 'Live discussions');
   button.title = 'Live discussions on this daf';
-  button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>'
-    + '<span class="split-live-dot" aria-hidden="true"></span><span class="split-live-count" hidden></span>';
+  // Named, not an icon alone: the floating button is gone, so this is the
+  // way to the discussions while Split is on.
+  button.innerHTML = '<span class="split-live-dot" aria-hidden="true"></span><span class="split-live-label">Live discussions</span>'
+    + '<span class="split-live-count" hidden></span>';
   button.addEventListener('click', () => {
     if (document.fullscreenElement || document.webkitFullscreenElement) exitFullscreenIfActive();
     setSplitToolsOpen(false);
@@ -7470,6 +7510,9 @@ function decideViewerMode() {
 }
 
 function applyInitialViewerMode() {
+  // The Interactive Daf page opens as the book alone; a viewing mode there
+  // belongs to a shiur that has been brought up (see showBookVideo).
+  if (state.browseMode) return;
   const decision = decideViewerMode();
   if (viewerModeExplicit && decision.reason !== 'explicit-choice') return;
   if (!decision.mode || decision.reason === 'built-in-standard') return;
@@ -7478,6 +7521,14 @@ function applyInitialViewerMode() {
 }
 
 function rememberViewerMode(mode) {
+  // The book page keeps its own choice (how a shiur comes up over the daf),
+  // apart from the player pages' per-shiur one.
+  if (state.browseMode) {
+    if (mode !== 'standard') {
+      try { localStorage.setItem(BOOK_VIDEO_MODE_KEY, mode); } catch { /* private mode */ }
+    }
+    return;
+  }
   viewerModeExplicit = true;
   try {
     localStorage.setItem(VIEW_MIGRATION_KEY, '1');
@@ -7495,6 +7546,9 @@ function setViewerMode(mode, options = {}) {
   // (or switching mode) used to leave that panel stuck over the picture.
   window.closePlayerChromeMenus?.();
   setSplitLayoutMenuOpen(false);
+  // The Interactive Daf page keeps its player out of sight until a video is
+  // up; every one of these modes is a way of showing it.
+  if (state.browseMode && nextMode !== 'standard') document.body.classList.add('book-video-up');
   // Order matters only a little here (see each function's own early-return
   // guard, which makes calling one already at its target value a no-op) --
   // Split View settles the shared container's own layout first, then each
@@ -7507,6 +7561,8 @@ function setViewerMode(mode, options = {}) {
   document.body.dataset.viewerMode = nextMode;
   updateViewerModeUi();
   announceViewerMode(nextMode);
+  // On the book page, leaving all three modes puts the shiur away.
+  if (state.browseMode && nextMode === 'standard') closeBookVideo();
 }
 
 function updateViewerModeUi() {
@@ -9715,7 +9771,7 @@ async function loadDaf(refOverride = null, options = {}) {
     state.usingDefaultAlignment = !state.livePlainDaf;
     state.alignmentStatus = state.livePlainDaf ? 'live' : 'placeholder';
     updateAlignmentStatus();
-    $('dafTitle').textContent = heRef || ref;
+    $('dafTitle').textContent = state.browseMode && state.browsePageRef ? realDafRef(state.browsePageRef) : (heRef || ref);
     renderDaf();
     if (!state.livePlainDaf || preferredVideoSource?.liveStatus !== 'live') seek(0);
     if (!options.silent) {
@@ -10588,10 +10644,148 @@ function changeMdyQuality(quality) {
 // and the audio-only / download controls follow the shiur on screen.
 function refreshMdyChrome() {
   document.body.classList.toggle('playing-mdy-file', Boolean(state.mdyPlayback));
+  // Audio only: a slim bar at the bottom of the screen instead of the player.
+  queueMicrotask(updateAudioBar);
   // 2.5x and 3x are offered only for MDY's own files (player-chrome.js);
   // YouTube's player stops at 2x.
   if (!state.mdyPlayback && Number($('speedSelect')?.value) > 2) window.setPlayerSpeed?.('2');
   refreshMdyAudioControl();
+}
+
+// ---------------------------------------------------------------------------
+// The audio bar. While a shiur plays as audio alone (MDY's mp3), the video
+// player is put away and this slim bar sits at the bottom of the screen, just
+// above the phone's bottom bar: the shiur's picture and name, its time, a seek
+// bar, back/forward 10 seconds, play/pause, speed, and Video to bring the
+// picture back. On the Interactive Daf page it also closes the shiur. Split
+// view and Daf on video have nothing to show while it is up, so the page
+// steps out of them and goes back when the video returns.
+// ---------------------------------------------------------------------------
+const AUDIO_BAR_RATES = ['1', '1.25', '1.5', '2', '2.5', '3', '0.75'];
+let audioBarPrevMode = null;
+function audioBarWanted() {
+  if (state.mdyPlayback?.quality !== 'audio') return false;
+  return !state.browseMode || document.body.classList.contains('book-video-up');
+}
+function ensureAudioBar() {
+  let bar = $('audioBar');
+  if (bar) return bar;
+  bar = document.createElement('div');
+  bar.id = 'audioBar';
+  bar.className = 'audio-bar';
+  bar.setAttribute('role', 'region');
+  bar.setAttribute('aria-label', 'Audio player');
+  bar.hidden = true;
+  bar.innerHTML = `
+    <input class="audio-bar-seek" id="audioBarSeek" type="range" min="0" max="100" step="0.1" value="0" aria-label="Position in the shiur" />
+    <div class="audio-bar-row">
+      <img class="audio-bar-picture" id="audioBarPicture" alt="" />
+      <div class="audio-bar-text">
+        <strong class="audio-bar-title" id="audioBarTitle"></strong>
+        <span class="audio-bar-time" id="audioBarTime">0:00</span>
+      </div>
+      <button type="button" class="audio-bar-button" id="audioBarBack" aria-label="Back 10 seconds" title="Back 10 seconds">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><text x="12" y="15.5" text-anchor="middle" font-size="7.5" font-weight="700" fill="currentColor">10</text></svg>
+      </button>
+      <button type="button" class="audio-bar-button audio-bar-play" id="audioBarPlay" aria-label="Play">
+        <svg class="audio-bar-icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></svg>
+        <svg class="audio-bar-icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/></svg>
+      </button>
+      <button type="button" class="audio-bar-button" id="audioBarForward" aria-label="Forward 10 seconds" title="Forward 10 seconds">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7M20 4v4.5h-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><text x="12" y="15.5" text-anchor="middle" font-size="7.5" font-weight="700" fill="currentColor">10</text></svg>
+      </button>
+      <button type="button" class="audio-bar-pill" id="audioBarSpeed" aria-label="Playback speed" title="Playback speed">1×</button>
+      <button type="button" class="audio-bar-pill" id="audioBarVideo" title="Show the video">Video</button>
+      <button type="button" class="audio-bar-button audio-bar-close" id="audioBarClose" aria-label="Close the shiur" title="Close the shiur">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      </button>
+    </div>`;
+  document.body.appendChild(bar);
+  const seekInput = bar.querySelector('#audioBarSeek');
+  let dragging = false;
+  seekInput.addEventListener('input', () => { dragging = true; paintAudioBarTime(Number(seekInput.value)); });
+  seekInput.addEventListener('change', () => { dragging = false; seek(Number(seekInput.value)); });
+  bar.querySelector('#audioBarPlay').addEventListener('click', () => togglePlay());
+  bar.querySelector('#audioBarBack').addEventListener('click', () => seek(Math.max(0, getCurrentTime() - 10)));
+  bar.querySelector('#audioBarForward').addEventListener('click', () => seek(Math.min(getDuration() || Infinity, getCurrentTime() + 10)));
+  bar.querySelector('#audioBarSpeed').addEventListener('click', () => {
+    const now = String(Number($('speedSelect')?.value) || 1);
+    const next = AUDIO_BAR_RATES[(AUDIO_BAR_RATES.indexOf(now) + 1) % AUDIO_BAR_RATES.length];
+    if (window.setPlayerSpeed) window.setPlayerSpeed(next);
+    else setPlaybackRate(Number(next));
+    paintAudioBar();
+  });
+  bar.querySelector('#audioBarVideo').addEventListener('click', () => {
+    if (state.browseMode && typeof setBookShiurListening === 'function') setBookShiurListening(false);
+    else if (state.mdyPlayback?.quality === 'audio') changeMdyQuality(mdyVideoQuality());
+  });
+  bar.querySelector('#audioBarClose').addEventListener('click', () => {
+    if (state.viewerMode !== 'standard') setViewerMode('standard');
+    else closeBookVideo();
+  });
+  for (const type of ['timeupdate', 'play', 'pause', 'durationchange', 'ratechange']) {
+    htmlVideo.addEventListener(type, () => { if (!bar.hidden && !(type === 'timeupdate' && dragging)) paintAudioBar(); });
+  }
+  window.addEventListener('resize', placeAudioBar);
+  return bar;
+}
+function paintAudioBarTime(at) {
+  const duration = Number(htmlVideo.duration) || getDuration() || 0;
+  $('audioBarTime').textContent = duration ? `${formatTime(at)} / ${formatTime(duration)}` : formatTime(at);
+}
+function paintAudioBar() {
+  const bar = $('audioBar');
+  if (!bar || bar.hidden) return;
+  const duration = Number(htmlVideo.duration) || 0;
+  const at = Number(htmlVideo.currentTime) || 0;
+  const seekInput = $('audioBarSeek');
+  seekInput.max = String(duration || 100);
+  seekInput.value = String(at);
+  seekInput.style.setProperty('--audio-progress', `${duration ? (at / duration) * 100 : 0}%`);
+  paintAudioBarTime(at);
+  const playing = !htmlVideo.paused;
+  bar.classList.toggle('is-playing', playing);
+  $('audioBarPlay').setAttribute('aria-label', playing ? 'Pause' : 'Play');
+  $('audioBarSpeed').textContent = `${Number($('speedSelect')?.value) || 1}×`;
+}
+function placeAudioBar() {
+  const bar = $('audioBar');
+  if (!bar || bar.hidden) return;
+  const nav = document.querySelector('.mobile-nav');
+  const navHeight = nav && getComputedStyle(nav).display !== 'none' ? nav.getBoundingClientRect().height : 0;
+  bar.style.setProperty('--audio-bar-bottom', `${Math.round(navHeight)}px`);
+  document.body.style.setProperty('--audio-bar-room', `${Math.round(navHeight + bar.getBoundingClientRect().height + 8)}px`);
+}
+function updateAudioBar() {
+  const want = audioBarWanted();
+  const bar = want ? ensureAudioBar() : $('audioBar');
+  if (!bar) return;
+  if (want === !bar.hidden) {
+    if (want) paintAudioBar();
+    return;
+  }
+  bar.hidden = !want;
+  document.body.classList.toggle('audio-bar-up', want);
+  if (want) {
+    const shiur = state.mdyShiur;
+    $('audioBarPicture').src = (shiur && mdyPictureUrl(shiur, 160)) || '';
+    $('audioBarPicture').hidden = !$('audioBarPicture').src;
+    $('audioBarTitle').textContent = state.videoSource?.label || $('lectureTitle')?.textContent || 'Shiur';
+    $('audioBarClose').hidden = !state.browseMode;
+    // Split view and Daf on video have nothing to show without the picture.
+    if (state.viewerMode === 'split' || state.viewerMode === 'daf-on-video') {
+      audioBarPrevMode = state.viewerMode;
+      setViewerMode(state.browseMode ? 'video-on-daf' : 'standard');
+    }
+    placeAudioBar();
+    paintAudioBar();
+  } else {
+    document.body.style.removeProperty('--audio-bar-room');
+    if (audioBarPrevMode && state.mdyPlayback && (!state.browseMode || document.body.classList.contains('book-video-up'))) {
+      setViewerMode(audioBarPrevMode);
+    }
+    audioBarPrevMode = null;
+  }
 }
 
 // An MDY shiur's audio: listen to it alone (the same file MDY's own site plays
@@ -10727,11 +10921,11 @@ async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs =
   // Seeking to 0 on a broadcast that is on the air leaves the live edge
   // and lands in the waiting room. The iframe already opens at live.
   if (state.videoSource.liveStatus !== 'live') seek(0);
-  saveProjectForRef(state.dafRef, { videoSource: state.videoSource });
+  if (!extras?.noSave) saveProjectForRef(state.dafRef, { videoSource: state.videoSource });
   // The live publisher owns this link. Re-saving it from the player would
   // dispatch save-video-link and drop liveBroadcast (that endpoint only
   // stores a manual link).
-  if (!liveBroadcast) saveVideoLinkForCoveredRefs(state.videoSource, saveRefs);
+  if (!liveBroadcast && !extras?.noSave) saveVideoLinkForCoveredRefs(state.videoSource, saveRefs);
   scheduleNonEssential(() => refreshTestRuns(videoId));
   if (liveBroadcast) {
     showToast(state.videoSource.liveStatus === 'live'
@@ -11028,7 +11222,8 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
   if (deferPage) state.deferVilnaRaster = true;
   $('dafRef').value = state.dafRef;
   syncDafPickerFromRef(state.dafRef);
-  $('dafTitle').textContent = state.dafRef;
+  // The Interactive Daf page names the amud on its page, not the shiur that is up.
+  $('dafTitle').textContent = state.browseMode && state.browsePageRef ? realDafRef(state.browsePageRef) : state.dafRef;
   if (Number(data.duration) > 0) applyDuration(Number(data.duration), false);
   renderDaf();
   saveProjectForRef(state.dafRef, {
@@ -12473,12 +12668,9 @@ async function loadTalmudIndex() {
   $('syncTractateSelect').disabled = activeTractateNames.length <= 1;
   onSyncTractateChange();
   if ($('dafTractateSelect') && !$('dafTractateSelect').options.length) {
-    // Unlike the sync dialog's own tractate picker above (which needs
-    // every active tractate -- an admin syncs *unsynced* dapim from
-    // there), a tractate with nothing synced yet is skipped entirely here.
-    const dafPickerTractateNames = state.browseMode && state.syncedDapim
-      ? activeTractateNames.filter((name) => Object.keys(state.syncedDapim[name] || {}).length)
-      : activeTractateNames;
+    // Every masechta: the printed daf is there for all of Shas. Which dapim
+    // have a shiur to bring up is the word menu's business (bookShiurimFor).
+    const dafPickerTractateNames = activeTractateNames;
     $('dafTractateSelect').innerHTML = dafPickerTractateNames
       .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
     $('dafTractateSelect').disabled = dafPickerTractateNames.length <= 1;
@@ -12660,7 +12852,8 @@ function dafPickerRef() {
 function showBrowsePage(ref) {
   state.browsePageRef = ref;
   const titleEl = $('dafTitle');
-  if (titleEl) titleEl.textContent = ref;
+  // The book's own name: the amud, whichever shiur was last brought up.
+  if (titleEl) titleEl.textContent = realDafRef(ref);
   renderVilnaPage();
   renderVideoChoice();
 }
@@ -12757,6 +12950,259 @@ async function loadVideoChoice(choice) {
   renderVideoChoice();
 }
 
+// --- Interactive Daf: a shiur is brought up from a word's menu ---------------
+// The page is the book alone until then: no player, no list of shiurim. The
+// menu lists the shiurim that are synced for the word's amud; choosing one
+// loads it, floats the video over the daf (Video on daf -- or the mode last
+// used there: Split view and Daf on video are one tap away), and starts it at
+// that word. Leaving every mode, or the Close button, puts it away again.
+const BOOK_VIDEO_MODE_KEY = 'dafsync-book-video-mode';
+
+// Every shiur linked to this daf, synced or not (videoChoicesFor: a
+// livestream only where there is nothing finished).
+function bookShiurimFor(ref) {
+  if (!state.browseMode) return [];
+  const parsed = parseDafRef(ref);
+  return parsed ? videoChoicesFor(parsed.tractate, parsed.daf) : [];
+}
+
+// MDY's own sync list covers MDY's shiurim; another maggid's is found out
+// when it loads (null: not known yet).
+function bookShiurSynced(choice, ref) {
+  const parsed = parseDafRef(ref);
+  if (!parsed) return false;
+  if (choice.maggid) return null;
+  const synced = state.syncedDapim?.[parsed.tractate]?.[`${parsed.daf}${parsed.amud}`] || [];
+  return synced.includes(comboKeyFor(choice.variant, choice.language));
+}
+
+function bookShiurRef(choice, ref) {
+  const parsed = parseDafRef(ref);
+  if (!parsed) return '';
+  const variantSuffix = choice.variant === 'chazarah' ? ' (Chazarah Daf)' : '';
+  const languageSuffix = (choice.language === 'he' ? ' (Hebrew)' : '') + maggidMarkerSuffix(choice.maggid);
+  return `${parsed.tractate} ${parsed.daf}${parsed.amud}${variantSuffix}${languageSuffix}`;
+}
+
+// MDY's server has an mp3 of each of its own shiurim (not of a livestream,
+// not of another maggid's).
+function bookShiurHasAudio(choice, ref) {
+  return Boolean(mdyShiurFor(bookShiurRef(choice, ref), choice.title, { liveBroadcast: choice.liveBroadcast }));
+}
+
+function bookShiurPicture(choice, ref) {
+  const mdy = mdyShiurFor(bookShiurRef(choice, ref), choice.title, { liveBroadcast: choice.liveBroadcast });
+  const youtube = choice.videoId ? `https://i.ytimg.com/vi/${choice.videoId}/mqdefault.jpg` : '';
+  return { src: (mdy && mdyPictureUrl(mdy, 320)) || youtube, fallback: mdy ? youtube : '' };
+}
+
+function showBookVideo() {
+  if (!state.browseMode) return;
+  document.body.classList.add('book-video-up');
+  if (state.viewerMode !== 'standard') return;
+  let mode = 'video-on-daf';
+  try {
+    const saved = localStorage.getItem(BOOK_VIDEO_MODE_KEY);
+    if (VIEWER_MODES.includes(saved) && saved !== 'standard') mode = saved;
+  } catch { /* private mode */ }
+  setViewerMode(mode);
+}
+
+function closeBookVideo() {
+  if (!state.browseMode || !document.body.classList.contains('book-video-up')) return;
+  document.body.classList.remove('book-video-up');
+  try { if (!isPaused()) togglePlay(); } catch { /* nothing playing */ }
+  const fullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+  if (fullscreen) {
+    try { (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch { /* already out */ }
+  }
+  if (state.viewerMode !== 'standard') setViewerMode('standard');
+  updateAudioBar();
+  scheduleVilnaPageLayoutRefresh(60);
+}
+
+// Audio or video of the MDY file on screen, without making either the
+// default for the player pages (changeMdyQuality would remember it).
+function setBookShiurListening(audio) {
+  if (!state.mdyShiur) return;
+  const resumeAt = Number(htmlVideo.currentTime) || 0;
+  const resume = !htmlVideo.paused;
+  if (audio && state.mdyPlayback?.quality !== 'audio') {
+    if (state.mdyPlayback) state.mdyVideoQuality = state.mdyPlayback.quality;
+    playMdyFile({ quality: 'audio', resumeAt, resume });
+  } else if (!audio && state.mdyPlayback?.quality === 'audio') {
+    playMdyFile({ quality: mdyVideoQuality(), resumeAt, resume });
+  }
+  document.body.classList.toggle('book-audio', Boolean(audio && state.mdyPlayback?.quality === 'audio'));
+  updateAudioBar();
+}
+
+// Brings a shiur up over the daf. A synced one starts at the word; one with
+// no sync yet plays from its beginning, with nothing highlighted (there is no
+// timing to highlight by) -- and is played from the catalog, never saved as
+// the daf's video.
+async function watchShiurFromWord(choice, ref, wordIndex, { audio = false } = {}) {
+  const full = bookShiurRef(choice, ref);
+  if (!full) return;
+  state.maggid = choice.maggid;
+  setActiveShiurVariant('dafShiurToggle', choice.variant);
+  setActiveLanguage('dafLanguageToggle', choice.language);
+  showBookVideo();
+  const knownSynced = bookShiurSynced(choice, ref);
+  const same = state.bookVideo?.ref === full && state.videoSource?.videoId === choice.videoId;
+  try {
+    if (!same && knownSynced !== false) {
+      await loadDaf(full, { silent: true });
+    } else if (!same) {
+      state.segments = [];
+      state.activeIndex = -1;
+      state.dafRef = full;
+      await loadYouTubeVideo(`https://www.youtube.com/watch?v=${choice.videoId}`, choice.videoId, [full], choice.title,
+        false, { liveBroadcast: choice.liveBroadcast, noSave: true });
+    }
+  } catch (error) {
+    console.error(error);
+    showToast(`Could not load ${full}: ${error.message}`, 'error');
+    return;
+  }
+  // A maggid's shiur that turned out to have no sync is one played from the start.
+  const synced = same ? state.bookVideo.synced : (knownSynced !== false && state.alignmentStatus !== 'placeholder');
+  state.bookVideo = { choice, ref: full, synced };
+  state.bookVideoRef = full;
+  if (!synced) {
+    state.livePlainDaf = true;
+    state.activeIndex = -1;
+    $('vilnaActiveOverlay').innerHTML = '';
+  }
+  setBookShiurListening(audio);
+  if (synced) await seekToVilnaWord(ref, wordIndex);
+  else if (!same) seek(0);
+  if (isPaused()) await togglePlay();
+  if (!synced && !same) showToast('This shiur is not synced with the daf yet: it plays from the start.');
+}
+
+// While a synced shiur is up, a tap on a word sends it there. Another amud
+// of the same shiur loads first; a word it cannot reach (an amud that shiur
+// has no sync for) is left to the word's menu. Returns whether it seeked.
+async function bookTapWord(word) {
+  const up = state.bookVideo;
+  if (!state.browseMode || !up?.synced || !document.body.classList.contains('book-video-up') || !word) return false;
+  const full = bookShiurRef(up.choice, word.ref);
+  if (full !== up.ref) {
+    if (bookShiurSynced(up.choice, word.ref) === false) return false;
+    try {
+      await loadDaf(full, { silent: true });
+    } catch (error) {
+      console.error(error);
+      return false;
+    }
+    if (state.alignmentStatus === 'placeholder') return false;
+    state.bookVideo = { ...up, ref: full };
+    state.bookVideoRef = full;
+    setBookShiurListening(document.body.classList.contains('book-audio'));
+  }
+  await seekToVilnaWord(word.ref, word.wordIndex);
+  if (isPaused()) await togglePlay();
+  return true;
+}
+
+// The window "Watch from here" opens: each shiur linked to the daf, with its
+// picture, whether it starts at the word or from the beginning, and Video /
+// Audio where MDY's server has both.
+function ensureBookShiurDialog() {
+  let dialog = $('bookShiurDialog');
+  if (dialog) return dialog;
+  dialog = document.createElement('dialog');
+  dialog.id = 'bookShiurDialog';
+  dialog.className = 'book-shiur-dialog';
+  dialog.innerHTML = `
+    <button class="dialog-close" type="button" aria-label="Close">×</button>
+    <div class="eyebrow">Watch from here</div>
+    <h2 id="bookShiurDialogTitle"></h2>
+    <div class="book-shiur-list" id="bookShiurList"></div>`;
+  dialog.querySelector('.dialog-close').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
+  document.body.appendChild(dialog);
+  return dialog;
+}
+
+function openBookShiurWindow(ref, wordIndex) {
+  const parsed = parseDafRef(ref);
+  const choices = bookShiurimFor(ref);
+  if (!parsed || !choices.length) return;
+  const dialog = ensureBookShiurDialog();
+  $('bookShiurDialogTitle').textContent = `${parsed.tractate} ${parsed.daf}${parsed.amud}`;
+  const list = $('bookShiurList');
+  list.textContent = '';
+  for (const choice of choices) {
+    const synced = bookShiurSynced(choice, ref);
+    const audio = bookShiurHasAudio(choice, ref);
+    const row = document.createElement('div');
+    row.className = 'book-shiur-row';
+    const picture = bookShiurPicture(choice, ref);
+    const frame = document.createElement('div');
+    frame.className = 'book-shiur-thumb';
+    if (picture.src) {
+      const img = document.createElement('img');
+      img.alt = '';
+      img.loading = 'lazy';
+      img.src = picture.src;
+      img.addEventListener('error', () => {
+        if (picture.fallback && img.src !== picture.fallback) img.src = picture.fallback;
+        else img.remove();
+      });
+      frame.appendChild(img);
+    }
+    const info = document.createElement('div');
+    info.className = 'book-shiur-info';
+    const who = document.createElement('strong');
+    who.textContent = `${choice.who.split(' · ')[0]} · ${choice.kind}`;
+    const title = document.createElement('span');
+    title.className = 'book-shiur-title';
+    title.textContent = choice.title;
+    const status = document.createElement('span');
+    status.className = `book-shiur-status${synced === false ? ' is-unsynced' : ''}`;
+    status.textContent = synced === false ? 'Not synced yet · plays from the start' : (synced ? 'Synced · starts at this word' : 'Starts at this word where synced');
+    info.append(who, title, status);
+    const actions = document.createElement('div');
+    actions.className = 'book-shiur-actions';
+    const play = (asAudio) => {
+      dialog.close();
+      watchShiurFromWord(choice, ref, wordIndex, { audio: asAudio });
+    };
+    const videoButton = document.createElement('button');
+    videoButton.type = 'button';
+    videoButton.className = 'button primary small';
+    videoButton.textContent = 'Video';
+    videoButton.addEventListener('click', () => play(false));
+    actions.appendChild(videoButton);
+    if (audio) {
+      const audioButton = document.createElement('button');
+      audioButton.type = 'button';
+      audioButton.className = 'button secondary small';
+      audioButton.textContent = 'Audio';
+      audioButton.addEventListener('click', () => play(true));
+      actions.appendChild(audioButton);
+    }
+    row.append(frame, info, actions);
+    list.appendChild(row);
+  }
+  if (!dialog.open) dialog.showModal();
+}
+
+window.dafBookVideo = {
+  shiurimFor: bookShiurimFor,
+  open: openBookShiurWindow,
+  watch: watchShiurFromWord,
+  tapWord: bookTapWord,
+  canSeek: () => Boolean(state.bookVideo?.synced) && document.body.classList.contains('book-video-up'),
+  close: closeBookVideo,
+};
+$('bookVideoCloseButton')?.addEventListener('click', () => {
+  if (state.viewerMode !== 'standard') setViewerMode('standard'); // closes it (see setViewerMode)
+  else closeBookVideo();
+});
+
 function onDafPickerChanged() {
   // The picker has no control for another maggid's shiur (the list above the player
   // does), so a new pick starts from the default one unless a link named it.
@@ -12768,48 +13214,27 @@ function onDafPickerChanged() {
   if (state.liveFollow?.active) return window.dafLiveFollow?.pickerChanged(ref);
   if (state.browseMode) {
     showBrowsePage(ref);
-    // A daf with more than one shiur on the site loads none of them: the list above the
-    // player offers them (showBrowsePage drew it). Only a link that names a shiur itself
-    // (variant, language or maggid in the address) loads straight away.
+    // The book on its own: a shiur comes up when a word's menu asks for one.
+    // Only a link that names a shiur itself (a variant, a language or a
+    // maggid in the address) brings it up straight away.
     const pickedExplicitly = state.browseLoadExplicit;
     state.browseLoadExplicit = false;
-    if (!pickedExplicitly && (state.videoChoices || []).length > 1) return;
-    // Filtering livestreams can leave one finished shiur that isn't the
-    // toggle's default (English regular). Load that one instead of the
-    // live recording the default toggle would have fetched.
-    if (!pickedExplicitly && (state.videoChoices || []).length === 1) {
-      const only = state.videoChoices[0];
-      const toggleMatches = !only.maggid
-        && only.variant === activeShiurVariant('dafShiurToggle')
-        && only.language === activeLanguage('dafLanguageToggle');
-      if (!toggleMatches) {
-        state.maggid = only.maggid;
-        setActiveShiurVariant('dafShiurToggle', only.variant);
-        setActiveLanguage('dafLanguageToggle', only.language);
-        const redirected = dafPickerRef();
-        if (redirected && state.dafRef !== redirected) loadDaf(redirected).then(() => renderVideoChoice());
-        return;
-      }
+    if (pickedExplicitly && state.dafRef !== ref) {
+      showBookVideo();
+      loadDaf(ref).then(() => {
+        state.bookVideoRef = ref;
+        state.bookVideo = {
+          choice: {
+            maggid: state.maggid || null,
+            variant: activeShiurVariant('dafShiurToggle'),
+            language: activeLanguage('dafLanguageToggle'),
+            videoId: state.videoSource?.videoId || null,
+          },
+          ref,
+          synced: state.alignmentStatus !== 'placeholder',
+        };
+      });
     }
-    // The Daf browser used to leave it at that -- a real report confirmed
-    // the video panel just stayed empty here, unlike every other page that
-    // embeds this same player DOM, where picking a daf always loads its
-    // video too. state.syncedDapim (already loaded for this picker's own
-    // enable/disable logic -- see refreshDafPickerVariantLanguage) is
-    // reused to check whether the CURRENT variant/language selection
-    // actually has a synced video before loading anything, rather than
-    // guessing from a failed fetch; a daf with no synced recording at all
-    // correctly stays page-only. Skipped when this exact ref is already
-    // loaded (stepping between two amudim one recording covers, or picking
-    // the daf that's already playing) so it never restarts playback the
-    // reader is mid-listening to.
-    const tractate = $('dafTractateSelect')?.value;
-    const daf = $('dafDafSelect')?.value;
-    const amud = activeAmud('dafAmudToggle');
-    const combos = state.syncedDapim?.[tractate]?.[`${daf}${amud}`] || [];
-    const wantsCombo = comboKeyFor(activeShiurVariant('dafShiurToggle'), activeLanguage('dafLanguageToggle'));
-    const namedMaggid = Boolean(state.maggid) && (state.videoChoices || []).some((c) => c.maggid === state.maggid);
-    if ((combos.includes(wantsCombo) || namedMaggid) && state.dafRef !== ref) loadDaf(ref).then(() => renderVideoChoice());
     return;
   }
   loadDaf(ref);

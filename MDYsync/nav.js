@@ -3,7 +3,7 @@
 // Sitewide bottom tab bar -- renders the same 5 tabs index.html's own
 // sidebar/mobile-nav uses (see its own navItems there) as plain links on
 // every OTHER page, since those pages have no in-page catalog to filter
-// the way the home page does; "Today's Daf"/"Maggidei Shiurim" instead
+// the way the home page does; "Today's Daf"/"Maggidei Shiur" instead
 // link back to / with a ?nav= param index.html reads on load to land
 // pre-selected. Not loaded by index.html itself -- it already renders its
 // own copy with real in-page filter behavior, not just links.
@@ -14,10 +14,10 @@
 const NAV_ITEMS = [
   { label: 'Home', short: 'Home', icon: 'home', href: '/' },
   { label: 'Today’s Daf', short: 'Today', icon: 'calendar', href: '/?nav=today', phone: false },
-  { label: 'Interactive Daf', short: 'Daf', icon: 'bookOpen', href: '/browse/' },
-  { label: 'Cloud Chaburah', short: 'Chaburah', icon: 'chaburah', href: '/chaburah/' },
-  { label: 'Maggidei Shiurim', short: 'Maggidim', icon: 'teacher', href: '/?nav=maggidei' },
-  { label: 'Daf Scan', short: 'Scan', icon: 'camera', href: '/player/?view=scan' },
+  { label: 'Interactive Daf', short: 'Interactive Daf', icon: 'bookOpen', href: '/browse/' },
+  { label: 'Cloud Chaburah', short: 'Cloud Chaburah', icon: 'chaburah', href: '/chaburah/' },
+  { label: 'Maggidei Shiur', short: 'Maggidei Shiur', icon: 'teacher', href: '/?nav=maggidei' },
+  { label: 'Daf Scan', short: 'Daf Scan', icon: 'camera', href: '/player/?view=scan' },
 ];
 
 // Same path data as index.html's own icon set, kept in sync by hand since
@@ -47,7 +47,7 @@ function isItemActive(item) {
     return new URLSearchParams(location.search).get('view') === 'scan';
   }
   if (url.pathname === '/') {
-    // Home (no ?nav=) vs. Today's Daf/Maggidei Shiurim (?nav=today /
+    // Home (no ?nav=) vs. Today's Daf/Maggidei Shiur (?nav=today /
     // ?nav=maggidei) are otherwise indistinguishable by pathname alone.
     return (new URLSearchParams(location.search).get('nav') || '') === (url.searchParams.get('nav') || '');
   }

@@ -297,12 +297,14 @@ test.describe('The other reading pages', () => {
     await expect.poll(() => page.evaluate(() => window.DafLive?.available())).toBe(true);
     await page.evaluate(() => setViewerMode('split'));
     await expect.poll(() => page.evaluate(() => document.body.classList.contains('split-tools-phone'))).toBe(true);
-    // In Split the floating button gives way to the drop-down's.
+    // In Split the heading's button gives way to the drop-down's.
     await expect(page.locator('.live-toggle')).toBeHidden();
     await page.locator('#splitDivider').tap();
     const button = page.locator('#splitToolsDafRow #splitLiveButton');
     await expect(button).toBeVisible();
     await expect(button).toHaveAttribute('aria-label', 'Live discussions');
+    // Named on the button itself, not an icon alone.
+    await expect(button.locator('.split-live-label')).toHaveText('Live discussions');
     await expect(button.locator('.split-live-count')).toHaveText('2');
     // Two rows still, nothing off the edge.
     const overflow = await page.locator('#splitToolsDafRow').evaluate((row) => row.scrollWidth - row.clientWidth);
@@ -330,12 +332,21 @@ test.describe('The other reading pages', () => {
     await expect(page.locator('#splitLiveButton')).toBeHidden();
   });
 
-  test('on a phone the floating button sits above the bottom tab bar', async ({ page }, info) => {
-    test.skip(info.project.name !== 'mobile', 'phone layout');
-    await open(page, { url: '/player/?ref=Chullin%2089a' });
-    await expect(page.locator('.live-toggle')).toBeVisible();
-    const gap = await page.evaluate(() => document.querySelector('.mobile-nav').getBoundingClientRect().top - document.querySelector('.live-toggle').getBoundingClientRect().bottom);
-    expect(gap).toBeGreaterThanOrEqual(0);
+  test('the Live discussions button sits in the daf\'s heading, not floating over the page', async ({ page }) => {
+    for (const url of ['/player/?ref=Chullin%2089a', '/watch/?ref=Chullin%2089a', '/browse/?ref=Chullin%2089a']) {
+      await open(page, { url });
+      if (url.startsWith('/player/')) await page.evaluate(() => setViewerMode('standard'));
+      const toggle = page.locator('.live-toggle');
+      await expect(toggle).toBeVisible();
+      await expect(toggle).toHaveText(/Live discussions/);
+      expect(await toggle.evaluate((el) => [getComputedStyle(el).position, Boolean(el.closest('#dafCard'))])).toEqual(['static', true]);
+      // The page does not grow sideways for it.
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+      // Nor does it squeeze the daf's name.
+      if (url.startsWith('/browse/')) {
+        expect(await page.locator('#dafTitle').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+      }
+    }
   });
 
   test('player: a recording of another rabbi shares the daf\'s discussions', async ({ page }) => {

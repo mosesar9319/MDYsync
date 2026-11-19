@@ -86,7 +86,7 @@ test('a one-time hint says how to open the menu, and not again after that', asyn
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('dafsync:vilna-page', { detail: { reason: 'map' } })));
   const hint = page.locator('.daf-menu-hint');
   await expect(hint).toBeVisible({ timeout: 4000 });
-  const word = test.info().project.name === 'mobile' ? 'Hold' : 'Right-click';
+  const word = test.info().project.name === 'mobile' ? 'Tap' : 'Click'; // on the Interactive Daf page a plain tap opens the menu
   await expect(hint).toContainText(`${word} any word for more`);
   await page.getByRole('button', { name: 'Dismiss the tip' }).click();
   await expect(hint).toHaveCount(0);
