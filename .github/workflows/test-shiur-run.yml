@@ -152,12 +152,20 @@ jobs:
               'language': 'en',
               'testRun': 'true',
               'testNotes': f'{notes} ({made})' if notes else made,
-              'aligner': aligner,
-              'witnesses': witnesses,
-              'sttModel': stt_model,
           }
+          # GitHub refuses a dispatch whose client_payload has more than 10
+          # top-level fields, so a setting left at voice-job.yml's own default is
+          # not sent, and witnesses only go with the path aligner (the phrase
+          # matcher does not read them).
+          if aligner != 'path':
+              payload['aligner'] = aligner
+          elif witnesses != 'hints,plain':
+              payload['witnesses'] = witnesses
+          if stt_model != 'scribe_v2':
+              payload['sttModel'] = stt_model
           if os.environ.get('MAGGID'):
               payload['maggid'] = os.environ['MAGGID']
+          assert len(payload) <= 10, f'client_payload has {len(payload)} top-level fields; GitHub allows 10'
           print(json.dumps({'event_type': 'run-voice-job', 'client_payload': payload}))
           PY
           curl -fsS -X POST \
