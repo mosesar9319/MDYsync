@@ -434,6 +434,8 @@ function formatTimePrecise(seconds) {
 }
 
 function showToast(message, type = 'normal') {
+  // A ref in a message is shown with the masechta's display name (Eruchin).
+  message = String(message).replace(/\b([A-Z][A-Za-z]*)(?=\s+\d)/g, (name) => displayTractate(name));
   const toast = $('toast');
   // A toast fired while a <dialog> is open (e.g. a sync-dialog validation
   // error -- "Sync from YouTube" clicked with the video not among the

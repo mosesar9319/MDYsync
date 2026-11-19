@@ -30,7 +30,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { SYNC_FROM_PUBLISHED } from '../shared/lakewood-feed.mjs';
 
-export const RESERVE_CREDITS = 3000;
+export const RESERVE_CREDITS = 1000;
 export const CREDITS_PER_MINUTE = 23; // measured: hints 20.8/min plus the re-listen clips
 export const MAX_PER_RUN = 3;
 export const RETRY_AFTER_HOURS = 3;
