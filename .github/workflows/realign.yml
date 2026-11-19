@@ -13,6 +13,16 @@ name: Place a shiur again from its saved transcripts (no ElevenLabs)
 # is scoped to this repository's main branch. From any other branch the request
 # is refused and the shiur is placed without it.
 #
+# Holes answered in a Claude Code session instead of by the API: Claude reads
+# the questions (voice_align.py --patch-questions, from the saved transcripts)
+# and starts this workflow with its answers (llm_patch.ANSWERS_SCHEMA) in the
+# "answers" input. They are kept on the results branch as
+# patch-answers/<video id>.json and used from there on every later run for the
+# shiur, through the same checks as an answer from the API, and no API call is
+# made. No pull request is needed for a shiur's answers: like a sync, they are
+# results. (An answer that no longer fits a hole, after a change to the engine,
+# is simply not used.)
+#
 # The result is filed as the shiur's next numbered test run
 # (tools/caption-sync/test_runs.py). The player shows a shiur's run with the most
 # daf words matched unless an admin picked another, so a better placement is
@@ -36,6 +46,9 @@ on:
         default: true
       notes:
         description: 'A note for the test run (what changed in the engine)'
+        default: ''
+      answers:
+        description: 'Answers for the holes, given in a Claude Code session (JSON, dafsync-patch-answers-v1); kept on the results branch'
         default: ''
 
 permissions:
@@ -79,6 +92,7 @@ jobs:
         working-directory: MDYsync/tools/caption-sync
         env:
           VIDEO_ID: ${{ inputs.video_id }}
+          ANSWERS: ${{ inputs.answers }}
           VOICE_LLM_PATCH: ${{ inputs.claude && '1' || '0' }}
           # The same workload identity as voice-job.yml (see the notes there).
           ANTHROPIC_FEDERATION_RULE_ID: fdrl_01AtYN9MAYUPtY4cZQyXsbyc
@@ -100,9 +114,24 @@ jobs:
           fi
           python3 saved_transcripts.py meta --file "$saved" > /tmp/job.json
           cat /tmp/job.json
+          # Answers given with this run replace the ones kept for the shiur.
+          kept="/tmp/results-checkout/patch-answers/${VIDEO_ID}.json"
+          answers=""
+          if [ -n "$ANSWERS" ]; then
+            mkdir -p "$(dirname "$kept")"
+            printf '%s' "$ANSWERS" > /tmp/answers.json
+            python3 -c "import json,sys,llm_patch; d=json.load(open('/tmp/answers.json')); assert d.get('videoId') in (None, sys.argv[1]), 'answers are for another shiur'; print(len(llm_patch.load_answers('/tmp/answers.json')), 'answer(s)')" "$VIDEO_ID"
+            python3 -c "import json,sys; json.dump(json.load(open('/tmp/answers.json')), open(sys.argv[1], 'w', encoding='utf-8'), ensure_ascii=False, indent=1)" "$kept"
+          fi
+          if [ -f "$kept" ]; then
+            answers="$kept"
+            echo "Filling the holes from the answers given in a Claude Code session, not the API."
+            export VOICE_LLM_PATCH=0
+          fi
           python3 voice_align.py job-audio.mp3 \
             --refs-json "$(python3 -c "import json; print(json.dumps(json.load(open('/tmp/job.json'))['refs']))")" \
             --saved-transcripts "$saved" \
+            ${answers:+--patch-answers "$answers"} \
             --out-dir job-out
 
       - name: File the result
@@ -151,6 +180,7 @@ jobs:
 
           cd /tmp/results-checkout
           git add test-runs
+          [ -d patch-answers ] && git add patch-answers
           [ "$PUBLISH" = "true" ] && git add by-ref by-video
           git commit -q -m "Placed ${VIDEO_ID} again from its saved transcripts (${JOB_ID})"
           for attempt in 1 2 3 4 5; do

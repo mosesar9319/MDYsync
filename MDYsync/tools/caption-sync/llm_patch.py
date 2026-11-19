@@ -281,7 +281,81 @@ def ask(client, canon, heard, batch, refresh=None):
         return None, usage
 
 
-def patch(canon, events, counted, heard, duration=None, client=None, refresh=None, ask_claude=ask):
+# ---------------------------------------------------------------------------
+# Answers from a file instead of the API
+# ---------------------------------------------------------------------------
+# The same questions can be answered by Claude in a Claude Code session, on the
+# owner's own plan, instead of through the API (November 2026: the API account
+# had no credit):
+#
+#   git show origin/results:transcripts/<video id>.json.gz > /tmp/t.json.gz
+#   python3 voice_align.py job-audio.mp3 --refs-json '["Arakhin 2a","Arakhin 2b"]' \
+#       --saved-transcripts /tmp/t.json.gz --out-dir /tmp/out --patch-questions /tmp/q.json
+#
+# writes every hole as patch() would ask about it (q.json's "system" says how to
+# answer). The answers, as {"schema": ANSWERS_SCHEMA, "videoId": ..., "placements":
+# [{"daf": [first, last], "heard": [first, last], "kind": "read"|"explained",
+# "confidence": 0.8, "why": "..."}]}, are checked locally with --patch-answers
+# and then given to realign.yml's "answers" input, which keeps them on the
+# results branch (patch-answers/<video id>.json) and applies them through
+# accept() and the straight path like any answer from the API.
+#
+# An answer names daf words and heard words by their place in the whole daf and
+# the whole transcript (not M0.. within one hole), so it still applies when the
+# engine later draws a hole's edges a word differently: each placement goes to
+# the hole that holds it, and one no hole holds is left out.
+QUESTIONS_SCHEMA = "dafsync-patch-questions-v1"
+ANSWERS_SCHEMA = "dafsync-patch-answers-v1"
+IN_SESSION_MODEL = "claude (in a Claude Code session)"
+
+
+def questions(canon, heard, gaps):
+    """Every hole as the API would be asked about it, for answering elsewhere."""
+    out = []
+    for gap in gaps:
+        out.append({
+            "dafWords": [gap.lo, gap.hi],
+            "heardWords": [gap.a, gap.b - 1],
+            "seconds": [round(gap.t0, 2), round(gap.t1, 2)],
+            "refs": [canon[gap.lo].ref, canon[gap.hi].ref],
+            "prompt": describe(canon, heard, [gap]).replace('number="0"', f'daf_words="{gap.lo}-{gap.hi}"'),
+            "missing": {str(gap.lo + k): canon[gap.lo + k].text for k in range(gap.hi - gap.lo + 1)},
+        })
+    return {"schema": QUESTIONS_SCHEMA, "system": SYSTEM, "holes": out}
+
+
+def load_answers(path):
+    """The placements in an answers file: [(daf first, daf last, heard first,
+    heard last, kind, confidence)], absolute indices."""
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, dict) or data.get("schema") != ANSWERS_SCHEMA:
+        raise ValueError(f"{path} is not a {ANSWERS_SCHEMA} file")
+    out = []
+    for p in data.get("placements") or []:
+        try:
+            out.append((int(p["daf"][0]), int(p["daf"][1]), int(p["heard"][0]), int(p["heard"][1]),
+                        str(p["kind"]), float(p["confidence"])))
+        except (KeyError, TypeError, ValueError, IndexError):
+            continue
+    return out
+
+
+def ask_from_answers(placements):
+    """An ask_claude for patch() that answers from a file's placements."""
+    def answer(client, canon, heard, batch, refresh=None):
+        gaps = []
+        for n, gap in enumerate(batch):
+            mine = [p for p in placements if gap.lo <= p[0] <= p[1] <= gap.hi and gap.a <= p[2] <= p[3] < gap.b]
+            gaps.append({"gap": n, "placements": [
+                {"first_missing": d0 - gap.lo, "last_missing": d1 - gap.lo, "first_heard": h0, "last_heard": h1,
+                 "kind": kind, "confidence": confidence}
+                for d0, d1, h0, h1, kind, confidence in mine]})
+        return {"gaps": gaps}, {"calls": 0, "inputTokens": 0, "outputTokens": 0}
+    return answer
+
+
+def patch(canon, events, counted, heard, duration=None, client=None, refresh=None, ask_claude=ask, model=MODEL):
     """Asks Claude about every hole and returns (new events, stats).
 
     events: what the path placed (WordEvents). counted: the canon indices the
@@ -292,7 +366,7 @@ def patch(canon, events, counted, heard, duration=None, client=None, refresh=Non
     """
     import anthropic
     gaps = find_gaps(canon, events, counted, heard, duration)
-    stats = {"model": MODEL, "holes": len(gaps), "holeWords": sum(g.hi - g.lo + 1 for g in gaps),
+    stats = {"model": model, "holes": len(gaps), "holeWords": sum(g.hi - g.lo + 1 for g in gaps),
              "calls": 0, "inputTokens": 0, "outputTokens": 0, "readWords": 0, "explainedWords": 0}
     if not gaps:
         return [], stats

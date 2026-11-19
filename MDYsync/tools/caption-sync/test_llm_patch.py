@@ -2,6 +2,7 @@
 """Unit tests for llm_patch.py (Claude reading the holes the path leaves) and the
 way voice_align.py counts its answers. No request is made: Claude's answers are
 written out here. `python3 test_llm_patch.py`."""
+import os
 import sys
 import types
 import unittest
@@ -167,6 +168,65 @@ class Patched(unittest.TestCase):
             self.assertTrue(VA.llm_patch_by_default())
         with mock.patch.dict('os.environ', {'ANTHROPIC_API_KEY': 'k', 'VOICE_LLM_PATCH': '0'}, clear=True):
             self.assertFalse(VA.llm_patch_by_default())
+
+
+class AnsweredInSession(unittest.TestCase):
+    """The same holes answered in a Claude Code session, through a file."""
+
+    def setUp(self):
+        Patched.setUp(self)
+
+    def test_the_questions_are_the_holes_as_the_api_would_be_asked(self):
+        placed = {i for e in self.events for i in range(e.start_idx, e.end_idx + 1)}
+        counted = PA.counted_words(self.canon, self.primary, placed)
+        asked = LP.questions(self.canon, self.heard, LP.find_gaps(self.canon, self.events, counted, self.heard))
+        self.assertEqual(asked['schema'], LP.QUESTIONS_SCHEMA)
+        self.assertEqual(asked['system'], LP.SYSTEM)
+        self.assertEqual([h['dafWords'] for h in asked['holes']], [[2, 4], [12, 15]])   # the second runs to the amud's end
+        hole = asked['holes'][0]
+        self.assertEqual(hole['missing'], {'2': 'חמורו', '3': 'של', '4': 'נכרי'})
+        self.assertIn('daf_words="2-4"', hole['prompt'])
+        self.assertIn('[8] shel', hole['prompt'])
+
+    def write(self, placements, schema=LP.ANSWERS_SCHEMA):
+        import json
+        import tempfile
+        f = tempfile.NamedTemporaryFile('w', suffix='.json', delete=False, encoding='utf-8')
+        json.dump({'schema': schema, 'placements': placements}, f)
+        f.close()
+        self.addCleanup(os.unlink, f.name)
+        return f.name
+
+    def test_answers_from_a_file_are_applied_as_the_apis_would_be(self):
+        path = self.write([
+            {'daf': [2, 2], 'heard': [2, 6], 'kind': 'explained', 'confidence': 0.8, 'why': 'the buyer of a fetus'},
+            {'daf': [3, 4], 'heard': [8, 9], 'kind': 'read', 'confidence': 0.9},
+            {'daf': [3, 4], 'heard': [9, 9], 'kind': 'read'},                         # incomplete: left out
+            {'daf': [14, 15], 'heard': [30, 31], 'kind': 'read', 'confidence': 0.9},  # in no hole: left out
+        ])
+        answers = LP.load_answers(path)
+        self.assertEqual(len(answers), 3)
+        events = VA.apply_llm_patch(self.canon, self.events, self.stats, self.heard, self.primary, 200.0,
+                                    client=object(), ask_claude=LP.ask_from_answers(answers),
+                                    model=LP.IN_SESSION_MODEL)
+        new = [e for e in events if e.source.startswith('claude-')]
+        self.assertEqual([(e.start_idx, e.end_idx, e.source) for e in new],
+                         [(2, 2, 'claude-explained'), (3, 4, 'claude-read')])
+        self.assertEqual((self.stats['dafWordsPatched'], self.stats['dafWordsExplained']), (2, 1))
+        self.assertEqual(self.stats['claude']['model'], LP.IN_SESSION_MODEL)
+        self.assertEqual(self.stats['claude']['calls'], 0)
+
+    def test_an_answer_the_checks_refuse_is_refused_from_a_file_too(self):
+        # Unsure, and a "reading" of nine heard words for one daf word.
+        path = self.write([{'daf': [2, 2], 'heard': [1, 9], 'kind': 'read', 'confidence': 0.95},
+                           {'daf': [3, 4], 'heard': [8, 9], 'kind': 'read', 'confidence': 0.5}])
+        events = VA.apply_llm_patch(self.canon, self.events, self.stats, self.heard, self.primary, 200.0,
+                                    client=object(), ask_claude=LP.ask_from_answers(LP.load_answers(path)))
+        self.assertEqual([e for e in events if e.source.startswith('claude-')], [])
+
+    def test_a_file_of_another_kind_is_not_read(self):
+        with self.assertRaises(ValueError):
+            LP.load_answers(self.write([], schema='something-else'))
 
 
 class Request(unittest.TestCase):
