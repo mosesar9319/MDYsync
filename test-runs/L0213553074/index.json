@@ -1,0 +1,29 @@
+{
+  "schema": "dafsync-test-runs-v1",
+  "videoId": "L0213553074",
+  "runs": [
+    {
+      "id": "regular-1",
+      "engine": "regular",
+      "number": 1,
+      "name": "Regular #1 · 19 Nov 2026 · placed again from saved transcripts (main): forward-only path",
+      "notes": "placed again from saved transcripts (main): forward-only path",
+      "engineVersion": "513ee1c",
+      "createdAt": "2026-11-19T17:44:53Z",
+      "file": "regular-1.json",
+      "jobId": "realign-44580346354",
+      "summary": {
+        "segments": 256,
+        "estimatedSegments": 129,
+        "placements": 252,
+        "placedWords": 603,
+        "totalRuns": 447,
+        "totalWords": 777,
+        "matchedWords": 596,
+        "unmatchedWords": 181,
+        "durationSeconds": 3672.98
+      }
+    }
+  ],
+  "updatedAt": "2026-11-19T17:44:53Z"
+}
