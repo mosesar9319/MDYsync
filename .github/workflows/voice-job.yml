@@ -115,14 +115,25 @@ jobs:
       # as the YouTube video (Bechoros 58: 3814.27 s here, 3814.2 s on YouTube).
       # The feed keeps about the last 250 shiurim; a daf it no longer has fails
       # the job with that reason rather than falling back to YouTube.
+      # A job for one of his shiurim names it by Lakewood's own id (videoId,
+      # "L0213511665") and usually brings the feed's mp3 address (audioUrl, from
+      # the hourly feed check, bornstein-feed.yml); without one it is found in
+      # the feed by that id, else by the daf. The address is passed on to the
+      # publish step, so the published sync names the recording it was made from.
       - name: Get R' Bornstein's audio from Lakewood Daf Yomi's server
         if: github.event.client_payload.maggid == 'bornstein'
         working-directory: MDYsync/tools/caption-sync
         env:
           REFS_JSON: ${{ toJSON(github.event.client_payload.refs) }}
+          AUDIO_URL: ${{ github.event.client_payload.audioUrl }}
+          LAKEWOOD_ID: ${{ github.event.client_payload.videoId }}
         run: |
           set -e
-          found=$(node ../lakewood-audio.mjs --refs "$REFS_JSON")
+          if [ -n "$AUDIO_URL" ]; then
+            found="$AUDIO_URL"
+          else
+            found=$(node ../lakewood-audio.mjs --refs "$REFS_JSON" ${LAKEWOOD_ID:+--id "$LAKEWOOD_ID"})
+          fi
           if [ -z "$found" ]; then
             echo "Lakewood Daf Yomi's feed has no shiur on this daf (it keeps about the last 250)." \
               | tee -a "$GITHUB_STEP_SUMMARY"
@@ -145,6 +156,7 @@ jobs:
               | tee -a "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
+          echo "LAKEWOOD_AUDIO_URL=$url" >> "$GITHUB_ENV"
           echo "Using Lakewood Daf Yomi's copy of the audio." | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Get the audio from MDY's server
@@ -342,7 +354,10 @@ jobs:
           # Which recording these timestamps were measured against -- stamped
           # into the published file so the reader can verify it rather than
           # assuming whatever video-links happens to point at.
-          VIDEO_URL: ${{ github.event.client_payload.youtubeUrl }}
+          VIDEO_URL: ${{ github.event.client_payload.audioUrl || github.event.client_payload.youtubeUrl }}
+          # R' Bornstein's shiurim are named by Lakewood Daf Yomi's own id, not a
+          # YouTube one (tools/lakewood-import.mjs).
+          VIDEO_ID: ${{ github.event.client_payload.videoId }}
           # Another maggid's video (shared/maggidim.mjs): published under their
           # key prefix. Empty for Mercaz Daf Yomi, whose keys have none.
           MAGGID: ${{ github.event.client_payload.maggid }}
@@ -355,6 +370,8 @@ jobs:
           ENGINE_VERSION: ${{ github.sha }}
         run: |
           set -e
+          # The feed's mp3, when the job found it there itself.
+          VIDEO_URL="${VIDEO_URL:-$LAKEWOOD_AUDIO_URL}"
           mkdir -p /tmp/results-checkout
           git config user.name "dafsync-bot"
           git config user.email "dafsync-bot@users.noreply.github.com"
@@ -389,6 +406,7 @@ jobs:
             --variant "$VARIANT" \
             --language "$LANGUAGE" \
             --video-url "$VIDEO_URL" \
+            ${VIDEO_ID:+--video-id "$VIDEO_ID"} \
             ${MAGGID:+--maggid "$MAGGID"} \
             --voice
 
@@ -397,6 +415,7 @@ jobs:
               --alignment MDYsync/tools/caption-sync/job-out/alignment.json \
               --out-dir /tmp/results-checkout \
               --video-url "$VIDEO_URL" \
+              ${VIDEO_ID:+--video-id "$VIDEO_ID"} \
               --refs-json "$REFS_JSON" \
               --engine regular \
               --notes "$TEST_NOTES" \
@@ -425,7 +444,7 @@ jobs:
         if: always() && hashFiles('MDYsync/tools/caption-sync/job-out/credits.json') != ''
         env:
           JOB_ID: ${{ github.event.client_payload.jobId }}
-          VIDEO_URL: ${{ github.event.client_payload.youtubeUrl }}
+          VIDEO_URL: ${{ github.event.client_payload.audioUrl || github.event.client_payload.youtubeUrl }}
           MAGGID: ${{ github.event.client_payload.maggid }}
           TEST_RUN: ${{ github.event.client_payload.testRun }}
         run: |

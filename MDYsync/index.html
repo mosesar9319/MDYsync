@@ -2163,7 +2163,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     // shared/masechtos.mjs's (tests/functions/seo-pages.test.mjs checks they
     // agree). A livestream still opens the player directly: it is replaced by
     // its finished upload, so it has no page of its own.
-    const MASECHTA_SLUGS = { "Berakhot": "berachos", "Shabbat": "shabbos", "Eruvin": "eruvin", "Pesachim": "pesachim", "Yoma": "yoma", "Sukkah": "sukkah", "Beitzah": "beitzah", "Rosh Hashanah": "rosh-hashanah", "Taanit": "taanis", "Megillah": "megillah", "Moed Katan": "moed-katan", "Chagigah": "chagigah", "Yevamot": "yevamos", "Ketubot": "kesubos", "Nedarim": "nedarim", "Nazir": "nazir", "Sotah": "sotah", "Gittin": "gittin", "Kiddushin": "kiddushin", "Bava Kamma": "bava-kamma", "Bava Metzia": "bava-metzia", "Bava Batra": "bava-basra", "Sanhedrin": "sanhedrin", "Makkot": "makkos", "Shevuot": "shevuos", "Avodah Zarah": "avodah-zarah", "Horayot": "horayos", "Zevachim": "zevachim", "Menachot": "menachos", "Chullin": "chullin", "Bekhorot": "bechoros", "Arakhin": "arachin", "Temurah": "temurah", "Keritot": "kereisos", "Meilah": "meilah", "Niddah": "niddah" };
+    const MASECHTA_SLUGS = { "Berakhot": "berachos", "Shabbat": "shabbos", "Eruvin": "eruvin", "Pesachim": "pesachim", "Yoma": "yoma", "Sukkah": "sukkah", "Beitzah": "beitzah", "Rosh Hashanah": "rosh-hashanah", "Taanit": "taanis", "Megillah": "megillah", "Moed Katan": "moed-katan", "Chagigah": "chagigah", "Yevamot": "yevamos", "Ketubot": "kesubos", "Nedarim": "nedarim", "Nazir": "nazir", "Sotah": "sotah", "Gittin": "gittin", "Kiddushin": "kiddushin", "Bava Kamma": "bava-kamma", "Bava Metzia": "bava-metzia", "Bava Batra": "bava-basra", "Sanhedrin": "sanhedrin", "Makkot": "makkos", "Shevuot": "shevuos", "Avodah Zarah": "avodah-zarah", "Horayot": "horayos", "Zevachim": "zevachim", "Menachot": "menachos", "Chullin": "chullin", "Bekhorot": "bechoros", "Arakhin": "eruchin", "Temurah": "temurah", "Keritot": "kereisos", "Meilah": "meilah", "Niddah": "niddah" };
     function shiurPagePath(entry) {
       const slug = MASECHTA_SLUGS[entry.tractate];
       if (!slug || entry.liveBroadcast) return "";
@@ -2435,8 +2435,12 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     function shiurOfCombo(row, combo) {
       return { ...entryForCombo(row, combo), title: row[combo].label || "" };
     }
+    // R' Sruly Bornstein's shiurim all show his picture (they play from Lakewood
+    // Daf Yomi's server, never YouTube; app.js's mdyPictureUrl has the same).
+    const MAGGID_PICTURES = { bornstein: "/assets/maggidim/bornstein-v1.jpg" };
     // src plus the YouTube fallback, for an <img> written as markup.
     function thumbAttrs(videoId, shiur) {
+      if (MAGGID_PICTURES[shiur?.maggid]) return `src="${escapeHtml(MAGGID_PICTURES[shiur.maggid])}"`;
       const youtube = thumbUrl(videoId);
       const mdy = mdyThumbUrl(shiur);
       if (!mdy) return `src="${escapeHtml(youtube)}"`;
@@ -2444,6 +2448,11 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     }
     // The same for an <img> already on the page.
     function setThumb(img, videoId, shiur) {
+      if (MAGGID_PICTURES[shiur?.maggid]) {
+        img.onerror = null;
+        img.src = MAGGID_PICTURES[shiur.maggid];
+        return;
+      }
       const youtube = thumbUrl(videoId);
       const mdy = mdyThumbUrl(shiur);
       img.onerror = mdy ? () => { img.onerror = null; img.src = youtube; } : null;
@@ -2805,7 +2814,8 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       section.hidden = !others.length;
       document.querySelector("#maggidOtherEyebrow").textContent = `${others.length} MORE`;
       document.querySelector("#maggidOtherTitle").textContent = `More shiurim from ${maggidName(id)}`;
-      document.querySelector("#maggidOtherList").innerHTML = others.map((video) => `
+      // Lakewood Daf Yomi's shiurim (R' Bornstein's) never link to YouTube.
+      document.querySelector("#maggidOtherList").innerHTML = others.filter((video) => !/^L\d{10}$/.test(video.videoId)).map((video) => `
         <li><a href="https://www.youtube.com/watch?v=${encodeURIComponent(video.videoId)}" target="_blank" rel="noopener">
           <img src="${thumbUrl(video.videoId)}" alt="" loading="lazy" />
           <span><strong>${escapeHtml(video.title)}</strong>${video.published ? `<small>${escapeHtml(String(video.published).slice(0, 10))}</small>` : ""}</span>

@@ -54,6 +54,6 @@ test('Mercaz Daf Yomi keys have no prefix; bad input is refused', () => {
   assert.deepEqual(registerTestShiur({ resultsDir: dir, videoId: VIDEO, refs: 'Bava Kamma 2a' }).written, ['Bava-Kamma-2a']);
   assert.deepEqual(parseRefs('Bava Kamma 2a')[0], { ref: 'Bava Kamma 2a', tractate: 'Bava Kamma', daf: 2, amud: 'a' });
   assert.throws(() => registerTestShiur({ resultsDir: dir, videoId: VIDEO, refs: 'Bekhorot 58' }), /Not a daf reference/);
-  assert.throws(() => registerTestShiur({ resultsDir: dir, videoId: 'nope', refs: 'Bekhorot 58a' }), /Not a YouTube video id/);
+  assert.throws(() => registerTestShiur({ resultsDir: dir, videoId: 'nope', refs: 'Bekhorot 58a' }), /Not a video id/);
   assert.throws(() => registerTestShiur({ resultsDir: dir, videoId: VIDEO, refs: 'Bekhorot 58a', maggid: 'nobody' }), /Unknown maggid/);
 });

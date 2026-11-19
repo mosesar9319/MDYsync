@@ -27,6 +27,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { PUBLIC_SITE_ORIGIN } from '../../shared/dafsync-config.mjs';
+import { FEED_URL, feedItems, isLakewoodId, lakewoodDirectUrl, lakewoodEpisodeId } from '../../shared/lakewood-feed.mjs';
 
 const require = createRequire(import.meta.url);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -165,11 +166,14 @@ export function buildAlignment({ timeline, canon, paragraphs, videoId, videoUrl,
 // above is the way in when it does not. Mirrors shared/live-video-job.mjs's
 // buildTranscribeFields/compactWords, which can't be imported here: that module
 // pulls in Netlify's blob store.
-async function transcribeWithElevenLabs(videoId, { keyterms = [], apiKey = process.env.ELEVENLABS_API_KEY, fetchImpl = fetch } = {}) {
+// mediaUrl: a plain audio file (R' Bornstein's, from Lakewood Daf Yomi's feed),
+// which ElevenLabs fetches itself; without one, the YouTube video.
+async function transcribeWithElevenLabs(videoId, { keyterms = [], mediaUrl = null, apiKey = process.env.ELEVENLABS_API_KEY, fetchImpl = fetch } = {}) {
   if (!apiKey) throw new Error('ELEVENLABS_API_KEY is not set');
   const form = new FormData();
   form.set('model_id', 'scribe_v2');
-  form.set('source_url', `https://www.youtube.com/watch?v=${videoId}`);
+  if (mediaUrl) form.set('cloud_storage_url', mediaUrl);
+  else form.set('source_url', `https://www.youtube.com/watch?v=${videoId}`);
   form.set('timestamps_granularity', 'word');
   form.set('tag_audio_events', 'false');
   for (const term of keyterms) form.append('keyterms', term);
@@ -184,8 +188,8 @@ async function transcribeWithElevenLabs(videoId, { keyterms = [], apiKey = proce
   return { words, seconds: words.length ? words[words.length - 1][2] : 0, languageCode: result.language_code ?? null };
 }
 
-async function fetchTranscript(videoId, { daf = '', keyterms = [], tries = 4,  base = PUBLIC_SITE_ORIGIN, origin = PUBLIC_SITE_ORIGIN, timeoutMs = 20 * 60 * 1000 } = {}) {
-  const url = `https://www.youtube.com/watch?v=${videoId}`;
+async function fetchTranscript(videoId, { daf = '', keyterms = [], mediaUrl = null, tries = 4,  base = PUBLIC_SITE_ORIGIN, origin = PUBLIC_SITE_ORIGIN, timeoutMs = 20 * 60 * 1000 } = {}) {
+  const url = mediaUrl || `https://www.youtube.com/watch?v=${videoId}`;
   // The page asks for a transcript with the daf's own words as keyterms (that is what
   // makes the model write the Hebrew phrases in Hebrew letters instead of spelling
   // them out in English); the job is keyed by (video, daf, keyterms), so ask the same way.
@@ -244,6 +248,17 @@ async function main() {
   const refs = args.refs.split(',').map((r) => r.trim()).filter(Boolean);
   const paragraphs = (await Promise.all(refs.map((r) => fetchSefariaParagraphs(r)))).flat();
   const keytermCount = Number(args.keyterms) || 400;
+  // R' Bornstein's shiurim (a Lakewood id) come from Lakewood Daf Yomi's own
+  // feed, never YouTube: their mp3, at their file store's own address.
+  let mediaUrl = args.audioUrl || null;
+  if (!mediaUrl && isLakewoodId(args.videoId)) {
+    const response = await fetch(FEED_URL, { signal: AbortSignal.timeout(30000) });
+    if (!response.ok) throw new Error(`Lakewood Daf Yomi's feed answered ${response.status}`);
+    const item = feedItems(await response.text()).find((i) => lakewoodEpisodeId(i.url) === args.videoId);
+    if (!item) throw new Error(`Lakewood Daf Yomi's feed has no episode ${args.videoId}.`);
+    mediaUrl = item.url;
+  }
+  const directMedia = mediaUrl ? lakewoodDirectUrl(mediaUrl) : null;
   let words;
   let duration;
   if (args.fetchTranscript) {
@@ -252,8 +267,8 @@ async function main() {
     // different size is a new transcript, not the saved one).
     const keyterms = LM.buildKeytermList(LM.buildCanon(paragraphs.map((p) => ({ ref: p.ref, he: p.he }))), keytermCount);
     const status = args.elevenlabs
-      ? await transcribeWithElevenLabs(args.videoId, { keyterms })
-      : await fetchTranscript(args.videoId, { daf: args.daf || (keytermCount === 400 ? refs[0] : `${refs[0]} (${keytermCount} hint terms)`), keyterms, ...(args.base ? { base: args.base, origin: args.base } : {}) });
+      ? await transcribeWithElevenLabs(args.videoId, { keyterms, mediaUrl: directMedia })
+      : await fetchTranscript(args.videoId, { daf: args.daf || (keytermCount === 400 ? refs[0] : `${refs[0]} (${keytermCount} hint terms)`), keyterms, mediaUrl: directMedia, ...(args.base ? { base: args.base, origin: args.base } : {}) });
     words = status.words;
     duration = status.seconds;
     if (args.outWords) fs.writeFileSync(args.outWords, JSON.stringify(status));
@@ -265,8 +280,9 @@ async function main() {
     duration = loaded.seconds;
   }
   const { canon, timeline } = alignTranscript({ words, paragraphs, startRef: args.startRef || refs[0], keytermCount });
-  const videoUrl = `https://www.youtube.com/watch?v=${args.videoId}`;
+  const videoUrl = mediaUrl || `https://www.youtube.com/watch?v=${args.videoId}`;
   const alignment = buildAlignment({ timeline, canon, paragraphs, videoId: args.videoId, videoUrl, refs, duration });
+  if (mediaUrl) alignment.videoSource = { type: 'lakewood', url: mediaUrl, videoId: args.videoId };
   fs.writeFileSync(args.out, JSON.stringify(alignment, null, 2));
   const s = alignment.matchStats;
   console.log(`Live engine: ${s.totalRuns} phrases, ${s.placedRuns} placed (${s.matchedWords}/${s.totalWords} daf words) -> ${args.out}`);

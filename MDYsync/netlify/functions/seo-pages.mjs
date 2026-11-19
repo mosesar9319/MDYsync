@@ -228,7 +228,12 @@ export function resizedPicture(original, width, format = 'webp', { absolute = tr
   const path = `/.netlify/images?url=${encodeURIComponent(original)}&w=${width}&fm=${format}&q=75`;
   return absolute ? `${PUBLIC_SITE_ORIGIN}${path}` : path;
 }
-const youtubePicture = (s, size = 'hq') => `https://i.ytimg.com/vi/${s.videoId}/${size}default.jpg`;
+// R' Sruly Bornstein's shiurim show his picture: they play from Lakewood Daf
+// Yomi's server, never YouTube (app.js and index.html show the same picture).
+const MAGGID_PICTURES = { bornstein: '/assets/maggidim/bornstein-v1.jpg' };
+const youtubePicture = (s, size = 'hq') => (MAGGID_PICTURES[s.maggidId]
+  ? `${PUBLIC_SITE_ORIGIN}${MAGGID_PICTURES[s.maggidId]}`
+  : `https://i.ytimg.com/vi/${s.videoId}/${size}default.jpg`);
 const PICTURE_CHECK_MS = 3000;
 
 // Which of a page's shiurim MDY's server has a picture for (videoId -> its
@@ -248,6 +253,8 @@ export async function shiurPictures(list) {
 }
 
 function videoObject(s, details, pictures = new Map()) {
+  // His shiurim are audio from Lakewood Daf Yomi's server: no YouTube video to describe.
+  if (MAGGID_PICTURES[s.maggidId]) return null;
   const d = details?.[s.videoId];
   if (!d?.publishedAt) return null;
   return {
@@ -505,7 +512,8 @@ export async function handle(request, env = {}) {
     if (!here.length) return notFound(`No shiurim on ${dafName(route.masechta, route.daf)} yet.`);
     const [text, details, pictures] = await Promise.all([
       openingLines(route.masechta, route.daf),
-      videoDetails(here.map((s) => s.videoId), env.YOUTUBE_API_KEY),
+      // R' Bornstein's shiurim come from Lakewood Daf Yomi, never YouTube: not asked about there.
+      videoDetails(here.filter((s) => !MAGGID_PICTURES[s.maggidId]).map((s) => s.videoId), env.YOUTUBE_API_KEY),
       shiurPictures(here),
     ]);
     return new Response(dafPage(route.masechta, route.daf, shiurim, { text, details, pictures }), { headers: PAGE_HEADERS });
@@ -518,7 +526,7 @@ export async function handle(request, env = {}) {
   }
   const [playerResponse, details, pictures] = await Promise.all([
     fetchWithTimeout(new URL('/player/index.html', url.origin)),
-    videoDetails([shiur.videoId], env.YOUTUBE_API_KEY),
+    videoDetails(MAGGID_PICTURES[shiur.maggidId] ? [] : [shiur.videoId], env.YOUTUBE_API_KEY),
     shiurPictures([shiur]),
   ]);
   if (!playerResponse.ok) throw new Error(`player page: ${playerResponse.status}`);
@@ -546,7 +554,7 @@ export const config = {
     '/bava-metzia', '/bava-metzia/*', '/bava-basra', '/bava-basra/*', '/sanhedrin', '/sanhedrin/*',
     '/makkos', '/makkos/*', '/shevuos', '/shevuos/*', '/avodah-zarah', '/avodah-zarah/*',
     '/horayos', '/horayos/*', '/zevachim', '/zevachim/*', '/menachos', '/menachos/*', '/chullin',
-    '/chullin/*', '/bechoros', '/bechoros/*', '/arachin', '/arachin/*', '/temurah', '/temurah/*',
+    '/chullin/*', '/bechoros', '/bechoros/*', '/eruchin', '/eruchin/*', '/temurah', '/temurah/*',
     '/kereisos', '/kereisos/*', '/meilah', '/meilah/*', '/niddah', '/niddah/*', '/sitemap.xml',
   ],
 };

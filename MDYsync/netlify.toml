@@ -154,6 +154,17 @@
   to = "/studio/"
   status = 301
 
+# Arakhin's pages moved to the name DafSync shows, "Eruchin" (shared/masechtos.mjs).
+[[redirects]]
+  from = "/arachin"
+  to = "/eruchin/"
+  status = 301
+
+[[redirects]]
+  from = "/arachin/*"
+  to = "/eruchin/:splat"
+  status = 301
+
 # A Mercaz Daf Yomi shiur's mp3, sent from dafsync.com so the player's
 # "Download audio" link saves it (a browser only honors a link's download
 # name for a file on the page's own site, and MDY's server sends no header

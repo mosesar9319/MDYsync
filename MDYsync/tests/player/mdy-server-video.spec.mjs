@@ -247,7 +247,8 @@ test.describe('MDY shiurim from MDY’s own server', () => {
 // audio (their podcast feed has no video), and never from YouTube.
 test.describe('R’ Bornstein’s shiurim from Lakewood Daf Yomi’s server', () => {
   const LAKEWOOD = 'https://lakewoodafyomi.appspot.com/m5/X/Chulin%2089_1.mp3';
-  const BORNSTEIN_LINK = { type: 'youtube', videoId: 'bornstein89', url: 'https://www.youtube.com/watch?v=bornstein89', label: 'Chulin 89' };
+  // As tools/lakewood-import.mjs writes it: Lakewood's own id and the feed's mp3.
+  const BORNSTEIN_LINK = { type: 'lakewood', videoId: 'L0000000089', url: LAKEWOOD, label: 'Chulin 89', source: 'lakewood-feed', maggid: 'bornstein' };
 
   async function openBornstein(page, { found = true } = {}) {
     await preparePage(page, { user: null, videoSource: 'mdy' });
@@ -259,6 +260,7 @@ test.describe('R’ Bornstein’s shiurim from Lakewood Daf Yomi’s server', ()
     });
     await page.route(/^https:\/\/lakewoodafyomi\.appspot\.com\//, (route) => {
       requests.lakewood.push(route.request().url());
+      if (!found) return route.fulfill({ status: 404, body: '' });
       const range = /bytes=(\d+)-(\d*)/.exec(route.request().headers().range || '');
       if (!range) return route.fulfill({ status: 200, contentType: 'video/webm', headers: { 'Accept-Ranges': 'bytes' }, body: CLIP });
       const start = Number(range[1]);
@@ -280,7 +282,7 @@ test.describe('R’ Bornstein’s shiurim from Lakewood Daf Yomi’s server', ()
       return route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"missing"}' });
     });
     await page.goto('/player/?ref=Chullin+89a&maggid=bornstein');
-    await page.waitForFunction(() => state.videoSource?.videoId === 'bornstein89', null, { timeout: 20000 });
+    await page.waitForFunction(() => state.videoSource?.videoId === 'L0000000089', null, { timeout: 20000 });
     return requests;
   }
 
@@ -292,7 +294,9 @@ test.describe('R’ Bornstein’s shiurim from Lakewood Daf Yomi’s server', ()
     expect(now.src).toBe(LAKEWOOD);
     expect(now.mdy).toEqual({ url: LAKEWOOD, quality: 'audio' });
     expect(now.badge).toBe('Lakewood Daf Yomi');
-    expect(requests.lookups).toEqual([{ tractate: 'Chullin', daf: '89' }]);
+    // The link has the feed's address: nothing looked up, and the source is Lakewood's.
+    expect(requests.lookups).toEqual([]);
+    expect(await page.evaluate(() => state.videoSource.type)).toBe('lakewood');
     expect(requests.youtube).toBe(0);
     const bar = page.locator('#audioBar');
     await expect(bar).toBeVisible();
@@ -310,11 +314,10 @@ test.describe('R’ Bornstein’s shiurim from Lakewood Daf Yomi’s server', ()
     await page.waitForFunction(() => Math.abs(getCurrentTime() - 6) < 0.5);
   });
 
-  test('a daf their server no longer has says so, and does not turn to YouTube', async ({ page }) => {
+  test('a file their server does not send says so, and does not turn to YouTube', async ({ page }) => {
     const requests = await openBornstein(page, { found: false });
-    await expect(page.locator('.toast')).toContainText("isn't on Lakewood Daf Yomi's server");
+    await expect(page.locator('.toast')).toContainText("didn't load from Lakewood Daf Yomi's server");
     expect(requests.youtube).toBe(0);
-    expect(requests.lakewood).toEqual([]);
-    expect(await page.evaluate(() => document.getElementById('video').getAttribute('src'))).toBeNull();
+    expect(await page.evaluate(() => state.videoSource.type)).toBe('lakewood');
   });
 });

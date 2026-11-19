@@ -1691,6 +1691,16 @@ const HEBREW_KEY_PREFIX = 'Hebrew-';
 // trigger-voice-job.mjs/voice-job.yml exactly. See refKey().
 const VOICE_KEY_PREFIX = 'Voice-';
 
+// How DafSync names a masechta on screen where that differs from Sefaria's name,
+// which refs, files and keys keep: "Eruchin" (shared/masechtos.mjs).
+const TRACTATE_DISPLAY_NAMES = { Arakhin: 'Eruchin' };
+function displayTractate(name) {
+  return TRACTATE_DISPLAY_NAMES[name] || name;
+}
+function displayRef(ref) {
+  return String(ref || '').replace(/^([A-Za-z][A-Za-z ]*?)(?=\s+\d)/, (name) => displayTractate(name));
+}
+
 function parseDafRef(ref) {
   // Accepts both a bare daf ref ("Chullin 86a") and a segment ref, ignoring
   // an optional trailing segment number. Segment refs use two different
@@ -8343,7 +8353,7 @@ function updateReaderNotes(time, index) {
     const hasReal = state.segments.some((segment) => !segment.estimated);
     note.hidden = !state.segments.length || hasReal;
   }
-  if (!state.browseMode && state.dafRef && $('dafTitle')) $('dafTitle').textContent = requested;
+  if (!state.browseMode && state.dafRef && $('dafTitle')) $('dafTitle').textContent = displayRef(requested);
   const phrase = $('currentPhrase');
   const translation = $('currentTranslation');
   if (!active) {
@@ -8786,6 +8796,12 @@ async function togglePlay() {
     clearPlayWatchdog();
     updatePlayUi();
     debugPlayLog(`togglePlay() threw: ${error?.message || error}`);
+    // A shiur's own file that would not load says so in plain words (the
+    // media element's 'error' handler); the browser's own wording is not for readers.
+    if (state.mdyPlayback && error?.name === 'NotSupportedError') {
+      if (isLakewoodShiur(state.mdyShiur)) showToast("This shiur didn't load from Lakewood Daf Yomi's server. Try again in a little while.", 'error');
+      return;
+    }
     showToast(error.message || 'The browser could not play this video.', 'error');
   }
 }
@@ -9773,7 +9789,7 @@ async function loadDaf(refOverride = null, options = {}) {
     state.usingDefaultAlignment = !state.livePlainDaf;
     state.alignmentStatus = state.livePlainDaf ? 'live' : 'placeholder';
     updateAlignmentStatus();
-    $('dafTitle').textContent = state.browseMode && state.browsePageRef ? realDafRef(state.browsePageRef) : (heRef || ref);
+    $('dafTitle').textContent = displayRef(state.browseMode && state.browsePageRef ? realDafRef(state.browsePageRef) : (heRef || ref));
     renderDaf();
     if (!state.livePlainDaf || preferredVideoSource?.liveStatus !== 'live') seek(0);
     if (!options.silent) {
@@ -10533,9 +10549,8 @@ function preferredMdyQuality() {
 // from dafsync.com (MDY's originals are 1280x720 PNGs of over a megabyte;
 // netlify.toml allows MDY's server as a source).
 function mdyPictureUrl(shiur, width = 960) {
-  const original = !shiur ? null
-    : isLakewoodShiur(shiur) ? LAKEWOOD_ARTWORK
-      : (MDY ? MDY.posterUrl(shiur.parsed, shiur.options) : null);
+  if (isLakewoodShiur(shiur)) return LAKEWOOD_PICTURE;
+  const original = shiur && MDY ? MDY.posterUrl(shiur.parsed, shiur.options) : null;
   return original ? `/.netlify/images?url=${encodeURIComponent(original)}&w=${width}&fm=webp&q=75` : null;
 }
 
@@ -10544,7 +10559,8 @@ function mdyPictureUrl(shiur, width = 960) {
 // podcast feed (shared/lakewood-feed.mjs). It is audio only -- the feed has no
 // video -- so his shiur plays in the audio bar. The address has a number only
 // the feed knows, so /api/lakewood-audio looks it up (lakewoodAudioFor).
-const LAKEWOOD_ARTWORK = 'https://app.daf-yomi.net/images/daf-podcast-2.jpeg';
+// His picture, shown for every one of his shiurim (index.html and seo-pages.mjs too).
+const LAKEWOOD_PICTURE = '/assets/maggidim/bornstein-v1.jpg';
 const lakewoodLookups = new Map();
 function isLakewoodShiur(shiur) {
   return shiur?.provider === 'lakewood';
@@ -11041,6 +11057,47 @@ async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs =
   }
 }
 
+// R' Sruly Bornstein's shiur, from Lakewood Daf Yomi's own feed (a video-link of
+// type 'lakewood', tools/lakewood-import.mjs): their mp3, in the audio bar.
+// Nothing here touches YouTube -- no YouTube player is made, no YouTube address
+// is used. source: { videoId (Lakewood's "L…" id), url (the mp3), label, locked }.
+async function loadLakewoodShiur(source, saveRefs = null) {
+  const shiurRef = (Array.isArray(saveRefs) && saveRefs[0]) || state.dafRef;
+  const parsed = parseDafRef(shiurRef);
+  if (!parsed) throw new Error('No daf to play this shiur for.');
+  cleanupObjectUrl();
+  const videoId = source.videoId;
+  const shiur = {
+    parsed, options: { title: source.label || '' }, provider: 'lakewood', ref: shiurRef, videoId,
+    lakewood: source.url ? { url: source.url, seconds: Number(source.seconds) || null } : undefined,
+  };
+  state.mdyShiur = shiur;
+  if (state.playerType === 'youtube' && state.youtubeReady) state.youtubePlayer.pauseVideo?.();
+  // A link written before the feed knew its address: ask the feed.
+  if (!shiur.lakewood) shiur.lakewood = await lakewoodAudioFor(parsed);
+  if (state.mdyShiur !== shiur) return; // another shiur was chosen meanwhile
+  const found = Boolean(shiur.lakewood);
+  if (found) {
+    playMdyFile({ quality: 'audio' });
+  } else {
+    switchPlayerType('html5');
+    htmlVideo.removeAttribute('src');
+    htmlVideo.load();
+    state.mdyPlayback = null;
+  }
+  const label = source.label || 'Lakewood Daf Yomi';
+  state.videoSource = { type: 'lakewood', videoId, url: shiur.lakewood?.url || source.url || '', label, locked: source.locked === true };
+  state.currentProjectId = null;
+  $('lectureTitle').textContent = label;
+  setSourceBadge('Lakewood Daf Yomi');
+  setSourcePanel('linkSourcePanel');
+  refreshMdyChrome();
+  seek(0);
+  scheduleNonEssential(() => refreshTestRuns(videoId));
+  if (found) showToast("Playing from Lakewood Daf Yomi's server.");
+  else showToast("This shiur isn't on Lakewood Daf Yomi's server.", 'error');
+}
+
 function titleFromUrl(url) {
   try {
     const parsed = new URL(url);
@@ -11222,6 +11279,8 @@ async function restoreVideoSource(source, saveRefs = null) {
       // it's excluded rather than shown as if it meant something.
       const realLabel = source.label && source.label !== 'YouTube' ? source.label : null;
       await loadYouTubeVideo(source.url || source.videoId, source.videoId, saveRefs, realLabel, source.locked === true, source);
+    } else if (source.type === 'lakewood' && source.videoId) {
+      await loadLakewoodShiur(source, saveRefs);
     } else if (source.type === 'direct' && source.url) {
       $('videoUrl').value = source.url;
       loadDirectVideoUrl(source.url, saveRefs, source.locked === true);
@@ -11326,7 +11385,7 @@ async function loadAlignmentData(data, { restoreSource = true, dafRefOverride = 
   $('dafRef').value = state.dafRef;
   syncDafPickerFromRef(state.dafRef);
   // The Interactive Daf page names the amud on its page, not the shiur that is up.
-  $('dafTitle').textContent = state.browseMode && state.browsePageRef ? realDafRef(state.browsePageRef) : state.dafRef;
+  $('dafTitle').textContent = displayRef(state.browseMode && state.browsePageRef ? realDafRef(state.browsePageRef) : state.dafRef);
   if (Number(data.duration) > 0) applyDuration(Number(data.duration), false);
   renderDaf();
   saveProjectForRef(state.dafRef, {
@@ -12850,7 +12909,7 @@ async function loadTalmudIndex() {
     // have a shiur to bring up is the word menu's business (bookShiurimFor).
     const dafPickerTractateNames = activeTractateNames;
     $('dafTractateSelect').innerHTML = dafPickerTractateNames
-      .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+      .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(displayTractate(name))}</option>`).join('');
     $('dafTractateSelect').disabled = dafPickerTractateNames.length <= 1;
     refreshDafPickerOptions();
   }
@@ -13075,6 +13134,7 @@ function videoChoicesFor(tractate, daf) {
         kind: kind.label,
         title: entry.label || '',
         liveBroadcast: Boolean(entry.liveBroadcast),
+        ...(entry.source === 'lakewood' ? { source: 'lakewood', url: entry.url || '' } : {}),
       });
     }
   }
@@ -13242,8 +13302,12 @@ async function watchShiurFromWord(choice, ref, wordIndex, { audio = false } = {}
       state.segments = [];
       state.activeIndex = -1;
       state.dafRef = full;
-      await loadYouTubeVideo(`https://www.youtube.com/watch?v=${choice.videoId}`, choice.videoId, [full], choice.title,
-        false, { liveBroadcast: choice.liveBroadcast, noSave: true });
+      if (choice.source === 'lakewood' || choice.maggid === 'bornstein') {
+        await loadLakewoodShiur({ videoId: choice.videoId, url: choice.url, label: choice.title }, [full]);
+      } else {
+        await loadYouTubeVideo(`https://www.youtube.com/watch?v=${choice.videoId}`, choice.videoId, [full], choice.title,
+          false, { liveBroadcast: choice.liveBroadcast, noSave: true });
+      }
     }
   } catch (error) {
     console.error(error);
@@ -13316,7 +13380,7 @@ function openBookShiurWindow(ref, wordIndex) {
   const choices = bookShiurimFor(ref);
   if (!parsed || !choices.length) return;
   const dialog = ensureBookShiurDialog();
-  $('bookShiurDialogTitle').textContent = `${parsed.tractate} ${parsed.daf}${parsed.amud}`;
+  $('bookShiurDialogTitle').textContent = `${displayTractate(parsed.tractate)} ${parsed.daf}${parsed.amud}`;
   const list = $('bookShiurList');
   list.textContent = '';
   for (const choice of choices) {
@@ -14412,7 +14476,7 @@ const WATCH_HISTORY_PARAMS = ['ref', 'variant', 'language', 'maggid'];
 function recordWatchProgress() {
   if (!/^\/(player|watch)\//.test(location.pathname)) return;
   const source = state.videoSource;
-  if (source?.type !== 'youtube' || !source.videoId) return;
+  if (!['youtube', 'lakewood'].includes(source?.type) || !source.videoId) return;
   const time = getCurrentTime();
   if (!(time > 5)) return;
   const search = new URLSearchParams(location.search);

@@ -92,6 +92,9 @@ for (const file of files) {
   combos[comboKey][parsed.amud] = {
     videoId: payload.videoId,
     label: payload.label || null,
+    // R' Bornstein's shiurim come from Lakewood Daf Yomi's feed, not YouTube:
+    // their mp3 (tools/lakewood-import.mjs).
+    ...(payload.type === 'lakewood' && payload.url ? { source: 'lakewood', url: payload.url } : {}),
     // A video the maintainers are using to tune the voice models: the player
     // offers its numbered test runs (see test-runs/ on the results branch).
     ...(payload.testShiur ? { testShiur: true } : {}),
@@ -125,6 +128,7 @@ function rowsFor(byTractate) {
         const { picked, amud } = pickAmud(byAmud);
         row[comboKey] = {
           videoId: picked.videoId, label: picked.label, amud,
+          ...(picked.source === 'lakewood' ? { source: 'lakewood', url: picked.url } : {}),
           ...(picked.testShiur ? { testShiur: true } : {}),
           ...(picked.liveBroadcast ? {
             liveBroadcast: true,
