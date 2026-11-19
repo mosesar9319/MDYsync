@@ -1,12 +1,8 @@
 {
+  "label": "מרכז דף יומי - בכורות דף סא. - ר' אלי סטפנסקי שליט\"א",
+  "locked": false,
+  "source": "manual",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=5NikyWa4o1A",
-  "videoId": "5NikyWa4o1A",
-  "label": "מרכז דף יומי - בכורות דף סא. - ר' אלי סטפנסקי שליט\"א",
-  "coveredRefs": [
-    "Bekhorot 60b",
-    "Bekhorot 61a"
-  ],
-  "source": "channel-auto",
-  "locked": false
+  "videoId": "5NikyWa4o1A"
 }
