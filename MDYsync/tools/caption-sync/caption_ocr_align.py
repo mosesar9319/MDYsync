@@ -624,8 +624,12 @@ def _group_real_entries(entries, target=PHRASE_TARGET_WORDS):
             groups.append(current)
             current = dict(e)
         else:
+            # The next entry may be a step back (the maggid saying a phrase
+            # again): the chunk grows to hold both, and never ends before it
+            # starts (which used to publish empty rows, w1 < w0).
             current["end"] = e["end"]
-            current["w1"] = e["w1"]
+            current["w0"] = min(current["w0"], e["w0"])
+            current["w1"] = max(current["w1"], e["w1"])
     if current is not None:
         groups.append(current)
     return groups
@@ -657,7 +661,7 @@ def _segment_phrase_chunks(groups, n_words, fallback_time, target=PHRASE_TARGET_
         if g["w0"] > cursor:
             chunks.extend(_estimated_word_chunks(cursor, g["w0"] - 1, g["start"], target))
         chunks.append({**g, "estimated": False})
-        cursor = g["w1"] + 1
+        cursor = max(cursor, g["w1"] + 1)
     if cursor < n_words:
         anchor = ordered[-1]["end"] if ordered else fallback_time
         chunks.extend(_estimated_word_chunks(cursor, n_words - 1, anchor, target))

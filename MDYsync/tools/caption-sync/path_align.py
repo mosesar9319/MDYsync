@@ -160,7 +160,18 @@ SHORT_WINDOW_CHARS = 5
 # English-letter stretch: at least this share of its skeleton must come from words
 # that are not common English.
 MIN_FOREIGN_SHARE = 0.6
-MAX_HEBREW_RUN_WORDS = 25     # longer Hebrew-letter runs are the transcriber's own prose
+# A long unbroken run of Hebrew letters is mostly the transcriber's own prose --
+# but not only: R' Bornstein's Eruchin 2 (November 2026) had 798 words in four
+# such runs, five lines of Gemara read phrase by phrase among them, and when the
+# whole run was thrown out none of those 74 daf words were placed. So a word in
+# a long run is still read, but on the path only as part of a phrase of
+# LONG_RUN_MIN_WINDOW_WORDS words or more that matches the daf closely
+# (LONG_RUN_SCORE_FLOOR): one prose word that happens to stand on the daf, with
+# whatever word follows it, says nothing. Between two placed neighbours
+# (fill_gaps), where the place is already known, any of them counts as usual.
+MAX_HEBREW_RUN_WORDS = 25
+LONG_RUN_MIN_WINDOW_WORDS = 2
+LONG_RUN_SCORE_FLOOR = 90
 SCORE_CUTOFF = 78
 
 
@@ -263,10 +274,11 @@ def _daf_windows(strings, lo=0, hi=None, min_chars=MIN_WINDOW_CHARS):
     return out
 
 
-def _transcript_windows(tokens, script, key, usable, a=0, b=None, min_chars=MIN_WINDOW_CHARS):
+def _transcript_windows(tokens, script, key, usable, a=0, b=None, min_chars=MIN_WINDOW_CHARS, min_words=None):
     """Every stretch of 1..MAX_WINDOW_WORDS consecutive transcript words in [a, b)
     in one alphabet, as (first index, word count, joined, share that is not common
-    English)."""
+    English). min_words(i), when given, is the fewest words a stretch starting at
+    word i may have."""
     b = len(tokens) if b is None else b
     out = []
     for i in range(a, b):
@@ -289,6 +301,8 @@ def _transcript_windows(tokens, script, key, usable, a=0, b=None, min_chars=MIN_
                 foreign += len(piece)
             if not piece and length == 1:
                 break
+            if min_words is not None and length < min_words(i):
+                continue
             if len(acc) >= min_chars and piece and not token["common"] and not first["common"]:
                 share = foreign / len(acc)
                 if share >= MIN_FOREIGN_SHARE:
@@ -333,16 +347,26 @@ class _Witness:
                 token["phon"] = phonetic(token["norm"])
 
     def candidates(self, a=0, b=None, lo=0, hi=None, floor=_score_floor, cutoff=SCORE_CUTOFF, sources=None,
-                   min_chars=MIN_WINDOW_CHARS):
+                   min_chars=MIN_WINDOW_CHARS, long_run_min_words=LONG_RUN_MIN_WINDOW_WORDS):
         """Every place in daf words [lo, hi) each stretch of transcript words [a, b)
-        could be, as Candidates on the shiur's clock."""
+        could be, as Candidates on the shiur's clock. A stretch that starts in a
+        long run of Hebrew letters needs long_run_min_words words."""
         sources = sources or self.sources or (SOURCE_LATIN, SOURCE_HEBREW)
         found = {}
         latin = _transcript_windows(self.tokens, "lat", "sk", lambda i: True, a, b, min_chars)
         _compare(latin, _daf_windows(self.daf_latin, lo, hi, min_chars), sources[0], found, floor, cutoff)
-        hebrew = _transcript_windows(self.tokens, "he", "phon",
-                                     lambda i: self.run_lengths[i] <= MAX_HEBREW_RUN_WORDS, a, b, min_chars)
-        _compare(hebrew, _daf_windows(self.daf_hebrew, lo, hi, min_chars), sources[1], found, floor, cutoff)
+        in_long_run = lambda i: self.run_lengths[i] > MAX_HEBREW_RUN_WORDS   # noqa: E731
+        daf_hebrew = _daf_windows(self.daf_hebrew, lo, hi, min_chars)
+        if long_run_min_words <= 1:
+            hebrew = _transcript_windows(self.tokens, "he", "phon", lambda i: True, a, b, min_chars)
+            _compare(hebrew, daf_hebrew, sources[1], found, floor, cutoff)
+        else:
+            hebrew = _transcript_windows(self.tokens, "he", "phon", lambda i: not in_long_run(i), a, b, min_chars)
+            _compare(hebrew, daf_hebrew, sources[1], found, floor, cutoff)
+            prose = _transcript_windows(self.tokens, "he", "phon", in_long_run, a, b, min_chars,
+                                        lambda i: long_run_min_words)
+            _compare(prose, daf_hebrew, sources[1], found,
+                     lambda chars: max(floor(chars), LONG_RUN_SCORE_FLOOR), cutoff)
         out = []
         for i, places in found.items():
             for length, s, e, score, chars, source in places:
@@ -478,9 +502,10 @@ def fill_gaps(witnesses, placed, short_words=True):
                 sources = witness.sources or (SOURCE_LATIN_GAP, SOURCE_HEBREW_GAP)
                 if short:
                     cands += witness.candidates(a, b, lo, hi, _short_gap_floor, GAP_SCORE_CUTOFF,
-                                                sources, SHORT_GAP_MIN_CHARS)
+                                                sources, SHORT_GAP_MIN_CHARS, long_run_min_words=1)
                 else:
-                    cands += witness.candidates(a, b, lo, hi, _gap_floor, GAP_SCORE_CUTOFF, sources)
+                    cands += witness.candidates(a, b, lo, hi, _gap_floor, GAP_SCORE_CUTOFF, sources,
+                                                long_run_min_words=1)
         local = [c._replace(s=c.s - lo, e=c.e - lo) for c in cands if c.t1 <= after.t0 + OVERLAP_SLACK_SECONDS + slack]
         for c in best_path(local, hi - lo, forward_only=True):
             found.append(c._replace(s=c.s + lo, e=c.e + lo))
@@ -494,26 +519,47 @@ def fill_gaps(witnesses, placed, short_words=True):
 BRIDGE_MAX_DAF_WORDS = 2
 BRIDGE_MAX_SECONDS = 4.0
 BRIDGE_SCORE = 60.0
+# A longer hole is filled in the same way when the time between the two placed
+# phrases is what reading that many words takes: a few words the transcriber
+# mangled past recognising ("ומשום יוסף" for ומשום יתום) in the few seconds they
+# take to say. Slower than PACE_FILL_MAX_SECONDS_PER_WORD and the maggid stopped
+# to explain, so the words may not have been read there at all. On Bechoros 58
+# this took one transcript from 78% of the daf to 85%; on Bechoros 40, checked
+# against its caption sync, it added ten fills, all in the right place.
+PACE_FILL_MAX_DAF_WORDS = 6
+PACE_FILL_MIN_SECONDS_PER_WORD = 0.12
+PACE_FILL_MAX_SECONDS_PER_WORD = 1.2
+PACE_FILL_MAX_SECONDS = 8.0
 
 
 def bridge_holes(placed):
-    """Candidates for the one- or two-word holes between consecutive placements
-    (in time) that are BRIDGE_MAX_SECONDS apart or less."""
+    """Candidates for the holes between consecutive placements (in time): one or
+    two words BRIDGE_MAX_SECONDS apart or less, or up to PACE_FILL_MAX_DAF_WORDS
+    words in the time it takes to read them."""
     found = []
     for before, after in zip(placed, placed[1:]):
         hole = after.s - before.e - 1
-        if not 1 <= hole <= BRIDGE_MAX_DAF_WORDS or not 0 <= after.t0 - before.t0 <= BRIDGE_MAX_SECONDS:
+        if hole < 1:
             continue
-        t = max(before.t0, min(before.t1, after.t0))
-        found.append(Candidate(t, t, before.e + 1, after.s - 1, BRIDGE_SCORE, 0, SOURCE_BRIDGE, ""))
+        if hole <= BRIDGE_MAX_DAF_WORDS and 0 <= after.t0 - before.t0 <= BRIDGE_MAX_SECONDS:
+            t = max(before.t0, min(before.t1, after.t0))
+            found.append(Candidate(t, t, before.e + 1, after.s - 1, BRIDGE_SCORE, 0, SOURCE_BRIDGE, ""))
+            continue
+        pause = after.t0 - before.t1
+        if (hole <= PACE_FILL_MAX_DAF_WORDS and 0 <= pause <= PACE_FILL_MAX_SECONDS
+                and PACE_FILL_MIN_SECONDS_PER_WORD <= pause / hole <= PACE_FILL_MAX_SECONDS_PER_WORD):
+            found.append(Candidate(before.t1, before.t1, before.e + 1, after.s - 1, BRIDGE_SCORE, 0, SOURCE_BRIDGE, ""))
     return found
 
 
 # The holes a placed path still has: daf words between two neighbouring placements
 # that nothing placed. voice_align.py can listen to just that stretch of the audio
 # again, hinted with just those words (its "relisten" witness).
-HOLE_MAX_DAF_WORDS = 40
-HOLE_MAX_SECONDS = 60.0
+# Up to a whole stretch of Gemara the first transcript lost (Eruchin 2: 74 words
+# over five and a half minutes); voice_align.py's own limits (RELISTEN_MAX_*)
+# keep what a shiur's re-listens cost in all.
+HOLE_MAX_DAF_WORDS = 80
+HOLE_MAX_SECONDS = 360.0
 
 
 def find_holes(placed):
@@ -580,8 +626,24 @@ def same_words_at(canon, s, e):
             if canon[k].norm == words[0] and [c.norm for c in canon[k:k + n]] == words] or [s]
 
 
+def counted_words(canon, primary, placed_words):
+    """The daf words a shiur is measured against: its own daf (primary, canon
+    indices), and of the amud read before and after it only the lines any of
+    which was placed. A whole neighbouring amud the maggid never opened used to
+    count against him (Eruchin 2: 412 of 895, 46%, where it was 412 of the daf's
+    own 600). primary None: every word counts."""
+    if primary is None:
+        return set(range(len(canon)))
+    counted = set(primary)
+    touched = {canon[i].ref for i in placed_words if i not in counted}
+    if touched:
+        counted.update(i for i, c in enumerate(canon) if c.ref in touched)
+    return counted
+
+
 def align_path(canon, transcripts, phonetic, proposals=(), source_labels=None, english=None, gaps=True,
-               short_words=True, bridges=True, spoken=True, keep_after_reading=False, debug=False):
+               short_words=True, bridges=True, spoken=True, keep_after_reading=False, debug=False,
+               primary=None):
     """Place the shiur on the daf.
 
     transcripts: one or more word lists ([{text, start, end}, ...]) of the same
@@ -664,12 +726,15 @@ def align_path(canon, transcripts, phonetic, proposals=(), source_labels=None, e
         unmatched.append({"start": round(c.t0, 2), "end": round(c.t1, 2), "text": c.text, "offeredToLlm": False})
         if len(unmatched) >= MAX_UNMATCHED_LISTED:
             break
+    counted = counted_words(canon, primary, heard | bridged)
     stats = {
         "aligner": "path",
         "totalRuns": len(placed) + len(unmatched),
-        "totalWords": len(canon),
-        "matchedWords": len(heard | bridged),
-        "unmatchedWords": len(canon) - len(heard | bridged),
+        # Of the words that count (counted_words): the shiur's own daf, and the
+        # lines of its neighbours that were read.
+        "totalWords": len(counted),
+        "matchedWords": len((heard | bridged) & counted),
+        "unmatchedWords": len(counted - heard - bridged),
         "excludedWords": 0,
         "bySource": by_source,
         "unmatched": unmatched,
@@ -678,9 +743,12 @@ def align_path(canon, transcripts, phonetic, proposals=(), source_labels=None, e
         "llmCalls": 0,
         "witnesses": sum(1 for w in witnesses if not w.sources),     # transcripts, not rewrites of them
         "transcriptWords": sum(len(w.tokens) for w in witnesses if not w.sources),
-        "dafWords": len(canon),
-        "dafWordsHeard": len(heard),
-        "dafWordsBridged": len(bridged - heard),
+        "dafWords": len(counted),
+        "dafWordsHeard": len(heard & counted),
+        "dafWordsBridged": len((bridged - heard) & counted),
+        # Every word the engine had before it, neighbouring amudim and all.
+        "wordsRead": len(canon),
+        "ownDafWords": len(counted if primary is None else set(primary)),
         "readingEndsAt": round(reading_ends, 2) if reading_ends is not None else None,
         "droppedAfterReading": dropped_after_reading,
         # Not published (voice_align.py takes it out): where a re-listen could help.

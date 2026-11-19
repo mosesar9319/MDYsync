@@ -19,7 +19,12 @@
 // still running; one that has not published after RETRY_AFTER_HOURS is tried
 // again, up to MAX_ATTEMPTS times.
 //
-//   node tools/lakewood-sync.mjs --results <results checkout> --items <import summary json> [--dry-run]
+// --resync <Lakewood id> syncs one shiur again though it is synced already (after
+// a change to the engine; its transcripts are kept from then on, so later
+// changes need only realign.yml). It still waits for the credits.
+//
+//   node tools/lakewood-sync.mjs --results <results checkout> --items <import summary json>
+//     [--resync L0213511665] [--dry-run]
 //
 // Needs GH_TOKEN (to start the job) and ELEVENLABS_API_KEY (to read the
 // balance) in the environment, and GITHUB_REPOSITORY ("owner/repo").
@@ -60,22 +65,26 @@ export function estimateCredits(item) {
 
 // What to start now: { start: [items], waiting: [{ item, why }] }. balance is
 // { left } or null when it could not be read (then nothing is started).
-export function plan({ resultsDir, items, state, balance, now = Date.now(), syncFrom = SYNC_FROM_PUBLISHED }) {
+// resync: the id of one shiur to sync again whatever its state (asked for by
+// hand); it goes first.
+export function plan({ resultsDir, items, state, balance, now = Date.now(), syncFrom = SYNC_FROM_PUBLISHED, resync = null }) {
   const from = Date.parse(syncFrom);
-  const candidates = items
-    .filter((item) => item.published && Date.parse(item.published) >= from)
-    .sort((a, b) => Date.parse(a.published) - Date.parse(b.published)); // oldest first
+  const asked = resync ? items.filter((item) => item.id === resync) : [];
+  const candidates = asked.concat(items
+    .filter((item) => item.id !== resync && item.published && Date.parse(item.published) >= from)
+    .sort((a, b) => Date.parse(a.published) - Date.parse(b.published))); // oldest first
   const start = [];
   const waiting = [];
   let left = balance ? Number(balance.left) : null;
   for (const item of candidates) {
-    if (isSynced(resultsDir, item)) continue;
+    const again = item.id === resync;
+    if (!again && isSynced(resultsDir, item)) continue;
     const record = state.jobs?.[item.id];
-    if (record?.lastStartedAt && now - Date.parse(record.lastStartedAt) < RETRY_AFTER_HOURS * 3600 * 1000) {
+    if (!again && record?.lastStartedAt && now - Date.parse(record.lastStartedAt) < RETRY_AFTER_HOURS * 3600 * 1000) {
       waiting.push({ item, why: 'running' });
       continue;
     }
-    if ((record?.attempts || 0) >= MAX_ATTEMPTS) {
+    if (!again && (record?.attempts || 0) >= MAX_ATTEMPTS) {
       waiting.push({ item, why: 'gave up' });
       continue;
     }
@@ -144,7 +153,11 @@ async function main(argv) {
   console.log(balance
     ? `ElevenLabs: ${balance.left.toLocaleString('en-US')} of ${balance.limit.toLocaleString('en-US')} credits left.`
     : 'ElevenLabs: the balance could not be read, so no sync is started this hour.');
-  const { start, waiting } = plan({ resultsDir, items, state, balance });
+  const resync = arg(argv, '--resync') || null;
+  if (resync && !items.some((item) => item.id === resync)) {
+    console.log(`Asked to sync ${resync} again, but the feed does not list it.`);
+  }
+  const { start, waiting } = plan({ resultsDir, items, state, balance, resync });
   for (const { item, why } of waiting) console.log(`Waiting: ${item.title} (${item.id}) -- ${why}.`);
   const repo = process.env.GITHUB_REPOSITORY;
   for (const item of start) {

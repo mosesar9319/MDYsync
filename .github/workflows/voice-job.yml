@@ -436,6 +436,57 @@ jobs:
             sleep 2
           done
 
+      # What the job heard, kept as transcripts/<video id>.json.gz on the results
+      # branch (tools/caption-sync/saved_transcripts.py), so the same shiur can be
+      # placed again by realign.yml without paying ElevenLabs for it twice. Runs
+      # even when the engine or the publish failed: the transcript was paid for
+      # either way.
+      - name: Keep the transcripts
+        if: always() && hashFiles('MDYsync/tools/caption-sync/job-out/transcripts.json') != ''
+        env:
+          JOB_ID: ${{ github.event.client_payload.jobId }}
+          REFS_JSON: ${{ toJSON(github.event.client_payload.refs) }}
+          VARIANT: ${{ github.event.client_payload.variant }}
+          LANGUAGE: ${{ github.event.client_payload.language }}
+          VIDEO_URL: ${{ github.event.client_payload.audioUrl || github.event.client_payload.youtubeUrl }}
+          VIDEO_ID: ${{ github.event.client_payload.videoId }}
+          MAGGID: ${{ github.event.client_payload.maggid }}
+          ENGINE_VERSION: ${{ github.sha }}
+        run: |
+          set -e
+          VIDEO_URL="${VIDEO_URL:-$LAKEWOOD_AUDIO_URL}"
+          git config user.name "dafsync-bot"
+          git config user.email "dafsync-bot@users.noreply.github.com"
+          rm -rf /tmp/transcripts-checkout
+          git worktree prune
+          git fetch origin results
+          git worktree add --detach /tmp/transcripts-checkout origin/results
+          python3 MDYsync/tools/caption-sync/saved_transcripts.py store \
+            --transcripts MDYsync/tools/caption-sync/job-out/transcripts.json \
+            --out-dir /tmp/transcripts-checkout \
+            --refs-json "$REFS_JSON" \
+            --job-id "$JOB_ID" \
+            --video-url "$VIDEO_URL" \
+            ${VIDEO_ID:+--video-id "$VIDEO_ID"} \
+            ${MAGGID:+--maggid "$MAGGID"} \
+            ${VARIANT:+--variant "$VARIANT"} \
+            ${LANGUAGE:+--language "$LANGUAGE"} \
+            --engine-version "${ENGINE_VERSION:0:7}"
+          cd /tmp/transcripts-checkout
+          git add transcripts
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -q -m "Transcripts of job ${JOB_ID}"
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:results; then
+              break
+            fi
+            git fetch origin results
+            git rebase origin/results
+            sleep 2
+          done
+
       # What the job cost in ElevenLabs credits and what is left on the account,
       # kept one file per job under credits/ on the results branch (no two jobs
       # ever write the same file, so pushes never conflict). Runs even when the

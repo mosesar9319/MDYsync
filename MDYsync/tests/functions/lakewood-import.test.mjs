@@ -133,6 +133,16 @@ test('syncs: only from Eruchin 2 on, not twice, and never past the credit reserv
   r = plan({ resultsDir: dir, items, state: { jobs: {} }, balance: { left: 26000 } });
   assert.deepEqual(r.start, []);
   assert.deepEqual(r.waiting, []);
+  // Asked for by hand (after a change to the engine): synced again all the same,
+  // even one from before Eruchin 2 -- but not without the credits.
+  r = plan({ resultsDir: dir, items, state: { jobs: { L0213511665: { attempts: 3, lastStartedAt: '2026-11-19T09:30:00Z' } } }, balance: { left: 26000 }, now, resync: 'L0213511665' });
+  assert.deepEqual(r.start.map((i) => i.title), ['Eruchin 2']);
+  const older = items.find((i) => i.id !== 'L0213511665');
+  r = plan({ resultsDir: dir, items, state: { jobs: {} }, balance: { left: 26000 }, resync: older.id });
+  assert.deepEqual(r.start.map((i) => i.id), [older.id]);
+  r = plan({ resultsDir: dir, items, state: { jobs: {} }, balance: { left: RESERVE_CREDITS + 500 }, resync: 'L0213511665' });
+  assert.deepEqual(r.start, []);
+  assert.deepEqual(r.waiting.map((w) => w.why), ['credits']);
 });
 
 test('the sync job is sent the feed’s mp3 and Lakewood’s id, no YouTube address', () => {
