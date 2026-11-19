@@ -57,6 +57,28 @@ test('titles that are not a daf are left alone, not guessed at', () => {
   assert.equal(parseChannelTitle('Bechoros 22', lookup), null, "Mercaz Daf Yomi's parser does not read Lakewood's titles");
 });
 
+// The day Eruchin began (19 November 2026) the channel's English shiur was titled
+// "Daf Yomi Arachin Daf 2"; only "bechoros" was a known Ashkenazi spelling, so
+// it was passed over while the Hebrew shiur of the same daf was linked.
+test("Mercaz Daf Yomi's English titles are read in the Ashkenazi spelling of every masechta", () => {
+  const read = (title) => parseChannelTitle(title, lookup);
+  assert.deepEqual(read("Daf Yomi Arachin Daf 2 by R' Eli Stefansky"), { tractate: 'Arakhin', daf: 2, variant: 'regular', language: 'en' });
+  assert.deepEqual(read('CHAZARAH - Arachin Daf 2 | "Nothing but the Daf" with R\' Eli Stefansky'),
+    { tractate: 'Arakhin', daf: 2, variant: 'chazarah', language: 'en' });
+  assert.equal(read("Daf Yomi Eruchin Daf 3 by R' Eli Stefansky").tractate, 'Arakhin');
+  assert.equal(read("Daf Yomi Bechoros Daf 61 by R' Eli Stefansky").tractate, 'Bekhorot');
+  // The masechtos still to come, and a two-word name.
+  assert.equal(read("Daf Yomi Kereisos Daf 5 by R' Eli Stefansky").tractate, 'Keritot');
+  assert.equal(read("Daf Yomi Bava Basra Daf 5 by R' Eli Stefansky").tractate, 'Bava Batra');
+  assert.equal(read("Daf Yomi Temurah Daf 2 by R' Eli Stefansky").tractate, 'Temurah');
+  // Sefaria's own spelling still reads; a spelling nobody listed is not guessed at.
+  assert.equal(read("Daf Yomi Arakhin Daf 2 by R' Eli Stefansky").tractate, 'Arakhin');
+  assert.equal(read("Daf Yomi Erchin Daf 2 by R' Eli Stefansky"), null);
+  assert.equal(read('Give Hashem the Gift of Trust!'), null);
+  // The Hebrew title never needed one.
+  assert.deepEqual(read('מרכז דף יומי - ערכין דף ב. - ר\' אלי סטפנסקי שליט"א'), { tractate: 'Arakhin', daf: 2, variant: 'regular', language: 'he' });
+});
+
 test('keys: the maggid prefix goes first, ahead of the language and variant ones', () => {
   const base = { tractate: 'Bekhorot', daf: 2, amud: 'a', variant: 'regular', language: 'en' };
   assert.equal(refKeyFor(base), 'Bekhorot-2a');
