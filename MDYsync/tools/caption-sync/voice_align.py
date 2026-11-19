@@ -283,7 +283,52 @@ ELEVENLABS_MODEL = elevenlabs_model_from_env()
 # What this run sent to ElevenLabs, for the credits record (see credits_record).
 # audio_secs is the length of the audio as uploaded (a slowed copy is longer),
 # which is what is billed; keyterm_secs is the part of it sent with a keyterm list.
-ELEVENLABS_USAGE = {"requests": 0, "audio_secs": 0.0, "keyterm_secs": 0.0}
+ELEVENLABS_USAGE = {"requests": 0, "audio_secs": 0.0, "keyterm_secs": 0.0, "byPass": {}}
+
+# Which pass the next transcription belongs to (hints, plain, slow, relisten), and
+# the account's "used" count read after each pass: [(pass, used)], starting with
+# ("start", used) from before the first. The difference between two readings is
+# what that pass cost, so a job's credits can be split by pass.
+ELEVENLABS_PASS = {"name": "hints"}
+ELEVENLABS_CHECKPOINTS = []
+# A moment for the account's count to catch up with the last request before it
+# is read (ElevenLabs does not say how soon it does).
+CREDIT_SETTLE_SECONDS = 2.0
+
+
+def start_credit_pass(name):
+    ELEVENLABS_PASS["name"] = name
+
+
+def credit_checkpoint(name, balance_reader=None, settle=None):
+    """Read the balance once a pass is done, so the pass's cost is known. Only
+    when the job's own first reading worked (there is a baseline); never raises."""
+    if not ELEVENLABS_CHECKPOINTS:
+        return None
+    import time
+    time.sleep(CREDIT_SETTLE_SECONDS if settle is None else settle)
+    balance = (balance_reader or elevenlabs_balance)()
+    if balance:
+        ELEVENLABS_CHECKPOINTS.append((name, balance["used"]))
+    return balance
+
+
+def credits_by_pass(usage, checkpoints):
+    """Each pass's requests, minutes of audio and credits (the change in the
+    account's count across it), in the order the passes ran."""
+    passes = []
+    for (_, before_used), (name, after_used) in zip(checkpoints, checkpoints[1:]):
+        sent = usage.get("byPass", {}).get(name, {"requests": 0, "audio_secs": 0.0})
+        minutes = sent["audio_secs"] / 60
+        used = after_used - before_used if after_used >= before_used else None
+        passes.append({
+            "pass": name,
+            "requests": sent["requests"],
+            "audioMinutes": round(minutes, 1),
+            "creditsUsed": used,
+            "creditsPerAudioMinute": round(used / minutes, 1) if used is not None and minutes else None,
+        })
+    return passes
 
 
 def elevenlabs_balance(api_key=None):
@@ -308,7 +353,7 @@ def elevenlabs_balance(api_key=None):
             "resetsAt": data.get("next_character_count_reset_unix"), "tier": data.get("tier")}
 
 
-def credits_record(before, after, model, usage):
+def credits_record(before, after, model, usage, checkpoints=()):
     """What one job cost and what is left, as written to job-out/credits.json and
     published to the results branch's credits/ folder. creditsUsed is the
     account's own count before and after, so it also takes in anything else that
@@ -326,6 +371,7 @@ def credits_record(before, after, model, usage):
     }
     if before and after and after["used"] >= before["used"] and after["limit"] == before["limit"]:
         record["creditsUsed"] = after["used"] - before["used"]
+    record["passes"] = credits_by_pass(usage, list(checkpoints))
     return record
 
 
@@ -335,8 +381,13 @@ def describe_credits(record):
         return (f"ElevenLabs: {record['requests']} request(s), {record['audioMinutes']} min of audio "
                 f"({record['model']}); the credit balance could not be read.")
     used = f"{record['creditsUsed']:,} credits used" if record["creditsUsed"] is not None else "credits used unknown"
-    return (f"ElevenLabs: {used} for {record['audioMinutes']} min of audio in {record['requests']} "
-            f"request(s) ({record['model']}); {record['creditsLeft']:,} of {record['creditLimit']:,} left.")
+    lines = [f"ElevenLabs: {used} for {record['audioMinutes']} min of audio in {record['requests']} "
+             f"request(s) ({record['model']}); {record['creditsLeft']:,} of {record['creditLimit']:,} left."]
+    for one in record.get("passes") or []:
+        cost = f"{one['creditsUsed']:,} credits" if one["creditsUsed"] is not None else "credits unknown"
+        rate = f", {one['creditsPerAudioMinute']} per minute" if one["creditsPerAudioMinute"] is not None else ""
+        lines.append(f"  {one['pass']}: {cost} for {one['audioMinutes']} min in {one['requests']} request(s){rate}")
+    return "\n".join(lines)
 # The API's own documented ceiling is 1000 terms / 50 chars each. Staying
 # well under it: a daf's genuinely distinct vocabulary is nowhere near 1000
 # words anyway (see build_keyterm_list's dedup), and a keyterm list padded
@@ -466,6 +517,9 @@ def transcribe_elevenlabs(audio_path, keyterms=None, api_key=None, tempo=1.0):
     ELEVENLABS_USAGE["audio_secs"] += billed
     if any(n == "keyterms" for n, _ in fields):
         ELEVENLABS_USAGE["keyterm_secs"] += billed
+    this_pass = ELEVENLABS_USAGE["byPass"].setdefault(ELEVENLABS_PASS["name"], {"requests": 0, "audio_secs": 0.0})
+    this_pass["requests"] += 1
+    this_pass["audio_secs"] += billed
     print(f"Detected language: {data.get('language_code')} "
           f"(p={data.get('language_probability')})")
     words = []
@@ -1679,8 +1733,10 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
         keyterms = build_keyterm_list(canon, max_terms=ELEVENLABS_MAX_KEYTERMS)
         if debug:
             print(f"Keyterms ({len(keyterms)}): {' '.join(keyterms[:40])}...")
+        start_credit_pass("hints")
         try:
             words, duration = transcribe_elevenlabs(video_path, keyterms=keyterms)
+            credit_checkpoint("hints")
         except Exception as error:
             # A missing key, a rate limit, an API outage -- none of these are
             # reasons to fail a sync job outright when a working local engine
@@ -1698,6 +1754,7 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
                 try:
                     if name == "relisten":
                         continue   # made after the path is placed, below
+                    start_credit_pass(name)
                     if name == "plain":
                         more, _ = transcribe_elevenlabs(video_path, keyterms=None)
                     else:
@@ -1706,6 +1763,7 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
                     print(f"Witness '{name}': {len(more)} words")
                 except Exception as error:  # noqa: BLE001
                     print(f"Witness '{name}' failed ({error}); carrying on without it.")
+                credit_checkpoint(name)
 
     if words is None:
         prompt = build_keyterm_prompt(canon)
@@ -1779,7 +1837,9 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
                 # Second round: listen again to just the holes, hinted with just
                 # the words that belong in each, and place the whole path again.
                 placed_words = {i for event in path_events for i in range(event.start_idx, event.end_idx + 1)}
+                start_credit_pass("relisten")
                 again = relisten_holes(video_path, canon, path_stats.get("holes") or [], placed_words, duration)
+                credit_checkpoint("relisten")
                 if again:
                     print(f"Witness 'relisten': {len(again)} words")
                     first_heard = path_stats["matchedWords"]
@@ -1867,6 +1927,8 @@ def main():
     # The refs actually read, for publish_alignment.py (voice-job.yml).
     json.dump(refs, open(os.path.join(args.out_dir, "refs.json"), "w", encoding="utf-8"), ensure_ascii=False)
     balance_before = elevenlabs_balance() if args.engine == "elevenlabs" and not args.transcript else None
+    if balance_before:
+        ELEVENLABS_CHECKPOINTS.append(("start", balance_before["used"]))
     canon, segments, events, duration, stats = process_video(
         args.video, refs, model_size=args.model, cache_dir=args.out_dir, debug=args.debug,
         engine=args.engine, fallback=not args.no_fallback, llm_rescue=args.llm_rescue,
@@ -1874,7 +1936,8 @@ def main():
         slow_tempo=args.slow_tempo, transcripts=args.transcript, keep_after_reading=args.keep_after_reading)
     credits = None
     if ELEVENLABS_USAGE["requests"]:
-        credits = credits_record(balance_before, elevenlabs_balance(), ELEVENLABS_MODEL, ELEVENLABS_USAGE)
+        credits = credits_record(balance_before, elevenlabs_balance(), ELEVENLABS_MODEL, ELEVENLABS_USAGE,
+                                 ELEVENLABS_CHECKPOINTS)
         json.dump(credits, open(os.path.join(args.out_dir, "credits.json"), "w", encoding="utf-8"), indent=2)
         print(describe_credits(credits))
     if not events:
