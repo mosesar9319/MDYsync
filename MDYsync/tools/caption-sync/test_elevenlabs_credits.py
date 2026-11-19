@@ -109,5 +109,62 @@ class Usage(unittest.TestCase):
         self.assertEqual(VA.ELEVENLABS_USAGE['keyterm_secs'], start['keyterm_secs'] + 80)
 
 
+class ByPass(unittest.TestCase):
+    def setUp(self):
+        VA.ELEVENLABS_CHECKPOINTS.clear()
+
+    def tearDown(self):
+        VA.ELEVENLABS_CHECKPOINTS.clear()
+        VA.start_credit_pass('hints')
+
+    def test_each_pass_costs_the_change_across_it(self):
+        usage = {'byPass': {'hints': {'requests': 1, 'audio_secs': 3816},
+                            'plain': {'requests': 1, 'audio_secs': 3816},
+                            'relisten': {'requests': 43, 'audio_secs': 750}}}
+        checkpoints = [('start', 1562), ('hints', 2260), ('plain', 2842), ('relisten', 3700)]
+        passes = VA.credits_by_pass(usage, checkpoints)
+        self.assertEqual([p['pass'] for p in passes], ['hints', 'plain', 'relisten'])
+        self.assertEqual([p['creditsUsed'] for p in passes], [698, 582, 858])
+        self.assertEqual(passes[0]['audioMinutes'], 63.6)
+        self.assertEqual(passes[2]['requests'], 43)
+        self.assertEqual(passes[2]['creditsPerAudioMinute'], 68.6)
+
+    def test_no_baseline_no_readings(self):
+        reader = mock.Mock()
+        self.assertIsNone(VA.credit_checkpoint('hints', balance_reader=reader, settle=0))
+        reader.assert_not_called()
+
+    def test_a_reading_after_a_pass_is_kept(self):
+        VA.ELEVENLABS_CHECKPOINTS.append(('start', 100))
+        VA.credit_checkpoint('hints', balance_reader=lambda: {'used': 800}, settle=0)
+        VA.credit_checkpoint('plain', balance_reader=lambda: None, settle=0)
+        self.assertEqual(VA.ELEVENLABS_CHECKPOINTS, [('start', 100), ('hints', 800)])
+
+    def test_requests_are_counted_under_the_current_pass(self):
+        answer = io.BytesIO(json.dumps({'words': [], 'audio_duration_secs': 30}).encode())
+        answer.__enter__ = lambda self=answer: self
+        answer.__exit__ = lambda *a: False
+        VA.start_credit_pass('relisten')
+        before = dict(VA.ELEVENLABS_USAGE['byPass'].get('relisten', {'requests': 0, 'audio_secs': 0.0}))
+        with mock.patch('urllib.request.urlopen', return_value=answer), \
+                mock.patch('builtins.open', mock.mock_open(read_data=b'mp3')), mock.patch('builtins.print'):
+            VA.transcribe_elevenlabs('clip.mp3', keyterms=['שור'], api_key='key')
+        after = VA.ELEVENLABS_USAGE['byPass']['relisten']
+        self.assertEqual(after['requests'], before['requests'] + 1)
+        self.assertEqual(after['audio_secs'], before['audio_secs'] + 30)
+
+    def test_the_log_shows_each_pass(self):
+        record = VA.credits_record(
+            {'used': 0, 'limit': 30247, 'left': 30247, 'resetsAt': None, 'tier': None},
+            {'used': 1562, 'limit': 30247, 'left': 28685, 'resetsAt': None, 'tier': None},
+            'scribe_v3', {'requests': 44, 'audio_secs': 4566, 'keyterm_secs': 4566,
+                          'byPass': {'hints': {'requests': 1, 'audio_secs': 3816},
+                                     'relisten': {'requests': 43, 'audio_secs': 750}}},
+            [('start', 0), ('hints', 900), ('relisten', 1562)])
+        text = VA.describe_credits(record)
+        self.assertIn('hints: 900 credits for 63.6 min in 1 request(s), 14.2 per minute', text)
+        self.assertIn('relisten: 662 credits for 12.5 min in 43 request(s), 53.0 per minute', text)
+
+
 if __name__ == '__main__':
     unittest.main()
