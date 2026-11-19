@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-19T16:23:24.583Z",
+  "generatedAt": "2026-11-19T19:00:19.954Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -4625,6 +4625,16 @@
           "videoId": "Np3wL14Pbng",
           "label": "מרכז דף יומי - ערכין דף ב. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
+        }
+      },
+      {
+        "daf": 3,
+        "regularHe": {
+          "videoId": "ZmCE1JkiWh4",
+          "label": "מרכז דף יומי -  ערכין דף ג. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
+          "amud": "a",
+          "liveBroadcast": true,
+          "liveStatus": "live"
         }
       }
     ]
