@@ -80,10 +80,12 @@ jobs:
       # see ocr-job.yml's own copy of these two steps for the full story on
       # why both this and the PO token provider below are needed.
       - uses: denoland/setup-deno@v2
+        if: github.event.client_payload.maggid != 'bornstein'
         with:
           deno-version: v2.x
 
       - name: Start the PO token provider
+        if: github.event.client_payload.maggid != 'bornstein'
         run: |
           docker run --name bgutil-provider -d -p 4416:4416 \
             brainicism/bgutil-ytdlp-pot-provider
@@ -107,8 +109,47 @@ jobs:
       # measured against the audio it hears. Anything else (another maggid, a
       # livestream, no such file, a different length) leaves it to the
       # YouTube download below. This step never fails the job.
+      # R' Sruly Bornstein's shiurim never come from YouTube: Lakewood Daf Yomi
+      # publish every daf's shiur as an mp3 on their own server, through their
+      # app's podcast feed (tools/lakewood-audio.mjs). It is the same recording
+      # as the YouTube video (Bechoros 58: 3814.27 s here, 3814.2 s on YouTube).
+      # The feed keeps about the last 250 shiurim; a daf it no longer has fails
+      # the job with that reason rather than falling back to YouTube.
+      - name: Get R' Bornstein's audio from Lakewood Daf Yomi's server
+        if: github.event.client_payload.maggid == 'bornstein'
+        working-directory: MDYsync/tools/caption-sync
+        env:
+          REFS_JSON: ${{ toJSON(github.event.client_payload.refs) }}
+        run: |
+          set -e
+          found=$(node ../lakewood-audio.mjs --refs "$REFS_JSON")
+          if [ -z "$found" ]; then
+            echo "Lakewood Daf Yomi's feed has no shiur on this daf (it keeps about the last 250)." \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          url="${found%% *}"
+          feed_seconds="${found#* }"
+          echo "Lakewood Daf Yomi's copy: $url (${feed_seconds} s in the feed)"
+          curl -sfL --retry 3 --max-time 900 -o job-audio.mp3 "$url"
+          seconds=$(ffprobe -v error -show_entries format=duration -of csv=p=0 job-audio.mp3)
+          size=$(stat -c%s job-audio.mp3)
+          echo "Downloaded: ${seconds:-unknown} seconds, $size bytes"
+          if [ -z "$seconds" ] || [ "$size" -lt 100000 ]; then
+            echo "Lakewood Daf Yomi's copy did not download properly." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          if [ -n "$feed_seconds" ] && [ "$feed_seconds" != "$url" ] && \
+             ! awk -v a="$seconds" -v b="$feed_seconds" 'BEGIN { d = a - b; if (d < 0) d = -d; exit !(d <= 3) }'; then
+            echo "The file is ${seconds} s but the feed says ${feed_seconds} s; it did not download whole." \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "Using Lakewood Daf Yomi's copy of the audio." | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Get the audio from MDY's server
         id: mdy_audio
+        if: github.event.client_payload.maggid != 'bornstein'
         working-directory: MDYsync/tools/caption-sync
         env:
           YOUTUBE_URL: ${{ github.event.client_payload.youtubeUrl }}
@@ -171,7 +212,7 @@ jobs:
           echo "Using MDY's copy of the audio." | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Download the video from YouTube
-        if: steps.mdy_audio.outputs.source != 'mdy'
+        if: steps.mdy_audio.outputs.source != 'mdy' && github.event.client_payload.maggid != 'bornstein'
         working-directory: MDYsync/tools/caption-sync
         env:
           YOUTUBE_URL: ${{ github.event.client_payload.youtubeUrl }}
@@ -254,6 +295,9 @@ jobs:
           # a transcript of the audio slowed to 0.75 speed.
           VOICE_ALIGNER: ${{ github.event.client_payload.aligner }}
           VOICE_WITNESSES: ${{ github.event.client_payload.witnesses }}
+          # Which ElevenLabs Scribe model to transcribe with: scribe_v2 (the
+          # default when empty) or scribe_v3. See ELEVENLABS_MODELS in voice_align.py.
+          VOICE_STT_MODEL: ${{ github.event.client_payload.sttModel }}
           # Lets the LLM rescue/refine steps run where they are on: since
           # November 2026 only for a phrase-matcher run (aligner "phrase");
           # the path aligner, the default, leaves Claude out (see
@@ -363,6 +407,55 @@ jobs:
           git add by-ref by-video
           [ -d test-runs ] && git add test-runs
           git commit -m "Add voice-recognition result for job ${JOB_ID}"
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:results; then
+              break
+            fi
+            git fetch origin results
+            git rebase origin/results
+            sleep 2
+          done
+
+      # What the job cost in ElevenLabs credits and what is left on the account,
+      # kept one file per job under credits/ on the results branch (no two jobs
+      # ever write the same file, so pushes never conflict). Runs even when the
+      # engine or the publish failed: the credits were spent either way.
+      - name: Record the ElevenLabs credits used
+        if: always() && hashFiles('MDYsync/tools/caption-sync/job-out/credits.json') != ''
+        env:
+          JOB_ID: ${{ github.event.client_payload.jobId }}
+          VIDEO_URL: ${{ github.event.client_payload.youtubeUrl }}
+          MAGGID: ${{ github.event.client_payload.maggid }}
+          TEST_RUN: ${{ github.event.client_payload.testRun }}
+        run: |
+          set -e
+          git config user.name "dafsync-bot"
+          git config user.email "dafsync-bot@users.noreply.github.com"
+          rm -rf /tmp/credits-checkout
+          git fetch origin results
+          git worktree add /tmp/credits-checkout origin/results
+          stamp="$(date -u +%Y-%m-%dT%H%M%SZ)"
+          mkdir -p /tmp/credits-checkout/credits
+          python3 - "$stamp" <<'PY'
+          import json, os, sys
+          src = 'MDYsync/tools/caption-sync/job-out/credits.json'
+          record = json.load(open(src))
+          refs_path = 'MDYsync/tools/caption-sync/job-out/refs.json'
+          record.update({
+              'at': sys.argv[1],
+              'jobId': os.environ.get('JOB_ID') or None,
+              'videoUrl': os.environ.get('VIDEO_URL') or None,
+              'maggid': os.environ.get('MAGGID') or None,
+              'testRun': os.environ.get('TEST_RUN') == 'true',
+              'refs': json.load(open(refs_path)) if os.path.exists(refs_path) else None,
+          })
+          name = f"{sys.argv[1]}-{os.environ.get('JOB_ID') or 'job'}.json"
+          json.dump(record, open(os.path.join('/tmp/credits-checkout/credits', name), 'w'), indent=2)
+          print(f'credits/{name}')
+          PY
+          cd /tmp/credits-checkout
+          git add credits
+          git commit -m "ElevenLabs credits for job ${JOB_ID}"
           for attempt in 1 2 3 4 5; do
             if git push origin HEAD:results; then
               break

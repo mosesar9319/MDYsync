@@ -61,6 +61,11 @@ on:
         description: 'Regular engine, path only: transcripts to use (hints / hints,plain / hints,plain,slow / hints,plain,relisten)'
         required: false
         default: 'hints,plain'
+      stt_model:
+        description: 'Regular engine: the ElevenLabs Scribe model to transcribe with'
+        type: choice
+        options: [scribe_v2, scribe_v3]
+        default: scribe_v2
       notes:
         description: 'What changed since the last run (shown in the dropdown)'
         required: false
@@ -124,6 +129,7 @@ jobs:
           NOTES: ${{ inputs.notes }}
           ALIGNER: ${{ inputs.aligner }}
           WITNESSES: ${{ inputs.witnesses }}
+          STT_MODEL: ${{ inputs.stt_model }}
         run: |
           set -e
           python3 - <<'PY' > payload.json
@@ -134,6 +140,9 @@ jobs:
           # How the run was made goes into its name, so two ways of running the
           # same engine can be told apart in the dropdown.
           made = 'phrase matcher' if aligner == 'phrase' else 'path: ' + witnesses.replace(',', ' + ')
+          stt_model = os.environ.get('STT_MODEL') or 'scribe_v2'
+          if stt_model != 'scribe_v2':
+              made += ', ' + stt_model.replace('scribe_v', 'Scribe v')
           notes = os.environ.get('NOTES', '').strip()
           payload = {
               'youtubeUrl': 'https://www.youtube.com/watch?v=' + os.environ['VIDEO_ID'],
@@ -143,11 +152,20 @@ jobs:
               'language': 'en',
               'testRun': 'true',
               'testNotes': f'{notes} ({made})' if notes else made,
-              'aligner': aligner,
-              'witnesses': witnesses,
           }
+          # GitHub refuses a dispatch whose client_payload has more than 10
+          # top-level fields, so a setting left at voice-job.yml's own default is
+          # not sent, and witnesses only go with the path aligner (the phrase
+          # matcher does not read them).
+          if aligner != 'path':
+              payload['aligner'] = aligner
+          elif witnesses != 'hints,plain':
+              payload['witnesses'] = witnesses
+          if stt_model != 'scribe_v2':
+              payload['sttModel'] = stt_model
           if os.environ.get('MAGGID'):
               payload['maggid'] = os.environ['MAGGID']
+          assert len(payload) <= 10, f'client_payload has {len(payload)} top-level fields; GitHub allows 10'
           print(json.dumps({'event_type': 'run-voice-job', 'client_payload': payload}))
           PY
           curl -fsS -X POST \
