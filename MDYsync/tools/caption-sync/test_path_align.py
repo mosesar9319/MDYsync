@@ -177,6 +177,43 @@ class Holes(unittest.TestCase):
         apart = self.align(said('אף על פי שאינו רשאי', 'the', 'והמקבל הימנו', gap=4.0))[0]   # 10s apart
         self.assertEqual(spans(apart), [(7, 11), (14, 15)])
 
+    def test_what_he_read_straight_on_is_placed_though_the_transcriber_mangled_it(self):
+        # R' Bornstein's Eruchin 2, 18:51: he reads "לאתויי מאי לאתויי מנוול ומוכה
+        # שחין" and explains for a quarter of a minute. "u'mokashim." is ומוכה שחין
+        # run into one word, 67 of 100 as a match: too poor to take anywhere in
+        # that explanation, but not right after the phrase it finishes.
+        canon = canon_from('״נֶעֱרָכִין״ — לְאֵתוֹיֵי מַאי? לְאֵתוֹיֵי מְנוָּּול וּמוּכֵּה שְׁחִין. '
+                           'סָלְקָא דַּעְתָּךְ אָמֵינָא: ״נֶדֶר בְּעֶרְכְּךָ״ כְּתִיב', 'Arakhin 2a:5')
+
+        def heard(garbled_at):
+            words = [{'text': t, 'start': a, 'end': b} for t, a, b in (
+                ('Narochin.', 121.6, 122.2), ('Laasui', 131.2, 131.6), ('yayi', 131.6, 132.2), ('menuvah', 132.3, 132.7),
+                ("u'mokashim.", garbled_at, garbled_at + 0.5))]
+            words += said('it is that this was with it is that this', start=136.0)
+            return sorted(words + said('סלקא דעתך אמינא נדר בערכך', start=147.2), key=lambda w: w['start'])
+
+        align = lambda at: PA.align_path(canon, [heard(at)], VA.phonetic, english=ENGLISH)[0]   # noqa: E731
+        events = align(132.8)
+        placed = {(e.start_idx, e.end_idx): e for e in events}
+        self.assertIn((5, 6), placed)
+        self.assertEqual((placed[(5, 6)].ocr_text, placed[(5, 6)].source, placed[(5, 6)].t),
+                         ("u'mokashim.", 'path-latin-gap', 132.8))
+        # After a pause it is one more word of the explanation.
+        self.assertNotIn((5, 6), spans(align(134.5)))
+
+    def test_read_on_takes_only_what_stands_next_to_a_placed_phrase(self):
+        canon = canon_from(MISHNAH)
+        witness = PA._Witness(said('אף על פי שאינו רשאי', 'hamishtatlo', gap=0.1) + said('והמקבל הימנו', start=130.0),
+                              canon, VA.phonetic, ENGLISH,
+                              [PA.fold(PA.ashkenazi_skeleton(c.text)) for c in canon], [VA.phonetic(c.norm) for c in canon])
+        before = PA.Candidate(100.0, 101.9, 7, 11, 95.0, 12, 'path-hebrew', '')
+        after = PA.Candidate(130.0, 130.7, 14, 15, 95.0, 9, 'path-hebrew', '')
+        found = PA.read_on([witness], [before, after])
+        self.assertEqual([(c.s, c.e, c.text) for c in found], [(12, 13, 'hamishtatlo')])
+        # A hole of more words than a breath holds is not begun on trust.
+        far = after._replace(s=20, e=21)
+        self.assertEqual(PA.read_on([witness], [before, far]), [])
+
     def test_a_short_word_is_looked_for_only_inside_a_small_gap(self):
         # "לו" alone fits four places in this Mishnah; between "המשתתף" and "והמקבל" it
         # can only be the one at 13.
