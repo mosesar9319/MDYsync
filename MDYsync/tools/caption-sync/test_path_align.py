@@ -488,14 +488,137 @@ class AfterTheReading(unittest.TestCase):
                        'והמשתתף לו והמקבל הימנו', 'the', 'והנותן לו בקבלה פטור מן הבכורה', 'the',
                        'שנאמר בישראל אבל לא באחרים')
         quotes = said('So that is הלוקח עובר חמורו', 'and again אף על פי שאינו רשאי', start=reading[-1]['end'] + 120)
-        events, stats = PA.align_path(canon, [reading + quotes], VA.phonetic, english=ENGLISH)
         last_read = reading[-1]['end']
+        # On the straight path a quote of a line already read is a step back: never placed.
+        events, stats = PA.align_path(canon, [reading + quotes], VA.phonetic, english=ENGLISH)
         self.assertTrue(events)
+        self.assertTrue(all(e.t <= last_read for e in events))
+        self.assertAlmostEqual(stats['readingEndsAt'], last_read, delta=0.5)
+        # The path as it was before: they are placed, then dropped as after the reading.
+        events, stats = PA.align_path(canon, [reading + quotes], VA.phonetic, english=ENGLISH, straight=False)
         self.assertTrue(all(e.t <= last_read + PA.AFTER_READING_GRACE_SECONDS for e in events))
         self.assertGreater(stats['droppedAfterReading'], 0)
         self.assertAlmostEqual(stats['readingEndsAt'], last_read, delta=0.5)
-        kept, _ = PA.align_path(canon, [reading + quotes], VA.phonetic, english=ENGLISH, keep_after_reading=True)
+        kept, _ = PA.align_path(canon, [reading + quotes], VA.phonetic, english=ENGLISH, keep_after_reading=True,
+                                straight=False)
         self.assertGreater(max(e.t for e in kept), last_read + 100)
+
+
+# 0 הלוקח 1 עובר 2 חמורו 3 של 4 נכרי 5 והמוכר 6 לו 7 אף 8 על 9 פי 10 שאינו 11 רשאי
+# 12 הלוקח 13 עובר 14 פטור 15 מן 16 הבכורה 17 שנאמר 18 בישראל | 19 הלוקח 20 עובר 21 אבל 22 לא 23 באחרים
+QUOTING = ('הלוקח עובר חמורו של נכרי והמוכר לו אף על פי שאינו רשאי '
+           'הלוקח עובר פטור מן הבכורה שנאמר בישראל')
+UNREAD_LINE = 'הלוקח עובר אבל לא באחרים'
+
+
+class StraightPath(unittest.TestCase):
+    """Each daf word has one moment -- the first time it is read, in the order of
+    the page -- and the highlight never steps back or lands on a line not read."""
+
+    def straight(self, events):
+        order = sorted(events, key=lambda e: (e.t, e.start_idx))
+        self.assertEqual([e.start_idx for e in order], sorted(e.start_idx for e in order))   # never a step back
+        words = [i for e in order for i in range(e.start_idx, e.end_idx + 1)]
+        self.assertEqual(len(words), len(set(words)))                                        # no word twice
+        return order
+
+    def test_a_phrase_said_again_keeps_its_first_moment(self):
+        canon = canon_from(MISHNAH)
+        transcript = said('הלוקח עובר חמורו של נכרי', 'the', 'והמוכר לו אף על פי שאינו רשאי', 'the',
+                          'הלוקח עובר חמורו', 'the', 'המשתתף לו והמקבל הימנו')
+        events, stats = PA.align_path(canon, [transcript], VA.phonetic, english=ENGLISH)
+        order = self.straight(events)
+        self.assertTrue(stats['straightPath'])
+        self.assertEqual((order[0].start_idx, order[0].t), (0, 100.0))
+        self.assertEqual(max(e.end_idx for e in order), 15)                   # and he read on, to the end
+        # As it was: the second saying placed too, a step back.
+        old, old_stats = PA.align_path(canon, [transcript], VA.phonetic, english=ENGLISH, straight=False)
+        self.assertFalse(old_stats['straightPath'])
+        self.assertGreater(sum(1 for e in old if e.start_idx == 0), 1)
+
+    def test_the_gemara_quoting_its_mishnah_is_on_the_gemaras_own_line(self):
+        canon = canon_from(QUOTING)
+        transcript = said('הלוקח עובר חמורו של נכרי', 'the', 'והמוכר לו אף על פי שאינו רשאי', 'the',
+                          'הלוקח עובר', 'the', 'פטור מן הבכורה שנאמר בישראל')
+        events, _ = PA.align_path(canon, [transcript], VA.phonetic, english=ENGLISH)
+        order = self.straight(events)
+        second = next(e for e in order if e.ocr_text == 'הלוקח עובר' and e.t > 105)
+        self.assertEqual((second.start_idx, second.end_idx), (12, 13))        # not back on words 0-1
+
+    def test_a_line_begun_then_explained_then_read_through_starts_where_it_was_begun(self):
+        canon = canon_from(MISHNAH)
+        # He says the opening words, explains for a minute, then reads the line through.
+        opening = said('הלוקח עובר')
+        reading = said('הלוקח עובר חמורו של נכרי', 'the', 'והמוכר לו אף על פי שאינו רשאי', start=160.0)
+        events, _ = PA.align_path(canon, [opening + reading], VA.phonetic, english=ENGLISH)
+        order = self.straight(events)
+        first = {i: e.t for e in order for i in range(e.start_idx, e.end_idx + 1)}
+        self.assertEqual(first[0], 100.0)                                     # the first time, not the 160s reading
+        self.assertEqual(first[1], 100.0)
+        self.assertGreaterEqual(first[2], 160.0)                              # the rest when he read it
+        # But not the same words quoted in an introduction ten minutes before.
+        intro = said('הלוקח עובר', start=10.0)
+        later = said('הלוקח עובר חמורו של נכרי', 'the', 'והמוכר לו אף על פי שאינו רשאי', start=700.0)
+        events, _ = PA.align_path(canon, [intro + later], VA.phonetic, english=ENGLISH)
+        self.assertGreaterEqual(min(e.t for e in events), 700.0)
+
+    def test_a_quote_in_the_closing_discussion_does_not_land_on_a_line_never_read(self):
+        canon = canon_from(QUOTING + ' ' + UNREAD_LINE)
+        reading = said('הלוקח עובר חמורו של נכרי', 'the', 'והמוכר לו אף על פי שאינו רשאי', 'the',
+                       'הלוקח עובר', 'the', 'פטור מן הבכורה שנאמר בישראל')
+        discussion = said('so we said הלוקח עובר', start=reading[-1]['end'] + 90)
+        events, stats = PA.align_path(canon, [reading + discussion], VA.phonetic, english=ENGLISH)
+        self.straight(events)
+        self.assertLessEqual(max(e.end_idx for e in events), 18)              # words 19-20 are the unread line's
+        self.assertTrue(all(e.t <= reading[-1]['end'] for e in events))
+        self.assertGreater(stats['droppedAfterReading'], 0)
+
+    def test_the_most_words_on_one_straight_path_and_of_two_ways_the_earlier(self):
+        C = PA.Candidate
+        items = [C(10, 11, 0, 4, 90, 9, 'x', 'a'), C(20, 21, 5, 9, 90, 9, 'x', 'b'),
+                 C(30, 31, 3, 6, 90, 9, 'x', 'again'),                        # a step back: dropped
+                 C(40, 41, 8, 12, 90, 9, 'x', 'c'),                           # overlaps 8-9: keeps 10-12
+                 C(50, 51, 0, 4, 90, 9, 'x', 'a, later')]                     # as many words as 'a', but later
+        kept = PA._straight(items)
+        self.assertEqual([(c.text, c.s, c.e) for c in kept], [('a', 0, 4), ('b', 5, 9), ('c', 10, 12)])
+        self.assertEqual(PA._straight([]), [])
+
+    def test_lone_stretches_at_the_end_are_not_the_reading(self):
+        C = PA.Candidate
+        own = set(range(0, 100))
+        read = [C(20, 21, 0, 9, 90, 9, 'x', ''), C(30, 31, 10, 30, 90, 9, 'x', ''), C(40, 41, 31, 58, 90, 9, 'x', '')]
+        strays = [C(90, 91, 99, 99, 90, 9, 'x', 'one word, forty on'),
+                  C(95, 96, 104, 105, 90, 9, 'x', 'the next amud, quoted')]
+        kept, dropped = PA.peel_strays(read + strays, own)
+        self.assertEqual(([(c.s, c.e) for c in kept], dropped), ([(0, 9), (10, 30), (31, 58)], 2))
+        # Read through to the end and on into the next amud, a line of it: that is the reading.
+        on = read + [C(45, 46, 59, 99, 90, 9, 'x', ''), C(50, 51, 100, 108, 90, 9, 'x', '')]
+        self.assertEqual(PA.peel_strays(on, own), (on, 0))
+        # A hole the transcript left, then reading again: kept (the words beyond it are many).
+        hole = read + [C(60, 61, 80, 99, 90, 9, 'x', '')]
+        self.assertEqual(PA.peel_strays(hole, own), (hole, 0))
+        # The start is left alone, however thin.
+        thin = [C(5, 6, 0, 0, 90, 9, 'x', '')] + [c._replace(s=c.s + 40, e=c.e + 40) for c in read]
+        self.assertEqual(PA.peel_strays(thin, None), (thin, 0))
+        self.assertEqual(PA.peel_strays([], own), ([], 0))
+
+    def test_a_line_read_in_two_goes_keeps_both_at_their_own_times(self):
+        from caption_ocr_align import build_outputs
+        canon = canon_from(MISHNAH)
+        segments = [{'ref': 'Bekhorot 2a:1', 'he': MISHNAH, 'en': ''}]
+        from caption_ocr_align import WordEvent
+        events = [WordEvent(100.0, 0, 1, 90.0, 'a', 'path-latin'), WordEvent(101.0, 2, 4, 90.0, 'b', 'path-latin'),
+                  WordEvent(500.0, 5, 9, 90.0, 'c', 'path-latin'), WordEvent(502.0, 10, 11, 90.0, 'd', 'path-latin'),
+                  WordEvent(503.0, 12, 15, 90.0, 'e', 'path-latin')]
+        straight, _ = build_outputs(canon, segments, events, 900.0, 'a.mp3', ['Bekhorot 2a'], straight=True)
+        real = [(s['w0'], s['start']) for s in straight['segments'] if not s.get('estimated')]
+        self.assertEqual(real[0], (0, 100.0))
+        self.assertIn(500.0, [t for _, t in real])
+        starts = [s['start'] for s in straight['segments']]
+        self.assertEqual(starts, sorted(starts))                              # in reading order, in time order
+        # Without it, only the larger group of entries is believed.
+        clustered, _ = build_outputs(canon, segments, events, 900.0, 'a.mp3', ['Bekhorot 2a'])
+        self.assertNotIn(100.0, [s['start'] for s in clustered['segments'] if not s.get('estimated')])
 
 
 class NeighborAmudim(unittest.TestCase):

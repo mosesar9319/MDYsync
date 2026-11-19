@@ -668,9 +668,50 @@ def _segment_phrase_chunks(groups, n_words, fallback_time, target=PHRASE_TARGET_
     return chunks
 
 
+# Two rows the player takes for one moment (app.js, findSegmentAt: starts within
+# 0.051s are a tie, and of a tie it shows the earlier row).
+SAME_MOMENT_SECONDS = 0.06
+
+
+def _keep_reading_order(align_segments):
+    """On a straight path the rows, which are in reading order, are in time
+    order too. The real ones already are. A placeholder row is stamped a hair
+    after the real phrase it stands before (see _estimated_word_chunks), which
+    put it later than that phrase: the highlight stepped back onto the guess and
+    sat there. So each placeholder is brought to no later than the row after it,
+    and no row starts before the one above it.
+
+    Two real rows heard as one stretch (a phrase that runs over the end of a
+    line) start together, and the player, given a tie, shows the first of them:
+    once the second had been read it went back. The second is set
+    SAME_MOMENT_SECONDS after the first."""
+    for i in range(len(align_segments) - 2, -1, -1):
+        row, after = align_segments[i], align_segments[i + 1]
+        if row.get("estimated") and row["start"] > after["start"]:
+            row["start"] = after["start"]
+            row["end"] = max(row["start"], min(row["end"], after["start"]))
+    last_real = None
+    for i in range(1, len(align_segments)):
+        row, above = align_segments[i], align_segments[i - 1]
+        if not above.get("estimated"):
+            last_real = above
+        if row["start"] < above["start"]:
+            row["start"] = above["start"]
+        if not row.get("estimated") and last_real is not None \
+                and row["start"] - last_real["start"] < SAME_MOMENT_SECONDS:
+            row["start"] = round(last_real["start"] + SAME_MOMENT_SECONDS, 2)
+            last_real["end"] = max(last_real["start"], min(last_real["end"], row["start"]))
+        row["end"] = max(row["end"], row["start"])
+
+
 def build_outputs(canon, segments, events, duration, video_path, refs,
-                   generator="caption_ocr_align.py", title_prefix="Caption OCR alignment"):
-    """Collapse per-frame events into a word timeline and a segment alignment."""
+                   generator="caption_ocr_align.py", title_prefix="Caption OCR alignment", straight=False):
+    """Collapse per-frame events into a word timeline and a segment alignment.
+
+    straight: the events are one straight path (path_align.py: each word at one
+    moment, never a step back), so every one of a segment's entries is kept --
+    a line read in two goes, minutes apart, has both halves at their own times,
+    where otherwise only the larger group of entries would be believed."""
     # word-level timeline: merge consecutive samples with the same span
     timeline = []
     for ev in events:
@@ -737,7 +778,10 @@ def build_outputs(canon, segments, events, duration, video_path, refs,
                 "start": entry["start"], "end": entry["realEnd"],
                 "w0": canon[clipped_lo].word_index, "w1": canon[clipped_hi].word_index,
             })
-    seg_clusters = {s: _robust_cluster(es, CLUSTER_GAP_SECONDS) for s, es in seg_entries.items()}
+    if straight:
+        seg_clusters = {s: sorted(es, key=lambda e: (e["start"], e["w0"])) for s, es in seg_entries.items()}
+    else:
+        seg_clusters = {s: _robust_cluster(es, CLUSTER_GAP_SECONDS) for s, es in seg_entries.items()}
     seg_times = {s: (c[0]["start"], c[-1]["end"]) for s, c in seg_clusters.items()}
 
     # A segment with no confident match anywhere (common for voice sync,
@@ -783,6 +827,9 @@ def build_outputs(canon, segments, events, duration, video_path, refs,
             if c["estimated"]:
                 entry["estimated"] = True
             align_segments.append(entry)
+
+    if straight:
+        _keep_reading_order(align_segments)
 
     # word timeline embedded in the alignment file, split per segment so the
     # player can highlight words by (ref, word index) directly

@@ -626,6 +626,213 @@ def same_words_at(canon, s, e):
             if canon[k].norm == words[0] and [c.norm for c in canon[k:k + n]] == words] or [s]
 
 
+# ---------------------------------------------------------------------------
+# One straight path
+# ---------------------------------------------------------------------------
+# A maggid reads a phrase, explains it, says it again, and comes back to it ten
+# minutes later. Every one of those used to be placed: on R' Bornstein's Eruchin 2
+# half the daf's words stood at more than one moment, the highlight stepped back
+# 85 times, and a tap on the first line went to its fourth saying. Now each daf
+# word has one moment -- the first time it is read, in the order of the page --
+# and the highlight only ever moves forward:
+#   1. best_path(forward_only=True): the path never steps back.
+#   2. first_readings: where the same words were read earlier, in order, that
+#      earlier moment is theirs.
+#   3. drop_closing_quotes, peel_strays: a quote of the daf in the discussion
+#      after the reading, or of a line far ahead, is not the reading.
+#   4. straight_chain: whatever is added afterwards (second looks, fills,
+#      Claude's placements) is held to the same rule.
+
+# An earlier reading may skip this many daf words the transcript did not catch.
+FIRST_READING_SKIP_WORDS = 2
+# It has to be a reading of its own, not the window a word or two before the
+# path's own stretch: at least this long before the path reads those words...
+FIRST_READING_MIN_EARLY_SECONDS = 5.0
+# ...and not too long: a quote of the daf's opening words in the introduction,
+# ten minutes before, is not the reading.
+FIRST_READING_MAX_EARLY_SECONDS = 300.0
+# How far below the best place for the same heard words a place may score and
+# still be read as one of the best (the same words standing on two lines).
+SAME_WORDS_SCORE_SLACK = 3.0
+
+
+def _solid(cand):
+    """More than one short word: enough to count as a reading on its own."""
+    return cand.e > cand.s or cand.chars > SHORT_WINDOW_CHARS
+
+
+def _best_scores(cands):
+    """The best score any place on the daf got for each heard stretch."""
+    best = {}
+    for c in cands:
+        key = (c.t0, c.t1)
+        if c.score > best.get(key, 0.0):
+            best[key] = c.score
+    return best
+
+
+def first_readings(path, cands):
+    """The forward path with each stretch moved to the first time it was read.
+
+    path: best_path(forward_only=True)'s Candidates, in time order. cands: every
+    candidate the path chose from. Walks the shiur in time order with a frontier
+    (the last daf word read so far). A candidate takes the words beyond the
+    frontier, earlier than the path has them, when
+      - it reads on from the frontier, skipping at most FIRST_READING_SKIP_WORDS;
+      - those words are ones the path itself reads, between
+        FIRST_READING_MIN_EARLY_SECONDS and FIRST_READING_MAX_EARLY_SECONDS later;
+      - nowhere else on the daf fits what was heard better.
+    The path's own stretches are taken when their time comes, so nothing the path
+    reached is given up for more than those few skipped words.
+    """
+    if not path:
+        return []
+    chosen_time = {}
+    for c in path:
+        for i in range(c.s, c.e + 1):
+            chosen_time.setdefault(i, c.t0)
+    on_path = set(path)
+    best = _best_scores(cands)
+
+    frontier = path[0].s - 1
+    out = []
+    for c in sorted(set(cands) | on_path, key=lambda c: (c.t0, c.t1, c.s)):
+        if c.e <= frontier:
+            continue
+        s, e = max(c.s, frontier + 1), c.e
+        if c not in on_path:
+            if not _solid(c) or c.s > frontier + 1 + FIRST_READING_SKIP_WORDS:
+                continue
+            if c.score < best[(c.t0, c.t1)] - SAME_WORDS_SCORE_SLACK:
+                continue
+            # Only the words the path reads, and reads later by enough.
+            while e >= s and e not in chosen_time:
+                e -= 1
+            if e < s or any(i not in chosen_time for i in range(s, e + 1)):
+                continue
+            early = chosen_time[s] - c.t0
+            if not FIRST_READING_MIN_EARLY_SECONDS <= early <= FIRST_READING_MAX_EARLY_SECONDS:
+                continue
+        out.append(c._replace(s=s, e=e))
+        frontier = e
+    return out
+
+
+def drop_closing_quotes(placed, cands):
+    """placed without the quotes at its end. Once the maggid has read the daf
+    through he discusses it, quoting lines he has read ("hakol chayavin b'lulav,
+    l'asuyei katan"); on a path that only goes forward, such a quote lands on the
+    next line that shares its words, lines he never read. A closing stretch is a
+    quote when what was heard fits a line already read as well as it fits here.
+    Returns (kept, how many were dropped)."""
+    if not placed:
+        return placed, 0
+    by_stretch = {}
+    for c in cands:
+        by_stretch.setdefault((c.t0, c.t1), []).append(c)
+    read_at = {}
+    for c in placed:
+        for i in range(c.s, c.e + 1):
+            read_at.setdefault(i, c.t0)
+
+    def quote(c):
+        for other in by_stretch.get((c.t0, c.t1), ()):
+            if other.e < c.s and other.score >= c.score - SAME_WORDS_SCORE_SLACK \
+                    and all(read_at.get(i, float("inf")) < c.t0 for i in range(other.s, other.e + 1)):
+                return True
+        return False
+
+    kept = list(placed)
+    while len(kept) > 1 and quote(kept[-1]):
+        kept.pop()
+    return kept, len(placed) - len(kept)
+
+
+# Stretches at the end of the path that stand alone -- reached by skipping many
+# more daf words than they hold -- are quotes, not the reading: the maggid citing
+# a later line, or the next amud, in the discussion after he has finished. In the
+# amud after the shiur's own daf, where he reads a few lines at most, it takes
+# less to be let go. (The start of the path is left alone: a shiur that opens
+# "four lines from the bottom of the amud before" reads those lines, however few
+# of their words were caught.)
+STRAY_SKIP_PER_WORD_OWN = 4.0
+STRAY_MIN_SKIP_OWN = 12
+STRAY_SKIP_PER_WORD_NEIGHBOUR = 2.0
+
+
+def peel_strays(placed, primary=None):
+    """placed without the lone stretches at its end. Returns (kept, how many were
+    dropped). primary: the canon indices of the shiur's own daf (None: all of it).
+
+    The longest run of closing stretches is let go when, taken together, far more
+    daf words were skipped to reach them than they hold -- so one stray does not
+    shelter the next."""
+    own = None if primary is None else set(primary)
+    drop = words = skipped = 0
+    for n in range(len(placed) - 1, 0, -1):
+        here, before = placed[n], placed[n - 1]
+        edge = here.s - before.e - 1
+        words += here.e - here.s + 1
+        skipped += edge
+        if own is not None and here.s not in own:
+            stray = skipped > STRAY_SKIP_PER_WORD_NEIGHBOUR * words
+        else:
+            stray = edge >= STRAY_MIN_SKIP_OWN and skipped > STRAY_SKIP_PER_WORD_OWN * words
+        if stray:
+            drop = len(placed) - n
+    return (placed[:-drop] if drop else list(placed)), drop
+
+
+def straight_chain(items, when, span, trim):
+    """The most daf words that can be kept from items on one straight path: each
+    word once, and never a word before one already read. Of two ways to keep as
+    many, the earlier. An item that overlaps what is already read keeps only its
+    new words.
+
+    items: anything; when(item) is its time, span(item) its (first, last) daf
+    word, trim(item, first) the item starting at a later first word. Returns the
+    kept items in order. Used on a path already made forward (where it changes
+    nothing but a stray overlap) and on alignments published before there was
+    one (straighten_alignment.py).
+    """
+    order = sorted(items, key=lambda item: (when(item), span(item)[0], span(item)[1]))
+    n = len(order)
+    if not n:
+        return []
+    spans = [span(item) for item in order]
+    times = [when(item) for item in order]
+    best = [None] * n      # (words kept, -(sum of word * time)) for the best chain ending here
+    link = [-1] * n
+    for j in range(n):
+        s, e = spans[j]
+        words = e - s + 1
+        top, back = (words, -words * times[j]), -1
+        for i in range(j):
+            if spans[i][1] >= e:
+                continue
+            new = e - max(s, spans[i][1] + 1) + 1
+            value = (best[i][0] + new, best[i][1] - new * times[j])
+            if value > top:
+                top, back = value, i
+        best[j], link[j] = top, back
+    k = max(range(n), key=lambda j: (best[j], -j))
+    chain = []
+    while k >= 0:
+        chain.append(k)
+        k = link[k]
+    chain.reverse()
+    kept, frontier = [], -1
+    for k in chain:
+        s, e = spans[k]
+        kept.append(order[k] if s > frontier else trim(order[k], frontier + 1))
+        frontier = e
+    return kept
+
+
+def _straight(placed):
+    return straight_chain(placed, lambda c: c.t0, lambda c: (c.s, c.e), lambda c, s: c._replace(s=s))
+
+
 def counted_words(canon, primary, placed_words):
     """The daf words a shiur is measured against: its own daf (primary, canon
     indices), and of the amud read before and after it only the lines any of
@@ -643,7 +850,7 @@ def counted_words(canon, primary, placed_words):
 
 def align_path(canon, transcripts, phonetic, proposals=(), source_labels=None, english=None, gaps=True,
                short_words=True, bridges=True, spoken=True, keep_after_reading=False, debug=False,
-               primary=None):
+               primary=None, straight=True):
     """Place the shiur on the daf.
 
     transcripts: one or more word lists ([{text, start, end}, ...]) of the same
@@ -652,6 +859,10 @@ def align_path(canon, transcripts, phonetic, proposals=(), source_labels=None, e
         (start seconds, end seconds, daf start, daf end, score, heard text[, source]);
         they compete on the path like any other candidate. source_labels names
         their sources for matchStats.
+
+    straight: one straight path -- each daf word at one moment, the first time it
+        is read in order, and never a step back (see "One straight path" above).
+        False is the path as it was before: every saying of a phrase placed.
 
     Returns (events, stats): WordEvents for build_outputs, and matchStats.
     """
@@ -685,17 +896,28 @@ def align_path(canon, transcripts, phonetic, proposals=(), source_labels=None, e
         for start in same_words_at(canon, s, e):
             cands.append(Candidate(t0, max(t1, t0), start, start + e - s, float(max(score, PROPOSAL_MIN_SCORE)),
                                    chars, source[0] if source else SOURCE_PHRASE, text))
-    placed = best_path(cands, len(canon))
+    placed = best_path(cands, len(canon), forward_only=straight)
+    strays_after = 0
+    if straight:
+        placed = first_readings(placed, cands)
+        if not keep_after_reading:
+            placed, quotes = drop_closing_quotes(placed, cands)
+            placed, strays_after = peel_strays(placed, primary)
+            strays_after += quotes
     if gaps:
         placed = sorted(placed + fill_gaps(witnesses, placed, short_words), key=lambda c: (c.t0, c.t1))
+        if straight:
+            placed = _straight(placed)
     if bridges:
         placed = sorted(placed + bridge_holes(placed), key=lambda c: (c.t0, c.t1))
+        if straight:
+            placed = _straight(placed)
     reading_ends = end_of_reading(placed)
-    dropped_after_reading = 0
+    dropped_after_reading = strays_after
     stop_at = None if keep_after_reading or reading_ends is None else reading_ends + AFTER_READING_GRACE_SECONDS
     if stop_at is not None:
         kept = [c for c in placed if c.t0 <= stop_at]
-        dropped_after_reading = len(placed) - len(kept)
+        dropped_after_reading += len(placed) - len(kept)
         placed = kept
 
     events = []
@@ -751,6 +973,8 @@ def align_path(canon, transcripts, phonetic, proposals=(), source_labels=None, e
         "ownDafWords": len(counted if primary is None else set(primary)),
         "readingEndsAt": round(reading_ends, 2) if reading_ends is not None else None,
         "droppedAfterReading": dropped_after_reading,
+        # One moment a word, forward only (False on alignments made before November 2026).
+        "straightPath": bool(straight),
         # Not published (voice_align.py takes it out): where a re-listen could help.
         "holes": find_holes(placed),
     }
