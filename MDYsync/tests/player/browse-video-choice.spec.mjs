@@ -200,13 +200,14 @@ test.describe('Interactive Daf — the book on its own', () => {
       ["R' Eli Stefansky · English", 'Synced · starts at this word', 'Video/Audio'],
       ["R' Eli Stefansky · Hebrew", 'Synced · starts at this word', 'Video/Audio'],
       ["R' Eli Stefansky · Chazarah Daf, English", 'Not synced yet · plays from the start', 'Video/Audio'],
-      // Another maggid's: YouTube only, so no audio; its sync is found out when it loads.
-      ["R' Sruly Bornstein · English", 'Starts at this word where synced', 'Video'],
+      // R' Bornstein's: audio only, from Lakewood Daf Yomi's server; its sync is found out when it loads.
+      ["R' Sruly Bornstein · English", 'Starts at this word where synced', 'Audio'],
     ]);
-    // MDY's picture through the site's image service; YouTube's for another maggid.
+    // MDY's picture, and Lakewood Daf Yomi's, through the site's image service -- never YouTube's.
     expect(seen[0].picture).toContain('/.netlify/images?url=');
     expect(seen[0].picture).toContain(encodeURIComponent('https://cdn.mdydaf.com/shiur/english/chullin/thumb/91.png'));
-    expect(seen[3].picture).toBe('https://i.ytimg.com/vi/Zsy7oDUP6Pw/mqdefault.jpg');
+    expect(seen[3].picture).toContain(encodeURIComponent('https://app.daf-yomi.net/images/daf-podcast-2.jpeg'));
+    expect(seen.map((r) => r.picture).join(' ')).not.toContain('ytimg');
   });
 
   test('choosing a shiur floats its video over the daf, at that word', async ({ page }) => {
@@ -286,9 +287,12 @@ test.describe('Interactive Daf — the book on its own', () => {
     await expect(bar).toBeVisible();
     await expect(page.locator('.player-card')).toBeHidden();
     await expect(page.locator('#viewerModeSelect')).toBeHidden();
-    for (const id of ['#audioBarPlay', '#audioBarBack', '#audioBarForward', '#audioBarSpeed', '#audioBarVideo', '#audioBarClose']) {
+    for (const id of ['#audioBarPlay', '#audioBarBack', '#audioBarForward', '#audioBarSpeed', '#audioBarDownload', '#audioBarVideo', '#audioBarClose']) {
       await expect(bar.locator(id)).toBeVisible();
     }
+    // MDY's mp3, saved through dafsync.com.
+    await expect(bar.locator('#audioBarDownload')).toHaveAttribute('href', '/mdy-audio/shiur/english/chullin/mp3/91.mp3');
+    await expect(bar.locator('#audioBarDownload')).toHaveAttribute('download', "Chullin 91 - R' Eli Stefansky.mp3");
     // Slim, at the bottom of the screen, above the phone's bottom bar where there is one.
     const box = await bar.boundingBox();
     expect(box.height).toBeLessThan(80);
@@ -306,6 +310,48 @@ test.describe('Interactive Daf — the book on its own', () => {
     await bar.locator('#audioBarVideo').click();
     await expect(bar).toBeHidden();
     await expect(page.locator('#videoFrame')).toBeVisible();
+  });
+
+  test("R' Bornstein's shiur plays as audio from Lakewood Daf Yomi's server, never from YouTube", async ({ page }) => {
+    await open(page, '/browse/?ref=Chullin%2091a', { videoSource: 'mdy' });
+    const LAKEWOOD = 'https://lakewoodafyomi.appspot.com/m5/X/Chulin%2091_1.mp3';
+    const lookups = [];
+    await page.route('**/api/lakewood-audio?*', (route) => {
+      lookups.push(Object.fromEntries(new URL(route.request().url()).searchParams));
+      return route.fulfill({ status: 200, contentType: 'application/json',
+        body: JSON.stringify({ url: LAKEWOOD, seconds: 3000, title: 'Chulin 91', artwork: 'https://app.daf-yomi.net/images/daf-podcast-2.jpeg' }) });
+    });
+    // Their mp3 keeps loading (no answer here), so the page stays on it.
+    await page.route('https://lakewoodafyomi.appspot.com/**', () => {});
+    await tapWord(page, 7);
+    await watchLines(page).click();
+    const row = page.locator('#bookShiurList .book-shiur-row').nth(3);
+    await expect(row.locator('button')).toHaveText(['Audio']);
+    await row.locator('button', { hasText: 'Audio' }).click();
+    await expect.poll(() => page.evaluate(() => document.querySelector('video')?.getAttribute('src'))).toBe(LAKEWOOD);
+    expect(lookups).toEqual([{ tractate: 'Chullin', daf: '91' }]);
+    const bar = page.locator('#audioBar');
+    await expect(bar).toBeVisible();
+    // Nothing to switch to: no video.
+    await expect(bar.locator('#audioBarVideo')).toBeHidden();
+    await expect(bar.locator('#audioBarPlay')).toBeVisible();
+    // The MP3 is saved through dafsync.com, under the shiur's name.
+    const download = bar.locator('#audioBarDownload');
+    await expect(download).toBeVisible();
+    await expect(download).toHaveAttribute('href', '/lakewood-audio/Chulin%2091_1.mp3');
+    await expect(download).toHaveAttribute('download', "Chullin 91 - R' Sruly Bornstein.mp3");
+    expect(await page.evaluate(() => window.__yt.length)).toBe(0); // YouTube was never asked
+  });
+
+  test("R' Bornstein's daf that Lakewood Daf Yomi's server no longer has says so, and does not turn to YouTube", async ({ page }) => {
+    await open(page, '/browse/?ref=Chullin%2091a', { videoSource: 'mdy' });
+    await page.route('**/api/lakewood-audio?*', (route) => route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"none"}' }));
+    await tapWord(page, 7);
+    await watchLines(page).click();
+    await page.locator('#bookShiurList .book-shiur-row').nth(3).locator('button', { hasText: 'Audio' }).click();
+    await expect(page.locator('.toast')).toContainText("isn't on Lakewood Daf Yomi's server");
+    expect(await page.evaluate(() => window.__yt.length)).toBe(0);
+    expect(await page.evaluate(() => document.querySelector('video')?.getAttribute('src') || null)).toBeNull();
   });
 
   test('Split view and Daf on video are one tap away, and Close puts the book back', async ({ page }) => {

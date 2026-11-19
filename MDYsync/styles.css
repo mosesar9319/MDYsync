@@ -4810,11 +4810,17 @@ body.split-tools-desk #splitToolsPanel #readerDafNotes:not(:has(> :not([hidden])
   cursor: pointer;
 }
 .audio-bar-close svg { width: 18px; height: 18px; }
+/* The MP3 download: a link styled as the bar's pills. */
+.audio-bar-download { display: inline-flex; align-items: center; gap: 3px; text-decoration: none; line-height: 1; }
+.audio-bar-download[hidden] { display: none; }
+.audio-bar-download svg { width: 14px; height: 14px; }
 @media (max-width: 420px) {
   .audio-bar-row { gap: 3px; }
   .audio-bar-button { width: 30px; height: 30px; }
   .audio-bar-play { width: 38px; height: 38px; }
   .audio-bar-pill { padding: 0 7px; }
+  .audio-bar-download span { display: none; } /* the arrow alone on a narrow phone */
+  .audio-bar-download { width: 30px; justify-content: center; padding: 0; }
   .audio-bar-picture { display: none; }
 }
 @media (min-width: 761px) {

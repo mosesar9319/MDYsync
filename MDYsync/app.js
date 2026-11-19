@@ -9201,14 +9201,14 @@ function refreshQualityOptions() {
   const select = $('qualitySelect');
   if (!control || !select) return;
   // MDY's server keeps each shiur in three sizes and as audio alone.
-  if (state.mdyPlayback && state.playerType === 'html5') {
+  if (state.mdyPlayback && state.playerType === 'html5' && !isLakewoodShiur(state.mdyShiur)) {
     select.innerHTML = MDY.QUALITIES.map((quality) =>
       `<option value="${quality}"${quality === state.mdyPlayback.quality ? ' selected' : ''}>${MDY.QUALITY_LABELS[quality]}</option>`
     ).join('');
     control.hidden = false;
     return;
   }
-  if (state.playerType !== 'youtube' || !state.youtubeReady || !state.youtubePlayer.getAvailableQualityLevels) {
+  if (state.mdyPlayback || state.playerType !== 'youtube' || !state.youtubeReady || !state.youtubePlayer.getAvailableQualityLevels) {
     control.hidden = true;
     return;
   }
@@ -9692,7 +9692,9 @@ async function loadDaf(refOverride = null, options = {}) {
       attachForwardAlignment(loadedRef, loadedVideoId, voice).catch((error) => console.error(error));
       fillLoadedDafText(loadedRef).catch((error) => console.error(error));
     });
-    if (!options.silent) showToast(`Loaded the synced alignment for ${ref} from the server.`);
+    // A shiur Lakewood Daf Yomi's server does not have has said so already; that stays up.
+    const lakewoodMissing = isLakewoodShiur(state.mdyShiur) && state.mdyShiur.lakewood === null;
+    if (!options.silent && !lakewoodMissing) showToast(`Loaded the synced alignment for ${ref} from the server.`);
     return;
   }
   const saved = state.livePlainDaf ? null : loadProjectForRef(ref);
@@ -10531,18 +10533,55 @@ function preferredMdyQuality() {
 // from dafsync.com (MDY's originals are 1280x720 PNGs of over a megabyte;
 // netlify.toml allows MDY's server as a source).
 function mdyPictureUrl(shiur, width = 960) {
-  const original = shiur && MDY ? MDY.posterUrl(shiur.parsed, shiur.options) : null;
+  const original = !shiur ? null
+    : isLakewoodShiur(shiur) ? LAKEWOOD_ARTWORK
+      : (MDY ? MDY.posterUrl(shiur.parsed, shiur.options) : null);
   return original ? `/.netlify/images?url=${encodeURIComponent(original)}&w=${width}&fm=webp&q=75` : null;
 }
 
-// The MDY shiur a YouTube source is, or null (another maggid, a livestream,
-// MDY not loaded).
+// R' Sruly Bornstein's shiurim play from Lakewood Daf Yomi's own server, never
+// from YouTube: they publish each daf's shiur as an mp3 through their app's
+// podcast feed (shared/lakewood-feed.mjs). It is audio only -- the feed has no
+// video -- so his shiur plays in the audio bar. The address has a number only
+// the feed knows, so /api/lakewood-audio looks it up (lakewoodAudioFor).
+const LAKEWOOD_ARTWORK = 'https://app.daf-yomi.net/images/daf-podcast-2.jpeg';
+const lakewoodLookups = new Map();
+function isLakewoodShiur(shiur) {
+  return shiur?.provider === 'lakewood';
+}
+// { url, seconds, title } for the daf, or null when their server has none.
+function lakewoodAudioFor(parsed) {
+  const key = `${parsed.tractate}|${parsed.daf}`;
+  if (!lakewoodLookups.has(key)) {
+    const query = new URLSearchParams({ tractate: parsed.tractate, daf: String(parsed.daf) });
+    lakewoodLookups.set(key, fetch(`/api/lakewood-audio?${query}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((found) => (found?.url ? found : null))
+      .catch(() => {
+        lakewoodLookups.delete(key);
+        return null;
+      }));
+  }
+  return lakewoodLookups.get(key);
+}
+
+// The shiur a YouTube source is, when it can play from the maggid's own server
+// (MDY's, or Lakewood Daf Yomi's for R' Bornstein), or null (another maggid, a
+// livestream, MDY not loaded).
 function mdyShiurFor(ref, label, extras) {
-  if (!MDY) return null;
   const parsed = parseDafRef(ref);
   if (!parsed) return null;
   const options = { title: label || '', liveBroadcast: Boolean(extras?.liveBroadcast) };
+  if (parsed.maggid === 'bornstein') return { parsed, options, provider: 'lakewood' };
+  if (!MDY) return null;
   return MDY.shiurFolder(parsed, options) ? { parsed, options } : null;
+}
+
+// The address of the shiur's own file in one quality, or null.
+function ownFileUrl(shiur, quality) {
+  if (!shiur) return null;
+  if (isLakewoodShiur(shiur)) return quality === 'audio' ? shiur.lakewood?.url || null : null;
+  return MDY ? MDY.fileUrl(shiur.parsed, { ...shiur.options, quality }) : null;
 }
 
 // Puts MDY's file for the shiur on screen into the <video>. resumeAt/resume
@@ -10550,7 +10589,9 @@ function mdyShiurFor(ref, label, extras) {
 function playMdyFile({ quality = preferredMdyQuality(), resumeAt = null, resume = false } = {}) {
   const shiur = state.mdyShiur;
   if (!shiur) return;
-  const url = MDY.fileUrl(shiur.parsed, { ...shiur.options, quality });
+  if (isLakewoodShiur(shiur)) quality = 'audio';
+  const url = ownFileUrl(shiur, quality);
+  if (!url) return;
   // The sync's own recording length, when the alignment loaded is this daf's.
   // A daf with no sync yet (loadDaf restores its video before state.dafRef
   // moves to it) has nothing to compare against.
@@ -10586,6 +10627,12 @@ function turnAwayMismatchedMdyFile() {
   playback.checked = true;
   if (state.mdyAcceptMismatch.has(playback.videoId)) return false;
   if (MDY.sameRecording(htmlVideo.duration, playback.expected)) return false;
+  if (isLakewoodShiur(state.mdyShiur)) {
+    state.mdyAcceptMismatch.add(playback.videoId);
+    showToast("Lakewood Daf Yomi's recording of this shiur is a different length from the one the daf is synced to, "
+      + 'so the highlighted words may be off.', 'error');
+    return false;
+  }
   playFromYouTubeInstead('different');
   return true;
 }
@@ -10695,6 +10742,9 @@ function ensureAudioBar() {
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7M20 4v4.5h-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><text x="12" y="15.5" text-anchor="middle" font-size="7.5" font-weight="700" fill="currentColor">10</text></svg>
       </button>
       <button type="button" class="audio-bar-pill" id="audioBarSpeed" aria-label="Playback speed" title="Playback speed">1×</button>
+      <a class="audio-bar-pill audio-bar-download" id="audioBarDownload" href="#" download aria-label="Download the MP3" title="Download the MP3">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>MP3</span>
+      </a>
       <button type="button" class="audio-bar-pill" id="audioBarVideo" title="Show the video">Video</button>
       <button type="button" class="audio-bar-button audio-bar-close" id="audioBarClose" aria-label="Close the shiur" title="Close the shiur">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
@@ -10756,10 +10806,22 @@ function placeAudioBar() {
   bar.style.setProperty('--audio-bar-bottom', `${Math.round(navHeight)}px`);
   document.body.style.setProperty('--audio-bar-room', `${Math.round(navHeight + bar.getBoundingClientRect().height + 8)}px`);
 }
+// The audio bar's MP3 button follows the shiur on screen.
+function refreshAudioBarDownload() {
+  const link = $('audioBarDownload');
+  if (!link) return;
+  const download = state.mdyShiur ? ownDownload(state.mdyShiur) : null;
+  link.hidden = !download;
+  if (download) {
+    link.href = download.href;
+    link.setAttribute('download', download.name);
+  }
+}
 function updateAudioBar() {
   const want = audioBarWanted();
   const bar = want ? ensureAudioBar() : $('audioBar');
   if (!bar) return;
+  if (want) refreshAudioBarDownload();
   if (want === !bar.hidden) {
     if (want) paintAudioBar();
     return;
@@ -10772,6 +10834,8 @@ function updateAudioBar() {
     $('audioBarPicture').hidden = !$('audioBarPicture').src;
     $('audioBarTitle').textContent = state.videoSource?.label || $('lectureTitle')?.textContent || 'Shiur';
     $('audioBarClose').hidden = !state.browseMode;
+    // R' Bornstein's shiur has no video to go back to.
+    $('audioBarVideo').hidden = isLakewoodShiur(shiur);
     // Split view and Daf on video have nothing to show without the picture.
     if (state.viewerMode === 'split' || state.viewerMode === 'daf-on-video') {
       audioBarPrevMode = state.viewerMode;
@@ -10794,17 +10858,33 @@ function updateAudioBar() {
 // download name for a file on the page's own site.
 function mdyDownloadName(shiur) {
   const { parsed, options } = shiur;
-  const daf = MDY.dafFromTitle(options.title) || parsed.daf;
+  const lakewood = isLakewoodShiur(shiur);
+  const daf = (!lakewood && MDY?.dafFromTitle(options.title)) || parsed.daf;
   // The masechta as MDY and dafsync.com spell it ("Bechoros", not Sefaria's "Bekhorot").
-  const slug = MDY.MASECHTA_SLUGS[parsed.tractate];
+  const slug = MDY?.MASECHTA_SLUGS[parsed.tractate];
   const masechta = slug ? slug.split('-').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : parsed.tractate;
   const parts = [
     `${masechta} ${daf}`,
     parsed.variant === 'chazarah' ? 'Chazarah' : '',
     parsed.language === 'he' ? 'Hebrew' : '',
-    "R' Eli Stefansky",
+    lakewood ? "R' Sruly Bornstein" : "R' Eli Stefansky",
   ].filter(Boolean);
   return `${parts.join(' - ')}.mp3`.replace(/[\\/:*?"<>|]+/g, ' ');
+}
+
+// Where the shiur's mp3 is saved from: always through dafsync.com, which sends it
+// as a download (netlify.toml's /mdy-audio/ and /lakewood-audio/ rules) -- a
+// browser saves a link under its download name only for a file on the page's own
+// site. { href, name }, or null when the shiur has no mp3.
+function ownDownload(shiur) {
+  const mp3 = ownFileUrl(shiur, 'audio');
+  if (!mp3) return null;
+  if (isLakewoodShiur(shiur)) {
+    // Their feed's link redirects to their file store under the same file name.
+    const file = mp3.split('/').pop();
+    return file ? { href: `/lakewood-audio/${file}`, name: mdyDownloadName(shiur) } : null;
+  }
+  return { href: `/mdy-audio${mp3.slice(MDY.HOST.length)}`, name: mdyDownloadName(shiur) };
 }
 
 // The two controls live in two places: the Split view drop-down (the
@@ -10814,13 +10894,15 @@ const MDY_LISTEN_IDS = ['splitListenButton', 'moreListenButton'];
 const MDY_DOWNLOAD_IDS = ['splitDownloadLink', 'moreDownloadLink'];
 function refreshMdyAudioControl() {
   const shiur = state.mdyShiur;
-  const showing = Boolean(MDY && shiur && state.videoSource?.videoId === shiur.videoId);
+  const lakewood = isLakewoodShiur(shiur);
+  const showing = Boolean((MDY || lakewood) && shiur && state.videoSource?.videoId === shiur.videoId);
   const listening = Boolean(state.mdyPlayback && state.mdyPlayback.quality === 'audio');
-  const mp3 = showing ? MDY.fileUrl(shiur.parsed, { ...shiur.options, quality: 'audio' }) : null;
+  const download = showing ? ownDownload(shiur) : null;
   for (const id of MDY_LISTEN_IDS) {
     const button = $(id);
     if (!button) continue;
-    button.hidden = !showing;
+    // R' Bornstein's shiur is audio only: nothing to switch to.
+    button.hidden = !showing || lakewood;
     const label = listening ? 'Back to video' : 'Listen to audio only';
     button.setAttribute('aria-pressed', String(listening));
     button.setAttribute('aria-label', label);
@@ -10832,10 +10914,10 @@ function refreshMdyAudioControl() {
   for (const id of MDY_DOWNLOAD_IDS) {
     const link = $(id);
     if (!link) continue;
-    link.hidden = !(showing && mp3);
-    if (showing && mp3) {
-      link.href = `/mdy-audio${mp3.slice(MDY.HOST.length)}`;
-      link.setAttribute('download', mdyDownloadName(shiur));
+    link.hidden = !download;
+    if (download) {
+      link.href = download.href;
+      link.setAttribute('download', download.name);
     }
   }
   // The More button itself, on a page with nothing else in that menu.
@@ -10861,7 +10943,7 @@ function mdyVideoQuality() {
 
 function toggleMdyListen() {
   const shiur = state.mdyShiur;
-  if (!MDY || !shiur || state.videoSource?.videoId !== shiur.videoId) return;
+  if (!MDY || !shiur || isLakewoodShiur(shiur) || state.videoSource?.videoId !== shiur.videoId) return;
   if (state.mdyPlayback?.quality === 'audio') {
     changeMdyQuality(mdyVideoQuality());
   } else if (state.mdyPlayback) {
@@ -10887,8 +10969,25 @@ async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs =
   const shiurRef = (Array.isArray(saveRefs) && saveRefs[0]) || state.dafRef;
   const mdyShiur = mdyShiurFor(shiurRef, label, extras);
   state.mdyShiur = mdyShiur ? { ...mdyShiur, ref: shiurRef, videoId } : null;
-  const fromMdy = Boolean(mdyShiur) && preferredPlaybackSource() === 'mdy' && !state.mdyTurnedAway.has(videoId);
-  if (fromMdy) {
+  const lakewood = isLakewoodShiur(mdyShiur);
+  const fromMdy = !lakewood && Boolean(mdyShiur) && preferredPlaybackSource() === 'mdy' && !state.mdyTurnedAway.has(videoId);
+  let lakewoodMissing = false;
+  if (lakewood) {
+    // Never YouTube: their own server's mp3, or nothing.
+    if (state.playerType === 'youtube' && state.youtubeReady) state.youtubePlayer.pauseVideo?.();
+    const found = await lakewoodAudioFor(mdyShiur.parsed);
+    if (state.mdyShiur?.videoId !== videoId) return; // another shiur was chosen meanwhile
+    state.mdyShiur.lakewood = found;
+    if (found) {
+      playMdyFile({ quality: 'audio' });
+    } else {
+      lakewoodMissing = true;
+      switchPlayerType('html5');
+      htmlVideo.removeAttribute('src');
+      htmlVideo.load();
+      state.mdyPlayback = null;
+    }
+  } else if (fromMdy) {
     playMdyFile();
   } else {
     if (state.mdyPlayback) {
@@ -10915,7 +11014,7 @@ async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs =
   state.currentProjectId = null;
   $('videoUrl').value = state.videoSource.url;
   $('lectureTitle').textContent = label || `YouTube lecture · ${videoId}`;
-  setSourceBadge(liveBroadcast ? 'Live' : (fromMdy ? 'MDY' : 'YouTube'));
+  setSourceBadge(liveBroadcast ? 'Live' : (lakewood ? 'Lakewood Daf Yomi' : (fromMdy ? 'MDY' : 'YouTube')));
   setSourcePanel('linkSourcePanel');
   refreshMdyChrome();
   // Seeking to 0 on a broadcast that is on the air leaves the live edge
@@ -10931,6 +11030,10 @@ async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs =
     showToast(state.videoSource.liveStatus === 'live'
       ? 'Live shiur. The daf is below. Words are not highlighted yet.'
       : 'Live recording. Words are not highlighted until the edited shiur is posted.');
+  } else if (lakewoodMissing) {
+    showToast("This shiur isn't on Lakewood Daf Yomi's server (it keeps about the last 250 shiurim).", 'error');
+  } else if (lakewood) {
+    showToast("Playing from Lakewood Daf Yomi's server.");
   } else if (fromMdy) {
     showToast("Playing from MDY's server.");
   } else {
@@ -11558,6 +11661,10 @@ htmlVideo.addEventListener('error', () => {
   // Only an error for the file MDY's server was asked for: removing the src
   // when switching away fires one too.
   if (state.mdyPlayback && htmlVideo.getAttribute('src') === state.mdyPlayback.url) {
+    if (isLakewoodShiur(state.mdyShiur)) {
+      showToast("This shiur didn't load from Lakewood Daf Yomi's server. Try again in a little while.", 'error');
+      return;
+    }
     playFromYouTubeInstead('missing');
     return;
   }
@@ -12990,8 +13097,14 @@ function bookShiurHasAudio(choice, ref) {
   return Boolean(mdyShiurFor(bookShiurRef(choice, ref), choice.title, { liveBroadcast: choice.liveBroadcast }));
 }
 
+// R' Bornstein's shiurim are audio only (from Lakewood Daf Yomi's server).
+function bookShiurAudioOnly(choice, ref) {
+  return isLakewoodShiur(mdyShiurFor(bookShiurRef(choice, ref), choice.title, { liveBroadcast: choice.liveBroadcast }));
+}
+
 function bookShiurPicture(choice, ref) {
   const mdy = mdyShiurFor(bookShiurRef(choice, ref), choice.title, { liveBroadcast: choice.liveBroadcast });
+  if (isLakewoodShiur(mdy)) return { src: mdyPictureUrl(mdy, 320), fallback: '' };
   const youtube = choice.videoId ? `https://i.ytimg.com/vi/${choice.videoId}/mqdefault.jpg` : '';
   return { src: (mdy && mdyPictureUrl(mdy, 320)) || youtube, fallback: mdy ? youtube : '' };
 }
@@ -13025,6 +13138,7 @@ function closeBookVideo() {
 // default for the player pages (changeMdyQuality would remember it).
 function setBookShiurListening(audio) {
   if (!state.mdyShiur) return;
+  if (isLakewoodShiur(state.mdyShiur)) audio = true; // R' Bornstein's shiur is audio only
   const resumeAt = Number(htmlVideo.currentTime) || 0;
   const resume = !htmlVideo.paused;
   if (audio && state.mdyPlayback?.quality !== 'audio') {
@@ -13170,16 +13284,19 @@ function openBookShiurWindow(ref, wordIndex) {
       dialog.close();
       watchShiurFromWord(choice, ref, wordIndex, { audio: asAudio });
     };
-    const videoButton = document.createElement('button');
-    videoButton.type = 'button';
-    videoButton.className = 'button primary small';
-    videoButton.textContent = 'Video';
-    videoButton.addEventListener('click', () => play(false));
-    actions.appendChild(videoButton);
+    const audioOnly = bookShiurAudioOnly(choice, ref);
+    if (!audioOnly) {
+      const videoButton = document.createElement('button');
+      videoButton.type = 'button';
+      videoButton.className = 'button primary small';
+      videoButton.textContent = 'Video';
+      videoButton.addEventListener('click', () => play(false));
+      actions.appendChild(videoButton);
+    }
     if (audio) {
       const audioButton = document.createElement('button');
       audioButton.type = 'button';
-      audioButton.className = 'button secondary small';
+      audioButton.className = audioOnly ? 'button primary small' : 'button secondary small';
       audioButton.textContent = 'Audio';
       audioButton.addEventListener('click', () => play(true));
       actions.appendChild(audioButton);

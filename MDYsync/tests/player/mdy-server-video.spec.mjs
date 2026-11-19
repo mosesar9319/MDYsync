@@ -242,3 +242,79 @@ test.describe('MDY shiurim from MDY’s own server', () => {
     await page.waitForFunction(() => Math.abs(document.getElementById('video').currentTime - 3) < 0.6, null, { timeout: 15000 });
   });
 });
+
+// R' Sruly Bornstein's shiurim come from Lakewood Daf Yomi's own server, as
+// audio (their podcast feed has no video), and never from YouTube.
+test.describe('R’ Bornstein’s shiurim from Lakewood Daf Yomi’s server', () => {
+  const LAKEWOOD = 'https://lakewoodafyomi.appspot.com/m5/X/Chulin%2089_1.mp3';
+  const BORNSTEIN_LINK = { type: 'youtube', videoId: 'bornstein89', url: 'https://www.youtube.com/watch?v=bornstein89', label: 'Chulin 89' };
+
+  async function openBornstein(page, { found = true } = {}) {
+    await preparePage(page, { user: null, videoSource: 'mdy' });
+    const requests = { lakewood: [], lookups: [], youtube: 0 };
+    await page.route('**/api/lakewood-audio?*', (route) => {
+      requests.lookups.push(Object.fromEntries(new URL(route.request().url()).searchParams));
+      if (!found) return route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"none"}' });
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ url: LAKEWOOD, seconds: 12, title: 'Chulin 89' }) });
+    });
+    await page.route(/^https:\/\/lakewoodafyomi\.appspot\.com\//, (route) => {
+      requests.lakewood.push(route.request().url());
+      const range = /bytes=(\d+)-(\d*)/.exec(route.request().headers().range || '');
+      if (!range) return route.fulfill({ status: 200, contentType: 'video/webm', headers: { 'Accept-Ranges': 'bytes' }, body: CLIP });
+      const start = Number(range[1]);
+      const end = range[2] ? Math.min(Number(range[2]), CLIP.length - 1) : CLIP.length - 1;
+      return route.fulfill({ status: 206, contentType: 'video/webm',
+        headers: { 'Accept-Ranges': 'bytes', 'Content-Range': `bytes ${start}-${end}/${CLIP.length}` },
+        body: CLIP.subarray(start, end + 1) });
+    });
+    await page.route('https://www.youtube.com/**', (route) => { requests.youtube += 1; return route.abort(); });
+    await page.route(/i\.ytimg\.com/, (route) => { requests.youtube += 1; return route.abort(); });
+    await page.route('**/.netlify/images?*', (route) => route.fulfill({ status: 404, body: '' }));
+    await page.route('**/api/daf-page**', (route) => route.fulfill({ status: 200, contentType: 'application/pdf', body: '%PDF-fake' }));
+    await page.route('**/api/get-results-file**', (route) => {
+      const path = new URL(route.request().url()).searchParams.get('path') || '';
+      if (path === 'by-ref/Bornstein-Chullin-89a.json') {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...alignment(CLIP_SECONDS), dafRef: 'Chullin 89a (Bornstein)' }) });
+      }
+      if (path === 'video-links/Bornstein-Chullin-89a.json') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(BORNSTEIN_LINK) });
+      return route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"missing"}' });
+    });
+    await page.goto('/player/?ref=Chullin+89a&maggid=bornstein');
+    await page.waitForFunction(() => state.videoSource?.videoId === 'bornstein89', null, { timeout: 20000 });
+    return requests;
+  }
+
+  test('plays as audio from their server, in the audio bar, with no video and no YouTube', async ({ page }) => {
+    const requests = await openBornstein(page);
+    await page.waitForFunction(() => document.getElementById('video').readyState >= 1, null, { timeout: 15000 });
+    const now = await playing(page);
+    expect(now.playerType).toBe('html5');
+    expect(now.src).toBe(LAKEWOOD);
+    expect(now.mdy).toEqual({ url: LAKEWOOD, quality: 'audio' });
+    expect(now.badge).toBe('Lakewood Daf Yomi');
+    expect(requests.lookups).toEqual([{ tractate: 'Chullin', daf: '89' }]);
+    expect(requests.youtube).toBe(0);
+    const bar = page.locator('#audioBar');
+    await expect(bar).toBeVisible();
+    await expect(bar.locator('#audioBarVideo')).toBeHidden();
+    await expect(bar.locator('#audioBarDownload')).toHaveAttribute('href', '/lakewood-audio/Chulin%2089_1.mp3');
+    await expect(bar.locator('#audioBarDownload')).toHaveAttribute('download', "Chullin 89 - R' Sruly Bornstein.mp3");
+    await expect(page.locator('.player-card')).toBeHidden();
+    // Nothing about video: no quality choice, no "back to video".
+    expect(await page.evaluate(() => ({
+      quality: document.getElementById('qualityControl')?.hidden ?? true,
+      listen: ['splitListenButton', 'moreListenButton'].map((id) => document.getElementById(id)?.hidden ?? true),
+    }))).toEqual({ quality: true, listen: [true, true] });
+    // The highlight's clock is the file's clock.
+    await page.evaluate(() => { document.getElementById('video').currentTime = 6; });
+    await page.waitForFunction(() => Math.abs(getCurrentTime() - 6) < 0.5);
+  });
+
+  test('a daf their server no longer has says so, and does not turn to YouTube', async ({ page }) => {
+    const requests = await openBornstein(page, { found: false });
+    await expect(page.locator('.toast')).toContainText("isn't on Lakewood Daf Yomi's server");
+    expect(requests.youtube).toBe(0);
+    expect(requests.lakewood).toEqual([]);
+    expect(await page.evaluate(() => document.getElementById('video').getAttribute('src'))).toBeNull();
+  });
+});
