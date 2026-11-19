@@ -10748,12 +10748,15 @@ function refreshMdyChrome() {
 // The audio bar. While a shiur plays as audio alone (MDY's mp3), the video
 // player is put away and this slim bar sits at the bottom of the screen, just
 // above the phone's bottom bar: the shiur's picture and name, its time, a seek
-// bar, back/forward 10 seconds, play/pause, speed, and Video to bring the
+// bar, back/forward 10 seconds, Vaater (on to the next phrase of the daf, as
+// on the video player), play/pause, a speed picker, and Video to bring the
 // picture back. On the Interactive Daf page it also closes the shiur. Split
 // view and Daf on video have nothing to show while it is up, so the page
 // steps out of them and goes back when the video returns.
 // ---------------------------------------------------------------------------
-const AUDIO_BAR_RATES = ['1', '1.25', '1.5', '2', '2.5', '3', '0.75'];
+// Every speed the page's own player offers (player-chrome.js); the bar always
+// plays a file, so 2.5x and 3x are there too.
+const AUDIO_BAR_RATES = ['0.75', '1', '1.25', '1.5', '2', '2.5', '3'];
 let audioBarPrevMode = null;
 function audioBarWanted() {
   if (state.mdyPlayback?.quality !== 'audio') return false;
@@ -10786,7 +10789,10 @@ function ensureAudioBar() {
       <button type="button" class="audio-bar-button" id="audioBarForward" aria-label="Forward 10 seconds" title="Forward 10 seconds">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7M20 4v4.5h-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><text x="12" y="15.5" text-anchor="middle" font-size="7.5" font-weight="700" fill="currentColor">10</text></svg>
       </button>
-      <button type="button" class="audio-bar-pill" id="audioBarSpeed" aria-label="Playback speed" title="Playback speed">1×</button>
+      <button type="button" class="audio-bar-pill audio-bar-vaater" id="audioBarVaater" aria-label="Vaater -- skip ahead to the daf's next synced phrase" title="Vaater -- skip ahead to the daf's next synced phrase">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 6v12l8-6-8-6Z" fill="currentColor"/><path d="M11 6v12l8-6-8-6Z" fill="currentColor"/><rect x="19.5" y="6" width="2.2" height="12" rx="1" fill="currentColor"/></svg><span>Vaater</span>
+      </button>
+      <button type="button" class="audio-bar-pill" id="audioBarSpeed" aria-label="Playback speed, 1×" title="Playback speed" aria-haspopup="listbox" aria-expanded="false" aria-controls="audioBarSpeedMenu">1×</button>
       <a class="audio-bar-pill audio-bar-download" id="audioBarDownload" href="#" download aria-label="Download the MP3" title="Download the MP3">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>MP3</span>
       </a>
@@ -10803,12 +10809,18 @@ function ensureAudioBar() {
   bar.querySelector('#audioBarPlay').addEventListener('click', () => togglePlay());
   bar.querySelector('#audioBarBack').addEventListener('click', () => seek(Math.max(0, getCurrentTime() - 10)));
   bar.querySelector('#audioBarForward').addEventListener('click', () => seek(Math.min(getDuration() || Infinity, getCurrentTime() + 10)));
-  bar.querySelector('#audioBarSpeed').addEventListener('click', () => {
-    const now = String(Number($('speedSelect')?.value) || 1);
-    const next = AUDIO_BAR_RATES[(AUDIO_BAR_RATES.indexOf(now) + 1) % AUDIO_BAR_RATES.length];
-    if (window.setPlayerSpeed) window.setPlayerSpeed(next);
-    else setPlaybackRate(Number(next));
-    paintAudioBar();
+  // Vaater: the video player's own (skipToNextReading), and kept enabled or
+  // not with it (updateVaaterButtonUi).
+  const vaater = bar.querySelector('#audioBarVaater');
+  vaaterButtonEls.push(vaater);
+  vaater.addEventListener('click', () => {
+    if (state.unsyncedDaf) { sayNotSynced(); return; }
+    skipToNextReading();
+  });
+  updateVaaterButtonUi();
+  bar.querySelector('#audioBarSpeed').addEventListener('click', (event) => {
+    event.stopPropagation();
+    toggleAudioBarSpeedMenu();
   });
   bar.querySelector('#audioBarVideo').addEventListener('click', () => {
     if (state.browseMode && typeof setBookShiurListening === 'function') setBookShiurListening(false);
@@ -10841,7 +10853,87 @@ function paintAudioBar() {
   const playing = !htmlVideo.paused;
   bar.classList.toggle('is-playing', playing);
   $('audioBarPlay').setAttribute('aria-label', playing ? 'Pause' : 'Play');
-  $('audioBarSpeed').textContent = `${Number($('speedSelect')?.value) || 1}×`;
+  const rate = `${Number($('speedSelect')?.value) || 1}×`;
+  $('audioBarSpeed').textContent = rate;
+  $('audioBarSpeed').setAttribute('aria-label', `Playback speed, ${rate}`);
+}
+
+// The speeds, as a list that opens above the bar's speed button. It hangs off
+// <body>: the bar clips what overflows it on a wide screen.
+function audioBarSpeedMenu() {
+  let menu = $('audioBarSpeedMenu');
+  if (menu) return menu;
+  menu = document.createElement('ul');
+  menu.id = 'audioBarSpeedMenu';
+  menu.className = 'speed-menu audio-bar-speed-menu';
+  menu.setAttribute('role', 'listbox');
+  menu.setAttribute('aria-label', 'Playback speed');
+  menu.hidden = true;
+  for (const value of AUDIO_BAR_RATES) {
+    const option = document.createElement('li');
+    option.setAttribute('role', 'option');
+    option.dataset.value = value;
+    option.tabIndex = -1;
+    option.textContent = `${value}×`;
+    option.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (window.setPlayerSpeed) window.setPlayerSpeed(value);
+      else setPlaybackRate(Number(value));
+      closeAudioBarSpeedMenu();
+      paintAudioBar();
+      $('audioBarSpeed')?.focus({ preventScroll: true });
+    });
+    menu.appendChild(option);
+  }
+  menu.addEventListener('keydown', (event) => {
+    const options = [...menu.children];
+    const at = options.indexOf(document.activeElement);
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const next = at < 0 ? 0 : (at + (event.key === 'ArrowDown' ? 1 : options.length - 1)) % options.length;
+      options[next].focus();
+    } else if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      document.activeElement?.click?.();
+    } else if (event.key === 'Escape' || event.key === 'Tab') {
+      closeAudioBarSpeedMenu();
+      $('audioBarSpeed')?.focus({ preventScroll: true });
+    }
+  });
+  document.body.appendChild(menu);
+  document.addEventListener('click', (event) => {
+    if (!menu.hidden && !menu.contains(event.target)) closeAudioBarSpeedMenu();
+  });
+  window.addEventListener('resize', () => { if (!menu.hidden) placeAudioBarSpeedMenu(); });
+  return menu;
+}
+function placeAudioBarSpeedMenu() {
+  const menu = $('audioBarSpeedMenu');
+  const button = $('audioBarSpeed');
+  if (!menu || !button) return;
+  const rect = button.getBoundingClientRect();
+  const width = menu.offsetWidth || 92;
+  menu.style.left = `${Math.round(Math.max(8, Math.min(rect.left + rect.width / 2 - width / 2, window.innerWidth - width - 8)))}px`;
+  menu.style.top = 'auto';
+  // Above the whole bar, not only the button: the list covers none of it.
+  const top = Math.min(rect.top, $('audioBar')?.getBoundingClientRect().top ?? rect.top);
+  menu.style.bottom = `${Math.round(window.innerHeight - top + 6)}px`;
+}
+function toggleAudioBarSpeedMenu() {
+  const menu = audioBarSpeedMenu();
+  if (!menu.hidden) { closeAudioBarSpeedMenu(); return; }
+  const now = String(Number($('speedSelect')?.value) || 1);
+  for (const option of menu.children) option.setAttribute('aria-selected', String(option.dataset.value === now));
+  menu.hidden = false;
+  placeAudioBarSpeedMenu();
+  $('audioBarSpeed')?.setAttribute('aria-expanded', 'true');
+  (menu.querySelector('[aria-selected="true"]') || menu.firstElementChild).focus({ preventScroll: true });
+}
+function closeAudioBarSpeedMenu() {
+  const menu = $('audioBarSpeedMenu');
+  if (!menu || menu.hidden) return;
+  menu.hidden = true;
+  $('audioBarSpeed')?.setAttribute('aria-expanded', 'false');
 }
 function placeAudioBar() {
   const bar = $('audioBar');
@@ -10872,6 +10964,7 @@ function updateAudioBar() {
     return;
   }
   bar.hidden = !want;
+  if (!want) closeAudioBarSpeedMenu();
   document.body.classList.toggle('audio-bar-up', want);
   if (want) {
     const shiur = state.mdyShiur;

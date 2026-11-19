@@ -289,7 +289,7 @@ test.describe('Interactive Daf — the book on its own', () => {
     await expect(bar).toBeVisible();
     await expect(page.locator('.player-card')).toBeHidden();
     await expect(page.locator('#viewerModeSelect')).toBeHidden();
-    for (const id of ['#audioBarPlay', '#audioBarBack', '#audioBarForward', '#audioBarSpeed', '#audioBarDownload', '#audioBarVideo', '#audioBarClose']) {
+    for (const id of ['#audioBarPlay', '#audioBarBack', '#audioBarForward', '#audioBarVaater', '#audioBarSpeed', '#audioBarDownload', '#audioBarVideo', '#audioBarClose']) {
       await expect(bar.locator(id)).toBeVisible();
     }
     // MDY's mp3, saved through dafsync.com.
@@ -306,8 +306,25 @@ test.describe('Interactive Daf — the book on its own', () => {
     const gap = navTop - (box.y + box.height);
     expect(gap).toBeGreaterThanOrEqual(-1);
     expect(gap).toBeLessThan(20);
+    // The speed opens a list of speeds, above the bar; a pick sets it and closes the list.
+    const speeds = page.locator('#audioBarSpeedMenu');
+    await expect(speeds).toBeHidden();
     await bar.locator('#audioBarSpeed').click();
-    await expect(bar.locator('#audioBarSpeed')).toHaveText('1.25×');
+    await expect(speeds).toBeVisible();
+    await expect(speeds.locator('li')).toHaveText(['0.75×', '1×', '1.25×', '1.5×', '2×', '2.5×', '3×']);
+    await expect(speeds.locator('li[aria-selected="true"]')).toHaveText('1×');
+    const listBox = await speeds.boundingBox();
+    expect(listBox.y + listBox.height).toBeLessThanOrEqual((await bar.boundingBox()).y + 1);
+    await speeds.locator('li', { hasText: '1.5×' }).click();
+    await expect(speeds).toBeHidden();
+    await expect(bar.locator('#audioBarSpeed')).toHaveText('1.5×');
+    expect(await page.evaluate(() => document.getElementById('video').playbackRate)).toBe(1.5);
+    // Open again: the speed in use is the one marked; a tap elsewhere closes it unchanged.
+    await bar.locator('#audioBarSpeed').click();
+    await expect(speeds.locator('li[aria-selected="true"]')).toHaveText('1.5×');
+    await page.locator('#audioBarTitle').click();
+    await expect(speeds).toBeHidden();
+    await expect(bar.locator('#audioBarSpeed')).toHaveText('1.5×');
     // Video brings the player back.
     await bar.locator('#audioBarVideo').click();
     await expect(bar).toBeHidden();

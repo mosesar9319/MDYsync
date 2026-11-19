@@ -314,6 +314,46 @@ test.describe('R’ Bornstein’s shiurim from Lakewood Daf Yomi’s server', ()
     await page.waitForFunction(() => Math.abs(getCurrentTime() - 6) < 0.5);
   });
 
+  test("the audio bar's Vaater skips on to the daf's next synced phrase, as the video player's does", async ({ page }) => {
+    await openBornstein(page);
+    await page.waitForFunction(() => document.getElementById('video').readyState >= 1, null, { timeout: 15000 });
+    const vaater = page.locator('#audioBar #audioBarVaater');
+    await expect(vaater).toBeVisible();
+    await expect(vaater).toBeEnabled();
+    const where = () => page.evaluate(() => Math.round(document.getElementById('video').currentTime));
+    // The sync's phrases start at 1s and 5s.
+    await vaater.click();
+    await expect.poll(where).toBe(1);
+    // (A second press inside 2.5s chains on from the end of the phrase it went
+    // to -- skipToNextReading -- which in this sync is where the next begins.)
+    await page.waitForTimeout(2600);
+    await vaater.click();
+    await expect.poll(where).toBe(5);
+    // Past the last phrase there is nowhere to go.
+    await page.evaluate(() => { seek(11); updateVaaterButtonUi(11); });
+    await expect(vaater).toBeDisabled();
+  });
+
+  test('the speed picker on a narrow phone: the arrows for Vaater, the list above the bar', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 740 });
+    await openBornstein(page);
+    await page.waitForFunction(() => document.getElementById('video').readyState >= 1, null, { timeout: 15000 });
+    const bar = page.locator('#audioBar');
+    // Everything on one row, nothing pushed off the screen.
+    const right = await page.evaluate(() => Math.max(...[...document.querySelectorAll('#audioBar .audio-bar-row > *')]
+      .filter((el) => el.offsetParent !== null).map((el) => el.getBoundingClientRect().right)));
+    expect(right).toBeLessThanOrEqual(360);
+    await bar.locator('#audioBarSpeed').click();
+    const list = page.locator('#audioBarSpeedMenu');
+    await expect(list).toBeVisible();
+    const box = await list.boundingBox();
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(360);
+    await list.locator('li', { hasText: '2×' }).click();
+    await expect(bar.locator('#audioBarSpeed')).toHaveText('2×');
+    expect(await page.evaluate(() => document.getElementById('video').playbackRate)).toBe(2);
+  });
+
   // His shiurim before Eruchin 2 are linked to listen to, with no sync. The daf
   // used to be given placeholder timing (each line an equal share of the hour),
   // which lit lines and seeked on taps as if it were a sync of what he says.
@@ -327,6 +367,14 @@ test.describe('R’ Bornstein’s shiurim from Lakewood Daf Yomi’s server', ()
     const before = await page.evaluate(() => getCurrentTime());
     await page.evaluate(() => seekToVilnaWord(state.segments[1].ref, 0));
     await expect(page.locator('.toast')).toContainText("isn't synced with the daf yet");
+    expect(Math.abs((await page.evaluate(() => getCurrentTime())) - before)).toBeLessThan(0.5);
+    // The audio bar's Vaater has no phrase to go to either.
+    await page.evaluate(() => { document.querySelectorAll('.toast').forEach((t) => { t.textContent = ''; }); });
+    const vaater = page.locator('#audioBar #audioBarVaater');
+    if (await vaater.isEnabled()) {
+      await vaater.click();
+      await expect(page.locator('.toast')).toContainText("isn't synced with the daf yet");
+    }
     expect(Math.abs((await page.evaluate(() => getCurrentTime())) - before)).toBeLessThan(0.5);
   });
 
