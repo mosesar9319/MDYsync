@@ -1,1 +1,4399 @@
-{"schema":"dafsync-alignment-v2","title":"Voice recognition alignment — Bekhorot 58a, Bekhorot 58b","dafRef":"Bekhorot 58a","duration":3814.22,"alignmentStatus":"in-progress","generator":"voice_align.py","videoSource":{"type":"local","url":"job-audio.mp3"},"segments":[{"ref":"Bekhorot 58a:1","start":418.98,"end":419,"he":"כְּדֵי שֶׁתְּהֵא","w0":0,"w1":1,"estimated":true},{"ref":"Bekhorot 58a:1","start":418.98,"end":418.98,"he":"בְּהֵמָה","w0":2,"w1":2},{"ref":"Bekhorot 58a:1","start":424.62,"end":424.62,"he":"מְצוּיָה","w0":3,"w1":3},{"ref":"Bekhorot 58a:1","start":437.08,"end":437.08,"he":"לְעוֹלֵי רְגָלִים.","w0":4,"w1":5},{"ref":"Bekhorot 58a:2","start":398.64,"end":398.71,"he":"וְאַף עַל גַּב דִּתְנַן: עַד שֶׁלֹּא הִגִּיעַ","w0":0,"w1":6,"estimated":true},{"ref":"Bekhorot 58a:2","start":398.64,"end":416.9,"he":"הַגּוֹרֶן","w0":7,"w1":7},{"ref":"Bekhorot 58a:2","start":429.12,"end":429.16,"he":"מוּתָּר לִמְכּוֹר וְלִשְׁחוֹט —","w0":8,"w1":11,"estimated":true},{"ref":"Bekhorot 58a:2","start":429.12,"end":430.5,"he":"נִיחָא לֵיהּ דְּלִיתְעֲבִיד מִצְוָה בְּמָמוֹנֵיהּ,","w0":12,"w1":16},{"ref":"Bekhorot 58a:2","start":430.5,"end":430.53,"he":"וַהֲדַר לִזְבּוֹן וְלֵיכוֹל.","w0":17,"w1":19,"estimated":true},{"ref":"Bekhorot 58a:3","start":437.92,"end":450.2,"he":"וְאַמַּאי קָרֵי לֵיהּ ״גּוֹרֶן״? דְּטָבְלָה כְּגוֹרֶן.","w0":0,"w1":5},{"ref":"Bekhorot 58a:3","start":455.48,"end":455.48,"he":"״גּוֹרֶן״?","w0":3,"w1":3},{"ref":"Bekhorot 58a:3","start":469.52,"end":480.24,"he":"״גּוֹרֶן״?","w0":3,"w1":3},{"ref":"Bekhorot 58a:3","start":462.24,"end":462.24,"he":"דְּטָבְלָה כְּגוֹרֶן.","w0":4,"w1":5},{"ref":"Bekhorot 58a:4","start":483.3,"end":483.3,"he":"וְכַמָּה ״פְּרָס״?","w0":0,"w1":1},{"ref":"Bekhorot 58a:4","start":492.42,"end":497.42,"he":"״פְּרָס״? פֵּירֵשׁ רַבִּי יוֹסֵי בְּרַבִּי יְהוּדָה: אֵין פְּרָס פָּחוֹת מֵחֲמִשָּׁה","w0":1,"w1":10},{"ref":"Bekhorot 58a:4","start":498.98,"end":498.98,"he":"עָשָׂר יוֹם.","w0":11,"w1":12},{"ref":"Bekhorot 58a:5","start":500.76,"end":502.96,"he":"מַאי מַשְׁמַע? אָמַר רַבִּי אֲבָהוּ: ״פְּרוֹס״ — פַּלְגָא.","w0":0,"w1":7},{"ref":"Bekhorot 58a:5","start":505.24,"end":510.06,"he":"פַּלְגָא דְּמַאי? פַּלְגָא דְּהִלְכוֹת פֶּסַח, כִּי הָא דְּתַנְיָא: שׁוֹאֲלִין וְדוֹרְשִׁין בְּהִלְכוֹת פֶּסַח","w0":8,"w1":19},{"ref":"Bekhorot 58a:5","start":525.36,"end":526.42,"he":"שׁוֹאֲלִין וְדוֹרְשִׁין בְּהִלְכוֹת פֶּסַח","w0":16,"w1":19},{"ref":"Bekhorot 58a:5","start":544.38,"end":544.38,"he":"פֶּסַח","w0":19,"w1":19},{"ref":"Bekhorot 58a:5","start":511,"end":512.88,"he":"קוֹדֶם לְפֶסַח שְׁלֹשִׁים יוֹם. רַבָּן שִׁמְעוֹן בֶּן גַּמְלִיאֵל","w0":20,"w1":27},{"ref":"Bekhorot 58a:5","start":514.26,"end":514.26,"he":"אוֹמֵר: שְׁתֵּי שַׁבָּתוֹת.","w0":28,"w1":30},{"ref":"Bekhorot 58a:5","start":530.16,"end":530.16,"he":"שְׁתֵּי שַׁבָּתוֹת.","w0":29,"w1":30},{"ref":"Bekhorot 58a:6","start":547.76,"end":547.76,"he":"בֶּן עַזַּאי אוֹמֵר:","w0":0,"w1":2},{"ref":"Bekhorot 58a:6","start":552.96,"end":552.96,"he":"בְּעֶשְׂרִים וְתִשְׁעָה בַּאֲדָר, בְּאֶחָד","w0":3,"w1":6},{"ref":"Bekhorot 58a:6","start":578.48,"end":578.48,"he":"בְּאֶחָד בְּסִיוָן.","w0":6,"w1":7},{"ref":"Bekhorot 58a:6","start":556.68,"end":558.06,"he":"","w0":7,"w1":5},{"ref":"Bekhorot 58a:6","start":560.72,"end":560.74,"he":"בְּאֶחָד בְּסִיוָן.","w0":6,"w1":7,"estimated":true},{"ref":"Bekhorot 58a:6","start":560.72,"end":561.4,"he":"בְּמַאי קָמִיפַּלְגִי רַבִּי עֲקִיבָא וּבֶן עַזַּאי?","w0":8,"w1":13},{"ref":"Bekhorot 58a:6","start":583.02,"end":583.04,"he":"רַבִּי עֲקִיבָא","w0":14,"w1":15,"estimated":true},{"ref":"Bekhorot 58a:6","start":583.02,"end":583.02,"he":"סָבַר:","w0":16,"w1":16},{"ref":"Bekhorot 58a:6","start":591.84,"end":591.84,"he":"אֲדָר","w0":17,"w1":17},{"ref":"Bekhorot 58a:6","start":598.42,"end":599.46,"he":"אֲדָר הַסָּמוּךְ לְנִיסָן זִימְנִין מָלֵא וְזִימְנִין חָסֵר,","w0":17,"w1":23},{"ref":"Bekhorot 58a:6","start":617.88,"end":620.44,"he":"מָלֵא","w0":21,"w1":21},{"ref":"Bekhorot 58a:6","start":606.72,"end":606.73,"he":"וְזִימְנִין","w0":22,"w1":22,"estimated":true},{"ref":"Bekhorot 58a:6","start":606.72,"end":606.72,"he":"חָסֵר,","w0":23,"w1":23},{"ref":"Bekhorot 58a:6","start":623.08,"end":625.04,"he":"חָסֵר, זִימְנִין דְּמִיקְּלַע בְּיוֹם שְׁלֹשִׁים וְזִימְנִין דְּמִיקְּלַע בְּעֶשְׂרִים וְתִשְׁעָה, וּמִשּׁוּם הָכִי לָא קְבִיעַ","w0":23,"w1":35},{"ref":"Bekhorot 58a:6","start":610.28,"end":612.08,"he":"זִימְנִין דְּמִיקְּלַע בְּיוֹם שְׁלֹשִׁים וְזִימְנִין דְּמִיקְּלַע בְּעֶשְׂרִים וְתִשְׁעָה,","w0":24,"w1":31},{"ref":"Bekhorot 58a:6","start":625.7,"end":625.74,"he":"וּמִשּׁוּם הָכִי לָא קְבִיעַ","w0":32,"w1":35,"estimated":true},{"ref":"Bekhorot 58a:6","start":625.7,"end":625.7,"he":"לֵיהּ זְמַן.","w0":36,"w1":37},{"ref":"Bekhorot 58a:6","start":628.12,"end":629.08,"he":"וּבֶן עַזַּאי סָבַר: אֲדָר הַסָּמוּךְ לְנִיסָן לְעוֹלָם חָסֵר,","w0":38,"w1":45},{"ref":"Bekhorot 58a:6","start":632.14,"end":632.14,"he":"הַסָּמוּךְ לְנִיסָן","w0":42,"w1":43},{"ref":"Bekhorot 58a:6","start":634.46,"end":634.47,"he":"לְעוֹלָם","w0":44,"w1":44,"estimated":true},{"ref":"Bekhorot 58a:6","start":634.46,"end":636.14,"he":"חָסֵר, הִילְכָּךְ קְבִיעַ לֵיהּ זְמַן","w0":45,"w1":49},{"ref":"Bekhorot 58a:6","start":647.96,"end":647.96,"he":"זְמַן","w0":49,"w1":49},{"ref":"Bekhorot 58a:6","start":641.52,"end":641.52,"he":"בְּעֶשְׂרִים וְתִשְׁעָה בַּאֲדָר.","w0":50,"w1":52},{"ref":"Bekhorot 58a:7","start":644.84,"end":644.84,"he":"בְּאֶחָד בְּסִיוָן","w0":0,"w1":1},{"ref":"Bekhorot 58a:7","start":654.42,"end":654.42,"he":"בְּאֶחָד בְּסִיוָן","w0":0,"w1":1},{"ref":"Bekhorot 58a:7","start":660.08,"end":660.09,"he":"—","w0":2,"w1":2,"estimated":true},{"ref":"Bekhorot 58a:7","start":660.08,"end":660.08,"he":"אַיְּידֵי דְּלָא נְפִישִׁי,","w0":3,"w1":5},{"ref":"Bekhorot 58a:7","start":674.34,"end":674.34,"he":"אִי אָמְרַתְּ לִיקַדֵּים לִיעַשַּׂר","w0":6,"w1":9},{"ref":"Bekhorot 58a:7","start":678.7,"end":678.71,"he":"—","w0":10,"w1":10,"estimated":true},{"ref":"Bekhorot 58a:7","start":678.7,"end":679.64,"he":"עַד דְּמָטֵי רֶגֶל שָׁלְמִי לְהוּ.","w0":11,"w1":15},{"ref":"Bekhorot 58a:8","start":687.58,"end":687.66,"he":"בְּעֶשְׂרִים וְתִשְׁעָה בְּאָב וְכוּ׳. בֶּן עַזַּאי לְטַעְמֵיהּ, דְּאָמַר:","w0":0,"w1":7,"estimated":true},{"ref":"Bekhorot 58a:8","start":687.58,"end":706.96,"he":"הָאֱלוּלִין","w0":8,"w1":8},{"ref":"Bekhorot 58a:8","start":706.96,"end":706.99,"he":"מִתְעַשְּׂרִין בִּפְנֵי עַצְמָן.","w0":9,"w1":11,"estimated":true},{"ref":"Bekhorot 58a:9","start":711.17,"end":711.23,"he":"וְלִיעַשְּׂרִינְהוּ בְּיוֹם שְׁלֹשִׁים! זִימְנִין דִּמְחַסְּרִין לֵיהּ","w0":0,"w1":5,"estimated":true},{"ref":"Bekhorot 58a:9","start":711.23,"end":711.29,"he":"לְאָב, וּבָעֵינַן לְמִיעְבַּד הֶכֵּירָא בְּחָדָשׁ וְיָשָׁן.","w0":6,"w1":11,"estimated":true},{"ref":"Bekhorot 58a:10","start":715.38,"end":715.45,"he":"רַבִּי אֶלְעָזָר וְרַבִּי שִׁמְעוֹן אוֹמְרִים: בְּאֶחָד בְּנִיסָן,","w0":0,"w1":6,"estimated":true},{"ref":"Bekhorot 58a:10","start":715.38,"end":715.38,"he":"בְּאֶחָד בְּסִיוָן","w0":7,"w1":8},{"ref":"Bekhorot 58a:10","start":715.38,"end":715.46,"he":"וְכוּ׳. בְּאֶחָד בְּנִיסָן — כְּרַבָּן שִׁמְעוֹן בֶּן גַּמְלִיאֵל,","w0":9,"w1":16,"estimated":true},{"ref":"Bekhorot 58a:10","start":715.46,"end":715.53,"he":"דְּאָמַר: שְׁתֵּי שַׁבָּתוֹת. בְּאֶחָד בְּסִיוָן — כְּדַאֲמַרַן.","w0":17,"w1":23,"estimated":true},{"ref":"Bekhorot 58a:11","start":717.7,"end":717.7,"he":"בְּעֶשְׂרִים וְתִשְׁעָה","w0":0,"w1":1},{"ref":"Bekhorot 58a:11","start":754.65,"end":754.75,"he":"בֶּאֱלוּל — רַבִּי אֶלְעָזָר וְרַבִּי שִׁמְעוֹן לְטַעְמַיְיהוּ, דְּאָמְרִי: בְּאֶחָד בְּתִשְׁרִי","w0":2,"w1":11,"estimated":true},{"ref":"Bekhorot 58a:11","start":754.65,"end":754.65,"he":"רֹאשׁ הַשָּׁנָה לְמַעְשַׂר בְּהֵמָה.","w0":12,"w1":15},{"ref":"Bekhorot 58a:11","start":756.77,"end":758.35,"he":"רֹאשׁ","w0":12,"w1":12},{"ref":"Bekhorot 58a:11","start":761.63,"end":762.87,"he":"רֹאשׁ הַשָּׁנָה לְמַעְשַׂר בְּהֵמָה.","w0":12,"w1":15},{"ref":"Bekhorot 58a:11","start":783.39,"end":783.39,"he":"הַשָּׁנָה","w0":13,"w1":13},{"ref":"Bekhorot 58a:11","start":783.39,"end":783.41,"he":"לְמַעְשַׂר בְּהֵמָה.","w0":14,"w1":15,"estimated":true},{"ref":"Bekhorot 58a:12","start":915.99,"end":916,"he":"וְלָמָה","w0":0,"w1":0,"estimated":true},{"ref":"Bekhorot 58a:12","start":915.99,"end":915.99,"he":"אָמְרוּ","w0":1,"w1":1},{"ref":"Bekhorot 58a:12","start":969.49,"end":969.49,"he":"בְּעֶשְׂרִים וְתִשְׁעָה בֶּאֱלוּל,","w0":2,"w1":4},{"ref":"Bekhorot 58a:12","start":833.71,"end":833.71,"he":"וְתִשְׁעָה בֶּאֱלוּל,","w0":3,"w1":4},{"ref":"Bekhorot 58a:12","start":787.33,"end":788.65,"he":"בֶּאֱלוּל, וְלֹא אָמְרוּ בְּאֶחָד בְּתִשְׁרִי? מִפְּנֵי","w0":4,"w1":9},{"ref":"Bekhorot 58a:12","start":921.97,"end":921.97,"he":"בֶּאֱלוּל,","w0":4,"w1":4},{"ref":"Bekhorot 58a:12","start":918.17,"end":918.19,"he":"וְלֹא אָמְרוּ","w0":5,"w1":6,"estimated":true},{"ref":"Bekhorot 58a:12","start":918.17,"end":918.17,"he":"בְּאֶחָד בְּתִשְׁרִי?","w0":7,"w1":8},{"ref":"Bekhorot 58a:12","start":955.31,"end":955.41,"he":"מִפְּנֵי שֶׁהוּא יוֹם טוֹב וְכוּ׳. וְתִיפּוֹק לֵיהּ, דְּבָעֵינַן לְמֶעְבַּד הֶכֵּירָא","w0":9,"w1":18,"estimated":true},{"ref":"Bekhorot 58a:12","start":955.31,"end":955.31,"he":"בְּחָדָשׁ וְיָשָׁן!","w0":19,"w1":20},{"ref":"Bekhorot 58a:13","start":1035.51,"end":1035.54,"he":"חֲדָא וְעוֹד קָאָמַר,","w0":0,"w1":2,"estimated":true},{"ref":"Bekhorot 58a:13","start":1035.51,"end":1038.05,"he":"חֲדָא — דְּבָעֵינַן לְמִיעְבַּד הֶכֵּירָא בְּחָדָשׁ וְיָשָׁן, וְעוֹד — מִפְּנֵי שֶׁהוּא יוֹם","w0":3,"w1":14},{"ref":"Bekhorot 58a:13","start":1039.95,"end":1040.83,"he":"טוֹב, וְאִי אֶפְשָׁר לְעַשֵּׂר בְּיוֹם טוֹב","w0":15,"w1":20},{"ref":"Bekhorot 58a:13","start":1046.53,"end":1048.87,"he":"מִשּׁוּם סְקַרְתָּא.","w0":21,"w1":22},{"ref":"Bekhorot 58a:14","start":974.85,"end":974.86,"he":"רַבִּי","w0":0,"w1":0,"estimated":true},{"ref":"Bekhorot 58a:14","start":974.85,"end":976.39,"he":"מֵאִיר אוֹמֵר: בְּאֶחָד בֶּאֱלוּל רֹאשׁ הַשָּׁנָה לְמַעְשַׂר בְּהֵמָה.","w0":1,"w1":8},{"ref":"Bekhorot 58a:14","start":978.49,"end":978.49,"he":"לְמַעְשַׂר בְּהֵמָה.","w0":7,"w1":8},{"ref":"Bekhorot 58a:14","start":978.49,"end":978.59,"he":"בֶּן עַזַּאי אוֹמֵר וְכוּ׳. תַּנְיָא, אָמַר בֶּן עַזַּאי: הוֹאִיל וְהַלָּלוּ","w0":9,"w1":18,"estimated":true},{"ref":"Bekhorot 58a:14","start":978.59,"end":978.68,"he":"אוֹמְרִים כָּךְ, וְהַלָּלוּ אוֹמְרִים כָּךְ — הָאֱלוּלִין מִתְעַשְּׂרִין לְעַצְמָן.","w0":19,"w1":27,"estimated":true},{"ref":"Bekhorot 58a:15","start":1507.22,"end":1507.22,"he":"וְלִיחְזֵי טַעְמֵיהּ דְּמַאן מִסְתַּבַּר! וְכִי תֵּימָא: לָא מָצֵי קָאֵי אַטַּעְמַיְיהוּ, וְהָתַנְיָא:","w0":0,"w1":10},{"ref":"Bekhorot 58a:15","start":1509.08,"end":1509.08,"he":"בֶּן עַזַּאי אוֹמֵר: כׇּל חַכְמֵי יִשְׂרָאֵל דּוֹמִין עָלַי כִּקְלִיפַּת הַשּׁוּם חוּץ מִן הַקֵּרֵחַ הַזֶּה!","w0":11,"w1":24},{"ref":"Bekhorot 58a:16","start":1509.08,"end":1510.12,"he":"אָמַר רַבִּי יוֹחָנָן: מִפִּי הַשְּׁמוּעָה אֲמָרוּהָ, מִפִּי חַגַּי זְכַרְיָה וּמַלְאָכִי.","w0":0,"w1":9},{"ref":"Bekhorot 58a:17","start":1510.12,"end":1511.1,"he":"תַּנְיָא: בְּאֵיזֶה צַד אָמַר בֶּן עַזַּאי הָאֱלוּלִים מִתְעַשְּׂרִין לְעַצְמָן?","w0":0,"w1":8},{"ref":"Bekhorot 58a:17","start":1520.7,"end":1520.71,"he":"נוֹלְדוּ","w0":9,"w1":9,"estimated":true},{"ref":"Bekhorot 58a:17","start":1520.7,"end":1522.5,"he":"לוֹ חֲמִשָּׁה בְּאָב וַחֲמִשָּׁה","w0":10,"w1":13},{"ref":"Bekhorot 58a:17","start":1526.12,"end":1526.16,"he":"בֶּאֱלוּל — אֵין מִצְטָרְפִין,","w0":14,"w1":17,"estimated":true},{"ref":"Bekhorot 58a:17","start":1526.12,"end":1527.8,"he":"חֲמִשָּׁה בֶּאֱלוּל וַחֲמִשָּׁה בְּתִשְׁרִי — אֵין מִצְטָרְפִין, חֲמִשָּׁה בְּתִשְׁרִי","w0":18,"w1":26},{"ref":"Bekhorot 58a:17","start":1529.94,"end":1529.94,"he":"וַחֲמִשָּׁה בְּאָב","w0":27,"w1":28},{"ref":"Bekhorot 58a:17","start":1538.86,"end":1538.86,"he":"מִצְטָרְפִין.","w0":29,"w1":29},{"ref":"Bekhorot 58a:18","start":1552.78,"end":1552.81,"he":"פְּשִׁיטָא! מַהוּ דְּתֵימָא,","w0":0,"w1":2,"estimated":true},{"ref":"Bekhorot 58a:18","start":1552.78,"end":1554.64,"he":"כִּי הֵיכִי דְּמַפְסְקִי שָׁנִים, מַפְסְקִי גֳּרָנוֹת,","w0":3,"w1":8},{"ref":"Bekhorot 58a:18","start":1591.98,"end":1591.98,"he":"כִּי הֵיכִי דְּמַפְסְקִי","w0":3,"w1":5},{"ref":"Bekhorot 58a:18","start":1598.8,"end":1598.83,"he":"שָׁנִים, מַפְסְקִי גֳּרָנוֹת,","w0":6,"w1":8,"estimated":true},{"ref":"Bekhorot 58a:18","start":1598.8,"end":1598.8,"he":"קָא מַשְׁמַע לַן.","w0":9,"w1":11},{"ref":"Bekhorot 58a:19","start":1604.32,"end":1605.44,"he":"כְּדִתְנַן: חֲמִשָּׁה לִפְנֵי רֹאשׁ הַשָּׁנָה וַחֲמִשָּׁה לְאַחַר רֹאשׁ","w0":0,"w1":7},{"ref":"Bekhorot 58a:19","start":1606.64,"end":1608.26,"he":"הַשָּׁנָה — אֵין מִצְטָרְפִין, חֲמִשָּׁה לִפְנֵי הַגּוֹרֶן וַחֲמִשָּׁה","w0":8,"w1":15},{"ref":"Bekhorot 58a:19","start":1609.8,"end":1610.86,"he":"לְאַחַר הַגּוֹרֶן — הֲרֵי אֵלּוּ מִצְטָרְפִין.","w0":16,"w1":21},{"ref":"Bekhorot 58a:20","start":1610.86,"end":1611.86,"he":"אָמַר רָבָא: לְדִבְרֵי בֶּן עַזַּאי,","w0":0,"w1":4},{"ref":"Bekhorot 58a:20","start":1623.86,"end":1623.87,"he":"נוֹלְדוּ","w0":5,"w1":5,"estimated":true},{"ref":"Bekhorot 58a:20","start":1623.86,"end":1623.86,"he":"לוֹ חֲמִשָּׁה בְּאָב","w0":6,"w1":8},{"ref":"Bekhorot 58a:20","start":1627.18,"end":1627.18,"he":"וַחֲמִשָּׁה בֶּאֱלוּל","w0":9,"w1":10},{"ref":"Bekhorot 58a:20","start":1632.38,"end":1632.38,"he":"וַחֲמִשָּׁה","w0":11,"w1":11},{"ref":"Bekhorot 58a:20","start":1634.6,"end":1634.6,"he":"בְּתִשְׁרִי,","w0":12,"w1":12},{"ref":"Bekhorot 58a:20","start":1637.68,"end":1637.68,"he":"כּוֹנְסָן לַדִּיר לְהִתְעַשֵּׂר,","w0":13,"w1":15},{"ref":"Bekhorot 58b:1","start":1642.34,"end":1642.34,"he":"וְנוֹטֵל אֶחָד מִן הָאֱלוּלִין","w0":0,"w1":3},{"ref":"Bekhorot 58b:1","start":1661.86,"end":1661.86,"he":"וְהַשְּׁאָר פְּטוּרִין, מִמָּה","w0":4,"w1":6},{"ref":"Bekhorot 58b:1","start":1667.94,"end":1669.2,"he":"מִמָּה נַפְשָׁךְ: אִי בְּאֶחָד בֶּאֱלוּל רֹאשׁ הַשָּׁנָה","w0":6,"w1":12},{"ref":"Bekhorot 58b:1","start":1690.04,"end":1690.1,"he":"— דֶּאֱלוּל וְתִשְׁרִי מִצְטָרְפִין וּדְאָב פְּטוּרִים,","w0":13,"w1":18,"estimated":true},{"ref":"Bekhorot 58b:1","start":1690.04,"end":1691.48,"he":"וְאִי בְּאֶחָד בְּתִשְׁרִי רֹאשׁ הַשָּׁנָה","w0":19,"w1":23},{"ref":"Bekhorot 58b:1","start":1691.48,"end":1691.54,"he":"— דְּאָב וֶאֱלוּל מִצְטָרְפִין דְּתִשְׁרִי פְּטוּרִין.","w0":24,"w1":29,"estimated":true},{"ref":"Bekhorot 58b:2","start":1731.72,"end":1732.74,"he":"מַאי אָמְרַתְּ: לִצְטַרְפוּ לְגוֹרֶן","w0":0,"w1":3},{"ref":"Bekhorot 58b:2","start":1738.24,"end":1740.12,"he":"לְגוֹרֶן אַחֵר? עֲשִׂירִי וַדַּאי אָמַר רַחֲמָנָא, וְלֹא סָפֵק.","w0":3,"w1":10},{"ref":"Bekhorot 58b:2","start":1743.6,"end":1745.56,"he":"עֲשִׂירִי וַדַּאי אָמַר רַחֲמָנָא, וְלֹא סָפֵק.","w0":5,"w1":10},{"ref":"Bekhorot 58b:2","start":1755.62,"end":1755.62,"he":"עֲשִׂירִי וַדַּאי","w0":5,"w1":6},{"ref":"Bekhorot 58b:2","start":1755.62,"end":1755.66,"he":"אָמַר רַחֲמָנָא, וְלֹא סָפֵק.","w0":7,"w1":10,"estimated":true},{"ref":"Bekhorot 58b:3","start":1792.44,"end":1792.45,"he":"פְּשִׁיטָא!","w0":0,"w1":0,"estimated":true},{"ref":"Bekhorot 58b:3","start":1792.44,"end":1793.28,"he":"מַהוּ דְּתֵימָא לִגְזוֹר, דִּילְמָא אָתֵי לְמִישְׁקַל מֵהָנָךְ,","w0":1,"w1":7},{"ref":"Bekhorot 58b:3","start":1823.84,"end":1823.84,"he":"קָא מַשְׁמַע לַן.","w0":8,"w1":10},{"ref":"Bekhorot 58b:4","start":1827.32,"end":1827.33,"he":"מַתְנִי׳","w0":0,"w1":0,"estimated":true},{"ref":"Bekhorot 58b:4","start":1827.32,"end":1836.16,"he":"בְּאֵי זֶה צַד מְעַשְּׂרִין?","w0":1,"w1":4},{"ref":"Bekhorot 58b:4","start":1841.56,"end":1841.56,"he":"כּוֹנְסָן לַדִּיר,","w0":5,"w1":6},{"ref":"Bekhorot 58b:4","start":1844.28,"end":1844.28,"he":"וְעוֹשֶׂה לָהֶם פֶּתַח קָטָן","w0":7,"w1":10},{"ref":"Bekhorot 58b:4","start":1846.68,"end":1847.9,"he":"קָטָן כְּדֵי שֶׁלֹּא יְהוּ שְׁנַיִם יְכוֹלִין לָצֵאת כְּאֶחָת,","w0":10,"w1":17},{"ref":"Bekhorot 58b:4","start":1851.18,"end":1851.18,"he":"וּמוֹנִין:","w0":18,"w1":18},{"ref":"Bekhorot 58b:4","start":1860.77,"end":1860.88,"he":"אֶחָד, שְׁנַיִם, שְׁלֹשָׁה, אַרְבָּעָה, חֲמִשָּׁה, שִׁשָּׁה, שִׁבְעָה, שְׁמוֹנָה, תִּשְׁעָה, וְהַיּוֹצֵא עֲשִׂירִי","w0":19,"w1":29,"estimated":true},{"ref":"Bekhorot 58b:4","start":1860.77,"end":1860.77,"he":"סוֹקֵר בְּסִיקְרָא","w0":30,"w1":31},{"ref":"Bekhorot 58b:4","start":1864.35,"end":1866.45,"he":"וְאוֹמֵר: ״הֲרֵי זֶה מַעֲשֵׂר״. לֹא סְקָרוֹ בְּסִיקְרָא,","w0":32,"w1":38},{"ref":"Bekhorot 58b:4","start":1869.31,"end":1869.31,"he":"וְלֹא מְנָאָן בַּשֵּׁבֶט,","w0":39,"w1":41},{"ref":"Bekhorot 58b:4","start":1893.53,"end":1894.63,"he":"וְלֹא מְנָאָן בַּשֵּׁבֶט, אוֹ שֶׁמְּנָאָן רְבוּצִים אוֹ עוֹמְדִים","w0":39,"w1":46},{"ref":"Bekhorot 58b:4","start":1872.81,"end":1883.83,"he":"בַּשֵּׁבֶט,","w0":41,"w1":41},{"ref":"Bekhorot 58b:4","start":1901.15,"end":1901.21,"he":"אוֹ שֶׁמְּנָאָן רְבוּצִים אוֹ עוֹמְדִים —","w0":42,"w1":47,"estimated":true},{"ref":"Bekhorot 58b:4","start":1901.15,"end":1901.15,"he":"הֲרֵי אֵלּוּ מִתְעַשְּׂרִין.","w0":48,"w1":50},{"ref":"Bekhorot 58b:5","start":1901.15,"end":1901.15,"he":"הָיָה לוֹ","w0":0,"w1":1},{"ref":"Bekhorot 58b:5","start":1918.11,"end":1918.12,"he":"מֵאָה","w0":2,"w1":2,"estimated":true},{"ref":"Bekhorot 58b:5","start":1918.11,"end":1918.11,"he":"וְנָטַל עֲשָׂרָה,","w0":3,"w1":4},{"ref":"Bekhorot 58b:5","start":1920.81,"end":1921.79,"he":"עֲשָׂרָה,","w0":4,"w1":4},{"ref":"Bekhorot 58b:5","start":1923.95,"end":1923.95,"he":"עֲשָׂרָה וְנָטַל אֶחָד — אֵין זֶה","w0":5,"w1":10},{"ref":"Bekhorot 58b:5","start":1928.39,"end":1928.4,"he":"מַעֲשֵׂר.","w0":11,"w1":11,"estimated":true},{"ref":"Bekhorot 58b:5","start":1928.39,"end":1931.05,"he":"רַבִּי יוֹסֵי בְּרַבִּי יְהוּדָה אוֹמֵר: מַעֲשֵׂר. קָפַץ אֶחָד מִן הַמְּנוּיִין","w0":12,"w1":21},{"ref":"Bekhorot 58b:5","start":1950.91,"end":1950.91,"he":"מַעֲשֵׂר.","w0":17,"w1":17},{"ref":"Bekhorot 58b:5","start":1961.73,"end":1961.73,"he":"מַעֲשֵׂר.","w0":17,"w1":17},{"ref":"Bekhorot 58b:5","start":1971.27,"end":1972.83,"he":"מַעֲשֵׂר. קָפַץ אֶחָד מִן הַמְּנוּיִין לְתוֹכָן — הֲרֵי אֵלּוּ פְּטוּרִין,","w0":17,"w1":26},{"ref":"Bekhorot 58b:5","start":1989.77,"end":2000.17,"he":"מַעֲשֵׂר.","w0":17,"w1":17},{"ref":"Bekhorot 58b:5","start":1956.19,"end":1956.19,"he":"קָפַץ אֶחָד מִן הַמְּנוּיִין","w0":18,"w1":21},{"ref":"Bekhorot 58b:5","start":1986.65,"end":1986.65,"he":"הַמְּנוּיִין","w0":21,"w1":21},{"ref":"Bekhorot 58b:5","start":1940.29,"end":1940.31,"he":"לְתוֹכָן —","w0":22,"w1":23,"estimated":true},{"ref":"Bekhorot 58b:5","start":1940.29,"end":1940.29,"he":"הֲרֵי אֵלּוּ פְּטוּרִין,","w0":24,"w1":26},{"ref":"Bekhorot 58b:5","start":1945.59,"end":1945.59,"he":"פְּטוּרִין,","w0":26,"w1":26},{"ref":"Bekhorot 58b:5","start":2003.43,"end":2003.43,"he":"פְּטוּרִין,","w0":26,"w1":26},{"ref":"Bekhorot 58b:5","start":1948.13,"end":1948.13,"he":"מִן הַמְעוּשָּׂרִין","w0":27,"w1":28},{"ref":"Bekhorot 58b:5","start":1959.25,"end":1959.25,"he":"מִן הַמְעוּשָּׂרִין","w0":27,"w1":28},{"ref":"Bekhorot 58b:5","start":1965.91,"end":1967.05,"he":"הַמְעוּשָּׂרִין לְתוֹכָן — כּוּלָּם יִרְעוּ עַד שֶׁיִּסְתָּאֲבוּ, וְיֵאָכְלוּ","w0":28,"w1":35},{"ref":"Bekhorot 58b:5","start":1968.33,"end":1968.33,"he":"בְּמוּמָן לַבְּעָלִים.","w0":36,"w1":37},{"ref":"Bekhorot 58b:6","start":2018.85,"end":2018.86,"he":"גְּמָ׳","w0":0,"w1":0,"estimated":true},{"ref":"Bekhorot 58b:6","start":2018.85,"end":2018.85,"he":"תָּנוּ רַבָּנַן:","w0":1,"w1":2},{"ref":"Bekhorot 58b:6","start":2021.21,"end":2022.81,"he":"בְּאֵי זֶה צַד מְעַשֵּׂר? כּוֹנְסָן לַדִּיר, וְעוֹשֶׂה לָהֶם פֶּתַח","w0":3,"w1":11},{"ref":"Bekhorot 58b:6","start":2025.81,"end":2025.82,"he":"קָטָן","w0":12,"w1":12,"estimated":true},{"ref":"Bekhorot 58b:6","start":2025.81,"end":2026.55,"he":"כְּדֵי שֶׁלֹּא יְהוּ שְׁנַיִם יְכוֹלִין לָצֵאת כְּאֶחָד,","w0":13,"w1":19},{"ref":"Bekhorot 58b:6","start":2030.43,"end":2030.43,"he":"אִימּוֹתֵיהֶם מִבַּחוּץ","w0":20,"w1":21},{"ref":"Bekhorot 58b:6","start":2034.81,"end":2036.81,"he":"וְהֵם מִבִּפְנִים, וְגוֹעוֹת, וְיוֹצְאוֹת לִקְרַאת אִמָּן.","w0":22,"w1":27},{"ref":"Bekhorot 58b:7","start":2047.01,"end":2047.01,"he":"וְלַפְּקִינְהוּ אִינְהוּ!","w0":0,"w1":1},{"ref":"Bekhorot 58b:7","start":2058.03,"end":2058.06,"he":"״יַעֲבוֹר״ כְּתִיב, וְלֹא","w0":2,"w1":4,"estimated":true},{"ref":"Bekhorot 58b:7","start":2058.03,"end":2058.03,"he":"שֶׁיַּעֲבִירוּהוּ.","w0":5,"w1":5},{"ref":"Bekhorot 58b:8","start":2058.03,"end":2059.59,"he":"וְלִשְׁדֵּי לְהוּ יַרְקָא","w0":0,"w1":2},{"ref":"Bekhorot 58b:8","start":2069.35,"end":2070.55,"he":"וְלִיפְּקוּ לְוָתֵיהּ! אָמַר רַב הוּנָא: גְּזֵירָה מִשּׁוּם לָקוּחַ וּמִשּׁוּם","w0":3,"w1":11},{"ref":"Bekhorot 58b:8","start":2127.59,"end":2127.59,"he":"גְּזֵירָה מִשּׁוּם לָקוּחַ","w0":8,"w1":10},{"ref":"Bekhorot 58b:8","start":2076.43,"end":2108.79,"he":"לָקוּחַ וּמִשּׁוּם יָתוֹם.","w0":10,"w1":12},{"ref":"Bekhorot 58b:8","start":2072.01,"end":2072.01,"he":"יָתוֹם.","w0":12,"w1":12},{"ref":"Bekhorot 58b:9","start":2109.87,"end":2113.33,"he":"תָּנוּ רַבָּנַן: ״כׇּל אֲשֶׁר יַעֲבֹר תַּחַת״ — פְּרָט לַטְּרֵיפָה שֶׁאֵינָהּ עוֹבֶרֶת","w0":0,"w1":10},{"ref":"Bekhorot 58b:9","start":2121.63,"end":2121.63,"he":"לַטְּרֵיפָה","w0":8,"w1":8},{"ref":"Bekhorot 58b:9","start":2130.63,"end":2130.65,"he":"שֶׁאֵינָהּ עוֹבֶרֶת","w0":9,"w1":10,"estimated":true},{"ref":"Bekhorot 58b:9","start":2130.63,"end":2134.27,"he":"תַּחַת הַשָּׁבֶט. מִצְוָה לִמְנוֹתָן בְּשֵׁבֶט. לֹא מְנָאָן בְּשֵׁבֶט, אוֹ","w0":11,"w1":19},{"ref":"Bekhorot 58b:9","start":2135.29,"end":2135.29,"he":"שֶׁמְּנָאָן רְבוּצִים אוֹ עוֹמְדִים,","w0":20,"w1":23},{"ref":"Bekhorot 58b:9","start":2138.83,"end":2141.01,"he":"מִנַּיִן? תַּלְמוּד לוֹמַר: ״הָעֲשִׂירִי קֹדֶשׁ״ — מִכׇּל מָקוֹם.","w0":24,"w1":31},{"ref":"Bekhorot 58b:10","start":2143.63,"end":2143.64,"he":"וְאֵין","w0":0,"w1":0,"estimated":true},{"ref":"Bekhorot 58b:10","start":2143.63,"end":2144.43,"he":"לִי אֶלָּא שֶׁקְּרָא שְׁמוֹ ״עֲשִׂירִי״, לֹא קְרָא שְׁמוֹ","w0":1,"w1":8},{"ref":"Bekhorot 58b:10","start":2145.61,"end":2148.59,"he":"״עֲשִׂירִי״ מִנַּיִן? תַּלְמוּד לוֹמַר ״יִהְיֶה קֹּדֶשׁ״ מִכׇּל מָקוֹם.","w0":9,"w1":16},{"ref":"Bekhorot 58b:10","start":2150.21,"end":2150.21,"he":"יָכוֹל הָיוּ לוֹ","w0":17,"w1":19},{"ref":"Bekhorot 58b:10","start":2153.37,"end":2153.38,"he":"מֵאָה","w0":20,"w1":20,"estimated":true},{"ref":"Bekhorot 58b:10","start":2153.37,"end":2153.37,"he":"וְנָטַל עֲשָׂרָה,","w0":21,"w1":22},{"ref":"Bekhorot 58b:10","start":2156.21,"end":2156.21,"he":"עֲשָׂרָה וְנָטַל","w0":23,"w1":24},{"ref":"Bekhorot 58b:10","start":2158.57,"end":2158.58,"he":"אֶחָד,","w0":25,"w1":25,"estimated":true},{"ref":"Bekhorot 58b:10","start":2158.57,"end":2162.05,"he":"יָכוֹל יִהְיוּ מְעוּשָּׂרִין? תַּלְמוּד לוֹמַר ״עֲשִׂירִי״,","w0":26,"w1":31},{"ref":"Bekhorot 58b:10","start":2181.11,"end":2181.16,"he":"וְאֵין זֶה עֲשִׂירִי. רַבִּי יוֹסֵי","w0":32,"w1":36,"estimated":true},{"ref":"Bekhorot 58b:10","start":2181.11,"end":2181.11,"he":"בְּרַבִּי יְהוּדָה אוֹמֵר: מַעֲשֵׂר.","w0":37,"w1":40},{"ref":"Bekhorot 58b:10","start":2165.71,"end":2171.63,"he":"מַעֲשֵׂר.","w0":40,"w1":40},{"ref":"Bekhorot 58b:11","start":2165.71,"end":2171.63,"he":"מַאי","w0":0,"w1":0},{"ref":"Bekhorot 58b:11","start":2182.25,"end":2183.29,"he":"מַאי טַעְמֵיהּ דְּרַבִּי יוֹסֵי בְּרַבִּי יְהוּדָה? סָבַר לֵיהּ כְּאַבָּא","w0":0,"w1":8},{"ref":"Bekhorot 58b:11","start":2184.45,"end":2185.43,"he":"אֶלְעָזָר בֶּן גּוֹמֵל, דְּתַנְיָא: אַבָּא אֶלְעָזָר בֶּן גּוֹמֵל","w0":9,"w1":16},{"ref":"Bekhorot 58b:11","start":2186.63,"end":2186.64,"he":"אוֹמֵר:","w0":17,"w1":17,"estimated":true},{"ref":"Bekhorot 58b:11","start":2186.63,"end":2186.63,"he":"״וְנֶחְשַׁב לָכֶם תְּרוּמַתְכֶם״","w0":18,"w1":20},{"ref":"Bekhorot 58b:11","start":2189.21,"end":2189.21,"he":"תְּרוּמַתְכֶם״","w0":20,"w1":20},{"ref":"Bekhorot 58b:11","start":2191.49,"end":2191.5,"he":"—","w0":21,"w1":21,"estimated":true},{"ref":"Bekhorot 58b:11","start":2191.49,"end":2192.79,"he":"בִּשְׁתֵּי תְרוּמוֹת הַכָּתוּב מְדַבֵּר, אַחַת תְּרוּמָה גְּדוֹלָה, וְאַחַת תְּרוּמַת","w0":22,"w1":30},{"ref":"Bekhorot 58b:11","start":2197.85,"end":2197.85,"he":"תְּרוּמַת מַעֲשֵׂר.","w0":30,"w1":31},{"ref":"Bekhorot 58b:11","start":2194.55,"end":2194.55,"he":"מַעֲשֵׂר.","w0":31,"w1":31},{"ref":"Bekhorot 58b:12","start":2194.55,"end":2194.55,"he":"כְּשֵׁם שֶׁהַתְּרוּמָה גְּדוֹלָה","w0":0,"w1":2},{"ref":"Bekhorot 58b:12","start":2194.55,"end":2194.59,"he":"נִיטֶּלֶת בְּאוֹמֶד וּבְמַחְשָׁבָה —","w0":3,"w1":6,"estimated":true}],"wordTimeline":[{"start":398.64,"end":418.98,"ref":"Bekhorot 58a:2","w0":7,"w1":7,"heardText":"גורן גורן,","source":"deterministic-relocalized"},{"start":418.98,"end":424.62,"ref":"Bekhorot 58a:1","w0":2,"w1":2,"heardText":"מייסר בהמה,","source":"deterministic-relocalized"},{"start":424.62,"end":429.12,"ref":"Bekhorot 58a:1","w0":3,"w1":3,"heardText":"מצווה.","source":"deterministic-relocalized"},{"start":429.12,"end":430.5,"ref":"Bekhorot 58a:2","w0":12,"w1":15,"heardText":"ניחא ליה דלעסבון מצווה","source":"deterministic-relocalized"},{"start":430.5,"end":437.08,"ref":"Bekhorot 58a:2","w0":16,"w1":16,"heardText":"בממונם","source":"deterministic-relocalized"},{"start":437.08,"end":437.92,"ref":"Bekhorot 58a:1","w0":4,"w1":5,"heardText":"על הרגל.","source":"deterministic-relocalized"},{"start":437.92,"end":439.86,"ref":"Bekhorot 58a:3","w0":0,"w1":3,"heardText":"ומה קרי ליה גורן?","source":"deterministic-global"},{"start":439.86,"end":450.2,"ref":"Bekhorot 58a:3","w0":3,"w1":3,"heardText":"גורן?","source":"deterministic-local"},{"start":450.2,"end":455.48,"ref":"Bekhorot 58a:3","w0":4,"w1":5,"heardText":"דטוב לקרויי גורן.","source":"deterministic-local"},{"start":455.48,"end":462.24,"ref":"Bekhorot 58a:3","w0":3,"w1":3,"heardText":"גורן","source":"deterministic-local"},{"start":462.24,"end":469.52,"ref":"Bekhorot 58a:3","w0":4,"w1":5,"heardText":"מייסד תבואה, גורן","source":"deterministic-local"},{"start":469.52,"end":483.3,"ref":"Bekhorot 58a:3","w0":3,"w1":3,"heardText":"גורן,","source":"deterministic-local"},{"start":483.3,"end":492.42,"ref":"Bekhorot 58a:4","w0":0,"w1":1,"heardText":"קמא פרס.","source":"deterministic-local"},{"start":492.42,"end":493.78,"ref":"Bekhorot 58a:4","w0":1,"w1":1,"heardText":"פרס החג.","source":"deterministic-local"},{"start":493.78,"end":495.1,"ref":"Bekhorot 58a:4","w0":0,"w1":1,"heardText":"קמא פרס.","source":"deterministic-local"},{"start":495.1,"end":496.34,"ref":"Bekhorot 58a:4","w0":1,"w1":1,"heardText":"פרס","source":"deterministic-local"},{"start":496.34,"end":497.42,"ref":"Bekhorot 58a:4","w0":2,"w1":5,"heardText":"פירש רב איצטברבי יהודה","source":"deterministic-local"},{"start":497.42,"end":498.98,"ref":"Bekhorot 58a:4","w0":6,"w1":10,"heardText":"אין פרס פחות מחמישה","source":"deterministic-local"},{"start":498.98,"end":500.76,"ref":"Bekhorot 58a:4","w0":11,"w1":12,"heardText":"עשרה יום.","source":"deterministic-local"},{"start":500.76,"end":502.02,"ref":"Bekhorot 58a:5","w0":0,"w1":3,"heardText":"מאי משמע? אמר רבא","source":"deterministic-local"},{"start":502.02,"end":502.96,"ref":"Bekhorot 58a:5","w0":4,"w1":5,"heardText":"אבוה, פרס","source":"deterministic-local"},{"start":502.96,"end":505.24,"ref":"Bekhorot 58a:5","w0":7,"w1":7,"heardText":"פלגא. פרס","source":"deterministic-relocalized"},{"start":505.24,"end":506.94,"ref":"Bekhorot 58a:5","w0":8,"w1":9,"heardText":"פלגא דמאי?","source":"deterministic-local"},{"start":506.94,"end":508.82,"ref":"Bekhorot 58a:5","w0":10,"w1":12,"heardText":"פלגא דהלכות פסח.","source":"deterministic-local"},{"start":508.82,"end":510.06,"ref":"Bekhorot 58a:5","w0":11,"w1":12,"heardText":"הלכות פסח.","source":"deterministic-local"},{"start":510.06,"end":511,"ref":"Bekhorot 58a:5","w0":16,"w1":19,"heardText":"ברייתא, שואלין את הדורשין","source":"deterministic-local"},{"start":511,"end":512.88,"ref":"Bekhorot 58a:5","w0":20,"w1":23,"heardText":"בהלכות פסח קודם לפסח","source":"deterministic-local"},{"start":512.88,"end":514.26,"ref":"Bekhorot 58a:5","w0":24,"w1":27,"heardText":"שלושים יום, ושמעון גמליאל","source":"deterministic-local"},{"start":514.26,"end":525.36,"ref":"Bekhorot 58a:5","w0":28,"w1":30,"heardText":"אומר שתאי שבתות.","source":"deterministic-local"},{"start":525.36,"end":526.42,"ref":"Bekhorot 58a:5","w0":16,"w1":17,"heardText":"שואל ודורש","source":"deterministic-local"},{"start":526.42,"end":530.16,"ref":"Bekhorot 58a:5","w0":18,"w1":19,"heardText":"הלכות פסח.","source":"deterministic-local"},{"start":530.16,"end":544.38,"ref":"Bekhorot 58a:5","w0":29,"w1":30,"heardText":"שתאי שבתות,","source":"deterministic-local"},{"start":544.38,"end":547.76,"ref":"Bekhorot 58a:5","w0":19,"w1":19,"heardText":"פרס החג","source":"deterministic-local"},{"start":547.76,"end":552.96,"ref":"Bekhorot 58a:6","w0":0,"w1":2,"heardText":"סוכות. בן עזאי אומר.","source":"deterministic-relocalized"},{"start":552.96,"end":556.68,"ref":"Bekhorot 58a:6","w0":3,"w1":6,"heardText":"בעשרים ותשעה באדר, באחד","source":"deterministic-local"},{"start":556.68,"end":558.06,"ref":"Bekhorot 58a:6","w0":7,"w1":7,"heardText":"בניסן,","source":"deterministic-local"},{"start":558.06,"end":560.72,"ref":"Bekhorot 58a:6","w0":3,"w1":5,"heardText":"בעשרים ותשעה באב.","source":"deterministic-local"},{"start":560.72,"end":561.4,"ref":"Bekhorot 58a:6","w0":8,"w1":10,"heardText":"ומה קמיפלגי ליה רבי","source":"deterministic-local"},{"start":561.4,"end":578.48,"ref":"Bekhorot 58a:6","w0":11,"w1":13,"heardText":"עקיבא בן עזאי?","source":"deterministic-local"},{"start":578.48,"end":583.02,"ref":"Bekhorot 58a:6","w0":6,"w1":7,"heardText":"ראש חודש סיוון","source":"deterministic-local"},{"start":583.02,"end":591.84,"ref":"Bekhorot 58a:6","w0":16,"w1":16,"heardText":"סבר--","source":"deterministic-local"},{"start":591.84,"end":598.42,"ref":"Bekhorot 58a:6","w0":17,"w1":17,"heardText":"כ\"ט אדר.","source":"deterministic-local"},{"start":598.42,"end":599.46,"ref":"Bekhorot 58a:6","w0":17,"w1":20,"heardText":"אדר הסמוך לניסן זימנין","source":"deterministic-local"},{"start":599.46,"end":606.72,"ref":"Bekhorot 58a:6","w0":21,"w1":23,"heardText":"למלא זימנין לחסר.","source":"deterministic-local"},{"start":606.72,"end":610.28,"ref":"Bekhorot 58a:6","w0":23,"w1":23,"heardText":"חסר","source":"deterministic-local"},{"start":610.28,"end":612.08,"ref":"Bekhorot 58a:6","w0":24,"w1":27,"heardText":"זימנין דמיקלע ביום שלושים","source":"deterministic-local"},{"start":612.08,"end":617.88,"ref":"Bekhorot 58a:6","w0":28,"w1":31,"heardText":"וזימנין דמיקלע בעשרים ותשעה.","source":"deterministic-local"},{"start":617.88,"end":619.02,"ref":"Bekhorot 58a:6","w0":21,"w1":21,"heardText":"מלא","source":"deterministic-local"},{"start":619.02,"end":620.44,"ref":"Bekhorot 58a:6","w0":23,"w1":23,"heardText":"חסר?","source":"deterministic-local"},{"start":620.44,"end":623.08,"ref":"Bekhorot 58a:6","w0":21,"w1":21,"heardText":"מלא,","source":"deterministic-local"},{"start":623.08,"end":625.04,"ref":"Bekhorot 58a:6","w0":23,"w1":23,"heardText":"חסר,","source":"deterministic-local"},{"start":625.04,"end":625.7,"ref":"Bekhorot 58a:6","w0":32,"w1":35,"heardText":"משום הכי לא קבעי","source":"deterministic-local"},{"start":625.7,"end":628.12,"ref":"Bekhorot 58a:6","w0":36,"w1":37,"heardText":"לה זמן.","source":"deterministic-local"},{"start":628.12,"end":629.08,"ref":"Bekhorot 58a:6","w0":38,"w1":41,"heardText":"בן עזאי סבר אדר","source":"deterministic-local"},{"start":629.08,"end":632.14,"ref":"Bekhorot 58a:6","w0":42,"w1":45,"heardText":"הסמוך לניסן זימנין לחסר.","source":"deterministic-local"},{"start":632.14,"end":634.46,"ref":"Bekhorot 58a:6","w0":42,"w1":43,"heardText":"הסמוך לניסן,","source":"deterministic-local"},{"start":634.46,"end":636.14,"ref":"Bekhorot 58a:6","w0":45,"w1":48,"heardText":"חסר. הלכך קבעי לה","source":"deterministic-local"},{"start":636.14,"end":641.52,"ref":"Bekhorot 58a:6","w0":49,"w1":49,"heardText":"זמן.","source":"deterministic-local"},{"start":641.52,"end":644.84,"ref":"Bekhorot 58a:6","w0":50,"w1":52,"heardText":"בעשרים ותשעה באדר,","source":"deterministic-local"},{"start":644.84,"end":647.96,"ref":"Bekhorot 58a:7","w0":0,"w1":1,"heardText":"באחד בסיוון.","source":"deterministic-local"},{"start":647.96,"end":654.42,"ref":"Bekhorot 58a:6","w0":49,"w1":49,"heardText":"זמן?","source":"deterministic-local"},{"start":654.42,"end":660.08,"ref":"Bekhorot 58a:7","w0":0,"w1":1,"heardText":"ראש חודש סיוון,","source":"deterministic-relocalized"},{"start":660.08,"end":674.34,"ref":"Bekhorot 58a:7","w0":3,"w1":5,"heardText":"אייתי דלא נפישי,","source":"deterministic-local"},{"start":674.34,"end":678.7,"ref":"Bekhorot 58a:7","w0":6,"w1":9,"heardText":"היא אמרי לכתם לעשר.","source":"deterministic-relocalized"},{"start":678.7,"end":679.64,"ref":"Bekhorot 58a:7","w0":11,"w1":14,"heardText":"אדרבה מטי רגל שוא","source":"deterministic-relocalized"},{"start":679.64,"end":687.58,"ref":"Bekhorot 58a:7","w0":15,"w1":15,"heardText":"מלהו.","source":"deterministic-relocalized"},{"start":687.58,"end":715.38,"ref":"Bekhorot 58a:8","w0":8,"w1":8,"heardText":"אלולי רגל","source":"deterministic-relocalized"},{"start":715.38,"end":717.7,"ref":"Bekhorot 58a:10","w0":7,"w1":8,"heardText":"ראש חודש סיוון.","source":"deterministic-relocalized"},{"start":717.7,"end":754.65,"ref":"Bekhorot 58a:11","w0":0,"w1":1,"heardText":"בעשרים ותשעה באב.","source":"deterministic-local"},{"start":754.65,"end":756.77,"ref":"Bekhorot 58a:11","w0":12,"w1":15,"heardText":"ראש השנה למעשר בהמה","source":"deterministic-local"},{"start":756.77,"end":761.63,"ref":"Bekhorot 58a:11","w0":12,"w1":12,"heardText":"ראש חודש","source":"deterministic-local"},{"start":761.63,"end":762.87,"ref":"Bekhorot 58a:11","w0":12,"w1":13,"heardText":"מסכת ראש השנה,","source":"deterministic-local"},{"start":762.87,"end":783.39,"ref":"Bekhorot 58a:11","w0":12,"w1":15,"heardText":"ראש השנה למעשר בהמה?","source":"deterministic-local"},{"start":783.39,"end":787.33,"ref":"Bekhorot 58a:11","w0":13,"w1":13,"heardText":"שנה בשנה.","source":"deterministic-local"},{"start":787.33,"end":788.65,"ref":"Bekhorot 58a:12","w0":4,"w1":7,"heardText":"אלולין אמ-- אמ-- מעשר","source":"deterministic-local"},{"start":788.65,"end":833.71,"ref":"Bekhorot 58a:12","w0":8,"w1":9,"heardText":"מפני עצמן.","source":"deterministic-local"},{"start":833.71,"end":915.99,"ref":"Bekhorot 58a:12","w0":3,"w1":4,"heardText":"תשרי, אלול,","source":"deterministic-local"},{"start":915.99,"end":918.17,"ref":"Bekhorot 58a:12","w0":1,"w1":1,"heardText":"אמרין?","source":"deterministic-local"},{"start":918.17,"end":921.97,"ref":"Bekhorot 58a:12","w0":7,"w1":8,"heardText":"באחד בניסן,","source":"deterministic-relocalized"},{"start":921.97,"end":955.31,"ref":"Bekhorot 58a:12","w0":4,"w1":4,"heardText":"כ\"ט אלול.","source":"deterministic-relocalized"},{"start":955.31,"end":969.49,"ref":"Bekhorot 58a:12","w0":19,"w1":20,"heardText":"באחד בסיוון.","source":"deterministic-relocalized"},{"start":969.49,"end":974.85,"ref":"Bekhorot 58a:12","w0":2,"w1":4,"heardText":"בעזר מתישרי באלול,","source":"deterministic-relocalized"},{"start":974.85,"end":976.39,"ref":"Bekhorot 58a:14","w0":1,"w1":4,"heardText":"לטעמיהו דאמרי באחד בתשרי","source":"deterministic-local"},{"start":976.39,"end":978.49,"ref":"Bekhorot 58a:14","w0":5,"w1":8,"heardText":"ראש השנה למעשר בהמה.","source":"deterministic-local"},{"start":978.49,"end":1035.51,"ref":"Bekhorot 58a:14","w0":7,"w1":8,"heardText":"למעשר בהמה?","source":"deterministic-local"},{"start":1035.51,"end":1036.57,"ref":"Bekhorot 58a:13","w0":3,"w1":7,"heardText":"חדא, דבינהו למאבדא כרבעי","source":"deterministic-global"},{"start":1036.57,"end":1038.05,"ref":"Bekhorot 58a:13","w0":8,"w1":9,"heardText":"חודש יאש,","source":"deterministic-global"},{"start":1038.05,"end":1039.95,"ref":"Bekhorot 58a:13","w0":10,"w1":14,"heardText":"ועד, מפני שהוא יום","source":"deterministic-global"},{"start":1039.95,"end":1040.83,"ref":"Bekhorot 58a:13","w0":15,"w1":18,"heardText":"טוב ואי אפשר לעשות","source":"deterministic-global"},{"start":1040.83,"end":1046.53,"ref":"Bekhorot 58a:13","w0":19,"w1":20,"heardText":"ביום טוב,","source":"deterministic-global"},{"start":1046.53,"end":1507.22,"ref":"Bekhorot 58a:13","w0":21,"w1":22,"heardText":"משום סקרתא, משום סקרתא--","source":"deterministic-local"},{"start":1507.22,"end":1509.08,"ref":"Bekhorot 58a:14","w0":25,"w1":27,"heardText":"\"ואלולן מסתמין בפני עצמן.\"","source":"llm-rescue"},{"start":1507.22,"end":1509.08,"ref":"Bekhorot 58a:15","w0":0,"w1":10,"heardText":"\"ואלולן מסתמין בפני עצמן.\"","source":"llm-rescue"},{"start":1509.08,"end":1510.12,"ref":"Bekhorot 58a:15","w0":11,"w1":24,"heardText":"תניא, בעיצת האדמו\"ר בן","source":"llm-rescue"},{"start":1509.08,"end":1510.12,"ref":"Bekhorot 58a:16","w0":0,"w1":0,"heardText":"תניא, בעיצת האדמו\"ר בן","source":"llm-rescue"},{"start":1510.12,"end":1511.1,"ref":"Bekhorot 58a:16","w0":1,"w1":9,"heardText":"עזאי, אלולן מסתמין בפני","source":"llm-rescue"},{"start":1510.12,"end":1511.1,"ref":"Bekhorot 58a:17","w0":0,"w1":4,"heardText":"עזאי, אלולן מסתמין בפני","source":"llm-rescue"},{"start":1511.1,"end":1519.26,"ref":"Bekhorot 58a:17","w0":5,"w1":8,"heardText":"עצמן.","source":"llm-rescue"},{"start":1519.26,"end":1520.7,"ref":"Bekhorot 58a:14","w0":26,"w1":27,"heardText":"מסתמין בפני עצמן?","source":"deterministic-relocalized"},{"start":1520.7,"end":1522.5,"ref":"Bekhorot 58a:17","w0":10,"w1":12,"heardText":"לא דלי חמשה באב","source":"deterministic-relocalized"},{"start":1522.5,"end":1526.12,"ref":"Bekhorot 58a:17","w0":13,"w1":13,"heardText":"וחמשה--","source":"deterministic-relocalized"},{"start":1526.12,"end":1527.8,"ref":"Bekhorot 58a:17","w0":18,"w1":21,"heardText":"חמשה באלול וחמשה בתשרי","source":"deterministic-relocalized"},{"start":1527.8,"end":1529.94,"ref":"Bekhorot 58a:17","w0":23,"w1":26,"heardText":"אין מצטרפין. חמשה בתשרי","source":"deterministic-relocalized"},{"start":1529.94,"end":1538.86,"ref":"Bekhorot 58a:17","w0":27,"w1":28,"heardText":"וחמשה באב.","source":"deterministic-relocalized"},{"start":1538.86,"end":1552.78,"ref":"Bekhorot 58a:17","w0":29,"w1":29,"heardText":"מסתמין.","source":"llm-rescue"},{"start":1552.78,"end":1554.64,"ref":"Bekhorot 58a:18","w0":3,"w1":6,"heardText":"כי היכי דמפסקי שנים","source":"deterministic-global"},{"start":1554.64,"end":1591.98,"ref":"Bekhorot 58a:18","w0":7,"w1":8,"heardText":"מפסקי גרנוס.","source":"deterministic-global"},{"start":1591.98,"end":1598.8,"ref":"Bekhorot 58a:18","w0":3,"w1":5,"heardText":"כי היכי דמפסקי ש--","source":"deterministic-global"},{"start":1598.8,"end":1604.32,"ref":"Bekhorot 58a:18","w0":9,"w1":11,"heardText":"כמשמע לן.","source":"deterministic-local"},{"start":1604.32,"end":1605.44,"ref":"Bekhorot 58a:19","w0":0,"w1":3,"heardText":"חמשה לפני ראש השנה","source":"deterministic-local"},{"start":1605.44,"end":1606.64,"ref":"Bekhorot 58a:19","w0":4,"w1":7,"heardText":"וחמשה לאחר ראש השנה","source":"deterministic-local"},{"start":1606.64,"end":1608.26,"ref":"Bekhorot 58a:19","w0":8,"w1":12,"heardText":"אין מצטרף. חמשה לפני","source":"deterministic-local"},{"start":1608.26,"end":1609.8,"ref":"Bekhorot 58a:19","w0":13,"w1":15,"heardText":"האבן וחמשה לאחר הגורן","source":"deterministic-local"},{"start":1609.8,"end":1610.86,"ref":"Bekhorot 58a:19","w0":16,"w1":20,"heardText":"הרי אלו מצטרף. אמר","source":"deterministic-local"},{"start":1610.86,"end":1611.86,"ref":"Bekhorot 58a:19","w0":21,"w1":21,"heardText":"רבא רבא סבר דברי","source":"deterministic-local"},{"start":1610.86,"end":1611.86,"ref":"Bekhorot 58a:20","w0":0,"w1":2,"heardText":"רבא רבא סבר דברי","source":"deterministic-local"},{"start":1611.86,"end":1623.86,"ref":"Bekhorot 58a:20","w0":3,"w1":4,"heardText":"בן עזאי.","source":"deterministic-local"},{"start":1623.86,"end":1627.18,"ref":"Bekhorot 58a:20","w0":6,"w1":8,"heardText":"לא דלי חמשה באב.","source":"deterministic-local"},{"start":1627.18,"end":1632.38,"ref":"Bekhorot 58a:20","w0":9,"w1":10,"heardText":"חמשה באלול,","source":"deterministic-local"},{"start":1632.38,"end":1634.6,"ref":"Bekhorot 58a:20","w0":11,"w1":11,"heardText":"ואלולן מסתמין בפני עצמן.","source":"llm-rescue"},{"start":1634.6,"end":1637.68,"ref":"Bekhorot 58a:20","w0":12,"w1":12,"heardText":"וחמשה בתשרי,","source":"llm-rescue"},{"start":1637.68,"end":1642.34,"ref":"Bekhorot 58a:20","w0":13,"w1":15,"heardText":"כונסין לדיר למעשר.","source":"deterministic-local"},{"start":1642.34,"end":1661.86,"ref":"Bekhorot 58b:1","w0":0,"w1":3,"heardText":"ונוטל לך מאלו.","source":"deterministic-relocalized"},{"start":1661.86,"end":1667.94,"ref":"Bekhorot 58b:1","w0":4,"w1":6,"heardText":"השאר פטורין ממעשר.","source":"deterministic-local"},{"start":1667.94,"end":1669.2,"ref":"Bekhorot 58b:1","w0":6,"w1":9,"heardText":"ממה נפשך, אי באחד","source":"deterministic-local"},{"start":1669.2,"end":1690.04,"ref":"Bekhorot 58b:1","w0":10,"w1":12,"heardText":"באלול ראש השנה.","source":"deterministic-local"},{"start":1690.04,"end":1691.48,"ref":"Bekhorot 58b:1","w0":19,"w1":22,"heardText":"ואי באחד בתשרי ראש","source":"deterministic-local"},{"start":1691.48,"end":1731.72,"ref":"Bekhorot 58b:1","w0":23,"w1":23,"heardText":"השנה.","source":"deterministic-local"},{"start":1731.72,"end":1732.74,"ref":"Bekhorot 58b:2","w0":0,"w1":1,"heardText":"מאי אמרי?","source":"deterministic-local"},{"start":1732.74,"end":1738.24,"ref":"Bekhorot 58b:2","w0":2,"w1":3,"heardText":"לצאת ולגזור","source":"deterministic-relocalized"},{"start":1738.24,"end":1740.12,"ref":"Bekhorot 58b:2","w0":3,"w1":6,"heardText":"גevalדיג, עשירי ודאי אמר","source":"deterministic-local"},{"start":1740.12,"end":1743.6,"ref":"Bekhorot 58b:2","w0":7,"w1":10,"heardText":"רחמנא ולא עשירי ספק.","source":"deterministic-local"},{"start":1743.6,"end":1745.56,"ref":"Bekhorot 58b:2","w0":5,"w1":7,"heardText":"עשירי ודאי אמר רחמנא","source":"deterministic-local"},{"start":1745.56,"end":1755.62,"ref":"Bekhorot 58b:2","w0":8,"w1":10,"heardText":"ולא עשירי ס-","source":"deterministic-local"},{"start":1755.62,"end":1792.44,"ref":"Bekhorot 58b:2","w0":5,"w1":6,"heardText":"עשירי ודאי.","source":"deterministic-local"},{"start":1792.44,"end":1793.28,"ref":"Bekhorot 58b:3","w0":1,"w1":2,"heardText":"מהו דקיימא,","source":"deterministic-local"},{"start":1793.28,"end":1823.84,"ref":"Bekhorot 58b:3","w0":3,"w1":7,"heardText":"מיגזרת ומעשי למשקל מהנך.","source":"deterministic-relocalized"},{"start":1823.84,"end":1827.32,"ref":"Bekhorot 58b:3","w0":8,"w1":10,"heardText":"כמשמע לן.","source":"deterministic-local"},{"start":1827.32,"end":1841.56,"ref":"Bekhorot 58b:4","w0":1,"w1":4,"heardText":"באיזה צד מעשרין. באיזה צד מסעסין.","source":"deterministic-local"},{"start":1841.56,"end":1844.28,"ref":"Bekhorot 58b:4","w0":5,"w1":6,"heardText":"כונסין לדיר.","source":"deterministic-local"},{"start":1844.28,"end":1846.68,"ref":"Bekhorot 58b:4","w0":7,"w1":10,"heardText":"ועושה להו פסח קטן.","source":"deterministic-local"},{"start":1846.68,"end":1847.36,"ref":"Bekhorot 58b:4","w0":10,"w1":13,"heardText":"כדי שלא יהיו שניים","source":"deterministic-local"},{"start":1847.36,"end":1847.9,"ref":"Bekhorot 58b:4","w0":14,"w1":16,"heardText":"אוכלין לו אצל זה","source":"deterministic-local"},{"start":1847.9,"end":1851.18,"ref":"Bekhorot 58b:4","w0":17,"w1":17,"heardText":"כאחת.","source":"deterministic-local"},{"start":1851.18,"end":1860.77,"ref":"Bekhorot 58b:4","w0":18,"w1":18,"heardText":"ומונין בשבעת.","source":"deterministic-relocalized"},{"start":1860.77,"end":1864.35,"ref":"Bekhorot 58b:4","w0":30,"w1":31,"heardText":"סוכה בסקרא,","source":"deterministic-local"},{"start":1864.35,"end":1865.05,"ref":"Bekhorot 58b:4","w0":32,"w1":32,"heardText":"ואומר","source":"deterministic-local"},{"start":1865.05,"end":1866.45,"ref":"Bekhorot 58b:4","w0":33,"w1":36,"heardText":"\"הרי זה מעשר.\" לא","source":"deterministic-local"},{"start":1866.45,"end":1869.31,"ref":"Bekhorot 58b:4","w0":37,"w1":38,"heardText":"סוכה בסקרא.","source":"deterministic-local"},{"start":1869.31,"end":1872.81,"ref":"Bekhorot 58b:4","w0":39,"w1":41,"heardText":"ולו מנה בשבט,","source":"deterministic-local"},{"start":1872.81,"end":1893.53,"ref":"Bekhorot 58b:4","w0":41,"w1":41,"heardText":"שבט.","source":"deterministic-local"},{"start":1893.53,"end":1894.63,"ref":"Bekhorot 58b:4","w0":39,"w1":42,"heardText":"ולו מנה בשבט או","source":"deterministic-local"},{"start":1894.63,"end":1901.15,"ref":"Bekhorot 58b:4","w0":43,"w1":46,"heardText":"שמנה רבוצים או עומדים,","source":"deterministic-local"},{"start":1901.15,"end":1918.11,"ref":"Bekhorot 58b:4","w0":48,"w1":50,"heardText":"הרי אלו מסאסין. הוילמעי","source":"deterministic-relocalized"},{"start":1901.15,"end":1918.11,"ref":"Bekhorot 58b:5","w0":0,"w1":1,"heardText":"הרי אלו מסאסין. הוילמעי","source":"deterministic-relocalized"},{"start":1918.11,"end":1920.81,"ref":"Bekhorot 58b:5","w0":3,"w1":4,"heardText":"ונטלה עשרה","source":"deterministic-local"},{"start":1920.81,"end":1923.95,"ref":"Bekhorot 58b:5","w0":4,"w1":4,"heardText":"מעשר בהמה.\" עשרה","source":"deterministic-local"},{"start":1923.95,"end":1928.39,"ref":"Bekhorot 58b:5","w0":5,"w1":10,"heardText":"מעשר בהמה.\" אין זה.","source":"deterministic-relocalized"},{"start":1928.39,"end":1929.41,"ref":"Bekhorot 58b:5","w0":12,"w1":15,"heardText":"נקר. אומר רבי יהודה","source":"deterministic-relocalized"},{"start":1929.41,"end":1931.05,"ref":"Bekhorot 58b:5","w0":16,"w1":18,"heardText":"אומר מעשר דאורחא כפת","source":"deterministic-relocalized"},{"start":1931.05,"end":1940.29,"ref":"Bekhorot 58b:5","w0":19,"w1":21,"heardText":"שאכמנה מן המנויין.","source":"deterministic-relocalized"},{"start":1940.29,"end":1945.59,"ref":"Bekhorot 58b:5","w0":24,"w1":26,"heardText":"הרי אלו פטורין.","source":"deterministic-local"},{"start":1945.59,"end":1948.13,"ref":"Bekhorot 58b:5","w0":26,"w1":26,"heardText":"פטור בראיה.","source":"deterministic-local"},{"start":1948.13,"end":1950.91,"ref":"Bekhorot 58b:5","w0":27,"w1":28,"heardText":"מן המעושרין.","source":"deterministic-local"},{"start":1950.91,"end":1956.19,"ref":"Bekhorot 58b:5","w0":17,"w1":17,"heardText":"מעשר בהמה","source":"deterministic-local"},{"start":1956.19,"end":1959.25,"ref":"Bekhorot 58b:5","w0":18,"w1":21,"heardText":"כפת שאכמנה מנויין","source":"deterministic-local"},{"start":1959.25,"end":1961.73,"ref":"Bekhorot 58b:5","w0":27,"w1":28,"heardText":"אכמנה מעושרין","source":"deterministic-local"},{"start":1961.73,"end":1965.91,"ref":"Bekhorot 58b:5","w0":17,"w1":17,"heardText":"מעשר בהמה.","source":"deterministic-local"},{"start":1965.91,"end":1967.05,"ref":"Bekhorot 58b:5","w0":28,"w1":32,"heardText":"דין דהלכות כולם ירעו","source":"deterministic-local"},{"start":1967.05,"end":1968.33,"ref":"Bekhorot 58b:5","w0":33,"w1":35,"heardText":"את השיסתא וביכלו ממונה","source":"deterministic-local"},{"start":1968.33,"end":1971.27,"ref":"Bekhorot 58b:5","w0":36,"w1":37,"heardText":"בה לי.","source":"deterministic-local"},{"start":1971.27,"end":1972.83,"ref":"Bekhorot 58b:5","w0":17,"w1":17,"heardText":"מעשר בהמה.","source":"deterministic-local"},{"start":1972.83,"end":1986.65,"ref":"Bekhorot 58b:5","w0":26,"w1":26,"heardText":"פטור בראיה.","source":"deterministic-local"},{"start":1986.65,"end":1989.77,"ref":"Bekhorot 58b:5","w0":21,"w1":21,"heardText":"מנויין","source":"deterministic-local"},{"start":1989.77,"end":2003.43,"ref":"Bekhorot 58b:5","w0":17,"w1":17,"heardText":"מעשר בהמה. מעשר בהמה,","source":"deterministic-local"},{"start":2003.43,"end":2018.85,"ref":"Bekhorot 58b:5","w0":26,"w1":26,"heardText":"פטור בראיה,","source":"deterministic-relocalized"},{"start":2018.85,"end":2021.21,"ref":"Bekhorot 58b:6","w0":1,"w1":2,"heardText":"תנא רבנן,","source":"deterministic-local"},{"start":2021.21,"end":2022.81,"ref":"Bekhorot 58b:6","w0":3,"w1":6,"heardText":"באיזה זמן מעשר כונסן","source":"deterministic-relocalized"},{"start":2022.81,"end":2025.81,"ref":"Bekhorot 58b:6","w0":7,"w1":11,"heardText":"לדיר ואוסלן פסח קטן.","source":"deterministic-relocalized"},{"start":2025.81,"end":2026.55,"ref":"Bekhorot 58b:6","w0":13,"w1":16,"heardText":"כדי שלא יהיו שתיים","source":"deterministic-relocalized"},{"start":2026.55,"end":2030.43,"ref":"Bekhorot 58b:6","w0":17,"w1":19,"heardText":"בכני ולו צס כחד.","source":"deterministic-relocalized"},{"start":2030.43,"end":2034.81,"ref":"Bekhorot 58b:6","w0":20,"w1":21,"heardText":"אמו זה מבעחוץ.","source":"deterministic-relocalized"},{"start":2034.81,"end":2036.81,"ref":"Bekhorot 58b:6","w0":22,"w1":23,"heardText":"והימי בפנים.","source":"deterministic-local"},{"start":2036.81,"end":2047.01,"ref":"Bekhorot 58b:6","w0":24,"w1":27,"heardText":"וגועות ויוצאות לקראת אימן.","source":"deterministic-local"},{"start":2047.01,"end":2058.03,"ref":"Bekhorot 58b:7","w0":0,"w1":1,"heardText":"ולפקינהו אינהו.","source":"deterministic-local"},{"start":2058.03,"end":2059.59,"ref":"Bekhorot 58b:7","w0":5,"w1":5,"heardText":"בלי ישיברו. ולש פלו","source":"deterministic-relocalized"},{"start":2058.03,"end":2059.59,"ref":"Bekhorot 58b:8","w0":0,"w1":1,"heardText":"בלי ישיברו. ולש פלו","source":"deterministic-relocalized"},{"start":2059.59,"end":2069.35,"ref":"Bekhorot 58b:8","w0":2,"w1":2,"heardText":"ירקה.","source":"deterministic-relocalized"},{"start":2069.35,"end":2070.55,"ref":"Bekhorot 58b:8","w0":3,"w1":6,"heardText":"ולפקולא מאסה אמרה הונא","source":"deterministic-local"},{"start":2070.55,"end":2072.01,"ref":"Bekhorot 58b:8","w0":7,"w1":11,"heardText":"גזירה משום לקוח ומשום","source":"deterministic-local"},{"start":2072.01,"end":2076.43,"ref":"Bekhorot 58b:8","w0":12,"w1":12,"heardText":"יוסף.","source":"deterministic-local"},{"start":2076.43,"end":2102.21,"ref":"Bekhorot 58b:8","w0":10,"w1":10,"heardText":"לקייח. לקוח.","source":"deterministic-local"},{"start":2102.21,"end":2109.87,"ref":"Bekhorot 58b:8","w0":12,"w1":12,"heardText":"יוסם.","source":"llm-rescue"},{"start":2109.87,"end":2110.75,"ref":"Bekhorot 58b:9","w0":0,"w1":3,"heardText":"תנו רבנן קלא שיהבא","source":"deterministic-local"},{"start":2110.75,"end":2112.43,"ref":"Bekhorot 58b:9","w0":4,"w1":5,"heardText":"תחת השבט","source":"deterministic-local"},{"start":2112.43,"end":2113.33,"ref":"Bekhorot 58b:9","w0":4,"w1":4,"heardText":"יבר","source":"deterministic-local"},{"start":2113.33,"end":2121.63,"ref":"Bekhorot 58b:9","w0":8,"w1":10,"heardText":"טריפה שאינה עוברת.","source":"deterministic-local"},{"start":2121.63,"end":2127.59,"ref":"Bekhorot 58b:9","w0":8,"w1":8,"heardText":"טריפה","source":"deterministic-local"},{"start":2127.59,"end":2130.63,"ref":"Bekhorot 58b:8","w0":8,"w1":10,"heardText":"גזירה שווה תחת תחת.","source":"deterministic-local"},{"start":2130.63,"end":2132.29,"ref":"Bekhorot 58b:9","w0":11,"w1":13,"heardText":"תחת השבט מצוה למנוס","source":"deterministic-local"},{"start":2132.29,"end":2134.27,"ref":"Bekhorot 58b:9","w0":14,"w1":15,"heardText":"עם השבט.","source":"deterministic-local"},{"start":2134.27,"end":2135.29,"ref":"Bekhorot 58b:9","w0":16,"w1":19,"heardText":"לו מנה בשבט או","source":"deterministic-local"},{"start":2135.29,"end":2138.83,"ref":"Bekhorot 58b:9","w0":20,"w1":23,"heardText":"שמנה רבוצים או עומדים.","source":"deterministic-local"},{"start":2138.83,"end":2139.95,"ref":"Bekhorot 58b:9","w0":24,"w1":26,"heardText":"מנייה היינו קשה בדיעבד","source":"llm-rescue"},{"start":2139.95,"end":2141.01,"ref":"Bekhorot 58b:9","w0":27,"w1":28,"heardText":"תנא למא הא עשירי","source":"llm-rescue"},{"start":2141.01,"end":2143.63,"ref":"Bekhorot 58b:9","w0":30,"w1":31,"heardText":"קדוש מקמא אכיל.","source":"llm-rescue"},{"start":2143.63,"end":2144.43,"ref":"Bekhorot 58b:10","w0":1,"w1":4,"heardText":"בעיה. אדרבה שקריש מיה","source":"deterministic-relocalized"},{"start":2144.43,"end":2145.61,"ref":"Bekhorot 58b:10","w0":5,"w1":8,"heardText":"עשירי. לא קריש מיה.","source":"deterministic-relocalized"},{"start":2145.61,"end":2147.11,"ref":"Bekhorot 58b:10","w0":9,"w1":10,"heardText":"מנייה היינו","source":"deterministic-relocalized"},{"start":2147.11,"end":2148.59,"ref":"Bekhorot 58b:10","w0":9,"w1":13,"heardText":"עשירי תנא למא יהיה","source":"deterministic-relocalized"},{"start":2148.59,"end":2150.21,"ref":"Bekhorot 58b:10","w0":14,"w1":16,"heardText":"קדוש מקמא אכיל.","source":"deterministic-relocalized"},{"start":2150.21,"end":2153.37,"ref":"Bekhorot 58b:10","w0":17,"w1":19,"heardText":"יאכל הוילמעי.","source":"deterministic-relocalized"},{"start":2153.37,"end":2156.21,"ref":"Bekhorot 58b:10","w0":21,"w1":22,"heardText":"ונטלה עשרה","source":"deterministic-local"},{"start":2156.21,"end":2158.57,"ref":"Bekhorot 58b:10","w0":23,"w1":24,"heardText":"עשרה ונטלה לך,","source":"deterministic-local"},{"start":2158.57,"end":2159.63,"ref":"Bekhorot 58b:10","w0":26,"w1":27,"heardText":"יאכל ימול סרן תנא","source":"llm-rescue"},{"start":2159.63,"end":2160.73,"ref":"Bekhorot 58b:10","w0":28,"w1":29,"heardText":"למא עשירי. ואין זה","source":"llm-rescue"},{"start":2160.73,"end":2162.05,"ref":"Bekhorot 58b:10","w0":30,"w1":30,"heardText":"עשירי.","source":"llm-rescue"},{"start":2162.05,"end":2165.71,"ref":"Bekhorot 58b:10","w0":31,"w1":31,"heardText":"עשירי","source":"deterministic-local"},{"start":2165.71,"end":2181.11,"ref":"Bekhorot 58b:10","w0":40,"w1":40,"heardText":"מעשר דאורחא מעשר בהמה","source":"deterministic-local"},{"start":2165.71,"end":2181.11,"ref":"Bekhorot 58b:11","w0":0,"w1":0,"heardText":"מעשר דאורחא מעשר בהמה","source":"deterministic-local"},{"start":2181.11,"end":2182.25,"ref":"Bekhorot 58b:10","w0":37,"w1":40,"heardText":"רבי רבי יהודה אומר","source":"deterministic-local"},{"start":2182.25,"end":2183.29,"ref":"Bekhorot 58b:11","w0":0,"w1":3,"heardText":"לא מעשר מאי טעמא","source":"deterministic-local"},{"start":2183.29,"end":2184.45,"ref":"Bekhorot 58b:11","w0":4,"w1":8,"heardText":"דרבי יהודה סבר לכאבא","source":"deterministic-local"},{"start":2184.45,"end":2185.43,"ref":"Bekhorot 58b:11","w0":9,"w1":12,"heardText":"לא זבן גומל תניא","source":"deterministic-local"},{"start":2185.43,"end":2186.63,"ref":"Bekhorot 58b:11","w0":13,"w1":16,"heardText":"לא זבן גומל לומר.","source":"deterministic-local"},{"start":2186.63,"end":2189.21,"ref":"Bekhorot 58b:11","w0":18,"w1":20,"heardText":"\"ונחשב לכם תרומתכם.\"","source":"deterministic-local"},{"start":2189.21,"end":2191.49,"ref":"Bekhorot 58b:11","w0":20,"w1":20,"heardText":"תרומתכם","source":"deterministic-local"},{"start":2191.49,"end":2192.79,"ref":"Bekhorot 58b:11","w0":22,"w1":25,"heardText":"בשתי תרומות הקסבר מדבר","source":"deterministic-local"},{"start":2192.79,"end":2194.55,"ref":"Bekhorot 58b:11","w0":26,"w1":30,"heardText":"אחת תרומה גדולה ואחת","source":"deterministic-local"},{"start":2194.55,"end":2197.85,"ref":"Bekhorot 58b:11","w0":31,"w1":31,"heardText":"תרומה מעשר. תרומה גדולה","source":"deterministic-local"},{"start":2194.55,"end":2197.85,"ref":"Bekhorot 58b:12","w0":0,"w1":2,"heardText":"תרומה מעשר. תרומה גדולה","source":"deterministic-local"},{"start":2197.85,"end":2987.81,"ref":"Bekhorot 58b:11","w0":30,"w1":31,"heardText":"תרומה מעשר","source":"deterministic-local"},{"start":2987.81,"end":3349.82,"ref":"Bekhorot 58b:11","w0":19,"w1":19,"heardText":"על כפם,","source":"deterministic-local"},{"start":3349.82,"end":3504.68,"ref":"Bekhorot 58b:11","w0":25,"w1":25,"heardText":"במדבר,","source":"deterministic-local"},{"start":3504.68,"end":3506.68,"ref":"Bekhorot 58b:11","w0":31,"w1":31,"heardText":"למעשר בהמה.","source":"deterministic-relocalized"}],"matchStats":{"totalRuns":430,"totalWords":1414,"matchedWords":662,"unmatchedWords":724,"excludedWords":28,"bySource":{"deterministic-relocalized":{"label":"Deterministic matching (re-checked between anchors)","runs":38,"words":141},"deterministic-global":{"label":"Deterministic matching (relocalized)","runs":5,"words":30},"deterministic-local":{"label":"Deterministic matching (locked tracking)","runs":130,"words":448},"llm-rescue":{"label":"LLM rescue (Claude)","runs":8,"words":43}},"unmatched":[{"start":402.04,"end":402.48,"text":"הלכה","offeredToLlm":true},{"start":402.7,"end":403.5,"text":"טבל מדרבנן.","offeredToLlm":true},{"start":404.88,"end":405.74,"text":"מפרש מייסר בהמה.","offeredToLlm":true},{"start":407,"end":407.3,"text":"מצוות","offeredToLlm":true},{"start":408.46,"end":408.7,"text":"עומדה","offeredToLlm":true},{"start":411.78,"end":412.98,"text":"אפרשות מייסר בהמה","offeredToLlm":true},{"start":417.94,"end":418.38,"text":"מפרש","offeredToLlm":true},{"start":426.1,"end":426.48,"text":"מצוות.","offeredToLlm":true},{"start":427.3,"end":428.24,"text":"מצוות בגופם.","offeredToLlm":true},{"start":436.54,"end":436.7,"text":"ידע","offeredToLlm":true},{"start":444.1,"end":444.48,"text":"תבואה.","offeredToLlm":false},{"start":446.34,"end":446.9,"text":"מייסר בהמה.","offeredToLlm":false},{"start":447.54,"end":448,"text":"תבואה.","offeredToLlm":false},{"start":457.52,"end":458.3,"text":"מייסד דגן,","offeredToLlm":false},{"start":459.5,"end":460.18,"text":"מייסד דגן","offeredToLlm":false},{"start":460.34,"end":461.2,"text":"תירוש וייצר,","offeredToLlm":false},{"start":467.68,"end":468.1,"text":"תבואה","offeredToLlm":false},{"start":470.92,"end":471.18,"text":"טבל,","offeredToLlm":false},{"start":471.4,"end":473.1,"text":"חיוב ושבועות ומייסר שמדי רייסה.","offeredToLlm":false},{"start":475.04,"end":475.54,"text":"דרבנן","offeredToLlm":false},{"start":478.76,"end":479.16,"text":"מייסר בהמה.","offeredToLlm":false},{"start":481.04,"end":481.64,"text":"מייסר בהמה.","offeredToLlm":true},{"start":487.28,"end":487.78,"text":"זמנים","offeredToLlm":false},{"start":487.98,"end":488.9,"text":"מייסר בהמה","offeredToLlm":false},{"start":489.54,"end":491.98,"text":"יומטב. פרס הפסח, פרס האצרת,","offeredToLlm":false},{"start":516.1,"end":516.4,"text":"מחלוקת","offeredToLlm":false},{"start":517.36,"end":517.86,"text":"תנא קמא","offeredToLlm":false},{"start":521.06,"end":521.58,"text":"יומטב","offeredToLlm":false},{"start":527.64,"end":528.02,"text":"חכמים,","offeredToLlm":true},{"start":533.5,"end":533.88,"text":"חכמים,","offeredToLlm":true},{"start":535.14,"end":536.18,"text":"פרס הפסח","offeredToLlm":true},{"start":538.82,"end":539.56,"text":"פרס הפסח","offeredToLlm":true},{"start":541.68,"end":542.24,"text":"פרס האצרת","offeredToLlm":true},{"start":543.62,"end":543.96,"text":"שבועות,","offeredToLlm":true},{"start":567.96,"end":570.94,"text":"בפרס הפסח, בפרס האצרת, בפרס החג.","offeredToLlm":true},{"start":581.54,"end":582.08,"text":"בין המחלוקת?","offeredToLlm":true},{"start":597.2,"end":597.52,"text":"מחלוקת?","offeredToLlm":false},{"start":601.2,"end":602.26,"text":"ראש חודש אדר","offeredToLlm":false},{"start":650.54,"end":651.24,"text":"פרס האצרת,","offeredToLlm":true},{"start":665.36,"end":665.82,"text":"טייף","offeredToLlm":true},{"start":669.56,"end":670.16,"text":"גורן","offeredToLlm":true},{"start":676.8,"end":677.56,"text":"מייסר בהמה","offeredToLlm":true},{"start":684.66,"end":685.96,"text":"גורן סמוך","offeredToLlm":true},{"start":686.58,"end":687.12,"text":"יומטב","offeredToLlm":true},{"start":688.56,"end":689.02,"text":"בהמות.","offeredToLlm":true},{"start":692.84,"end":693.86,"text":"מעשרת","offeredToLlm":true},{"start":695.04,"end":695.66,"text":"טבל דרבנן","offeredToLlm":true},{"start":696.04,"end":696.2,"text":"חל","offeredToLlm":true},{"start":697.18,"end":697.44,"text":"גורן,","offeredToLlm":true},{"start":697.88,"end":700.2,"text":"ניחא ליה לעינש למה אבל מצווה בממוני.","offeredToLlm":true},{"start":732.17,"end":732.77,"text":"פרס החג,","offeredToLlm":true},{"start":743.75,"end":746.93,"text":"בן עזאי לטעמיה, בן עזאי לשיטותיה, דאמר מעובין המעשרים מפני עצמן.","offeredToLlm":true},{"start":753.59,"end":754.41,"text":"ראש חודש,","offeredToLlm":true},{"start":759.15,"end":759.39,"text":"מחלוקת","offeredToLlm":false},{"start":768.09,"end":768.39,"text":"חודש","offeredToLlm":true},{"start":769.05,"end":771.19,"text":"היו אלולין מעשר מפני עצמן.","offeredToLlm":true},{"start":775.51,"end":775.81,"text":"חודש","offeredToLlm":true},{"start":780.71,"end":780.97,"text":"חודש","offeredToLlm":true},{"start":795.23,"end":796.47,"text":"זמן הגורן","offeredToLlm":true},{"start":796.81,"end":797.11,"text":"חודש","offeredToLlm":true},{"start":799.51,"end":799.71,"text":"זמן","offeredToLlm":true},{"start":800.25,"end":800.57,"text":"גורן","offeredToLlm":true},{"start":800.89,"end":801.15,"text":"חודש","offeredToLlm":true},{"start":803.39,"end":805.31,"text":"ניחלי ליה איניש למעבד מצוה ממונא.","offeredToLlm":true},{"start":815.83,"end":816.09,"text":"חודש","offeredToLlm":true},{"start":818.51,"end":818.81,"text":"חודש","offeredToLlm":true},{"start":819.33,"end":821.35,"text":"והיו אלולין במעשר מפני עצמן,","offeredToLlm":true},{"start":843.89,"end":844.15,"text":"חודש","offeredToLlm":true},{"start":845.89,"end":847.95,"text":"היו אלולין במעשר מפני עצמן. משמע,","offeredToLlm":true},{"start":848.63,"end":849.51,"text":"ולעשות בימיהם של ישראל.","offeredToLlm":true},{"start":855.27,"end":858.29,"text":"זימנין דמעשרן לילהו ובני למאבדא כרבעי חודש יאש.","offeredToLlm":true},{"start":892.37,"end":892.67,"text":"חודש","offeredToLlm":true},{"start":893.55,"end":896.33,"text":"זימנין דמעשרן לילהו ובני למאבדא כרבעי חודש יאש.","offeredToLlm":true},{"start":919.55,"end":920.85,"text":"באחד בסיוון וכולו,","offeredToLlm":true},{"start":920.99,"end":921.35,"text":"וכולו","offeredToLlm":true},{"start":923.33,"end":925.87,"text":"אחד בניסן, גרבי שמעון גמליאל דאמר שתי שבתות.","offeredToLlm":true},{"start":933.65,"end":934.55,"text":"פרס הפסח,","offeredToLlm":true},{"start":945.45,"end":946.29,"text":"שתי שבתות.","offeredToLlm":true},{"start":947.21,"end":947.57,"text":"שתי שבתות.","offeredToLlm":true},{"start":953.07,"end":954.05,"text":"באחד בסיוון, כדאמרן.","offeredToLlm":true},{"start":971.73,"end":971.93,"text":"סברא","offeredToLlm":true},{"start":972.95,"end":973.23,"text":"חושבן","offeredToLlm":true},{"start":995.19,"end":995.95,"text":"זמן הגורן,","offeredToLlm":false},{"start":1004.15,"end":1005.59,"text":"בעשרים בתשרי באלול.","offeredToLlm":false},{"start":1006.61,"end":1009.37,"text":"ולמה אמרו בעשרים בתשרי באלול ולא אמרו באחד בתשרי?","offeredToLlm":false},{"start":1012.79,"end":1013.61,"text":"בעשרים בתשרי באלול,","offeredToLlm":false},{"start":1014.81,"end":1015.85,"text":"מפני שהוא יום טוב.","offeredToLlm":false},{"start":1018.03,"end":1019.77,"text":"אבל תייפוק ליה דבינהו למאבדא כרבעי חודש יאש.","offeredToLlm":false},{"start":1023.59,"end":1023.87,"text":"חודש","offeredToLlm":false},{"start":1025.33,"end":1025.53,"text":"כ\"ט","offeredToLlm":false},{"start":1026.87,"end":1027.19,"text":"סברא,","offeredToLlm":false},{"start":1030.99,"end":1031.25,"text":"חודש","offeredToLlm":false},{"start":1032.31,"end":1033.17,"text":"חדא ועד קאמר.","offeredToLlm":false},{"start":1056.33,"end":1056.61,"text":"כ\"ט","offeredToLlm":true},{"start":1061.13,"end":1062.71,"text":"שוילין בדרשים שתי שבתות.","offeredToLlm":true},{"start":1069.03,"end":1069.89,"text":"שתי שבתות.","offeredToLlm":true},{"start":1071.67,"end":1072.89,"text":"שוילין בדרשים הלכות פסח,","offeredToLlm":true},{"start":1077.89,"end":1078.45,"text":"שתי שבתות,","offeredToLlm":true},{"start":1080.71,"end":1081.39,"text":"אחד בסיוון,","offeredToLlm":true},{"start":1430.26,"end":1430.4,"text":"אדי--","offeredToLlm":true},{"start":1432.56,"end":1433.02,"text":"חשבון","offeredToLlm":true},{"start":1656.38,"end":1658.58,"text":"אלולן מסתמין בפני עצמן.","offeredToLlm":true},{"start":1665.82,"end":1666.92,"text":"אי זה זה טעית.","offeredToLlm":false},{"start":1807.08,"end":1808.56,"text":"ונוטל אחד מן האלולין.","offeredToLlm":true},{"start":1876.21,"end":1878.67,"text":"\"כֹּל מַעַשְׂר בְּקָרְבֶךָ לָהּ כֹּל אֲשֶׁר יָבֹא תַחַת הַשֶּׁבֶט\"","offeredToLlm":false},{"start":1884.85,"end":1886.87,"text":"\"שִׂפְתְּךָ וּמִשְׁעַנְתְּךָ הֵמָּה יְנַחֲמוּנִי\"","offeredToLlm":false},{"start":1903.93,"end":1904.29,"text":"הלכות","offeredToLlm":true},{"start":1904.45,"end":1905.09,"text":"לכתחילה,","offeredToLlm":true},{"start":1905.59,"end":1906.15,"text":"בדיעבד","offeredToLlm":true},{"start":1906.73,"end":1907.15,"text":"סקרא,","offeredToLlm":true},{"start":1907.95,"end":1908.45,"text":"שבט,","offeredToLlm":true},{"start":1914.33,"end":1914.73,"text":"בדיעבד","offeredToLlm":true},{"start":1915.67,"end":1916.21,"text":"הוילמעי.","offeredToLlm":true},{"start":1922.39,"end":1922.63,"text":"הלכה.","offeredToLlm":true},{"start":1942.27,"end":1942.65,"text":"הלכה","offeredToLlm":false},{"start":1943.83,"end":1944.61,"text":"פטור.","offeredToLlm":false},{"start":1958.67,"end":1958.69,"text":"כ--","offeredToLlm":false},{"start":1962.97,"end":1963.43,"text":"קדוש.","offeredToLlm":false},{"start":1970.05,"end":1970.33,"text":"ספק","offeredToLlm":false},{"start":1973.83,"end":1974.91,"text":"תוספות בבא מציעא דף ו'.","offeredToLlm":false},{"start":1997.85,"end":1998.67,"text":"ספק","offeredToLlm":true},{"start":2001.57,"end":2002.07,"text":"עשירי.","offeredToLlm":true},{"start":2004.61,"end":2005.37,"text":"ספק עשירי.","offeredToLlm":true},{"start":2005.85,"end":2006.03,"text":"הלכה","offeredToLlm":true},{"start":2006.27,"end":2006.89,"text":"ספק עשירי?","offeredToLlm":true},{"start":2008.83,"end":2009.39,"text":"חוטא חוץ.","offeredToLlm":true},{"start":2010.89,"end":2011.43,"text":"משמך","offeredToLlm":true},{"start":2012.57,"end":2013.25,"text":"חול מאזרה.","offeredToLlm":true},{"start":2019.31,"end":2019.63,"text":"ברייתא","offeredToLlm":true},{"start":2055.99,"end":2056.93,"text":"מה יברכס.","offeredToLlm":true},{"start":2072.75,"end":2073.35,"text":"דרך אגב","offeredToLlm":false},{"start":2075.49,"end":2075.85,"text":"פסולים.","offeredToLlm":false},{"start":2078.61,"end":2078.85,"text":"הלכה","offeredToLlm":false},{"start":2080.09,"end":2080.69,"text":"מעשר בהמה.","offeredToLlm":false},{"start":2088.01,"end":2088.19,"text":"דיר.","offeredToLlm":false},{"start":2092.19,"end":2092.71,"text":"לשחייח.","offeredToLlm":false},{"start":2115.27,"end":2115.63,"text":"טריפות","offeredToLlm":false},{"start":2119.45,"end":2119.81,"text":"טריפות","offeredToLlm":false},{"start":2120.67,"end":2121.29,"text":"מקרא","offeredToLlm":false},{"start":2122.53,"end":2123.31,"text":"פסול לקטנים","offeredToLlm":true},{"start":2124.67,"end":2125.23,"text":"מעשר בהמה","offeredToLlm":true},{"start":2125.43,"end":2125.71,"text":"קטנים,","offeredToLlm":true},{"start":2125.95,"end":2126.17,"text":"קטנים","offeredToLlm":true},{"start":2126.29,"end":2126.85,"text":"מעשר בהמה","offeredToLlm":true},{"start":2132.75,"end":2133.07,"text":"כתחילה","offeredToLlm":false},{"start":2172.43,"end":2172.79,"text":"הלכה","offeredToLlm":false},{"start":2189.97,"end":2190.69,"text":"ראשון רבים.","offeredToLlm":false},{"start":2965.29,"end":2973.33,"text":"בפרק קמא דפסחים יא לא מקרא דשואלין בהלכות הפסח קודם לפסח לא מידי. באפשר דאלפין הלכות חג מפסח. משום דרש--","offeredToLlm":false},{"start":2981.65,"end":2981.97,"text":"לכו ו--","offeredToLlm":false},{"start":2983.29,"end":2984.15,"text":"שואלין בהלכות","offeredToLlm":false},{"start":2989.87,"end":2997.17,"text":"ומכאן שוב הבא בבית יוסף ברי\"ח הלכות פסח שהוין דהות דשואלין נעמידין קודם היינו דפקו בפסח ולא בחג.","offeredToLlm":false},{"start":3012.45,"end":3013.73,"text":"שואלין בהלכות הפסח.","offeredToLlm":false},{"start":3063.01,"end":3064.67,"text":"שואלין ודורשין שלושים יום","offeredToLlm":false},{"start":3100.37,"end":3102.23,"text":"מן האמרי מילי אומר רבא בר שילא דאמר קרא זונתו","offeredToLlm":false},{"start":3328.24,"end":3332.86,"text":"פלטורים, פוירסט פלטורים, בספר במדבר. אבל תזמרג'ת תנחומא,","offeredToLlm":false},{"start":3334.8,"end":3335.1,"text":"תנחומא","offeredToLlm":false},{"start":3335.68,"end":3337.52,"text":"\"ואסרה מקומות נמנו ישראל\".","offeredToLlm":false},{"start":3340.74,"end":3346.92,"text":"\"אחד בהרידתם למצרים, שנאמר: בשבעים נפש ירדו אביך. ואחד בעלייתם, ויצאו בני ישראל מרעמסס\",","offeredToLlm":false},{"start":3348.22,"end":3349.38,"text":"\"ואחד בחמישה שפי גודם\",","offeredToLlm":false},{"start":3350.58,"end":3355.42,"text":"סו סריית בני ישראל. \"אחד במרגלים, אחד בימי יהושע בחלוק הארץ, שניים\",","offeredToLlm":true},{"start":3358.36,"end":3363,"text":"\"ואחד בימי דוד, אחד בימי עזרא ואחד לעתיד לבוא\".","offeredToLlm":true},{"start":3363.74,"end":3366.3,"text":"לעתיד לבוא? \"שנאמר: אות הבענה עצנה ימי מנה\".","offeredToLlm":true},{"start":3374.76,"end":3380.22,"text":"\"מתוך חיבה עשו לפני משה עושה מקל שר, כי שיצאו ממצרים מנה, כשנפלו באגו מנה\".","offeredToLlm":true},{"start":3385.04,"end":3385.38,"text":"חבה,","offeredToLlm":true},{"start":3385.74,"end":3386.4,"text":"אהבה","offeredToLlm":true},{"start":3398.8,"end":3400.66,"text":"\"אות הבענה עצנה ימי מנה\".","offeredToLlm":true},{"start":3402.1,"end":3402.76,"text":"לעתיד לבוא,","offeredToLlm":true},{"start":3407.76,"end":3408.7,"text":"תפילת ש\"י,","offeredToLlm":true},{"start":3414.48,"end":3415.3,"text":"דבר נפלא","offeredToLlm":true},{"start":3430.5,"end":3431.34,"text":"ל\"א ע\"ב.","offeredToLlm":true},{"start":3434.74,"end":3442.2,"text":"תניא רבי שמעון אלעזר אומר: עזרא תיקנם לישראל, שהיו קורין כלל שלפני תורה קוראין קודם את סרס, ושל משנה תורה קוראין ראש השנה.","offeredToLlm":true},{"start":3444.82,"end":3445.08,"text":"תוכחה.","offeredToLlm":true},{"start":3445.44,"end":3445.82,"text":"תוכחות","offeredToLlm":true},{"start":3446.96,"end":3447.44,"text":"תורה קוראין,","offeredToLlm":true},{"start":3454.74,"end":3455.42,"text":"תוכחות","offeredToLlm":true},{"start":3457.68,"end":3460.72,"text":"אמר רבה אבהו תלמיד רבי יוחנן: כדי שתכלש שנה וכל עוליה.","offeredToLlm":true},{"start":3465.2,"end":3467.2,"text":"כדי שתכלש שנה וכל עוליה,","offeredToLlm":true},{"start":3467.94,"end":3468.34,"text":"עולות","offeredToLlm":true},{"start":3470.98,"end":3471.38,"text":"תכלש שנה,","offeredToLlm":true},{"start":3472.36,"end":3472.66,"text":"עולות","offeredToLlm":true},{"start":3475.94,"end":3479.24,"text":"דשלא משנה משנה תורה, אית לה קדשא תכלש שנה וכל עוליה.","offeredToLlm":true},{"start":3483.62,"end":3483.96,"text":"אלול,","offeredToLlm":true},{"start":3485.36,"end":3485.98,"text":"אלוליין.","offeredToLlm":true},{"start":3490.64,"end":3493.32,"text":"תכלש אלול שלפני תורה קוראין, או טו את סרס ראש השנה.","offeredToLlm":true},{"start":3498.3,"end":3499.8,"text":"אין את סרס נמי ראש השנה היא.","offeredToLlm":true},{"start":3501.88,"end":3503.56,"text":"דתנן: הוא בעת סרס על פירותיו.","offeredToLlm":true},{"start":3512.02,"end":3512.94,"text":"לפירות האילן.","offeredToLlm":true},{"start":3515.7,"end":3516.3,"text":"תוכחה","offeredToLlm":true},{"start":3519.72,"end":3522.24,"text":"כדי שתכלש שנה וכל עוליה.","offeredToLlm":true},{"start":3523.38,"end":3523.78,"text":"תוכחה","offeredToLlm":true},{"start":3529.92,"end":3530.68,"text":"עולות","offeredToLlm":true},{"start":3537.34,"end":3537.96,"text":"את סרס,","offeredToLlm":true},{"start":3539.2,"end":3541.12,"text":"על פירותיו. לפרי טו יש הסככה.","offeredToLlm":true},{"start":3557.38,"end":3558.5,"text":"תכלש שנה וכל עוליה,","offeredToLlm":true},{"start":3563.34,"end":3563.72,"text":"מוכס.","offeredToLlm":true},{"start":3567.26,"end":3567.76,"text":"לכאורה,","offeredToLlm":true},{"start":3568.6,"end":3569.42,"text":"תכלש שנה וכל עוליה,","offeredToLlm":true},{"start":3571.88,"end":3572.34,"text":"בערך?","offeredToLlm":true},{"start":3583.18,"end":3588.48,"text":"מטעם זה הוא לו קורין במדבר סיני קודם את סרס כדי שלא להסמיך כלל של בחוקותי לאת סרס.","offeredToLlm":true},{"start":3589.62,"end":3590.52,"text":"תכלש שנה וכל עוליה,","offeredToLlm":true},{"start":3592.42,"end":3592.72,"text":"תוכחה","offeredToLlm":true},{"start":3605.78,"end":3606.32,"text":"תוכחה","offeredToLlm":true},{"start":3629.24,"end":3631.96,"text":"שהוא לא רצה מאלו שמסרשלים ללמוד.","offeredToLlm":true},{"start":3637.94,"end":3638.66,"text":"מסרשלים","offeredToLlm":true},{"start":3639.68,"end":3640.2,"text":"בחשבון,","offeredToLlm":true},{"start":3641.2,"end":3642.9,"text":"שלא יגיעו למדרגת הגדול בטהרה.","offeredToLlm":true},{"start":3645.12,"end":3645.44,"text":"גודל של","offeredToLlm":true},{"start":3666.22,"end":3668.32,"text":"סְאוּ, כי תסית ש. סְאוּ. סְאוּ","offeredToLlm":true},{"start":3677.24,"end":3678.22,"text":"עשירי יאה קודש,","offeredToLlm":true},{"start":3687.68,"end":3687.94,"text":"אחדות","offeredToLlm":true},{"start":3688.14,"end":3688.56,"text":"כאבות.","offeredToLlm":true},{"start":3692.5,"end":3692.92,"text":"שווה.","offeredToLlm":true},{"start":3699.08,"end":3699.6,"text":"תוכחה","offeredToLlm":true},{"start":3703.68,"end":3704.28,"text":"הקדמה.","offeredToLlm":true},{"start":3710.1,"end":3712.72,"text":"להט, מתוך חיבה עשו לפני משה עושה מקל שר.","offeredToLlm":true},{"start":3721.35,"end":3722.45,"text":"בנים לשם אלוקיכם,","offeredToLlm":true},{"start":3723.05,"end":3723.95,"text":"תהילים של יד,","offeredToLlm":true},{"start":3725.27,"end":3726.69,"text":"והיה עיני וליבי,","offeredToLlm":true},{"start":3727.19,"end":3727.91,"text":"ליבי שם,","offeredToLlm":true},{"start":3732.35,"end":3732.73,"text":"חשיד,","offeredToLlm":true},{"start":3734.05,"end":3734.53,"text":"תפקיד,","offeredToLlm":true},{"start":3736.19,"end":3737.59,"text":"עושה נחת רוח ליוצר.","offeredToLlm":true},{"start":3740.39,"end":3741.01,"text":"ללמדנו","offeredToLlm":true},{"start":3755.49,"end":3755.83,"text":"יחיד,","offeredToLlm":true},{"start":3757.51,"end":3758.51,"text":"סו את ראש בני ישראל,","offeredToLlm":true},{"start":3761.81,"end":3763.47,"text":"דווקא ערב שבועות.","offeredToLlm":true},{"start":3764.35,"end":3765.49,"text":"תהיה כבי זכאה","offeredToLlm":true},{"start":3770.25,"end":3771.27,"text":"בנים לשם אלוקיכם,","offeredToLlm":true},{"start":3771.89,"end":3772.49,"text":"תהילים של יד","offeredToLlm":true},{"start":3773.07,"end":3773.47,"text":"ביס,","offeredToLlm":true},{"start":3774.51,"end":3776.65,"text":"ומי כעמך ישראל גוי אחד בארץ,","offeredToLlm":true},{"start":3777.43,"end":3778.23,"text":"זכאה","offeredToLlm":true},{"start":3778.81,"end":3779.09,"text":"נבואה","offeredToLlm":true},{"start":3779.29,"end":3779.81,"text":"ירמיהו,","offeredToLlm":true},{"start":3780.03,"end":3782.41,"text":"אוטה בונה את צועני ידי מנועה אמר השם,","offeredToLlm":true},{"start":3783.69,"end":3784.51,"text":"לאחר העיון","offeredToLlm":true},{"start":3785.41,"end":3785.87,"text":"זכאה","offeredToLlm":true},{"start":3789.19,"end":3789.41,"text":"זמן","offeredToLlm":true},{"start":3789.57,"end":3789.83,"text":"הסתרה,","offeredToLlm":true},{"start":3790.63,"end":3790.99,"text":"חושך","offeredToLlm":true},{"start":3796.85,"end":3797.29,"text":"אהבה,","offeredToLlm":true},{"start":3798.35,"end":3798.65,"text":"אהבה","offeredToLlm":true},{"start":3803.37,"end":3804.35,"text":"לעתיד לבוא","offeredToLlm":true},{"start":3805.53,"end":3806.21,"text":"תהיה כבי זכאה","offeredToLlm":true},{"start":3806.83,"end":3807.15,"text":"חיבה","offeredToLlm":true},{"start":3807.57,"end":3808.21,"text":"אהבה","offeredToLlm":true},{"start":3811.51,"end":3811.75,"text":"זכאה","offeredToLlm":true},{"start":3811.93,"end":3814.19,"text":"אוטה בונה את צועני ידי מנועה אמר השם","offeredToLlm":true}],"excluded":[{"start":3612.22,"end":3623.52,"text":"\"איזה בתוספות מגילה, שסדר לו קרי במדבר קודם שבועות כדי שלא להסמיך כלל של בחוקותי לאת סרס, שדן על הפירות האילן. ונראה שיש לפרשת במדבר שייכות גדולה לשבועות\"."}],"passes":4,"llmCalls":79},"videoId":"L0213147286","videoUrl":"https://lakewoodafyomi.appspot.com/m5/CAEQ8uPriwEaIFZ6z5sDPxDpvG-yskZdS6Z6g3xwZClcrIDEd2oR0zWeIiC6dxa8qkM0ud6bV8wM0GBrgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgNThfMjEzMTQ3Mjg2Lm1wMw/Bechoros%2058_213147286.mp3","coveredRefs":["Bekhorot 58a","Bekhorot 58b"],"testRun":{"id":"regular-2","engine":"regular","number":2,"name":"Regular #2 · 16 Nov 2026 · phrase matcher","notes":"phrase matcher","engineVersion":"94f97e3","createdAt":"2026-11-16T15:00:40Z"}}
+{
+  "schema": "dafsync-alignment-v2",
+  "title": "Voice recognition alignment — Bekhorot 58a, Bekhorot 58b",
+  "dafRef": "Bekhorot 58a",
+  "duration": 3814.22,
+  "alignmentStatus": "in-progress",
+  "generator": "voice_align.py",
+  "videoSource": {
+    "type": "local",
+    "url": "job-audio.mp3"
+  },
+  "segments": [
+    {
+      "ref": "Bekhorot 58a:1",
+      "start": 418.98,
+      "end": 419.0,
+      "he": "כְּדֵי שֶׁתְּהֵא",
+      "w0": 0,
+      "w1": 1,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:1",
+      "start": 418.98,
+      "end": 418.98,
+      "he": "בְּהֵמָה",
+      "w0": 2,
+      "w1": 2
+    },
+    {
+      "ref": "Bekhorot 58a:1",
+      "start": 424.62,
+      "end": 424.62,
+      "he": "מְצוּיָה",
+      "w0": 3,
+      "w1": 3
+    },
+    {
+      "ref": "Bekhorot 58a:1",
+      "start": 424.62,
+      "end": 424.64,
+      "he": "לְעוֹלֵי רְגָלִים.",
+      "w0": 4,
+      "w1": 5,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:2",
+      "start": 429.12,
+      "end": 429.18,
+      "he": "וְאַף עַל גַּב דִּתְנַן: עַד שֶׁלֹּא",
+      "w0": 0,
+      "w1": 5,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:2",
+      "start": 429.12,
+      "end": 429.12,
+      "he": "הִגִּיעַ הַגּוֹרֶן מוּתָּר לִמְכּוֹר וְלִשְׁחוֹט —",
+      "w0": 6,
+      "w1": 11,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:2",
+      "start": 429.12,
+      "end": 430.5,
+      "he": "נִיחָא לֵיהּ דְּלִיתְעֲבִיד מִצְוָה בְּמָמוֹנֵיהּ,",
+      "w0": 12,
+      "w1": 16
+    },
+    {
+      "ref": "Bekhorot 58a:2",
+      "start": 430.5,
+      "end": 430.53,
+      "he": "וַהֲדַר לִזְבּוֹן וְלֵיכוֹל.",
+      "w0": 17,
+      "w1": 19,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:3",
+      "start": 437.92,
+      "end": 437.92,
+      "he": "וְאַמַּאי קָרֵי לֵיהּ ״גּוֹרֶן״?",
+      "w0": 0,
+      "w1": 3
+    },
+    {
+      "ref": "Bekhorot 58a:3",
+      "start": 450.2,
+      "end": 450.2,
+      "he": "דְּטָבְלָה כְּגוֹרֶן.",
+      "w0": 4,
+      "w1": 5
+    },
+    {
+      "ref": "Bekhorot 58a:4",
+      "start": 483.3,
+      "end": 483.3,
+      "he": "וְכַמָּה ״פְּרָס״?",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "ref": "Bekhorot 58a:4",
+      "start": 496.34,
+      "end": 497.42,
+      "he": "פֵּירֵשׁ רַבִּי יוֹסֵי בְּרַבִּי יְהוּדָה: אֵין פְּרָס פָּחוֹת מֵחֲמִשָּׁה",
+      "w0": 2,
+      "w1": 10
+    },
+    {
+      "ref": "Bekhorot 58a:4",
+      "start": 498.98,
+      "end": 498.98,
+      "he": "עָשָׂר יוֹם.",
+      "w0": 11,
+      "w1": 12
+    },
+    {
+      "ref": "Bekhorot 58a:5",
+      "start": 500.76,
+      "end": 502.96,
+      "he": "מַאי מַשְׁמַע? אָמַר רַבִּי אֲבָהוּ: ״פְּרוֹס״ — פַּלְגָא.",
+      "w0": 0,
+      "w1": 7
+    },
+    {
+      "ref": "Bekhorot 58a:5",
+      "start": 505.24,
+      "end": 506.94,
+      "he": "פַּלְגָא דְּמַאי? פַּלְגָא דְּהִלְכוֹת פֶּסַח,",
+      "w0": 8,
+      "w1": 12
+    },
+    {
+      "ref": "Bekhorot 58a:5",
+      "start": 510.06,
+      "end": 510.09,
+      "he": "כִּי הָא דְּתַנְיָא:",
+      "w0": 13,
+      "w1": 15,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:5",
+      "start": 510.06,
+      "end": 511.0,
+      "he": "שׁוֹאֲלִין וְדוֹרְשִׁין בְּהִלְכוֹת פֶּסַח קוֹדֶם לְפֶסַח שְׁלֹשִׁים יוֹם.",
+      "w0": 16,
+      "w1": 23
+    },
+    {
+      "ref": "Bekhorot 58a:5",
+      "start": 512.88,
+      "end": 514.26,
+      "he": "רַבָּן שִׁמְעוֹן בֶּן גַּמְלִיאֵל אוֹמֵר: שְׁתֵּי שַׁבָּתוֹת.",
+      "w0": 24,
+      "w1": 30
+    },
+    {
+      "ref": "Bekhorot 58a:6",
+      "start": 547.76,
+      "end": 547.76,
+      "he": "בֶּן עַזַּאי אוֹמֵר:",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "ref": "Bekhorot 58a:6",
+      "start": 552.96,
+      "end": 552.96,
+      "he": "בְּעֶשְׂרִים וְתִשְׁעָה בַּאֲדָר, בְּאֶחָד",
+      "w0": 3,
+      "w1": 6
+    },
+    {
+      "ref": "Bekhorot 58a:6",
+      "start": 556.68,
+      "end": 556.68,
+      "he": "בְּסִיוָן.",
+      "w0": 7,
+      "w1": 7
+    },
+    {
+      "ref": "Bekhorot 58a:6",
+      "start": 560.72,
+      "end": 561.4,
+      "he": "בְּמַאי קָמִיפַּלְגִי רַבִּי עֲקִיבָא וּבֶן עַזַּאי?",
+      "w0": 8,
+      "w1": 13
+    },
+    {
+      "ref": "Bekhorot 58a:6",
+      "start": 583.02,
+      "end": 583.04,
+      "he": "רַבִּי עֲקִיבָא",
+      "w0": 14,
+      "w1": 15,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:6",
+      "start": 583.02,
+      "end": 583.02,
+      "he": "סָבַר:",
+      "w0": 16,
+      "w1": 16
+    },
+    {
+      "ref": "Bekhorot 58a:6",
+      "start": 591.84,
+      "end": 591.84,
+      "he": "אֲדָר",
+      "w0": 17,
+      "w1": 17
+    },
+    {
+      "ref": "Bekhorot 58a:6",
+      "start": 598.42,
+      "end": 599.46,
+      "he": "הַסָּמוּךְ לְנִיסָן זִימְנִין מָלֵא וְזִימְנִין חָסֵר,",
+      "w0": 18,
+      "w1": 23
+    },
+    {
+      "ref": "Bekhorot 58a:6",
+      "start": 610.28,
+      "end": 612.08,
+      "he": "זִימְנִין דְּמִיקְּלַע בְּיוֹם שְׁלֹשִׁים וְזִימְנִין דְּמִיקְּלַע בְּעֶשְׂרִים וְתִשְׁעָה,",
+      "w0": 24,
+      "w1": 31
+    },
+    {
+      "ref": "Bekhorot 58a:6",
+      "start": 625.04,
+      "end": 625.7,
+      "he": "וּמִשּׁוּם הָכִי לָא קְבִיעַ לֵיהּ זְמַן.",
+      "w0": 32,
+      "w1": 37
+    },
+    {
+      "ref": "Bekhorot 58a:6",
+      "start": 628.12,
+      "end": 629.08,
+      "he": "וּבֶן עַזַּאי סָבַר: אֲדָר הַסָּמוּךְ לְנִיסָן לְעוֹלָם חָסֵר,",
+      "w0": 38,
+      "w1": 45
+    },
+    {
+      "ref": "Bekhorot 58a:6",
+      "start": 634.46,
+      "end": 636.14,
+      "he": "הִילְכָּךְ קְבִיעַ לֵיהּ זְמַן",
+      "w0": 46,
+      "w1": 49
+    },
+    {
+      "ref": "Bekhorot 58a:6",
+      "start": 641.52,
+      "end": 641.52,
+      "he": "בְּעֶשְׂרִים וְתִשְׁעָה בַּאֲדָר.",
+      "w0": 50,
+      "w1": 52
+    },
+    {
+      "ref": "Bekhorot 58a:7",
+      "start": 644.84,
+      "end": 644.84,
+      "he": "בְּאֶחָד בְּסִיוָן",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "ref": "Bekhorot 58a:7",
+      "start": 660.08,
+      "end": 660.09,
+      "he": "—",
+      "w0": 2,
+      "w1": 2,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:7",
+      "start": 660.08,
+      "end": 660.08,
+      "he": "אַיְּידֵי דְּלָא נְפִישִׁי,",
+      "w0": 3,
+      "w1": 5
+    },
+    {
+      "ref": "Bekhorot 58a:7",
+      "start": 674.34,
+      "end": 674.34,
+      "he": "אִי אָמְרַתְּ לִיקַדֵּים לִיעַשַּׂר",
+      "w0": 6,
+      "w1": 9
+    },
+    {
+      "ref": "Bekhorot 58a:7",
+      "start": 678.7,
+      "end": 678.71,
+      "he": "—",
+      "w0": 10,
+      "w1": 10,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:7",
+      "start": 678.7,
+      "end": 679.64,
+      "he": "עַד דְּמָטֵי רֶגֶל שָׁלְמִי לְהוּ.",
+      "w0": 11,
+      "w1": 15
+    },
+    {
+      "ref": "Bekhorot 58a:8",
+      "start": 687.58,
+      "end": 687.66,
+      "he": "בְּעֶשְׂרִים וְתִשְׁעָה בְּאָב וְכוּ׳. בֶּן עַזַּאי לְטַעְמֵיהּ, דְּאָמַר:",
+      "w0": 0,
+      "w1": 7,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:8",
+      "start": 687.58,
+      "end": 687.58,
+      "he": "הָאֱלוּלִין",
+      "w0": 8,
+      "w1": 8
+    },
+    {
+      "ref": "Bekhorot 58a:8",
+      "start": 687.58,
+      "end": 687.61,
+      "he": "מִתְעַשְּׂרִין בִּפְנֵי עַצְמָן.",
+      "w0": 9,
+      "w1": 11,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:9",
+      "start": 701.48,
+      "end": 701.54,
+      "he": "וְלִיעַשְּׂרִינְהוּ בְּיוֹם שְׁלֹשִׁים! זִימְנִין דִּמְחַסְּרִין לֵיהּ",
+      "w0": 0,
+      "w1": 5,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:9",
+      "start": 701.54,
+      "end": 701.6,
+      "he": "לְאָב, וּבָעֵינַן לְמִיעְבַּד הֶכֵּירָא בְּחָדָשׁ וְיָשָׁן.",
+      "w0": 6,
+      "w1": 11,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:10",
+      "start": 715.38,
+      "end": 715.45,
+      "he": "רַבִּי אֶלְעָזָר וְרַבִּי שִׁמְעוֹן אוֹמְרִים: בְּאֶחָד בְּנִיסָן,",
+      "w0": 0,
+      "w1": 6,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:10",
+      "start": 715.38,
+      "end": 715.38,
+      "he": "בְּאֶחָד בְּסִיוָן",
+      "w0": 7,
+      "w1": 8
+    },
+    {
+      "ref": "Bekhorot 58a:10",
+      "start": 715.38,
+      "end": 715.46,
+      "he": "וְכוּ׳. בְּאֶחָד בְּנִיסָן — כְּרַבָּן שִׁמְעוֹן בֶּן גַּמְלִיאֵל,",
+      "w0": 9,
+      "w1": 16,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:10",
+      "start": 715.46,
+      "end": 715.53,
+      "he": "דְּאָמַר: שְׁתֵּי שַׁבָּתוֹת. בְּאֶחָד בְּסִיוָן — כְּדַאֲמַרַן.",
+      "w0": 17,
+      "w1": 23,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:11",
+      "start": 717.7,
+      "end": 717.7,
+      "he": "בְּעֶשְׂרִים וְתִשְׁעָה",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "ref": "Bekhorot 58a:11",
+      "start": 754.65,
+      "end": 754.75,
+      "he": "בֶּאֱלוּל — רַבִּי אֶלְעָזָר וְרַבִּי שִׁמְעוֹן לְטַעְמַיְיהוּ, דְּאָמְרִי: בְּאֶחָד בְּתִשְׁרִי",
+      "w0": 2,
+      "w1": 11,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:11",
+      "start": 754.65,
+      "end": 754.65,
+      "he": "רֹאשׁ הַשָּׁנָה לְמַעְשַׂר בְּהֵמָה.",
+      "w0": 12,
+      "w1": 15
+    },
+    {
+      "ref": "Bekhorot 58a:12",
+      "start": 787.33,
+      "end": 787.37,
+      "he": "וְלָמָה אָמְרוּ בְּעֶשְׂרִים וְתִשְׁעָה",
+      "w0": 0,
+      "w1": 3,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:12",
+      "start": 787.33,
+      "end": 788.65,
+      "he": "בֶּאֱלוּל, וְלֹא אָמְרוּ בְּאֶחָד בְּתִשְׁרִי? מִפְּנֵי",
+      "w0": 4,
+      "w1": 9
+    },
+    {
+      "ref": "Bekhorot 58a:12",
+      "start": 955.31,
+      "end": 955.4,
+      "he": "שֶׁהוּא יוֹם טוֹב וְכוּ׳. וְתִיפּוֹק לֵיהּ, דְּבָעֵינַן לְמֶעְבַּד הֶכֵּירָא",
+      "w0": 10,
+      "w1": 18,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:12",
+      "start": 955.31,
+      "end": 955.31,
+      "he": "בְּחָדָשׁ וְיָשָׁן!",
+      "w0": 19,
+      "w1": 20
+    },
+    {
+      "ref": "Bekhorot 58a:13",
+      "start": 1035.51,
+      "end": 1035.54,
+      "he": "חֲדָא וְעוֹד קָאָמַר,",
+      "w0": 0,
+      "w1": 2,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:13",
+      "start": 1035.51,
+      "end": 1038.05,
+      "he": "חֲדָא — דְּבָעֵינַן לְמִיעְבַּד הֶכֵּירָא בְּחָדָשׁ וְיָשָׁן, וְעוֹד — מִפְּנֵי שֶׁהוּא יוֹם",
+      "w0": 3,
+      "w1": 14
+    },
+    {
+      "ref": "Bekhorot 58a:13",
+      "start": 1039.95,
+      "end": 1040.83,
+      "he": "טוֹב, וְאִי אֶפְשָׁר לְעַשֵּׂר בְּיוֹם טוֹב",
+      "w0": 15,
+      "w1": 20
+    },
+    {
+      "ref": "Bekhorot 58a:13",
+      "start": 1046.53,
+      "end": 1046.53,
+      "he": "מִשּׁוּם סְקַרְתָּא.",
+      "w0": 21,
+      "w1": 22
+    },
+    {
+      "ref": "Bekhorot 58a:14",
+      "start": 1507.22,
+      "end": 1507.3,
+      "he": "רַבִּי מֵאִיר אוֹמֵר: בְּאֶחָד בֶּאֱלוּל רֹאשׁ הַשָּׁנָה לְמַעְשַׂר",
+      "w0": 0,
+      "w1": 7,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:14",
+      "start": 1507.22,
+      "end": 1507.22,
+      "he": "בְּהֵמָה. בֶּן עַזַּאי אוֹמֵר וְכוּ׳. תַּנְיָא, אָמַר בֶּן עַזַּאי:",
+      "w0": 8,
+      "w1": 16,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:14",
+      "start": 1507.22,
+      "end": 1507.22,
+      "he": "הוֹאִיל וְהַלָּלוּ אוֹמְרִים כָּךְ, וְהַלָּלוּ אוֹמְרִים כָּךְ —",
+      "w0": 17,
+      "w1": 24,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:14",
+      "start": 1507.22,
+      "end": 1507.22,
+      "he": "הָאֱלוּלִין מִתְעַשְּׂרִין לְעַצְמָן.",
+      "w0": 25,
+      "w1": 27
+    },
+    {
+      "ref": "Bekhorot 58a:15",
+      "start": 1507.28,
+      "end": 1507.28,
+      "he": "וְלִיחְזֵי טַעְמֵיהּ דְּמַאן מִסְתַּבַּר! וְכִי תֵּימָא: לָא מָצֵי קָאֵי אַטַּעְמַיְיהוּ, וְהָתַנְיָא:",
+      "w0": 0,
+      "w1": 10
+    },
+    {
+      "ref": "Bekhorot 58a:15",
+      "start": 1509.08,
+      "end": 1509.08,
+      "he": "בֶּן עַזַּאי אוֹמֵר: כׇּל חַכְמֵי יִשְׂרָאֵל דּוֹמִין עָלַי כִּקְלִיפַּת הַשּׁוּם חוּץ מִן הַקֵּרֵחַ הַזֶּה!",
+      "w0": 11,
+      "w1": 24
+    },
+    {
+      "ref": "Bekhorot 58a:16",
+      "start": 1509.14,
+      "end": 1510.12,
+      "he": "אָמַר רַבִּי יוֹחָנָן: מִפִּי הַשְּׁמוּעָה אֲמָרוּהָ, מִפִּי חַגַּי זְכַרְיָה וּמַלְאָכִי.",
+      "w0": 0,
+      "w1": 9
+    },
+    {
+      "ref": "Bekhorot 58a:17",
+      "start": 1510.12,
+      "end": 1511.1,
+      "he": "תַּנְיָא: בְּאֵיזֶה צַד אָמַר בֶּן עַזַּאי הָאֱלוּלִים מִתְעַשְּׂרִין לְעַצְמָן?",
+      "w0": 0,
+      "w1": 8
+    },
+    {
+      "ref": "Bekhorot 58a:17",
+      "start": 1520.7,
+      "end": 1520.71,
+      "he": "נוֹלְדוּ",
+      "w0": 9,
+      "w1": 9,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:17",
+      "start": 1520.7,
+      "end": 1522.5,
+      "he": "לוֹ חֲמִשָּׁה בְּאָב וַחֲמִשָּׁה",
+      "w0": 10,
+      "w1": 13
+    },
+    {
+      "ref": "Bekhorot 58a:17",
+      "start": 1526.12,
+      "end": 1526.16,
+      "he": "בֶּאֱלוּל — אֵין מִצְטָרְפִין,",
+      "w0": 14,
+      "w1": 17,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:17",
+      "start": 1526.12,
+      "end": 1527.8,
+      "he": "חֲמִשָּׁה בֶּאֱלוּל וַחֲמִשָּׁה בְּתִשְׁרִי — אֵין מִצְטָרְפִין, חֲמִשָּׁה בְּתִשְׁרִי",
+      "w0": 18,
+      "w1": 26
+    },
+    {
+      "ref": "Bekhorot 58a:17",
+      "start": 1529.94,
+      "end": 1529.94,
+      "he": "וַחֲמִשָּׁה בְּאָב",
+      "w0": 27,
+      "w1": 28
+    },
+    {
+      "ref": "Bekhorot 58a:17",
+      "start": 1538.86,
+      "end": 1538.86,
+      "he": "מִצְטָרְפִין.",
+      "w0": 29,
+      "w1": 29
+    },
+    {
+      "ref": "Bekhorot 58a:18",
+      "start": 1552.78,
+      "end": 1552.81,
+      "he": "פְּשִׁיטָא! מַהוּ דְּתֵימָא,",
+      "w0": 0,
+      "w1": 2,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:18",
+      "start": 1552.78,
+      "end": 1554.64,
+      "he": "כִּי הֵיכִי דְּמַפְסְקִי שָׁנִים, מַפְסְקִי גֳּרָנוֹת,",
+      "w0": 3,
+      "w1": 8
+    },
+    {
+      "ref": "Bekhorot 58a:18",
+      "start": 1598.8,
+      "end": 1598.8,
+      "he": "קָא מַשְׁמַע לַן.",
+      "w0": 9,
+      "w1": 11
+    },
+    {
+      "ref": "Bekhorot 58a:19",
+      "start": 1604.32,
+      "end": 1605.44,
+      "he": "כְּדִתְנַן: חֲמִשָּׁה לִפְנֵי רֹאשׁ הַשָּׁנָה וַחֲמִשָּׁה לְאַחַר רֹאשׁ",
+      "w0": 0,
+      "w1": 7
+    },
+    {
+      "ref": "Bekhorot 58a:19",
+      "start": 1606.64,
+      "end": 1608.26,
+      "he": "הַשָּׁנָה — אֵין מִצְטָרְפִין, חֲמִשָּׁה לִפְנֵי הַגּוֹרֶן וַחֲמִשָּׁה",
+      "w0": 8,
+      "w1": 15
+    },
+    {
+      "ref": "Bekhorot 58a:19",
+      "start": 1609.8,
+      "end": 1610.86,
+      "he": "לְאַחַר הַגּוֹרֶן — הֲרֵי אֵלּוּ מִצְטָרְפִין.",
+      "w0": 16,
+      "w1": 21
+    },
+    {
+      "ref": "Bekhorot 58a:20",
+      "start": 1610.86,
+      "end": 1611.86,
+      "he": "אָמַר רָבָא: לְדִבְרֵי בֶּן עַזַּאי,",
+      "w0": 0,
+      "w1": 4
+    },
+    {
+      "ref": "Bekhorot 58a:20",
+      "start": 1623.86,
+      "end": 1623.87,
+      "he": "נוֹלְדוּ",
+      "w0": 5,
+      "w1": 5,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58a:20",
+      "start": 1623.86,
+      "end": 1623.86,
+      "he": "לוֹ חֲמִשָּׁה בְּאָב",
+      "w0": 6,
+      "w1": 8
+    },
+    {
+      "ref": "Bekhorot 58a:20",
+      "start": 1627.18,
+      "end": 1627.18,
+      "he": "וַחֲמִשָּׁה בֶּאֱלוּל",
+      "w0": 9,
+      "w1": 10
+    },
+    {
+      "ref": "Bekhorot 58a:20",
+      "start": 1632.38,
+      "end": 1632.38,
+      "he": "וַחֲמִשָּׁה",
+      "w0": 11,
+      "w1": 11
+    },
+    {
+      "ref": "Bekhorot 58a:20",
+      "start": 1634.6,
+      "end": 1634.6,
+      "he": "בְּתִשְׁרִי,",
+      "w0": 12,
+      "w1": 12
+    },
+    {
+      "ref": "Bekhorot 58a:20",
+      "start": 1637.68,
+      "end": 1637.68,
+      "he": "כּוֹנְסָן לַדִּיר לְהִתְעַשֵּׂר,",
+      "w0": 13,
+      "w1": 15
+    },
+    {
+      "ref": "Bekhorot 58b:1",
+      "start": 1642.34,
+      "end": 1642.34,
+      "he": "וְנוֹטֵל אֶחָד מִן הָאֱלוּלִין",
+      "w0": 0,
+      "w1": 3
+    },
+    {
+      "ref": "Bekhorot 58b:1",
+      "start": 1661.86,
+      "end": 1661.86,
+      "he": "וְהַשְּׁאָר פְּטוּרִין, מִמָּה",
+      "w0": 4,
+      "w1": 6
+    },
+    {
+      "ref": "Bekhorot 58b:1",
+      "start": 1667.94,
+      "end": 1669.2,
+      "he": "נַפְשָׁךְ: אִי בְּאֶחָד בֶּאֱלוּל רֹאשׁ הַשָּׁנָה",
+      "w0": 7,
+      "w1": 12
+    },
+    {
+      "ref": "Bekhorot 58b:1",
+      "start": 1690.04,
+      "end": 1690.1,
+      "he": "— דֶּאֱלוּל וְתִשְׁרִי מִצְטָרְפִין וּדְאָב פְּטוּרִים,",
+      "w0": 13,
+      "w1": 18,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58b:1",
+      "start": 1690.04,
+      "end": 1691.48,
+      "he": "וְאִי בְּאֶחָד בְּתִשְׁרִי רֹאשׁ הַשָּׁנָה",
+      "w0": 19,
+      "w1": 23
+    },
+    {
+      "ref": "Bekhorot 58b:1",
+      "start": 1691.48,
+      "end": 1691.54,
+      "he": "— דְּאָב וֶאֱלוּל מִצְטָרְפִין דְּתִשְׁרִי פְּטוּרִין.",
+      "w0": 24,
+      "w1": 29,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58b:2",
+      "start": 1731.72,
+      "end": 1732.74,
+      "he": "מַאי אָמְרַתְּ: לִצְטַרְפוּ לְגוֹרֶן",
+      "w0": 0,
+      "w1": 3
+    },
+    {
+      "ref": "Bekhorot 58b:2",
+      "start": 1738.24,
+      "end": 1740.12,
+      "he": "אַחֵר? עֲשִׂירִי וַדַּאי אָמַר רַחֲמָנָא, וְלֹא סָפֵק.",
+      "w0": 4,
+      "w1": 10
+    },
+    {
+      "ref": "Bekhorot 58b:3",
+      "start": 1792.44,
+      "end": 1792.45,
+      "he": "פְּשִׁיטָא!",
+      "w0": 0,
+      "w1": 0,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58b:3",
+      "start": 1792.44,
+      "end": 1793.28,
+      "he": "מַהוּ דְּתֵימָא לִגְזוֹר, דִּילְמָא אָתֵי לְמִישְׁקַל מֵהָנָךְ,",
+      "w0": 1,
+      "w1": 7
+    },
+    {
+      "ref": "Bekhorot 58b:3",
+      "start": 1823.84,
+      "end": 1823.84,
+      "he": "קָא מַשְׁמַע לַן.",
+      "w0": 8,
+      "w1": 10
+    },
+    {
+      "ref": "Bekhorot 58b:4",
+      "start": 1827.32,
+      "end": 1827.33,
+      "he": "מַתְנִי׳",
+      "w0": 0,
+      "w1": 0,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58b:4",
+      "start": 1827.32,
+      "end": 1827.32,
+      "he": "בְּאֵי זֶה צַד מְעַשְּׂרִין?",
+      "w0": 1,
+      "w1": 4
+    },
+    {
+      "ref": "Bekhorot 58b:4",
+      "start": 1841.56,
+      "end": 1841.56,
+      "he": "כּוֹנְסָן לַדִּיר,",
+      "w0": 5,
+      "w1": 6
+    },
+    {
+      "ref": "Bekhorot 58b:4",
+      "start": 1844.28,
+      "end": 1844.28,
+      "he": "וְעוֹשֶׂה לָהֶם פֶּתַח קָטָן",
+      "w0": 7,
+      "w1": 10
+    },
+    {
+      "ref": "Bekhorot 58b:4",
+      "start": 1846.68,
+      "end": 1847.9,
+      "he": "כְּדֵי שֶׁלֹּא יְהוּ שְׁנַיִם יְכוֹלִין לָצֵאת כְּאֶחָת,",
+      "w0": 11,
+      "w1": 17
+    },
+    {
+      "ref": "Bekhorot 58b:4",
+      "start": 1851.18,
+      "end": 1851.18,
+      "he": "וּמוֹנִין:",
+      "w0": 18,
+      "w1": 18
+    },
+    {
+      "ref": "Bekhorot 58b:4",
+      "start": 1860.77,
+      "end": 1860.88,
+      "he": "אֶחָד, שְׁנַיִם, שְׁלֹשָׁה, אַרְבָּעָה, חֲמִשָּׁה, שִׁשָּׁה, שִׁבְעָה, שְׁמוֹנָה, תִּשְׁעָה, וְהַיּוֹצֵא עֲשִׂירִי",
+      "w0": 19,
+      "w1": 29,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58b:4",
+      "start": 1860.77,
+      "end": 1860.77,
+      "he": "סוֹקֵר בְּסִיקְרָא",
+      "w0": 30,
+      "w1": 31
+    },
+    {
+      "ref": "Bekhorot 58b:4",
+      "start": 1864.35,
+      "end": 1866.45,
+      "he": "וְאוֹמֵר: ״הֲרֵי זֶה מַעֲשֵׂר״. לֹא סְקָרוֹ בְּסִיקְרָא,",
+      "w0": 32,
+      "w1": 38
+    },
+    {
+      "ref": "Bekhorot 58b:4",
+      "start": 1869.31,
+      "end": 1869.31,
+      "he": "וְלֹא מְנָאָן בַּשֵּׁבֶט,",
+      "w0": 39,
+      "w1": 41
+    },
+    {
+      "ref": "Bekhorot 58b:4",
+      "start": 1893.53,
+      "end": 1894.63,
+      "he": "אוֹ שֶׁמְּנָאָן רְבוּצִים אוֹ עוֹמְדִים",
+      "w0": 42,
+      "w1": 46
+    },
+    {
+      "ref": "Bekhorot 58b:4",
+      "start": 1901.15,
+      "end": 1901.16,
+      "he": "—",
+      "w0": 47,
+      "w1": 47,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58b:4",
+      "start": 1901.15,
+      "end": 1901.15,
+      "he": "הֲרֵי אֵלּוּ מִתְעַשְּׂרִין.",
+      "w0": 48,
+      "w1": 50
+    },
+    {
+      "ref": "Bekhorot 58b:5",
+      "start": 1901.21,
+      "end": 1901.21,
+      "he": "הָיָה לוֹ",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "ref": "Bekhorot 58b:5",
+      "start": 1918.11,
+      "end": 1918.12,
+      "he": "מֵאָה",
+      "w0": 2,
+      "w1": 2,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58b:5",
+      "start": 1918.11,
+      "end": 1918.11,
+      "he": "וְנָטַל עֲשָׂרָה,",
+      "w0": 3,
+      "w1": 4
+    },
+    {
+      "ref": "Bekhorot 58b:5",
+      "start": 1923.95,
+      "end": 1923.95,
+      "he": "עֲשָׂרָה וְנָטַל אֶחָד — אֵין זֶה",
+      "w0": 5,
+      "w1": 10
+    },
+    {
+      "ref": "Bekhorot 58b:5",
+      "start": 1928.39,
+      "end": 1928.4,
+      "he": "מַעֲשֵׂר.",
+      "w0": 11,
+      "w1": 11,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58b:5",
+      "start": 1928.39,
+      "end": 1931.05,
+      "he": "רַבִּי יוֹסֵי בְּרַבִּי יְהוּדָה אוֹמֵר: מַעֲשֵׂר. קָפַץ אֶחָד מִן הַמְּנוּיִין",
+      "w0": 12,
+      "w1": 21
+    },
+    {
+      "ref": "Bekhorot 58b:5",
+      "start": 1940.29,
+      "end": 1940.31,
+      "he": "לְתוֹכָן —",
+      "w0": 22,
+      "w1": 23,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58b:5",
+      "start": 1940.29,
+      "end": 1940.29,
+      "he": "הֲרֵי אֵלּוּ פְּטוּרִין,",
+      "w0": 24,
+      "w1": 26
+    },
+    {
+      "ref": "Bekhorot 58b:5",
+      "start": 1948.13,
+      "end": 1948.13,
+      "he": "מִן הַמְעוּשָּׂרִין",
+      "w0": 27,
+      "w1": 28
+    },
+    {
+      "ref": "Bekhorot 58b:5",
+      "start": 1965.91,
+      "end": 1968.33,
+      "he": "לְתוֹכָן — כּוּלָּם יִרְעוּ עַד שֶׁיִּסְתָּאֲבוּ, וְיֵאָכְלוּ בְּמוּמָן לַבְּעָלִים.",
+      "w0": 29,
+      "w1": 37
+    },
+    {
+      "ref": "Bekhorot 58b:6",
+      "start": 2018.85,
+      "end": 2018.86,
+      "he": "גְּמָ׳",
+      "w0": 0,
+      "w1": 0,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58b:6",
+      "start": 2018.85,
+      "end": 2018.85,
+      "he": "תָּנוּ רַבָּנַן:",
+      "w0": 1,
+      "w1": 2
+    },
+    {
+      "ref": "Bekhorot 58b:6",
+      "start": 2021.21,
+      "end": 2022.81,
+      "he": "בְּאֵי זֶה צַד מְעַשֵּׂר? כּוֹנְסָן לַדִּיר, וְעוֹשֶׂה לָהֶם פֶּתַח",
+      "w0": 3,
+      "w1": 11
+    },
+    {
+      "ref": "Bekhorot 58b:6",
+      "start": 2025.81,
+      "end": 2025.82,
+      "he": "קָטָן",
+      "w0": 12,
+      "w1": 12,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58b:6",
+      "start": 2025.81,
+      "end": 2026.55,
+      "he": "כְּדֵי שֶׁלֹּא יְהוּ שְׁנַיִם יְכוֹלִין לָצֵאת כְּאֶחָד,",
+      "w0": 13,
+      "w1": 19
+    },
+    {
+      "ref": "Bekhorot 58b:6",
+      "start": 2030.43,
+      "end": 2030.43,
+      "he": "אִימּוֹתֵיהֶם מִבַּחוּץ",
+      "w0": 20,
+      "w1": 21
+    },
+    {
+      "ref": "Bekhorot 58b:6",
+      "start": 2034.81,
+      "end": 2036.81,
+      "he": "וְהֵם מִבִּפְנִים, וְגוֹעוֹת, וְיוֹצְאוֹת לִקְרַאת אִמָּן.",
+      "w0": 22,
+      "w1": 27
+    },
+    {
+      "ref": "Bekhorot 58b:7",
+      "start": 2047.01,
+      "end": 2047.01,
+      "he": "וְלַפְּקִינְהוּ אִינְהוּ!",
+      "w0": 0,
+      "w1": 1
+    },
+    {
+      "ref": "Bekhorot 58b:7",
+      "start": 2058.03,
+      "end": 2058.06,
+      "he": "״יַעֲבוֹר״ כְּתִיב, וְלֹא",
+      "w0": 2,
+      "w1": 4,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58b:7",
+      "start": 2058.03,
+      "end": 2058.03,
+      "he": "שֶׁיַּעֲבִירוּהוּ.",
+      "w0": 5,
+      "w1": 5
+    },
+    {
+      "ref": "Bekhorot 58b:8",
+      "start": 2058.09,
+      "end": 2059.59,
+      "he": "וְלִשְׁדֵּי לְהוּ יַרְקָא",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "ref": "Bekhorot 58b:8",
+      "start": 2069.35,
+      "end": 2070.55,
+      "he": "וְלִיפְּקוּ לְוָתֵיהּ! אָמַר רַב הוּנָא: גְּזֵירָה מִשּׁוּם לָקוּחַ וּמִשּׁוּם",
+      "w0": 3,
+      "w1": 11
+    },
+    {
+      "ref": "Bekhorot 58b:8",
+      "start": 2072.01,
+      "end": 2072.01,
+      "he": "יָתוֹם.",
+      "w0": 12,
+      "w1": 12
+    },
+    {
+      "ref": "Bekhorot 58b:9",
+      "start": 2109.87,
+      "end": 2110.75,
+      "he": "תָּנוּ רַבָּנַן: ״כׇּל אֲשֶׁר יַעֲבֹר תַּחַת״",
+      "w0": 0,
+      "w1": 5
+    },
+    {
+      "ref": "Bekhorot 58b:9",
+      "start": 2113.33,
+      "end": 2113.35,
+      "he": "— פְּרָט",
+      "w0": 6,
+      "w1": 7,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58b:9",
+      "start": 2113.33,
+      "end": 2113.33,
+      "he": "לַטְּרֵיפָה שֶׁאֵינָהּ עוֹבֶרֶת",
+      "w0": 8,
+      "w1": 10
+    },
+    {
+      "ref": "Bekhorot 58b:9",
+      "start": 2130.63,
+      "end": 2134.27,
+      "he": "תַּחַת הַשָּׁבֶט. מִצְוָה לִמְנוֹתָן בְּשֵׁבֶט. לֹא מְנָאָן בְּשֵׁבֶט, אוֹ",
+      "w0": 11,
+      "w1": 19
+    },
+    {
+      "ref": "Bekhorot 58b:9",
+      "start": 2135.29,
+      "end": 2135.29,
+      "he": "שֶׁמְּנָאָן רְבוּצִים אוֹ עוֹמְדִים,",
+      "w0": 20,
+      "w1": 23
+    },
+    {
+      "ref": "Bekhorot 58b:9",
+      "start": 2138.83,
+      "end": 2141.01,
+      "he": "מִנַּיִן? תַּלְמוּד לוֹמַר: ״הָעֲשִׂירִי קֹדֶשׁ״ — מִכׇּל מָקוֹם.",
+      "w0": 24,
+      "w1": 31
+    },
+    {
+      "ref": "Bekhorot 58b:10",
+      "start": 2143.63,
+      "end": 2143.64,
+      "he": "וְאֵין",
+      "w0": 0,
+      "w1": 0,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58b:10",
+      "start": 2143.63,
+      "end": 2144.43,
+      "he": "לִי אֶלָּא שֶׁקְּרָא שְׁמוֹ ״עֲשִׂירִי״, לֹא קְרָא שְׁמוֹ",
+      "w0": 1,
+      "w1": 8
+    },
+    {
+      "ref": "Bekhorot 58b:10",
+      "start": 2145.61,
+      "end": 2148.59,
+      "he": "״עֲשִׂירִי״ מִנַּיִן? תַּלְמוּד לוֹמַר ״יִהְיֶה קֹּדֶשׁ״ מִכׇּל מָקוֹם.",
+      "w0": 9,
+      "w1": 16
+    },
+    {
+      "ref": "Bekhorot 58b:10",
+      "start": 2150.21,
+      "end": 2150.21,
+      "he": "יָכוֹל הָיוּ לוֹ",
+      "w0": 17,
+      "w1": 19
+    },
+    {
+      "ref": "Bekhorot 58b:10",
+      "start": 2153.37,
+      "end": 2153.38,
+      "he": "מֵאָה",
+      "w0": 20,
+      "w1": 20,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58b:10",
+      "start": 2153.37,
+      "end": 2153.37,
+      "he": "וְנָטַל עֲשָׂרָה,",
+      "w0": 21,
+      "w1": 22
+    },
+    {
+      "ref": "Bekhorot 58b:10",
+      "start": 2156.21,
+      "end": 2156.21,
+      "he": "עֲשָׂרָה וְנָטַל",
+      "w0": 23,
+      "w1": 24
+    },
+    {
+      "ref": "Bekhorot 58b:10",
+      "start": 2158.57,
+      "end": 2158.58,
+      "he": "אֶחָד,",
+      "w0": 25,
+      "w1": 25,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58b:10",
+      "start": 2158.57,
+      "end": 2162.05,
+      "he": "יָכוֹל יִהְיוּ מְעוּשָּׂרִין? תַּלְמוּד לוֹמַר ״עֲשִׂירִי״,",
+      "w0": 26,
+      "w1": 31
+    },
+    {
+      "ref": "Bekhorot 58b:10",
+      "start": 2181.11,
+      "end": 2181.16,
+      "he": "וְאֵין זֶה עֲשִׂירִי. רַבִּי יוֹסֵי",
+      "w0": 32,
+      "w1": 36,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58b:10",
+      "start": 2181.11,
+      "end": 2181.11,
+      "he": "בְּרַבִּי יְהוּדָה אוֹמֵר: מַעֲשֵׂר.",
+      "w0": 37,
+      "w1": 40
+    },
+    {
+      "ref": "Bekhorot 58b:11",
+      "start": 2182.25,
+      "end": 2183.29,
+      "he": "מַאי טַעְמֵיהּ דְּרַבִּי יוֹסֵי בְּרַבִּי יְהוּדָה? סָבַר לֵיהּ כְּאַבָּא",
+      "w0": 0,
+      "w1": 8
+    },
+    {
+      "ref": "Bekhorot 58b:11",
+      "start": 2184.45,
+      "end": 2185.43,
+      "he": "אֶלְעָזָר בֶּן גּוֹמֵל, דְּתַנְיָא: אַבָּא אֶלְעָזָר בֶּן גּוֹמֵל",
+      "w0": 9,
+      "w1": 16
+    },
+    {
+      "ref": "Bekhorot 58b:11",
+      "start": 2186.63,
+      "end": 2186.64,
+      "he": "אוֹמֵר:",
+      "w0": 17,
+      "w1": 17,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58b:11",
+      "start": 2186.63,
+      "end": 2186.63,
+      "he": "״וְנֶחְשַׁב לָכֶם תְּרוּמַתְכֶם״",
+      "w0": 18,
+      "w1": 20
+    },
+    {
+      "ref": "Bekhorot 58b:11",
+      "start": 2191.49,
+      "end": 2191.5,
+      "he": "—",
+      "w0": 21,
+      "w1": 21,
+      "estimated": true
+    },
+    {
+      "ref": "Bekhorot 58b:11",
+      "start": 2191.49,
+      "end": 2192.79,
+      "he": "בִּשְׁתֵּי תְרוּמוֹת הַכָּתוּב מְדַבֵּר, אַחַת תְּרוּמָה גְּדוֹלָה, וְאַחַת תְּרוּמַת",
+      "w0": 22,
+      "w1": 30
+    },
+    {
+      "ref": "Bekhorot 58b:11",
+      "start": 2194.55,
+      "end": 2194.55,
+      "he": "מַעֲשֵׂר.",
+      "w0": 31,
+      "w1": 31
+    },
+    {
+      "ref": "Bekhorot 58b:12",
+      "start": 2194.61,
+      "end": 2194.61,
+      "he": "כְּשֵׁם שֶׁהַתְּרוּמָה גְּדוֹלָה",
+      "w0": 0,
+      "w1": 2
+    },
+    {
+      "ref": "Bekhorot 58b:12",
+      "start": 2194.61,
+      "end": 2194.61,
+      "he": "נִיטֶּלֶת בְּאוֹמֶד וּבְמַחְשָׁבָה —",
+      "w0": 3,
+      "w1": 6,
+      "estimated": true
+    }
+  ],
+  "wordTimeline": [
+    {
+      "start": 418.98,
+      "end": 424.62,
+      "ref": "Bekhorot 58a:1",
+      "w0": 2,
+      "w1": 2,
+      "heardText": "מייסר בהמה,",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 424.62,
+      "end": 429.12,
+      "ref": "Bekhorot 58a:1",
+      "w0": 3,
+      "w1": 3,
+      "heardText": "מצווה.",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 429.12,
+      "end": 430.5,
+      "ref": "Bekhorot 58a:2",
+      "w0": 12,
+      "w1": 15,
+      "heardText": "ניחא ליה דלעסבון מצווה",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 430.5,
+      "end": 437.92,
+      "ref": "Bekhorot 58a:2",
+      "w0": 16,
+      "w1": 16,
+      "heardText": "בממונם",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 437.92,
+      "end": 450.2,
+      "ref": "Bekhorot 58a:3",
+      "w0": 0,
+      "w1": 3,
+      "heardText": "ומה קרי ליה גורן?",
+      "source": "deterministic-global"
+    },
+    {
+      "start": 450.2,
+      "end": 483.3,
+      "ref": "Bekhorot 58a:3",
+      "w0": 4,
+      "w1": 5,
+      "heardText": "דטוב לקרויי גורן.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 483.3,
+      "end": 496.34,
+      "ref": "Bekhorot 58a:4",
+      "w0": 0,
+      "w1": 1,
+      "heardText": "קמא פרס.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 496.34,
+      "end": 497.42,
+      "ref": "Bekhorot 58a:4",
+      "w0": 2,
+      "w1": 5,
+      "heardText": "פירש רב איצטברבי יהודה",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 497.42,
+      "end": 498.98,
+      "ref": "Bekhorot 58a:4",
+      "w0": 6,
+      "w1": 10,
+      "heardText": "אין פרס פחות מחמישה",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 498.98,
+      "end": 500.76,
+      "ref": "Bekhorot 58a:4",
+      "w0": 11,
+      "w1": 12,
+      "heardText": "עשרה יום.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 500.76,
+      "end": 502.02,
+      "ref": "Bekhorot 58a:5",
+      "w0": 0,
+      "w1": 3,
+      "heardText": "מאי משמע? אמר רבא",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 502.02,
+      "end": 502.96,
+      "ref": "Bekhorot 58a:5",
+      "w0": 4,
+      "w1": 5,
+      "heardText": "אבוה, פרס",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 502.96,
+      "end": 505.24,
+      "ref": "Bekhorot 58a:5",
+      "w0": 7,
+      "w1": 7,
+      "heardText": "פלגא. פרס",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 505.24,
+      "end": 506.94,
+      "ref": "Bekhorot 58a:5",
+      "w0": 8,
+      "w1": 9,
+      "heardText": "פלגא דמאי?",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 506.94,
+      "end": 510.06,
+      "ref": "Bekhorot 58a:5",
+      "w0": 10,
+      "w1": 12,
+      "heardText": "פלגא דהלכות פסח.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 510.06,
+      "end": 511.0,
+      "ref": "Bekhorot 58a:5",
+      "w0": 16,
+      "w1": 19,
+      "heardText": "ברייתא, שואלין את הדורשין",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 511.0,
+      "end": 512.88,
+      "ref": "Bekhorot 58a:5",
+      "w0": 20,
+      "w1": 23,
+      "heardText": "בהלכות פסח קודם לפסח",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 512.88,
+      "end": 514.26,
+      "ref": "Bekhorot 58a:5",
+      "w0": 24,
+      "w1": 27,
+      "heardText": "שלושים יום, ושמעון גמליאל",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 514.26,
+      "end": 547.76,
+      "ref": "Bekhorot 58a:5",
+      "w0": 28,
+      "w1": 30,
+      "heardText": "אומר שתאי שבתות.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 547.76,
+      "end": 552.96,
+      "ref": "Bekhorot 58a:6",
+      "w0": 0,
+      "w1": 2,
+      "heardText": "סוכות. בן עזאי אומר.",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 552.96,
+      "end": 556.68,
+      "ref": "Bekhorot 58a:6",
+      "w0": 3,
+      "w1": 6,
+      "heardText": "בעשרים ותשעה באדר, באחד",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 556.68,
+      "end": 560.72,
+      "ref": "Bekhorot 58a:6",
+      "w0": 7,
+      "w1": 7,
+      "heardText": "בניסן,",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 560.72,
+      "end": 561.4,
+      "ref": "Bekhorot 58a:6",
+      "w0": 8,
+      "w1": 10,
+      "heardText": "ומה קמיפלגי ליה רבי",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 561.4,
+      "end": 583.02,
+      "ref": "Bekhorot 58a:6",
+      "w0": 11,
+      "w1": 13,
+      "heardText": "עקיבא בן עזאי?",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 583.02,
+      "end": 591.84,
+      "ref": "Bekhorot 58a:6",
+      "w0": 16,
+      "w1": 16,
+      "heardText": "סבר--",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 591.84,
+      "end": 598.42,
+      "ref": "Bekhorot 58a:6",
+      "w0": 17,
+      "w1": 17,
+      "heardText": "כ\"ט אדר.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 598.42,
+      "end": 599.46,
+      "ref": "Bekhorot 58a:6",
+      "w0": 18,
+      "w1": 20,
+      "heardText": "אדר הסמוך לניסן זימנין",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 599.46,
+      "end": 610.28,
+      "ref": "Bekhorot 58a:6",
+      "w0": 21,
+      "w1": 23,
+      "heardText": "למלא זימנין לחסר.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 610.28,
+      "end": 612.08,
+      "ref": "Bekhorot 58a:6",
+      "w0": 24,
+      "w1": 27,
+      "heardText": "זימנין דמיקלע ביום שלושים",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 612.08,
+      "end": 625.04,
+      "ref": "Bekhorot 58a:6",
+      "w0": 28,
+      "w1": 31,
+      "heardText": "וזימנין דמיקלע בעשרים ותשעה.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 625.04,
+      "end": 625.7,
+      "ref": "Bekhorot 58a:6",
+      "w0": 32,
+      "w1": 35,
+      "heardText": "משום הכי לא קבעי",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 625.7,
+      "end": 628.12,
+      "ref": "Bekhorot 58a:6",
+      "w0": 36,
+      "w1": 37,
+      "heardText": "לה זמן.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 628.12,
+      "end": 629.08,
+      "ref": "Bekhorot 58a:6",
+      "w0": 38,
+      "w1": 41,
+      "heardText": "בן עזאי סבר אדר",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 629.08,
+      "end": 634.46,
+      "ref": "Bekhorot 58a:6",
+      "w0": 42,
+      "w1": 45,
+      "heardText": "הסמוך לניסן זימנין לחסר.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 634.46,
+      "end": 636.14,
+      "ref": "Bekhorot 58a:6",
+      "w0": 46,
+      "w1": 48,
+      "heardText": "חסר. הלכך קבעי לה",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 636.14,
+      "end": 641.52,
+      "ref": "Bekhorot 58a:6",
+      "w0": 49,
+      "w1": 49,
+      "heardText": "זמן.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 641.52,
+      "end": 644.84,
+      "ref": "Bekhorot 58a:6",
+      "w0": 50,
+      "w1": 52,
+      "heardText": "בעשרים ותשעה באדר,",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 644.84,
+      "end": 660.08,
+      "ref": "Bekhorot 58a:7",
+      "w0": 0,
+      "w1": 1,
+      "heardText": "באחד בסיוון.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 660.08,
+      "end": 674.34,
+      "ref": "Bekhorot 58a:7",
+      "w0": 3,
+      "w1": 5,
+      "heardText": "אייתי דלא נפישי,",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 674.34,
+      "end": 678.7,
+      "ref": "Bekhorot 58a:7",
+      "w0": 6,
+      "w1": 9,
+      "heardText": "היא אמרי לכתם לעשר.",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 678.7,
+      "end": 679.64,
+      "ref": "Bekhorot 58a:7",
+      "w0": 11,
+      "w1": 14,
+      "heardText": "אדרבה מטי רגל שוא",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 679.64,
+      "end": 687.58,
+      "ref": "Bekhorot 58a:7",
+      "w0": 15,
+      "w1": 15,
+      "heardText": "מלהו.",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 687.58,
+      "end": 715.38,
+      "ref": "Bekhorot 58a:8",
+      "w0": 8,
+      "w1": 8,
+      "heardText": "אלולי רגל",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 715.38,
+      "end": 717.7,
+      "ref": "Bekhorot 58a:10",
+      "w0": 7,
+      "w1": 8,
+      "heardText": "ראש חודש סיוון.",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 717.7,
+      "end": 754.65,
+      "ref": "Bekhorot 58a:11",
+      "w0": 0,
+      "w1": 1,
+      "heardText": "בעשרים ותשעה באב.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 754.65,
+      "end": 787.33,
+      "ref": "Bekhorot 58a:11",
+      "w0": 12,
+      "w1": 15,
+      "heardText": "ראש השנה למעשר בהמה",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 787.33,
+      "end": 788.65,
+      "ref": "Bekhorot 58a:12",
+      "w0": 4,
+      "w1": 7,
+      "heardText": "אלולין אמ-- אמ-- מעשר",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 788.65,
+      "end": 955.31,
+      "ref": "Bekhorot 58a:12",
+      "w0": 8,
+      "w1": 9,
+      "heardText": "מפני עצמן.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 955.31,
+      "end": 1035.51,
+      "ref": "Bekhorot 58a:12",
+      "w0": 19,
+      "w1": 20,
+      "heardText": "באחד בסיוון.",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 1035.51,
+      "end": 1036.57,
+      "ref": "Bekhorot 58a:13",
+      "w0": 3,
+      "w1": 7,
+      "heardText": "חדא, דבינהו למאבדא כרבעי",
+      "source": "deterministic-global"
+    },
+    {
+      "start": 1036.57,
+      "end": 1038.05,
+      "ref": "Bekhorot 58a:13",
+      "w0": 8,
+      "w1": 9,
+      "heardText": "חודש יאש,",
+      "source": "deterministic-global"
+    },
+    {
+      "start": 1038.05,
+      "end": 1039.95,
+      "ref": "Bekhorot 58a:13",
+      "w0": 10,
+      "w1": 14,
+      "heardText": "ועד, מפני שהוא יום",
+      "source": "deterministic-global"
+    },
+    {
+      "start": 1039.95,
+      "end": 1040.83,
+      "ref": "Bekhorot 58a:13",
+      "w0": 15,
+      "w1": 18,
+      "heardText": "טוב ואי אפשר לעשות",
+      "source": "deterministic-global"
+    },
+    {
+      "start": 1040.83,
+      "end": 1046.53,
+      "ref": "Bekhorot 58a:13",
+      "w0": 19,
+      "w1": 20,
+      "heardText": "ביום טוב,",
+      "source": "deterministic-global"
+    },
+    {
+      "start": 1046.53,
+      "end": 1507.22,
+      "ref": "Bekhorot 58a:13",
+      "w0": 21,
+      "w1": 22,
+      "heardText": "משום סקרתא, משום סקרתא--",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1507.22,
+      "end": 1507.22,
+      "ref": "Bekhorot 58a:14",
+      "w0": 25,
+      "w1": 27,
+      "heardText": "\"ואלולן מסתמין בפני עצמן.\"",
+      "source": "llm-rescue"
+    },
+    {
+      "start": 1507.22,
+      "end": 1509.08,
+      "ref": "Bekhorot 58a:15",
+      "w0": 0,
+      "w1": 10,
+      "heardText": "\"ואלולן מסתמין בפני עצמן.\"",
+      "source": "llm-rescue"
+    },
+    {
+      "start": 1509.08,
+      "end": 1509.08,
+      "ref": "Bekhorot 58a:15",
+      "w0": 11,
+      "w1": 24,
+      "heardText": "תניא, בעיצת האדמו\"ר בן",
+      "source": "llm-rescue"
+    },
+    {
+      "start": 1509.08,
+      "end": 1510.12,
+      "ref": "Bekhorot 58a:16",
+      "w0": 0,
+      "w1": 0,
+      "heardText": "תניא, בעיצת האדמו\"ר בן",
+      "source": "llm-rescue"
+    },
+    {
+      "start": 1510.12,
+      "end": 1510.12,
+      "ref": "Bekhorot 58a:16",
+      "w0": 1,
+      "w1": 9,
+      "heardText": "עזאי, אלולן מסתמין בפני",
+      "source": "llm-rescue"
+    },
+    {
+      "start": 1510.12,
+      "end": 1511.1,
+      "ref": "Bekhorot 58a:17",
+      "w0": 0,
+      "w1": 4,
+      "heardText": "עזאי, אלולן מסתמין בפני",
+      "source": "llm-rescue"
+    },
+    {
+      "start": 1511.1,
+      "end": 1520.7,
+      "ref": "Bekhorot 58a:17",
+      "w0": 5,
+      "w1": 8,
+      "heardText": "עצמן.",
+      "source": "llm-rescue"
+    },
+    {
+      "start": 1520.7,
+      "end": 1522.5,
+      "ref": "Bekhorot 58a:17",
+      "w0": 10,
+      "w1": 12,
+      "heardText": "לא דלי חמשה באב",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 1522.5,
+      "end": 1526.12,
+      "ref": "Bekhorot 58a:17",
+      "w0": 13,
+      "w1": 13,
+      "heardText": "וחמשה--",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 1526.12,
+      "end": 1527.8,
+      "ref": "Bekhorot 58a:17",
+      "w0": 18,
+      "w1": 21,
+      "heardText": "חמשה באלול וחמשה בתשרי",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 1527.8,
+      "end": 1529.94,
+      "ref": "Bekhorot 58a:17",
+      "w0": 23,
+      "w1": 26,
+      "heardText": "אין מצטרפין. חמשה בתשרי",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 1529.94,
+      "end": 1538.86,
+      "ref": "Bekhorot 58a:17",
+      "w0": 27,
+      "w1": 28,
+      "heardText": "וחמשה באב.",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 1538.86,
+      "end": 1552.78,
+      "ref": "Bekhorot 58a:17",
+      "w0": 29,
+      "w1": 29,
+      "heardText": "מסתמין.",
+      "source": "llm-rescue"
+    },
+    {
+      "start": 1552.78,
+      "end": 1554.64,
+      "ref": "Bekhorot 58a:18",
+      "w0": 3,
+      "w1": 6,
+      "heardText": "כי היכי דמפסקי שנים",
+      "source": "deterministic-global"
+    },
+    {
+      "start": 1554.64,
+      "end": 1598.8,
+      "ref": "Bekhorot 58a:18",
+      "w0": 7,
+      "w1": 8,
+      "heardText": "מפסקי גרנוס.",
+      "source": "deterministic-global"
+    },
+    {
+      "start": 1598.8,
+      "end": 1604.32,
+      "ref": "Bekhorot 58a:18",
+      "w0": 9,
+      "w1": 11,
+      "heardText": "כמשמע לן.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1604.32,
+      "end": 1605.44,
+      "ref": "Bekhorot 58a:19",
+      "w0": 0,
+      "w1": 3,
+      "heardText": "חמשה לפני ראש השנה",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1605.44,
+      "end": 1606.64,
+      "ref": "Bekhorot 58a:19",
+      "w0": 4,
+      "w1": 7,
+      "heardText": "וחמשה לאחר ראש השנה",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1606.64,
+      "end": 1608.26,
+      "ref": "Bekhorot 58a:19",
+      "w0": 8,
+      "w1": 12,
+      "heardText": "אין מצטרף. חמשה לפני",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1608.26,
+      "end": 1609.8,
+      "ref": "Bekhorot 58a:19",
+      "w0": 13,
+      "w1": 15,
+      "heardText": "האבן וחמשה לאחר הגורן",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1609.8,
+      "end": 1610.86,
+      "ref": "Bekhorot 58a:19",
+      "w0": 16,
+      "w1": 20,
+      "heardText": "הרי אלו מצטרף. אמר",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1610.86,
+      "end": 1610.86,
+      "ref": "Bekhorot 58a:19",
+      "w0": 21,
+      "w1": 21,
+      "heardText": "רבא רבא סבר דברי",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1610.86,
+      "end": 1611.86,
+      "ref": "Bekhorot 58a:20",
+      "w0": 0,
+      "w1": 2,
+      "heardText": "רבא רבא סבר דברי",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1611.86,
+      "end": 1623.86,
+      "ref": "Bekhorot 58a:20",
+      "w0": 3,
+      "w1": 4,
+      "heardText": "בן עזאי.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1623.86,
+      "end": 1627.18,
+      "ref": "Bekhorot 58a:20",
+      "w0": 6,
+      "w1": 8,
+      "heardText": "לא דלי חמשה באב.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1627.18,
+      "end": 1632.38,
+      "ref": "Bekhorot 58a:20",
+      "w0": 9,
+      "w1": 10,
+      "heardText": "חמשה באלול,",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1632.38,
+      "end": 1634.6,
+      "ref": "Bekhorot 58a:20",
+      "w0": 11,
+      "w1": 11,
+      "heardText": "ואלולן מסתמין בפני עצמן.",
+      "source": "llm-rescue"
+    },
+    {
+      "start": 1634.6,
+      "end": 1637.68,
+      "ref": "Bekhorot 58a:20",
+      "w0": 12,
+      "w1": 12,
+      "heardText": "וחמשה בתשרי,",
+      "source": "llm-rescue"
+    },
+    {
+      "start": 1637.68,
+      "end": 1642.34,
+      "ref": "Bekhorot 58a:20",
+      "w0": 13,
+      "w1": 15,
+      "heardText": "כונסין לדיר למעשר.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1642.34,
+      "end": 1661.86,
+      "ref": "Bekhorot 58b:1",
+      "w0": 0,
+      "w1": 3,
+      "heardText": "ונוטל לך מאלו.",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 1661.86,
+      "end": 1667.94,
+      "ref": "Bekhorot 58b:1",
+      "w0": 4,
+      "w1": 6,
+      "heardText": "השאר פטורין ממעשר.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1667.94,
+      "end": 1669.2,
+      "ref": "Bekhorot 58b:1",
+      "w0": 7,
+      "w1": 9,
+      "heardText": "ממה נפשך, אי באחד",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1669.2,
+      "end": 1690.04,
+      "ref": "Bekhorot 58b:1",
+      "w0": 10,
+      "w1": 12,
+      "heardText": "באלול ראש השנה.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1690.04,
+      "end": 1691.48,
+      "ref": "Bekhorot 58b:1",
+      "w0": 19,
+      "w1": 22,
+      "heardText": "ואי באחד בתשרי ראש",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1691.48,
+      "end": 1731.72,
+      "ref": "Bekhorot 58b:1",
+      "w0": 23,
+      "w1": 23,
+      "heardText": "השנה.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1731.72,
+      "end": 1732.74,
+      "ref": "Bekhorot 58b:2",
+      "w0": 0,
+      "w1": 1,
+      "heardText": "מאי אמרי?",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1732.74,
+      "end": 1738.24,
+      "ref": "Bekhorot 58b:2",
+      "w0": 2,
+      "w1": 3,
+      "heardText": "לצאת ולגזור",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 1738.24,
+      "end": 1740.12,
+      "ref": "Bekhorot 58b:2",
+      "w0": 4,
+      "w1": 6,
+      "heardText": "גevalדיג, עשירי ודאי אמר",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1740.12,
+      "end": 1792.44,
+      "ref": "Bekhorot 58b:2",
+      "w0": 7,
+      "w1": 10,
+      "heardText": "רחמנא ולא עשירי ספק.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1792.44,
+      "end": 1793.28,
+      "ref": "Bekhorot 58b:3",
+      "w0": 1,
+      "w1": 2,
+      "heardText": "מהו דקיימא,",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1793.28,
+      "end": 1823.84,
+      "ref": "Bekhorot 58b:3",
+      "w0": 3,
+      "w1": 7,
+      "heardText": "מיגזרת ומעשי למשקל מהנך.",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 1823.84,
+      "end": 1827.32,
+      "ref": "Bekhorot 58b:3",
+      "w0": 8,
+      "w1": 10,
+      "heardText": "כמשמע לן.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1827.32,
+      "end": 1841.56,
+      "ref": "Bekhorot 58b:4",
+      "w0": 1,
+      "w1": 4,
+      "heardText": "באיזה צד מעשרין. באיזה צד מסעסין.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1841.56,
+      "end": 1844.28,
+      "ref": "Bekhorot 58b:4",
+      "w0": 5,
+      "w1": 6,
+      "heardText": "כונסין לדיר.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1844.28,
+      "end": 1846.68,
+      "ref": "Bekhorot 58b:4",
+      "w0": 7,
+      "w1": 10,
+      "heardText": "ועושה להו פסח קטן.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1846.68,
+      "end": 1847.36,
+      "ref": "Bekhorot 58b:4",
+      "w0": 11,
+      "w1": 13,
+      "heardText": "כדי שלא יהיו שניים",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1847.36,
+      "end": 1847.9,
+      "ref": "Bekhorot 58b:4",
+      "w0": 14,
+      "w1": 16,
+      "heardText": "אוכלין לו אצל זה",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1847.9,
+      "end": 1851.18,
+      "ref": "Bekhorot 58b:4",
+      "w0": 17,
+      "w1": 17,
+      "heardText": "כאחת.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1851.18,
+      "end": 1860.77,
+      "ref": "Bekhorot 58b:4",
+      "w0": 18,
+      "w1": 18,
+      "heardText": "ומונין בשבעת.",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 1860.77,
+      "end": 1864.35,
+      "ref": "Bekhorot 58b:4",
+      "w0": 30,
+      "w1": 31,
+      "heardText": "סוכה בסקרא,",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1864.35,
+      "end": 1865.05,
+      "ref": "Bekhorot 58b:4",
+      "w0": 32,
+      "w1": 32,
+      "heardText": "ואומר",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1865.05,
+      "end": 1866.45,
+      "ref": "Bekhorot 58b:4",
+      "w0": 33,
+      "w1": 36,
+      "heardText": "\"הרי זה מעשר.\" לא",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1866.45,
+      "end": 1869.31,
+      "ref": "Bekhorot 58b:4",
+      "w0": 37,
+      "w1": 38,
+      "heardText": "סוכה בסקרא.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1869.31,
+      "end": 1893.53,
+      "ref": "Bekhorot 58b:4",
+      "w0": 39,
+      "w1": 41,
+      "heardText": "ולו מנה בשבט,",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1893.53,
+      "end": 1894.63,
+      "ref": "Bekhorot 58b:4",
+      "w0": 42,
+      "w1": 42,
+      "heardText": "ולו מנה בשבט או",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1894.63,
+      "end": 1901.15,
+      "ref": "Bekhorot 58b:4",
+      "w0": 43,
+      "w1": 46,
+      "heardText": "שמנה רבוצים או עומדים,",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1901.15,
+      "end": 1901.15,
+      "ref": "Bekhorot 58b:4",
+      "w0": 48,
+      "w1": 50,
+      "heardText": "הרי אלו מסאסין. הוילמעי",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 1901.15,
+      "end": 1918.11,
+      "ref": "Bekhorot 58b:5",
+      "w0": 0,
+      "w1": 1,
+      "heardText": "הרי אלו מסאסין. הוילמעי",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 1918.11,
+      "end": 1923.95,
+      "ref": "Bekhorot 58b:5",
+      "w0": 3,
+      "w1": 4,
+      "heardText": "ונטלה עשרה",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1923.95,
+      "end": 1928.39,
+      "ref": "Bekhorot 58b:5",
+      "w0": 5,
+      "w1": 10,
+      "heardText": "מעשר בהמה.\" אין זה.",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 1928.39,
+      "end": 1929.41,
+      "ref": "Bekhorot 58b:5",
+      "w0": 12,
+      "w1": 15,
+      "heardText": "נקר. אומר רבי יהודה",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 1929.41,
+      "end": 1931.05,
+      "ref": "Bekhorot 58b:5",
+      "w0": 16,
+      "w1": 18,
+      "heardText": "אומר מעשר דאורחא כפת",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 1931.05,
+      "end": 1940.29,
+      "ref": "Bekhorot 58b:5",
+      "w0": 19,
+      "w1": 21,
+      "heardText": "שאכמנה מן המנויין.",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 1940.29,
+      "end": 1948.13,
+      "ref": "Bekhorot 58b:5",
+      "w0": 24,
+      "w1": 26,
+      "heardText": "הרי אלו פטורין.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1948.13,
+      "end": 1965.91,
+      "ref": "Bekhorot 58b:5",
+      "w0": 27,
+      "w1": 28,
+      "heardText": "מן המעושרין.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1965.91,
+      "end": 1967.05,
+      "ref": "Bekhorot 58b:5",
+      "w0": 29,
+      "w1": 32,
+      "heardText": "דין דהלכות כולם ירעו",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1967.05,
+      "end": 1968.33,
+      "ref": "Bekhorot 58b:5",
+      "w0": 33,
+      "w1": 35,
+      "heardText": "את השיסתא וביכלו ממונה",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 1968.33,
+      "end": 2018.85,
+      "ref": "Bekhorot 58b:5",
+      "w0": 36,
+      "w1": 37,
+      "heardText": "בה לי.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2018.85,
+      "end": 2021.21,
+      "ref": "Bekhorot 58b:6",
+      "w0": 1,
+      "w1": 2,
+      "heardText": "תנא רבנן,",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2021.21,
+      "end": 2022.81,
+      "ref": "Bekhorot 58b:6",
+      "w0": 3,
+      "w1": 6,
+      "heardText": "באיזה זמן מעשר כונסן",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 2022.81,
+      "end": 2025.81,
+      "ref": "Bekhorot 58b:6",
+      "w0": 7,
+      "w1": 11,
+      "heardText": "לדיר ואוסלן פסח קטן.",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 2025.81,
+      "end": 2026.55,
+      "ref": "Bekhorot 58b:6",
+      "w0": 13,
+      "w1": 16,
+      "heardText": "כדי שלא יהיו שתיים",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 2026.55,
+      "end": 2030.43,
+      "ref": "Bekhorot 58b:6",
+      "w0": 17,
+      "w1": 19,
+      "heardText": "בכני ולו צס כחד.",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 2030.43,
+      "end": 2034.81,
+      "ref": "Bekhorot 58b:6",
+      "w0": 20,
+      "w1": 21,
+      "heardText": "אמו זה מבעחוץ.",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 2034.81,
+      "end": 2036.81,
+      "ref": "Bekhorot 58b:6",
+      "w0": 22,
+      "w1": 23,
+      "heardText": "והימי בפנים.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2036.81,
+      "end": 2047.01,
+      "ref": "Bekhorot 58b:6",
+      "w0": 24,
+      "w1": 27,
+      "heardText": "וגועות ויוצאות לקראת אימן.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2047.01,
+      "end": 2058.03,
+      "ref": "Bekhorot 58b:7",
+      "w0": 0,
+      "w1": 1,
+      "heardText": "ולפקינהו אינהו.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2058.03,
+      "end": 2058.03,
+      "ref": "Bekhorot 58b:7",
+      "w0": 5,
+      "w1": 5,
+      "heardText": "בלי ישיברו. ולש פלו",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 2058.03,
+      "end": 2059.59,
+      "ref": "Bekhorot 58b:8",
+      "w0": 0,
+      "w1": 1,
+      "heardText": "בלי ישיברו. ולש פלו",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 2059.59,
+      "end": 2069.35,
+      "ref": "Bekhorot 58b:8",
+      "w0": 2,
+      "w1": 2,
+      "heardText": "ירקה.",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 2069.35,
+      "end": 2070.55,
+      "ref": "Bekhorot 58b:8",
+      "w0": 3,
+      "w1": 6,
+      "heardText": "ולפקולא מאסה אמרה הונא",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2070.55,
+      "end": 2072.01,
+      "ref": "Bekhorot 58b:8",
+      "w0": 7,
+      "w1": 11,
+      "heardText": "גזירה משום לקוח ומשום",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2072.01,
+      "end": 2109.87,
+      "ref": "Bekhorot 58b:8",
+      "w0": 12,
+      "w1": 12,
+      "heardText": "יוסף.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2109.87,
+      "end": 2110.75,
+      "ref": "Bekhorot 58b:9",
+      "w0": 0,
+      "w1": 3,
+      "heardText": "תנו רבנן קלא שיהבא",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2110.75,
+      "end": 2113.33,
+      "ref": "Bekhorot 58b:9",
+      "w0": 4,
+      "w1": 5,
+      "heardText": "תחת השבט",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2113.33,
+      "end": 2130.63,
+      "ref": "Bekhorot 58b:9",
+      "w0": 8,
+      "w1": 10,
+      "heardText": "טריפה שאינה עוברת.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2130.63,
+      "end": 2132.29,
+      "ref": "Bekhorot 58b:9",
+      "w0": 11,
+      "w1": 13,
+      "heardText": "תחת השבט מצוה למנוס",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2132.29,
+      "end": 2134.27,
+      "ref": "Bekhorot 58b:9",
+      "w0": 14,
+      "w1": 15,
+      "heardText": "עם השבט.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2134.27,
+      "end": 2135.29,
+      "ref": "Bekhorot 58b:9",
+      "w0": 16,
+      "w1": 19,
+      "heardText": "לו מנה בשבט או",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2135.29,
+      "end": 2138.83,
+      "ref": "Bekhorot 58b:9",
+      "w0": 20,
+      "w1": 23,
+      "heardText": "שמנה רבוצים או עומדים.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2138.83,
+      "end": 2139.95,
+      "ref": "Bekhorot 58b:9",
+      "w0": 24,
+      "w1": 26,
+      "heardText": "מנייה היינו קשה בדיעבד",
+      "source": "llm-rescue"
+    },
+    {
+      "start": 2139.95,
+      "end": 2141.01,
+      "ref": "Bekhorot 58b:9",
+      "w0": 27,
+      "w1": 28,
+      "heardText": "תנא למא הא עשירי",
+      "source": "llm-rescue"
+    },
+    {
+      "start": 2141.01,
+      "end": 2143.63,
+      "ref": "Bekhorot 58b:9",
+      "w0": 30,
+      "w1": 31,
+      "heardText": "קדוש מקמא אכיל.",
+      "source": "llm-rescue"
+    },
+    {
+      "start": 2143.63,
+      "end": 2144.43,
+      "ref": "Bekhorot 58b:10",
+      "w0": 1,
+      "w1": 4,
+      "heardText": "בעיה. אדרבה שקריש מיה",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 2144.43,
+      "end": 2145.61,
+      "ref": "Bekhorot 58b:10",
+      "w0": 5,
+      "w1": 8,
+      "heardText": "עשירי. לא קריש מיה.",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 2145.61,
+      "end": 2147.11,
+      "ref": "Bekhorot 58b:10",
+      "w0": 9,
+      "w1": 10,
+      "heardText": "מנייה היינו",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 2147.11,
+      "end": 2148.59,
+      "ref": "Bekhorot 58b:10",
+      "w0": 11,
+      "w1": 13,
+      "heardText": "עשירי תנא למא יהיה",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 2148.59,
+      "end": 2150.21,
+      "ref": "Bekhorot 58b:10",
+      "w0": 14,
+      "w1": 16,
+      "heardText": "קדוש מקמא אכיל.",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 2150.21,
+      "end": 2153.37,
+      "ref": "Bekhorot 58b:10",
+      "w0": 17,
+      "w1": 19,
+      "heardText": "יאכל הוילמעי.",
+      "source": "deterministic-relocalized"
+    },
+    {
+      "start": 2153.37,
+      "end": 2156.21,
+      "ref": "Bekhorot 58b:10",
+      "w0": 21,
+      "w1": 22,
+      "heardText": "ונטלה עשרה",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2156.21,
+      "end": 2158.57,
+      "ref": "Bekhorot 58b:10",
+      "w0": 23,
+      "w1": 24,
+      "heardText": "עשרה ונטלה לך,",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2158.57,
+      "end": 2159.63,
+      "ref": "Bekhorot 58b:10",
+      "w0": 26,
+      "w1": 27,
+      "heardText": "יאכל ימול סרן תנא",
+      "source": "llm-rescue"
+    },
+    {
+      "start": 2159.63,
+      "end": 2160.73,
+      "ref": "Bekhorot 58b:10",
+      "w0": 28,
+      "w1": 29,
+      "heardText": "למא עשירי. ואין זה",
+      "source": "llm-rescue"
+    },
+    {
+      "start": 2160.73,
+      "end": 2162.05,
+      "ref": "Bekhorot 58b:10",
+      "w0": 30,
+      "w1": 30,
+      "heardText": "עשירי.",
+      "source": "llm-rescue"
+    },
+    {
+      "start": 2162.05,
+      "end": 2181.11,
+      "ref": "Bekhorot 58b:10",
+      "w0": 31,
+      "w1": 31,
+      "heardText": "עשירי",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2181.11,
+      "end": 2182.25,
+      "ref": "Bekhorot 58b:10",
+      "w0": 37,
+      "w1": 40,
+      "heardText": "רבי רבי יהודה אומר",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2182.25,
+      "end": 2183.29,
+      "ref": "Bekhorot 58b:11",
+      "w0": 0,
+      "w1": 3,
+      "heardText": "לא מעשר מאי טעמא",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2183.29,
+      "end": 2184.45,
+      "ref": "Bekhorot 58b:11",
+      "w0": 4,
+      "w1": 8,
+      "heardText": "דרבי יהודה סבר לכאבא",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2184.45,
+      "end": 2185.43,
+      "ref": "Bekhorot 58b:11",
+      "w0": 9,
+      "w1": 12,
+      "heardText": "לא זבן גומל תניא",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2185.43,
+      "end": 2186.63,
+      "ref": "Bekhorot 58b:11",
+      "w0": 13,
+      "w1": 16,
+      "heardText": "לא זבן גומל לומר.",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2186.63,
+      "end": 2191.49,
+      "ref": "Bekhorot 58b:11",
+      "w0": 18,
+      "w1": 20,
+      "heardText": "\"ונחשב לכם תרומתכם.\"",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2191.49,
+      "end": 2192.79,
+      "ref": "Bekhorot 58b:11",
+      "w0": 22,
+      "w1": 25,
+      "heardText": "בשתי תרומות הקסבר מדבר",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2192.79,
+      "end": 2194.55,
+      "ref": "Bekhorot 58b:11",
+      "w0": 26,
+      "w1": 30,
+      "heardText": "אחת תרומה גדולה ואחת",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2194.55,
+      "end": 2194.55,
+      "ref": "Bekhorot 58b:11",
+      "w0": 31,
+      "w1": 31,
+      "heardText": "תרומה מעשר. תרומה גדולה",
+      "source": "deterministic-local"
+    },
+    {
+      "start": 2194.55,
+      "end": 2196.55,
+      "ref": "Bekhorot 58b:12",
+      "w0": 0,
+      "w1": 2,
+      "heardText": "תרומה מעשר. תרומה גדולה",
+      "source": "deterministic-local"
+    }
+  ],
+  "matchStats": {
+    "totalRuns": 430,
+    "totalWords": 1414,
+    "matchedWords": 662,
+    "unmatchedWords": 724,
+    "excludedWords": 28,
+    "bySource": {
+      "deterministic-relocalized": {
+        "label": "Deterministic matching (re-checked between anchors)",
+        "runs": 38,
+        "words": 141
+      },
+      "deterministic-global": {
+        "label": "Deterministic matching (relocalized)",
+        "runs": 5,
+        "words": 30
+      },
+      "deterministic-local": {
+        "label": "Deterministic matching (locked tracking)",
+        "runs": 130,
+        "words": 448
+      },
+      "llm-rescue": {
+        "label": "LLM rescue (Claude)",
+        "runs": 8,
+        "words": 43
+      }
+    },
+    "unmatched": [
+      {
+        "start": 402.04,
+        "end": 402.48,
+        "text": "הלכה",
+        "offeredToLlm": true
+      },
+      {
+        "start": 402.7,
+        "end": 403.5,
+        "text": "טבל מדרבנן.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 404.88,
+        "end": 405.74,
+        "text": "מפרש מייסר בהמה.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 407,
+        "end": 407.3,
+        "text": "מצוות",
+        "offeredToLlm": true
+      },
+      {
+        "start": 408.46,
+        "end": 408.7,
+        "text": "עומדה",
+        "offeredToLlm": true
+      },
+      {
+        "start": 411.78,
+        "end": 412.98,
+        "text": "אפרשות מייסר בהמה",
+        "offeredToLlm": true
+      },
+      {
+        "start": 417.94,
+        "end": 418.38,
+        "text": "מפרש",
+        "offeredToLlm": true
+      },
+      {
+        "start": 426.1,
+        "end": 426.48,
+        "text": "מצוות.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 427.3,
+        "end": 428.24,
+        "text": "מצוות בגופם.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 436.54,
+        "end": 436.7,
+        "text": "ידע",
+        "offeredToLlm": true
+      },
+      {
+        "start": 444.1,
+        "end": 444.48,
+        "text": "תבואה.",
+        "offeredToLlm": false
+      },
+      {
+        "start": 446.34,
+        "end": 446.9,
+        "text": "מייסר בהמה.",
+        "offeredToLlm": false
+      },
+      {
+        "start": 447.54,
+        "end": 448,
+        "text": "תבואה.",
+        "offeredToLlm": false
+      },
+      {
+        "start": 457.52,
+        "end": 458.3,
+        "text": "מייסד דגן,",
+        "offeredToLlm": false
+      },
+      {
+        "start": 459.5,
+        "end": 460.18,
+        "text": "מייסד דגן",
+        "offeredToLlm": false
+      },
+      {
+        "start": 460.34,
+        "end": 461.2,
+        "text": "תירוש וייצר,",
+        "offeredToLlm": false
+      },
+      {
+        "start": 467.68,
+        "end": 468.1,
+        "text": "תבואה",
+        "offeredToLlm": false
+      },
+      {
+        "start": 470.92,
+        "end": 471.18,
+        "text": "טבל,",
+        "offeredToLlm": false
+      },
+      {
+        "start": 471.4,
+        "end": 473.1,
+        "text": "חיוב ושבועות ומייסר שמדי רייסה.",
+        "offeredToLlm": false
+      },
+      {
+        "start": 475.04,
+        "end": 475.54,
+        "text": "דרבנן",
+        "offeredToLlm": false
+      },
+      {
+        "start": 478.76,
+        "end": 479.16,
+        "text": "מייסר בהמה.",
+        "offeredToLlm": false
+      },
+      {
+        "start": 481.04,
+        "end": 481.64,
+        "text": "מייסר בהמה.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 487.28,
+        "end": 487.78,
+        "text": "זמנים",
+        "offeredToLlm": false
+      },
+      {
+        "start": 487.98,
+        "end": 488.9,
+        "text": "מייסר בהמה",
+        "offeredToLlm": false
+      },
+      {
+        "start": 489.54,
+        "end": 491.98,
+        "text": "יומטב. פרס הפסח, פרס האצרת,",
+        "offeredToLlm": false
+      },
+      {
+        "start": 516.1,
+        "end": 516.4,
+        "text": "מחלוקת",
+        "offeredToLlm": false
+      },
+      {
+        "start": 517.36,
+        "end": 517.86,
+        "text": "תנא קמא",
+        "offeredToLlm": false
+      },
+      {
+        "start": 521.06,
+        "end": 521.58,
+        "text": "יומטב",
+        "offeredToLlm": false
+      },
+      {
+        "start": 527.64,
+        "end": 528.02,
+        "text": "חכמים,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 533.5,
+        "end": 533.88,
+        "text": "חכמים,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 535.14,
+        "end": 536.18,
+        "text": "פרס הפסח",
+        "offeredToLlm": true
+      },
+      {
+        "start": 538.82,
+        "end": 539.56,
+        "text": "פרס הפסח",
+        "offeredToLlm": true
+      },
+      {
+        "start": 541.68,
+        "end": 542.24,
+        "text": "פרס האצרת",
+        "offeredToLlm": true
+      },
+      {
+        "start": 543.62,
+        "end": 543.96,
+        "text": "שבועות,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 567.96,
+        "end": 570.94,
+        "text": "בפרס הפסח, בפרס האצרת, בפרס החג.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 581.54,
+        "end": 582.08,
+        "text": "בין המחלוקת?",
+        "offeredToLlm": true
+      },
+      {
+        "start": 597.2,
+        "end": 597.52,
+        "text": "מחלוקת?",
+        "offeredToLlm": false
+      },
+      {
+        "start": 601.2,
+        "end": 602.26,
+        "text": "ראש חודש אדר",
+        "offeredToLlm": false
+      },
+      {
+        "start": 650.54,
+        "end": 651.24,
+        "text": "פרס האצרת,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 665.36,
+        "end": 665.82,
+        "text": "טייף",
+        "offeredToLlm": true
+      },
+      {
+        "start": 669.56,
+        "end": 670.16,
+        "text": "גורן",
+        "offeredToLlm": true
+      },
+      {
+        "start": 676.8,
+        "end": 677.56,
+        "text": "מייסר בהמה",
+        "offeredToLlm": true
+      },
+      {
+        "start": 684.66,
+        "end": 685.96,
+        "text": "גורן סמוך",
+        "offeredToLlm": true
+      },
+      {
+        "start": 686.58,
+        "end": 687.12,
+        "text": "יומטב",
+        "offeredToLlm": true
+      },
+      {
+        "start": 688.56,
+        "end": 689.02,
+        "text": "בהמות.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 692.84,
+        "end": 693.86,
+        "text": "מעשרת",
+        "offeredToLlm": true
+      },
+      {
+        "start": 695.04,
+        "end": 695.66,
+        "text": "טבל דרבנן",
+        "offeredToLlm": true
+      },
+      {
+        "start": 696.04,
+        "end": 696.2,
+        "text": "חל",
+        "offeredToLlm": true
+      },
+      {
+        "start": 697.18,
+        "end": 697.44,
+        "text": "גורן,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 697.88,
+        "end": 700.2,
+        "text": "ניחא ליה לעינש למה אבל מצווה בממוני.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 732.17,
+        "end": 732.77,
+        "text": "פרס החג,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 743.75,
+        "end": 746.93,
+        "text": "בן עזאי לטעמיה, בן עזאי לשיטותיה, דאמר מעובין המעשרים מפני עצמן.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 753.59,
+        "end": 754.41,
+        "text": "ראש חודש,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 759.15,
+        "end": 759.39,
+        "text": "מחלוקת",
+        "offeredToLlm": false
+      },
+      {
+        "start": 768.09,
+        "end": 768.39,
+        "text": "חודש",
+        "offeredToLlm": true
+      },
+      {
+        "start": 769.05,
+        "end": 771.19,
+        "text": "היו אלולין מעשר מפני עצמן.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 775.51,
+        "end": 775.81,
+        "text": "חודש",
+        "offeredToLlm": true
+      },
+      {
+        "start": 780.71,
+        "end": 780.97,
+        "text": "חודש",
+        "offeredToLlm": true
+      },
+      {
+        "start": 795.23,
+        "end": 796.47,
+        "text": "זמן הגורן",
+        "offeredToLlm": true
+      },
+      {
+        "start": 796.81,
+        "end": 797.11,
+        "text": "חודש",
+        "offeredToLlm": true
+      },
+      {
+        "start": 799.51,
+        "end": 799.71,
+        "text": "זמן",
+        "offeredToLlm": true
+      },
+      {
+        "start": 800.25,
+        "end": 800.57,
+        "text": "גורן",
+        "offeredToLlm": true
+      },
+      {
+        "start": 800.89,
+        "end": 801.15,
+        "text": "חודש",
+        "offeredToLlm": true
+      },
+      {
+        "start": 803.39,
+        "end": 805.31,
+        "text": "ניחלי ליה איניש למעבד מצוה ממונא.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 815.83,
+        "end": 816.09,
+        "text": "חודש",
+        "offeredToLlm": true
+      },
+      {
+        "start": 818.51,
+        "end": 818.81,
+        "text": "חודש",
+        "offeredToLlm": true
+      },
+      {
+        "start": 819.33,
+        "end": 821.35,
+        "text": "והיו אלולין במעשר מפני עצמן,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 843.89,
+        "end": 844.15,
+        "text": "חודש",
+        "offeredToLlm": true
+      },
+      {
+        "start": 845.89,
+        "end": 847.95,
+        "text": "היו אלולין במעשר מפני עצמן. משמע,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 848.63,
+        "end": 849.51,
+        "text": "ולעשות בימיהם של ישראל.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 855.27,
+        "end": 858.29,
+        "text": "זימנין דמעשרן לילהו ובני למאבדא כרבעי חודש יאש.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 892.37,
+        "end": 892.67,
+        "text": "חודש",
+        "offeredToLlm": true
+      },
+      {
+        "start": 893.55,
+        "end": 896.33,
+        "text": "זימנין דמעשרן לילהו ובני למאבדא כרבעי חודש יאש.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 919.55,
+        "end": 920.85,
+        "text": "באחד בסיוון וכולו,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 920.99,
+        "end": 921.35,
+        "text": "וכולו",
+        "offeredToLlm": true
+      },
+      {
+        "start": 923.33,
+        "end": 925.87,
+        "text": "אחד בניסן, גרבי שמעון גמליאל דאמר שתי שבתות.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 933.65,
+        "end": 934.55,
+        "text": "פרס הפסח,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 945.45,
+        "end": 946.29,
+        "text": "שתי שבתות.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 947.21,
+        "end": 947.57,
+        "text": "שתי שבתות.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 953.07,
+        "end": 954.05,
+        "text": "באחד בסיוון, כדאמרן.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 971.73,
+        "end": 971.93,
+        "text": "סברא",
+        "offeredToLlm": true
+      },
+      {
+        "start": 972.95,
+        "end": 973.23,
+        "text": "חושבן",
+        "offeredToLlm": true
+      },
+      {
+        "start": 995.19,
+        "end": 995.95,
+        "text": "זמן הגורן,",
+        "offeredToLlm": false
+      },
+      {
+        "start": 1004.15,
+        "end": 1005.59,
+        "text": "בעשרים בתשרי באלול.",
+        "offeredToLlm": false
+      },
+      {
+        "start": 1006.61,
+        "end": 1009.37,
+        "text": "ולמה אמרו בעשרים בתשרי באלול ולא אמרו באחד בתשרי?",
+        "offeredToLlm": false
+      },
+      {
+        "start": 1012.79,
+        "end": 1013.61,
+        "text": "בעשרים בתשרי באלול,",
+        "offeredToLlm": false
+      },
+      {
+        "start": 1014.81,
+        "end": 1015.85,
+        "text": "מפני שהוא יום טוב.",
+        "offeredToLlm": false
+      },
+      {
+        "start": 1018.03,
+        "end": 1019.77,
+        "text": "אבל תייפוק ליה דבינהו למאבדא כרבעי חודש יאש.",
+        "offeredToLlm": false
+      },
+      {
+        "start": 1023.59,
+        "end": 1023.87,
+        "text": "חודש",
+        "offeredToLlm": false
+      },
+      {
+        "start": 1025.33,
+        "end": 1025.53,
+        "text": "כ\"ט",
+        "offeredToLlm": false
+      },
+      {
+        "start": 1026.87,
+        "end": 1027.19,
+        "text": "סברא,",
+        "offeredToLlm": false
+      },
+      {
+        "start": 1030.99,
+        "end": 1031.25,
+        "text": "חודש",
+        "offeredToLlm": false
+      },
+      {
+        "start": 1032.31,
+        "end": 1033.17,
+        "text": "חדא ועד קאמר.",
+        "offeredToLlm": false
+      },
+      {
+        "start": 1056.33,
+        "end": 1056.61,
+        "text": "כ\"ט",
+        "offeredToLlm": true
+      },
+      {
+        "start": 1061.13,
+        "end": 1062.71,
+        "text": "שוילין בדרשים שתי שבתות.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 1069.03,
+        "end": 1069.89,
+        "text": "שתי שבתות.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 1071.67,
+        "end": 1072.89,
+        "text": "שוילין בדרשים הלכות פסח,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 1077.89,
+        "end": 1078.45,
+        "text": "שתי שבתות,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 1080.71,
+        "end": 1081.39,
+        "text": "אחד בסיוון,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 1430.26,
+        "end": 1430.4,
+        "text": "אדי--",
+        "offeredToLlm": true
+      },
+      {
+        "start": 1432.56,
+        "end": 1433.02,
+        "text": "חשבון",
+        "offeredToLlm": true
+      },
+      {
+        "start": 1656.38,
+        "end": 1658.58,
+        "text": "אלולן מסתמין בפני עצמן.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 1665.82,
+        "end": 1666.92,
+        "text": "אי זה זה טעית.",
+        "offeredToLlm": false
+      },
+      {
+        "start": 1807.08,
+        "end": 1808.56,
+        "text": "ונוטל אחד מן האלולין.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 1876.21,
+        "end": 1878.67,
+        "text": "\"כֹּל מַעַשְׂר בְּקָרְבֶךָ לָהּ כֹּל אֲשֶׁר יָבֹא תַחַת הַשֶּׁבֶט\"",
+        "offeredToLlm": false
+      },
+      {
+        "start": 1884.85,
+        "end": 1886.87,
+        "text": "\"שִׂפְתְּךָ וּמִשְׁעַנְתְּךָ הֵמָּה יְנַחֲמוּנִי\"",
+        "offeredToLlm": false
+      },
+      {
+        "start": 1903.93,
+        "end": 1904.29,
+        "text": "הלכות",
+        "offeredToLlm": true
+      },
+      {
+        "start": 1904.45,
+        "end": 1905.09,
+        "text": "לכתחילה,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 1905.59,
+        "end": 1906.15,
+        "text": "בדיעבד",
+        "offeredToLlm": true
+      },
+      {
+        "start": 1906.73,
+        "end": 1907.15,
+        "text": "סקרא,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 1907.95,
+        "end": 1908.45,
+        "text": "שבט,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 1914.33,
+        "end": 1914.73,
+        "text": "בדיעבד",
+        "offeredToLlm": true
+      },
+      {
+        "start": 1915.67,
+        "end": 1916.21,
+        "text": "הוילמעי.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 1922.39,
+        "end": 1922.63,
+        "text": "הלכה.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 1942.27,
+        "end": 1942.65,
+        "text": "הלכה",
+        "offeredToLlm": false
+      },
+      {
+        "start": 1943.83,
+        "end": 1944.61,
+        "text": "פטור.",
+        "offeredToLlm": false
+      },
+      {
+        "start": 1958.67,
+        "end": 1958.69,
+        "text": "כ--",
+        "offeredToLlm": false
+      },
+      {
+        "start": 1962.97,
+        "end": 1963.43,
+        "text": "קדוש.",
+        "offeredToLlm": false
+      },
+      {
+        "start": 1970.05,
+        "end": 1970.33,
+        "text": "ספק",
+        "offeredToLlm": false
+      },
+      {
+        "start": 1973.83,
+        "end": 1974.91,
+        "text": "תוספות בבא מציעא דף ו'.",
+        "offeredToLlm": false
+      },
+      {
+        "start": 1997.85,
+        "end": 1998.67,
+        "text": "ספק",
+        "offeredToLlm": true
+      },
+      {
+        "start": 2001.57,
+        "end": 2002.07,
+        "text": "עשירי.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 2004.61,
+        "end": 2005.37,
+        "text": "ספק עשירי.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 2005.85,
+        "end": 2006.03,
+        "text": "הלכה",
+        "offeredToLlm": true
+      },
+      {
+        "start": 2006.27,
+        "end": 2006.89,
+        "text": "ספק עשירי?",
+        "offeredToLlm": true
+      },
+      {
+        "start": 2008.83,
+        "end": 2009.39,
+        "text": "חוטא חוץ.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 2010.89,
+        "end": 2011.43,
+        "text": "משמך",
+        "offeredToLlm": true
+      },
+      {
+        "start": 2012.57,
+        "end": 2013.25,
+        "text": "חול מאזרה.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 2019.31,
+        "end": 2019.63,
+        "text": "ברייתא",
+        "offeredToLlm": true
+      },
+      {
+        "start": 2055.99,
+        "end": 2056.93,
+        "text": "מה יברכס.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 2072.75,
+        "end": 2073.35,
+        "text": "דרך אגב",
+        "offeredToLlm": false
+      },
+      {
+        "start": 2075.49,
+        "end": 2075.85,
+        "text": "פסולים.",
+        "offeredToLlm": false
+      },
+      {
+        "start": 2078.61,
+        "end": 2078.85,
+        "text": "הלכה",
+        "offeredToLlm": false
+      },
+      {
+        "start": 2080.09,
+        "end": 2080.69,
+        "text": "מעשר בהמה.",
+        "offeredToLlm": false
+      },
+      {
+        "start": 2088.01,
+        "end": 2088.19,
+        "text": "דיר.",
+        "offeredToLlm": false
+      },
+      {
+        "start": 2092.19,
+        "end": 2092.71,
+        "text": "לשחייח.",
+        "offeredToLlm": false
+      },
+      {
+        "start": 2115.27,
+        "end": 2115.63,
+        "text": "טריפות",
+        "offeredToLlm": false
+      },
+      {
+        "start": 2119.45,
+        "end": 2119.81,
+        "text": "טריפות",
+        "offeredToLlm": false
+      },
+      {
+        "start": 2120.67,
+        "end": 2121.29,
+        "text": "מקרא",
+        "offeredToLlm": false
+      },
+      {
+        "start": 2122.53,
+        "end": 2123.31,
+        "text": "פסול לקטנים",
+        "offeredToLlm": true
+      },
+      {
+        "start": 2124.67,
+        "end": 2125.23,
+        "text": "מעשר בהמה",
+        "offeredToLlm": true
+      },
+      {
+        "start": 2125.43,
+        "end": 2125.71,
+        "text": "קטנים,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 2125.95,
+        "end": 2126.17,
+        "text": "קטנים",
+        "offeredToLlm": true
+      },
+      {
+        "start": 2126.29,
+        "end": 2126.85,
+        "text": "מעשר בהמה",
+        "offeredToLlm": true
+      },
+      {
+        "start": 2132.75,
+        "end": 2133.07,
+        "text": "כתחילה",
+        "offeredToLlm": false
+      },
+      {
+        "start": 2172.43,
+        "end": 2172.79,
+        "text": "הלכה",
+        "offeredToLlm": false
+      },
+      {
+        "start": 2189.97,
+        "end": 2190.69,
+        "text": "ראשון רבים.",
+        "offeredToLlm": false
+      },
+      {
+        "start": 2965.29,
+        "end": 2973.33,
+        "text": "בפרק קמא דפסחים יא לא מקרא דשואלין בהלכות הפסח קודם לפסח לא מידי. באפשר דאלפין הלכות חג מפסח. משום דרש--",
+        "offeredToLlm": false
+      },
+      {
+        "start": 2981.65,
+        "end": 2981.97,
+        "text": "לכו ו--",
+        "offeredToLlm": false
+      },
+      {
+        "start": 2983.29,
+        "end": 2984.15,
+        "text": "שואלין בהלכות",
+        "offeredToLlm": false
+      },
+      {
+        "start": 2989.87,
+        "end": 2997.17,
+        "text": "ומכאן שוב הבא בבית יוסף ברי\"ח הלכות פסח שהוין דהות דשואלין נעמידין קודם היינו דפקו בפסח ולא בחג.",
+        "offeredToLlm": false
+      },
+      {
+        "start": 3012.45,
+        "end": 3013.73,
+        "text": "שואלין בהלכות הפסח.",
+        "offeredToLlm": false
+      },
+      {
+        "start": 3063.01,
+        "end": 3064.67,
+        "text": "שואלין ודורשין שלושים יום",
+        "offeredToLlm": false
+      },
+      {
+        "start": 3100.37,
+        "end": 3102.23,
+        "text": "מן האמרי מילי אומר רבא בר שילא דאמר קרא זונתו",
+        "offeredToLlm": false
+      },
+      {
+        "start": 3328.24,
+        "end": 3332.86,
+        "text": "פלטורים, פוירסט פלטורים, בספר במדבר. אבל תזמרג'ת תנחומא,",
+        "offeredToLlm": false
+      },
+      {
+        "start": 3334.8,
+        "end": 3335.1,
+        "text": "תנחומא",
+        "offeredToLlm": false
+      },
+      {
+        "start": 3335.68,
+        "end": 3337.52,
+        "text": "\"ואסרה מקומות נמנו ישראל\".",
+        "offeredToLlm": false
+      },
+      {
+        "start": 3340.74,
+        "end": 3346.92,
+        "text": "\"אחד בהרידתם למצרים, שנאמר: בשבעים נפש ירדו אביך. ואחד בעלייתם, ויצאו בני ישראל מרעמסס\",",
+        "offeredToLlm": false
+      },
+      {
+        "start": 3348.22,
+        "end": 3349.38,
+        "text": "\"ואחד בחמישה שפי גודם\",",
+        "offeredToLlm": false
+      },
+      {
+        "start": 3350.58,
+        "end": 3355.42,
+        "text": "סו סריית בני ישראל. \"אחד במרגלים, אחד בימי יהושע בחלוק הארץ, שניים\",",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3358.36,
+        "end": 3363,
+        "text": "\"ואחד בימי דוד, אחד בימי עזרא ואחד לעתיד לבוא\".",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3363.74,
+        "end": 3366.3,
+        "text": "לעתיד לבוא? \"שנאמר: אות הבענה עצנה ימי מנה\".",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3374.76,
+        "end": 3380.22,
+        "text": "\"מתוך חיבה עשו לפני משה עושה מקל שר, כי שיצאו ממצרים מנה, כשנפלו באגו מנה\".",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3385.04,
+        "end": 3385.38,
+        "text": "חבה,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3385.74,
+        "end": 3386.4,
+        "text": "אהבה",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3398.8,
+        "end": 3400.66,
+        "text": "\"אות הבענה עצנה ימי מנה\".",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3402.1,
+        "end": 3402.76,
+        "text": "לעתיד לבוא,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3407.76,
+        "end": 3408.7,
+        "text": "תפילת ש\"י,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3414.48,
+        "end": 3415.3,
+        "text": "דבר נפלא",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3430.5,
+        "end": 3431.34,
+        "text": "ל\"א ע\"ב.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3434.74,
+        "end": 3442.2,
+        "text": "תניא רבי שמעון אלעזר אומר: עזרא תיקנם לישראל, שהיו קורין כלל שלפני תורה קוראין קודם את סרס, ושל משנה תורה קוראין ראש השנה.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3444.82,
+        "end": 3445.08,
+        "text": "תוכחה.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3445.44,
+        "end": 3445.82,
+        "text": "תוכחות",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3446.96,
+        "end": 3447.44,
+        "text": "תורה קוראין,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3454.74,
+        "end": 3455.42,
+        "text": "תוכחות",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3457.68,
+        "end": 3460.72,
+        "text": "אמר רבה אבהו תלמיד רבי יוחנן: כדי שתכלש שנה וכל עוליה.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3465.2,
+        "end": 3467.2,
+        "text": "כדי שתכלש שנה וכל עוליה,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3467.94,
+        "end": 3468.34,
+        "text": "עולות",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3470.98,
+        "end": 3471.38,
+        "text": "תכלש שנה,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3472.36,
+        "end": 3472.66,
+        "text": "עולות",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3475.94,
+        "end": 3479.24,
+        "text": "דשלא משנה משנה תורה, אית לה קדשא תכלש שנה וכל עוליה.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3483.62,
+        "end": 3483.96,
+        "text": "אלול,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3485.36,
+        "end": 3485.98,
+        "text": "אלוליין.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3490.64,
+        "end": 3493.32,
+        "text": "תכלש אלול שלפני תורה קוראין, או טו את סרס ראש השנה.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3498.3,
+        "end": 3499.8,
+        "text": "אין את סרס נמי ראש השנה היא.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3501.88,
+        "end": 3503.56,
+        "text": "דתנן: הוא בעת סרס על פירותיו.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3512.02,
+        "end": 3512.94,
+        "text": "לפירות האילן.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3515.7,
+        "end": 3516.3,
+        "text": "תוכחה",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3519.72,
+        "end": 3522.24,
+        "text": "כדי שתכלש שנה וכל עוליה.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3523.38,
+        "end": 3523.78,
+        "text": "תוכחה",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3529.92,
+        "end": 3530.68,
+        "text": "עולות",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3537.34,
+        "end": 3537.96,
+        "text": "את סרס,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3539.2,
+        "end": 3541.12,
+        "text": "על פירותיו. לפרי טו יש הסככה.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3557.38,
+        "end": 3558.5,
+        "text": "תכלש שנה וכל עוליה,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3563.34,
+        "end": 3563.72,
+        "text": "מוכס.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3567.26,
+        "end": 3567.76,
+        "text": "לכאורה,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3568.6,
+        "end": 3569.42,
+        "text": "תכלש שנה וכל עוליה,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3571.88,
+        "end": 3572.34,
+        "text": "בערך?",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3583.18,
+        "end": 3588.48,
+        "text": "מטעם זה הוא לו קורין במדבר סיני קודם את סרס כדי שלא להסמיך כלל של בחוקותי לאת סרס.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3589.62,
+        "end": 3590.52,
+        "text": "תכלש שנה וכל עוליה,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3592.42,
+        "end": 3592.72,
+        "text": "תוכחה",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3605.78,
+        "end": 3606.32,
+        "text": "תוכחה",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3629.24,
+        "end": 3631.96,
+        "text": "שהוא לא רצה מאלו שמסרשלים ללמוד.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3637.94,
+        "end": 3638.66,
+        "text": "מסרשלים",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3639.68,
+        "end": 3640.2,
+        "text": "בחשבון,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3641.2,
+        "end": 3642.9,
+        "text": "שלא יגיעו למדרגת הגדול בטהרה.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3645.12,
+        "end": 3645.44,
+        "text": "גודל של",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3666.22,
+        "end": 3668.32,
+        "text": "סְאוּ, כי תסית ש. סְאוּ. סְאוּ",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3677.24,
+        "end": 3678.22,
+        "text": "עשירי יאה קודש,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3687.68,
+        "end": 3687.94,
+        "text": "אחדות",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3688.14,
+        "end": 3688.56,
+        "text": "כאבות.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3692.5,
+        "end": 3692.92,
+        "text": "שווה.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3699.08,
+        "end": 3699.6,
+        "text": "תוכחה",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3703.68,
+        "end": 3704.28,
+        "text": "הקדמה.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3710.1,
+        "end": 3712.72,
+        "text": "להט, מתוך חיבה עשו לפני משה עושה מקל שר.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3721.35,
+        "end": 3722.45,
+        "text": "בנים לשם אלוקיכם,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3723.05,
+        "end": 3723.95,
+        "text": "תהילים של יד,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3725.27,
+        "end": 3726.69,
+        "text": "והיה עיני וליבי,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3727.19,
+        "end": 3727.91,
+        "text": "ליבי שם,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3732.35,
+        "end": 3732.73,
+        "text": "חשיד,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3734.05,
+        "end": 3734.53,
+        "text": "תפקיד,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3736.19,
+        "end": 3737.59,
+        "text": "עושה נחת רוח ליוצר.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3740.39,
+        "end": 3741.01,
+        "text": "ללמדנו",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3755.49,
+        "end": 3755.83,
+        "text": "יחיד,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3757.51,
+        "end": 3758.51,
+        "text": "סו את ראש בני ישראל,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3761.81,
+        "end": 3763.47,
+        "text": "דווקא ערב שבועות.",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3764.35,
+        "end": 3765.49,
+        "text": "תהיה כבי זכאה",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3770.25,
+        "end": 3771.27,
+        "text": "בנים לשם אלוקיכם,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3771.89,
+        "end": 3772.49,
+        "text": "תהילים של יד",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3773.07,
+        "end": 3773.47,
+        "text": "ביס,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3774.51,
+        "end": 3776.65,
+        "text": "ומי כעמך ישראל גוי אחד בארץ,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3777.43,
+        "end": 3778.23,
+        "text": "זכאה",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3778.81,
+        "end": 3779.09,
+        "text": "נבואה",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3779.29,
+        "end": 3779.81,
+        "text": "ירמיהו,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3780.03,
+        "end": 3782.41,
+        "text": "אוטה בונה את צועני ידי מנועה אמר השם,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3783.69,
+        "end": 3784.51,
+        "text": "לאחר העיון",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3785.41,
+        "end": 3785.87,
+        "text": "זכאה",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3789.19,
+        "end": 3789.41,
+        "text": "זמן",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3789.57,
+        "end": 3789.83,
+        "text": "הסתרה,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3790.63,
+        "end": 3790.99,
+        "text": "חושך",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3796.85,
+        "end": 3797.29,
+        "text": "אהבה,",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3798.35,
+        "end": 3798.65,
+        "text": "אהבה",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3803.37,
+        "end": 3804.35,
+        "text": "לעתיד לבוא",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3805.53,
+        "end": 3806.21,
+        "text": "תהיה כבי זכאה",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3806.83,
+        "end": 3807.15,
+        "text": "חיבה",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3807.57,
+        "end": 3808.21,
+        "text": "אהבה",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3811.51,
+        "end": 3811.75,
+        "text": "זכאה",
+        "offeredToLlm": true
+      },
+      {
+        "start": 3811.93,
+        "end": 3814.19,
+        "text": "אוטה בונה את צועני ידי מנועה אמר השם",
+        "offeredToLlm": true
+      }
+    ],
+    "excluded": [
+      {
+        "start": 3612.22,
+        "end": 3623.52,
+        "text": "\"איזה בתוספות מגילה, שסדר לו קרי במדבר קודם שבועות כדי שלא להסמיך כלל של בחוקותי לאת סרס, שדן על הפירות האילן. ונראה שיש לפרשת במדבר שייכות גדולה לשבועות\"."
+      }
+    ],
+    "passes": 4,
+    "llmCalls": 79,
+    "straightPath": true,
+    "straightened": {
+      "placementsBefore": 235,
+      "placementsAfter": 170,
+      "wordsBefore": 519,
+      "wordsAfter": 505
+    }
+  },
+  "videoId": "L0213147286",
+  "videoUrl": "https://lakewoodafyomi.appspot.com/m5/CAEQ8uPriwEaIFZ6z5sDPxDpvG-yskZdS6Z6g3xwZClcrIDEd2oR0zWeIiC6dxa8qkM0ud6bV8wM0GBrgoAAtUXQcmJsQSiFcoIgoyofYXVkL2QvQmVjaG9yb3MgNThfMjEzMTQ3Mjg2Lm1wMw/Bechoros%2058_213147286.mp3",
+  "coveredRefs": [
+    "Bekhorot 58a",
+    "Bekhorot 58b"
+  ],
+  "testRun": {
+    "id": "regular-2",
+    "engine": "regular",
+    "number": 2,
+    "name": "Regular #2 · 16 Nov 2026 · phrase matcher",
+    "notes": "phrase matcher",
+    "engineVersion": "94f97e3",
+    "createdAt": "2026-11-16T15:00:40Z"
+  }
+}

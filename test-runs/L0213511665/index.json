@@ -13,14 +13,14 @@
       "file": "regular-1.json",
       "jobId": "realign-44504162924",
       "summary": {
-        "segments": 268,
-        "estimatedSegments": 59,
-        "placements": 485,
-        "placedWords": 1118,
+        "segments": 175,
+        "estimatedSegments": 67,
+        "placements": 218,
+        "placedWords": 508,
         "totalRuns": 718,
-        "totalWords": 570,
-        "matchedWords": 498,
-        "unmatchedWords": 72,
+        "totalWords": 895,
+        "matchedWords": 496,
+        "unmatchedWords": 399,
         "durationSeconds": 3487.25
       }
     }
