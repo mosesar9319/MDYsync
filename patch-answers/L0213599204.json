@@ -3,7 +3,7 @@
  "videoId": "L0213599204",
  "shiur": "R' Sruly Bornstein, Eruchin 4",
  "answeredBy": "Claude, in a Claude Code session",
- "notes": "For the transcript with its skipped stretches heard again. The first 14 placements are the first patch's, carried over; the last 5 are in the lines heard anew. The end of 4b (from line 21) is not read in this shiur.",
+ "notes": "For the transcript with its skipped stretches heard again. The first 14 placements are the first patch's, carried over; the last 5 are in the lines heard anew. The end of 4b (from line 21) is not read in this shiur. A second look at the words the first patch left added 6 placements.",
  "placements": [
   {
    "daf": [
@@ -46,6 +46,19 @@
   },
   {
    "daf": [
+    321,
+    321
+   ],
+   "heard": [
+    562,
+    564
+   ],
+   "kind": "explained",
+   "confidence": 0.7,
+   "why": "'there is a mitzvot Yovel, is a mitzvot Rosh Hashanah' gives דאיתיה במצות יובל איתיה במצות ר\"ה in English"
+  },
+  {
+   "daf": [
     374,
     374
    ],
@@ -69,6 +82,19 @@
    "kind": "read",
    "confidence": 0.85,
    "why": "'paro hi' = כפרה היא"
+  },
+  {
+   "daf": [
+    431,
+    431
+   ],
+   "heard": [
+    1507,
+    1507
+   ],
+   "kind": "read",
+   "confidence": 0.72,
+   "why": "'amar achmano ve'zet' = אמר רחמנא והא (איתנהו)"
   },
   {
    "daf": [
@@ -160,6 +186,58 @@
    "kind": "read",
    "confidence": 0.75,
    "why": "'נפשוש saying ליעל' = נפשות אין לי"
+  },
+  {
+   "daf": [
+    755,
+    755
+   ],
+   "heard": [
+    4948,
+    4948
+   ],
+   "kind": "read",
+   "confidence": 0.72,
+   "why": "'נפשוש saying ליעל אחד' = נפשות אין לי אלא אחד"
+  },
+  {
+   "daf": [
+    765,
+    766
+   ],
+   "heard": [
+    5043,
+    5044
+   ],
+   "kind": "explained",
+   "confidence": 0.7,
+   "why": "he says 'קמשמע לן again from the נפשות' where the text has תלמוד לומר"
+  },
+  {
+   "daf": [
+    767,
+    767
+   ],
+   "heard": [
+    5048,
+    5048
+   ],
+   "kind": "read",
+   "confidence": 0.7,
+   "why": "'again from the פשוט': פשוט is how נפשות comes out in this stretch"
+  },
+  {
+   "daf": [
+    770,
+    770
+   ],
+   "heard": [
+    5063,
+    5063
+   ],
+   "kind": "read",
+   "confidence": 0.7,
+   "why": "'דבר אחר, another thing that we learn from the פשוט' = דבר אחר נפשות"
   },
   {
    "daf": [

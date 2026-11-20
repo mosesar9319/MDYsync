@@ -421,35 +421,26 @@
     },
     {
       "ref": "Arakhin 3b:17",
-      "start": 191.32,
-      "end": 191.33,
-      "he": "דְּאִיתֵיהּ",
+      "start": 190.92,
+      "end": 192.54,
+      "he": "דְּאִיתֵיהּ בְּמִצְוַת יוֹבֵל — אִיתֵיהּ בְּמִצְוַת רֹאשׁ הַשָּׁנָה,",
       "w0": 12,
-      "w1": 12,
-      "estimated": true
+      "w1": 19
     },
     {
       "ref": "Arakhin 3b:17",
-      "start": 191.32,
-      "end": 192.94,
-      "he": "בְּמִצְוַת יוֹבֵל — אִיתֵיהּ בְּמִצְוַת רֹאשׁ הַשָּׁנָה, דְּלֵיתֵיהּ בְּמִצְוַת",
-      "w0": 13,
-      "w1": 21
+      "start": 192.94,
+      "end": 195.12,
+      "he": "דְּלֵיתֵיהּ בְּמִצְוַת יוֹבֵל — לֵיתֵיהּ בְּמִצְוַת רֹאשׁ הַשָּׁנָה,",
+      "w0": 20,
+      "w1": 27
     },
     {
       "ref": "Arakhin 3b:17",
-      "start": 194.06,
-      "end": 195.88,
-      "he": "יוֹבֵל — לֵיתֵיהּ בְּמִצְוַת רֹאשׁ הַשָּׁנָה, וְהָנֵי כָּהֲנֵי",
-      "w0": 22,
-      "w1": 29
-    },
-    {
-      "ref": "Arakhin 3b:17",
-      "start": 196.52,
+      "start": 195.88,
       "end": 197.82,
-      "he": "הוֹאִיל וְלֵיתַנְהוּ בְּמִצְוַת דְּיוֹבֵל,",
-      "w0": 30,
+      "he": "וְהָנֵי כָּהֲנֵי הוֹאִיל וְלֵיתַנְהוּ בְּמִצְוַת דְּיוֹבֵל,",
+      "w0": 28,
       "w1": 33
     },
     {
@@ -608,19 +599,10 @@
     {
       "ref": "Arakhin 4a:4",
       "start": 488.32,
-      "end": 488.32,
-      "he": "אָמַר רַחֲמָנָא,",
+      "end": 488.84,
+      "he": "אָמַר רַחֲמָנָא, וְהָא",
       "w0": 5,
-      "w1": 6
-    },
-    {
-      "ref": "Arakhin 4a:4",
-      "start": 494.44,
-      "end": 494.45,
-      "he": "וְהָא",
-      "w0": 7,
-      "w1": 7,
-      "estimated": true
+      "w1": 7
     },
     {
       "ref": "Arakhin 4a:4",
@@ -1254,29 +1236,11 @@
     },
     {
       "ref": "Arakhin 4a:20",
-      "start": 1484.71,
-      "end": 1484.74,
-      "he": "תַּלְמוּד לוֹמַר ״נְפָשֹׁת״.",
+      "start": 1482.13,
+      "end": 1486.43,
+      "he": "תַּלְמוּד לוֹמַר ״נְפָשֹׁת״. דָּבָר אַחֵר: ״נְפָשֹׁת״,",
       "w0": 13,
-      "w1": 15,
-      "estimated": true
-    },
-    {
-      "ref": "Arakhin 4a:20",
-      "start": 1484.71,
-      "end": 1484.71,
-      "he": "דָּבָר אַחֵר:",
-      "w0": 16,
-      "w1": 17
-    },
-    {
-      "ref": "Arakhin 4a:20",
-      "start": 1484.71,
-      "end": 1484.72,
-      "he": "״נְפָשֹׁת״,",
-      "w0": 18,
-      "w1": 18,
-      "estimated": true
+      "w1": 18
     },
     {
       "ref": "Arakhin 4b:1",
@@ -2770,12 +2734,21 @@
     },
     {
       "start": 150.64,
-      "end": 191.32,
+      "end": 190.92,
       "ref": "Arakhin 3b:17",
       "w0": 8,
       "w1": 11,
       "heardText": "לראש השנה לתקיע ולברכות.",
       "source": "path-hebrew"
+    },
+    {
+      "start": 190.92,
+      "end": 191.32,
+      "ref": "Arakhin 3b:17",
+      "w0": 12,
+      "w1": 12,
+      "heardText": "there is a",
+      "source": "claude-explained"
     },
     {
       "start": 191.32,
@@ -3220,12 +3193,21 @@
     },
     {
       "start": 488.32,
-      "end": 494.44,
+      "end": 488.84,
       "ref": "Arakhin 4a:4",
       "w0": 5,
       "w1": 6,
       "heardText": "אמר רחמנא",
       "source": "path-hebrew"
+    },
+    {
+      "start": 488.84,
+      "end": 494.44,
+      "ref": "Arakhin 4a:4",
+      "w0": 7,
+      "w1": 7,
+      "heardText": "ve'zet.",
+      "source": "claude-read"
     },
     {
       "start": 494.44,
@@ -3702,7 +3684,7 @@
       "w0": 16,
       "w1": 17,
       "heardText": "דקא מהלי חול ומזרה.",
-      "source": "deterministic-relocalized"
+      "source": "path-hebrew"
     },
     {
       "start": 915.84,
@@ -4615,11 +4597,20 @@
     },
     {
       "start": 1454.13,
-      "end": 1454.69,
+      "end": 1454.53,
       "ref": "Arakhin 4a:20",
       "w0": 2,
       "w1": 2,
       "heardText": "נפשוש",
+      "source": "claude-read"
+    },
+    {
+      "start": 1454.53,
+      "end": 1454.69,
+      "ref": "Arakhin 4a:20",
+      "w0": 3,
+      "w1": 3,
+      "heardText": "saying",
       "source": "claude-read"
     },
     {
@@ -4633,7 +4624,7 @@
     },
     {
       "start": 1455.77,
-      "end": 1484.71,
+      "end": 1482.13,
       "ref": "Arakhin 4a:20",
       "w0": 8,
       "w1": 12,
@@ -4641,13 +4632,40 @@
       "source": "path-hebrew"
     },
     {
+      "start": 1482.13,
+      "end": 1483.21,
+      "ref": "Arakhin 4a:20",
+      "w0": 13,
+      "w1": 14,
+      "heardText": "קמשמע לן",
+      "source": "claude-explained"
+    },
+    {
+      "start": 1483.21,
+      "end": 1484.71,
+      "ref": "Arakhin 4a:20",
+      "w0": 15,
+      "w1": 15,
+      "heardText": "פשוט",
+      "source": "claude-read"
+    },
+    {
       "start": 1484.71,
-      "end": 1489.73,
+      "end": 1486.43,
       "ref": "Arakhin 4a:20",
       "w0": 16,
       "w1": 17,
       "heardText": "דבר אחר,",
       "source": "path-hebrew"
+    },
+    {
+      "start": 1486.43,
+      "end": 1489.73,
+      "ref": "Arakhin 4a:20",
+      "w0": 18,
+      "w1": 18,
+      "heardText": "פשוט.",
+      "source": "claude-read"
     },
     {
       "start": 1489.73,
@@ -5905,8 +5923,8 @@
     "aligner": "path",
     "totalRuns": 552,
     "totalWords": 989,
-    "matchedWords": 807,
-    "unmatchedWords": 182,
+    "matchedWords": 811,
+    "unmatchedWords": 178,
     "excludedWords": 0,
     "bySource": {
       "path-latin": {
@@ -5926,8 +5944,8 @@
       },
       "path-hebrew": {
         "label": "Read from Hebrew letters",
-        "runs": 215,
-        "words": 508
+        "runs": 216,
+        "words": 510
       },
       "path-bridge": {
         "label": "Filled in between two placed phrases a moment apart (not heard on its own)",
@@ -5941,8 +5959,8 @@
       },
       "deterministic-relocalized": {
         "label": "Deterministic matching (re-checked between anchors)",
-        "runs": 2,
-        "words": 9
+        "runs": 1,
+        "words": 7
       },
       "deterministic-local": {
         "label": "Deterministic matching (locked tracking)",
@@ -5951,13 +5969,13 @@
       },
       "claude-read": {
         "label": "Placed by Claude between two placed phrases (said, but garbled in the transcript)",
-        "runs": 17,
-        "words": 22
+        "runs": 21,
+        "words": 26
       },
       "claude-explained": {
         "label": "Explained without being read (highlighted, not counted as matched)",
-        "runs": 2,
-        "words": 6
+        "runs": 4,
+        "words": 9
       }
     },
     "unmatched": [
@@ -7175,8 +7193,8 @@
     "readingEndsAt": 2124.06,
     "droppedAfterReading": 3,
     "straightPath": true,
-    "dafWordsPatched": 22,
-    "dafWordsExplained": 6,
+    "dafWordsPatched": 26,
+    "dafWordsExplained": 9,
     "claude": {
       "model": "claude (in a Claude Code session)",
       "holes": 23,
@@ -7184,8 +7202,8 @@
       "calls": 0,
       "inputTokens": 0,
       "outputTokens": 0,
-      "readWords": 22,
-      "explainedWords": 6
+      "readWords": 26,
+      "explainedWords": 9
     },
     "phraseMatcher": {
       "matchedWords": 518,
@@ -7198,7 +7216,7 @@
     "model": "scribe_v2",
     "placedAgain": true
   },
-  "jobId": "realign-44706178271",
+  "jobId": "realign-44724327649",
   "videoId": "L0213599204",
   "videoUrl": "https://lakewoodafyomi.appspot.com/m5/CAEQ0duihQEaINwr2G3e-xgWSq9BVpf-0E65Qs4DsSeT_cAaGg1LDew5IiDnD2_abp0S2eGpwfZ0Y9GVgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQXJhY2hpbiA0XzIxMzU5OTIwNC5tcDM/Arachin%204_213599204.mp3",
   "coveredRefs": [

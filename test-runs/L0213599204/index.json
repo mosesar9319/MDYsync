@@ -67,7 +67,29 @@
         "unmatchedWords": 182,
         "durationSeconds": 3541.87
       }
+    },
+    {
+      "id": "regular-4",
+      "engine": "regular",
+      "number": 4,
+      "name": "Regular #4 · 20 Nov 2026 · placed again from saved transcripts (claude/retranscribe-skipped-stretches): a second look at the words the first patch left",
+      "notes": "placed again from saved transcripts (claude/retranscribe-skipped-stretches): a second look at the words the first patch left",
+      "engineVersion": "be3726e",
+      "createdAt": "2026-11-20T11:03:45Z",
+      "file": "regular-4.json",
+      "jobId": "realign-44724327649",
+      "summary": {
+        "segments": 292,
+        "estimatedSegments": 114,
+        "placements": 384,
+        "placedWords": 831,
+        "totalRuns": 552,
+        "totalWords": 989,
+        "matchedWords": 811,
+        "unmatchedWords": 178,
+        "durationSeconds": 3541.87
+      }
     }
   ],
-  "updatedAt": "2026-11-20T08:54:19Z"
+  "updatedAt": "2026-11-20T11:03:45Z"
 }
