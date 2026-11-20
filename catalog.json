@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-20T02:01:06.477Z",
+  "generatedAt": "2026-11-20T05:15:09.240Z",
   "tractates": {
     "Bekhorot": [
       {
@@ -4651,6 +4651,13 @@
           "liveBroadcast": true,
           "liveStatus": "finished",
           "durationSeconds": 5351
+        },
+        "regularEn": {
+          "videoId": "RzRMk8X9TXo",
+          "label": "Daf Yomi Arachin Daf 03 by R’ Eli Stefansky (unedited)",
+          "amud": "a",
+          "liveBroadcast": true,
+          "liveStatus": "live"
         }
       }
     ]
