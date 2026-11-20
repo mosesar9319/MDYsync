@@ -1,11 +1,20 @@
-name: Place a shiur again from its saved transcripts (no ElevenLabs)
+name: Place a shiur again from its saved transcripts
 
 # A voice sync keeps what it heard (transcripts/<video id>.json.gz on the results
 # branch; see the "Keep the transcripts" step of voice-job.yml). This places the
 # same shiur on the daf again from that file, with the engine as it is on the
 # branch it is run from -- so a change to the engine can be tried on a real
 # shiur, or brought to shiurim already synced, without transcribing anything.
-# It reads no audio and makes no ElevenLabs call.
+# It reads no audio and makes no ElevenLabs call -- unless "fill_skipped" is on.
+#
+# With "fill_skipped", the stretches of speech the saved transcript has no
+# words for (ElevenLabs sometimes returns nothing for minutes of a shiur; see
+# fill_skipped in voice_align.py) are transcribed now, from the recording
+# itself, and the transcripts are kept again with them in. That costs ElevenLabs
+# credits for those minutes only. A new sync does this by itself; this is for a
+# shiur synced before it did. The shiur's kept answers (below) were given for
+# the transcript as it was, so they are dropped when anything is heard, and the
+# holes are to be answered again.
 #
 # With "claude" on (the default), Claude is asked about the holes the path leaves
 # (tools/caption-sync/llm_patch.py), which costs Claude usage -- about what one
@@ -50,6 +59,10 @@ on:
       answers:
         description: 'Answers for the holes, given in a Claude Code session (JSON, dafsync-patch-answers-v1); kept on the results branch'
         default: ''
+      fill_skipped:
+        description: 'Also transcribe the stretches of speech the saved transcript skipped (ElevenLabs credits for those minutes only)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -77,6 +90,13 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r MDYsync/tools/caption-sync/requirements-voice.txt
 
+      # Only to read the recording itself, for the stretches its transcript skipped.
+      - name: Install ffmpeg
+        if: inputs.fill_skipped
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+
       # As in voice-job.yml: the job's own GitHub-signed token, which the
       # anthropic SDK exchanges for a short-lived Anthropic one.
       - name: Fetch GitHub OIDC token for Anthropic workload identity federation
@@ -93,6 +113,9 @@ jobs:
         env:
           VIDEO_ID: ${{ inputs.video_id }}
           ANSWERS: ${{ inputs.answers }}
+          FILL_SKIPPED: ${{ inputs.fill_skipped }}
+          # Given to the engine only when it is to transcribe skipped stretches.
+          ELEVENLABS_API_KEY: ${{ inputs.fill_skipped && secrets.ELEVENLABS_API_KEY || '' }}
           VOICE_LLM_PATCH: ${{ inputs.claude && '1' || '0' }}
           # The same workload identity as voice-job.yml (see the notes there).
           ANTHROPIC_FEDERATION_RULE_ID: fdrl_01AtYN9MAYUPtY4cZQyXsbyc
@@ -128,8 +151,52 @@ jobs:
             echo "Filling the holes from the answers given in a Claude Code session, not the API."
             export VOICE_LLM_PATCH=0
           fi
+          refs="$(python3 -c "import json; print(json.dumps(json.load(open('/tmp/job.json'))['refs']))")"
+          if [ "$FILL_SKIPPED" = "true" ]; then
+            if [ -n "$ANSWERS" ]; then
+              echo "Answers are for the transcript as it is. Fill the skipped stretches first, then answer the holes of the new transcript." | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+            if [ -z "$ELEVENLABS_API_KEY" ]; then
+              echo "There is no ElevenLabs key to transcribe with." | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+            # The recording the transcripts were made from, by the address kept
+            # with them. Its length must be the transcripts' own, or the words
+            # heard now would sit at the wrong moments.
+            url="$(python3 -c "import json; print(json.load(open('/tmp/job.json')).get('videoUrl') or '')")"
+            case "$url" in
+              https://*youtube.com/*|https://youtu.be/*|'')
+                echo "The saved transcripts do not name the recording's own file, so its skipped stretches cannot be read here. Sync the shiur again instead." | tee -a "$GITHUB_STEP_SUMMARY"
+                exit 1 ;;
+              https://*) ;;
+              *) echo "Not an address to download from."; exit 1 ;;
+            esac
+            curl -sfL --retry 3 --max-time 900 -o job-audio.mp3 "$url"
+            seconds=$(ffprobe -v error -show_entries format=duration -of csv=p=0 job-audio.mp3)
+            kept_seconds="$(python3 -c "import json; print(json.load(open('/tmp/job.json')).get('seconds') or '')")"
+            echo "Downloaded the recording: ${seconds:-unknown} s (the transcripts: ${kept_seconds} s)"
+            if [ -z "$seconds" ] || ! awk -v a="$seconds" -v b="$kept_seconds" 'BEGIN { d = a - b; if (d < 0) d = -d; exit !(d <= 3) }'; then
+              echo "The recording is not the length the transcripts were made from." | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+            VOICE_LLM_PATCH=0 python3 voice_align.py job-audio.mp3 \
+              --refs-json "$refs" \
+              --saved-transcripts "$saved" \
+              --fill-skipped --engine elevenlabs --no-fallback \
+              --out-dir job-out
+            if [ -f job-out/transcripts.json ]; then
+              # Something was heard: the transcript is a new one. Answers kept
+              # for the old one name its words by their place in it, so they go.
+              echo "Skipped stretches were transcribed; the shiur's kept answers, if any, are dropped." | tee -a "$GITHUB_STEP_SUMMARY"
+              echo "TRANSCRIPTS_CHANGED=true" >> "$GITHUB_ENV"
+              rm -f "$kept"
+              exit 0
+            fi
+            echo "The saved transcript has no skipped stretch of speech; placing it as it is." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
           python3 voice_align.py job-audio.mp3 \
-            --refs-json "$(python3 -c "import json; print(json.dumps(json.load(open('/tmp/job.json'))['refs']))")" \
+            --refs-json "$refs" \
             --saved-transcripts "$saved" \
             ${answers:+--patch-answers "$answers"} \
             --out-dir job-out
@@ -153,6 +220,36 @@ jobs:
           LANGUAGE="$(field language)"
           REFS_JSON="$(cat MDYsync/tools/caption-sync/job-out/refs.json)"
           out=MDYsync/tools/caption-sync/job-out/alignment.json
+
+          if [ "$TRANSCRIPTS_CHANGED" = "true" ]; then
+            # The transcripts with the skipped stretches heard, in the saved ones' place.
+            python3 MDYsync/tools/caption-sync/saved_transcripts.py store \
+              --transcripts MDYsync/tools/caption-sync/job-out/transcripts.json \
+              --out-dir /tmp/results-checkout \
+              --refs-json "$(python3 -c "import json; print(json.dumps(json.load(open('/tmp/job.json'))['refs']))")" \
+              --job-id "$JOB_ID" \
+              --video-url "$VIDEO_URL" \
+              --video-id "$VIDEO_ID" \
+              ${MAGGID:+--maggid "$MAGGID"} \
+              ${VARIANT:+--variant "$VARIANT"} \
+              ${LANGUAGE:+--language "$LANGUAGE"} \
+              --engine-version "${ENGINE_VERSION:0:7}"
+          fi
+          credits=MDYsync/tools/caption-sync/job-out/credits.json
+          export VIDEO_URL MAGGID REFS_JSON
+          if [ -f "$credits" ]; then
+            # What it cost, as voice-job.yml records a sync's.
+            stamp="$(date -u +%Y-%m-%dT%H%M%SZ)"
+            mkdir -p /tmp/results-checkout/credits
+            python3 - "$stamp" "$credits" "/tmp/results-checkout/credits/${stamp}-${JOB_ID}.json" <<'PY'
+          import json, os, sys
+          record = json.load(open(sys.argv[2]))
+          record.update({'at': sys.argv[1], 'jobId': os.environ.get('JOB_ID'), 'videoUrl': os.environ.get('VIDEO_URL') or None,
+                         'maggid': os.environ.get('MAGGID') or None, 'testRun': False, 'filledSkipped': True,
+                         'refs': json.loads(os.environ['REFS_JSON'])})
+          json.dump(record, open(sys.argv[3], 'w'), indent=2)
+          PY
+          fi
 
           if [ "$PUBLISH" = "true" ]; then
             python3 MDYsync/tools/caption-sync/publish_alignment.py \
@@ -180,7 +277,9 @@ jobs:
 
           cd /tmp/results-checkout
           git add test-runs
-          [ -d patch-answers ] && git add patch-answers
+          [ -d patch-answers ] && git add -A patch-answers
+          [ -d credits ] && git add credits
+          [ "$TRANSCRIPTS_CHANGED" = "true" ] && git add transcripts
           [ "$PUBLISH" = "true" ] && git add by-ref by-video
           git commit -q -m "Placed ${VIDEO_ID} again from its saved transcripts (${JOB_ID})"
           for attempt in 1 2 3 4 5; do
