@@ -1,0 +1,50 @@
+{
+  "model": "scribe_v2",
+  "requests": 16,
+  "audioMinutes": 74.8,
+  "keytermMinutes": 74.8,
+  "before": {
+    "used": 9896,
+    "limit": 30247,
+    "left": 20351,
+    "resetsAt": 1797636300,
+    "tier": "starter"
+  },
+  "after": {
+    "used": 11456,
+    "limit": 30247,
+    "left": 18791,
+    "resetsAt": 1797636300,
+    "tier": "starter"
+  },
+  "creditsUsed": 1560,
+  "creditsLeft": 18791,
+  "creditLimit": 30247,
+  "passes": [
+    {
+      "pass": "hints",
+      "requests": 1,
+      "audioMinutes": 60.3,
+      "creditsUsed": 1256,
+      "creditsPerAudioMinute": 20.8
+    },
+    {
+      "pass": "relisten",
+      "requests": 15,
+      "audioMinutes": 14.6,
+      "creditsUsed": 220,
+      "creditsPerAudioMinute": 15.1
+    }
+  ],
+  "at": "2026-11-20T192849Z",
+  "jobId": "54592e9d7a6e4b26a31a15764e22eb67",
+  "videoUrl": "https://lakewoodafyomi.appspot.com/m5/CAEQoeWehwEaIAT8UXw91twXLMAkN4vAVl92GjfMV4mYxZQR4M0QpqwPIiAHo7-337932X0FEwtiWzRMgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQXJhY2hpbiA1XzIxMzU5OTY5My5tcDM/Arachin%205_213599693.mp3",
+  "maggid": "bornstein",
+  "testRun": false,
+  "refs": [
+    "Arakhin 4b",
+    "Arakhin 5a",
+    "Arakhin 5b",
+    "Arakhin 6a"
+  ]
+}
