@@ -23,7 +23,29 @@
         "unmatchedWords": 337,
         "durationSeconds": 3541.87
       }
+    },
+    {
+      "id": "regular-2",
+      "engine": "regular",
+      "number": 2,
+      "name": "Regular #2 · 20 Nov 2026 · placed again from saved transcripts (claude/retranscribe-skipped-stretches): skipped stretches transcribed again",
+      "notes": "placed again from saved transcripts (claude/retranscribe-skipped-stretches): skipped stretches transcribed again",
+      "engineVersion": "1c782b3",
+      "createdAt": "2026-11-20T08:49:19Z",
+      "file": "regular-2.json",
+      "jobId": "realign-44705259956",
+      "summary": {
+        "segments": 315,
+        "estimatedSegments": 137,
+        "placements": 363,
+        "placedWords": 805,
+        "totalRuns": 556,
+        "totalWords": 989,
+        "matchedWords": 794,
+        "unmatchedWords": 195,
+        "durationSeconds": 3541.87
+      }
     }
   ],
-  "updatedAt": "2026-11-20T05:31:49Z"
+  "updatedAt": "2026-11-20T08:49:19Z"
 }
