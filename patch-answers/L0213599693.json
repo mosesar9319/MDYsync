@@ -1,0 +1,190 @@
+{
+ "schema": "dafsync-patch-answers-v1",
+ "videoId": "L0213599693",
+ "shiur": "R' Sruly Bornstein, Eruchin 5",
+ "answeredBy": "Claude, in a Claude Code session",
+ "placements": [
+  {
+   "daf": [
+    357,
+    357
+   ],
+   "heard": [
+    1268,
+    1268
+   ],
+   "kind": "read",
+   "confidence": 0.72,
+   "why": "'אמאי' before 'abaya' is his 'amar leih Abaye' run together"
+  },
+  {
+   "daf": [
+    443,
+    444
+   ],
+   "heard": [
+    2372,
+    2373
+   ],
+   "kind": "read",
+   "confidence": 0.72,
+   "why": "'like kasha' after אלא is 'lo kashya'"
+  },
+  {
+   "daf": [
+    445,
+    445
+   ],
+   "heard": [
+    2395,
+    2395
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "'הוה' before קצ'ימיזבח is 'ha' bekodshei mizbeach"
+  },
+  {
+   "daf": [
+    573,
+    573
+   ],
+   "heard": [
+    3193,
+    3193
+   ],
+   "kind": "read",
+   "confidence": 0.75,
+   "why": "'לו קשה' is 'lo kashya'"
+  },
+  {
+   "daf": [
+    616,
+    616
+   ],
+   "heard": [
+    4014,
+    4014
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'חכה' after בתם is 'hacha'"
+  },
+  {
+   "daf": [
+    802,
+    802
+   ],
+   "heard": [
+    5784,
+    5784
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'אוימא' before ערך כלי עלי is 'ha'omer'"
+  },
+  {
+   "daf": [
+    808,
+    808
+   ],
+   "heard": [
+    5858,
+    5858
+   ],
+   "kind": "read",
+   "confidence": 0.7,
+   "why": "'the Gemara says Rabbi Meir' reads 'kerabbi Meir'"
+  },
+  {
+   "daf": [
+    818,
+    818
+   ],
+   "heard": [
+    5970,
+    5970
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "'חזם' before הוא דטעי is 'hatam'"
+  },
+  {
+   "daf": [
+    843,
+    843
+   ],
+   "heard": [
+    6082,
+    6082
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'גם' before אמרו לשין דמים is 'vegamar'"
+  },
+  {
+   "daf": [
+    849,
+    849
+   ],
+   "heard": [
+    6214,
+    6214
+   ],
+   "kind": "read",
+   "confidence": 0.7,
+   "why": "'דכרב' before מאיר is 'ulerabbi'"
+  },
+  {
+   "daf": [
+    963,
+    966
+   ],
+   "heard": [
+    7047,
+    7056
+   ],
+   "kind": "explained",
+   "confidence": 0.72,
+   "why": "'it's not mukhrach that he means to be makdish dmei' explains 'aval dmei lo ka'amar'"
+  },
+  {
+   "daf": [
+    1049,
+    1049
+   ],
+   "heard": [
+    7730,
+    7730
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "'נערכין' after חרש שוטה וקטן"
+  },
+  {
+   "daf": [
+    1128,
+    1128
+   ],
+   "heard": [
+    8214,
+    8215
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "'leilei keno' ends the pasuk: 'Eloheinu'"
+  },
+  {
+   "daf": [
+    1173,
+    1173
+   ],
+   "heard": [
+    8481,
+    8482
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "'leilei keno' ends the pasuk again: 'Eloheinu'"
+  }
+ ]
+}
