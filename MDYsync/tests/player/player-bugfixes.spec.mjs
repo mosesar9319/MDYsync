@@ -400,6 +400,39 @@ test.describe('player bugfixes on live Bekhorot', () => {
     await shot(page, 'intro-31a');
   });
 
+  // A maggid who stops a few lines short of the end and discusses the daf for
+  // the rest of the hour: the lines he never read are stored as placeholders a
+  // second apart after the last line read. They are not being read.
+  test('the lines after the last one read do not take the highlight', async ({ page }) => {
+    test.setTimeout(60000);
+    await openLive(page, '/player/?ref=Bekhorot+31a&variant=chazarah');
+    const found = await page.evaluate(() => {
+      const row = (ref, start, end, estimated = false) => ({ ref, start, end, he: ref, w0: 0, w1: 2, estimated });
+      const at = (segments, times) => { state.segments = segments; return times.map((t) => findSegmentAt(t)); };
+      const kept = state.segments;
+      const out = {
+        // Read to 4b.20 at 2124 s; the rest of 4b and 5a follow as placeholders.
+        stopsShort: at([row('Arakhin 4b.19', 2056, 2064), row('Arakhin 4b.20', 2120, 2124),
+          row('Arakhin 4b.21', 2124.6, 2124.7, true), row('Arakhin 4b.22', 2125.6, 2125.7, true),
+          row('Arakhin 5a.21', 2152.7, 2152.8, true)], [2060, 2122, 2125, 2130, 2160, 3500]),
+        // A line between two that were read still has its turn.
+        between: at([row('Arakhin 4a.1', 100, 104), row('Arakhin 4a.2', 110, 110.1, true),
+          row('Arakhin 4a.3', 130, 134)], [102, 112, 132]),
+        // A daf with no real timestamp at all keeps highlighting as before.
+        allEstimated: at([row('Arakhin 4a.1', 0, 0.1, true), row('Arakhin 4a.2', 10, 10.1, true)], [5, 12]),
+        last: lastRealSegmentIndex([row('a', 5, 6), row('b', 9, 9.1, true)]),
+        none: lastRealSegmentIndex([row('b', 9, 9.1, true)]),
+      };
+      state.segments = kept;
+      return out;
+    });
+    expect(found.stopsShort).toEqual([0, 1, 1, 1, 1, 1]);
+    expect(found.between).toEqual([0, 1, 2]);
+    expect(found.allEstimated).toEqual([0, 1]);
+    expect(found.last).toBe(0);
+    expect(found.none).toBe(-1);
+  });
+
   // On a touchscreen only the big centre button plays or pauses. While the
   // video plays, a centre pause button comes and goes with the controls; a
   // finger tap anywhere else on the picture only shows or hides them. A
