@@ -86,6 +86,9 @@ function comboKeyFor(variant, language) {
   return `${variantPart}${languagePart}`;
 }
 
+// A feed entry's <published> ("2026-11-19T13:09:06+00:00"), and nothing else.
+const isIsoDate = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T[\d:.+Z-]+$/.test(value);
+
 function parseFeedEntries(xml) {
   const entries = [];
   const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
@@ -168,7 +171,7 @@ export default async (request) => {
 
   const published = [];
   const skipped = [...feedProblems];
-  const catalogUpdates = []; // { tractate, daf, amud, comboKey, videoId, label }
+  const catalogUpdates = []; // { tractate, daf, amud, comboKey, videoId, label, published }
   const alignmentReady = new Map();
   async function editIsAligned(videoId, parsed) {
     const path = byVideoAlignmentPath(videoId, parsed);
@@ -242,6 +245,9 @@ export default async (request) => {
       // ever eligible to be silently replaced by a later upload.
       source: 'channel-auto',
       ...(maggid.keyPrefix ? { maggid: maggid.id } : {}),
+      // When the channel posted it, as its feed says: the shiur's pages and the
+      // sitemap give this date (netlify/functions/seo-pages.mjs).
+      ...(isIsoDate(entry.published) ? { published: entry.published } : {}),
     };
     const body = JSON.stringify(videoSource);
     let entryPublishedCount = 0;
@@ -346,6 +352,7 @@ export default async (request) => {
             maggid: reading.maggid,
             videoId: entry.videoId,
             label: decodeHtmlEntities(entry.title).slice(0, 100),
+            published: isIsoDate(entry.published) ? entry.published : null,
           });
         } else {
           skipped.push({ ref: refDisplay(reading), videoId: entry.videoId, reason: `publish failed (${putResponse.status})` });
@@ -438,7 +445,10 @@ export default async (request) => {
         // livestream and amud b is a finished upload -- a live recording
         // must not stay selected once a final cut is linked for the daf.
         if (existing && existing.amud === 'a' && update.amud !== 'a' && !existing.liveBroadcast) continue;
-        row[update.comboKey] = { videoId: update.videoId, label: update.label, amud: update.amud };
+        row[update.comboKey] = {
+          videoId: update.videoId, label: update.label, amud: update.amud,
+          ...(update.published ? { published: update.published } : {}),
+        };
       }
       catalog.generatedAt = new Date().toISOString();
       await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/catalog.json`, {

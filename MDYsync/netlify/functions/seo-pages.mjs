@@ -1,7 +1,8 @@
 // The pages Google ranks: one per masechta (/bechoros/), one per daf
 // (/bechoros/58/) listing every shiur on it, and one per shiur
 // (/bechoros/58/bornstein/), which is the player itself under an address and
-// a title of its own. Plus /sitemap.xml listing all of them.
+// a title of its own. Plus /sitemap.xml listing all of them, and the home page
+// (/), which is index.html with links to those pages written into it.
 //
 // Built here, from the published catalog, on request, rather than written out
 // as files: a shiur is added to the catalog every day by the channel sync, and
@@ -35,6 +36,9 @@ const VARIANT_BY_SEGMENT = new Map(VARIANTS.map((v) => [v.segment, v]));
 const CATALOG_TTL_MS = 5 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 3000;
 
+// A date as the catalog and the maggid lists write one ("2026-11-19T04:47:41.000Z").
+const isDate = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(T|$)/.test(value);
+
 export const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -45,8 +49,10 @@ export const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (c)
 // catalog.json (tools/build-video-catalog.mjs): tractates.<name> = rows of the
 // default maggid, maggidim.<id>.tractates.<name> = everyone else's. A row is
 // { daf, regularEn?, chazarahEn?, regularHe?, chazarahHe? }, each
-// { videoId, label, amud, liveBroadcast? }. A livestream is left out: it is
-// replaced by the finished upload once that is posted.
+// { videoId, label, amud, published?, url?, liveBroadcast? }. A livestream is
+// left out: it is replaced by the finished upload once that is posted.
+// `published` is when the shiur was posted (rows linked before it was kept
+// have none); `url` is the recording itself for a shiur that is not on YouTube.
 export function shiurimFromCatalog(catalog) {
   const out = [];
   const add = (tractates, maggidId) => {
@@ -59,7 +65,11 @@ export function shiurimFromCatalog(catalog) {
         for (const variant of VARIANTS) {
           const video = row[variant.key];
           if (!video?.videoId || video.liveBroadcast) continue;
-          out.push({ masechta, daf, maggidId, variant, videoId: video.videoId, label: video.label || '', amud: video.amud === 'b' ? 'b' : 'a' });
+          out.push({
+            masechta, daf, maggidId, variant, videoId: video.videoId, label: video.label || '', amud: video.amud === 'b' ? 'b' : 'a',
+            ...(isDate(video.published) ? { published: video.published } : {}),
+            ...(typeof video.url === 'string' && /^https:\/\//.test(video.url) ? { url: video.url } : {}),
+          });
         }
       }
     }
@@ -83,6 +93,7 @@ const absolute = (path) => `${PUBLIC_SITE_ORIGIN}${path}`;
 // What a request asks for, or null for an address that names nothing.
 export function parseRoute(pathname) {
   if (pathname === '/sitemap.xml') return { kind: 'sitemap' };
+  if (pathname === '/') return { kind: 'home' };
   const parts = pathname.split('/').filter(Boolean);
   const masechta = masechtaBySlug(parts[0]);
   if (!masechta || parts.length > 4) return null;
@@ -129,8 +140,10 @@ function shiurTitle(s) {
 function shiurDescription(s) {
   const kind = s.variant.variant === 'chazarah' ? 'chazarah' : 'Daf Yomi shiur';
   const lang = s.variant.language ? ' in Hebrew' : '';
-  return `Watch ${maggidName(s.maggidId)}'s ${kind}${lang} on ${dafName(s.masechta, s.daf)} (${hebrewDaf(s.masechta, s.daf)}) `
-    + 'with the daf beside the video, each line of the Gemara highlighted as it\'s read.';
+  // R' Bornstein's shiurim are audio: listened to, with no video to sit beside.
+  const audio = Boolean(MAGGID_PICTURES[s.maggidId]);
+  return `${audio ? 'Listen to' : 'Watch'} ${maggidName(s.maggidId)}'s ${kind}${lang} on ${dafName(s.masechta, s.daf)} (${hebrewDaf(s.masechta, s.daf)}) `
+    + `with the daf beside ${audio ? 'it' : 'the video'}, each line of the Gemara highlighted as it's read.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -158,6 +171,50 @@ export async function loadCatalog(env = {}) {
 
 export function resetCatalogCache() {
   catalogCache = null;
+  listsCache = null;
+}
+
+// When each shiur of the other maggidim was posted and how long it runs:
+// videoId -> { published, seconds }, from the list kept for each of them on
+// the results branch (maggidim/<id>.json; tools/lakewood-import.mjs and
+// youtube-channel-sync.mjs write them). Empty, never an error, when a list
+// cannot be read: a page is complete without its dates.
+let listsCache = null;
+
+export async function loadMaggidLists(env = {}) {
+  if (listsCache && Date.now() - listsCache.at < CATALOG_TTL_MS) return listsCache.data;
+  const token = env.GITHUB_DISPATCH_TOKEN;
+  const data = new Map();
+  await Promise.all(MAGGIDIM.filter((m) => m.id !== DEFAULT_MAGGID_ID).map(async (maggid) => {
+    try {
+      const response = token
+        ? await fetchWithTimeout(`https://api.github.com/repos/${OWNER}/${REPO}/contents/maggidim/${maggid.id}.json?ref=results`,
+          { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.raw+json' } })
+        : await fetchWithTimeout(`https://raw.githubusercontent.com/${OWNER}/${REPO}/results/maggidim/${maggid.id}.json`);
+      if (!response.ok) return;
+      const list = await response.json();
+      for (const video of Array.isArray(list?.videos) ? list.videos : []) {
+        if (!video?.videoId) continue;
+        data.set(video.videoId, {
+          ...(isDate(video.published) ? { published: video.published } : {}),
+          ...(Number(video.seconds) > 0 ? { seconds: Number(video.seconds) } : {}),
+        });
+      }
+    } catch {
+      // No list: no dates for this maggid's shiurim.
+    }
+  }));
+  listsCache = { at: Date.now(), data };
+  return data;
+}
+
+// The shiurim with what the maggid lists know added (a row's own date wins).
+export function withListDetails(shiurim, lists) {
+  return shiurim.map((s) => {
+    const known = lists?.get(s.videoId);
+    if (!known) return s;
+    return { ...s, ...(s.published ? {} : known.published ? { published: known.published } : {}), ...(known.seconds ? { seconds: known.seconds } : {}) };
+  });
 }
 
 // The first lines of the amud, from Sefaria, as plain text. Nothing (and no
@@ -213,14 +270,12 @@ function breadcrumbs(items) {
 // Netlify's image service, since MDY's originals are 1280x720 PNGs of over a
 // megabyte (netlify.toml allows MDY's server as a source). Every other
 // shiur's, and one MDY's server does not have, is YouTube's.
+const mdyRef = (s) => ({
+  tractate: s.masechta.name, daf: s.daf, variant: s.variant.variant || 'regular',
+  language: s.variant.language === 'hebrew' ? 'he' : 'en', maggid: s.maggidId,
+});
 export function mdyPoster(s) {
-  return MdyFiles.posterUrl(
-    {
-      tractate: s.masechta.name, daf: s.daf, variant: s.variant.variant || 'regular',
-      language: s.variant.language === 'hebrew' ? 'he' : 'en', maggid: s.maggidId,
-    },
-    { title: s.label },
-  );
+  return MdyFiles.posterUrl(mdyRef(s), { title: s.label });
 }
 // Absolute for what other sites read (og:image, the VideoObject); relative
 // for the page's own <img>, so it works on deploy previews too.
@@ -252,21 +307,55 @@ export async function shiurPictures(list) {
   return new Map(list.map((s, i) => [s.videoId, found[i]]));
 }
 
-function videoObject(s, details, pictures = new Map()) {
-  // His shiurim are audio from Lakewood Daf Yomi's server: no YouTube video to describe.
-  if (MAGGID_PICTURES[s.maggidId]) return null;
+// "PT1H5M15S" for a length in seconds.
+export function isoDuration(seconds) {
+  const total = Math.round(Number(seconds));
+  if (!(total > 0)) return '';
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const sec = total % 60;
+  return `PT${h ? `${h}H` : ''}${m ? `${m}M` : ''}${sec || (!h && !m) ? `${sec}S` : ''}`;
+}
+
+// The recording a shiur page plays, described for a search engine: who gives
+// it, when it was posted, how long it runs and where the file is.
+//
+// The file named is the one the page plays. An audio shiur's is its mp3 (the
+// catalog row's `url`). A Mercaz Daf Yomi shiur's is MDY's own video file when
+// MDY's server has the shiur -- known here by its having the shiur's picture,
+// which sits in the same folder (mdy-files.js) -- and only one MDY's server
+// does not have is described by its YouTube player.
+//
+// A recording is only described with the date it was posted, which Google
+// requires: the catalog row's or the maggid list's, else YouTube's
+// (videoDetails) for a row linked before the date was kept.
+export function mediaObject(s, details, pictures = new Map()) {
   const d = details?.[s.videoId];
-  if (!d?.publishedAt) return null;
-  return {
+  const uploadDate = s.published || d?.publishedAt;
+  if (!uploadDate) return null;
+  const duration = isoDuration(s.seconds) || d?.duration || '';
+  const common = {
     '@context': 'https://schema.org',
-    '@type': 'VideoObject',
-    name: s.label || `${dafName(s.masechta, s.daf)} — ${maggidName(s.maggidId)}`,
+    name: s.label && !MAGGID_PICTURES[s.maggidId] ? s.label : `${dafName(s.masechta, s.daf)} — ${maggidName(s.maggidId)}`,
     description: shiurDescription(s),
-    thumbnailUrl: pictures.get(s.videoId) ? resizedPicture(pictures.get(s.videoId), 1280, 'jpg') : youtubePicture(s),
-    uploadDate: d.publishedAt,
-    ...(d.duration ? { duration: d.duration } : {}),
-    embedUrl: `https://www.youtube.com/embed/${s.videoId}`,
+    uploadDate,
+    ...(duration ? { duration } : {}),
+    author: { '@type': 'Person', name: maggidName(s.maggidId) },
+    inLanguage: s.variant.language === 'hebrew' ? 'he' : 'en',
     url: absolute(shiurPath(s)),
+  };
+  if (s.url) {
+    return { ...common, '@type': 'AudioObject', contentUrl: s.url, encodingFormat: 'audio/mpeg', thumbnailUrl: youtubePicture(s) };
+  }
+  // His shiurim are audio from Lakewood Daf Yomi's server: without the file's
+  // address there is nothing to describe, and never a YouTube video.
+  if (MAGGID_PICTURES[s.maggidId]) return null;
+  const mdyFile = pictures.get(s.videoId) ? MdyFiles.fileUrl(mdyRef(s), { title: s.label, quality: '720' }) : null;
+  return {
+    ...common,
+    '@type': 'VideoObject',
+    thumbnailUrl: pictures.get(s.videoId) ? resizedPicture(pictures.get(s.videoId), 1280, 'jpg') : youtubePicture(s),
+    ...(mdyFile ? { contentUrl: mdyFile } : { embedUrl: `https://www.youtube.com/embed/${s.videoId}` }),
   };
 }
 
@@ -397,7 +486,7 @@ ${next ? `<a rel="next" href="${dafPath(masechta, next)}">${escapeHtml(name)} ${
     body,
     ld: jsonLd([
       breadcrumbs([['DafSync', '/'], [name, masechtaPath(masechta)], [`Daf ${daf}`, dafPath(masechta, daf)]]),
-      ...here.map((s) => videoObject(s, details, pictures)),
+      ...here.map((s) => mediaObject(s, details, pictures)),
     ]),
   });
 }
@@ -428,7 +517,7 @@ export function shiurPage(playerHtml, shiur, { mode = 'split', details = {}, pic
   <meta name="twitter:card" content="summary_large_image">
   ${jsonLd([
     breadcrumbs([['DafSync', '/'], [name, masechtaPath(shiur.masechta)], [`Daf ${shiur.daf}`, dafPath(shiur.masechta, shiur.daf)], [maggidName(shiur.maggidId), path]]),
-    videoObject(shiur, details, pictures),
+    mediaObject(shiur, details, pictures),
   ])}`;
   let html = playerHtml
     .replace(/<title>[\s\S]*?<\/title>\s*/i, '')
@@ -450,16 +539,101 @@ export function shiurPage(playerHtml, shiur, { mode = 'split', details = {}, pic
 // The sitemap
 // ---------------------------------------------------------------------------
 
-export function sitemap(shiurim, lastmod) {
-  const urls = new Set(['/', '/browse/', '/chaburah/']);
+// Each page with the day it last changed: a shiur's page on the day the shiur
+// was posted, a daf's and a masechta's on the day of their newest shiur, the
+// home page on the day of the newest of all. A page whose shiurim have no date
+// (linked before dates were kept) is listed without one rather than with
+// today's: a date that is always "today" teaches a search engine to ignore
+// all of them.
+export function sitemap(shiurim) {
+  const pages = new Map([['/', ''], ['/browse/', ''], ['/chaburah/', '']]);
+  const note = (path, day) => {
+    if (!pages.has(path) || day > pages.get(path)) pages.set(path, day);
+  };
   for (const s of shiurim) {
-    urls.add(masechtaPath(s.masechta));
-    urls.add(dafPath(s.masechta, s.daf));
-    urls.add(shiurPath(s));
+    const day = isDate(s.published) ? s.published.slice(0, 10) : '';
+    note('/', day);
+    note(masechtaPath(s.masechta), day);
+    note(dafPath(s.masechta, s.daf), day);
+    note(shiurPath(s), day);
   }
-  const day = String(lastmod || '').slice(0, 10);
-  const entries = [...urls].map((path) => `  <url><loc>${escapeHtml(absolute(path))}</loc>${day ? `<lastmod>${day}</lastmod>` : ''}</url>`);
+  // Home first, then the site's own pages, then each masechta's in the
+  // catalog's order (a Map keeps the order its keys were first set in).
+  const entries = [...pages].map(([path, day]) => `  <url><loc>${escapeHtml(absolute(path))}</loc>${day ? `<lastmod>${day}</lastmod>` : ''}</url>`);
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.join('\n')}\n</urlset>\n`;
+}
+
+// ---------------------------------------------------------------------------
+// The home page: index.html, with links a search engine can follow
+// ---------------------------------------------------------------------------
+
+export const HOME_MARKER = '<!--dafsync:site-index-->';
+const HOME_LATEST_DAPIM = 12;
+
+// index.html builds its lists of shiurim in the browser, and those open the
+// player, so nothing in the page as it is first read leads to a masechta's or
+// a daf's own page. This writes those links in where index.html marks the
+// place: every masechta that has a shiur, the newest dapim, and a few
+// sentences saying what the site is and whose shiurim it has.
+export function homePage(html, shiurim) {
+  if (!html.includes(HOME_MARKER) || !shiurim.length) return html;
+  const dapim = new Map(); // masechta -> Set of dapim
+  for (const s of shiurim) {
+    if (!dapim.has(s.masechta)) dapim.set(s.masechta, new Set());
+    dapim.get(s.masechta).add(s.daf);
+  }
+  // In the order of Shas, which is the order Daf Yomi learns them.
+  const masechtos = MASECHTOS.filter((m) => dapim.has(m));
+  const masechtaItems = masechtos.map((m) => {
+    const count = dapim.get(m).size;
+    return `<li><a href="${masechtaPath(m)}">${escapeHtml(displayName(m))} <span lang="he" dir="rtl">${escapeHtml(m.hebrew)}</span> <small>${count} ${count === 1 ? 'daf' : 'dapim'}</small></a></li>`;
+  }).join('\n');
+  const latest = [...masechtos].reverse()
+    .flatMap((m) => [...dapim.get(m)].sort((a, b) => b - a).map((daf) => [m, daf]))
+    .slice(0, HOME_LATEST_DAPIM);
+  const latestItems = latest.map(([m, daf]) => `<li><a href="${dafPath(m, daf)}">${escapeHtml(dafName(m, daf))} <span lang="he" dir="rtl">${escapeHtml(hebrewDaf(m, daf))}</span></a></li>`).join('\n');
+  const maggidim = MAGGIDIM.filter((m) => shiurim.some((s) => s.maggidId === m.id))
+    .map((m) => `${m.name}${m.channelName ? ` (${m.channelName})` : ''}`);
+  const section = `<section class="site-index" aria-labelledby="siteIndexTitle">
+<h2 id="siteIndexTitle">Browse by masechta</h2>
+<ul>
+${masechtaItems}
+</ul>
+<h2>Latest dapim</h2>
+<ul>
+${latestItems}
+</ul>
+<p class="site-index-about">DafSync plays Daf Yomi shiurim by ${escapeHtml(listNames(maggidim))} with the daf beside the shiur. Each line of the Gemara is highlighted as the maggid reads it, and tapping a line takes the shiur to the moment it is read.</p>
+</section>`;
+  return html.replace(HOME_MARKER, section);
+}
+
+const HOME_HEADERS = {
+  'Content-Type': 'text/html; charset=utf-8',
+  // As Netlify serves index.html itself: the browser asks again each visit.
+  'Cache-Control': 'public, max-age=0, must-revalidate',
+  'Netlify-CDN-Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
+};
+
+// The home page must open whatever else is down: without the catalog it is
+// index.html as it is, and if index.html itself cannot be read here the
+// browser is sent to fetch it directly.
+async function home(url, env) {
+  let html;
+  try {
+    const response = await fetchWithTimeout(new URL('/index.html', url.origin));
+    if (!response.ok) throw new Error(`index.html: ${response.status}`);
+    html = await response.text();
+  } catch {
+    return Response.redirect(`${url.origin}/index.html${url.search}`, 302);
+  }
+  try {
+    html = homePage(html, shiurimFromCatalog(await loadCatalog(env)));
+  } catch {
+    // The page as it is.
+    return new Response(html, { headers: { ...HOME_HEADERS, 'Netlify-CDN-Cache-Control': 'public, s-maxage=60' } });
+  }
+  return new Response(html, { headers: HOME_HEADERS });
 }
 
 // ---------------------------------------------------------------------------
@@ -486,12 +660,12 @@ export async function handle(request, env = {}) {
   }
   const route = parseRoute(url.pathname);
   if (!route) return notFound();
+  if (route.kind === 'home') return home(url, env);
 
   let shiurim;
-  let catalog;
   try {
-    catalog = await loadCatalog(env);
-    shiurim = shiurimFromCatalog(catalog);
+    const [catalog, lists] = await Promise.all([loadCatalog(env), loadMaggidLists(env)]);
+    shiurim = withListDetails(shiurimFromCatalog(catalog), lists);
   } catch (error) {
     return new Response('The shiur list could not be loaded just now. Please try again in a minute.', {
       status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Retry-After': '60', 'Cache-Control': 'no-store' },
@@ -499,7 +673,7 @@ export async function handle(request, env = {}) {
   }
 
   if (route.kind === 'sitemap') {
-    return new Response(sitemap(shiurim, catalog.generatedAt), {
+    return new Response(sitemap(shiurim), {
       headers: { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=300', 'Netlify-CDN-Cache-Control': 'public, s-maxage=3600' },
     });
   }
@@ -512,8 +686,9 @@ export async function handle(request, env = {}) {
     if (!here.length) return notFound(`No shiurim on ${dafName(route.masechta, route.daf)} yet.`);
     const [text, details, pictures] = await Promise.all([
       openingLines(route.masechta, route.daf),
-      // R' Bornstein's shiurim come from Lakewood Daf Yomi, never YouTube: not asked about there.
-      videoDetails(here.filter((s) => !MAGGID_PICTURES[s.maggidId]).map((s) => s.videoId), env.YOUTUBE_API_KEY),
+      // Asked only about a shiur whose date the catalog does not have. R' Bornstein's
+      // shiurim come from Lakewood Daf Yomi, never YouTube: not asked about there.
+      videoDetails(here.filter((s) => !MAGGID_PICTURES[s.maggidId] && !s.published).map((s) => s.videoId), env.YOUTUBE_API_KEY),
       shiurPictures(here),
     ]);
     return new Response(dafPage(route.masechta, route.daf, shiurim, { text, details, pictures }), { headers: PAGE_HEADERS });
@@ -526,7 +701,7 @@ export async function handle(request, env = {}) {
   }
   const [playerResponse, details, pictures] = await Promise.all([
     fetchWithTimeout(new URL('/player/index.html', url.origin)),
-    videoDetails(MAGGID_PICTURES[shiur.maggidId] ? [] : [shiur.videoId], env.YOUTUBE_API_KEY),
+    videoDetails(MAGGID_PICTURES[shiur.maggidId] || shiur.published ? [] : [shiur.videoId], env.YOUTUBE_API_KEY),
     shiurPictures([shiur]),
   ]);
   if (!playerResponse.ok) throw new Error(`player page: ${playerResponse.status}`);
@@ -540,11 +715,12 @@ export default async (request) => handle(request, {
 });
 
 // Netlify reads this without running the module, so the addresses are spelled
-// out: every masechta's slug (shared/masechtos.mjs), with and without a path
-// under it, and the sitemap. tests/functions/seo-pages.test.mjs checks the
-// list matches MASECHTOS.
+// out: the home page, every masechta's slug (shared/masechtos.mjs), with and
+// without a path under it, and the sitemap. tests/functions/seo-pages.test.mjs
+// checks the list matches MASECHTOS.
 export const config = {
   path: [
+    '/',
     '/berachos', '/berachos/*', '/shabbos', '/shabbos/*', '/eruvin', '/eruvin/*', '/pesachim',
     '/pesachim/*', '/yoma', '/yoma/*', '/sukkah', '/sukkah/*', '/beitzah', '/beitzah/*',
     '/rosh-hashanah', '/rosh-hashanah/*', '/taanis', '/taanis/*', '/megillah', '/megillah/*',

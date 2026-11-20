@@ -9,11 +9,13 @@ import { fileURLToPath } from 'node:url';
 import {
   config, parseRoute, shiurimFromCatalog, masechtaPage, dafPage, shiurPage, sitemap, handle,
   playerUrl, shiurPath, resetCatalogCache, mdyPoster, shiurPictures,
+  mediaObject, isoDuration, withListDetails, homePage, HOME_MARKER,
 } from '../../netlify/functions/seo-pages.mjs';
 import { MASECHTOS, MASECHTA_SLUGS, masechtaBySlug, hebrewNumeral, otherSpellings } from '../../shared/masechtos.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const PLAYER_HTML = fs.readFileSync(path.join(ROOT, 'player/index.html'), 'utf8');
+const HOME_HTML = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 
 const CATALOG = {
   generatedAt: '2026-11-16T20:25:18.829Z',
@@ -35,7 +37,7 @@ const SHIURIM = shiurimFromCatalog(CATALOG);
 const BECHOROS = masechtaBySlug('bechoros');
 
 test('every masechta has an address, and the home page links with the same slugs', () => {
-  const expected = MASECHTOS.flatMap((m) => [`/${m.slug}`, `/${m.slug}/*`]).concat('/sitemap.xml');
+  const expected = ['/'].concat(MASECHTOS.flatMap((m) => [`/${m.slug}`, `/${m.slug}/*`]), '/sitemap.xml');
   assert.deepEqual(config.path, expected);
   const home = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const table = JSON.parse(`{${/const MASECHTA_SLUGS = \{([^}]*)\};/.exec(home)[1]}}`);
@@ -58,6 +60,7 @@ test('names, numerals and spellings', () => {
 
 test('addresses: what each one names', () => {
   assert.deepEqual(parseRoute('/sitemap.xml'), { kind: 'sitemap' });
+  assert.deepEqual(parseRoute('/'), { kind: 'home' });
   assert.equal(parseRoute('/bechoros/').kind, 'masechta');
   assert.deepEqual({ ...parseRoute('/bechoros/58/'), masechta: undefined }, { kind: 'daf', masechta: undefined, daf: 58 });
   const shiur = parseRoute('/bechoros/58/bornstein/');
@@ -97,10 +100,54 @@ test('a daf page: its title, heading, every shiur, the daf text, and its neighbo
   assert.match(html, /rel="prev" href="\/bechoros\/57\/"/);
   assert.doesNotMatch(html, /rel="next"/);
   const ld = [...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
-  // Only the video with a known date; R' Bornstein's shiur is audio from Lakewood Daf Yomi, not a video.
+  // Only the video with a known date; R' Bornstein's shiur is audio from Lakewood Daf Yomi, never a
+  // YouTube video, and this row does not have its file.
   assert.deepEqual(ld.map((o) => o['@type']), ['BreadcrumbList', 'VideoObject']);
   assert.equal(ld[1].embedUrl, 'https://www.youtube.com/embed/0n7fE-jS0NE');
   assert.equal(ld[1].uploadDate, '2026-06-01T10:00:00Z');
+  assert.deepEqual(ld[1].author, { '@type': 'Person', name: "R' Eli Stefansky" });
+});
+
+test('a recording is described by the file the page plays, with its own date and length', () => {
+  assert.equal(isoDuration(3487), 'PT58M7S');
+  assert.equal(isoDuration(3915), 'PT1H5M15S');
+  assert.equal(isoDuration(3600), 'PT1H');
+  assert.equal(isoDuration(0), '');
+  const catalog = {
+    tractates: { Arakhin: [{ daf: 2, regularEn: { videoId: 'p0kSAIw99HM', label: "Daf Yomi Arachin Daf 2 by R' Eli Stefansky", amud: 'a', published: '2026-11-19T13:09:06+00:00' }, regularHe: { videoId: 'Np3wL14Pbng', label: 'ערכין דף ב', amud: 'a' } }] },
+    maggidim: { bornstein: { tractates: { Arakhin: [{ daf: 2, regularEn: { videoId: 'L0213511665', label: 'Eruchin 2', amud: 'a', source: 'lakewood', url: 'https://lakewoodafyomi.appspot.com/m5/x/Arachin%202_213511665.mp3' } }] } } },
+  };
+  const lists = new Map([['L0213511665', { published: '2026-11-19T04:47:41.000Z', seconds: 3487 }]]);
+  const [mdy, mdyHebrew, bornstein] = withListDetails(shiurimFromCatalog(catalog), lists);
+
+  // MDY's server has the shiur (its picture is there): the video is MDY's own file, not YouTube's player.
+  const pictures = new Map([['p0kSAIw99HM', 'https://cdn.mdydaf.com/shiur/english/arachin/thumb/2.png']]);
+  const video = mediaObject(mdy, {}, pictures);
+  assert.equal(video['@type'], 'VideoObject');
+  assert.equal(video.contentUrl, 'https://cdn.mdydaf.com/shiur/english/arachin/720/2.mp4');
+  assert.equal(video.embedUrl, undefined);
+  assert.equal(video.uploadDate, '2026-11-19T13:09:06+00:00');   // the catalog's date: YouTube is not asked
+  assert.equal(video.url, 'https://dafsync.com/eruchin/2/stefansky/');
+  assert.doesNotMatch(JSON.stringify(video), /youtube|ytimg/);
+  // MDY's server does not have it: described by the YouTube player it plays in.
+  assert.equal(mediaObject(mdy, {}).embedUrl, 'https://www.youtube.com/embed/p0kSAIw99HM');
+  // No date anywhere: not described at all.
+  assert.equal(mediaObject(mdyHebrew, {}), null);
+  assert.equal(mediaObject(mdyHebrew, { Np3wL14Pbng: { publishedAt: '2026-11-19T12:10:42Z', duration: 'PT1H3M45S' } }).inLanguage, 'he');
+
+  // R' Bornstein's shiur is audio: its mp3, when it was posted, how long it runs, and who gives it.
+  const audio = mediaObject(bornstein, {});
+  assert.equal(audio['@type'], 'AudioObject');
+  assert.equal(audio.contentUrl, 'https://lakewoodafyomi.appspot.com/m5/x/Arachin%202_213511665.mp3');
+  assert.equal(audio.uploadDate, '2026-11-19T04:47:41.000Z');
+  assert.equal(audio.duration, 'PT58M7S');
+  assert.equal(audio.name, "Eruchin 2 — R' Sruly Bornstein");
+  assert.deepEqual(audio.author, { '@type': 'Person', name: "R' Sruly Bornstein" });
+  assert.equal(audio.thumbnailUrl, 'https://dafsync.com/assets/maggidim/bornstein-v1.jpg');
+  assert.doesNotMatch(JSON.stringify(audio), /youtube|ytimg/);
+  const html = dafPage(masechtaBySlug('eruchin'), 2, [mdy, mdyHebrew, bornstein], { pictures });
+  const types = [...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/g)].map((m) => JSON.parse(m[1])['@type']);
+  assert.deepEqual(types, ['BreadcrumbList', 'VideoObject', 'AudioObject']);
 });
 
 test('a masechta page lists only the dapim that have a shiur', () => {
@@ -133,11 +180,84 @@ test('a shiur page is the player under its own address and title', () => {
 });
 
 test('the sitemap lists the home page and every masechta, daf and shiur page', () => {
-  const xml = sitemap(SHIURIM, CATALOG.generatedAt);
+  const xml = sitemap(SHIURIM);
   const locs = [...xml.matchAll(/<loc>(.*?)<\/loc>/g)].map((m) => m[1].replace('https://dafsync.com', ''));
   assert.deepEqual(locs, ['/', '/browse/', '/chaburah/', '/bechoros/', '/bechoros/57/', '/bechoros/57/stefansky/',
     '/bechoros/58/', '/bechoros/58/stefansky/', '/bechoros/58/stefansky/chazarah/', '/bechoros/58/bornstein/']);
-  assert.match(xml, /<lastmod>2026-11-16<\/lastmod>/);
+  // No shiur has a date: no page claims one (and never today's).
+  assert.doesNotMatch(xml, /<lastmod>/);
+});
+
+test('the sitemap dates each page by its newest shiur, and leaves undated pages undated', () => {
+  const dated = SHIURIM.map((s) => ({
+    ...s,
+    ...(s.videoId === '0n7fE-jS0NE' ? { published: '2026-11-10T13:00:00+00:00' } : {}),
+    ...(s.videoId === 'TWCiP96dKXU' ? { published: '2026-11-12T04:47:41.000Z' } : {}),
+  }));
+  const xml = sitemap(dated);
+  const day = Object.fromEntries([...xml.matchAll(/<loc>https:\/\/dafsync\.com(.*?)<\/loc>(?:<lastmod>(.*?)<\/lastmod>)?/g)].map((m) => [m[1], m[2] || '']));
+  assert.equal(day['/bechoros/58/stefansky/'], '2026-11-10');
+  assert.equal(day['/bechoros/58/bornstein/'], '2026-11-12');
+  assert.equal(day['/bechoros/58/stefansky/chazarah/'], '');
+  assert.equal(day['/bechoros/58/'], '2026-11-12');      // its newest shiur
+  assert.equal(day['/bechoros/'], '2026-11-12');
+  assert.equal(day['/'], '2026-11-12');
+  assert.equal(day['/bechoros/57/'], '');                // nothing known
+  assert.equal(day['/bechoros/57/stefansky/'], '');
+  assert.equal(day['/browse/'], '');
+});
+
+test('the home page gets links to every masechta and the newest dapim, where it marks the place', () => {
+  assert.equal(HOME_HTML.split(HOME_MARKER).length, 2, 'index.html marks the place once');
+  const catalog = {
+    tractates: { Chullin: [{ daf: 141, regularEn: { videoId: 'a', label: 'x', amud: 'a' } }, { daf: 142, regularEn: { videoId: 'b', label: 'x', amud: 'a' } }], Arakhin: [{ daf: 2, regularEn: { videoId: 'c', label: 'x', amud: 'a' } }] },
+    maggidim: { bornstein: { tractates: { Arakhin: [{ daf: 3, regularEn: { videoId: 'L0213553074', label: 'Eruchin 3', amud: 'a' } }], Bekhorot: [{ daf: 61, regularEn: { videoId: 'L0213377535', label: 'Bechoros 61', amud: 'a' } }] } } },
+  };
+  const html = homePage(HOME_HTML, shiurimFromCatalog(catalog));
+  assert.ok(!html.includes(HOME_MARKER));
+  const section = /<section class="site-index"[\s\S]*?<\/section>/.exec(html)[0];
+  assert.ok(html.indexOf(section) < html.indexOf('</main>'), 'inside the page\u2019s main content');
+  const [masechtos, latest] = section.split('<h2>Latest dapim</h2>');
+  // Masechtos in the order of Shas, each with how many dapim it has.
+  assert.deepEqual([...masechtos.matchAll(/href="([^"]+)"/g)].map((m) => m[1]), ['/chullin/', '/bechoros/', '/eruchin/']);
+  assert.match(masechtos, /Chullin <span lang="he" dir="rtl">חולין<\/span> <small>2 dapim<\/small>/);
+  assert.match(masechtos, /Bechoros <span lang="he" dir="rtl">בכורות<\/span> <small>1 daf<\/small>/);
+  // The newest dapim first: the last masechta being learned, from its last daf back.
+  assert.deepEqual([...latest.matchAll(/href="([^"]+)"/g)].map((m) => m[1]), ['/eruchin/3/', '/eruchin/2/', '/bechoros/61/', '/chullin/142/', '/chullin/141/']);
+  assert.match(latest, /by R&#39; Eli Stefansky \(Mercaz Daf Yomi\) and R&#39; Sruly Bornstein \(Lakewood Daf Yomi\)/);
+  // Nothing to link, or no place marked: the page as it is.
+  assert.equal(homePage(HOME_HTML, []), HOME_HTML);
+  assert.equal(homePage('<main></main>', shiurimFromCatalog(catalog)), '<main></main>');
+  // The page says what the site is in a form a search engine reads, and its stand-in shiur is gone.
+  const ld = JSON.parse(/<script type="application\/ld\+json">(.*?)<\/script>/.exec(HOME_HTML)[1]);
+  assert.deepEqual(ld['@graph'].map((o) => o['@type']), ['WebSite', 'Organization']);
+  assert.equal(ld['@graph'][0].name, 'DafSync');
+  assert.doesNotMatch(HOME_HTML, /Zevachim 61|46 min/);
+});
+
+test('the handler: the home page opens with its links, and without them when anything is down', async () => {
+  const home = ['dafsync.com/index.html', () => new Response(HOME_HTML)];
+  await withFetch([...ROUTES, home], async () => {
+    const res = await handle(new Request('https://dafsync.com/'), {});
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('Content-Type'), /text\/html/);
+    assert.match(res.headers.get('Cache-Control'), /max-age=0/);
+    const html = await res.text();
+    assert.ok(html.includes('href="/bechoros/58/"') && html.includes('href="/bechoros/"'));
+    assert.match(html, /<title>DafSync — Daf Yomi Shiurim/);
+  });
+  // The catalog is down: index.html as it is.
+  await withFetch([['catalog.json', () => new Response('', { status: 500 })], home], async () => {
+    const res = await handle(new Request('https://dafsync.com/?q=chullin'), {});
+    assert.equal(res.status, 200);
+    assert.equal(await res.text(), HOME_HTML);
+  });
+  // index.html cannot be read from here: the browser is sent to it.
+  await withFetch([['catalog.json', () => Response.json(CATALOG)]], async () => {
+    const res = await handle(new Request('https://dafsync.com/?q=chullin'), {});
+    assert.equal(res.status, 302);
+    assert.equal(res.headers.get('Location'), 'https://dafsync.com/index.html?q=chullin');
+  });
 });
 
 async function withFetch(routes, fn) {
