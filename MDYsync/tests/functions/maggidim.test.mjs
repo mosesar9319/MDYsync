@@ -158,7 +158,7 @@ test('the catalog builder files each maggid\'s videos under their own section an
   put('Hebrew-Bekhorot-2a', { videoId: 'PXjUf4aUXs0', label: 'עברית' });
   put('Bornstein-Bekhorot-2a', { videoId: 'Zsy7oDUP6Pw', label: 'Bechoros 2', testShiur: true });
   put('Bornstein-Bekhorot-2b', { videoId: 'Zsy7oDUP6Pw', label: 'Bechoros 2', testShiur: true });
-  put('Bornstein-Chullin-100a', { videoId: 'cccccccccc1', label: 'Chulin 100' });
+  put('Bornstein-Chullin-100a', { videoId: 'cccccccccc1', label: 'Chulin 100', published: '2026-08-02T04:10:00.000Z' });
   execFileSync('node', [path.join(ROOT, 'tools', 'build-video-catalog.mjs'), '--results', dir], { stdio: 'pipe' });
   const catalog = JSON.parse(fs.readFileSync(path.join(dir, 'catalog.json'), 'utf8'));
   assert.deepEqual(Object.keys(catalog.tractates), ['Bekhorot'], 'no "Bornstein Bekhorot" tractate among the default maggid\'s');
@@ -171,6 +171,8 @@ test('the catalog builder files each maggid\'s videos under their own section an
     daf: 2, regularEn: { videoId: 'Zsy7oDUP6Pw', label: 'Bechoros 2', amud: 'a', testShiur: true },
   }]);
   assert.equal(catalog.maggidim.bornstein.tractates.Chullin[0].daf, 100);
+  // A link that says when the shiur was posted keeps that in its row; one that does not has none.
+  assert.equal(catalog.maggidim.bornstein.tractates.Chullin[0].regularEn.published, '2026-08-02T04:10:00.000Z');
 });
 
 test('a livestream on amud a does not beat a finished upload on amud b', () => {
@@ -273,7 +275,9 @@ test('the channel sync links a new Lakewood Daf Yomi video behind the Bornstein 
   assert.equal(links[0].content.videoId, 'g7VSmqB8Xlk');
   assert.deepEqual(response.published.map((p) => p.ref).sort(), ['Bekhorot 22a (Bornstein)', 'Bekhorot 22b (Bornstein)']);
   const catalog = puts.find((p) => p.path === 'catalog.json').content;
-  assert.deepEqual(catalog.maggidim.bornstein.tractates.Bekhorot, [{ daf: 22, regularEn: { videoId: 'g7VSmqB8Xlk', label: 'Bechoros 22', amud: 'a' } }]);
+  // With the day the channel posted it, which the shiur's pages and the sitemap give.
+  assert.equal(links[0].content.published, '2026-10-09T10:00:00+00:00');
+  assert.deepEqual(catalog.maggidim.bornstein.tractates.Bekhorot, [{ daf: 22, regularEn: { videoId: 'g7VSmqB8Xlk', label: 'Bechoros 22', amud: 'a', published: '2026-10-09T10:00:00+00:00' } }]);
   assert.deepEqual(catalog.tractates, {}, 'the default maggid\'s rows are untouched');
   const list = puts.find((p) => p.path === 'maggidim/bornstein.json').content;
   assert.deepEqual(list.videos.map((v) => [v.videoId, v.daf ?? null]), [['g7VSmqB8Xlk', 22], ['FvMHzatB_9Y', null]]);

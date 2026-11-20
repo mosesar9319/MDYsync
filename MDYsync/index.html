@@ -18,6 +18,7 @@
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="A page of Gemara with the line being read highlighted, beside the DafSync logo">
   <meta name="twitter:card" content="summary_large_image">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://dafsync.com/#site","url":"https://dafsync.com/","name":"DafSync","alternateName":["Daf Sync","dafsync.com"],"description":"Daf Yomi shiurim with the Gemara beside the shiur, each line highlighted as the maggid reads it.","inLanguage":"en","publisher":{"@id":"https://dafsync.com/#org"}},{"@type":"Organization","@id":"https://dafsync.com/#org","name":"DafSync","url":"https://dafsync.com/","logo":"https://dafsync.com/assets/dafsync-mark.png"}]}</script>
   <script>
     // Light or dark, before the page paints: the reader's own choice on this
     // device, else the system's. Only the phone layout has a dark look.
@@ -539,6 +540,14 @@ h1 {
 .maggid-back { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 10px; padding: 6px 12px; border-radius: 999px; border: 1px solid #d5dfeb; background: #fff; color: #1d3958; font: inherit; font-size: 14px; cursor: pointer; }
 .maggid-back[hidden] { display: none; }
 .maggid-other { margin-top: 28px; }
+.site-index { margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--line); }
+.site-index h2 { font-size: 20px; letter-spacing: 0; margin: 0 0 12px; }
+.site-index h2:not(:first-child) { margin-top: 26px; }
+.site-index ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.site-index li a { display: inline-flex; align-items: baseline; gap: 8px; padding: 8px 14px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); color: var(--ink); text-decoration: none; font-size: 15px; }
+.site-index li a:hover { border-color: var(--gold-light); }
+.site-index li small { color: var(--muted); font-size: 13px; }
+.site-index-about { color: var(--muted); font-size: 15px; line-height: 1.6; margin: 22px 0 0; max-width: 760px; }
 .maggid-other[hidden] { display: none; }
 .maggid-other-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .maggid-other-list a { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; background: #fff; border: 1px solid #e1e8f0; color: #1d3958; text-decoration: none; }
@@ -1823,8 +1832,13 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
   }
 
   .maggidim-section,
-  .maggid-other {
+  .maggid-other,
+  .site-index {
     padding: 0 14px;
+  }
+
+  .site-index {
+    padding-top: 20px;
   }
 
   .maggid-other-list small {
@@ -1987,6 +2001,12 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
           <div class="maggid-list" id="maggidCards"></div>
           <p class="field-note">More maggidei shiur coming soon.</p>
         </section>
+
+        <!-- Links to every masechta and the newest dapim, as plain HTML a
+             search engine can follow. Written in when the page is served
+             (homePage() in netlify/functions/seo-pages.mjs); the page is
+             complete without them. -->
+        <!--dafsync:site-index-->
       </main>
     </div>
 
@@ -2001,9 +2021,9 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         </div>
         <div class="modal-copy">
           <p class="eyebrow">DAF YOMI SHIUR</p>
-          <h2 id="shiur-title">Zevachim 61</h2>
-          <p id="modal-teacher">R' Eli Stefansky</p>
-          <div class="modal-meta"><span data-icon="clock"></span> <span id="modal-length">46 min</span></div>
+          <h2 id="shiur-title"></h2>
+          <p id="modal-teacher"></p>
+          <div class="modal-meta"><span data-icon="clock"></span> <span id="modal-length"></span></div>
           <div class="modal-variant-toggle" id="modal-variant-toggle"></div>
           <a class="primary-action" id="modal-watch-link" href="#"><span data-icon="play"></span> Start watching</a>
         </div>
