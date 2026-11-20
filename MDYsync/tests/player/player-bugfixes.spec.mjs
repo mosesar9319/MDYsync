@@ -433,6 +433,50 @@ test.describe('player bugfixes on live Bekhorot', () => {
     expect(found.none).toBe(-1);
   });
 
+  // Those lines have no moment in the recording, so a tap on one goes nowhere:
+  // it used to jump the recording back to just after the last line read and
+  // put the highlight on the tapped line.
+  test('a tap on a line after the last one read does not seek or take the highlight', async ({ page }) => {
+    test.setTimeout(60000);
+    await openLive(page, '/player/?ref=Bekhorot+31a&variant=chazarah');
+    const tapped = await page.evaluate(() => {
+      const row = (ref, start, end, estimated = false) => ({ ref, start, end, he: ref, w0: 0, w1: 2, estimated });
+      const kept = state.segments;
+      state.segments = [row('Arakhin 4a.1', 100, 104), row('Arakhin 4a.2', 110, 110.1, true),
+        row('Arakhin 4b.20', 2120, 2124), row('Arakhin 4b.21', 2124.6, 2124.7, true),
+        row('Arakhin 5a.21', 2152.7, 2152.8, true)];
+      const tap = (index, from) => {
+        state.phrasePin = null;
+        $('toast').textContent = '';
+        window.__yt._time = from;
+        updateActiveSegment(true, from);
+        activatePhrase(index);
+        return {
+          time: Math.round(window.__yt._time), pinned: state.phrasePin ? state.phrasePin.index : null,
+          toast: $('toast').textContent, active: findSegmentAt(window.__yt._time),
+        };
+      };
+      const out = {
+        tail: tap(3, 2700), nextAmud: tap(4, 2700),
+        tails: [0, 1, 2, 3, 4].map((i) => isUnplacedTail(i)),
+        between: tap(1, 2700),       // a line between two that were read still seeks
+        real: tap(0, 2700),
+      };
+      state.phrasePin = null;
+      state.segments = kept;
+      return out;
+    });
+    for (const tap of [tapped.tail, tapped.nextAmud]) {
+      expect(tap).toEqual({ time: 2700, pinned: null, toast: 'This line is not synced in this shiur', active: 2 });
+    }
+    expect(tapped.tails).toEqual([false, false, false, true, true]);
+    expect(tapped.between.pinned).toBe(1);
+    expect(tapped.between.time).toBe(110);
+    expect(tapped.between.toast).not.toBe('This line is not synced in this shiur');
+    expect(tapped.real.pinned).toBe(0);
+    expect(tapped.real.time).toBe(100);
+  });
+
   // On a touchscreen only the big centre button plays or pauses. While the
   // video plays, a centre pause button comes and goes with the controls; a
   // finger tap anywhere else on the picture only shows or hides them. A

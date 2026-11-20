@@ -1442,6 +1442,15 @@ function lastRealSegmentIndex(segments = state.segments) {
   return last;
 }
 
+// A line that comes after the last one synced: it has a row and a
+// placeholder time, but no moment in the recording.
+function isUnplacedTail(index, segments = state.segments) {
+  const segment = segments[index];
+  if (!segment || !segment.estimated) return false;
+  const last = lastRealSegmentIndex(segments);
+  return last >= 0 && Number(segment.start) > Number(segments[last].start);
+}
+
 // A real phrase still on the clock. Zero-length marks do not count: they
 // are a single timestamp, and treating them as a span let a later blip
 // cover the phrase that was actually playing.
@@ -3401,6 +3410,14 @@ function activatePhrase(index) {
   const resolved = nearestSamePhrase(index);
   const segment = state.segments[resolved];
   if (!segment) return;
+  // A line after the last one synced was tapped. Its placeholder time is a
+  // second or so past the last line read, so a tap from later in the shiur
+  // (R' Bornstein's Eruchin 4, anywhere in the last 23 minutes) jumped the
+  // recording back there and put the highlight on a line that is never read.
+  if (isUnplacedTail(resolved)) {
+    showToast('This line is not synced in this shiur');
+    return;
+  }
   const target = Math.max(0, Number(segment.start) - PHRASE_SEEK_LEAD);
   state.phrasePin = { index: resolved, until: pinReleaseTime(resolved), seekTarget: target };
   state.lastManualScrollAt = 0;
