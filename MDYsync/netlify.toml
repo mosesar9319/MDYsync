@@ -195,6 +195,20 @@
 [images]
   remote_images = ["https://cdn\\.mdydaf\\.com/.*", "https://app\\.daf-yomi\\.net/images/.*"]
 
+# The service worker (sw.js) decides what an installed copy of the site keeps
+# for offline use. A stale copy of the worker itself would hold every reader
+# on an old version of those rules, so it is never cached.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json; charset=utf-8"
+    Cache-Control = "public, max-age=3600"
+
 [[headers]]
   for = "/*"
   [headers.values]
