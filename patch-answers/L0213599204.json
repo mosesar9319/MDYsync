@@ -1,0 +1,256 @@
+{
+ "schema": "dafsync-patch-answers-v1",
+ "videoId": "L0213599204",
+ "shiur": "R' Sruly Bornstein, Eruchin 4",
+ "answeredBy": "Claude, in a Claude Code session",
+ "notes": "For the transcript with its skipped stretches heard again. The first 14 placements are the first patch's, carried over; the last 5 are in the lines heard anew. The end of 4b (from line 21) is not read in this shiur.",
+ "placements": [
+  {
+   "daf": [
+    294,
+    294
+   ],
+   "heard": [
+    230,
+    230
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "'ששון' is his garbled שתא after כולו"
+  },
+  {
+   "daf": [
+    313,
+    314
+   ],
+   "heard": [
+    450,
+    451
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "'הוי כתבנו' = הואיל ותנן"
+  },
+  {
+   "daf": [
+    315,
+    316
+   ],
+   "heard": [
+    454,
+    455
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'שבע יבוא' = שוה היובל before לראש השנה"
+  },
+  {
+   "daf": [
+    374,
+    374
+   ],
+   "heard": [
+    1118,
+    1118
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "'the Gemara asks, תפי' = פשיטא"
+  },
+  {
+   "daf": [
+    423,
+    423
+   ],
+   "heard": [
+    1342,
+    1342
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'paro hi' = כפרה היא"
+  },
+  {
+   "daf": [
+    447,
+    449
+   ],
+   "heard": [
+    1597,
+    1608
+   ],
+   "kind": "explained",
+   "confidence": 0.72,
+   "why": "'The zar, the non-Kohen, obviously wasn't eating kachim or truma' explains וזר קאכיל חולין"
+  },
+  {
+   "daf": [
+    498,
+    498
+   ],
+   "heard": [
+    1956,
+    1957
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'Hei et Ben Buchri' = העיד בן בוכרי"
+  },
+  {
+   "daf": [
+    542,
+    544
+   ],
+   "heard": [
+    2903,
+    2917
+   ],
+   "kind": "explained",
+   "confidence": 0.7,
+   "why": "'if it's a מנחת כהן, then you're not gonna be able to eat it' explains היאך הם נאכלין"
+  },
+  {
+   "daf": [
+    698,
+    698
+   ],
+   "heard": [
+    4489,
+    4489
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'אמנם אימילי' = מנא הני מילי"
+  },
+  {
+   "daf": [
+    716,
+    716
+   ],
+   "heard": [
+    4711,
+    4711
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "'ולא ערך איבר' = אברים"
+  },
+  {
+   "daf": [
+    725,
+    725
+   ],
+   "heard": [
+    4777,
+    4777
+   ],
+   "kind": "read",
+   "confidence": 0.75,
+   "why": "'ת\"ל נפשוש' = תלמוד לומר נפשות"
+  },
+  {
+   "daf": [
+    754,
+    754
+   ],
+   "heard": [
+    4947,
+    4947
+   ],
+   "kind": "read",
+   "confidence": 0.75,
+   "why": "'נפשוש saying ליעל' = נפשות אין לי"
+  },
+  {
+   "daf": [
+    771,
+    772
+   ],
+   "heard": [
+    5080,
+    5080
+   ],
+   "kind": "read",
+   "confidence": 0.72,
+   "why": "'הליא איבעיא איש' = אין לי אלא איש"
+  },
+  {
+   "daf": [
+    878,
+    878
+   ],
+   "heard": [
+    5677,
+    5677
+   ],
+   "kind": "read",
+   "confidence": 0.72,
+   "why": "'ערך סתם אבל אני נושאין' = ערך סתום עלי נותן"
+  },
+  {
+   "daf": [
+    968,
+    969
+   ],
+   "heard": [
+    6676,
+    6677
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "'יוחסין אימא' is his יכול שאני, before מוציא דבר שהנשמה תלויה בו"
+  },
+  {
+   "daf": [
+    971,
+    971
+   ],
+   "heard": [
+    6679,
+    6679
+   ],
+   "kind": "read",
+   "confidence": 0.75,
+   "why": "'דאבשן' holds דבר ש(הנשמה), before תלויה בו"
+  },
+  {
+   "daf": [
+    1054,
+    1054
+   ],
+   "heard": [
+    7084,
+    7084
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "'ת\"ל again נפשות' closes the אשה מנין derashah"
+  },
+  {
+   "daf": [
+    1062,
+    1062
+   ],
+   "heard": [
+    7162,
+    7162
+   ],
+   "kind": "read",
+   "confidence": 0.75,
+   "why": "'ואפיתיה' holds והא אפיקתיה"
+  },
+  {
+   "daf": [
+    1077,
+    1078
+   ],
+   "heard": [
+    7365,
+    7366
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "'כיצד כרא' = כי איצטריך קרא"
+  }
+ ]
+}

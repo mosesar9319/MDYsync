@@ -45,7 +45,29 @@
         "unmatchedWords": 195,
         "durationSeconds": 3541.87
       }
+    },
+    {
+      "id": "regular-3",
+      "engine": "regular",
+      "number": 3,
+      "name": "Regular #3 · 20 Nov 2026 · placed again from saved transcripts (claude/retranscribe-skipped-stretches): skipped stretches heard again; holes answered in a Claude Code session",
+      "notes": "placed again from saved transcripts (claude/retranscribe-skipped-stretches): skipped stretches heard again; holes answered in a Claude Code session",
+      "engineVersion": "be3726e",
+      "createdAt": "2026-11-20T08:54:19Z",
+      "file": "regular-3.json",
+      "jobId": "realign-44706178271",
+      "summary": {
+        "segments": 296,
+        "estimatedSegments": 118,
+        "placements": 378,
+        "placedWords": 824,
+        "totalRuns": 552,
+        "totalWords": 989,
+        "matchedWords": 807,
+        "unmatchedWords": 182,
+        "durationSeconds": 3541.87
+      }
     }
   ],
-  "updatedAt": "2026-11-20T08:49:19Z"
+  "updatedAt": "2026-11-20T08:54:19Z"
 }
