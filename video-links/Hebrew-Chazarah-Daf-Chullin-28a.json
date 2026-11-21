@@ -1,11 +1,8 @@
 {
   "label": "חזרה - חולין דף כח | \"רק הדף\" עם ר' אלי סטפנסקי",
+  "locked": false,
+  "source": "manual",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=SBh2-EVBshQ",
-  "videoId": "SBh2-EVBshQ",
-  "coveredRefs": [
-    "Chullin 27b",
-    "Chullin 28a",
-    "Chullin 28b"
-  ]
+  "videoId": "SBh2-EVBshQ"
 }
