@@ -1,1 +1,8 @@
-{"type":"youtube","url":"https://www.youtube.com/watch?v=qNU-IwS3pIA","videoId":"qNU-IwS3pIA","label":"חזרה - חולין דף קכב | \"רק הדף\" עם ר' אלי סטפנסקי","coveredRefs":["Chullin 121b","Chullin 122a","Chullin 122b"],"source":"channel-auto"}
+{
+  "label": "חזרה - חולין דף קכב | \"רק הדף\" עם ר' אלי סטפנסקי",
+  "locked": false,
+  "source": "manual",
+  "type": "youtube",
+  "url": "https://www.youtube.com/watch?v=qNU-IwS3pIA",
+  "videoId": "qNU-IwS3pIA"
+}
