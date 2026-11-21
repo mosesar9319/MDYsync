@@ -117,7 +117,7 @@ class Path(unittest.TestCase):
         self.assertEqual(spans(both), [(5, 6)])
 
     def test_a_proposal_competes_like_anything_else(self):
-        proposals = [(300.0, 301.0, 12, 15, 90.0, 'heard by the phrase matcher', 'llm-rescue')]
+        proposals = [(120.0, 121.0, 12, 15, 90.0, 'heard by the phrase matcher', 'llm-rescue')]
         events, stats = self.align(said('והמוכר לו', 'אף על פי שאינו רשאי'), proposals=proposals,
                                    source_labels={'llm-rescue': 'LLM rescue (Claude)'})
         self.assertEqual(spans(events), [(5, 6), (7, 11), (12, 15)])
@@ -638,6 +638,30 @@ class StraightPath(unittest.TestCase):
         thin = [C(5, 6, 0, 0, 90, 9, 'x', '')] + [c._replace(s=c.s + 40, e=c.e + 40) for c in read]
         self.assertEqual(PA.peel_strays(thin, None), (thin, 0))
         self.assertEqual(PA.peel_strays([], own), ([], 0))
+
+    def test_quotes_minutes_apart_after_the_reading_are_not_the_reading(self):
+        C = PA.Candidate
+        # R' Bornstein's Eruchin 4: he reads to line 20 of 4b at 35:24 and stops; in the 11 minutes
+        # of discussion after it, a word or two at a time landed on the very next line.
+        read = [C(2056, 2060, 1055, 1061, 90, 9, 'x', ''), C(2072, 2075, 1064, 1075, 90, 9, 'x', ''),
+                C(2123, 2124, 1076, 1083, 90, 9, 'x', '')]
+        quotes = [C(2307, 2308, 1084, 1084, 90, 9, 'x', 'yihyeh'), C(2463, 2464, 1092, 1093, 90, 9, 'x', 'likro'),
+                  C(2738, 2739, 1097, 1098, 90, 9, 'x', 'yedai dizgilu'),
+                  C(2774, 2776, 1100, 1103, 90, 9, 'x', "nemrah mikul ha'am")]
+        kept, dropped = PA.peel_late_strays(read + quotes)
+        self.assertEqual(([(c.s, c.e) for c in kept], dropped), ([(1055, 1061), (1064, 1075), (1076, 1083)], 4))
+        # He explains for three minutes and then reads on: that is the reading.
+        on = read + [C(2310, 2318, 1084, 1096, 90, 9, 'x', ''), C(2320, 2330, 1097, 1110, 90, 9, 'x', '')]
+        self.assertEqual(PA.peel_late_strays(on), (on, 0))
+        # A long pause in the middle of a reading that goes on is left alone.
+        middle = [C(100, 101, 0, 9, 90, 9, 'x', ''), C(400, 401, 10, 12, 90, 9, 'x', ''),
+                  C(410, 420, 13, 60, 90, 9, 'x', ''), C(430, 440, 61, 100, 90, 9, 'x', '')]
+        self.assertEqual(PA.peel_late_strays(middle), (middle, 0))
+        # A few words soon after the last line read are kept.
+        soon = read + [C(2200, 2201, 1084, 1085, 90, 9, 'x', '')]
+        self.assertEqual(PA.peel_late_strays(soon), (soon, 0))
+        self.assertEqual(PA.peel_late_strays([]), ([], 0))
+        self.assertEqual(PA.peel_late_strays(read[:1]), (read[:1], 0))
 
     def test_a_line_read_in_two_goes_keeps_both_at_their_own_times(self):
         from caption_ocr_align import build_outputs

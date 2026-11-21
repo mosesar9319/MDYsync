@@ -46,6 +46,7 @@ sync's rough spots already get corrected today.
 import argparse
 import dataclasses
 import json
+import math
 import os
 import re
 import sys
@@ -1631,6 +1632,136 @@ def relisten_holes(audio_path, canon, holes, placed_words=(), duration=None, tra
     return words
 
 
+# Stretches the transcriber skipped. ElevenLabs sometimes returns nothing for
+# minutes of plain speech: R' Bornstein's Eruchin 4 (November 2026) came back
+# with no words from 30:53 to 36:48 and from 16:44 to 18:12, while he read the
+# rest of 4b in the first of them -- 320 daf words that nothing downstream could
+# place, because there was no transcript of them. Scribe marks such a stretch
+# with one "word" stretched across it ("Whatever", 1853 s to 2055 s) or with
+# nothing at all. Each such stretch that is not silence is cut out and
+# transcribed again on its own, and what is heard is put in its place.
+SKIPPED_MIN_SECONDS = 20.0         # no word begins for this long: a speaker never pauses so
+SKIPPED_WORD_SECONDS = 3.0         # a word is taken to last no longer than this
+SKIPPED_PAD_SECONDS = 1.0          # audio kept either side of a stretch
+SKIPPED_MAX_CLIP_SECONDS = 150.0   # a long stretch is transcribed in pieces of this
+SKIPPED_OVERLAP_SECONDS = 2.0      # ... which share this much, so no word falls between two
+SKIPPED_MAX_TOTAL_SECONDS = 1200.0
+SKIPPED_SILENCE_DB = -45.0         # mean volume below this is silence, not speech
+
+
+def skipped_stretches(words, duration=None, min_seconds=SKIPPED_MIN_SECONDS):
+    """[(start, end)]: the stretches of a transcript in which no word begins for
+    min_seconds or longer -- before its first word, between two words, after
+    its last. A word is taken to end SKIPPED_WORD_SECONDS after it begins at
+    the latest, so the one word Scribe stretches across a stretch it skipped
+    does not hide it; two stretches with nothing but such a word between them
+    are one."""
+    edges = [(0.0, 0.0, False)]
+    for start, end in sorted((w["start"], w["end"]) for w in words):
+        stretched = end - start > SKIPPED_WORD_SECONDS
+        edges.append((start, start + SKIPPED_WORD_SECONDS if stretched else end, stretched))
+    if duration:
+        edges.append((float(duration), float(duration), False))
+    found = []
+    for (began, said_until, stretched), (next_start, _, _) in zip(edges, edges[1:]):
+        if next_start - said_until >= min_seconds:
+            if found and stretched and found[-1][1] == began:
+                found[-1][1] = next_start
+            else:
+                found.append([said_until, next_start])
+    return [tuple(stretch) for stretch in found]
+
+
+def mean_volume(audio_path, start, end):
+    """The mean volume of the audio from start to end, in dB (ffmpeg's
+    volumedetect), or None when it cannot be measured."""
+    import subprocess
+    try:
+        done = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-nostats", "-ss", f"{start:.2f}", "-to", f"{end:.2f}", "-i", audio_path,
+             "-vn", "-af", "volumedetect", "-f", "null", "-"],
+            capture_output=True, text=True, timeout=300)
+    except Exception:  # noqa: BLE001 -- no ffmpeg, no file: not measured
+        return None
+    found = re.search(r"mean_volume:\s*(-?\d+(?:\.\d+)?) dB", done.stderr or "")
+    return float(found.group(1)) if found else None
+
+
+def skipped_pieces(start, end, duration=None):
+    """A stretch as the clips to transcribe: [(clip start, clip end, own from,
+    own until)]. Each clip is at most SKIPPED_MAX_CLIP_SECONDS and shares
+    SKIPPED_OVERLAP_SECONDS with the next; a word is kept from the clip that
+    owns the moment it begins."""
+    start = max(0.0, start - SKIPPED_PAD_SECONDS)
+    end = end + SKIPPED_PAD_SECONDS
+    if duration:
+        end = min(end, float(duration))
+    count = max(1, math.ceil((end - start) / SKIPPED_MAX_CLIP_SECONDS))
+    step = (end - start) / count
+    pieces = []
+    for n in range(count):
+        own_from, own_until = start + n * step, start + (n + 1) * step
+        pieces.append((max(start, own_from - SKIPPED_OVERLAP_SECONDS / 2),
+                       min(end, own_until + SKIPPED_OVERLAP_SECONDS / 2), own_from, own_until))
+    return pieces
+
+
+def fill_skipped(audio_path, words, duration=None, keyterms=None, transcribe_clip=None, volume=None):
+    """The transcript with the stretches its transcriber skipped heard again:
+    (words, filled), where filled is [{"start", "end", "words"}] for each stretch
+    transcribed again. A stretch that is silence in the audio is left alone, as
+    is whatever does not fit in SKIPPED_MAX_TOTAL_SECONDS (the longest first).
+    One clip failing only loses that clip. The times are the whole audio's."""
+    import tempfile
+    transcribe_clip = transcribe_clip or (lambda path, terms: transcribe_elevenlabs(path, keyterms=terms)[0])
+    volume = volume or mean_volume
+    wanted, total = [], 0.0
+    for start, end in sorted(skipped_stretches(words, duration), key=lambda s: s[0] - s[1]):
+        loud = volume(audio_path, start, end)
+        if loud is None or loud < SKIPPED_SILENCE_DB:
+            print(f"  {start:.0f}-{end:.0f}s has no words and "
+                  f"{'could not be measured' if loud is None else 'is silence (%.0f dB)' % loud}; left as it is.")
+            continue
+        if total + (end - start) > SKIPPED_MAX_TOTAL_SECONDS:
+            print(f"  {start:.0f}-{end:.0f}s has no words, but more than "
+                  f"{SKIPPED_MAX_TOTAL_SECONDS / 60:.0f} minutes were skipped in all; left as it is.")
+            continue
+        wanted.append((start, end))
+        total += end - start
+    if not wanted:
+        return words, []
+    print(f"The transcriber skipped {len(wanted)} stretch(es) of speech ({total:.0f}s); transcribing them again")
+    filled, heard = [], []
+    with tempfile.TemporaryDirectory() as folder:
+        for n, (start, end) in enumerate(sorted(wanted)):
+            got_here = []
+            for k, (clip_start, clip_end, own_from, own_until) in enumerate(skipped_pieces(start, end, duration)):
+                try:
+                    path = cut_clip(audio_path, clip_start, clip_end, os.path.join(folder, f"skipped{n}-{k}.mp3"))
+                    got = transcribe_clip(path, keyterms)
+                except Exception as error:  # noqa: BLE001
+                    print(f"  {clip_start:.0f}-{clip_end:.0f}s failed ({error}); carrying on.")
+                    continue
+                for w in got:
+                    at = clip_start + w["start"]
+                    # Only what begins inside the stretch itself (the padding is
+                    # there so its first and last words are heard whole) and in
+                    # this clip's own part of it.
+                    if own_from <= at < own_until and start <= at < end:
+                        got_here.append({**w, "start": at, "end": min(clip_end, clip_start + w["end"])})
+            print(f"  {start:.0f}-{end:.0f}s: {len(got_here)} words")
+            if got_here:
+                filled.append({"start": round(start, 2), "end": round(end, 2), "words": len(got_here)})
+                heard.extend(got_here)
+    if not heard:
+        return words, []
+    # The word Scribe stretched across a stretch is put back to a word's length.
+    inside = lambda t: any(f["start"] - 0.1 <= t < f["end"] for f in filled)   # noqa: E731
+    kept = [{**w, "end": w["start"] + 0.5} if w["end"] - w["start"] > SKIPPED_WORD_SECONDS
+            and inside(w["start"] + SKIPPED_WORD_SECONDS) else w for w in words]
+    return sorted(kept + heard, key=lambda w: w["start"]), filled
+
+
 # A shiur on one daf often opens a few lines before it ("we are four lines from
 # the bottom of 57b") and runs a few lines past it, so a job for a whole daf
 # also reads the amud before and the amud after. publish_alignment.split_refs
@@ -1722,6 +1853,7 @@ def llm_rescue_by_default(aligner):
 # any change to the engine on a real shiur cost a whole new transcription.
 TRANSCRIPTS_SCHEMA = "dafsync-transcripts-v1"
 HEARD_WITNESSES = []   # [(name, words)] in the order the path is given them
+SKIPPED_FILLED = []    # [{"start", "end", "words"}]: the stretches fill_skipped heard again in this job
 
 
 def transcripts_bundle(witnesses, duration, engine=None, model=None):
@@ -1821,13 +1953,14 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
                   engine="whisper", fallback=True, llm_rescue=None, refine=True,
                   aligner="path", witnesses=DEFAULT_WITNESSES, slow_tempo=SLOW_TEMPO, transcripts=None,
                   keep_after_reading=False, primary_refs=None, saved_witnesses=None, llm_patch=None,
-                  patch_questions=None, patch_answers=None):
+                  patch_questions=None, patch_answers=None, fill_skipped_stretches=False):
     canon, segments = load_canonical(refs, cache_dir)
     print(f"Canonical text: {len(segments)} segments, {len(canon)} words")
     for c in canon:
         c.phon = phonetic(c.norm)
     primary = primary_word_indices(canon, primary_refs)
     del HEARD_WITNESSES[:]
+    del SKIPPED_FILLED[:]
 
     words = duration = None
     extra_transcripts = []
@@ -1841,6 +1974,18 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
         transcripts = transcripts or ["saved"]
         print(f"Using {len(saved_witnesses)} saved transcript(s) "
               f"({', '.join(name for name, _ in saved_witnesses)}) instead of transcribing.")
+        if fill_skipped_stretches:
+            # A shiur synced before skipped stretches were heard again: only
+            # those stretches of its audio are transcribed now.
+            start_credit_pass("skipped")
+            words, filled = fill_skipped(video_path, words, duration,
+                                         build_keyterm_list(canon, max_terms=ELEVENLABS_MAX_KEYTERMS))
+            credit_checkpoint("skipped")
+            SKIPPED_FILLED.extend(filled)
+            if filled:
+                # The transcripts are no longer the saved ones: main() writes
+                # them out again, to be kept in the saved ones' place.
+                HEARD_WITNESSES.extend([(saved_witnesses[0][0], words)] + list(saved_witnesses[1:]))
     elif transcripts:
         # Saved transcripts instead of a new transcription: the first is the one
         # the phrase matcher reads, all of them are witnesses for the path.
@@ -1857,6 +2002,14 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
         try:
             words, duration = transcribe_elevenlabs(video_path, keyterms=keyterms)
             credit_checkpoint("hints")
+            try:
+                # Before anything is placed: what the transcriber skipped.
+                start_credit_pass("skipped")
+                words, filled = fill_skipped(video_path, words, duration, keyterms)
+                SKIPPED_FILLED.extend(filled)
+                credit_checkpoint("skipped")
+            except Exception as error:  # noqa: BLE001 -- the transcript as it came is still a transcript
+                print(f"Hearing the skipped stretches again failed ({error}); carrying on without.")
         except Exception as error:
             # A missing key, a rate limit, an API outage -- none of these are
             # reasons to fail a sync job outright when a working local engine
@@ -1958,23 +2111,43 @@ def process_video(video_path, refs, model_size="small", cache_dir=None, debug=Fa
                 canon, [words] + extra_transcripts, phonetic, proposals=proposals,
                 source_labels=MATCH_SOURCE_LABELS, keep_after_reading=keep_after_reading, debug=debug,
                 primary=primary)
-            if "relisten" in extra_wanted and path_events and not transcripts and engine == "elevenlabs":
+            holes = path_stats.get("holes") or []
+            refilled = bool(saved_witnesses and SKIPPED_FILLED)
+            if refilled:
+                # A saved transcript's holes were listened to again when it was
+                # made; only those in the stretches heard just now are new.
+                holes = [hole for hole in holes
+                         if any(hole[0] < f["end"] and hole[1] > f["start"] for f in SKIPPED_FILLED)]
+            if "relisten" in extra_wanted and path_events and (not transcripts or refilled) and engine == "elevenlabs":
                 # Second round: listen again to just the holes, hinted with just
                 # the words that belong in each, and place the whole path again.
                 placed_words = {i for event in path_events for i in range(event.start_idx, event.end_idx + 1)}
                 start_credit_pass("relisten")
-                again = relisten_holes(video_path, canon, path_stats.get("holes") or [], placed_words, duration)
+                again = relisten_holes(video_path, canon, holes, placed_words, duration)
                 credit_checkpoint("relisten")
                 if again:
                     print(f"Witness 'relisten': {len(again)} words")
-                    HEARD_WITNESSES.append(("relisten", again))
+                    heard_again = len(again)
+                    if refilled:
+                        # Beside what the saved re-listen heard, as one witness.
+                        kept = next((w for name, w in HEARD_WITNESSES if name == "relisten"), None)
+                        if kept is not None:
+                            kept.extend(again)
+                            kept.sort(key=lambda w: w["start"])
+                            again = None
+                        else:
+                            HEARD_WITNESSES.append(("relisten", again))
+                    else:
+                        HEARD_WITNESSES.append(("relisten", again))
                     first_heard = path_stats["matchedWords"]
                     path_events, path_stats = path_align.align_path(
-                        canon, [words] + extra_transcripts + [again], phonetic, proposals=proposals,
+                        canon, [words] + extra_transcripts + ([again] if again else []), phonetic, proposals=proposals,
                         source_labels=MATCH_SOURCE_LABELS, keep_after_reading=keep_after_reading, debug=debug,
                         primary=primary)
-                    path_stats["relisten"] = {"words": len(again), "matchedBefore": first_heard}
+                    path_stats["relisten"] = {"words": heard_again, "matchedBefore": first_heard}
             path_stats.pop("holes", None)
+            if SKIPPED_FILLED:
+                path_stats["skippedFilled"] = list(SKIPPED_FILLED)
             if path_events and patch_questions:
                 # The holes, written out to be answered in a Claude Code session
                 # (llm_patch.questions); nothing is patched here.
@@ -2081,6 +2254,11 @@ def main():
                    help="A job's saved transcripts (transcripts.json, or .json.gz, as voice-job.yml "
                         "stores them on the results branch) to place again instead of transcribing: "
                         "no audio is read and no ElevenLabs credit is spent.")
+    p.add_argument("--fill-skipped", action="store_true",
+                   help="With --saved-transcripts: also read the audio, and transcribe again the "
+                        "stretches of speech the saved transcript has no words for (fill_skipped). "
+                        "Costs ElevenLabs credits for those minutes only; the transcripts are written "
+                        "out again when anything was heard. A new transcription always does this.")
     p.add_argument("--llm-patch", dest="llm_patch", action="store_true", default=None,
                    help="Ask Claude about the holes the path leaves (llm_patch.py). Default: on "
                         "wherever the job has Anthropic credentials, unless $VOICE_LLM_PATCH is 0.")
@@ -2115,7 +2293,10 @@ def main():
     # The refs actually read, for publish_alignment.py (voice-job.yml).
     json.dump(refs, open(os.path.join(args.out_dir, "refs.json"), "w", encoding="utf-8"), ensure_ascii=False)
     reading_saved = bool(args.transcript or saved_witnesses)
-    balance_before = elevenlabs_balance() if args.engine == "elevenlabs" and not reading_saved else None
+    filling = bool(saved_witnesses and args.fill_skipped)
+    if filling and args.engine != "elevenlabs":
+        sys.exit("--fill-skipped needs --engine elevenlabs (and $ELEVENLABS_API_KEY).")
+    balance_before = elevenlabs_balance() if args.engine == "elevenlabs" and (filling or not reading_saved) else None
     if balance_before:
         ELEVENLABS_CHECKPOINTS.append(("start", balance_before["used"]))
     canon, segments, events, duration, stats = process_video(
@@ -2124,13 +2305,15 @@ def main():
         refine=args.refine, aligner=args.aligner, witnesses=args.witnesses,
         slow_tempo=args.slow_tempo, transcripts=args.transcript, keep_after_reading=args.keep_after_reading,
         primary_refs=primary_refs, saved_witnesses=saved_witnesses, llm_patch=args.llm_patch,
-        patch_questions=args.patch_questions, patch_answers=args.patch_answers)
+        patch_questions=args.patch_questions, patch_answers=args.patch_answers,
+        fill_skipped_stretches=filling)
     if saved_seconds:
         duration = max(duration, saved_seconds)
-    if HEARD_WITNESSES and not reading_saved:
+    if HEARD_WITNESSES and (not reading_saved or SKIPPED_FILLED):
         # Before anything can fail below: the transcripts are what was paid for.
-        heard_by = ({"engine": "elevenlabs", "model": ELEVENLABS_MODEL} if ELEVENLABS_USAGE["requests"]
-                    else {"engine": "whisper", "model": args.model})
+        heard_by = saved_heard_by or (
+            {"engine": "elevenlabs", "model": ELEVENLABS_MODEL} if ELEVENLABS_USAGE["requests"]
+            else {"engine": "whisper", "model": args.model})
         t_path = os.path.join(args.out_dir, "transcripts.json")
         json.dump(transcripts_bundle(HEARD_WITNESSES, duration, **heard_by),
                   open(t_path, "w", encoding="utf-8"), ensure_ascii=False)

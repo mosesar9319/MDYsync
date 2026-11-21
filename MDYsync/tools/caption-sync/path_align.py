@@ -729,8 +729,8 @@ def same_words_at(canon, s, e):
 #   1. best_path(forward_only=True): the path never steps back.
 #   2. first_readings: where the same words were read earlier, in order, that
 #      earlier moment is theirs.
-#   3. drop_closing_quotes, peel_strays: a quote of the daf in the discussion
-#      after the reading, or of a line far ahead, is not the reading.
+#   3. drop_closing_quotes, peel_strays, peel_late_strays: a quote of the daf in
+#      the discussion after the reading, or of a line far ahead, is not the reading.
 #   4. straight_chain: whatever is added afterwards (second looks, fills,
 #      Claude's placements) is held to the same rule.
 
@@ -874,6 +874,35 @@ def peel_strays(placed, primary=None):
     return (placed[:-drop] if drop else list(placed)), drop
 
 
+# The same in time. A maggid who stops a few lines short of the end of the daf
+# and goes on to discuss it leaves quotes that land on the very next line, so
+# no daf words are skipped to reach them and peel_strays lets them be. They
+# stand minutes apart and hold a word or two each (R' Bornstein's Eruchin 4: he
+# stops at line 20 of 4b after 35 minutes, and "yihyeh", "likro" and "nemrah
+# mikol ha'am" in the next 11 minutes of discussion were placed on line 21). A
+# closing run of stretches is let go when it begins after a long silence of
+# the path and, from there to the end, holds far fewer daf words than a reading
+# of that length would.
+STRAY_LATE_MIN_GAP_SECONDS = 150.0
+STRAY_LATE_SECONDS_PER_WORD = 40.0
+
+
+def peel_late_strays(placed):
+    """placed without the closing stretches that stand alone in time. Returns
+    (kept, how many were dropped)."""
+    if len(placed) < 2:
+        return list(placed), 0
+    end = placed[-1].t1
+    drop = words = 0
+    for n in range(len(placed) - 1, 0, -1):
+        here, before = placed[n], placed[n - 1]
+        words += here.e - here.s + 1
+        if here.t0 - before.t1 >= STRAY_LATE_MIN_GAP_SECONDS \
+                and (end - before.t1) / words > STRAY_LATE_SECONDS_PER_WORD:
+            drop = len(placed) - n
+    return (placed[:-drop] if drop else list(placed)), drop
+
+
 def straight_chain(items, when, span, trim):
     """The most daf words that can be kept from items on one straight path: each
     word once, and never a word before one already read. Of two ways to keep as
@@ -994,6 +1023,8 @@ def align_path(canon, transcripts, phonetic, proposals=(), source_labels=None, e
         if not keep_after_reading:
             placed, quotes = drop_closing_quotes(placed, cands)
             placed, strays_after = peel_strays(placed, primary)
+            placed, late = peel_late_strays(placed)
+            strays_after += late
             strays_after += quotes
     if gaps:
         placed = sorted(placed + fill_gaps(witnesses, placed, short_words), key=lambda c: (c.t0, c.t1))
