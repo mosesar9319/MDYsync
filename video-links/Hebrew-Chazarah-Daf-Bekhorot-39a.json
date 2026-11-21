@@ -1,1 +1,8 @@
-{"type":"youtube","url":"https://www.youtube.com/watch?v=-iSHADe5ekw","videoId":"-iSHADe5ekw","label":"חזרה - בכורות דף לט | \"רק הדף\" עם ר' אלי סטפנסקי","coveredRefs":["Bekhorot 38b","Bekhorot 39a","Bekhorot 39b"],"source":"channel-auto"}
+{
+  "label": "חזרה - בכורות דף לט | \"רק הדף\" עם ר' אלי סטפנסקי",
+  "locked": false,
+  "source": "manual",
+  "type": "youtube",
+  "url": "https://www.youtube.com/watch?v=-iSHADe5ekw",
+  "videoId": "-iSHADe5ekw"
+}
