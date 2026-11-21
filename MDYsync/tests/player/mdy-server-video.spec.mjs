@@ -150,6 +150,23 @@ test.describe('MDY shiurim from MDY’s own server', () => {
 
   // A reader paused a shiur, left the tab for a few minutes and came back: each
   // tap on a word moved the highlight, and the recording stayed where it was.
+  test('the lock screen shows an MDY shiur with its picture, and nothing while YouTube plays', async ({ page }) => {
+    await openShiur(page);
+    await page.waitForFunction(() => document.getElementById('video').readyState >= 1, null, { timeout: 15000 });
+    await page.waitForFunction(() => navigator.mediaSession.metadata && navigator.mediaSession.metadata.title);
+    const told = await page.evaluate(() => {
+      const m = navigator.mediaSession.metadata;
+      return { title: m.title, artist: m.artist, artwork: m.artwork.map((a) => decodeURIComponent(new URL(a.src).search)) };
+    });
+    expect(told.title).toBe('Chullin 89');
+    expect(told.artist).toBe("R' Eli Stefansky");
+    expect(told.artwork[0]).toContain('https://cdn.mdydaf.com/shiur/english/chullin/thumb/89.png');
+    // On to YouTube: YouTube's own frame answers the lock screen, so the page says nothing.
+    await page.evaluate(() => { switchPlayerType('youtube'); updateMediaSession(); });
+    expect(await page.evaluate(() => ({ metadata: navigator.mediaSession.metadata, state: navigator.mediaSession.playbackState })))
+      .toEqual({ metadata: null, state: 'none' });
+  });
+
   test('a seek the player does not make is sent again, and then on a fresh load of the file', async ({ page }) => {
     await openShiur(page);
     await page.waitForFunction(() => document.getElementById('video').readyState >= 1, null, { timeout: 15000 });
@@ -361,6 +378,51 @@ test.describe('R’ Bornstein’s shiurim from Lakewood Daf Yomi’s server', ()
     // The highlight's clock is the file's clock.
     await page.evaluate(() => { document.getElementById('video').currentTime = 6; });
     await page.waitForFunction(() => Math.abs(getCurrentTime() - 6) < 0.5);
+  });
+
+  // The phone's lock screen and notification shade, and headphone buttons:
+  // navigator.mediaSession is what the page tells them, and what they call back.
+  test('the lock screen shows the daf, R\u2019 Bornstein and his picture, and its buttons drive the shiur', async ({ page }) => {
+    await openBornstein(page);
+    await page.waitForFunction(() => document.getElementById('video').readyState >= 1, null, { timeout: 15000 });
+    await page.waitForFunction(() => navigator.mediaSession.metadata && navigator.mediaSession.metadata.title);
+    const told = await page.evaluate(() => {
+      const m = navigator.mediaSession.metadata;
+      return { title: m.title, artist: m.artist, album: m.album, artwork: m.artwork.map((a) => new URL(a.src).pathname), state: navigator.mediaSession.playbackState };
+    });
+    expect(told).toEqual({ title: 'Chullin 89', artist: "R' Sruly Bornstein", album: 'DafSync', artwork: ['/assets/maggidim/bornstein-v1.jpg'], state: 'paused' });
+
+    // The handlers the page gave the phone, called as the phone would call them.
+    const calls = await page.evaluate(async () => {
+      const handlers = {};
+      const real = navigator.mediaSession.setActionHandler.bind(navigator.mediaSession);
+      navigator.mediaSession.setActionHandler = (action, handler) => { handlers[action] = handler; real(action, handler); };
+      setUpMediaSession();
+      const video = document.getElementById('video');
+      const at = () => Math.round(video.currentTime * 10) / 10;
+      const out = { actions: Object.keys(handlers).sort() };
+      video.currentTime = 3;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      handlers.seekforward({});
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      out.afterForward = at();
+      handlers.seekbackward({ seekOffset: 5 });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      out.afterBack = at();
+      handlers.seekto({ seekTime: 0.2 });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      out.afterSeekTo = at();
+      // "Next" on headphones is Vaater: the next line he reads (the sync's phrases start at 1s and 5s).
+      handlers.nexttrack({});
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      out.afterNext = at();
+      return out;
+    });
+    expect(calls.actions).toEqual(['nexttrack', 'pause', 'play', 'seekbackward', 'seekforward', 'seekto']);
+    expect(calls.afterForward).toBeCloseTo(11.5, 0);   // 10 s on, held short of the clip's end
+    expect(calls.afterBack).toBeCloseTo(6.5, 0);
+    expect(calls.afterSeekTo).toBeCloseTo(0.2, 0);
+    expect(calls.afterNext).toBe(1);
   });
 
   test("the audio bar's Vaater skips on to the daf's next synced phrase, as the video player's does", async ({ page }) => {
