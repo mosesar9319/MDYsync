@@ -1428,6 +1428,29 @@ function firstRealSegmentStart(segments = state.segments) {
   return null;
 }
 
+// The last phrase with a timestamp from a real sync (-1 when there is none).
+// The lines after it were never placed: their times are placeholders a second
+// apart, counted on from this one (fillMissingDafText, and the engine's own
+// gap fill), and say nothing about when they are read.
+function lastRealSegmentIndex(segments = state.segments) {
+  let last = -1;
+  for (let i = 0; i < segments.length; i += 1) {
+    const segment = segments[i];
+    if (!segment || segment.estimated || !Number.isFinite(Number(segment.start))) continue;
+    if (last < 0 || Number(segment.start) >= Number(segments[last].start)) last = i;
+  }
+  return last;
+}
+
+// A line that comes after the last one synced: it has a row and a
+// placeholder time, but no moment in the recording.
+function isUnplacedTail(index, segments = state.segments) {
+  const segment = segments[index];
+  if (!segment || !segment.estimated) return false;
+  const last = lastRealSegmentIndex(segments);
+  return last >= 0 && Number(segment.start) > Number(segments[last].start);
+}
+
 // A real phrase still on the clock. Zero-length marks do not count: they
 // are a single timestamp, and treating them as a span let a later blip
 // cover the phrase that was actually playing.
@@ -1515,6 +1538,16 @@ function findSegmentAt(time) {
   const segment = segments[best];
   const owner = owningRealSegment(segments, time);
   if (owner >= 0 && (!segment || segment.estimated || !segmentStrictlyCovers(segment, time))) return owner;
+  // The mirror of the anchor rule above. Estimated placeholders packed after
+  // the last real phrase are not being read either: a maggid who stops a few
+  // lines short and discusses the daf for the rest of the hour (R' Bornstein's
+  // Eruchin 4 ends at 35:24, on line 20 of 4b) had the highlight run through
+  // the rest of the amud and all of the next one in half a minute, and sit on
+  // its last line until the end. The last line read keeps the highlight.
+  if (segment && segment.estimated) {
+    const last = lastRealSegmentIndex(segments);
+    if (last >= 0 && Number(segment.start) > Number(segments[last].start)) return last;
+  }
   return best;
 }
 
@@ -3377,6 +3410,14 @@ function activatePhrase(index) {
   const resolved = nearestSamePhrase(index);
   const segment = state.segments[resolved];
   if (!segment) return;
+  // A line after the last one synced was tapped. Its placeholder time is a
+  // second or so past the last line read, so a tap from later in the shiur
+  // (R' Bornstein's Eruchin 4, anywhere in the last 23 minutes) jumped the
+  // recording back there and put the highlight on a line that is never read.
+  if (isUnplacedTail(resolved)) {
+    showToast('This line is not synced in this shiur');
+    return;
+  }
   const target = Math.max(0, Number(segment.start) - PHRASE_SEEK_LEAD);
   state.phrasePin = { index: resolved, until: pinReleaseTime(resolved), seekTarget: target };
   state.lastManualScrollAt = 0;
