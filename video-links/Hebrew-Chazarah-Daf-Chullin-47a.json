@@ -1,11 +1,8 @@
 {
   "label": "חזרה - חולין דף מז | \"רק הדף\" עם ר' אלי סטפנסקי",
+  "locked": false,
+  "source": "manual",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=g0ceWbFKg_4",
-  "videoId": "g0ceWbFKg_4",
-  "coveredRefs": [
-    "Chullin 46b",
-    "Chullin 47a",
-    "Chullin 47b"
-  ]
+  "videoId": "g0ceWbFKg_4"
 }
