@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-21T19:28:01.028Z",
+  "generatedAt": "2026-11-21T19:30:20.565Z",
   "tractates": {
     "Arakhin": [
       {
@@ -55,6 +55,16 @@
           "liveBroadcast": true,
           "liveStatus": "finished",
           "durationSeconds": 4470
+        }
+      },
+      {
+        "daf": 5,
+        "regularHe": {
+          "videoId": "5Vk7-fp-AAo",
+          "label": "מרכז דף יומי -  ערכין דף ה. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
+          "amud": "a",
+          "liveBroadcast": true,
+          "liveStatus": "live"
         }
       }
     ],
