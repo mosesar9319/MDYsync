@@ -1,11 +1,8 @@
 {
   "label": "CHAZARAH - Chullin Daf 24 | \"Nothing but the Daf\" with R' Eli Stefansky",
+  "locked": false,
+  "source": "manual",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=fsRO_1l_968",
-  "videoId": "fsRO_1l_968",
-  "coveredRefs": [
-    "Chullin 23b",
-    "Chullin 24a",
-    "Chullin 24b"
-  ]
+  "videoId": "fsRO_1l_968"
 }
