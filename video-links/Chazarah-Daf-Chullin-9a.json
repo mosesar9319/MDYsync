@@ -1,11 +1,8 @@
 {
   "label": "CHAZARAH - Chullin Daf 9 | \"Nothing but the Daf\" with R' Eli Stefansky",
+  "locked": false,
+  "source": "manual",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=rB5N3l6_GtI",
-  "videoId": "rB5N3l6_GtI",
-  "coveredRefs": [
-    "Chullin 8b",
-    "Chullin 9a",
-    "Chullin 9b"
-  ]
+  "videoId": "rB5N3l6_GtI"
 }
