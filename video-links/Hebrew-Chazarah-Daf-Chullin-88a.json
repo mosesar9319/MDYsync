@@ -1,11 +1,8 @@
 {
+  "label": "חזרה - חולין דף פח | \"רק הדף\" עם ר' אלי סטפנסקי",
+  "locked": false,
+  "source": "manual",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=7luaxYbid7c",
-  "videoId": "7luaxYbid7c",
-  "label": "חזרה - חולין דף פח | \"רק הדף\" עם ר' אלי סטפנסקי",
-  "coveredRefs": [
-    "Chullin 87b",
-    "Chullin 88a",
-    "Chullin 88b"
-  ]
+  "videoId": "7luaxYbid7c"
 }
