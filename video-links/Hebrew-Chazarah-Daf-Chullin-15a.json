@@ -1,11 +1,8 @@
 {
   "label": "חזרה - חולין דף טו | \"רק הדף\" עם ר' אלי סטפנסקי",
+  "locked": false,
+  "source": "manual",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=tTTGCO8pynk",
-  "videoId": "tTTGCO8pynk",
-  "coveredRefs": [
-    "Chullin 14b",
-    "Chullin 15a",
-    "Chullin 15b"
-  ]
+  "videoId": "tTTGCO8pynk"
 }
