@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-21T21:25:18.740Z",
+  "generatedAt": "2026-11-21T23:01:07.105Z",
   "tractates": {
     "Arakhin": [
       {
@@ -58,6 +58,12 @@
           "liveBroadcast": true,
           "liveStatus": "finished",
           "durationSeconds": 4470
+        },
+        "chazarahHe": {
+          "videoId": "siISpN60C5o",
+          "label": "חזרה - ערכין דף ד | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a",
+          "published": "2026-11-21T22:23:10+00:00"
         }
       },
       {
