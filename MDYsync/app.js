@@ -12028,6 +12028,114 @@ htmlVideo.addEventListener('progress', updateScrubberFill);
 htmlVideo.addEventListener('play', updatePlayUi);
 htmlVideo.addEventListener('pause', updatePlayUi);
 htmlVideo.addEventListener('ended', updatePlayUi);
+
+// --- The lock screen, the notification shade and headphone buttons ----------
+// A shiur playing from its own file (MDY's server, Lakewood Daf Yomi's) is the
+// page's own <video>, so the phone can show it on the lock screen and in the
+// notification shade, with the picture, the daf and the maggid, and send the
+// buttons there -- and on headphones, a car's steering wheel, a watch -- back
+// to the page: play and pause, back and forward, and "next track" for Vaater,
+// the next line read. A YouTube video plays inside YouTube's own frame, which
+// answers those buttons itself, so nothing is said for it here.
+const MEDIA_SKIP_SECONDS = 10;
+const MEDIA_POSITION_EVERY_MS = 5000;
+let mediaSessionKey = '';
+let mediaPositionAt = 0;
+
+function mediaSessionShiur() {
+  if (state.playerType !== 'html5' || !htmlVideo.getAttribute('src')) return null;
+  const shiur = state.mdyShiur;
+  const parsed = shiur?.parsed || parseDafRef(state.dafRef || '');
+  const lakewood = isLakewoodShiur(shiur);
+  const daf = parsed ? `${displayTractate(parsed.tractate)} ${parsed.daf}` : '';
+  const kind = [parsed?.variant === 'chazarah' ? 'Chazarah' : '', parsed?.language === 'he' ? 'Hebrew' : ''].filter(Boolean).join(', ');
+  const picture = shiur ? mdyPictureUrl(shiur, 512) : null;
+  return {
+    key: `${htmlVideo.getAttribute('src')}|${daf}|${kind}`,
+    title: [daf || $('lectureTitle')?.textContent || 'Shiur', kind].filter(Boolean).join(' · '),
+    artist: shiur ? (lakewood ? "R' Sruly Bornstein" : "R' Eli Stefansky") : '',
+    album: 'DafSync',
+    artwork: picture
+      ? [{ src: new URL(picture, location.href).href, type: picture.endsWith('.jpg') ? 'image/jpeg' : 'image/webp' }]
+      : [{ src: new URL('/assets/app/icon-512.png', location.href).href, sizes: '512x512', type: 'image/png' }],
+  };
+}
+
+function updateMediaSession(force = false) {
+  const session = navigator.mediaSession;
+  if (!session) return;
+  const shiur = mediaSessionShiur();
+  if (!shiur) {
+    if (mediaSessionKey) {
+      session.metadata = null;
+      session.playbackState = 'none';
+      mediaSessionKey = '';
+    }
+    return;
+  }
+  if (force || shiur.key !== mediaSessionKey) {
+    mediaSessionKey = shiur.key;
+    try {
+      session.metadata = new MediaMetadata({ title: shiur.title, artist: shiur.artist, album: shiur.album, artwork: shiur.artwork });
+    } catch (error) {
+      console.warn('The lock screen could not be told about this shiur.', error);
+    }
+  }
+  session.playbackState = htmlVideo.paused ? 'paused' : 'playing';
+  updateMediaPosition(true);
+}
+
+function updateMediaPosition(now = false) {
+  const session = navigator.mediaSession;
+  if (!session?.setPositionState || !mediaSessionKey) return;
+  if (!now && performance.now() - mediaPositionAt < MEDIA_POSITION_EVERY_MS) return;
+  const duration = Number(htmlVideo.duration);
+  if (!Number.isFinite(duration) || duration <= 0) return;
+  mediaPositionAt = performance.now();
+  try {
+    session.setPositionState({
+      duration,
+      playbackRate: htmlVideo.playbackRate || 1,
+      position: Math.min(duration, Math.max(0, Number(htmlVideo.currentTime) || 0)),
+    });
+  } catch {
+    // A position the browser will not take (the file still loading): the next update says it.
+  }
+}
+
+function mediaSessionSeek(time) {
+  if (state.playerType !== 'html5') return;
+  const duration = getDuration();
+  seek(Math.max(0, duration ? Math.min(duration - 0.5, time) : time), true);
+  updateMediaPosition(true);
+}
+
+function setUpMediaSession() {
+  const session = navigator.mediaSession;
+  if (!session) return;
+  const handlers = {
+    play: () => { if (state.playerType === 'html5' && htmlVideo.paused) togglePlay(); },
+    pause: () => { if (state.playerType === 'html5' && !htmlVideo.paused) togglePlay(); },
+    seekbackward: (details) => mediaSessionSeek(getCurrentTime() - (Number(details?.seekOffset) || MEDIA_SKIP_SECONDS)),
+    seekforward: (details) => mediaSessionSeek(getCurrentTime() + (Number(details?.seekOffset) || MEDIA_SKIP_SECONDS)),
+    seekto: (details) => { if (Number.isFinite(Number(details?.seekTime))) mediaSessionSeek(Number(details.seekTime)); },
+    // A headphone's "next" button, and the lock screen's: Vaater, the next line he reads.
+    nexttrack: () => { if (state.playerType === 'html5') skipToNextReading(); },
+  };
+  for (const [action, handler] of Object.entries(handlers)) {
+    try {
+      session.setActionHandler(action, handler);
+    } catch {
+      // This browser has no such button.
+    }
+  }
+}
+
+setUpMediaSession();
+for (const type of ['play', 'pause', 'ended', 'loadedmetadata', 'ratechange', 'seeked', 'emptied']) {
+  htmlVideo.addEventListener(type, () => updateMediaSession());
+}
+htmlVideo.addEventListener('timeupdate', () => updateMediaPosition());
 // A direct video file follows the same rule as the picture surfaces: a mouse
 // click plays or pauses, a finger tap shows or hides the controls.
 let htmlVideoPointerType = '';
