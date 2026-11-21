@@ -1,11 +1,8 @@
 {
   "label": "חזרה - חולין דף לא | \"רק הדף\" עם ר' אלי סטפנסקי",
+  "locked": false,
+  "source": "manual",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=hYmicqFgxIg",
-  "videoId": "hYmicqFgxIg",
-  "coveredRefs": [
-    "Chullin 30b",
-    "Chullin 31a",
-    "Chullin 31b"
-  ]
+  "videoId": "hYmicqFgxIg"
 }
