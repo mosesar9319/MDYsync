@@ -1,11 +1,8 @@
 {
   "label": "CHAZARAH - Chullin Daf 18 | \"Nothing but the Daf\"",
+  "locked": false,
+  "source": "manual",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=4zXnDrIXE0U",
-  "videoId": "4zXnDrIXE0U",
-  "coveredRefs": [
-    "Chullin 17b",
-    "Chullin 18a",
-    "Chullin 18b"
-  ]
+  "videoId": "4zXnDrIXE0U"
 }
