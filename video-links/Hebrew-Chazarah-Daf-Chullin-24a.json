@@ -1,11 +1,8 @@
 {
   "label": "חזרה - חולין דף כד | \"רק הדף\" עם ר' אלי סטפנסקי",
+  "locked": false,
+  "source": "manual",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=oowDdnjBlwA",
-  "videoId": "oowDdnjBlwA",
-  "coveredRefs": [
-    "Chullin 23b",
-    "Chullin 24a",
-    "Chullin 24b"
-  ]
+  "videoId": "oowDdnjBlwA"
 }
