@@ -1,11 +1,8 @@
 {
   "label": "חזרה - חולין דף כז | \"רק הדף\" עם ר' אלי סטפנסקי",
+  "locked": false,
+  "source": "manual",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=J5lk10UrjNA",
-  "videoId": "J5lk10UrjNA",
-  "coveredRefs": [
-    "Chullin 26b",
-    "Chullin 27a",
-    "Chullin 27b"
-  ]
+  "videoId": "J5lk10UrjNA"
 }
