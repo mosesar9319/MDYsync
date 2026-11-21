@@ -391,6 +391,10 @@ function pageShell({ title, description, path, body, ld = '', noindex = false })
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/assets/app/apple-touch-icon.png">
+<meta name="theme-color" content="#132238">
+<script src="/pwa.js" defer></script>
 <title>${escapeHtml(title)}</title>
 <meta name="description" content="${escapeHtml(description)}">
 ${noindex ? '<meta name="robots" content="noindex">' : `<link rel="canonical" href="${absolute(path)}">`}

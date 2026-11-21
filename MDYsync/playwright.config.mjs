@@ -24,6 +24,10 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${PORT}`,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    // The site registers a service worker (sw.js). Requests it makes are not
+    // seen by page.route(), which nearly every test uses to stand in for the
+    // API, so it is kept out everywhere except its own tests (tests/pwa).
+    serviceWorkers: 'block',
   },
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } },
