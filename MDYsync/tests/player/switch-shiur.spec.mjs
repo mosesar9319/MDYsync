@@ -322,6 +322,24 @@ test.describe('Switching to another shiur on the player page', () => {
     await expect(page.locator('#switchShiurDialogTitle')).toHaveText('Chullin 91');
   });
 
+  test('a computer has the button on the bottom bar, a phone in the top bar; the mini player has it on its bar', async ({ page }, testInfo) => {
+    await openPlayer(page);
+    await expect.poll(() => page.evaluate(() => document.getElementById('playerSwitchButton').hidden)).toBe(false);
+    const shown = () => page.evaluate(() => ({
+      bar: document.getElementById('barSwitchButton').offsetWidth > 0,
+      top: document.getElementById('playerSwitchButton').offsetWidth > 0,
+    }));
+    await expect.poll(shown).toEqual(testInfo.project.name === 'desktop' ? { bar: true, top: false } : { bar: false, top: true });
+    // Video on daf: the mini player has no top bar, so its bar has the button on any screen.
+    await page.evaluate(() => setViewerMode('video-on-daf'));
+    await expect.poll(() => page.evaluate(() => {
+      const button = document.getElementById('barSwitchButton');
+      return button.offsetWidth > 0 && Boolean(button.closest('.pc-tools'));
+    })).toBe(true);
+    await page.evaluate(() => document.getElementById('barSwitchButton').click());
+    await expect(page.locator('#switchShiurList .switch-shiur-row')).toHaveCount(2);
+  });
+
   test('the new shiur starts at the line being read, the address follows it, and the chip goes back', async ({ page }) => {
     await openPlayer(page, '&t=75');
     await playedTo(page, 75);
