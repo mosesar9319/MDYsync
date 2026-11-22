@@ -33,7 +33,7 @@ test('a shiur page turns into the player for that shiur, at the player\'s addres
   expect(await page.evaluate(() => [...document.styleSheets].some((s) => (s.href || '').endsWith('/styles.css') && s.cssRules.length > 0))).toBe(true);
   await expect(page.locator('#dafTitle')).toContainText('Chullin 89a');
   // What a search engine read stays: this page's title and canonical address.
-  expect(await page.title()).toBe("Chullin 89 — R' Eli Stefansky, Daf Yomi Shiur | DafSync");
+  expect(await page.title()).toBe('Chullin 89a–89b Daf Yomi Shiur — Rabbi Eli Stefansky | DafSync');
   expect(await page.locator('link[rel=canonical]').getAttribute('href')).toBe('https://dafsync.com/chullin/89/stefansky/');
   // Nothing is asked for under the shiur page's own address (the browser's
   // look-ahead loader fetches the page's files before its first script runs).
