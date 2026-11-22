@@ -1,0 +1,27 @@
+/* DafSync right to left: loaded by i18n.js for a Hebrew reader only.
+ *
+ * With <html dir="rtl"> the browser already mirrors the flow of the page:
+ * text starts on the right, rows of buttons and cards run right to left. This
+ * file holds what it does not do by itself: spacing and positions the site's
+ * styles give as "left" and "right", arrows that point the way the page turns,
+ * and what must stay left to right in Hebrew too.
+ *
+ * Every rule here starts with html[dir="rtl"], so none of it can reach the
+ * English site even if this file were loaded there.
+ */
+
+html[dir="rtl"] body {
+  /* Assistant (the site's font) has Hebrew letters of its own. */
+  font-family: "Assistant", system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+}
+
+/* What stays left to right in Hebrew, as it does on YouTube in Hebrew: times,
+   the timeline and its scrubber, speeds, and anything typed in Latin letters
+   such as an email address. */
+html[dir="rtl"] input[type="email"],
+html[dir="rtl"] input[type="url"],
+html[dir="rtl"] input[type="range"],
+html[dir="rtl"] time,
+html[dir="rtl"] .ltr {
+  direction: ltr;
+}
