@@ -91,9 +91,18 @@ export const maggidPath = (id) => `/${id}/`;
 export const maggidMasechtaPath = (id, m) => `/${id}/${m.slug}/`;
 export const shiurPath = (s) => `/${s.masechta.slug}/${s.daf}/${s.maggidId}/${s.variant.segment ? `${s.variant.segment}/` : ''}`;
 const absolute = (path) => `${PUBLIC_SITE_ORIGIN}${path}`;
+// Every page has a Hebrew twin under /he/: /he/eruchin/4/bornstein/.
+export const hePath = (path) => `/he${path}`;
+const englishPath = (path) => path.replace(/^\/he(?=\/)/, '');
+const inLang = (lang, path) => (lang === 'he' ? hePath(path) : path);
 
 // What a request asks for, or null for an address that names nothing.
 export function parseRoute(pathname) {
+  if (pathname === '/he/') return { kind: 'home', lang: 'he' };
+  if (pathname.startsWith('/he/')) {
+    const route = parseRoute(pathname.slice(3));
+    return route && route.kind !== 'sitemap' && route.kind !== 'player' && route.kind !== 'home' ? { ...route, lang: 'he' } : null;
+  }
   if (pathname === '/sitemap.xml') return { kind: 'sitemap' };
   if (pathname === '/') return { kind: 'home' };
   if (pathname === '/player/') return { kind: 'player' };
@@ -186,11 +195,14 @@ export function shiurAddressFor(shiur, searchParams) {
   const params = new URLSearchParams();
   const asked = parsePlayerRef(searchParams.get('ref'));
   if (asked?.amud && asked.amud !== shiur.amud) params.set('ref', `${shiur.masechta.name} ${shiur.daf}${asked.amud}`);
+  const hebrew = searchParams.get('lang') === 'he';
   for (const [key, value] of searchParams) {
+    // The Hebrew page's own address already says Hebrew.
+    if (hebrew && key === 'lang') continue;
     if (!SHIUR_PARAMS.has(key) || key === 'mode') params.append(key, value);
   }
   const query = params.toString();
-  return `${shiurPath(shiur)}${query ? `?${query}` : ''}`;
+  return `${hebrew ? hePath(shiurPath(shiur)) : shiurPath(shiur)}${query ? `?${query}` : ''}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -417,20 +429,21 @@ export function isoDuration(seconds) {
 // A recording is only described with the date it was posted, which Google
 // requires: the catalog row's or the maggid list's, else YouTube's
 // (videoDetails) for a row linked before the date was kept.
-export function mediaObject(s, details, pictures = new Map()) {
+export function mediaObject(s, details, pictures = new Map(), lang = 'en') {
   const d = details?.[s.videoId];
   const uploadDate = s.published || d?.publishedAt;
   if (!uploadDate) return null;
   const duration = isoDuration(s.seconds) || d?.duration || '';
   const common = {
     '@context': 'https://schema.org',
-    name: s.label && !MAGGID_PICTURES[s.maggidId] ? s.label : `${dafName(s.masechta, s.daf)} — ${maggidName(s.maggidId)}`,
-    description: shiurDescription(s),
+    name: lang === 'he' ? shiurHeading(s, 'he')
+      : (s.label && !MAGGID_PICTURES[s.maggidId] ? s.label : `${dafName(s.masechta, s.daf)} — ${maggidName(s.maggidId)}`),
+    description: lang === 'he' ? shiurDescriptionHe(s) : shiurDescription(s),
     uploadDate,
     ...(duration ? { duration } : {}),
-    author: personLd(s.maggidId),
+    author: personLd(s.maggidId, lang),
     inLanguage: s.variant.language === 'hebrew' ? 'he' : 'en',
-    url: absolute(shiurPath(s)),
+    url: absolute(inLang(lang, shiurPath(s))),
   };
   if (s.url) {
     return { ...common, '@type': 'AudioObject', contentUrl: s.url, encodingFormat: 'audio/mpeg', thumbnailUrl: youtubePicture(s) };
@@ -447,8 +460,14 @@ export function mediaObject(s, details, pictures = new Map()) {
   };
 }
 
-function personLd(id) {
+function personLd(id, lang = 'en') {
   const maggid = maggidById(id);
+  if (lang === 'he') {
+    return {
+      '@type': 'Person', name: maggidNameHe(id), alternateName: [maggidName(id), shortName(id)], url: absolute(hePath(maggidPath(id))),
+      ...(maggid?.channelNameHe ? { affiliation: { '@type': 'Organization', name: maggid.channelNameHe } } : {}),
+    };
+  }
   return {
     '@type': 'Person', name: maggidName(id), alternateName: shortName(id), url: absolute(maggidPath(id)),
     ...(maggid?.channelName ? { affiliation: { '@type': 'Organization', name: maggid.channelName } } : {}),
@@ -466,7 +485,7 @@ const STYLE = `
 :root{--ink:#17212b;--muted:#5b6876;--line:#e3e8ee;--brand:#132238;--accent:#2f7de1;--bg:#f6f8fa;--card:#fff}
 @media (prefers-color-scheme:dark){:root{--ink:#e8edf2;--muted:#a3b0bd;--line:#2a3542;--brand:#0d1825;--accent:#6aa7ff;--bg:#101820;--card:#16212c}}
 *{box-sizing:border-box}body{margin:0;font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--bg)}
-a{color:var(--accent)}.top{background:var(--brand);padding:12px 16px}.top a{color:#fff;text-decoration:none;font-weight:700;display:inline-flex;align-items:center;gap:10px}
+a{color:var(--accent)}.top{background:var(--brand);padding:12px 16px;display:flex;align-items:center;justify-content:space-between}.top a{color:#fff;text-decoration:none;font-weight:700;display:inline-flex;align-items:center;gap:10px}.top .lang{font-weight:600;font-size:15px;border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:4px 12px}
 main{max-width:860px;margin:0 auto;padding:20px 16px 48px}.crumbs{font-size:14px;color:var(--muted)}.crumbs a{color:var(--muted)}
 h1{font-size:30px;line-height:1.2;margin:14px 0 6px}h1 .he{font-weight:600;color:var(--muted);margin-inline-start:10px}
 h2{font-size:20px;margin:32px 0 12px}.lead{color:var(--muted);margin:6px 0 0}
@@ -481,9 +500,20 @@ h2{font-size:20px;margin:32px 0 12px}.lead{color:var(--muted);margin:6px 0 0}
 .dapim small{display:block;color:var(--muted)}.by-maggid{margin:14px 0 0}footer{color:var(--muted);font-size:14px;text-align:center;padding:24px 16px}
 @media (max-width:560px){.shiurim img{width:112px}h1{font-size:25px}}`;
 
-function pageShell({ title, description, path, body, ld = '', noindex = false }) {
+// The same page in the other language, for search engines (hreflang) and for
+// the reader (the link at the top).
+function alternates(path) {
+  const english = englishPath(path);
+  return `<link rel="alternate" hreflang="en" href="${absolute(english)}">
+<link rel="alternate" hreflang="he" href="${absolute(hePath(english))}">
+<link rel="alternate" hreflang="x-default" href="${absolute(english)}">`;
+}
+
+function pageShell({ title, description, path, body, ld = '', noindex = false, lang = 'en' }) {
+  const he = lang === 'he';
+  const other = he ? englishPath(path) : hePath(path);
   return `<!doctype html>
-<html lang="en">
+<html lang="${he ? 'he' : 'en'}" dir="${he ? 'rtl' : 'ltr'}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -493,8 +523,10 @@ function pageShell({ title, description, path, body, ld = '', noindex = false })
 <script src="/pwa.js" defer></script>
 <title>${escapeHtml(title)}</title>
 <meta name="description" content="${escapeHtml(description)}">
-${noindex ? '<meta name="robots" content="noindex">' : `<link rel="canonical" href="${absolute(path)}">`}
+${noindex ? '<meta name="robots" content="noindex">' : `<link rel="canonical" href="${absolute(path)}">
+${alternates(path)}`}
 <meta property="og:type" content="website">
+${he ? '<meta property="og:locale" content="he_IL">' : ''}
 <meta property="og:site_name" content="DafSync">
 <meta property="og:url" content="${absolute(path)}">
 <meta property="og:title" content="${escapeHtml(title)}">
@@ -508,11 +540,11 @@ ${noindex ? '<meta name="robots" content="noindex">' : `<link rel="canonical" hr
 ${ld}
 </head>
 <body>
-<header class="top"><a href="/"><img src="/assets/dafsync-mark.png" alt="" width="36" height="29">DafSync</a></header>
+<header class="top"><a href="${he ? '/he/' : '/'}"><img src="/assets/dafsync-mark.png" alt="" width="36" height="29">DafSync</a>${noindex ? '' : `<a class="lang" href="${other}" lang="${he ? 'en' : 'he'}">${he ? 'English' : 'עברית'}</a>`}</header>
 <main>
 ${body}
 </main>
-<footer><a href="/">DafSync</a> — Daf Yomi shiurim with the daf synced to the video.</footer>
+<footer><a href="${he ? '/he/' : '/'}">DafSync</a> — ${he ? 'שיעורי דף יומי עם הדף מסונכרן לשיעור.' : 'Daf Yomi shiurim with the daf synced to the video.'}</footer>
 </body>
 </html>
 `;
@@ -675,22 +707,214 @@ ${his.map(shiurItem).join('\n')}
 }
 
 // ---------------------------------------------------------------------------
+// The same pages in Hebrew, under /he/
+// ---------------------------------------------------------------------------
+//
+// Written for how Israelis search: "ערכין דף ד", "דף יומי ערכין", the rabbi's
+// name in Hebrew. A daf is its Hebrew numeral; links stay inside /he/.
+
+const maggidNameHe = (id) => maggidById(id)?.nameHe || maggidName(id);
+const maggidChannelHe = (id) => maggidById(id)?.channelNameHe || maggidChannel(id);
+// "ערכין דף ד"
+const dafNameHe = (m, daf) => `${m.hebrew} דף ${hebrewNumeral(daf)}`;
+const VARIANT_KIND_HE = { '': 'שיעור דף יומי', chazarah: 'חזרה', hebrew: 'שיעור בעברית', 'chazarah-hebrew': 'חזרה בעברית' };
+const VARIANT_LABEL_HE = { '': 'שיעור', chazarah: 'חזרה', hebrew: 'שיעור בעברית', 'chazarah-hebrew': 'חזרה בעברית' };
+const hasHebrew = (text) => /[֐-׿]/.test(String(text || ''));
+
+function listNamesHe(names) {
+  if (names.length <= 1) return names.join('');
+  return `${names.slice(0, -1).join(', ')} ו${names[names.length - 1]}`;
+}
+
+// "ערכין דף ד — הרב שרולי בורנשטיין": a shiur's name in Hebrew.
+function shiurHeading(s) {
+  return `${dafNameHe(s.masechta, s.daf)} — ${maggidNameHe(s.maggidId)}`;
+}
+
+// "ערכין דף ד – שיעור דף יומי עם הרב שרולי בורנשטיין | DafSync"
+function shiurTitleHe(s) {
+  return `${dafNameHe(s.masechta, s.daf)} – ${VARIANT_KIND_HE[s.variant.segment]} עם ${maggidNameHe(s.maggidId)} | DafSync`;
+}
+
+function shiurDescriptionHe(s) {
+  const audio = Boolean(MAGGID_PICTURES[s.maggidId]);
+  const kind = s.variant.variant === 'chazarah' ? 'החזרה' : 'שיעור הדף היומי';
+  const lang = s.variant.language ? ' בעברית' : '';
+  return `${audio ? 'האזנה ל' : 'צפייה ב'}${kind}${lang} של ${maggidNameHe(s.maggidId)} על ${dafNameHe(s.masechta, s.daf)} (${dafName(s.masechta, s.daf)}), `
+    + `עם הגמרא לצד השיעור וכל שורה מודגשת כשהיא נקראת.`;
+}
+
+const crumbsHe = (items) => `<nav class="crumbs" aria-label="ניווט">${items.map(([name, path]) => (path ? `<a href="${path}">${escapeHtml(name)}</a>` : escapeHtml(name))).join(' ‹ ')}</nav>`;
+
+export function masechtaPageHe(masechta, shiurim) {
+  const byDaf = new Map();
+  for (const s of shiurim) {
+    if (s.masechta !== masechta) continue;
+    if (!byDaf.has(s.daf)) byDaf.set(s.daf, new Set());
+    byDaf.get(s.daf).add(s.maggidId);
+  }
+  const dapim = [...byDaf.keys()].sort((a, b) => a - b);
+  const total = masechta.endDaf - masechta.startDaf + 1;
+  const name = `מסכת ${masechta.hebrew}`;
+  const items = dapim.map((daf) => `<li><a href="${hePath(dafPath(masechta, daf))}"><strong>${escapeHtml(dafNameHe(masechta, daf))}</strong><small>${escapeHtml(listNamesHe([...byDaf.get(daf)].map(maggidNameHe)))}</small></a></li>`).join('\n');
+  const byMaggid = MAGGIDIM.filter((m) => shiurim.some((s) => s.masechta === masechta && s.maggidId === m.id))
+    .map((m) => `<a href="${hePath(maggidMasechtaPath(m.id, masechta))}">${escapeHtml(maggidNameHe(m.id))} על ${escapeHtml(name)}</a>`);
+  const body = `${crumbsHe([['DafSync', '/he/'], [name, '']])}
+<h1>${escapeHtml(name)} <span class="he" lang="en" dir="ltr">${escapeHtml(displayName(masechta))}</span></h1>
+<p class="lead">שיעורי דף יומי על ${escapeHtml(name)}, עם הגמרא לצד השיעור וכל שורה מודגשת כשהמגיד קורא אותה. ${dapim.length} מתוך ${total} הדפים במסכת כבר עם שיעור.</p>
+${byMaggid.length ? `<p class="by-maggid">לפי מגיד שיעור: ${byMaggid.join(' · ')}</p>` : ''}
+<h2>הדפים</h2>
+<ul class="dapim">
+${items}
+</ul>`;
+  return pageShell({
+    lang: 'he',
+    title: `${name} – שיעורי דף יומי על כל דף, עם הגמרא מסונכרנת | DafSync`,
+    description: `שיעורי דף יומי על כל דפי ${name} (${displayName(masechta)}), עם הגמרא לצד השיעור וכל שורה מודגשת כשהיא נקראת.`,
+    path: hePath(masechtaPath(masechta)),
+    body,
+    ld: jsonLd([breadcrumbs([['DafSync', '/he/'], [name, hePath(masechtaPath(masechta))]])]),
+  });
+}
+
+export function dafPageHe(masechta, daf, shiurim, { text = '', details = {}, pictures = new Map() } = {}) {
+  const here = shiurim.filter((s) => s.masechta === masechta && s.daf === daf);
+  const title = dafNameHe(masechta, daf);
+  const name = `מסכת ${masechta.hebrew}`;
+  const maggidim = [...new Set(here.map((s) => s.maggidId))];
+  const dapim = [...new Set(shiurim.filter((s) => s.masechta === masechta).map((s) => s.daf))].sort((a, b) => a - b);
+  const prev = [...dapim].reverse().find((d) => d < daf);
+  const next = dapim.find((d) => d > daf);
+  const picture = (s) => (pictures.get(s.videoId)
+    ? `src="${escapeHtml(resizedPicture(pictures.get(s.videoId), 320, 'webp', { absolute: false }))}"`
+    : `src="${escapeHtml(youtubePicture(s, 'mq'))}"`);
+  const items = here.map((s) => `<li><a href="${hePath(shiurPath(s))}"><img ${picture(s)} alt="" loading="lazy" width="160" height="90"><span><strong>${escapeHtml(maggidNameHe(s.maggidId))}</strong><small>${escapeHtml([maggidChannelHe(s.maggidId), VARIANT_LABEL_HE[s.variant.segment]].filter(Boolean).join(' · '))}</small>${hasHebrew(s.label) ? `<br>${escapeHtml(s.label)}` : ''}</span></a></li>`).join('\n');
+  const ref = `${masechta.name} ${daf}a`;
+  const body = `${crumbsHe([['DafSync', '/he/'], [name, hePath(masechtaPath(masechta))], [`דף ${hebrewNumeral(daf)}`, '']])}
+<h1>${escapeHtml(title)} <span class="he" lang="en" dir="ltr">${escapeHtml(dafName(masechta, daf))}</span></h1>
+<p class="lead">שיעורי דף יומי על ${escapeHtml(title)}${maggidim.length ? ` מאת ${escapeHtml(listNamesHe(maggidim.map(maggidNameHe)))}` : ''}, עם הגמרא לצד השיעור וכל שורה מודגשת כשהמגיד קורא אותה.</p>
+<h2>השיעורים על הדף</h2>
+<ul class="shiurim">
+${items}
+</ul>
+<p class="by-maggid">עוד: ${maggidim.map((id) => `<a href="${hePath(maggidMasechtaPath(id, masechta))}">${escapeHtml(maggidNameHe(id))} על ${escapeHtml(name)}</a>`).join(' · ')}</p>
+${text ? `<h2>הדף</h2>
+<p class="daf-text" lang="he" dir="rtl">${escapeHtml(text)}</p>
+<p><a href="/browse/?ref=${encodeURIComponent(ref)}&amp;lang=he">לפתוח את ${escapeHtml(title)} בדף האינטראקטיבי</a></p>` : ''}
+<nav class="pager">
+${prev ? `<a rel="prev" href="${hePath(dafPath(masechta, prev))}">› ${escapeHtml(dafNameHe(masechta, prev))}</a>` : '<span></span>'}
+<a href="${hePath(masechtaPath(masechta))}">כל ${escapeHtml(name)}</a>
+${next ? `<a rel="next" href="${hePath(dafPath(masechta, next))}">${escapeHtml(dafNameHe(masechta, next))} ‹</a>` : '<span></span>'}
+</nav>`;
+  return pageShell({
+    lang: 'he',
+    title: `${title} – שיעורי דף יומי עם הגמרא מסונכרנת | DafSync`,
+    description: `שיעורי דף יומי על ${title} (${dafName(masechta, daf)})${maggidim.length ? ` מאת ${listNamesHe(maggidim.map(maggidNameHe))}` : ''}, עם הגמרא לצד השיעור וכל שורה מודגשת כשהיא נקראת.`,
+    path: hePath(dafPath(masechta, daf)),
+    body,
+    ld: jsonLd([
+      breadcrumbs([['DafSync', '/he/'], [name, hePath(masechtaPath(masechta))], [`דף ${hebrewNumeral(daf)}`, hePath(dafPath(masechta, daf))]]),
+      ...here.map((s) => mediaObject(s, details, pictures, 'he')),
+    ]),
+  });
+}
+
+const shortDateHe = (iso) => (isDate(iso) ? new Date(iso).toLocaleDateString('he-IL', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }) : '');
+
+function shiurItemHe(s) {
+  const when = shortDateHe(s.published);
+  return `<li><a href="${hePath(shiurPath(s))}"><strong>${escapeHtml(dafNameHe(s.masechta, s.daf))}</strong><small>${escapeHtml([s.variant.segment ? VARIANT_LABEL_HE[s.variant.segment] : '', when].filter(Boolean).join(' · ') || 'שיעור')}</small></a></li>`;
+}
+
+function maggidAboutHe(id) {
+  const audio = Boolean(MAGGID_PICTURES[id]);
+  const channel = maggidChannelHe(id);
+  return `${maggidNameHe(id)}${channel ? ` מ${channel}` : ''} מוסר שיעור דף יומי בכל יום. ב-DafSync כל שיעור שלו ${audio ? 'מתנגן' : 'מתנגן כווידאו'} עם הגמרא לצדו, וכל שורה בדף מודגשת כשהוא קורא אותה; הקשה על שורה מקפיצה את השיעור לאותו רגע.`;
+}
+
+export function maggidPageHe(id, shiurim) {
+  const his = shiurim.filter((s) => s.maggidId === id);
+  const name = maggidNameHe(id);
+  const channel = maggidChannelHe(id);
+  const masechtos = MASECHTOS.filter((m) => his.some((s) => s.masechta === m));
+  const masechtaItems = masechtos.map((m) => {
+    const count = new Set(his.filter((s) => s.masechta === m).map((s) => s.daf)).size;
+    return `<li><a href="${hePath(maggidMasechtaPath(id, m))}"><strong>מסכת ${escapeHtml(m.hebrew)}</strong><small>${count === 1 ? 'דף אחד' : `${count} דפים`}</small></a></li>`;
+  }).join('\n');
+  const latest = [...his].sort(newestFirst).slice(0, MAGGID_LATEST).map(shiurItemHe).join('\n');
+  const body = `${crumbsHe([['DafSync', '/he/'], [name, '']])}
+<h1>${escapeHtml(name)} – שיעורי דף יומי</h1>
+<p class="lead">${escapeHtml(maggidAboutHe(id))}</p>
+<h2>השיעורים האחרונים</h2>
+<ul class="dapim">
+${latest}
+</ul>
+<h2>לפי מסכת</h2>
+<ul class="dapim">
+${masechtaItems}
+</ul>`;
+  return pageShell({
+    lang: 'he',
+    title: `${name} – שיעורי דף יומי${channel ? ` | ${channel}` : ''} | DafSync`,
+    description: `כל שיעורי הדף היומי של ${name}${channel ? ` (${channel})` : ''} ב-DafSync, עם הגמרא לצד השיעור וכל שורה מודגשת כשהוא קורא אותה.${masechtos.length ? ` מסכתות: ${listNamesHe(masechtos.map((m) => m.hebrew))}.` : ''}`,
+    path: hePath(maggidPath(id)),
+    body,
+    ld: jsonLd([
+      breadcrumbs([['DafSync', '/he/'], [name, hePath(maggidPath(id))]]),
+      { '@context': 'https://schema.org', ...personLd(id, 'he') },
+    ]),
+  });
+}
+
+export function maggidMasechtaPageHe(id, masechta, shiurim) {
+  const his = shiurim.filter((s) => s.maggidId === id && s.masechta === masechta)
+    .sort((a, b) => a.daf - b.daf || VARIANTS.indexOf(a.variant) - VARIANTS.indexOf(b.variant));
+  const name = maggidNameHe(id);
+  const m = `מסכת ${masechta.hebrew}`;
+  const body = `${crumbsHe([['DafSync', '/he/'], [name, hePath(maggidPath(id))], [m, '']])}
+<h1>${escapeHtml(m)} – ${escapeHtml(name)}</h1>
+<p class="lead">שיעורי הדף היומי של ${escapeHtml(name)} על ${escapeHtml(m)}, דף אחר דף. ${escapeHtml(maggidAboutHe(id))}</p>
+<h2>הדפים</h2>
+<ul class="dapim">
+${his.map(shiurItemHe).join('\n')}
+</ul>
+<p class="by-maggid"><a href="${hePath(masechtaPath(masechta))}">כל השיעורים על ${escapeHtml(m)}</a> · <a href="${hePath(maggidPath(id))}">כל השיעורים של ${escapeHtml(name)}</a></p>`;
+  return pageShell({
+    lang: 'he',
+    title: `${m} עם ${name} – כל הדפים | DafSync`,
+    description: `שיעורי הדף היומי של ${name} על ${m} (${displayName(masechta)}), כל אחד עם הגמרא לצדו וכל שורה מודגשת כשהיא נקראת.`,
+    path: hePath(maggidMasechtaPath(id, masechta)),
+    body,
+    ld: jsonLd([breadcrumbs([['DafSync', '/he/'], [name, hePath(maggidPath(id))], [m, hePath(maggidMasechtaPath(id, masechta))]])]),
+  });
+}
+
+// ---------------------------------------------------------------------------
 // The shiur page: the player, under its own address and title
 // ---------------------------------------------------------------------------
 
 // Takes the player's head tags that describe the page and puts this shiur's
 // in their place; the first thing the page runs moves the address bar to the
 // player's own address, so everything below works as on /player/.
-export function shiurPage(playerHtml, shiur, { mode = 'split', extra = null, details = {}, pictures = new Map() } = {}) {
-  const title = shiurTitle(shiur);
-  const description = shiurDescription(shiur);
-  const path = shiurPath(shiur);
-  const name = displayName(shiur.masechta);
+export function shiurPage(playerHtml, shiur, { mode = 'split', extra = null, details = {}, pictures = new Map(), lang = 'en' } = {}) {
+  const he = lang === 'he';
+  const title = he ? shiurTitleHe(shiur) : shiurTitle(shiur);
+  const description = he ? shiurDescriptionHe(shiur) : shiurDescription(shiur);
+  const path = inLang(lang, shiurPath(shiur));
+  const name = he ? `מסכת ${shiur.masechta.hebrew}` : displayName(shiur.masechta);
+  // The Hebrew page hands the player ?lang=he: the player reads its language
+  // from its own address once the address has moved to /player/.
+  let handover = extra;
+  if (he) {
+    handover = new URLSearchParams([...(extra || [])]);
+    handover.set('lang', 'he');
+  }
   const head = `
-  <script>history.replaceState(history.state, '', ${JSON.stringify(playerUrl(shiur, mode, extra)).replace(/</g, '\\u003c')});</script>
+  <script>history.replaceState(history.state, '', ${JSON.stringify(playerUrl(shiur, mode, handover)).replace(/</g, '\\u003c')});</script>
   <title>${escapeHtml(title)}</title>
   <meta name="description" content="${escapeHtml(description)}">
   <link rel="canonical" href="${absolute(path)}">
+  ${alternates(path)}
   <meta property="og:type" content="video.other">
   <meta property="og:site_name" content="DafSync">
   <meta property="og:url" content="${absolute(path)}">
@@ -699,8 +923,10 @@ export function shiurPage(playerHtml, shiur, { mode = 'split', extra = null, det
   <meta property="og:image" content="${escapeHtml(pictures.get(shiur.videoId) ? resizedPicture(pictures.get(shiur.videoId), 1200, 'jpg') : youtubePicture(shiur))}">
   <meta name="twitter:card" content="summary_large_image">
   ${jsonLd([
-    breadcrumbs([['DafSync', '/'], [name, masechtaPath(shiur.masechta)], [`Daf ${shiur.daf}`, dafPath(shiur.masechta, shiur.daf)], [maggidName(shiur.maggidId), path]]),
-    mediaObject(shiur, details, pictures),
+    he
+      ? breadcrumbs([['DafSync', '/he/'], [name, hePath(masechtaPath(shiur.masechta))], [`דף ${hebrewNumeral(shiur.daf)}`, hePath(dafPath(shiur.masechta, shiur.daf))], [maggidNameHe(shiur.maggidId), path]])
+      : breadcrumbs([['DafSync', '/'], [name, masechtaPath(shiur.masechta)], [`Daf ${shiur.daf}`, dafPath(shiur.masechta, shiur.daf)], [maggidName(shiur.maggidId), path]]),
+    mediaObject(shiur, details, pictures, lang),
   ])}`;
   let html = playerHtml
     .replace(/<title>[\s\S]*?<\/title>\s*/i, '')
@@ -711,7 +937,8 @@ export function shiurPage(playerHtml, shiur, { mode = 'split', extra = null, det
     // Spelled that way here so the browser's look-ahead loader, which fetches
     // them before the address change above runs, asks for the right files.
     .replace(/(\s(?:src|href)=")\.\.\//g, '$1/')
-    .replace(/<h1 id="lectureTitle">[^<]*<\/h1>/, `<h1 id="lectureTitle">${escapeHtml(`${dafName(shiur.masechta, shiur.daf)} — ${maggidName(shiur.maggidId)}`)}</h1>`);
+    .replace(/<h1 id="lectureTitle">[^<]*<\/h1>/, `<h1 id="lectureTitle">${escapeHtml(he ? shiurHeading(shiur) : `${dafName(shiur.masechta, shiur.daf)} — ${maggidName(shiur.maggidId)}`)}</h1>`);
+  if (he) html = html.replace(/<html lang="en">/i, '<html lang="he" dir="rtl">');
   const charset = /<meta\s+charset="[^"]*"\s*\/?>/i.exec(html);
   if (!charset) throw new Error('The player page has no <meta charset>.');
   html = html.slice(0, charset.index + charset[0].length) + head + html.slice(charset.index + charset[0].length);
@@ -748,7 +975,11 @@ export function sitemap(shiurim) {
   // Home first, then the site's own pages, then each masechta's in the
   // catalog's order (a Map keeps the order its keys were first set in), then
   // each maggid's page followed by his masechtos.
-  const entries = [...pages, ...maggidPages].map(([path, day]) => `  <url><loc>${escapeHtml(absolute(path))}</loc>${day ? `<lastmod>${day}</lastmod>` : ''}</url>`);
+  // Then every page again in Hebrew, in the same order (the site's own tools,
+  // /browse/ and /chaburah/, have no Hebrew address of their own).
+  const english = [...pages, ...maggidPages];
+  const hebrew = english.filter(([path]) => path !== '/browse/' && path !== '/chaburah/').map(([path, day]) => [hePath(path), day]);
+  const entries = [...english, ...hebrew].map(([path, day]) => `  <url><loc>${escapeHtml(absolute(path))}</loc>${day ? `<lastmod>${day}</lastmod>` : ''}</url>`);
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.join('\n')}\n</urlset>\n`;
 }
 
@@ -764,8 +995,9 @@ const HOME_LATEST_DAPIM = 12;
 // a daf's own page. This writes those links in where index.html marks the
 // place: every masechta that has a shiur, the newest dapim, and a few
 // sentences saying what the site is and whose shiurim it has.
-export function homePage(html, shiurim) {
+export function homePage(html, shiurim, lang = 'en') {
   if (!html.includes(HOME_MARKER) || !shiurim.length) return html;
+  if (lang === 'he') return html.replace(HOME_MARKER, siteIndexHe(shiurim));
   const dapim = new Map(); // masechta -> Set of dapim
   for (const s of shiurim) {
     if (!dapim.has(s.masechta)) dapim.set(s.masechta, new Set());
@@ -802,6 +1034,52 @@ ${maggidItems}
   return html.replace(HOME_MARKER, section);
 }
 
+// The home page's links in Hebrew, every one inside /he/.
+function siteIndexHe(shiurim) {
+  const dapim = new Map();
+  for (const s of shiurim) {
+    if (!dapim.has(s.masechta)) dapim.set(s.masechta, new Set());
+    dapim.get(s.masechta).add(s.daf);
+  }
+  const masechtos = MASECHTOS.filter((m) => dapim.has(m));
+  const masechtaItems = masechtos.map((m) => {
+    const count = dapim.get(m).size;
+    return `<li><a href="${hePath(masechtaPath(m))}">מסכת ${escapeHtml(m.hebrew)} <small>${count === 1 ? 'דף אחד' : `${count} דפים`}</small></a></li>`;
+  }).join('\n');
+  const latest = [...masechtos].reverse()
+    .flatMap((m) => [...dapim.get(m)].sort((a, b) => b - a).map((daf) => [m, daf]))
+    .slice(0, HOME_LATEST_DAPIM);
+  const latestItems = latest.map(([m, daf]) => `<li><a href="${hePath(dafPath(m, daf))}">${escapeHtml(dafNameHe(m, daf))}</a></li>`).join('\n');
+  const withShiurim = MAGGIDIM.filter((m) => shiurim.some((s) => s.maggidId === m.id));
+  const maggidim = withShiurim.map((m) => `${maggidNameHe(m.id)}${m.channelNameHe ? ` (${m.channelNameHe})` : ''}`);
+  const maggidItems = withShiurim.map((m) => `<li><a href="${hePath(maggidPath(m.id))}">${escapeHtml(maggidNameHe(m.id))}${m.channelNameHe ? ` <small>${escapeHtml(m.channelNameHe)}</small>` : ''}</a></li>`).join('\n');
+  return `<section class="site-index" aria-labelledby="siteIndexTitle">
+<h2 id="siteIndexTitle">לפי מסכת</h2>
+<ul>
+${masechtaItems}
+</ul>
+<h2>הדפים האחרונים</h2>
+<ul>
+${latestItems}
+</ul>
+<h2>לפי מגיד שיעור</h2>
+<ul>
+${maggidItems}
+</ul>
+<p class="site-index-about">ב-DafSync שיעורי דף יומי של ${escapeHtml(listNamesHe(maggidim))} מתנגנים עם הדף לצד השיעור. כל שורה בגמרא מודגשת כשהמגיד קורא אותה, והקשה על שורה מקפיצה את השיעור לרגע שבו היא נקראת.</p>
+</section>`;
+}
+
+// index.html as the Hebrew home page, /he/: its language, title, description
+// and address, before anything runs (i18n.js puts the rest into Hebrew).
+export function homeHeadHe(html) {
+  return html
+    .replace(/<html lang="en">/i, '<html lang="he" dir="rtl">')
+    .replace(/<title>[\s\S]*?<\/title>/i, '<title>DafSync – שיעורי דף יומי עם הדף מסונכרן לשיעור</title>')
+    .replace(/<meta name="description" content="[^"]*">/i, '<meta name="description" content="שיעורי דף יומי עם הגמרא לצד השיעור, וכל שורה מודגשת כשהמגיד קורא אותה. כל שיעור לפי מסכת, דף או מגיד שיעור.">')
+    .replace(/<link rel="canonical" href="[^"]*">/i, `<link rel="canonical" href="${absolute('/he/')}">`);
+}
+
 const HOME_HEADERS = {
   'Content-Type': 'text/html; charset=utf-8',
   // As Netlify serves index.html itself: the browser asks again each visit.
@@ -812,17 +1090,18 @@ const HOME_HEADERS = {
 // The home page must open whatever else is down: without the catalog it is
 // index.html as it is, and if index.html itself cannot be read here the
 // browser is sent to fetch it directly.
-async function home(url, env) {
+async function home(url, env, lang = 'en') {
   let html;
   try {
     const response = await fetchWithTimeout(new URL('/index.html', url.origin));
     if (!response.ok) throw new Error(`index.html: ${response.status}`);
     html = await response.text();
   } catch {
-    return Response.redirect(`${url.origin}/index.html${url.search}`, 302);
+    return Response.redirect(`${url.origin}/index.html${lang === 'he' ? '?lang=he' : url.search}`, 302);
   }
+  if (lang === 'he') html = homeHeadHe(html);
   try {
-    html = homePage(html, shiurimFromCatalog(await loadCatalog(env)));
+    html = homePage(html, shiurimFromCatalog(await loadCatalog(env)), lang);
   } catch {
     // The page as it is.
     return new Response(html, { headers: { ...HOME_HEADERS, 'Netlify-CDN-Cache-Control': 'public, s-maxage=60' } });
@@ -904,7 +1183,7 @@ export async function handle(request, env = {}) {
   }
   const route = parseRoute(url.pathname);
   if (!route) return notFound();
-  if (route.kind === 'home') return home(url, env);
+  if (route.kind === 'home') return home(url, env, route.lang);
   if (route.kind === 'player') return player(url, env);
 
   let shiurim;
@@ -922,19 +1201,20 @@ export async function handle(request, env = {}) {
       headers: { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=300', 'Netlify-CDN-Cache-Control': 'public, s-maxage=3600' },
     });
   }
+  const he = route.lang === 'he';
   if (route.kind === 'maggid') {
     if (!shiurim.some((s) => s.maggidId === route.maggidId)) return notFound(`No shiurim by ${maggidName(route.maggidId)} yet.`);
-    return new Response(maggidPage(route.maggidId, shiurim), { headers: PAGE_HEADERS });
+    return new Response((he ? maggidPageHe : maggidPage)(route.maggidId, shiurim), { headers: PAGE_HEADERS });
   }
   if (route.kind === 'maggid-masechta') {
     if (!shiurim.some((s) => s.maggidId === route.maggidId && s.masechta === route.masechta)) {
       return notFound(`No shiurim by ${maggidName(route.maggidId)} on ${displayName(route.masechta)} yet.`);
     }
-    return new Response(maggidMasechtaPage(route.maggidId, route.masechta, shiurim), { headers: PAGE_HEADERS });
+    return new Response((he ? maggidMasechtaPageHe : maggidMasechtaPage)(route.maggidId, route.masechta, shiurim), { headers: PAGE_HEADERS });
   }
   if (route.kind === 'masechta') {
     if (!shiurim.some((s) => s.masechta === route.masechta)) return notFound(`No shiurim on ${displayName(route.masechta)} yet.`);
-    return new Response(masechtaPage(route.masechta, shiurim), { headers: PAGE_HEADERS });
+    return new Response((he ? masechtaPageHe : masechtaPage)(route.masechta, shiurim), { headers: PAGE_HEADERS });
   }
   if (route.kind === 'daf') {
     const here = shiurim.filter((s) => s.masechta === route.masechta && s.daf === route.daf);
@@ -946,13 +1226,13 @@ export async function handle(request, env = {}) {
       videoDetails(here.filter((s) => !MAGGID_PICTURES[s.maggidId] && !s.published).map((s) => s.videoId), env.YOUTUBE_API_KEY),
       shiurPictures(here),
     ]);
-    return new Response(dafPage(route.masechta, route.daf, shiurim, { text, details, pictures }), { headers: PAGE_HEADERS });
+    return new Response((he ? dafPageHe : dafPage)(route.masechta, route.daf, shiurim, { text, details, pictures }), { headers: PAGE_HEADERS });
   }
   const shiur = shiurim.find((s) => s.masechta === route.masechta && s.daf === route.daf
     && s.maggidId === route.maggidId && s.variant === route.variant);
   if (!shiur) {
     const daf = shiurim.some((s) => s.masechta === route.masechta && s.daf === route.daf);
-    return daf ? Response.redirect(`${url.origin}${dafPath(route.masechta, route.daf)}`, 302) : notFound();
+    return daf ? Response.redirect(`${url.origin}${inLang(route.lang, dafPath(route.masechta, route.daf))}`, 302) : notFound();
   }
   const [playerResponse, details, pictures] = await Promise.all([
     fetchWithTimeout(new URL('/player/index.html', url.origin)),
@@ -961,7 +1241,7 @@ export async function handle(request, env = {}) {
   ]);
   if (!playerResponse.ok) throw new Error(`player page: ${playerResponse.status}`);
   const mode = /^[a-z-]{1,20}$/.test(url.searchParams.get('mode') || '') ? url.searchParams.get('mode') : 'split';
-  return new Response(shiurPage(await playerResponse.text(), shiur, { mode, extra: url.searchParams, details, pictures }), { headers: PLAYER_HEADERS });
+  return new Response(shiurPage(await playerResponse.text(), shiur, { mode, extra: url.searchParams, details, pictures, lang: route.lang }), { headers: PLAYER_HEADERS });
 }
 
 export default async (request) => handle(request, {
@@ -972,7 +1252,7 @@ export default async (request) => handle(request, {
 // Netlify reads this without running the module, so the addresses are spelled
 // out: the home page, the player, every masechta's slug (shared/masechtos.mjs)
 // and every maggid's id (shared/maggidim.mjs), with and without a path under
-// it, and the sitemap. tests/functions/seo-pages.test.mjs
+// it, the Hebrew twins of all of them under /he/, and the sitemap. tests/functions/seo-pages.test.mjs
 // checks the list matches MASECHTOS.
 export const config = {
   path: [
@@ -988,6 +1268,6 @@ export const config = {
     '/horayos', '/horayos/*', '/zevachim', '/zevachim/*', '/menachos', '/menachos/*', '/chullin',
     '/chullin/*', '/bechoros', '/bechoros/*', '/eruchin', '/eruchin/*', '/temurah', '/temurah/*',
     '/kereisos', '/kereisos/*', '/meilah', '/meilah/*', '/niddah', '/niddah/*',
-    '/stefansky', '/stefansky/*', '/bornstein', '/bornstein/*', '/sitemap.xml',
+    '/stefansky', '/stefansky/*', '/bornstein', '/bornstein/*', '/he', '/he/*', '/sitemap.xml',
   ],
 };

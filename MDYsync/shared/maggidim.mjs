@@ -25,7 +25,9 @@ export const MAGGIDIM = [
   {
     id: 'stefansky',
     name: "R' Eli Stefansky",
+    nameHe: 'הרב אלי סטפנסקי',
     channelName: 'Mercaz Daf Yomi',
+    channelNameHe: 'מרכז דף יומי',
     channelId: 'UCKwQa5DB_VR98ac_r-Wyl-g', // @MercazDafYomi
     handle: '@MercazDafYomi',
     keyPrefix: '',
@@ -35,7 +37,9 @@ export const MAGGIDIM = [
   {
     id: 'bornstein',
     name: "R' Sruly Bornstein",
+    nameHe: 'הרב שרולי בורנשטיין',
     channelName: 'Lakewood Daf Yomi',
+    channelNameHe: 'דף יומי לייקווד',
     channelId: 'UCyk5Q9nuhwqJC_-zrP2Ojcg', // @lakewooddafyomi
     handle: '@lakewooddafyomi',
     keyPrefix: 'Bornstein-',
