@@ -94,6 +94,7 @@ const absolute = (path) => `${PUBLIC_SITE_ORIGIN}${path}`;
 export function parseRoute(pathname) {
   if (pathname === '/sitemap.xml') return { kind: 'sitemap' };
   if (pathname === '/') return { kind: 'home' };
+  if (pathname === '/player/') return { kind: 'player' };
   const parts = pathname.split('/').filter(Boolean);
   const masechta = masechtaBySlug(parts[0]);
   if (!masechta || parts.length > 4) return null;
@@ -108,13 +109,80 @@ export function parseRoute(pathname) {
 }
 
 // The player address a shiur page hands over to, as the home page builds it.
-export function playerUrl(shiur, mode = 'split') {
+// `extra` is the rest of what the page was asked for (a time to start at, a
+// line to show, the other amud...), kept on the player's address so the
+// player still sees it.
+export function playerUrl(shiur, mode = 'split', extra = null) {
   const params = new URLSearchParams({ ref: `${shiur.masechta.name} ${shiur.daf}${shiur.amud}` });
   if (shiur.variant.variant) params.set('variant', shiur.variant.variant);
   if (shiur.variant.language) params.set('language', shiur.variant.language);
   if (shiur.maggidId !== DEFAULT_MAGGID_ID) params.set('maggid', shiur.maggidId);
   if (mode && mode !== 'standard') params.set('mode', mode);
+  for (const [key, value] of extra || []) {
+    if (key === 'ref') {
+      // Only the other amud of the same daf: a shiur page never plays another daf.
+      const asked = parsePlayerRef(value);
+      if (asked && asked.masechta === shiur.masechta && asked.daf === shiur.daf && asked.amud) {
+        params.set('ref', `${shiur.masechta.name} ${shiur.daf}${asked.amud}`);
+      }
+    } else if (!SHIUR_PARAMS.has(key)) {
+      params.append(key, value);
+    }
+  }
   return `/player/?${params.toString()}`;
+}
+
+// What the shiur's own address already says, so not carried on beside it.
+const SHIUR_PARAMS = new Set(['ref', 'variant', 'language', 'maggid', 'mode']);
+
+// The player's ref, as the player reads it (parseDafRef in app.js): a masechta
+// by any spelling the site uses, a daf, an amud, and the "(Chazarah Daf)",
+// "(Hebrew)" and "(Bornstein)" markers in any order.
+export function parsePlayerRef(ref) {
+  let working = String(ref || '').trim();
+  const out = { variant: '', language: '', maggidId: '' };
+  const strip = (pattern) => {
+    if (!pattern.test(working)) return false;
+    working = working.replace(pattern, '');
+    return true;
+  };
+  if (strip(/\s*\(Chazarah Daf\)/i)) out.variant = 'chazarah';
+  if (strip(/\s*\(Hebrew\)/i)) out.language = 'hebrew';
+  for (const maggid of MAGGIDIM) {
+    if (maggid.id !== DEFAULT_MAGGID_ID && strip(new RegExp(`\\s*\\(${maggid.id}\\)`, 'i'))) out.maggidId = maggid.id;
+  }
+  const match = /^(.+?)\s+(\d{1,3})\s*([ab])?(?:[:.]\d+)?$/i.exec(working.trim());
+  if (!match) return null;
+  const typed = match[1].trim().toLowerCase();
+  const masechta = MASECHTOS.find((m) => m.name.toLowerCase() === typed
+    || displayName(m).toLowerCase() === typed || m.slug === typed.replace(/\s+/g, '-'));
+  if (!masechta) return null;
+  return { ...out, masechta, daf: Number(match[2]), amud: match[3] ? match[3].toLowerCase() : '' };
+}
+
+// The shiur a player address opens, or null when it names none the catalog
+// has (another maggid's daf not posted yet, a typo, no ref at all).
+export function shiurForPlayer(searchParams, shiurim) {
+  const asked = parsePlayerRef(searchParams.get('ref'));
+  if (!asked) return null;
+  const variant = searchParams.get('variant') === 'chazarah' ? 'chazarah' : asked.variant;
+  const language = /^(hebrew|he)$/i.test(searchParams.get('language') || '') ? 'hebrew' : asked.language;
+  const maggidId = maggidById(searchParams.get('maggid') || '')?.id || asked.maggidId || DEFAULT_MAGGID_ID;
+  return shiurim.find((s) => s.masechta === asked.masechta && s.daf === asked.daf && s.maggidId === maggidId
+    && s.variant.variant === variant && s.variant.language === language) || null;
+}
+
+// Where an old player address now lives: the shiur's own page, with whatever
+// else the address asked for. The ref stays only when it names the other amud.
+export function shiurAddressFor(shiur, searchParams) {
+  const params = new URLSearchParams();
+  const asked = parsePlayerRef(searchParams.get('ref'));
+  if (asked?.amud && asked.amud !== shiur.amud) params.set('ref', `${shiur.masechta.name} ${shiur.daf}${asked.amud}`);
+  for (const [key, value] of searchParams) {
+    if (!SHIUR_PARAMS.has(key) || key === 'mode') params.append(key, value);
+  }
+  const query = params.toString();
+  return `${shiurPath(shiur)}${query ? `?${query}` : ''}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -502,13 +570,13 @@ ${next ? `<a rel="next" href="${dafPath(masechta, next)}">${escapeHtml(name)} ${
 // Takes the player's head tags that describe the page and puts this shiur's
 // in their place; the first thing the page runs moves the address bar to the
 // player's own address, so everything below works as on /player/.
-export function shiurPage(playerHtml, shiur, { mode = 'split', details = {}, pictures = new Map() } = {}) {
+export function shiurPage(playerHtml, shiur, { mode = 'split', extra = null, details = {}, pictures = new Map() } = {}) {
   const title = shiurTitle(shiur);
   const description = shiurDescription(shiur);
   const path = shiurPath(shiur);
   const name = displayName(shiur.masechta);
   const head = `
-  <script>history.replaceState(history.state, '', ${JSON.stringify(playerUrl(shiur, mode)).replace(/</g, '\\u003c')});</script>
+  <script>history.replaceState(history.state, '', ${JSON.stringify(playerUrl(shiur, mode, extra)).replace(/</g, '\\u003c')});</script>
   <title>${escapeHtml(title)}</title>
   <meta name="description" content="${escapeHtml(description)}">
   <link rel="canonical" href="${absolute(path)}">
@@ -641,6 +709,48 @@ async function home(url, env) {
 }
 
 // ---------------------------------------------------------------------------
+// The player's own address
+// ---------------------------------------------------------------------------
+
+// /player/?ref=... is the address every link in the site used, and the one a
+// shiur page moves the address bar to, so it is the address people share and
+// search engines find. It says noindex, so a search engine sent there drops it;
+// the shiur page is the one it should keep. A player address that names a
+// shiur in the catalog is sent on to that shiur's page, everything else in the
+// address kept. Anything else -- a scan of a printed page, a daf with no shiur
+// posted yet, no ref at all -- is the player as it is.
+const PLAYER_REDIRECT_HEADERS = {
+  'Cache-Control': 'public, max-age=300',
+  'Netlify-CDN-Cache-Control': 'public, s-maxage=3600',
+  'Netlify-Vary': 'query',
+};
+
+async function player(url, env) {
+  if (url.searchParams.has('ref') && !url.searchParams.has('view')) {
+    let shiur = null;
+    try {
+      shiur = shiurForPlayer(url.searchParams, shiurimFromCatalog(await loadCatalog(env)));
+    } catch {
+      // The catalog is down: the player as it is.
+    }
+    if (shiur) {
+      return new Response(null, {
+        status: 301, headers: { Location: `${url.origin}${shiurAddressFor(shiur, url.searchParams)}`, ...PLAYER_REDIRECT_HEADERS },
+      });
+    }
+  }
+  let html;
+  try {
+    const response = await fetchWithTimeout(new URL('/player/index.html', url.origin));
+    if (!response.ok) throw new Error(`player page: ${response.status}`);
+    html = await response.text();
+  } catch {
+    return Response.redirect(`${url.origin}/player/index.html${url.search}`, 302);
+  }
+  return new Response(html, { headers: { ...PLAYER_HEADERS, 'Cache-Control': 'public, max-age=0, must-revalidate', 'Netlify-CDN-Cache-Control': 'public, s-maxage=300' } });
+}
+
+// ---------------------------------------------------------------------------
 // The handler
 // ---------------------------------------------------------------------------
 
@@ -648,6 +758,14 @@ const PAGE_HEADERS = {
   'Content-Type': 'text/html; charset=utf-8',
   'Cache-Control': 'public, max-age=300',
   'Netlify-CDN-Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
+};
+
+// The player's page, wherever it is served: the camera is let in for scanning
+// a printed daf, as netlify.toml lets it in on /player/.
+const PLAYER_HEADERS = {
+  ...PAGE_HEADERS,
+  'Permissions-Policy': 'camera=(self), microphone=(), geolocation=()',
+  'Netlify-Vary': 'query',
 };
 
 function notFound(message = 'There is no page at this address.') {
@@ -665,6 +783,7 @@ export async function handle(request, env = {}) {
   const route = parseRoute(url.pathname);
   if (!route) return notFound();
   if (route.kind === 'home') return home(url, env);
+  if (route.kind === 'player') return player(url, env);
 
   let shiurim;
   try {
@@ -710,7 +829,7 @@ export async function handle(request, env = {}) {
   ]);
   if (!playerResponse.ok) throw new Error(`player page: ${playerResponse.status}`);
   const mode = /^[a-z-]{1,20}$/.test(url.searchParams.get('mode') || '') ? url.searchParams.get('mode') : 'split';
-  return new Response(shiurPage(await playerResponse.text(), shiur, { mode, details, pictures }), { headers: PAGE_HEADERS });
+  return new Response(shiurPage(await playerResponse.text(), shiur, { mode, extra: url.searchParams, details, pictures }), { headers: PLAYER_HEADERS });
 }
 
 export default async (request) => handle(request, {
@@ -719,12 +838,12 @@ export default async (request) => handle(request, {
 });
 
 // Netlify reads this without running the module, so the addresses are spelled
-// out: the home page, every masechta's slug (shared/masechtos.mjs), with and
-// without a path under it, and the sitemap. tests/functions/seo-pages.test.mjs
+// out: the home page, the player, every masechta's slug (shared/masechtos.mjs),
+// with and without a path under it, and the sitemap. tests/functions/seo-pages.test.mjs
 // checks the list matches MASECHTOS.
 export const config = {
   path: [
-    '/',
+    '/', '/player/',
     '/berachos', '/berachos/*', '/shabbos', '/shabbos/*', '/eruvin', '/eruvin/*', '/pesachim',
     '/pesachim/*', '/yoma', '/yoma/*', '/sukkah', '/sukkah/*', '/beitzah', '/beitzah/*',
     '/rosh-hashanah', '/rosh-hashanah/*', '/taanis', '/taanis/*', '/megillah', '/megillah/*',
