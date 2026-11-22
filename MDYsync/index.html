@@ -2816,7 +2816,10 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         for (const combo of withoutLivestreams(row, COMBO_KEYS.filter((key) => row[key]))) choices.push({ row, combo });
       }
       const maggidOrder = (choice) => MAGGIDIM.findIndex((m) => m.id === rowMaggid(choice.row));
-      return choices.sort((x, y) => maggidOrder(x) - maggidOrder(y) || COMBO_ORDER.indexOf(x.combo) - COMBO_ORDER.indexOf(y.combo));
+      // In Hebrew, the daf's Hebrew shiurim first, whoever gives them.
+      const languageOrder = (choice) => (HE && !choice.combo.endsWith("He") ? 1 : 0);
+      return choices.sort((x, y) => languageOrder(x) - languageOrder(y) || maggidOrder(x) - maggidOrder(y)
+        || COMBO_ORDER.indexOf(x.combo) - COMBO_ORDER.indexOf(y.combo));
     }
 
     // The one the pop-up opens on: what clicking a card would play -- regular
