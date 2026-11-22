@@ -14147,7 +14147,7 @@ window.addEventListener('resize', placeSwitchBackChip);
 // back while there is one. Cheap: called whenever the shiur on screen changes.
 function refreshSwitchShiur() {
   const any = switchShiurChoices().length > 0;
-  for (const id of ['playerSwitchButton', 'audioBarSwitch']) {
+  for (const id of ['playerSwitchButton', 'barSwitchButton', 'audioBarSwitch']) {
     const button = $(id);
     if (button) button.hidden = !any;
   }
