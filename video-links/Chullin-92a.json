@@ -1,11 +1,8 @@
 {
+  "label": "Daf Yomi Chullin Daf 92 by R' Eli Stefansky",
+  "locked": false,
+  "source": "manual",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=s-PVjfa0Z2o",
-  "videoId": "s-PVjfa0Z2o",
-  "label": "Daf Yomi Chullin Daf 92 by R' Eli Stefansky",
-  "coveredRefs": [
-    "Chullin 91b",
-    "Chullin 92a",
-    "Chullin 92b"
-  ]
+  "videoId": "s-PVjfa0Z2o"
 }
