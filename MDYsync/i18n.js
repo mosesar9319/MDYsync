@@ -240,20 +240,20 @@
     var cssLoaded;
     var wordsLoaded;
     if (document.readyState === 'loading' && typeof document.write === 'function') {
-      document.write('<link rel="stylesheet" href="/rtl.css?v=2"><script src="/i18n-he.js?v=2"><\/script>');
+      document.write('<link rel="stylesheet" href="/rtl.css?v=3"><script src="/i18n-he.js?v=3"><\/script>');
       cssLoaded = Promise.resolve();
       wordsLoaded = Promise.resolve();
     } else {
       var css = document.createElement('link');
       css.rel = 'stylesheet';
-      css.href = '/rtl.css?v=2';
+      css.href = '/rtl.css?v=3';
       cssLoaded = new Promise(function (resolve) {
         css.onload = resolve;
         css.onerror = resolve;
       });
       document.head.appendChild(css);
       var words = document.createElement('script');
-      words.src = '/i18n-he.js?v=2';
+      words.src = '/i18n-he.js?v=3';
       wordsLoaded = new Promise(function (resolve) {
         words.onload = resolve;
         words.onerror = resolve;
@@ -375,7 +375,7 @@
   // in Hebrew, its markers included; the ref as it is for anything else.
   // Only text that is a daf's name and nothing else: "Bekhorot 58a", "Eruchin 5".
   function refHebrewOrNull(text) {
-    if (!/^[A-Z][A-Za-z']*(?: [A-Z][a-z]+)? \d{1,3}[ab]?$/.test(text)) return null;
+    if (!/^[A-Z][A-Za-z']*(?: [A-Z][a-z]+)? \d{1,3}[ab]?(?:[.:]\d{1,3})?$/.test(text)) return null;
     var hebrew = refHebrew(text);
     return hebrew === text ? null : hebrew;
   }

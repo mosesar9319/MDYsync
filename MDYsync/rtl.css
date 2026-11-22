@@ -50,3 +50,14 @@ html[dir="rtl"] .search-close [data-icon] {
   display: inline-flex;
   transform: scaleX(-1);
 }
+
+/* What readers write keeps its own direction: an English title or reply on
+   the Hebrew site reads left to right, its question mark at the end. */
+html[dir="rtl"] :is(.cc-card-title, .cc-card-body, .cc-today-preview, .cc-doc-citation-body, .cr-excerpt,
+  .cs-point-body, .ct-title, .ct-body, .ct-quote-body, .ct-preview-title, .ct-preview-desc,
+  .kn-entry-title, .kn-entry-body, .kn-section-title, .kn-section-body, .live-body-text,
+  .live-card-preview, .live-quoted, .comment-item-body, .note-item-body, .note-item-quote,
+  .notif-item-preview, textarea, input[type="text"], input[type="search"]) {
+  unicode-bidi: plaintext;
+  text-align: start;
+}
