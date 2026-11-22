@@ -14130,12 +14130,16 @@ function ensureSwitchBackChip() {
 // Above the phone's bottom navigation and the audio bar, whichever is up.
 function placeSwitchBackChip() {
   const chip = $('switchBackChip');
+  // A message (toast) shows above the chip, not under it.
+  document.body.classList.toggle('switch-back-up', !!chip && !chip.hidden);
   if (!chip || chip.hidden) return;
   const nav = document.querySelector('.mobile-nav');
   const navTop = nav && getComputedStyle(nav).display !== 'none' ? nav.getBoundingClientRect().top : window.innerHeight;
   const bar = $('audioBar');
   const barTop = bar && !bar.hidden ? bar.getBoundingClientRect().top : window.innerHeight;
-  chip.style.bottom = `${Math.round(window.innerHeight - Math.min(navTop, barTop) + 10)}px`;
+  const bottom = Math.round(window.innerHeight - Math.min(navTop, barTop) + 10);
+  chip.style.bottom = `${bottom}px`;
+  document.body.style.setProperty('--switch-back-top', `${bottom + Math.round(chip.getBoundingClientRect().height) + 8}px`);
 }
 window.addEventListener('resize', placeSwitchBackChip);
 

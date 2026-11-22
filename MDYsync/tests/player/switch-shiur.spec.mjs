@@ -193,6 +193,12 @@ test.describe('Switching to another shiur of the daf', () => {
     await expect.poll(() => page.evaluate(() => Math.round((state.lastObservedTime || 0) * 10) / 10)).toBe(14.6);
     await expect(page.locator('#toast')).toContainText('does not read that line');
     await expect(page.locator('#switchBackChip')).toBeVisible();
+    // The message shows above the chip, not under it.
+    await expect.poll(() => page.evaluate(() => {
+      const toast = document.getElementById('toast').getBoundingClientRect();
+      const chip = document.getElementById('switchBackChip').getBoundingClientRect();
+      return toast.bottom <= chip.top;
+    })).toBe(true);
     // The chip is dismissed without going back.
     await page.locator('#switchBackDismiss').click();
     await expect(page.locator('#switchBackChip')).toBeHidden();

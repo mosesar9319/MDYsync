@@ -4917,6 +4917,8 @@ body.audio-bar-up { padding-bottom: var(--audio-bar-room, 0px); }
   box-shadow: 0 10px 30px rgba(0,0,0,.35);
 }
 .switch-back-chip[hidden] { display: none; }
+/* A message shows above the chip, not under it. */
+body.switch-back-up .toast { bottom: var(--switch-back-top, 24px); }
 .switch-back-go { display: inline-flex; align-items: center; gap: 7px; min-width: 0; height: 38px; padding: 0 6px 0 14px; border: 0; background: none; color: inherit; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
 .switch-back-go svg { width: 17px; height: 17px; flex: none; }
 .switch-back-go span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
