@@ -25,3 +25,28 @@ html[dir="rtl"] time,
 html[dir="rtl"] .ltr {
   direction: ltr;
 }
+
+/* Playing a shiur reads left to right in Hebrew too, as on YouTube in Hebrew:
+   back before play before forward, and "0:00 / 59:01" in that order. The
+   titles inside those bars are still Hebrew, right to left. */
+html[dir="rtl"] .pc-transport,
+html[dir="rtl"] .pc-time,
+html[dir="rtl"] .pc-rail,
+html[dir="rtl"] .player-controls,
+html[dir="rtl"] .audio-bar-row,
+html[dir="rtl"] .audio-bar-time,
+html[dir="rtl"] .audio-bar-seek {
+  direction: ltr;
+}
+html[dir="rtl"] .audio-bar-text {
+  direction: rtl;
+  text-align: right;
+}
+
+/* Arrows that mean "back" point the way a Hebrew page goes back: right. */
+html[dir="rtl"] [data-icon="arrow-left"],
+html[dir="rtl"] [data-icon="back"],
+html[dir="rtl"] .search-close [data-icon] {
+  display: inline-flex;
+  transform: scaleX(-1);
+}

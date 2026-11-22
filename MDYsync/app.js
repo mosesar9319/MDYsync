@@ -440,8 +440,13 @@ function formatTimePrecise(seconds) {
 }
 
 function showToast(message, type = 'normal') {
-  // A ref in a message is shown with the masechta's display name (Eruchin).
-  message = String(message).replace(/\b([A-Z][A-Za-z]*)(?=\s+\d)/g, (name) => displayTractate(name));
+  // In the reader's language, and a ref in a message is shown with the
+  // masechta's display name (Eruchin; ערכין in Hebrew).
+  message = T(String(message));
+  message = READER_HE
+    ? message.replace(/\b([A-Z][A-Za-z]*(?: [A-Z][a-z]+)?)\s+(\d{1,3})([ab])?\b/g,
+      (all, name, daf, amud) => I18N.dafHebrew(name, Number(daf), amud || '') || all)
+    : message.replace(/\b([A-Z][A-Za-z]*)(?=\s+\d)/g, (name) => displayTractate(name));
   const toast = $('toast');
   // A toast fired while a <dialog> is open (e.g. a sync-dialog validation
   // error -- "Sync from YouTube" clicked with the video not among the
@@ -1742,12 +1747,34 @@ const VOICE_KEY_PREFIX = 'Voice-';
 
 // How DafSync names a masechta on screen where that differs from Sefaria's name,
 // which refs, files and keys keep: "Eruchin" (shared/masechtos.mjs).
+// In Hebrew (i18n.js) the masechta and the daf are said in Hebrew: חולין פט ע״א.
 const TRACTATE_DISPLAY_NAMES = { Arakhin: 'Eruchin' };
+const I18N = window.DafSyncI18n || null;
+const READER_HE = Boolean(I18N && I18N.he);
+const T = (text) => (I18N ? I18N.t(text) : text);
 function displayTractate(name) {
+  if (READER_HE) {
+    const hebrew = I18N.masechtaHebrew(name);
+    if (hebrew) return hebrew;
+  }
   return TRACTATE_DISPLAY_NAMES[name] || name;
 }
 function displayRef(ref) {
+  if (READER_HE) return I18N.refName(String(ref || ''));
   return String(ref || '').replace(/^([A-Za-z][A-Za-z ]*?)(?=\s+\d)/, (name) => displayTractate(name));
+}
+// The shiur's title as the reader sees it: its own title, except that in
+// Hebrew a title in English letters gives way to the daf's Hebrew name.
+function readerTitle(label, ref = state.dafRef) {
+  if (READER_HE && !/[\u0590-\u05FF]/.test(String(label || '')) && ref) {
+    const parsed = parseDafRef(ref);
+    const daf = parsed && I18N.dafHebrew(parsed.tractate, parsed.daf, '');
+    if (daf) {
+      const title = `${I18N.masechtaHebrew(parsed.tractate)} דף ${I18N.hebrewNumeral(parsed.daf)}`;
+      return parsed.variant === 'chazarah' ? `חזרה – ${title}` : title;
+    }
+  }
+  return label;
 }
 
 function parseDafRef(ref) {
@@ -3253,7 +3280,7 @@ function renderVilnaUnmatchedWords() {
 function applyRealVideoTitle(ref) {
   const genericLabels = ['YouTube', 'Direct link'];
   const realLabel = state.videoSource?.label && !genericLabels.includes(state.videoSource.label) ? state.videoSource.label : null;
-  $('lectureTitle').textContent = realLabel || realDafRef(ref);
+  $('lectureTitle').textContent = readerTitle(realLabel, ref) || displayRef(realDafRef(ref));
 }
 
 // The Daf browser's own in-page equivalent of tapScannedWord below --
@@ -8280,7 +8307,9 @@ function paintRequestedDafSkeleton(fullRef) {
   set('dafTitle', label);
   set('currentRef', `Loading ${label}…`);
   const lecture = $('lectureTitle');
-  if (lecture && /^(DafSync Studio|Daf Yomi shiur|Interactive Daf|No daf loaded)$/i.test(lecture.textContent.trim())) lecture.textContent = label;
+  const generic = ['DafSync Studio', 'Daf Yomi shiur', 'Interactive Daf', 'No daf loaded'];
+  if (lecture && (/^(DafSync Studio|Daf Yomi shiur|Interactive Daf|No daf loaded)$/i.test(lecture.textContent.trim())
+    || generic.map(T).includes(lecture.textContent.trim()))) lecture.textContent = label;
   const phrase = $('currentPhrase');
   if (phrase) phrase.textContent = '';
   const translation = $('currentTranslation');
@@ -11267,7 +11296,7 @@ async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs =
   };
   state.currentProjectId = null;
   $('videoUrl').value = state.videoSource.url;
-  $('lectureTitle').textContent = label || `YouTube lecture · ${videoId}`;
+  $('lectureTitle').textContent = readerTitle(label) || `YouTube lecture · ${videoId}`;
   setSourceBadge(liveBroadcast ? 'Live' : (lakewood ? 'Lakewood Daf Yomi' : (fromMdy ? 'MDY' : 'YouTube')));
   setSourcePanel('linkSourcePanel');
   refreshMdyChrome();
@@ -11326,7 +11355,7 @@ async function loadLakewoodShiur(source, saveRefs = null) {
   const label = source.label || 'Lakewood Daf Yomi';
   state.videoSource = { type: 'lakewood', videoId, url: shiur.lakewood?.url || source.url || '', label, locked: source.locked === true };
   state.currentProjectId = null;
-  $('lectureTitle').textContent = label;
+  $('lectureTitle').textContent = readerTitle(label);
   setSourceBadge('Lakewood Daf Yomi');
   setSourcePanel('linkSourcePanel');
   refreshMdyChrome();
@@ -12048,12 +12077,12 @@ function mediaSessionShiur() {
   const parsed = shiur?.parsed || parseDafRef(state.dafRef || '');
   const lakewood = isLakewoodShiur(shiur);
   const daf = parsed ? `${displayTractate(parsed.tractate)} ${parsed.daf}` : '';
-  const kind = [parsed?.variant === 'chazarah' ? 'Chazarah' : '', parsed?.language === 'he' ? 'Hebrew' : ''].filter(Boolean).join(', ');
+  const kind = [parsed?.variant === 'chazarah' ? T('Chazarah') : '', parsed?.language === 'he' ? T('Hebrew') : ''].filter(Boolean).join(', ');
   const picture = shiur ? mdyPictureUrl(shiur, 512) : null;
   return {
     key: `${htmlVideo.getAttribute('src')}|${daf}|${kind}`,
     title: [daf || $('lectureTitle')?.textContent || 'Shiur', kind].filter(Boolean).join(' · '),
-    artist: shiur ? (lakewood ? "R' Sruly Bornstein" : "R' Eli Stefansky") : '',
+    artist: shiur ? T(lakewood ? "R' Sruly Bornstein" : "R' Eli Stefansky") : '',
     album: 'DafSync',
     artwork: picture
       ? [{ src: new URL(picture, location.href).href, type: picture.endsWith('.jpg') ? 'image/jpeg' : 'image/webp' }]
