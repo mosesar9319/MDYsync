@@ -2626,6 +2626,22 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       if (mode !== "standard") params.set("mode", mode);
       const finished = entry.duration > 0 && entry.time >= entry.duration - 15;
       if (entry.time > 0 && !finished) params.set("t", String(Math.floor(entry.time)));
+      // A shiur in the catalog opens under its own page, as its home card does
+      // (the server would send /player/?ref=... there anyway, one step later).
+      for (const row of state.catalog.concat(state.maggidRows)) {
+        const combo = COMBO_KEYS.find((key) => row[key]?.videoId === entry.videoId);
+        const shiur = combo && shiurOfCombo(row, combo);
+        const pagePath = shiur && shiurPagePath(shiur);
+        if (!pagePath) continue;
+        const ref = /\d([ab])\s*$/.exec((params.get("ref") || "").replace(/\s*\([^)]*\)/g, ""));
+        const keep = new URLSearchParams();
+        if (ref && ref[1] !== (shiur.amud === "b" ? "b" : "a")) keep.set("ref", `${shiur.tractate} ${shiur.daf}${ref[1]}`);
+        for (const [key, value] of params) {
+          if (!["ref", "variant", "language", "maggid"].includes(key)) keep.append(key, value);
+        }
+        const query = keep.toString();
+        return `${pagePath}${query ? `?${query}` : ""}`;
+      }
       return `/player/?${params.toString()}`;
     }
 
