@@ -65,6 +65,9 @@ test.describe('Language', () => {
     expect(await page.evaluate(() => [window.DafSyncI18n.t('Sign in'), window.DafSyncI18n.t('Not in the dictionary')]))
       .toEqual(['התחברות', 'Not in the dictionary']);
 
+    // The name of the site is never translated, though "Daf" and "Sync" are words of their own.
+    await expect(page.locator('.brand-name').first()).toHaveText('DafSync');
+
     // The choice is kept for the next page.
     await page.goto('/index.html');
     await expect(html).toHaveAttribute('dir', 'rtl');
