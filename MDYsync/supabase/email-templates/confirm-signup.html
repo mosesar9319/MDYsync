@@ -1,0 +1,23 @@
+<!--
+  Supabase → Authentication → Emails → "Confirm signup": paste this whole file
+  as the message body. Subject: DafSync – confirm your account / אישור החשבון
+
+  .Data is what auth.js sent at sign-up (options.data): lang is "he" for a
+  reader who signed up on the Hebrew site, "en" otherwise. Accounts made
+  before that have no lang, and get English.
+-->
+{{ if eq .Data.lang "he" }}
+<div dir="rtl" lang="he" style="font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #17212b; text-align: right;">
+  <h2 style="margin: 0 0 12px;">ברוכים הבאים ל-DafSync</h2>
+  <p>כדי להשלים את ההרשמה, יש לאשר את כתובת הדוא״ל שלך:</p>
+  <p><a href="{{ .ConfirmationURL }}" style="display: inline-block; background: #132238; color: #ffffff; padding: 10px 18px; border-radius: 8px; text-decoration: none;">אישור החשבון</a></p>
+  <p style="color: #5b6876; font-size: 14px;">אם לא נרשמת ל-DafSync, אפשר להתעלם מההודעה הזו.</p>
+</div>
+{{ else }}
+<div style="font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #17212b;">
+  <h2 style="margin: 0 0 12px;">Welcome to DafSync</h2>
+  <p>To finish signing up, confirm your email address:</p>
+  <p><a href="{{ .ConfirmationURL }}" style="display: inline-block; background: #132238; color: #ffffff; padding: 10px 18px; border-radius: 8px; text-decoration: none;">Confirm your account</a></p>
+  <p style="color: #5b6876; font-size: 14px;">If you didn't sign up for DafSync, you can ignore this email.</p>
+</div>
+{{ end }}
