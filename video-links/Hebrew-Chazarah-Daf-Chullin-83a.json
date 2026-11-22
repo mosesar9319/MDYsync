@@ -1,11 +1,8 @@
 {
   "label": "חזרה - חולין דף פג | \"רק הדף\" עם ר' אלי סטפנסקי",
+  "locked": false,
+  "source": "manual",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=49jU4cqg0MM",
-  "videoId": "49jU4cqg0MM",
-  "coveredRefs": [
-    "Chullin 82b",
-    "Chullin 83a",
-    "Chullin 83b"
-  ]
+  "videoId": "49jU4cqg0MM"
 }
