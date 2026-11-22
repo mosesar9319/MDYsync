@@ -1,11 +1,8 @@
 {
   "label": "מרכז דף יומי - חולין דף לו. - ר' אלי סטפנסקי שליט\"א",
+  "locked": false,
+  "source": "manual",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=V1FOFnrYGSc",
-  "videoId": "V1FOFnrYGSc",
-  "coveredRefs": [
-    "Chullin 35b",
-    "Chullin 36a",
-    "Chullin 36b"
-  ]
+  "videoId": "V1FOFnrYGSc"
 }
