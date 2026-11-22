@@ -7,7 +7,7 @@
   <link rel="apple-touch-icon" href="/assets/app/apple-touch-icon.png">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="DafSync">
-  <script src="/i18n.js?v=1"></script>
+  <script src="/i18n.js?v=2"></script>
   <script src="/pwa.js" defer></script>
   <meta name="theme-color" content="#132238">
   <meta name="description" content="Watch Daf Yomi shiurim with the Gemara beside the video, each line highlighted as the maggid reads it. Find any shiur by masechta, daf or maggid.">
@@ -1347,6 +1347,30 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
   width: 7px;
 }
 
+/* English / עברית: the other language's name, in its own letters. */
+.lang-toggle {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--line, #d7dee8);
+  border-radius: 999px;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  height: 36px;
+  justify-content: center;
+  letter-spacing: 0;
+  min-width: 44px;
+  padding: 0 12px;
+}
+.lang-toggle:hover { background: rgba(127, 127, 127, .1); }
+@media (max-width: 760px) {
+  .lang-toggle { border: 0; height: 40px; min-width: 40px; padding: 0 6px; }
+}
+
 /* ---------------------------------------------------------------------
    Phone home, laid out like a video app's feed: a slim top bar (search
    behind an icon, light/dark, account), one row of chips, then one
@@ -1452,6 +1476,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
   .topbar.search-open .mobile-brand,
   .topbar.search-open .search-toggle,
   .topbar.search-open .theme-toggle,
+  .topbar.search-open .lang-toggle,
   .topbar.search-open .auth-widget {
     display: none;
   }
@@ -1904,6 +1929,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
           <button aria-label="Clear search" class="clear-search" id="clear-search" hidden type="button"></button>
         </label>
         <button class="top-icon search-toggle" id="searchToggle" type="button" aria-label="Search" aria-expanded="false"><span data-icon="search"></span></button>
+        <button class="lang-toggle" id="langToggle" type="button" translate="no"></button>
         <button class="top-icon theme-toggle" id="themeToggle" type="button" aria-label="Dark mode" aria-pressed="false"></button>
         <div class="auth-widget" id="authWidget">
           <button class="auth-button" id="signInButton" type="button">Sign in</button>
@@ -2155,7 +2181,13 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       { id: "bornstein", name: "R’ Sruly Bornstein", blurb: "Daf Yomi · Lakewood Daf Yomi" },
     ];
     const DEFAULT_MAGGID = MAGGIDIM[0].id;
-    const maggidName = (id) => (MAGGIDIM.find((m) => m.id === id) || MAGGIDIM[0]).name;
+    // The reader's language (i18n.js): T("English") is the Hebrew when the
+    // page is in Hebrew, the English as it is otherwise.
+    const I18N = window.DafSyncI18n || null;
+    const HE = Boolean(I18N && I18N.he);
+    const T = (text) => (I18N ? I18N.t(text) : text);
+    const maggidEnglishName = (id) => (MAGGIDIM.find((m) => m.id === id) || MAGGIDIM[0]).name;
+    const maggidName = (id) => T(maggidEnglishName(id));
     const rowMaggid = (row) => row.maggid || DEFAULT_MAGGID;
 
     // Display label only -- no amud. The a/b split is a syncing concern
@@ -2166,7 +2198,8 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     const TRACTATE_DISPLAY_NAMES = { Arakhin: "Eruchin" };
     const displayTractate = (name) => TRACTATE_DISPLAY_NAMES[name] || name;
     function dafLabel(row) {
-      return `${displayTractate(row.tractate)} ${row.daf}`;
+      const english = `${displayTractate(row.tractate)} ${row.daf}`;
+      return I18N ? I18N.dafName(row.tractate, row.daf, "", english) : english;
     }
 
     // The reader should see the exact same title the video has on the MDY
@@ -2176,6 +2209,15 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     // still the old generic "YouTube" placeholder).
     function videoLabel(row, combo) {
       const label = row[combo]?.label;
+      // In Hebrew, a title in English letters is said in Hebrew instead
+      // ("ערכין דף ה"); a Hebrew shiur's own title is kept.
+      if (HE && !(label && /[\u0590-\u05FF]/.test(label))) {
+        const masechta = I18N.masechtaHebrew(row.tractate);
+        if (masechta) {
+          const daf = `${masechta} דף ${I18N.hebrewNumeral(row.daf)}`;
+          return combo.startsWith("chazarah") ? `חזרה – ${daf}` : daf;
+        }
+      }
       return label && label !== "YouTube" ? label : dafLabel(row);
     }
 
@@ -2270,6 +2312,9 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     // filtering to "Hebrew" plays the Hebrew video, not an English one
     // that just happens to also exist for that daf).
     const COMBO_KEYS = ["regularEn", "chazarahEn", "regularHe", "chazarahHe"];
+    // The order a daf's recordings are listed in: the reader's language first.
+    const COMBO_ORDER = (window.DafSyncI18n && window.DafSyncI18n.he)
+      ? ["regularHe", "chazarahHe", "regularEn", "chazarahEn"] : COMBO_KEYS;
     const comboVariant = (key) => (key.startsWith("chazarah") ? "chazarah" : "regular");
     const comboLanguage = (key) => (key.endsWith("He") ? "he" : "en");
     function comboMatchesFilters(key) {
@@ -2503,6 +2548,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       regularEn: "English", chazarahEn: "English · Chazarah",
       regularHe: "Hebrew", chazarahHe: "Hebrew · Chazarah",
     };
+    const comboLabel = (combo) => T(COMBO_LABELS[combo]);
 
     // " · R’ Sruly Bornstein" on another maggid's cards, so two recordings of
     // the same daf side by side say whose is whose. The default maggid's are
@@ -2515,7 +2561,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     // initials, a "maggid · daf · language" line, and a Today badge.
     const MAGGID_COLORS = { stefansky: "#2f6ea5", bornstein: "#8a5a2b" };
     function maggidInitials(id) {
-      return maggidName(id).replace(/^R[’']\s*/, "").split(/\s+/).map((word) => word[0] || "").join("").slice(0, 2).toUpperCase();
+      return maggidEnglishName(id).replace(/^R[’']\s*/, "").split(/\s+/).map((word) => word[0] || "").join("").slice(0, 2).toUpperCase();
     }
     function avatarMarkup(id) {
       return `<span class="card-avatar" aria-hidden="true" style="--avatar:${MAGGID_COLORS[id] || "#2f6ea5"}">${escapeHtml(maggidInitials(id))}</span>`;
@@ -2538,7 +2584,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
           <span class="thumbnail-play">${icon("play", 20)}</span>
           ${isTodayRow(row) ? `<span class="thumb-badge is-today">Today</span>` : ""}
         </span>
-        <span class="card-copy"><strong dir="auto">${escapeHtml(videoLabel(row, combo))}${livePill}</strong><span>${dafLabel(row)} · ${COMBO_LABELS[combo]}${maggidTag(row)}</span><span class="card-meta-phone">${escapeHtml(maggidName(maggid))} · ${dafLabel(row)} · ${COMBO_LABELS[combo]}</span>${avatarMarkup(maggid)}</span>
+        <span class="card-copy"><strong dir="auto">${escapeHtml(videoLabel(row, combo))}${livePill}</strong><span>${dafLabel(row)} · ${comboLabel(combo)}${maggidTag(row)}</span><span class="card-meta-phone">${escapeHtml(maggidName(maggid))} · ${dafLabel(row)} · ${comboLabel(combo)}</span>${avatarMarkup(maggid)}</span>
       </a>`;
     }
 
@@ -2615,7 +2661,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     function historyDetails(entry) {
       for (const row of state.catalog.concat(state.maggidRows)) {
         const combo = COMBO_KEYS.find((key) => row[key]?.videoId === entry.videoId);
-        if (combo) return { title: videoLabel(row, combo), maggid: rowMaggid(row), meta: `${maggidName(rowMaggid(row))} · ${dafLabel(row)} · ${COMBO_LABELS[combo]}` };
+        if (combo) return { title: videoLabel(row, combo), maggid: rowMaggid(row), meta: `${maggidName(rowMaggid(row))} · ${dafLabel(row)} · ${comboLabel(combo)}` };
       }
       const maggid = new URLSearchParams(entry.url.split("?")[1]).get("maggid") || DEFAULT_MAGGID;
       return { title: entry.ref, maggid, meta: maggidName(maggid) };
@@ -2753,7 +2799,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         direction * (SITE_TRACTATES.indexOf(a.row.tractate) - SITE_TRACTATES.indexOf(b.row.tractate))
         || direction * (a.row.daf - b.row.daf)
         || MAGGIDIM.findIndex((m) => m.id === rowMaggid(a.row)) - MAGGIDIM.findIndex((m) => m.id === rowMaggid(b.row))
-        || COMBO_KEYS.indexOf(a.combo) - COMBO_KEYS.indexOf(b.combo));
+        || COMBO_ORDER.indexOf(a.combo) - COMBO_ORDER.indexOf(b.combo));
     }
 
     // Every shiur there is on a daf, whoever gives it: [{ row, combo }], each
@@ -2768,7 +2814,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         for (const combo of withoutLivestreams(row, COMBO_KEYS.filter((key) => row[key]))) choices.push({ row, combo });
       }
       const maggidOrder = (choice) => MAGGIDIM.findIndex((m) => m.id === rowMaggid(choice.row));
-      return choices.sort((x, y) => maggidOrder(x) - maggidOrder(y) || COMBO_KEYS.indexOf(x.combo) - COMBO_KEYS.indexOf(y.combo));
+      return choices.sort((x, y) => maggidOrder(x) - maggidOrder(y) || COMBO_ORDER.indexOf(x.combo) - COMBO_ORDER.indexOf(y.combo));
     }
 
     // The one the pop-up opens on: what clicking a card would play -- regular
@@ -2777,7 +2823,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     function firstChoice(choices) {
       const matching = choices.filter((choice) => comboMatchesFilters(choice.combo));
       const pool = matching.length ? matching : choices;
-      return pool.reduce((best, choice) => (COMBO_KEYS.indexOf(choice.combo) < COMBO_KEYS.indexOf(best.combo) ? choice : best), pool[0]);
+      return pool.reduce((best, choice) => (COMBO_ORDER.indexOf(choice.combo) < COMBO_ORDER.indexOf(best.combo) ? choice : best), pool[0]);
     }
 
     // The pop-up offers every shiur of the daf, so going from one to another
@@ -2786,7 +2832,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       const { row, combo } = choices[index];
       const entry = entryForCombo(row, combo);
       document.querySelector("#shiur-title").textContent = videoLabel(row, combo);
-      document.querySelector("#modal-teacher").textContent = `${maggidName(rowMaggid(row))} · ${dafLabel(row)} · ${COMBO_LABELS[combo]}`;
+      document.querySelector("#modal-teacher").textContent = `${maggidName(rowMaggid(row))} · ${dafLabel(row)} · ${comboLabel(combo)}`;
       setThumb(document.querySelector("#modal-thumb"), row[combo].videoId, shiurOfCombo(row, combo));
       document.querySelector("#modal-watch-link").href = playerUrl(entry);
       document.querySelectorAll("#modal-variant-toggle button").forEach((button) => {
@@ -2799,8 +2845,8 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       // Whose it is goes on the button only when there is more than one maggid.
       const severalMaggidim = new Set(choices.map((choice) => rowMaggid(choice.row))).size > 1;
       const label = (choice) => (severalMaggidim
-        ? `${maggidName(rowMaggid(choice.row))} · ${COMBO_LABELS[choice.combo]}`
-        : COMBO_LABELS[choice.combo]);
+        ? `${maggidName(rowMaggid(choice.row))} · ${comboLabel(choice.combo)}`
+        : comboLabel(choice.combo));
       toggle.innerHTML = choices.length > 1
         ? choices.map((choice, index) => `<button type="button" data-choice="${index}">${escapeHtml(label(choice))}</button>`).join("")
         : "";
@@ -3011,7 +3057,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       const hero = document.querySelector("#hero-card");
       const weekday = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(new Date()).toUpperCase();
       const hebrewDate = new Intl.DateTimeFormat("en-u-ca-hebrew", { day: "numeric", month: "long", year: "numeric" }).format(new Date());
-      document.querySelector("#today-eyebrow").textContent = `${weekday} • ${hebrewDate}`;
+      document.querySelector("#today-eyebrow").textContent = (HE && I18N.hebrewDate()) || `${weekday} • ${hebrewDate}`;
       if (!state.today) {
         loading.textContent = "Could not load today’s daf.";
         return;
@@ -3087,6 +3133,17 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         renderCards();
       }
     });
+    (function languageSwitch() {
+      const button = document.querySelector("#langToggle");
+      const i18n = window.DafSyncI18n;
+      if (!i18n) { button.hidden = true; return; }
+      const next = i18n.he ? "en" : "he";
+      button.textContent = i18n.he ? "EN" : "עב";
+      button.lang = next;
+      button.setAttribute("aria-label", i18n.he ? "English" : "עברית");
+      button.title = i18n.he ? "Switch to English" : "לעברית";
+      button.addEventListener("click", () => i18n.setLanguage(next));
+    })();
     document.querySelector("#themeToggle").addEventListener("click", () => {
       const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
       document.documentElement.dataset.theme = next;

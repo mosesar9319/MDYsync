@@ -870,7 +870,10 @@
     // each time made the two run each other forever (the page froze on a
     // phone turned sideways in Split).
     const fullscreenCaption = fullscreenStack?.querySelector('.pc-label');
-    const fullscreenWord = document.body.classList.contains('split-view-active') ? 'Video' : 'Fullscreen';
+    // In the reader's language (i18n.js), or the comparison below never holds
+    // once the word has been put into Hebrew, and the two rewrite each other.
+    const fullscreenEnglish = document.body.classList.contains('split-view-active') ? 'Video' : 'Fullscreen';
+    const fullscreenWord = window.DafSyncI18n ? window.DafSyncI18n.t(fullscreenEnglish) : fullscreenEnglish;
     if (fullscreenCaption && fullscreenCaption.textContent !== fullscreenWord) fullscreenCaption.textContent = fullscreenWord;
     const favorite = $('favoriteButton');
     if (favorite) {
