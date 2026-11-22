@@ -676,6 +676,20 @@
   const splitViewButton = pill('splitViewButton', 'Split view', ICONS.splitView);
   const dafOnVideoButton = pill('dafOnVideoButton', 'Daf on video', ICONS.dafOnVideo);
   const videoOnDafButton = pill('videoOnDafButton', 'Video on daf', ICONS.videoOnDaf);
+  // "Switch shiur" in the bar: another shiur of the daf, from the line this
+  // one is on (app.js shows it while there is one to switch to). It is the
+  // button on a computer, and in the mini player floated over the daf, which
+  // has no top bar; a phone's full player keeps the top bar's (styles.css).
+  const barSwitchButton = pill('barSwitchButton', 'Switch shiur', window.dafSwitchShiur?.icon || '');
+  barSwitchButton.removeAttribute('aria-pressed');
+  barSwitchButton.title = 'Switch shiur';
+  barSwitchButton.setAttribute('aria-label', 'Switch shiur');
+  barSwitchButton.hidden = true;
+  barSwitchButton.addEventListener('click', (event) => {
+    event.stopPropagation();
+    window.dafSwitchShiur?.open();
+  });
+  tools.appendChild(barSwitchButton);
   const hasSplitView = Boolean(document.querySelector('.watch-layout'));
   if (hasSplitView) tools.appendChild(splitViewButton);
   tools.appendChild(dafOnVideoButton);
@@ -816,7 +830,7 @@
   // so a resize that frees up room brings a control back to exactly where
   // it started rather than leaving it stranded in the menu from a previous,
   // narrower pass.
-  const TOOLS_ORDER = [speedStack, captionsStack, settingsStack, overlaySettingsStack, hasSplitView && splitViewButton, dafOnVideoButton, hasReadingMode && videoOnDafButton, pipStack, toolsMoreStack, splitFullscreenStack, fullscreenStack].filter(Boolean);
+  const TOOLS_ORDER = [barSwitchButton, speedStack, captionsStack, settingsStack, overlaySettingsStack, hasSplitView && splitViewButton, dafOnVideoButton, hasReadingMode && videoOnDafButton, pipStack, toolsMoreStack, splitFullscreenStack, fullscreenStack].filter(Boolean);
   // Overflow priority, most disposable first -- the mirror image of
   // TOOLS_ORDER's own tail: PiP is a pure convenience, the two older pills
   // exist because reading mode/the overlay each have their own separate,
@@ -828,8 +842,9 @@
   // than the other two before the bar has to hide it. Fullscreen stays in
   // the bar (re-pinned at the end of fitChrome). Speed is last here so it
   // leaves only after every wider control already has, which is what keeps
-  // the phone bar inside the frame.
-  const OVERFLOW_PRIORITY = [pipStack, hasReadingMode && videoOnDafButton, dafOnVideoButton, hasSplitView && splitViewButton, overlaySettingsStack, settingsStack, captionsStack, speedStack].filter(Boolean);
+  // the phone bar inside the frame. "Switch shiur" goes after even that: in
+  // the mini player it is the only way to another shiur.
+  const OVERFLOW_PRIORITY = [pipStack, hasReadingMode && videoOnDafButton, dafOnVideoButton, hasSplitView && splitViewButton, overlaySettingsStack, settingsStack, captionsStack, speedStack, barSwitchButton].filter(Boolean);
 
   // The old bar's hand-placed spacers/dividers did the job .pc-group's own
   // space-between layout now does.

@@ -4896,6 +4896,27 @@ body.audio-bar-up { padding-bottom: var(--audio-bar-room, 0px); }
 .audio-bar-switch { display: inline-flex; align-items: center; gap: 5px; }
 .audio-bar-switch svg { width: 16px; height: 16px; flex: none; }
 .audio-bar-switch[hidden], .player-switch-button[hidden] { display: none; }
+/* The same button in the bottom bar (player-chrome.js). On a computer it is
+   the one shown, and the top bar's is put away; on a phone the bar has no
+   room for it, so the top bar's stays -- except in the mini player floated
+   over the daf, which has no top bar. */
+#barSwitchButton[hidden] { display: none !important; }
+#barSwitchButton svg { width: 18px; height: 18px; flex: none; }
+
+@media (min-width: 761px) {
+  .player-switch-button { display: none !important; }
+}
+@media (max-width: 760px) {
+  body:not(.reading-mode-active) #barSwitchButton { display: none !important; }
+  /* A phone's mini player is the smallest bar there is: so that the button
+     sits on it, and not inside the More menu, it takes the mute button's
+     place there (a phone has its own volume buttons). */
+  body.can-switch-shiur.reading-mode-active .video-frame.is-tiny .pc-volume { display: none; }
+}
+/* The mini player's bar (the smallest tier): a bare icon, like the settings
+   wheel beside it, so that it does not push another control into the More menu. */
+.video-frame.is-tiny .pc-tools > #barSwitchButton { width: 24px; height: 26px; padding: 0; border: 0; background: none; justify-content: center; }
+.video-frame.is-tiny .pc-tools > #barSwitchButton svg { width: 19px; height: 19px; }
 @media (max-width: 560px) {
   .audio-bar-switch span { display: none; } /* the arrows alone on a narrow phone */
   .audio-bar-switch { width: 30px; justify-content: center; padding: 0; }

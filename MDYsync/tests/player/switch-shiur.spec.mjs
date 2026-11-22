@@ -149,6 +149,29 @@ test.describe('Switching to another shiur of the daf', () => {
     await expect(page.locator('#switchShiurDialogTitle')).toHaveText('Chullin 91');
   });
 
+  test('the button is on the bottom bar: on a computer, and in the mini player over the daf', async ({ page }, testInfo) => {
+    await open(page);
+    await bringUpEnglish(page);
+    // The shiur is up as the mini player floated over the daf, which has no top bar.
+    await expect.poll(() => page.evaluate(() => document.body.classList.contains('reading-mode-active'))).toBe(true);
+    // On its bar, not inside the More menu.
+    await expect.poll(() => page.evaluate(() => {
+      const button = document.getElementById('barSwitchButton');
+      return !button.hidden && button.offsetWidth > 0 && Boolean(button.closest('.pc-tools'));
+    })).toBe(true);
+    // The bar still fits its frame.
+    expect(await page.evaluate(() => {
+      const controls = document.querySelector('.player-controls');
+      return controls.scrollWidth <= controls.clientWidth + 1;
+    })).toBe(true);
+    if (testInfo.project.name === 'desktop') {
+      // A computer has the one button: the top bar's is put away.
+      expect(await page.evaluate(() => getComputedStyle(document.getElementById('playerSwitchButton')).display)).toBe('none');
+    }
+    await page.evaluate(() => document.getElementById('barSwitchButton').click());
+    await expect(page.locator('#switchShiurList .switch-shiur-row')).toHaveCount(2);
+  });
+
   test('the new shiur starts where it first reads the line the old one was on; the chip goes back to the very second', async ({ page }) => {
     await open(page);
     await bringUpEnglish(page);

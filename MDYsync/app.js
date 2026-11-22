@@ -14239,7 +14239,7 @@ document.addEventListener('webkitfullscreenchange', placeSwitchBackChip);
 function refreshSwitchShiur() {
   loadSwitchShiurData();
   const any = switchShiurChoices().length > 0;
-  for (const id of ['playerSwitchButton', 'audioBarSwitch']) {
+  for (const id of ['playerSwitchButton', 'barSwitchButton', 'audioBarSwitch']) {
     const button = $(id);
     if (button) button.hidden = !any;
   }
