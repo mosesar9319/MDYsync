@@ -154,6 +154,20 @@ test.describe('Language', () => {
     expect(await page.locator('.shiur-card').first().textContent()).toMatch(/[\u0590-\u05FF]/);
   });
 
+  test('installed in Hebrew, the app is the same app with Hebrew shortcuts, opening on /he/', async ({ page, request }) => {
+    await preparePage(page, { user: null });
+    await page.goto('/index.html?lang=he');
+    await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', '/manifest-he.webmanifest');
+    const english = JSON.parse(await (await request.get('/manifest.webmanifest')).text());
+    const hebrew = JSON.parse(await (await request.get('/manifest-he.webmanifest')).text());
+    expect(hebrew.id).toBe(english.id);
+    expect(hebrew.icons).toEqual(english.icons);
+    expect(hebrew.name).toBe('DafSync');
+    expect([hebrew.lang, hebrew.dir, hebrew.start_url]).toEqual(['he', 'rtl', '/he/']);
+    expect(hebrew.shortcuts.map((s) => s.name)).toEqual(['הדף היומי', 'הדף האינטראקטיבי', 'החבורה בענן']);
+    expect(hebrew.shortcuts.length).toBe(english.shortcuts.length);
+  });
+
   test('every page people open loads the language first', async ({ request }) => {
     for (const path of ['/index.html', '/player/index.html', '/browse/index.html', '/chaburah/index.html',
       '/chaburah/thread/index.html', '/notes/index.html', '/profile/index.html', '/kuntras/index.html',

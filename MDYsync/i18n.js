@@ -223,6 +223,12 @@
   root.setAttribute('lang', lang);
   root.setAttribute('dir', dir);
   root.classList.add('lang-' + lang);
+  // Installed from a Hebrew page, the app is the Hebrew one: Hebrew shortcut
+  // names, opening on /he/. The same app (one id) either way.
+  if (lang === 'he') {
+    var manifest = document.querySelector('link[rel="manifest"]');
+    if (manifest) manifest.setAttribute('href', '/manifest-he.webmanifest');
+  }
 
   var ready = Promise.resolve();
   if (lang === 'he') {

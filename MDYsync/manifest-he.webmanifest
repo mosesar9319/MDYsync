@@ -1,0 +1,73 @@
+{
+  "name": "DafSync",
+  "short_name": "DafSync",
+  "description": "שיעורי דף יומי עם הגמרא לצד השיעור, וכל שורה מודגשת כשהמגיד קורא אותה.",
+  "id": "/",
+  "start_url": "/he/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "lang": "he",
+  "dir": "rtl",
+  "background_color": "#f4f7fb",
+  "theme_color": "#132238",
+  "categories": [
+    "education",
+    "books"
+  ],
+  "icons": [
+    {
+      "src": "/assets/app/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/app/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/app/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "הדף היומי",
+      "short_name": "הדף היומי",
+      "url": "/he/#today-section",
+      "icons": [
+        {
+          "src": "/assets/app/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "הדף האינטראקטיבי",
+      "short_name": "הדף",
+      "url": "/browse/?lang=he",
+      "icons": [
+        {
+          "src": "/assets/app/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "החבורה בענן",
+      "short_name": "החבורה",
+      "url": "/chaburah/?lang=he",
+      "icons": [
+        {
+          "src": "/assets/app/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}

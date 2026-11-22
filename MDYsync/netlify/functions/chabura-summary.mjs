@@ -34,7 +34,7 @@
 // PostgREST quirk away from not existing at all.
 
 const MODEL_ID = 'claude-opus-5';
-const PROMPT_VERSION = 'chabura-thread-v1';
+const PROMPT_VERSION = 'chabura-thread-v2';
 
 // Thresholds. Documented, with their reasoning, in docs/AI_SUMMARIES.md.
 const MIN_REPLIES_FOR_SUMMARY = 8;     // below this, reading the thread IS the summary
@@ -170,9 +170,22 @@ const SYSTEM_PROMPT = [
   'Return ONLY a JSON object, with no prose around it and no code fence:',
   '{"points":[{"text":"...","sources":[1,4]}]}',
   `Write at most ${MAX_POINTS} points, each one or two plain sentences, in the order the discussion took them.`,
+  'Write the points in the language the request asks for. Keep names, and the words of the Gemara, as',
+  'the participants wrote them.',
 ].join('\n');
 
-export function buildUserPrompt({ note, replies, mode }) {
+// The language the points are written in. A discussion's summary is one for
+// everyone who opens it, so it is in the discussion's own language (Hebrew when
+// most of what was written is Hebrew). A catch-up is one reader's, in theirs.
+export function summaryLanguage({ note, replies, mode, readerLang }) {
+  if (mode === 'catchup' && (readerLang === 'he' || readerLang === 'en')) return readerLang;
+  const text = [note?.body || '', ...replies.map((reply) => reply?.body || '')].join(' ');
+  const hebrew = (text.match(/[\u05D0-\u05EA]/g) || []).length;
+  const latin = (text.match(/[A-Za-z]/g) || []).length;
+  return hebrew > latin ? 'he' : 'en';
+}
+
+export function buildUserPrompt({ note, replies, mode, readerLang }) {
   const lines = [];
   lines.push(`Passage: ${note.segment_ref || 'unknown'}`);
   if (note.selected_text) lines.push(`Words the discussion is anchored to: ${note.selected_text}`);
@@ -190,6 +203,9 @@ export function buildUserPrompt({ note, replies, mode }) {
   lines.push(mode === 'catchup'
     ? 'Summarise only what these new replies added, for someone who already read everything before them.'
     : 'Summarise the discussion.');
+  lines.push(summaryLanguage({ note, replies, mode, readerLang }) === 'he'
+    ? 'Write the points in Hebrew.'
+    : 'Write the points in English.');
   return lines.join('\n');
 }
 
@@ -244,7 +260,7 @@ export function validatePoints(parsed, replies) {
 
 // --- The model call --------------------------------------------------------
 
-async function generatePoints(config, { note, replies, mode }) {
+async function generatePoints(config, { note, replies, mode, readerLang }) {
   // Imported lazily so an unconfigured deploy -- the common case until a key is
   // set -- never pays to load the SDK, and so the pure helpers above can be
   // unit-tested without it.
@@ -259,7 +275,7 @@ async function generatePoints(config, { note, replies, mode }) {
     max_tokens: 2000,
     system: SYSTEM_PROMPT,
     thinking: { type: 'adaptive' },
-    messages: [{ role: 'user', content: buildUserPrompt({ note, replies, mode }) }],
+    messages: [{ role: 'user', content: buildUserPrompt({ note, replies, mode, readerLang }) }],
   });
   const message = await stream.finalMessage();
 
@@ -415,7 +431,7 @@ export default async (request) => {
           { status: 429, headers: { 'cache-control': 'private, no-store' } });
       }
 
-      const result = await generatePoints(config, { note, replies, mode: 'catchup' });
+      const result = await generatePoints(config, { note, replies, mode: 'catchup', readerLang: payload?.lang });
       if (!result.points.length) {
         return Response.json({ error: 'no-citable-points' }, { status: 502 });
       }
@@ -497,6 +513,7 @@ export default async (request) => {
 export const config = { path: '/api/chabura/summary' };
 
 export const __testing = {
+  summaryLanguage,
   MIN_REPLIES_FOR_SUMMARY,
   REGENERATE_AFTER_REPLIES,
   MIN_REGENERATE_INTERVAL_MS,

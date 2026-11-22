@@ -282,3 +282,19 @@ test('a very long reply is truncated before it is sent', () => {
   assert.ok(prompt.length < 3000);
   assert.match(prompt, /…/);
 });
+
+test('a discussion is summarised in its own language; a catch-up in the reader’s', () => {
+  const { summaryLanguage } = __testing;
+  const hebrewNote = { segment_ref: 'Chullin 89a.1', body: 'קשה לי, למה הגמרא לא מקשה כאן?' };
+  const hebrewReplies = [reply({ body: 'נראה לי שהתירוץ הוא כמו שרש״י אומר.' }), reply({ body: 'I agree.' })];
+  assert.equal(summaryLanguage({ note: hebrewNote, replies: hebrewReplies, mode: 'thread' }), 'he');
+  assert.match(buildUserPrompt({ note: hebrewNote, replies: hebrewReplies, mode: 'thread' }), /Write the points in Hebrew\./);
+  const englishNote = { segment_ref: 'Chullin 89a.1', body: 'Why does the Gemara not ask here?' };
+  assert.equal(summaryLanguage({ note: englishNote, replies: [reply()], mode: 'thread' }), 'en');
+  // A Hebrew reader catching up on an English discussion reads Hebrew, and the reverse.
+  assert.equal(summaryLanguage({ note: englishNote, replies: [reply()], mode: 'catchup', readerLang: 'he' }), 'he');
+  assert.equal(summaryLanguage({ note: hebrewNote, replies: hebrewReplies, mode: 'catchup', readerLang: 'en' }), 'en');
+  // The stored summary is everyone's: the reader's language does not decide it.
+  assert.equal(summaryLanguage({ note: englishNote, replies: [reply()], mode: 'thread', readerLang: 'he' }), 'en');
+  assert.match(SYSTEM_PROMPT, /language the request asks for/);
+});
