@@ -129,10 +129,10 @@ test.describe('Phone home — the feed', () => {
     const links = shelf.locator('.continue-card');
     await expect(links).toHaveCount(2);
     await expect(links.first().locator('strong')).toHaveText('Bechoros 10');
-    // Opens in Split (the default viewing mode) at the time reached.
+    // Opens the shiur's own page, in Split (the default viewing mode) at the time reached.
     const href = new URL(await links.first().getAttribute('href'), 'http://x');
-    expect(href.pathname).toBe('/player/');
-    expect(href.searchParams.get('ref')).toBe('Bekhorot 10a');
+    expect(href.pathname).toBe('/bechoros/10/stefansky/');
+    expect(href.searchParams.has('ref')).toBe(false);
     expect(href.searchParams.get('mode')).toBe('split');
     expect(href.searchParams.get('t')).toBe('600');
     await expect(links.first().locator('.continue-progress span')).toHaveAttribute('style', 'width:25.0%');

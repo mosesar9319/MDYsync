@@ -10,6 +10,7 @@ import {
   config, parseRoute, shiurimFromCatalog, masechtaPage, dafPage, shiurPage, sitemap, handle,
   playerUrl, shiurPath, resetCatalogCache, mdyPoster, shiurPictures,
   mediaObject, isoDuration, withListDetails, homePage, HOME_MARKER,
+  parsePlayerRef, shiurForPlayer, shiurAddressFor,
 } from '../../netlify/functions/seo-pages.mjs';
 import { MASECHTOS, MASECHTA_SLUGS, masechtaBySlug, hebrewNumeral, otherSpellings } from '../../shared/masechtos.mjs';
 
@@ -37,7 +38,7 @@ const SHIURIM = shiurimFromCatalog(CATALOG);
 const BECHOROS = masechtaBySlug('bechoros');
 
 test('every masechta has an address, and the home page links with the same slugs', () => {
-  const expected = ['/'].concat(MASECHTOS.flatMap((m) => [`/${m.slug}`, `/${m.slug}/*`]), '/sitemap.xml');
+  const expected = ['/', '/player/'].concat(MASECHTOS.flatMap((m) => [`/${m.slug}`, `/${m.slug}/*`]), '/sitemap.xml');
   assert.deepEqual(config.path, expected);
   const home = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const table = JSON.parse(`{${/const MASECHTA_SLUGS = \{([^}]*)\};/.exec(home)[1]}}`);
@@ -309,6 +310,80 @@ test('the handler: pages, the sitemap, slashes, and addresses that name nothing'
     assert.equal(missing.headers.get('Location'), 'https://dafsync.com/bechoros/58/');
     assert.equal(asked.filter((u) => u.includes('catalog.json')).length, 1);   // cached between requests
     assert.ok(asked.every((u) => !u.includes('googleapis')));                // no key, no YouTube calls
+  });
+});
+
+test('a player ref is read as the player reads it', () => {
+  assert.deepEqual(
+    (({ masechta, ...rest }) => ({ slug: masechta.slug, ...rest }))(parsePlayerRef('Arakhin 3b (Chazarah Daf) (Bornstein)')),
+    { slug: 'eruchin', daf: 3, amud: 'b', variant: 'chazarah', language: '', maggidId: 'bornstein' },
+  );
+  assert.equal(parsePlayerRef('bechoros 58').masechta, BECHOROS);
+  assert.equal(parsePlayerRef('Bekhorot 58a:4').amud, 'a');
+  assert.equal(parsePlayerRef('Eruchin 2a').masechta.slug, 'eruchin');
+  assert.equal(parsePlayerRef('Bava Basra 2a').masechta.slug, 'bava-basra');
+  assert.equal(parsePlayerRef('Nothing 2a'), null);
+  assert.equal(parsePlayerRef(''), null);
+});
+
+test('a player address names the shiur it plays, and where that shiur now lives', () => {
+  const find = (query) => shiurForPlayer(new URLSearchParams(query), SHIURIM);
+  assert.equal(find('ref=Bekhorot+58a').videoId, '0n7fE-jS0NE');
+  assert.equal(find('ref=Bekhorot+58a&variant=chazarah').videoId, 'CCCCCCCCCC1');
+  assert.equal(find('ref=Bekhorot+58a+(Chazarah+Daf)').videoId, 'CCCCCCCCCC1');
+  assert.equal(find('ref=Bekhorot+58a&maggid=bornstein').videoId, 'TWCiP96dKXU');
+  assert.equal(find('ref=Bekhorot+58a+(Bornstein)').videoId, 'TWCiP96dKXU');
+  assert.equal(find('ref=Bekhorot+58a&language=hebrew'), null);       // only live, so not in the catalog
+  assert.equal(find('ref=Bekhorot+12a'), null);
+  assert.equal(find('mode=split'), null);
+  const at = (query) => shiurAddressFor(find(query), new URLSearchParams(query));
+  assert.equal(at('ref=Bekhorot+58a&maggid=bornstein'), '/bechoros/58/bornstein/');
+  assert.equal(at('ref=Bekhorot+58a&mode=split&t=95'), '/bechoros/58/stefansky/?mode=split&t=95');
+  assert.equal(at('ref=Bekhorot+58b&variant=chazarah'), '/bechoros/58/stefansky/chazarah/?ref=Bekhorot+58b');
+  assert.equal(at('ref=Bekhorot+58'), '/bechoros/58/stefansky/');
+});
+
+test('a shiur page keeps the rest of its address on the player address it moves to', () => {
+  const shiur = SHIURIM.find((s) => s.videoId === '0n7fE-jS0NE');
+  assert.equal(playerUrl(shiur, 'split', new URLSearchParams('t=95&hlRef=Bekhorot+58a:3&mode=standard&maggid=bornstein')),
+    '/player/?ref=Bekhorot+58a&mode=split&t=95&hlRef=Bekhorot+58a%3A3');
+  assert.equal(playerUrl(shiur, 'split', new URLSearchParams('ref=Bekhorot+58b')), '/player/?ref=Bekhorot+58b&mode=split');
+  // Never another daf under this shiur's page.
+  assert.equal(playerUrl(shiur, 'split', new URLSearchParams('ref=Chullin+5a')), '/player/?ref=Bekhorot+58a&mode=split');
+});
+
+test('the handler: a player address goes to its shiur page; anything else is the player', async () => {
+  await withFetch(ROUTES, async (asked) => {
+    const get = (p) => handle(new Request(`https://dafsync.com${p}`), {});
+    const moved = await get('/player/?ref=Bekhorot+58a&maggid=bornstein&mode=split&t=40');
+    assert.equal(moved.status, 301);
+    assert.equal(moved.headers.get('Location'), '/bechoros/58/bornstein/?mode=split&t=40');
+    assert.equal(moved.headers.get('Netlify-Vary'), 'query');
+    // The page it lands on hands the player everything the old address said.
+    const page = await get('/bechoros/58/bornstein/?mode=split&t=40');
+    assert.equal(page.status, 200);
+    assert.match(page.headers.get('Permissions-Policy'), /camera=\(self\)/);
+    assert.match(await page.text(), /"\/player\/\?ref=Bekhorot\+58a&maggid=bornstein&mode=split&t=40"/);
+    for (const query of ['?ref=Bekhorot+12a', '?view=scan&ref=Bekhorot+58a', '', '?ref=Bekhorot+58a&language=hebrew']) {
+      const res = await get(`/player/${query}`);
+      assert.equal(res.status, 200, query);
+      assert.equal(await res.text(), PLAYER_HTML, query);
+      assert.match(res.headers.get('Cache-Control'), /max-age=0/);
+      assert.match(res.headers.get('Permissions-Policy'), /camera=\(self\)/);
+    }
+    assert.ok(asked.every((u) => !u.includes('googleapis')));
+  });
+  // The catalog is down: the player as it is.
+  await withFetch([['catalog.json', () => new Response('', { status: 500 })], ROUTES[2]], async () => {
+    const res = await handle(new Request('https://dafsync.com/player/?ref=Bekhorot+58a'), {});
+    assert.equal(res.status, 200);
+    assert.equal(await res.text(), PLAYER_HTML);
+  });
+  // The player page cannot be read from here: the browser is sent to the file.
+  await withFetch([ROUTES[0]], async () => {
+    const res = await handle(new Request('https://dafsync.com/player/?ref=Bekhorot+12a'), {});
+    assert.equal(res.status, 302);
+    assert.equal(res.headers.get('Location'), 'https://dafsync.com/player/index.html?ref=Bekhorot+12a');
   });
 });
 
