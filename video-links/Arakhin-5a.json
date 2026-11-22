@@ -1,32 +1,13 @@
 {
   "type": "youtube",
-  "url": "https://www.youtube.com/watch?v=bcbn2RX-6jw",
-  "videoId": "bcbn2RX-6jw",
-  "label": "Daf Yomi Arachin Daf 05 by R’ Eli Stefansky (unedited)",
+  "url": "https://www.youtube.com/watch?v=f3J8NIlL5PM",
+  "videoId": "f3J8NIlL5PM",
+  "label": "Daf Yomi Arachin Daf 5 by R' Eli Stefansky",
   "coveredRefs": [
+    "Arakhin 4b",
     "Arakhin 5a",
     "Arakhin 5b"
   ],
-  "source": "live-auto",
-  "liveBroadcast": true,
-  "liveStatus": "finished",
-  "durationSeconds": 4349,
-  "actualStartTime": "2026-11-22T05:10:00Z",
-  "actualEndTime": "2026-11-22T06:22:29Z",
-  "locked": false,
-  "lengthCheck": {
-    "seconds": 4349,
-    "firstSeenAt": "2026-11-22T06:24:46.905Z"
-  },
-  "alignmentDispatchedAt": "2026-11-22T06:35:12.655Z",
-  "pendingEdit": {
-    "videoId": "f3J8NIlL5PM",
-    "label": "Daf Yomi Arachin Daf 5 by R' Eli Stefansky",
-    "coveredRefs": [
-      "Arakhin 4b",
-      "Arakhin 5a",
-      "Arakhin 5b"
-    ],
-    "dispatchedAt": "2026-11-22T11:01:03.446Z"
-  }
+  "source": "channel-auto",
+  "locked": false
 }
