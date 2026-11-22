@@ -4917,8 +4917,14 @@ body.audio-bar-up { padding-bottom: var(--audio-bar-room, 0px); }
   box-shadow: 0 10px 30px rgba(0,0,0,.35);
 }
 .switch-back-chip[hidden] { display: none; }
+/* Inside a fullscreen player: above its controls. */
+.switch-back-chip.in-fullscreen { bottom: 104px; z-index: 2147483000; }
 /* A message shows above the chip, not under it. */
 body.switch-back-up .toast { bottom: var(--switch-back-top, 24px); }
+/* Split view fills the screen above everything else (z-index 500): the chip,
+   and what a switch says, show over it. */
+body.split-view-active .switch-back-chip { z-index: 520; }
+body.split-view-active.switch-back-up .toast { z-index: 521; }
 .switch-back-go { display: inline-flex; align-items: center; gap: 7px; min-width: 0; height: 38px; padding: 0 6px 0 14px; border: 0; background: none; color: inherit; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
 .switch-back-go svg { width: 17px; height: 17px; flex: none; }
 .switch-back-go span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
