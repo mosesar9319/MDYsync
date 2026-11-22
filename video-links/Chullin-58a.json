@@ -1,11 +1,8 @@
 {
   "label": "Daf Yomi Chullin Daf 58 by R' Eli Stefansky",
+  "locked": false,
+  "source": "manual",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=Ik9M50STIfk",
-  "videoId": "Ik9M50STIfk",
-  "coveredRefs": [
-    "Chullin 57b",
-    "Chullin 58a",
-    "Chullin 58b"
-  ]
+  "videoId": "Ik9M50STIfk"
 }
