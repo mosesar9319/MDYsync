@@ -1,1 +1,8 @@
-{"type":"youtube","url":"https://www.youtube.com/watch?v=vuF7Jg6AsqI","videoId":"vuF7Jg6AsqI","label":"מרכז דף יומי - בכורות דף כד. - ר' אלי סטפנסקי שליט\"א","coveredRefs":["Bekhorot 23b","Bekhorot 24a","Bekhorot 24b"],"source":"channel-auto"}
+{
+  "label": "מרכז דף יומי - בכורות דף כד. - ר' אלי סטפנסקי שליט\"א",
+  "locked": false,
+  "source": "manual",
+  "type": "youtube",
+  "url": "https://www.youtube.com/watch?v=vuF7Jg6AsqI",
+  "videoId": "vuF7Jg6AsqI"
+}
