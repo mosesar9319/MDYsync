@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-22T03:15:17.342Z",
+  "generatedAt": "2026-11-22T05:10:16.762Z",
   "tractates": {
     "Arakhin": [
       {
@@ -84,6 +84,13 @@
           "liveBroadcast": true,
           "liveStatus": "finished",
           "durationSeconds": 5545
+        },
+        "regularEn": {
+          "videoId": "bcbn2RX-6jw",
+          "label": "Daf Yomi Arachin Daf 05 by R’ Eli Stefansky (unedited)",
+          "amud": "a",
+          "liveBroadcast": true,
+          "liveStatus": "live"
         }
       }
     ],
