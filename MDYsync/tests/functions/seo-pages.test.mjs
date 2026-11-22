@@ -357,7 +357,7 @@ test('the handler: a player address goes to its shiur page; anything else is the
     const get = (p) => handle(new Request(`https://dafsync.com${p}`), {});
     const moved = await get('/player/?ref=Bekhorot+58a&maggid=bornstein&mode=split&t=40');
     assert.equal(moved.status, 301);
-    assert.equal(moved.headers.get('Location'), 'https://dafsync.com/bechoros/58/bornstein/?mode=split&t=40');
+    assert.equal(moved.headers.get('Location'), '/bechoros/58/bornstein/?mode=split&t=40');
     assert.equal(moved.headers.get('Netlify-Vary'), 'query');
     // The page it lands on hands the player everything the old address said.
     const page = await get('/bechoros/58/bornstein/?mode=split&t=40');
