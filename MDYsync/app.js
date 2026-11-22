@@ -1763,18 +1763,20 @@ function displayRef(ref) {
   if (READER_HE) return I18N.refName(String(ref || ''));
   return String(ref || '').replace(/^([A-Za-z][A-Za-z ]*?)(?=\s+\d)/, (name) => displayTractate(name));
 }
-// The shiur's title as the reader sees it: its own title, except that in
-// Hebrew a title in English letters gives way to the daf's Hebrew name.
-function readerTitle(label, ref = state.dafRef) {
-  if (READER_HE && !/[\u0590-\u05FF]/.test(String(label || '')) && ref) {
-    const parsed = parseDafRef(ref);
-    const daf = parsed && I18N.dafHebrew(parsed.tractate, parsed.daf, '');
-    if (daf) {
-      const title = `${I18N.masechtaHebrew(parsed.tractate)} דף ${I18N.hebrewNumeral(parsed.daf)}`;
-      return parsed.variant === 'chazarah' ? `חזרה – ${title}` : title;
-    }
+// A shiur's own title is shown as its maggid wrote it, in whatever language
+// that is, on the Hebrew site too: translate="no" keeps i18n.js from turning
+// a title such as "Eruchin 5" into Hebrew. Only the page's own words are
+// translated. With no title of its own, the daf's name stands in for one.
+function showShiurTitle(label, fallback = '') {
+  const el = $('lectureTitle');
+  if (!el) return;
+  if (label) {
+    el.setAttribute('translate', 'no');
+    el.textContent = label;
+  } else {
+    el.removeAttribute('translate');
+    el.textContent = fallback;
   }
-  return label;
 }
 
 function parseDafRef(ref) {
@@ -3280,7 +3282,7 @@ function renderVilnaUnmatchedWords() {
 function applyRealVideoTitle(ref) {
   const genericLabels = ['YouTube', 'Direct link'];
   const realLabel = state.videoSource?.label && !genericLabels.includes(state.videoSource.label) ? state.videoSource.label : null;
-  $('lectureTitle').textContent = readerTitle(realLabel, ref) || displayRef(realDafRef(ref));
+  showShiurTitle(realLabel, displayRef(realDafRef(ref)));
 }
 
 // The Daf browser's own in-page equivalent of tapScannedWord below --
@@ -10921,7 +10923,7 @@ function ensureAudioBar() {
     <div class="audio-bar-row">
       <img class="audio-bar-picture" id="audioBarPicture" alt="" />
       <div class="audio-bar-text">
-        <strong class="audio-bar-title" id="audioBarTitle"></strong>
+        <strong class="audio-bar-title" id="audioBarTitle" translate="no" dir="auto"></strong>
         <span class="audio-bar-time" id="audioBarTime">0:00</span>
       </div>
       <button type="button" class="audio-bar-button" id="audioBarBack" aria-label="Back 10 seconds" title="Back 10 seconds">
@@ -11296,7 +11298,7 @@ async function loadYouTubeVideo(url, videoId = extractYouTubeId(url), saveRefs =
   };
   state.currentProjectId = null;
   $('videoUrl').value = state.videoSource.url;
-  $('lectureTitle').textContent = readerTitle(label) || `YouTube lecture · ${videoId}`;
+  showShiurTitle(label, `YouTube lecture · ${videoId}`);
   setSourceBadge(liveBroadcast ? 'Live' : (lakewood ? 'Lakewood Daf Yomi' : (fromMdy ? 'MDY' : 'YouTube')));
   setSourcePanel('linkSourcePanel');
   refreshMdyChrome();
@@ -11355,7 +11357,7 @@ async function loadLakewoodShiur(source, saveRefs = null) {
   const label = source.label || 'Lakewood Daf Yomi';
   state.videoSource = { type: 'lakewood', videoId, url: shiur.lakewood?.url || source.url || '', label, locked: source.locked === true };
   state.currentProjectId = null;
-  $('lectureTitle').textContent = readerTitle(label);
+  showShiurTitle(label);
   setSourceBadge('Lakewood Daf Yomi');
   setSourcePanel('linkSourcePanel');
   refreshMdyChrome();

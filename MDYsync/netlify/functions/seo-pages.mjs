@@ -788,7 +788,7 @@ export function dafPageHe(masechta, daf, shiurim, { text = '', details = {}, pic
   const picture = (s) => (pictures.get(s.videoId)
     ? `src="${escapeHtml(resizedPicture(pictures.get(s.videoId), 320, 'webp', { absolute: false }))}"`
     : `src="${escapeHtml(youtubePicture(s, 'mq'))}"`);
-  const items = here.map((s) => `<li><a href="${hePath(shiurPath(s))}"><img ${picture(s)} alt="" loading="lazy" width="160" height="90"><span><strong>${escapeHtml(maggidNameHe(s.maggidId))}</strong><small>${escapeHtml([maggidChannelHe(s.maggidId), VARIANT_LABEL_HE[s.variant.segment]].filter(Boolean).join(' · '))}</small>${hasHebrew(s.label) ? `<br>${escapeHtml(s.label)}` : ''}</span></a></li>`).join('\n');
+  const items = here.map((s) => `<li><a href="${hePath(shiurPath(s))}"><img ${picture(s)} alt="" loading="lazy" width="160" height="90"><span><strong>${escapeHtml(maggidNameHe(s.maggidId))}</strong><small>${escapeHtml([maggidChannelHe(s.maggidId), VARIANT_LABEL_HE[s.variant.segment]].filter(Boolean).join(' · '))}</small>${s.label ? `<br><span dir="auto">${escapeHtml(s.label)}</span>` : ''}</span></a></li>`).join('\n');
   const ref = `${masechta.name} ${daf}a`;
   const body = `${crumbsHe([['DafSync', '/he/'], [name, hePath(masechtaPath(masechta))], [`דף ${hebrewNumeral(daf)}`, '']])}
 <h1>${escapeHtml(title)} <span class="he" lang="en" dir="ltr">${escapeHtml(dafName(masechta, daf))}</span></h1>

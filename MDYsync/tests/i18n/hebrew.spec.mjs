@@ -135,6 +135,25 @@ test.describe('Language', () => {
     await expect(page.locator('body')).toBeVisible();
   });
 
+  test('in Hebrew, a shiur keeps its own title: English titles stay English', async ({ page }) => {
+    await preparePage(page, { user: null });
+    const catalog = {
+      tractates: { Arakhin: [{ daf: 5, regularEn: { videoId: 'AAAAAAAAAA1', label: "Daf Yomi Arachin Daf 5 by R' Eli Stefansky", amud: 'a' }, regularHe: { videoId: 'AAAAAAAAAA2', label: 'ערכין דף ה', amud: 'a' } }] },
+      maggidim: { bornstein: { tractates: { Arakhin: [{ daf: 5, regularEn: { videoId: 'L0000000001', label: 'Eruchin 5', amud: 'a' } }] } } },
+    };
+    await page.route('**/api/get-catalog', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(catalog) }));
+    await page.route('https://i.ytimg.com/**', (route) => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg"/>' }));
+    await page.goto('/index.html?lang=he');
+    const titles = page.locator('.shiur-card strong [translate="no"]');
+    await expect(titles.first()).toBeAttached();
+    const all = await titles.allTextContents();
+    expect(all).toContain("Daf Yomi Arachin Daf 5 by R' Eli Stefansky");
+    expect(all).toContain('Eruchin 5');           // a title that is only a daf's name is not turned into ערכין ה
+    expect(all).toContain('ערכין דף ה');          // a Hebrew shiur's own title
+    // The rest of the card is in Hebrew.
+    expect(await page.locator('.shiur-card').first().textContent()).toMatch(/[\u0590-\u05FF]/);
+  });
+
   test('installed in Hebrew, the app is the same app with Hebrew shortcuts, opening on /he/', async ({ page, request }) => {
     await preparePage(page, { user: null });
     await page.goto('/index.html?lang=he');
