@@ -65,14 +65,32 @@ export function displayName(masechta) {
   return masechta.slug.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
+// Spellings people search a masechta by that neither its Sefaria name nor its
+// address gives: Ashkenazi ones that drop a vowel, and the Sephardi "H".
+const MORE_SPELLINGS = {
+  Arakhin: ['Erchin', 'Erkhin'],
+  Chullin: ['Chulin', 'Hullin'],
+  Keritot: ['Krisos'],
+  Meilah: ["Me'ilah"],
+  Temurah: ['Temura'],
+  Niddah: ['Nidah'],
+};
+
 // The other ways people spell it in a search: Sefaria's ("Bekhorot"), the
-// modern Israeli one ("Bechorot") and an older address's ("Arachin"), leaving
-// out any that equal the display name.
+// modern Israeli one ("Bechorot"), an older address's ("Arachin") and the
+// ones above, leaving out any that equal the display name.
 export function otherSpellings(masechta) {
   const shown = displayName(masechta);
   const israeli = masechta.name.replace(/kh/g, 'ch').replace(/Kh/g, 'Ch');
   const older = masechta.shasSlug ? displayName({ slug: masechta.shasSlug }) : null;
-  return [...new Set([masechta.name, israeli, older].filter(Boolean))].filter((s) => s !== shown);
+  return [...new Set([masechta.name, israeli, older, ...(MORE_SPELLINGS[masechta.name] || [])].filter(Boolean))]
+    .filter((s) => s !== shown);
+}
+
+// The amudim a daf has: "58a–58b", or "34a" for a masechta's last daf when
+// it ends on the first side.
+export function amudRange(masechta, daf) {
+  return daf === masechta.endDaf && masechta.endSide === 'a' ? `${daf}a` : `${daf}a–${daf}b`;
 }
 
 // Hebrew numerals as a daf is numbered: 58 -> נח, 15 -> טו, 16 -> טז.
