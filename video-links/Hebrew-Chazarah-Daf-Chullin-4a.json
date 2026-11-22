@@ -1,11 +1,8 @@
 {
   "label": "חזרה - חולין דף ד | \"רק הדף\" עם ר' אלי סטפנסקי",
+  "locked": false,
+  "source": "manual",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=MunDxwwtTTI",
-  "videoId": "MunDxwwtTTI",
-  "coveredRefs": [
-    "Chullin 3b",
-    "Chullin 4a",
-    "Chullin 4b"
-  ]
+  "videoId": "MunDxwwtTTI"
 }
