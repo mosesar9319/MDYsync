@@ -734,8 +734,11 @@ async function player(url, env) {
       // The catalog is down: the player as it is.
     }
     if (shiur) {
+      // Netlify puts the request's own query back on a Location that has none,
+      // so a bare "?" says there is none to carry.
+      const address = shiurAddressFor(shiur, url.searchParams);
       return new Response(null, {
-        status: 301, headers: { Location: `${url.origin}${shiurAddressFor(shiur, url.searchParams)}`, ...PLAYER_REDIRECT_HEADERS },
+        status: 301, headers: { Location: `${url.origin}${address.includes('?') ? address : `${address}?`}`, ...PLAYER_REDIRECT_HEADERS },
       });
     }
   }
