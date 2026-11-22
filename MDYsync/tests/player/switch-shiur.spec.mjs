@@ -361,4 +361,19 @@ test.describe('Switching to another shiur on the player page', () => {
     await expect.poll(() => loadedVideo(page)).toBe('AAAAAAAAAAA');
     await expect.poll(() => lastSeek(page)).toBe(75);
   });
+
+  test('an audio-only shiur leaves Split view, and the address still names it', async ({ page }) => {
+    await open(page, { path: '/player/?ref=Chullin%2091a', builtInViewerMode: 'split' });
+    await expect.poll(() => loadedVideo(page)).toBe('AAAAAAAAAAA');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+    await playedTo(page, 35);
+    await page.evaluate(() => window.dafSwitchShiur.open());
+    await page.locator('#switchShiurList .switch-shiur-row').nth(1).click();   // R' Bornstein
+    await expect.poll(() => loadedVideo(page)).toBe('L0000000091');
+    // Leaving Split goes back one step in the browser's history: the address
+    // there is made the new shiur's as well.
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).not.toBe('split');
+    await page.waitForTimeout(500);
+    await expect.poll(() => address(page)).toEqual({ ref: 'Chullin 91a', maggid: 'bornstein' });
+  });
 });

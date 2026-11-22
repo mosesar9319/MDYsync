@@ -14085,10 +14085,23 @@ function setPlayerAddress(choice, ref) {
   if (choice.variant === 'chazarah') url.searchParams.set('variant', 'chazarah');
   if (choice.language === 'he') url.searchParams.set('language', 'hebrew');
   if (choice.maggid) url.searchParams.set('maggid', choice.maggid);
-  try { history.replaceState(history.state, '', url.pathname + url.search + url.hash); } catch { /* keep the address */ }
+  const path = url.pathname + url.search;
+  state.switchAddress = { videoId: choice.videoId, path };
+  try { history.replaceState(history.state, '', path + url.hash); } catch { /* keep the address */ }
   const daf = (READER_HE && I18N.dafHebrew(parsed.tractate, parsed.daf, '')) || `${displayTractate(parsed.tractate)} ${parsed.daf}`;
   document.title = `${daf} · ${shiurChoiceLabel(choice)} | DafSync`;
 }
+
+// Leaving Split view steps back through the browser's history, to the entry
+// from before Split -- whose address is still the first shiur's (an audio-only
+// shiur leaves Split by itself, right after a switch). The shiur now playing
+// is named there too.
+window.addEventListener('popstate', () => {
+  const wanted = state.switchAddress;
+  if (!wanted || state.videoSource?.videoId !== wanted.videoId || !onPlayerPage()) return;
+  if (location.pathname + location.search === wanted.path) return;
+  try { history.replaceState(history.state, '', wanted.path + location.hash); } catch { /* keep the address */ }
+});
 
 function ensureSwitchShiurDialog() {
   let dialog = $('switchShiurDialog');
