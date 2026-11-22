@@ -96,7 +96,9 @@
   }
 
   function requestCatchup(noteId, sinceSequence) {
-    return post({ noteId, mode: 'catchup', sinceSequence });
+    // A catch-up is this reader's alone, so it is written in their language.
+    const lang = window.DafSyncI18n && window.DafSyncI18n.he ? 'he' : 'en';
+    return post({ noteId, mode: 'catchup', sinceSequence, lang });
   }
 
   // Errors the reader can do something about get their own wording; everything

@@ -100,7 +100,12 @@
       const { data, error } = await client.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: window.location.origin + window.location.pathname },
+        options: {
+          emailRedirectTo: window.location.origin + window.location.pathname,
+          // The confirmation email is written in this reader's language: the
+          // email template (supabase/email-templates/) reads it as .Data.lang.
+          data: { lang: window.DafSyncI18n && window.DafSyncI18n.he ? 'he' : 'en' },
+        },
       });
       if (error) throw error;
       return data;
