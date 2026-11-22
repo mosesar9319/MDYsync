@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-22T11:25:16.033Z",
+  "generatedAt": "2026-11-22T17:01:10.741Z",
   "tractates": {
     "Arakhin": [
       {
@@ -89,6 +89,12 @@
           "videoId": "f3J8NIlL5PM",
           "label": "Daf Yomi Arachin Daf 5 by R' Eli Stefansky",
           "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "lyKTsner9JU",
+          "label": "חזרה - ערכין דף ה | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a",
+          "published": "2026-11-22T16:46:59+00:00"
         }
       }
     ],
