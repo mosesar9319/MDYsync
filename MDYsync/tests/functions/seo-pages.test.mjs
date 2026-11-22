@@ -11,6 +11,7 @@ import {
   playerUrl, shiurPath, resetCatalogCache, mdyPoster, shiurPictures,
   mediaObject, isoDuration, withListDetails, homePage, HOME_MARKER,
   maggidPage, maggidMasechtaPage, parsePlayerRef, shiurForPlayer, shiurAddressFor,
+  masechtaPageHe, dafPageHe, maggidPageHe, maggidMasechtaPageHe, homeHeadHe,
 } from '../../netlify/functions/seo-pages.mjs';
 import { MASECHTOS, MASECHTA_SLUGS, masechtaBySlug, hebrewNumeral, otherSpellings, amudRange } from '../../shared/masechtos.mjs';
 import { MAGGIDIM } from '../../shared/maggidim.mjs';
@@ -40,7 +41,7 @@ const BECHOROS = masechtaBySlug('bechoros');
 
 test('every masechta has an address, and the home page links with the same slugs', () => {
   const expected = ['/', '/player/'].concat(MASECHTOS.flatMap((m) => [`/${m.slug}`, `/${m.slug}/*`]),
-    MAGGIDIM.flatMap((m) => [`/${m.id}`, `/${m.id}/*`]), '/sitemap.xml');
+    MAGGIDIM.flatMap((m) => [`/${m.id}`, `/${m.id}/*`]), '/he', '/he/*', '/sitemap.xml');
   assert.deepEqual(config.path, expected);
   const home = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const table = JSON.parse(`{${/const MASECHTA_SLUGS = \{([^}]*)\};/.exec(home)[1]}}`);
@@ -249,12 +250,81 @@ test('the handler: a maggid\u2019s pages, and none for a masechta he has no shiu
   });
 });
 
+test('Hebrew addresses: every page has a twin under /he/', () => {
+  assert.deepEqual(parseRoute('/he/'), { kind: 'home', lang: 'he' });
+  const daf = parseRoute('/he/bechoros/58/');
+  assert.equal(daf.kind, 'daf');
+  assert.equal(daf.lang, 'he');
+  assert.equal(parseRoute('/he/bechoros/58/bornstein/').lang, 'he');
+  assert.equal(parseRoute('/he/bornstein/').kind, 'maggid');
+  assert.equal(parseRoute('/he/sitemap.xml'), null);
+  assert.equal(parseRoute('/he/player/'), null);
+  assert.equal(parseRoute('/he/nothing/'), null);
+  assert.equal(parseRoute('/bechoros/58/').lang, undefined);
+});
+
+test('the Hebrew pages: Hebrew titles and names, right to left, links that stay in Hebrew', () => {
+  const daf = dafPageHe(BECHOROS, 58, SHIURIM, { text: 'אמר רב' });
+  assert.match(daf, /<html lang="he" dir="rtl">/);
+  assert.match(daf, /<title>בכורות דף נח – שיעורי דף יומי עם הגמרא מסונכרנת \| DafSync<\/title>/);
+  assert.match(daf, /<link rel="canonical" href="https:\/\/dafsync.com\/he\/bechoros\/58\/">/);
+  assert.match(daf, /<link rel="alternate" hreflang="en" href="https:\/\/dafsync.com\/bechoros\/58\/">/);
+  assert.match(daf, /<link rel="alternate" hreflang="he" href="https:\/\/dafsync.com\/he\/bechoros\/58\/">/);
+  assert.match(daf, /<link rel="alternate" hreflang="x-default" href="https:\/\/dafsync.com\/bechoros\/58\/">/);
+  assert.match(daf, /מאת הרב אלי סטפנסקי והרב שרולי בורנשטיין/);
+  assert.match(daf, /<a class="lang" href="\/bechoros\/58\/" lang="en">English<\/a>/);
+  for (const href of ['/he/bechoros/58/stefansky/', '/he/bechoros/58/stefansky/chazarah/', '/he/bechoros/58/bornstein/', '/he/bechoros/57/', '/he/bechoros/']) {
+    assert.ok(daf.includes(`href="${href}"`), href);
+  }
+  assert.doesNotMatch(daf, /href="\/bechoros\/58\/stefansky\/"/);   // no English shiur links
+  assert.match(masechtaPageHe(BECHOROS, SHIURIM), /<title>מסכת בכורות – שיעורי דף יומי על כל דף, עם הגמרא מסונכרנת \| DafSync<\/title>/);
+  assert.match(maggidPageHe('bornstein', SHIURIM), /<title>הרב שרולי בורנשטיין – שיעורי דף יומי \| דף יומי לייקווד \| DafSync<\/title>/);
+  assert.match(maggidPageHe('stefansky', SHIURIM), /הרב אלי סטפנסקי ממרכז דף יומי מוסר שיעור דף יומי/);
+  assert.match(maggidMasechtaPageHe('stefansky', BECHOROS, SHIURIM), /<title>מסכת בכורות עם הרב אלי סטפנסקי – כל הדפים \| DafSync<\/title>/);
+  // The English page points to its Hebrew twin.
+  const english = dafPage(BECHOROS, 58, SHIURIM);
+  assert.match(english, /<html lang="en" dir="ltr">/);
+  assert.match(english, /<a class="lang" href="\/he\/bechoros\/58\/" lang="he">עברית<\/a>/);
+  assert.match(english, /hreflang="he" href="https:\/\/dafsync.com\/he\/bechoros\/58\/"/);
+});
+
+test('the Hebrew shiur page: Hebrew head, and the player told to stay in Hebrew', () => {
+  const shiur = SHIURIM.find((s) => s.videoId === 'TWCiP96dKXU');
+  const html = shiurPage(PLAYER_HTML, shiur, { lang: 'he' });
+  const head = html.slice(0, html.indexOf('</head>'));
+  assert.match(html, /<html lang="he" dir="rtl">/);
+  assert.match(head, /<title>בכורות דף נח – שיעור דף יומי עם הרב שרולי בורנשטיין \| DafSync<\/title>/);
+  assert.match(head, /<link rel="canonical" href="https:\/\/dafsync.com\/he\/bechoros\/58\/bornstein\/">/);
+  assert.match(head, /hreflang="en" href="https:\/\/dafsync.com\/bechoros\/58\/bornstein\/"/);
+  assert.match(head, /"\/player\/\?ref=Bekhorot\+58a&maggid=bornstein&mode=split&lang=he"/);
+  assert.match(html, /<h1 id="lectureTitle">בכורות דף נח — הרב שרולי בורנשטיין<\/h1>/);
+  // A Hebrew reader's old player link goes to the Hebrew page.
+  assert.equal(shiurAddressFor(shiur, new URLSearchParams('ref=Bekhorot+58a&maggid=bornstein&lang=he&t=5')), '/he/bechoros/58/bornstein/?t=5');
+});
+
+test('the Hebrew home page: index.html in Hebrew, its links inside /he/', () => {
+  const head = homeHeadHe(HOME_HTML);
+  assert.match(head, /<html lang="he" dir="rtl">/);
+  assert.match(head, /<title>DafSync – שיעורי דף יומי עם הדף מסונכרן לשיעור<\/title>/);
+  assert.match(head, /<link rel="canonical" href="https:\/\/dafsync.com\/he\/">/);
+  assert.match(HOME_HTML, /hreflang="he" href="https:\/\/dafsync.com\/he\/"/);
+  const html = homePage(head, SHIURIM, 'he');
+  const section = /<section class="site-index"[\s\S]*?<\/section>/.exec(html)[0];
+  assert.match(section, /לפי מסכת/);
+  const links = [...section.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(links.length > 3 && links.every((href) => href.startsWith('/he/')), links.join(' '));
+});
+
 test('the sitemap lists the home page and every masechta, daf and shiur page', () => {
   const xml = sitemap(SHIURIM);
   const locs = [...xml.matchAll(/<loc>(.*?)<\/loc>/g)].map((m) => m[1].replace('https://dafsync.com', ''));
   assert.deepEqual(locs, ['/', '/browse/', '/chaburah/', '/bechoros/', '/bechoros/57/', '/bechoros/57/stefansky/',
     '/bechoros/58/', '/bechoros/58/stefansky/', '/bechoros/58/stefansky/chazarah/', '/bechoros/58/bornstein/',
-    '/stefansky/', '/stefansky/bechoros/', '/bornstein/', '/bornstein/bechoros/']);
+    '/stefansky/', '/stefansky/bechoros/', '/bornstein/', '/bornstein/bechoros/',
+    // Every page again in Hebrew, but the site's own tools.
+    '/he/', '/he/bechoros/', '/he/bechoros/57/', '/he/bechoros/57/stefansky/', '/he/bechoros/58/', '/he/bechoros/58/stefansky/',
+    '/he/bechoros/58/stefansky/chazarah/', '/he/bechoros/58/bornstein/', '/he/stefansky/', '/he/stefansky/bechoros/',
+    '/he/bornstein/', '/he/bornstein/bechoros/']);
   // No shiur has a date: no page claims one (and never today's).
   assert.doesNotMatch(xml, /<lastmod>/);
 });
@@ -458,6 +528,29 @@ test('the handler: a player address goes to its shiur page; anything else is the
     const res = await handle(new Request('https://dafsync.com/player/?ref=Bekhorot+12a'), {});
     assert.equal(res.status, 302);
     assert.equal(res.headers.get('Location'), 'https://dafsync.com/player/index.html?ref=Bekhorot+12a');
+  });
+});
+
+test('the handler: the Hebrew pages are served, and stay Hebrew when they redirect', async () => {
+  const home = ['dafsync.com/index.html', () => new Response(HOME_HTML)];
+  await withFetch([...ROUTES, home], async () => {
+    const get = (p) => handle(new Request(`https://dafsync.com${p}`), {});
+    const daf = await get('/he/bechoros/58/');
+    assert.equal(daf.status, 200);
+    assert.match(await daf.text(), /<html lang="he" dir="rtl">/);
+    assert.equal((await get('/he/bornstein/')).status, 200);
+    assert.equal((await get('/he/bornstein/bechoros/')).status, 200);
+    assert.equal((await get('/he/bechoros/')).status, 200);
+    const shiur = await get('/he/bechoros/58/bornstein/');
+    assert.match(await shiur.text(), /lang=he/);
+    const missing = await get('/he/bechoros/58/bornstein/chazarah/');
+    assert.equal(missing.headers.get('Location'), 'https://dafsync.com/he/bechoros/58/');
+    const slashless = await get('/he');
+    assert.equal(slashless.headers.get('Location'), 'https://dafsync.com/he/');
+    const homePageHe = await get('/he/');
+    assert.equal(homePageHe.status, 200);
+    assert.match(await homePageHe.text(), /<link rel="canonical" href="https:\/\/dafsync.com\/he\/">/);
+    assert.equal((await get('/he/nothing/')).status, 404);
   });
 });
 

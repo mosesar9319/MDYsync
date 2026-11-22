@@ -14,6 +14,9 @@
   <link rel="icon" href="/assets/dafsync-mark.png" type="image/png">
   <title>DafSync — Daf Yomi Shiurim with the Daf Synced to the Video</title>
   <link rel="canonical" href="https://dafsync.com/">
+  <link rel="alternate" hreflang="en" href="https://dafsync.com/">
+  <link rel="alternate" hreflang="he" href="https://dafsync.com/he/">
+  <link rel="alternate" hreflang="x-default" href="https://dafsync.com/">
   <meta property="og:url" content="https://dafsync.com/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="DafSync">
@@ -2241,7 +2244,9 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       const segment = [entry.variant === "chazarah" ? "chazarah" : "", entry.language === "he" ? "hebrew" : ""].filter(Boolean).join("-");
       // No ?mode=: the page opens Split, and the player itself switches to the
       // reader's own default view when their account has one.
-      return `/${slug}/${entry.daf}/${entry.maggid || DEFAULT_MAGGID}/${segment ? `${segment}/` : ""}`;
+      // A Hebrew reader's links go to the Hebrew pages (/he/eruchin/4/bornstein/).
+      const he = window.DafSyncI18n && window.DafSyncI18n.he ? "/he" : "";
+      return `${he}/${slug}/${entry.daf}/${entry.maggid || DEFAULT_MAGGID}/${segment ? `${segment}/` : ""}`;
     }
 
     function playerUrl(entry) {
