@@ -1,11 +1,8 @@
 {
   "label": "חזרה - חולין דף ח | \"רק הדף\" עם ר' אלי סטפנסקי",
+  "locked": false,
+  "source": "manual",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=BFNSG-i33X4",
-  "videoId": "BFNSG-i33X4",
-  "coveredRefs": [
-    "Chullin 7b",
-    "Chullin 8a",
-    "Chullin 8b"
-  ]
+  "videoId": "BFNSG-i33X4"
 }
