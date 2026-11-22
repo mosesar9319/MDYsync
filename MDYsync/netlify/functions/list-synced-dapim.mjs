@@ -18,10 +18,14 @@
 // "chazarahHe", ...] } } -- a daf/amud only appears once its page data
 // exists and it has at least one synced combo; the combo-key names match
 // catalog.json's own scheme (regularEn/chazarahEn/regularHe/chazarahHe) so
-// the frontend doesn't need a second naming convention.
+// the frontend doesn't need a second naming convention. Another maggid's
+// sync (by-ref/Voice-Bornstein-Arakhin-4a.json) is listed in the same array
+// as "<maggid id>:<combo>" ("bornstein:regularEn"), so code that asks only
+// about Mercaz Daf Yomi's combos reads the list exactly as before.
 
 import { MASECHTA_HEBREW } from '../../shared/daf-header-vocabulary.mjs';
 import { parsePageKey, parseByRefKey } from '../../shared/daf-key-parsing.mjs';
+import { MAGGIDIM } from '../../shared/maggidim.mjs';
 
 const OWNER = 'mosesar9319';
 const REPO = 'MDYsync';
@@ -31,6 +35,25 @@ function comboKeyFor(variant, language) {
   const variantPart = variant === 'chazarah' ? 'chazarah' : 'regular';
   const languagePart = language === 'he' ? 'He' : 'En';
   return `${variantPart}${languagePart}`;
+}
+
+// One results/by-ref/ filename as { tractate, daf, amud, combo }, the combo
+// carrying the maggid's id when the sync is not Mercaz Daf Yomi's. The key is
+// [Voice-][<maggid's prefix>][Hebrew-][Chazarah-Daf-]<Tractate>-<daf><amud>.
+export function syncedEntry(filename, tractateNames = TRACTATE_NAMES) {
+  let base = filename.replace(/\.json$/, '').replace(/^Voice-/, '');
+  let maggidId = '';
+  for (const maggid of MAGGIDIM) {
+    if (maggid.keyPrefix && base.startsWith(maggid.keyPrefix)) {
+      maggidId = maggid.id;
+      base = base.slice(maggid.keyPrefix.length);
+      break;
+    }
+  }
+  const parsed = parseByRefKey(base, tractateNames);
+  if (!parsed) return null;
+  const combo = comboKeyFor(parsed.variant, parsed.language);
+  return { tractate: parsed.tractate, daf: parsed.daf, amud: parsed.amud, combo: maggidId ? `${maggidId}:${combo}` : combo };
 }
 
 export default async (request) => {
@@ -62,7 +85,7 @@ export default async (request) => {
   const synced = {};
   for (const item of entries) {
     if (item.type !== 'blob' || !item.path.startsWith('by-ref/') || !item.path.endsWith('.json')) continue;
-    const parsed = parseByRefKey(item.path.slice('by-ref/'.length), TRACTATE_NAMES);
+    const parsed = syncedEntry(item.path.slice('by-ref/'.length));
     if (!parsed) continue;
     // Alignment without the page's own word-position data still can't
     // support tap-to-seek -- only count combos where both exist.
@@ -71,8 +94,7 @@ export default async (request) => {
     const tractateEntry = synced[parsed.tractate] || (synced[parsed.tractate] = {});
     const dafAmud = `${parsed.daf}${parsed.amud}`;
     const combos = tractateEntry[dafAmud] || (tractateEntry[dafAmud] = []);
-    const comboKey = comboKeyFor(parsed.variant, parsed.language);
-    if (!combos.includes(comboKey)) combos.push(comboKey);
+    if (!combos.includes(parsed.combo)) combos.push(parsed.combo);
   }
 
   return Response.json(synced);

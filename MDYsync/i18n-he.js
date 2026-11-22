@@ -1182,4 +1182,11 @@ window.DafSyncI18n && window.DafSyncI18n.addWords({
   '← My kuntrasim': '→ הקונטרסים שלי',
   'Be the first to open a question or share a source on today’s daf.': 'אפשר להיות הראשונים לשאול או לשתף מקור על הדף היומי.',
   "Be the first to open a question or share a source on today's daf.": 'אפשר להיות הראשונים לשאול או לשתף מקור על הדף היומי.',
+  // ----- switching to another shiur of the daf --------------------------------
+  'Switch shiur': 'החלפת שיעור',
+  'Switch': 'החלפה',
+  'Picks up at the line being read.': 'ממשיך מהשורה שנקראת עכשיו.',
+  'Back to {shiur}': 'חזרה אל {shiur}',
+  'This shiur starts from its beginning.': 'השיעור הזה מתחיל מההתחלה.',
+  'This shiur does not read that line. It starts at the nearest earlier one.': 'השיעור הזה לא קורא את השורה הזו. הוא מתחיל מהשורה הקרובה שלפניה.',
 });

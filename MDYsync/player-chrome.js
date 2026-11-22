@@ -175,6 +175,7 @@
       <span class="player-daf-hebrew" id="playerDafHebrew" dir="rtl" lang="he"></span>
     </div>
     <div class="player-topbar-group player-topbar-actions">
+      <button class="player-chrome-button player-switch-button" id="playerSwitchButton" type="button" hidden>${window.dafSwitchShiur?.icon || ''}<span>Switch shiur</span></button>
       <button class="player-chrome-button" id="playerBookmarkButton" type="button" aria-pressed="false">${ICONS.bookmark}<span>Bookmark</span></button>
       <button class="player-chrome-button" id="playerNotesButton" type="button" ${hasNotes ? '' : 'hidden'}>${ICONS.notes}<span>Notes</span></button>
       <button class="player-chrome-button" id="playerMoreButton" type="button" aria-expanded="false">${ICONS.more}<span>More</span></button>
@@ -198,6 +199,14 @@
   const dafMenu = $('playerDafMenu');
   if (refField) dafMenu.appendChild(refField);
   else $('playerDafButton').disabled = true;
+
+  // Another shiur of the same daf, from the line this one is on (app.js keeps
+  // the button hidden until there is one to switch to).
+  $('playerSwitchButton').addEventListener('click', () => {
+    closeMenus();
+    window.dafSwitchShiur?.open();
+  });
+  window.dafSwitchShiur?.refresh();
 
   // "More" proxies to the page's existing overflow actions by clicking them,
   // so Share/How-it-works keep their own single implementation. Neither is on
