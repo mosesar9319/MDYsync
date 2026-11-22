@@ -1752,6 +1752,8 @@ const TRACTATE_DISPLAY_NAMES = { Arakhin: 'Eruchin' };
 const I18N = window.DafSyncI18n || null;
 const READER_HE = Boolean(I18N && I18N.he);
 const T = (text) => (I18N ? I18N.t(text) : text);
+// "Switch shiur" (two arrows), wherever a button for it is drawn.
+const SWITCH_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8h12m0 0-3.2-3.2M18 8l-3.2 3.2M18 16H6m0 0 3.2-3.2M6 16l3.2 3.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 function displayTractate(name) {
   if (READER_HE) {
     const hebrew = I18N.masechtaHebrew(name);
@@ -7094,6 +7096,7 @@ function applySplitViewLayoutToDom() {
   document.documentElement.style.setProperty('--split-video-ratio', ratio);
   document.body.classList.toggle('split-layout-stacked', state.splitViewEnabled && stacked);
   document.body.classList.toggle('split-video-at-end', state.splitViewEnabled && videoAtEnd);
+  placeSwitchBackChip();
   updateSplitViewToolbarUi();
   syncPhoneSplitTools();
 }
@@ -13696,7 +13699,7 @@ function setBookShiurListening(audio) {
   } else if (!audio && state.mdyPlayback?.quality === 'audio') {
     playMdyFile({ quality: mdyVideoQuality(), resumeAt, resume });
   }
-  document.body.classList.toggle('book-audio', Boolean(audio && state.mdyPlayback?.quality === 'audio'));
+  document.body.classList.toggle('book-audio', Boolean(state.browseMode && audio && state.mdyPlayback?.quality === 'audio'));
   updateAudioBar();
 }
 
@@ -13873,7 +13876,6 @@ function openBookShiurWindow(ref, wordIndex) {
 // reading: every sync times the same words of the same daf, so a line in one
 // shiur is a moment in another. A chip then offers the way back, to the very
 // second the first shiur was left at.
-const SWITCH_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8h12m0 0-3.2-3.2M18 8l-3.2 3.2M18 16H6m0 0 3.2-3.2M6 16l3.2 3.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 const isRealSegment = (segment) => Boolean(segment) && !segment.estimated && Number.isFinite(Number(segment.start));
 
@@ -13927,12 +13929,29 @@ function switchTarget(segments, line) {
   return { index: best, exact: false };
 }
 
+// The player page proper. A shiur's own page is served as it, its address
+// moved to the player's before anything runs (seo-pages.mjs).
+function onPlayerPage() {
+  return !state.browseMode && /^\/player\/?(?:index\.html)?$/.test(location.pathname);
+}
+
 // The shiur playing can be switched from: it is up, and synced (an unsynced
-// one has no line to pick up from).
+// one has no line to pick up from). On the Interactive Daf it is the shiur
+// brought up over the daf; on the player page, the shiur the page plays.
 function switchShiurAvailable() {
   if (!state.videoSource?.videoId || state.livePlainDaf || state.unsyncedDaf || state.liveFollow?.active) return false;
   if (state.alignmentStatus === 'placeholder' || state.videoSource.liveBroadcast) return false;
-  return state.browseMode && document.body.classList.contains('book-video-up') && Boolean(state.bookVideo?.synced);
+  if (state.browseMode) return document.body.classList.contains('book-video-up') && Boolean(state.bookVideo?.synced);
+  return onPlayerPage() && state.segments.some(isRealSegment);
+}
+
+// The player page learns which shiurim the daf has (the library's catalog and
+// the list of syncs) only once a shiur is playing: neither holds up the page.
+let switchShiurDataAsked = false;
+function loadSwitchShiurData() {
+  if (switchShiurDataAsked || !onPlayerPage() || !state.videoSource?.videoId) return;
+  switchShiurDataAsked = true;
+  Promise.all([ensureSyncedDapimLoaded(), ensureVideoCatalogLoaded()]).then(refreshSwitchShiur);
 }
 
 function switchShiurRef() {
@@ -13992,7 +14011,10 @@ async function switchToShiur(entry, back = null) {
   if (!parsed) return;
   switchingShiur = true;
   const from = currentShiurChoice();
-  const left = { time: readPlayerTime(), audio: state.mdyPlayback?.quality === 'audio' };
+  // Audio only is a choice with MDY's shiurim; R' Bornstein's have nothing
+  // else, so leaving one of his says nothing about how the reader listens.
+  if (!isLakewoodShiur(state.mdyShiur)) state.switchListening = state.mdyPlayback?.quality === 'audio';
+  const left = { time: readPlayerTime(), audio: Boolean(state.switchListening) };
   const line = back ? null : currentReadLine();
   const ref = `${parsed.tractate} ${parsed.daf}${entry.amud || parsed.amud}`;
   const audio = back ? back.audio : left.audio;
@@ -14002,11 +14024,13 @@ async function switchToShiur(entry, back = null) {
   const arrived = () => {
     switchingShiur = false;
     const there = state.videoSource?.videoId === entry.choice.videoId;
-    state.switchBack = !back && there && from ? { choice: from, amud: parsed.amud, time: left.time, audio: left.audio } : null;
+    state.switchBack = !back && there && from
+      ? { choice: from, amud: parsed.amud, time: left.time, audio: left.audio, to: entry.choice.videoId }
+      : null;
     refreshSwitchShiur();
   };
   try {
-    await watchShiurFromWord(entry.choice, ref, 0, {
+    await (state.browseMode ? watchShiurFromWord : loadShiurInPlace)(entry.choice, ref, 0, {
       audio,
       startAt: () => {
         if (back) {
@@ -14027,6 +14051,57 @@ async function switchToShiur(entry, back = null) {
     }
   }
 }
+
+// The player page: the shiur loads where the first one was, and the address
+// and the tab's name follow it, so a reload or a shared link opens the shiur
+// now playing.
+async function loadShiurInPlace(choice, ref, _wordIndex, { audio = false, startAt = null } = {}) {
+  const full = bookShiurRef(choice, ref);
+  if (!full) return;
+  try {
+    await loadDaf(full, { silent: true });
+  } catch (error) {
+    console.error(error);
+    showToast(`Could not load ${full}: ${error.message}`, 'error');
+    return;
+  }
+  if (state.videoSource?.videoId !== choice.videoId) return;
+  setPlayerAddress(choice, ref);
+  setBookShiurListening(audio);
+  const synced = state.alignmentStatus !== 'placeholder' && state.segments.some(isRealSegment);
+  if (synced && startAt) await startAt();
+  if (isPaused()) await togglePlay();
+}
+
+// The player's address for a shiur, as seo-pages.mjs writes it (playerUrl).
+// What the page was opened with stays (its language, say), but not a moment
+// in the shiur that was left.
+function setPlayerAddress(choice, ref) {
+  const parsed = parseDafRef(ref);
+  if (!parsed || !onPlayerPage()) return;
+  const url = new URL(window.location.href);
+  for (const key of ['variant', 'language', 'maggid', 't', 'seekWord']) url.searchParams.delete(key);
+  url.searchParams.set('ref', `${parsed.tractate} ${parsed.daf}${parsed.amud}`);
+  if (choice.variant === 'chazarah') url.searchParams.set('variant', 'chazarah');
+  if (choice.language === 'he') url.searchParams.set('language', 'hebrew');
+  if (choice.maggid) url.searchParams.set('maggid', choice.maggid);
+  const path = url.pathname + url.search;
+  state.switchAddress = { videoId: choice.videoId, path };
+  try { history.replaceState(history.state, '', path + url.hash); } catch { /* keep the address */ }
+  const daf = (READER_HE && I18N.dafHebrew(parsed.tractate, parsed.daf, '')) || `${displayTractate(parsed.tractate)} ${parsed.daf}`;
+  document.title = `${daf} · ${shiurChoiceLabel(choice)} | DafSync`;
+}
+
+// Leaving Split view steps back through the browser's history, to the entry
+// from before Split -- whose address is still the first shiur's (an audio-only
+// shiur leaves Split by itself, right after a switch). The shiur now playing
+// is named there too.
+window.addEventListener('popstate', () => {
+  const wanted = state.switchAddress;
+  if (!wanted || state.videoSource?.videoId !== wanted.videoId || !onPlayerPage()) return;
+  if (location.pathname + location.search === wanted.path) return;
+  try { history.replaceState(history.state, '', wanted.path + location.hash); } catch { /* keep the address */ }
+});
 
 function ensureSwitchShiurDialog() {
   let dialog = $('switchShiurDialog');
@@ -14128,24 +14203,41 @@ function ensureSwitchBackChip() {
 }
 
 // Above the phone's bottom navigation and the audio bar, whichever is up.
+// While the player fills the screen the chip goes inside it (nothing outside
+// a fullscreen element is drawn), above the player's own controls.
 function placeSwitchBackChip() {
   const chip = $('switchBackChip');
   // A message (toast) shows above the chip, not under it.
   document.body.classList.toggle('switch-back-up', !!chip && !chip.hidden);
   if (!chip || chip.hidden) return;
+  const full = document.fullscreenElement || document.webkitFullscreenElement || null;
+  const host = full && !/^(VIDEO|IFRAME)$/.test(full.tagName) ? full : document.body;
+  if (chip.parentElement !== host) host.appendChild(chip);
+  chip.classList.toggle('in-fullscreen', host !== document.body);
+  if (host !== document.body) {
+    chip.style.removeProperty('bottom');
+    return;
+  }
   const nav = document.querySelector('.mobile-nav');
   const navTop = nav && getComputedStyle(nav).display !== 'none' ? nav.getBoundingClientRect().top : window.innerHeight;
   const bar = $('audioBar');
   const barTop = bar && !bar.hidden ? bar.getBoundingClientRect().top : window.innerHeight;
-  const bottom = Math.round(window.innerHeight - Math.min(navTop, barTop) + 10);
+  let bottom = Math.round(window.innerHeight - Math.min(navTop, barTop) + 10);
+  // Split view: clear of the player's controls where they run along the
+  // bottom of the screen (side by side, or stacked with the video below).
+  const body = document.body.classList;
+  if (body.contains('split-view-active') && (!body.contains('split-layout-stacked') || body.contains('split-video-at-end'))) bottom = Math.max(bottom, 88);
   chip.style.bottom = `${bottom}px`;
   document.body.style.setProperty('--switch-back-top', `${bottom + Math.round(chip.getBoundingClientRect().height) + 8}px`);
 }
 window.addEventListener('resize', placeSwitchBackChip);
+document.addEventListener('fullscreenchange', placeSwitchBackChip);
+document.addEventListener('webkitfullscreenchange', placeSwitchBackChip);
 
 // Shows the Switch buttons while there is a shiur to switch to, and the way
 // back while there is one. Cheap: called whenever the shiur on screen changes.
 function refreshSwitchShiur() {
+  loadSwitchShiurData();
   const any = switchShiurChoices().length > 0;
   for (const id of ['playerSwitchButton', 'barSwitchButton', 'audioBarSwitch']) {
     const button = $(id);
@@ -14153,7 +14245,8 @@ function refreshSwitchShiur() {
   }
   document.body.classList.toggle('can-switch-shiur', any);
   // The shiur left is the way back only while its replacement is still up.
-  if (state.switchBack && !switchShiurAvailable()) state.switchBack = null;
+  // (Another shiur opened some other way -- the daf picker, say -- has none.)
+  if (state.switchBack && (!switchShiurAvailable() || state.switchBack.to !== state.videoSource?.videoId)) state.switchBack = null;
   const back = state.switchBack;
   if (!back && !$('switchBackChip')) return;
   const chip = ensureSwitchBackChip();

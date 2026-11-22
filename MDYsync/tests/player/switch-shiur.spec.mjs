@@ -100,7 +100,7 @@ async function open(page, options = {}) {
     if (path in ALIGNMENTS) return json(ALIGNMENTS[path]);
     return route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"Not found."}' });
   });
-  await page.goto('/browse/?ref=Chullin%2091a');
+  await page.goto(options.path || '/browse/?ref=Chullin%2091a');
   await expect.poll(() => page.evaluate(() => !!state.videoCatalog && !!state.syncedDapim)).toBe(true);
 }
 
@@ -300,5 +300,121 @@ test.describe('Switching to another shiur of the daf', () => {
     expect(out.earlier).toEqual({ index: 2, exact: false });
     expect(out.none).toEqual({ index: -1, exact: false });
     expect(out.noLine).toEqual({ index: -1, exact: false });
+  });
+});
+
+// The player page: the shiur it plays is switched in place, and the address
+// follows the shiur.
+test.describe('Switching to another shiur on the player page', () => {
+  const openPlayer = async (page, query = '') => {
+    await open(page, { path: `/player/?ref=Chullin%2091a${query}` });
+    await expect.poll(() => loadedVideo(page)).toBe('AAAAAAAAAAA');
+    await expect.poll(() => page.evaluate(() => state.segments.filter((s) => Number(s.start) >= 30).length)).toBeGreaterThanOrEqual(2);
+  };
+  const address = (page) => page.evaluate(() => Object.fromEntries(new URLSearchParams(location.search)));
+
+  test('the button lists the daf\'s other synced shiurim once the shiur is playing', async ({ page }) => {
+    await openPlayer(page);
+    await expect.poll(() => page.evaluate(() => document.getElementById('playerSwitchButton').hidden)).toBe(false);
+    expect(await page.evaluate(() => window.dafSwitchShiur.choices().map((e) => e.choice.videoId))).toEqual(['BBBBBBBBBBB', 'L0000000091']);
+    await page.evaluate(() => window.dafSwitchShiur.open());
+    await expect(page.locator('#switchShiurList .switch-shiur-row')).toHaveCount(2);
+    await expect(page.locator('#switchShiurDialogTitle')).toHaveText('Chullin 91');
+  });
+
+  test('a computer has the button on the bottom bar, a phone in the top bar; the mini player has it on its bar', async ({ page }, testInfo) => {
+    await openPlayer(page);
+    await expect.poll(() => page.evaluate(() => document.getElementById('playerSwitchButton').hidden)).toBe(false);
+    const shown = () => page.evaluate(() => ({
+      bar: document.getElementById('barSwitchButton').offsetWidth > 0,
+      top: document.getElementById('playerSwitchButton').offsetWidth > 0,
+    }));
+    await expect.poll(shown).toEqual(testInfo.project.name === 'desktop' ? { bar: true, top: false } : { bar: false, top: true });
+    // Video on daf: the mini player has no top bar, so its bar has the button on any screen.
+    await page.evaluate(() => setViewerMode('video-on-daf'));
+    await expect.poll(() => page.evaluate(() => {
+      const button = document.getElementById('barSwitchButton');
+      return button.offsetWidth > 0 && Boolean(button.closest('.pc-tools'));
+    })).toBe(true);
+    await page.evaluate(() => document.getElementById('barSwitchButton').click());
+    await expect(page.locator('#switchShiurList .switch-shiur-row')).toHaveCount(2);
+  });
+
+  test('the new shiur starts at the line being read, the address follows it, and the chip goes back', async ({ page }) => {
+    await openPlayer(page, '&t=75');
+    await playedTo(page, 75);
+    await page.evaluate(() => window.dafSwitchShiur.open());
+    await page.locator('#switchShiurList .switch-shiur-row').nth(0).click();   // Hebrew
+    await expect.poll(() => loadedVideo(page)).toBe('BBBBBBBBBBB');
+    await expect.poll(() => lastSeek(page)).toBe(199.6);
+    // A reload, or the address shared, opens the Hebrew shiur -- and not at the old shiur's moment.
+    await expect.poll(() => address(page)).toEqual({ ref: 'Chullin 91a', language: 'hebrew' });
+    expect(await page.title()).toBe("Chullin 91 · R' Eli Stefansky · Hebrew | DafSync");
+    await expect(page.locator('#switchBackLabel')).toHaveText("Back to R' Eli Stefansky · English");
+    expect(await page.evaluate(() => window.dafSwitchShiur.choices().map((e) => e.choice.videoId))).toEqual(['AAAAAAAAAAA', 'L0000000091']);
+
+    await page.locator('#switchBackGo').click();
+    await expect.poll(() => loadedVideo(page)).toBe('AAAAAAAAAAA');
+    await expect.poll(() => lastSeek(page)).toBe(75);
+    await expect.poll(() => address(page)).toEqual({ ref: 'Chullin 91a' });
+    await expect(page.locator('#switchBackChip')).toBeHidden();
+  });
+
+  test('another maggid\'s shiur is named in the address', async ({ page }) => {
+    await openPlayer(page);
+    await playedTo(page, 35);
+    await page.evaluate(() => window.dafSwitchShiur.open());
+    await page.locator('#switchShiurList .switch-shiur-row').nth(1).click();   // R' Bornstein
+    await expect.poll(() => loadedVideo(page)).toBe('L0000000091');
+    await expect.poll(() => address(page)).toEqual({ ref: 'Chullin 91a', maggid: 'bornstein' });
+    await expect.poll(() => page.evaluate(() => Math.round((state.lastObservedTime || 0) * 10) / 10)).toBe(14.6);
+    await expect(page.locator('#switchBackChip')).toBeVisible();
+  });
+
+  test('the way back is gone once another shiur is opened some other way', async ({ page }) => {
+    await openPlayer(page);
+    await playedTo(page, 35);
+    await page.evaluate(() => window.dafSwitchShiur.open());
+    await page.locator('#switchShiurList .switch-shiur-row').nth(0).click();   // Hebrew
+    await expect(page.locator('#switchBackChip')).toBeVisible();
+    // The reader loads the English shiur from the page's own controls.
+    await page.evaluate(() => loadDaf('Chullin 91a'));
+    await expect.poll(() => loadedVideo(page)).toBe('AAAAAAAAAAA');
+    await expect(page.locator('#switchBackChip')).toBeHidden();
+  });
+
+  test('in Split view the button is there and the chip shows over the split screen', async ({ page }) => {
+    await open(page, { path: '/player/?ref=Chullin%2091a', builtInViewerMode: 'split' });
+    await expect.poll(() => loadedVideo(page)).toBe('AAAAAAAAAAA');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+    await expect.poll(() => page.evaluate(() => document.getElementById('playerSwitchButton').hidden)).toBe(false);
+    await playedTo(page, 75);
+    await page.evaluate(() => window.dafSwitchShiur.open());
+    await page.locator('#switchShiurList .switch-shiur-row').nth(0).click();   // Hebrew
+    await expect.poll(() => loadedVideo(page)).toBe('BBBBBBBBBBB');
+    await expect(page.locator('#switchBackChip')).toBeVisible();
+    // Split fills the screen above the page: the chip is drawn over it, and can be tapped.
+    await expect.poll(() => page.evaluate(() => {
+      const r = document.getElementById('switchBackGo').getBoundingClientRect();
+      return Boolean(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest('#switchBackChip'));
+    })).toBe(true);
+    await page.locator('#switchBackGo').click();
+    await expect.poll(() => loadedVideo(page)).toBe('AAAAAAAAAAA');
+    await expect.poll(() => lastSeek(page)).toBe(75);
+  });
+
+  test('an audio-only shiur leaves Split view, and the address still names it', async ({ page }) => {
+    await open(page, { path: '/player/?ref=Chullin%2091a', builtInViewerMode: 'split' });
+    await expect.poll(() => loadedVideo(page)).toBe('AAAAAAAAAAA');
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).toBe('split');
+    await playedTo(page, 35);
+    await page.evaluate(() => window.dafSwitchShiur.open());
+    await page.locator('#switchShiurList .switch-shiur-row').nth(1).click();   // R' Bornstein
+    await expect.poll(() => loadedVideo(page)).toBe('L0000000091');
+    // Leaving Split goes back one step in the browser's history: the address
+    // there is made the new shiur's as well.
+    await expect.poll(() => page.evaluate(() => state.viewerMode)).not.toBe('split');
+    await page.waitForTimeout(500);
+    await expect.poll(() => address(page)).toEqual({ ref: 'Chullin 91a', maggid: 'bornstein' });
   });
 });
