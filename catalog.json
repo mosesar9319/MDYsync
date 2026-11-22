@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-22T19:00:21.524Z",
+  "generatedAt": "2026-11-22T19:23:20.987Z",
   "tractates": {
     "Arakhin": [
       {
@@ -32,6 +32,11 @@
           "label": "Daf Yomi Arachin Daf 3 by R' Eli Stefansky",
           "amud": "a"
         },
+        "chazarahEn": {
+          "videoId": "GyLCObG8F0U",
+          "label": "CHAZARAH - Arachin Daf 3 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a"
+        },
         "regularHe": {
           "videoId": "zYgS1uwcaRA",
           "label": "מרכז דף יומי - ערכין דף ג. - ר' אלי סטפנסקי שליט\"א",
@@ -42,24 +47,24 @@
           "label": "חזרה - ערכין דף ג | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a",
           "published": "2026-11-21T19:44:22+00:00"
-        },
-        "chazarahEn": {
-          "videoId": "GyLCObG8F0U",
-          "label": "CHAZARAH - Arachin Daf 3 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a",
-          "published": "2026-11-22T00:30:11+00:00"
         }
       },
       {
         "daf": 4,
-        "regularHe": {
-          "videoId": "boUKhMAB1To",
-          "label": "מרכז דף יומי - ערכין דף ד. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "Py8VNAoXjGA",
           "label": "Daf Yomi Arachin Daf 4 by R' Eli Stefansky",
+          "amud": "a"
+        },
+        "chazarahEn": {
+          "videoId": "BP0trmMdy8w",
+          "label": "CHAZARAH - Arachin Daf 4 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a",
+          "published": "2026-11-22T02:22:13+00:00"
+        },
+        "regularHe": {
+          "videoId": "boUKhMAB1To",
+          "label": "מרכז דף יומי - ערכין דף ד. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         },
         "chazarahHe": {
@@ -67,24 +72,18 @@
           "label": "חזרה - ערכין דף ד | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a",
           "published": "2026-11-21T22:23:10+00:00"
-        },
-        "chazarahEn": {
-          "videoId": "BP0trmMdy8w",
-          "label": "CHAZARAH - Arachin Daf 4 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a",
-          "published": "2026-11-22T02:22:13+00:00"
         }
       },
       {
         "daf": 5,
-        "regularHe": {
-          "videoId": "AtBGVB1M278",
-          "label": "מרכז דף יומי - ערכין דף ה. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "f3J8NIlL5PM",
           "label": "Daf Yomi Arachin Daf 5 by R' Eli Stefansky",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "AtBGVB1M278",
+          "label": "מרכז דף יומי - ערכין דף ה. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         },
         "chazarahHe": {
@@ -4769,6 +4768,17 @@
               "published": "2026-11-20T18:54:47.000Z",
               "source": "lakewood",
               "url": "https://lakewoodafyomi.appspot.com/m5/CAEQoeWehwEaIAT8UXw91twXLMAkN4vAVl92GjfMV4mYxZQR4M0QpqwPIiAHo7-337932X0FEwtiWzRMgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQXJhY2hpbiA1XzIxMzU5OTY5My5tcDM/Arachin%205_213599693.mp3"
+            }
+          },
+          {
+            "daf": 6,
+            "regularEn": {
+              "videoId": "L0213821053",
+              "label": "Eruchin 6",
+              "amud": "a",
+              "published": "2026-11-22T18:44:11.000Z",
+              "source": "lakewood",
+              "url": "https://lakewoodafyomi.appspot.com/m5/CAEQouWehwEaIJ8uWFRImoXMgZQ-2SrcniOCwns6RZ2G43M-YnyNDUuYIiBKA7oFytyA4FUDPxs0aCG-goAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQXJhY2hpbiA2XzIxMzgyMTA1My5tcDM/Arachin%206_213821053.mp3"
             }
           }
         ],
