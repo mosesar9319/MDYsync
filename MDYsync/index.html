@@ -2056,7 +2056,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         </div>
         <div class="modal-copy">
           <p class="eyebrow">DAF YOMI SHIUR</p>
-          <h2 id="shiur-title"></h2>
+          <h2 id="shiur-title" dir="auto" translate="no"></h2>
           <p id="modal-teacher"></p>
           <div class="modal-meta"><span data-icon="clock"></span> <span id="modal-length"></span></div>
           <div class="modal-variant-toggle" id="modal-variant-toggle"></div>
@@ -2212,15 +2212,6 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     // still the old generic "YouTube" placeholder).
     function videoLabel(row, combo) {
       const label = row[combo]?.label;
-      // In Hebrew, a title in English letters is said in Hebrew instead
-      // ("ערכין דף ה"); a Hebrew shiur's own title is kept.
-      if (HE && !(label && /[\u0590-\u05FF]/.test(label))) {
-        const masechta = I18N.masechtaHebrew(row.tractate);
-        if (masechta) {
-          const daf = `${masechta} דף ${I18N.hebrewNumeral(row.daf)}`;
-          return combo.startsWith("chazarah") ? `חזרה – ${daf}` : daf;
-        }
-      }
       return label && label !== "YouTube" ? label : dafLabel(row);
     }
 
@@ -2589,7 +2580,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
           <span class="thumbnail-play">${icon("play", 20)}</span>
           ${isTodayRow(row) ? `<span class="thumb-badge is-today">Today</span>` : ""}
         </span>
-        <span class="card-copy"><strong dir="auto">${escapeHtml(videoLabel(row, combo))}${livePill}</strong><span>${dafLabel(row)} · ${comboLabel(combo)}${maggidTag(row)}</span><span class="card-meta-phone">${escapeHtml(maggidName(maggid))} · ${dafLabel(row)} · ${comboLabel(combo)}</span>${avatarMarkup(maggid)}</span>
+        <span class="card-copy"><strong dir="auto"><span translate="no">${escapeHtml(videoLabel(row, combo))}</span>${livePill}</strong><span>${dafLabel(row)} · ${comboLabel(combo)}${maggidTag(row)}</span><span class="card-meta-phone">${escapeHtml(maggidName(maggid))} · ${dafLabel(row)} · ${comboLabel(combo)}</span>${avatarMarkup(maggid)}</span>
       </a>`;
     }
 
@@ -2703,8 +2694,8 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       const progress = percent ? `<span class="continue-progress"><span style="width:${percent.toFixed(1)}%"></span></span>` : "";
       const picture = `<span class="thumbnail"><img class="thumb-img" ${thumbAttrs(entry.videoId, shiurOfHistory(entry))} alt="" loading="lazy" />${progress}</span>`;
       return wide
-        ? `<a class="continue-card is-wide" href="${escapeHtml(historyUrl(entry))}">${picture}<span class="card-copy"><strong dir="auto">${escapeHtml(details.title)}</strong><span></span><span class="card-meta-phone">${escapeHtml(details.meta)}</span>${avatarMarkup(details.maggid)}</span></a>`
-        : `<a class="continue-card" href="${escapeHtml(historyUrl(entry))}">${picture}<strong dir="auto">${escapeHtml(details.title)}</strong><small>${escapeHtml(details.meta)}</small></a>`;
+        ? `<a class="continue-card is-wide" href="${escapeHtml(historyUrl(entry))}">${picture}<span class="card-copy"><strong dir="auto" translate="no">${escapeHtml(details.title)}</strong><span></span><span class="card-meta-phone">${escapeHtml(details.meta)}</span>${avatarMarkup(details.maggid)}</span></a>`
+        : `<a class="continue-card" href="${escapeHtml(historyUrl(entry))}">${picture}<strong dir="auto" translate="no">${escapeHtml(details.title)}</strong><small>${escapeHtml(details.meta)}</small></a>`;
     }
 
     function shelfMarkup(history) {
