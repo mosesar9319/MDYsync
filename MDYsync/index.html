@@ -1929,7 +1929,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
           <button aria-label="Clear search" class="clear-search" id="clear-search" hidden type="button"></button>
         </label>
         <button class="top-icon search-toggle" id="searchToggle" type="button" aria-label="Search" aria-expanded="false"><span data-icon="search"></span></button>
-        <button class="lang-toggle" id="langToggle" type="button" translate="no"></button>
+        <button class="lang-toggle" id="langToggle" type="button" data-lang-switch translate="no"></button>
         <button class="top-icon theme-toggle" id="themeToggle" type="button" aria-label="Dark mode" aria-pressed="false"></button>
         <div class="auth-widget" id="authWidget">
           <button class="auth-button" id="signInButton" type="button">Sign in</button>
@@ -2798,6 +2798,8 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       return items.sort((a, b) =>
         direction * (SITE_TRACTATES.indexOf(a.row.tractate) - SITE_TRACTATES.indexOf(b.row.tractate))
         || direction * (a.row.daf - b.row.daf)
+        // In Hebrew, a daf's Hebrew shiurim come before anyone's English ones.
+        || (HE ? Number(!a.combo.endsWith("He")) - Number(!b.combo.endsWith("He")) : 0)
         || MAGGIDIM.findIndex((m) => m.id === rowMaggid(a.row)) - MAGGIDIM.findIndex((m) => m.id === rowMaggid(b.row))
         || COMBO_ORDER.indexOf(a.combo) - COMBO_ORDER.indexOf(b.combo));
     }
@@ -3075,8 +3077,11 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
       }
       loading.hidden = true;
       hero.hidden = false;
-      document.querySelector("#hero-kicker").textContent = `DAF YOMI • ${displayTractate(state.today.tractate).toUpperCase()}`;
-      document.querySelector("#hero-title").textContent = `Maseches ${displayTractate(state.today.tractate)} ${state.today.daf}`;
+      const masechtaHe = HE ? I18N.masechtaHebrew(state.today.tractate) : "";
+      document.querySelector("#hero-kicker").textContent = masechtaHe
+        ? `דף יומי • ${masechtaHe}` : `DAF YOMI • ${displayTractate(state.today.tractate).toUpperCase()}`;
+      document.querySelector("#hero-title").textContent = masechtaHe
+        ? `מסכת ${masechtaHe} דף ${I18N.hebrewNumeral(state.today.daf)}` : `Maseches ${displayTractate(state.today.tractate)} ${state.today.daf}`;
       document.querySelector("#hero-actions").innerHTML = `<span class="watch-button">${icon("play", 18)} Watch today’s shiur</span>`;
       hero.onclick = () => openShiur(choices);
     }
@@ -3133,17 +3138,6 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
         renderCards();
       }
     });
-    (function languageSwitch() {
-      const button = document.querySelector("#langToggle");
-      const i18n = window.DafSyncI18n;
-      if (!i18n) { button.hidden = true; return; }
-      const next = i18n.he ? "en" : "he";
-      button.textContent = i18n.he ? "EN" : "עב";
-      button.lang = next;
-      button.setAttribute("aria-label", i18n.he ? "English" : "עברית");
-      button.title = i18n.he ? "Switch to English" : "לעברית";
-      button.addEventListener("click", () => i18n.setLanguage(next));
-    })();
     document.querySelector("#themeToggle").addEventListener("click", () => {
       const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
       document.documentElement.dataset.theme = next;

@@ -543,4 +543,18 @@ window.DafSyncI18n && window.DafSyncI18n.addWords({
   'Background — Helpful introductory context': 'הקדמה / רקע — רקע שעוזר להבנה',
   'Review Point — Something worth remembering for chazarah': 'נקודה לחזרה — דבר שכדאי לזכור לחזרה',
   'Lesson — A personal or practical lesson': 'מוסר השכל — לקח אישי או מעשי',
+  // ----- the player's tips and chips ----------------------------------------
+  'Hold': 'לחיצה ארוכה',
+  'Right-click': 'לחיצה ימנית',
+  '{gesture} any word for more: watch the shiur from there, look it up, add a note, or start a discussion.':
+    '{gesture} על כל מילה לאפשרויות נוספות: צפייה בשיעור משם, מילון, הערה או פתיחת דיון.',
+  '{gesture} any word for more: look it up, add a note, copy, or start a discussion.':
+    '{gesture} על כל מילה לאפשרויות נוספות: מילון, הערה, העתקה או פתיחת דיון.',
+  'Skip to {ref} ({time})': 'דילוג ל{ref} ({time})',
+  'Skip to {time}': 'דילוג ל-{time}',
+  'Intro': 'פתיחה',
+  'Size': 'גודל',
+  'Position in the shiur': 'מיקום בשיעור',
+  'Download the MP3': 'הורדת ה-MP3',
+  'Now following': 'במעקב',
 });

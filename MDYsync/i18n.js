@@ -275,6 +275,26 @@
     setTimeout(function () { root.classList.remove('i18n-loading'); }, READY_TIMEOUT_MS + 500);
   }
 
+  // Every button marked data-lang-switch names the other language, in its
+  // own letters ("עב" on the English site, "EN" on the Hebrew one), and goes
+  // there.
+  function mountSwitches(scope) {
+    var buttons = (scope || document).querySelectorAll('[data-lang-switch]');
+    for (var i = 0; i < buttons.length; i += 1) {
+      var button = buttons[i];
+      if (button.getAttribute('data-lang-ready')) continue;
+      button.setAttribute('data-lang-ready', '1');
+      var next = lang === 'he' ? 'en' : 'he';
+      button.textContent = lang === 'he' ? 'EN' : 'עב';
+      button.setAttribute('lang', next);
+      button.setAttribute('aria-label', lang === 'he' ? 'English' : 'עברית');
+      button.setAttribute('title', lang === 'he' ? 'Switch to English' : 'לעברית');
+      button.addEventListener('click', function () { setLanguage(lang === 'he' ? 'en' : 'he'); });
+    }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { mountSwitches(); });
+  else mountSwitches();
+
   function setLanguage(next) {
     if (LANGS.indexOf(next) < 0) return;
     store(next);
