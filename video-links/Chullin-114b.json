@@ -1,1 +1,8 @@
-{"type":"youtube","url":"https://www.youtube.com/watch?v=klsO47IvAzM","videoId":"klsO47IvAzM","label":"Daf Yomi Chullin Daf 114 by R' Eli Stefansky","coveredRefs":["Chullin 113b","Chullin 114a","Chullin 114b"],"source":"channel-auto"}
+{
+  "label": "Daf Yomi Chullin Daf 114 by R' Eli Stefansky",
+  "locked": false,
+  "source": "manual",
+  "type": "youtube",
+  "url": "https://www.youtube.com/watch?v=klsO47IvAzM",
+  "videoId": "klsO47IvAzM"
+}
