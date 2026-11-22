@@ -1,0 +1,281 @@
+{
+ "schema": "dafsync-patch-answers-v1",
+ "videoId": "L0213821053",
+ "shiur": "R' Sruly Bornstein, Eruchin 6",
+ "answeredBy": "Claude, in a Claude Code session",
+ "placements": [
+  {
+   "daf": [
+    394,
+    394
+   ],
+   "heard": [
+    164,
+    165
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "Oved Kochovim, censored reading of גוי"
+  },
+  {
+   "daf": [
+    397,
+    397
+   ],
+   "heard": [
+    168,
+    168
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "L'Beis for לבדק (L'Bedek Habayis)"
+  },
+  {
+   "daf": [
+    460,
+    460
+   ],
+   "heard": [
+    1152,
+    1152
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "וכולו for וגו׳"
+  },
+  {
+   "daf": [
+    491,
+    491
+   ],
+   "heard": [
+    1508,
+    1508
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "בודקין אסי, אסי is אותו"
+  },
+  {
+   "daf": [
+    500,
+    500
+   ],
+   "heard": [
+    1680,
+    1680
+   ],
+   "kind": "read",
+   "confidence": 0.72,
+   "why": "too, נגניזה = teuna geniza"
+  },
+  {
+   "daf": [
+    507,
+    507
+   ],
+   "heard": [
+    2053,
+    2054
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "עובד כוכבים, censored גוי"
+  },
+  {
+   "daf": [
+    514,
+    514
+   ],
+   "heard": [
+    2090,
+    2090
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "בודקין אסי, אסי is אותו"
+  },
+  {
+   "daf": [
+    565,
+    566
+   ],
+   "heard": [
+    2900,
+    2900
+   ],
+   "kind": "read",
+   "confidence": 0.75,
+   "why": "דשם קסברא = d'shem kasuv aleha, run together"
+  },
+  {
+   "daf": [
+    633,
+    635
+   ],
+   "heard": [
+    3722,
+    3723
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "מסקנא דרבא = matkif la Rava"
+  },
+  {
+   "daf": [
+    661,
+    661
+   ],
+   "heard": [
+    4366,
+    4366
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "סכא for צדקה"
+  },
+  {
+   "daf": [
+    746,
+    746
+   ],
+   "heard": [
+    5242,
+    5242
+   ],
+   "kind": "read",
+   "confidence": 0.72,
+   "why": "בסליד = mishebaasa l'yad before גבאי"
+  },
+  {
+   "daf": [
+    763,
+    763
+   ],
+   "heard": [
+    5485,
+    5485
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "דקא for דכמה"
+  },
+  {
+   "daf": [
+    836,
+    836
+   ],
+   "heard": [
+    6332,
+    6344
+   ],
+   "kind": "explained",
+   "confidence": 0.75,
+   "why": "What exactly was the שינוי... explains למאי"
+  },
+  {
+   "daf": [
+    842,
+    842
+   ],
+   "heard": [
+    6368,
+    6369
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "בקי חכם after אירויי = oved kochavim"
+  },
+  {
+   "daf": [
+    846,
+    846
+   ],
+   "heard": [
+    6446,
+    6446
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "Eli, for אלא before לדבר מצוה"
+  },
+  {
+   "daf": [
+    888,
+    888
+   ],
+   "heard": [
+    7012,
+    7012
+   ],
+   "kind": "read",
+   "confidence": 0.72,
+   "why": "סוף for סבר in משנה סוף הלשכיה"
+  },
+  {
+   "daf": [
+    897,
+    897
+   ],
+   "heard": [
+    7150,
+    7150
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "Says the Mishnah"
+  },
+  {
+   "daf": [
+    923,
+    923
+   ],
+   "heard": [
+    7537,
+    7537
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "It says the Gemara, then בשלמא"
+  },
+  {
+   "daf": [
+    934,
+    935
+   ],
+   "heard": [
+    7591,
+    7592
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "לא בעל = d'lav bar"
+  },
+  {
+   "daf": [
+    970,
+    970
+   ],
+   "heard": [
+    7948,
+    7948
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "יחל for יכול"
+  },
+  {
+   "daf": [
+    1020,
+    1020
+   ],
+   "heard": [
+    8378,
+    8378
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "יושא זלב = yushas alav"
+  }
+ ]
+}
