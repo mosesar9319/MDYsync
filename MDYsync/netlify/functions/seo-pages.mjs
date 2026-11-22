@@ -17,7 +17,7 @@
 // and everything else work exactly as they do on /player/.
 
 import {
-  MASECHTOS, masechtaByName, masechtaBySlug, displayName, otherSpellings, hebrewNumeral,
+  MASECHTOS, masechtaByName, masechtaBySlug, displayName, otherSpellings, hebrewNumeral, amudRange,
 } from '../../shared/masechtos.mjs';
 import { MAGGIDIM, DEFAULT_MAGGID_ID, maggidById } from '../../shared/maggidim.mjs';
 import { OWNER, REPO, PUBLIC_SITE_ORIGIN } from '../../shared/dafsync-config.mjs';
@@ -87,6 +87,8 @@ export function shiurimFromCatalog(catalog) {
 
 export const masechtaPath = (m) => `/${m.slug}/`;
 export const dafPath = (m, daf) => `/${m.slug}/${daf}/`;
+export const maggidPath = (id) => `/${id}/`;
+export const maggidMasechtaPath = (id, m) => `/${id}/${m.slug}/`;
 export const shiurPath = (s) => `/${s.masechta.slug}/${s.daf}/${s.maggidId}/${s.variant.segment ? `${s.variant.segment}/` : ''}`;
 const absolute = (path) => `${PUBLIC_SITE_ORIGIN}${path}`;
 
@@ -96,6 +98,12 @@ export function parseRoute(pathname) {
   if (pathname === '/') return { kind: 'home' };
   if (pathname === '/player/') return { kind: 'player' };
   const parts = pathname.split('/').filter(Boolean);
+  const maggidPage = maggidById(parts[0]);
+  if (maggidPage) {
+    if (parts.length === 1) return { kind: 'maggid', maggidId: maggidPage.id };
+    const m = parts.length === 2 ? masechtaBySlug(parts[1]) : null;
+    return m ? { kind: 'maggid-masechta', maggidId: maggidPage.id, masechta: m } : null;
+  }
   const masechta = masechtaBySlug(parts[0]);
   if (!masechta || parts.length > 4) return null;
   if (parts.length === 1) return { kind: 'masechta', masechta };
@@ -191,7 +199,12 @@ export function shiurAddressFor(shiur, searchParams) {
 
 const hebrewDaf = (m, daf) => `${m.hebrew} ${hebrewNumeral(daf)}`;
 const dafName = (m, daf) => `${displayName(m)} ${daf}`;
-const maggidName = (id) => maggidById(id)?.name || id;
+// "Rabbi Eli Stefansky": as people search for him, where the site itself
+// says "R' Eli Stefansky".
+const maggidName = (id) => (maggidById(id)?.name || id).replace(/^R' /, 'Rabbi ');
+const shortName = (id) => maggidById(id)?.name || id;
+const dafAmudim = (m, daf) => `${displayName(m)} ${amudRange(m, daf)}`;
+const VARIANT_KIND = { '': 'Daf Yomi Shiur', chazarah: 'Chazarah', hebrew: 'Shiur in Hebrew', 'chazarah-hebrew': 'Chazarah in Hebrew' };
 const maggidChannel = (id) => maggidById(id)?.channelName || '';
 
 function listNames(names) {
@@ -200,17 +213,24 @@ function listNames(names) {
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
 
+// "Bechoros 58a–58b Daf Yomi Shiur — Rabbi Eli Stefansky | DafSync": the daf
+// as it is searched for (by amud as well as by daf) and the maggid's full name.
 function shiurTitle(s) {
-  const word = s.variant.titleWord ? ` ${s.variant.titleWord}` : '';
-  return `${dafName(s.masechta, s.daf)}${word} — ${maggidName(s.maggidId)}, Daf Yomi Shiur | DafSync`;
+  return `${dafAmudim(s.masechta, s.daf)} ${VARIANT_KIND[s.variant.segment]} — ${maggidName(s.maggidId)} | DafSync`;
 }
+
+// The masechta's other spellings, the first two, for a description.
+const alsoSpelled = (m) => {
+  const spellings = otherSpellings(m).slice(0, 2);
+  return spellings.length ? `${spellings.join(', ')} · ` : '';
+};
 
 function shiurDescription(s) {
   const kind = s.variant.variant === 'chazarah' ? 'chazarah' : 'Daf Yomi shiur';
   const lang = s.variant.language ? ' in Hebrew' : '';
   // R' Bornstein's shiurim are audio: listened to, with no video to sit beside.
   const audio = Boolean(MAGGID_PICTURES[s.maggidId]);
-  return `${audio ? 'Listen to' : 'Watch'} ${maggidName(s.maggidId)}'s ${kind}${lang} on ${dafName(s.masechta, s.daf)} (${hebrewDaf(s.masechta, s.daf)}) `
+  return `${audio ? 'Listen to' : 'Watch'} ${maggidName(s.maggidId)}'s ${kind}${lang} on ${dafAmudim(s.masechta, s.daf)} (${alsoSpelled(s.masechta)}${hebrewDaf(s.masechta, s.daf)}) `
     + `with the daf beside ${audio ? 'it' : 'the video'}, each line of the Gemara highlighted as it's read.`;
 }
 
@@ -408,7 +428,7 @@ export function mediaObject(s, details, pictures = new Map()) {
     description: shiurDescription(s),
     uploadDate,
     ...(duration ? { duration } : {}),
-    author: { '@type': 'Person', name: maggidName(s.maggidId) },
+    author: personLd(s.maggidId),
     inLanguage: s.variant.language === 'hebrew' ? 'he' : 'en',
     url: absolute(shiurPath(s)),
   };
@@ -424,6 +444,14 @@ export function mediaObject(s, details, pictures = new Map()) {
     '@type': 'VideoObject',
     thumbnailUrl: pictures.get(s.videoId) ? resizedPicture(pictures.get(s.videoId), 1280, 'jpg') : youtubePicture(s),
     ...(mdyFile ? { contentUrl: mdyFile } : { embedUrl: `https://www.youtube.com/embed/${s.videoId}` }),
+  };
+}
+
+function personLd(id) {
+  const maggid = maggidById(id);
+  return {
+    '@type': 'Person', name: maggidName(id), alternateName: shortName(id), url: absolute(maggidPath(id)),
+    ...(maggid?.channelName ? { affiliation: { '@type': 'Organization', name: maggid.channelName } } : {}),
   };
 }
 
@@ -450,7 +478,7 @@ h2{font-size:20px;margin:32px 0 12px}.lead{color:var(--muted);margin:6px 0 0}
 .pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:32px}
 .dapim{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
 .dapim a{display:block;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;text-decoration:none;color:inherit}
-.dapim small{display:block;color:var(--muted)}footer{color:var(--muted);font-size:14px;text-align:center;padding:24px 16px}
+.dapim small{display:block;color:var(--muted)}.by-maggid{margin:14px 0 0}footer{color:var(--muted);font-size:14px;text-align:center;padding:24px 16px}
 @media (max-width:560px){.shiurim img{width:112px}h1{font-size:25px}}`;
 
 function pageShell({ title, description, path, body, ld = '', noindex = false }) {
@@ -505,9 +533,12 @@ export function masechtaPage(masechta, shiurim) {
     return `<li><a href="${dafPath(masechta, daf)}"><strong>${escapeHtml(name)} ${daf}</strong><small lang="he" dir="rtl">${escapeHtml(hebrewDaf(masechta, daf))}</small><small>${escapeHtml(listNames(maggidim))}</small></a></li>`;
   }).join('\n');
   const spellings = otherSpellings(masechta);
+  const byMaggid = MAGGIDIM.filter((m) => shiurim.some((s) => s.masechta === masechta && s.maggidId === m.id))
+    .map((m) => `<a href="${maggidMasechtaPath(m.id, masechta)}">${escapeHtml(maggidName(m.id))} on ${escapeHtml(name)}</a>`);
   const body = `<nav class="crumbs" aria-label="Breadcrumb"><a href="/">DafSync</a> › ${escapeHtml(name)}</nav>
 <h1>Masechta ${escapeHtml(name)} <span class="he" lang="he" dir="rtl">${escapeHtml(masechta.hebrew)}</span></h1>
 <p class="lead">Daf Yomi shiurim on ${escapeHtml(name)}${spellings.length ? ` (also spelled ${escapeHtml(spellings.join(', '))})` : ''}, with the Gemara beside the video and each line highlighted as the maggid reads it. ${dapim.length} of its ${total} dapim have a shiur so far.</p>
+${byMaggid.length ? `<p class="by-maggid">By maggid: ${byMaggid.join(' · ')}</p>` : ''}
 <h2>Dapim</h2>
 <ul class="dapim">
 ${items}
@@ -537,11 +568,12 @@ export function dafPage(masechta, daf, shiurim, { text = '', details = {}, pictu
   const ref = `${masechta.name} ${daf}a`;
   const body = `<nav class="crumbs" aria-label="Breadcrumb"><a href="/">DafSync</a> › <a href="${masechtaPath(masechta)}">${escapeHtml(name)}</a> › Daf ${daf}</nav>
 <h1>${escapeHtml(title)} <span class="he" lang="he" dir="rtl">${escapeHtml(hebrewDaf(masechta, daf))}</span></h1>
-<p class="lead">Daf Yomi shiurim on ${escapeHtml(name)} daf ${daf}${spellings.length ? ` (${escapeHtml(spellings.map((s) => `${s} ${daf}`).join(', '))})` : ''}${maggidim.length ? ` by ${escapeHtml(listNames(maggidim))}` : ''}, with the Gemara beside the video and each line highlighted as the maggid reads it.</p>
+<p class="lead">Daf Yomi shiurim on ${escapeHtml(name)} daf ${daf} (${escapeHtml(amudRange(masechta, daf))})${spellings.length ? ` (${escapeHtml(spellings.map((s) => `${s} ${daf}`).join(', '))})` : ''}${maggidim.length ? ` by ${escapeHtml(listNames(maggidim))}` : ''}, with the Gemara beside the video and each line highlighted as the maggid reads it.</p>
 <h2>Shiurim on this daf</h2>
 <ul class="shiurim">
 ${items}
 </ul>
+<p class="by-maggid">More: ${[...new Set(here.map((s) => s.maggidId))].map((id) => `<a href="${maggidMasechtaPath(id, masechta)}">${escapeHtml(maggidName(id))} on ${escapeHtml(name)}</a>`).join(' · ')}</p>
 ${text ? `<h2>The daf</h2>
 <p class="daf-text" lang="he" dir="rtl">${escapeHtml(text)}</p>
 <p><a href="/browse/?ref=${encodeURIComponent(ref)}">Open ${escapeHtml(title)} on the Interactive Daf</a></p>` : ''}
@@ -550,9 +582,9 @@ ${prev ? `<a rel="prev" href="${dafPath(masechta, prev)}">‹ ${escapeHtml(name)
 <a href="${masechtaPath(masechta)}">All of ${escapeHtml(name)}</a>
 ${next ? `<a rel="next" href="${dafPath(masechta, next)}">${escapeHtml(name)} ${next} ›</a>` : '<span></span>'}
 </nav>`;
-  const description = `Watch ${title} (${hebrewDaf(masechta, daf)}) Daf Yomi shiurim${maggidim.length ? ` by ${listNames(maggidim)}` : ''} with the Gemara beside the video, each line highlighted as it's read.`;
+  const description = `Daf Yomi shiurim on ${dafAmudim(masechta, daf)} (${alsoSpelled(masechta)}${hebrewDaf(masechta, daf)})${maggidim.length ? ` by ${listNames(maggidim)}` : ''}, with the Gemara beside the shiur and each line highlighted as it's read.`;
   return pageShell({
-    title: `${title} Daf Yomi Shiur — Video with the Daf Synced | DafSync`,
+    title: `${dafAmudim(masechta, daf)} Daf Yomi Shiurim with the Gemara Synced | DafSync`,
     description,
     path: dafPath(masechta, daf),
     body,
@@ -560,6 +592,85 @@ ${next ? `<a rel="next" href="${dafPath(masechta, next)}">${escapeHtml(name)} ${
       breadcrumbs([['DafSync', '/'], [name, masechtaPath(masechta)], [`Daf ${daf}`, dafPath(masechta, daf)]]),
       ...here.map((s) => mediaObject(s, details, pictures)),
     ]),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// A maggid's pages: all his shiurim, and his shiurim on one masechta
+// ---------------------------------------------------------------------------
+
+const MAGGID_LATEST = 12;
+const newestFirst = (a, b) => (b.published || '').localeCompare(a.published || '')
+  || MASECHTOS.indexOf(b.masechta) - MASECHTOS.indexOf(a.masechta) || b.daf - a.daf;
+const shortDate = (iso) => (isDate(iso) ? new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }) : '');
+
+// What he gives, said once for both pages.
+function maggidAbout(id) {
+  const maggid = maggidById(id);
+  const audio = Boolean(MAGGID_PICTURES[id]);
+  const from = maggid?.channelName ? ` of ${maggid.channelName}` : '';
+  return `${maggidName(id)}${from} gives a daily Daf Yomi shiur. On DafSync each of his shiurim ${audio ? 'plays' : 'plays as a video'} with the Gemara beside it, and every line of the daf is highlighted as he reads it; tapping a line takes the shiur to that moment.`;
+}
+
+function shiurItem(s) {
+  const when = shortDate(s.published);
+  return `<li><a href="${shiurPath(s)}"><strong>${escapeHtml(dafAmudim(s.masechta, s.daf))}</strong><small lang="he" dir="rtl">${escapeHtml(hebrewDaf(s.masechta, s.daf))}</small><small>${escapeHtml([s.variant.label === 'Shiur' ? '' : s.variant.label, when].filter(Boolean).join(' · ') || 'Shiur')}</small></a></li>`;
+}
+
+export function maggidPage(id, shiurim) {
+  const his = shiurim.filter((s) => s.maggidId === id);
+  const name = maggidName(id);
+  const maggid = maggidById(id);
+  const masechtos = MASECHTOS.filter((m) => his.some((s) => s.masechta === m));
+  const masechtaItems = masechtos.map((m) => {
+    const count = new Set(his.filter((s) => s.masechta === m).map((s) => s.daf)).size;
+    return `<li><a href="${maggidMasechtaPath(id, m)}"><strong>${escapeHtml(displayName(m))}</strong><small lang="he" dir="rtl">${escapeHtml(m.hebrew)}</small><small>${count} ${count === 1 ? 'daf' : 'dapim'}</small></a></li>`;
+  }).join('\n');
+  const latest = [...his].sort(newestFirst).slice(0, MAGGID_LATEST).map(shiurItem).join('\n');
+  const body = `<nav class="crumbs" aria-label="Breadcrumb"><a href="/">DafSync</a> › ${escapeHtml(name)}</nav>
+<h1>${escapeHtml(name)} — Daf Yomi Shiurim</h1>
+<p class="lead">${escapeHtml(maggidAbout(id))}</p>
+<h2>Latest shiurim</h2>
+<ul class="dapim">
+${latest}
+</ul>
+<h2>By masechta</h2>
+<ul class="dapim">
+${masechtaItems}
+</ul>`;
+  const channel = maggid?.channelName ? ` — ${maggid.channelName}` : '';
+  return pageShell({
+    title: `${name} Daf Yomi Shiurim${channel} | DafSync`,
+    description: `Every Daf Yomi shiur by ${name}${maggid?.channelName ? ` (${maggid.channelName})` : ''} on DafSync, with the Gemara beside the shiur and each line highlighted as he reads it.${masechtos.length ? ` Masechtos: ${listNames(masechtos.map(displayName))}.` : ''}`,
+    path: maggidPath(id),
+    body,
+    ld: jsonLd([
+      breadcrumbs([['DafSync', '/'], [name, maggidPath(id)]]),
+      { '@context': 'https://schema.org', ...personLd(id) },
+    ]),
+  });
+}
+
+export function maggidMasechtaPage(id, masechta, shiurim) {
+  const his = shiurim.filter((s) => s.maggidId === id && s.masechta === masechta)
+    .sort((a, b) => a.daf - b.daf || VARIANTS.indexOf(a.variant) - VARIANTS.indexOf(b.variant));
+  const name = maggidName(id);
+  const m = displayName(masechta);
+  const spellings = otherSpellings(masechta);
+  const body = `<nav class="crumbs" aria-label="Breadcrumb"><a href="/">DafSync</a> › <a href="${maggidPath(id)}">${escapeHtml(name)}</a> › ${escapeHtml(m)}</nav>
+<h1>${escapeHtml(m)} — ${escapeHtml(name)} <span class="he" lang="he" dir="rtl">${escapeHtml(masechta.hebrew)}</span></h1>
+<p class="lead">${escapeHtml(name)}'s Daf Yomi shiurim on Masechta ${escapeHtml(m)}${spellings.length ? ` (also spelled ${escapeHtml(spellings.join(', '))})` : ''}, daf by daf. ${escapeHtml(maggidAbout(id))}</p>
+<h2>Dapim</h2>
+<ul class="dapim">
+${his.map(shiurItem).join('\n')}
+</ul>
+<p class="by-maggid"><a href="${masechtaPath(masechta)}">All shiurim on ${escapeHtml(m)}</a> · <a href="${maggidPath(id)}">All of ${escapeHtml(name)}'s shiurim</a></p>`;
+  return pageShell({
+    title: `${m} Daf Yomi with ${name} — Every Daf | DafSync`,
+    description: `${name}'s Daf Yomi shiurim on Masechta ${m} (${alsoSpelled(masechta)}${masechta.hebrew}), each with the Gemara beside it and every line highlighted as it's read.`,
+    path: maggidMasechtaPath(id, masechta),
+    body,
+    ld: jsonLd([breadcrumbs([['DafSync', '/'], [name, maggidPath(id)], [m, maggidMasechtaPath(id, masechta)]])]),
   });
 }
 
@@ -619,19 +730,25 @@ export function shiurPage(playerHtml, shiur, { mode = 'split', extra = null, det
 // all of them.
 export function sitemap(shiurim) {
   const pages = new Map([['/', ''], ['/browse/', ''], ['/chaburah/', '']]);
-  const note = (path, day) => {
-    if (!pages.has(path) || day > pages.get(path)) pages.set(path, day);
+  const maggidPages = new Map();
+  const noteIn = (map) => (path, day) => {
+    if (!map.has(path) || day > map.get(path)) map.set(path, day);
   };
+  const note = noteIn(pages);
+  const noteMaggid = noteIn(maggidPages);
   for (const s of shiurim) {
     const day = isDate(s.published) ? s.published.slice(0, 10) : '';
     note('/', day);
     note(masechtaPath(s.masechta), day);
     note(dafPath(s.masechta, s.daf), day);
     note(shiurPath(s), day);
+    noteMaggid(maggidPath(s.maggidId), day);
+    noteMaggid(maggidMasechtaPath(s.maggidId, s.masechta), day);
   }
   // Home first, then the site's own pages, then each masechta's in the
-  // catalog's order (a Map keeps the order its keys were first set in).
-  const entries = [...pages].map(([path, day]) => `  <url><loc>${escapeHtml(absolute(path))}</loc>${day ? `<lastmod>${day}</lastmod>` : ''}</url>`);
+  // catalog's order (a Map keeps the order its keys were first set in), then
+  // each maggid's page followed by his masechtos.
+  const entries = [...pages, ...maggidPages].map(([path, day]) => `  <url><loc>${escapeHtml(absolute(path))}</loc>${day ? `<lastmod>${day}</lastmod>` : ''}</url>`);
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.join('\n')}\n</urlset>\n`;
 }
 
@@ -664,8 +781,9 @@ export function homePage(html, shiurim) {
     .flatMap((m) => [...dapim.get(m)].sort((a, b) => b - a).map((daf) => [m, daf]))
     .slice(0, HOME_LATEST_DAPIM);
   const latestItems = latest.map(([m, daf]) => `<li><a href="${dafPath(m, daf)}">${escapeHtml(dafName(m, daf))} <span lang="he" dir="rtl">${escapeHtml(hebrewDaf(m, daf))}</span></a></li>`).join('\n');
-  const maggidim = MAGGIDIM.filter((m) => shiurim.some((s) => s.maggidId === m.id))
-    .map((m) => `${m.name}${m.channelName ? ` (${m.channelName})` : ''}`);
+  const withShiurim = MAGGIDIM.filter((m) => shiurim.some((s) => s.maggidId === m.id));
+  const maggidim = withShiurim.map((m) => `${maggidName(m.id)}${m.channelName ? ` (${m.channelName})` : ''}`);
+  const maggidItems = withShiurim.map((m) => `<li><a href="${maggidPath(m.id)}">${escapeHtml(maggidName(m.id))}${m.channelName ? ` <small>${escapeHtml(m.channelName)}</small>` : ''}</a></li>`).join('\n');
   const section = `<section class="site-index" aria-labelledby="siteIndexTitle">
 <h2 id="siteIndexTitle">Browse by masechta</h2>
 <ul>
@@ -674,6 +792,10 @@ ${masechtaItems}
 <h2>Latest dapim</h2>
 <ul>
 ${latestItems}
+</ul>
+<h2>By maggid</h2>
+<ul>
+${maggidItems}
 </ul>
 <p class="site-index-about">DafSync plays Daf Yomi shiurim by ${escapeHtml(listNames(maggidim))} with the daf beside the shiur. Each line of the Gemara is highlighted as the maggid reads it, and tapping a line takes the shiur to the moment it is read.</p>
 </section>`;
@@ -800,6 +922,16 @@ export async function handle(request, env = {}) {
       headers: { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=300', 'Netlify-CDN-Cache-Control': 'public, s-maxage=3600' },
     });
   }
+  if (route.kind === 'maggid') {
+    if (!shiurim.some((s) => s.maggidId === route.maggidId)) return notFound(`No shiurim by ${maggidName(route.maggidId)} yet.`);
+    return new Response(maggidPage(route.maggidId, shiurim), { headers: PAGE_HEADERS });
+  }
+  if (route.kind === 'maggid-masechta') {
+    if (!shiurim.some((s) => s.maggidId === route.maggidId && s.masechta === route.masechta)) {
+      return notFound(`No shiurim by ${maggidName(route.maggidId)} on ${displayName(route.masechta)} yet.`);
+    }
+    return new Response(maggidMasechtaPage(route.maggidId, route.masechta, shiurim), { headers: PAGE_HEADERS });
+  }
   if (route.kind === 'masechta') {
     if (!shiurim.some((s) => s.masechta === route.masechta)) return notFound(`No shiurim on ${displayName(route.masechta)} yet.`);
     return new Response(masechtaPage(route.masechta, shiurim), { headers: PAGE_HEADERS });
@@ -838,8 +970,9 @@ export default async (request) => handle(request, {
 });
 
 // Netlify reads this without running the module, so the addresses are spelled
-// out: the home page, the player, every masechta's slug (shared/masechtos.mjs),
-// with and without a path under it, and the sitemap. tests/functions/seo-pages.test.mjs
+// out: the home page, the player, every masechta's slug (shared/masechtos.mjs)
+// and every maggid's id (shared/maggidim.mjs), with and without a path under
+// it, and the sitemap. tests/functions/seo-pages.test.mjs
 // checks the list matches MASECHTOS.
 export const config = {
   path: [
@@ -854,6 +987,7 @@ export const config = {
     '/makkos', '/makkos/*', '/shevuos', '/shevuos/*', '/avodah-zarah', '/avodah-zarah/*',
     '/horayos', '/horayos/*', '/zevachim', '/zevachim/*', '/menachos', '/menachos/*', '/chullin',
     '/chullin/*', '/bechoros', '/bechoros/*', '/eruchin', '/eruchin/*', '/temurah', '/temurah/*',
-    '/kereisos', '/kereisos/*', '/meilah', '/meilah/*', '/niddah', '/niddah/*', '/sitemap.xml',
+    '/kereisos', '/kereisos/*', '/meilah', '/meilah/*', '/niddah', '/niddah/*',
+    '/stefansky', '/stefansky/*', '/bornstein', '/bornstein/*', '/sitemap.xml',
   ],
 };

@@ -10,9 +10,10 @@ import {
   config, parseRoute, shiurimFromCatalog, masechtaPage, dafPage, shiurPage, sitemap, handle,
   playerUrl, shiurPath, resetCatalogCache, mdyPoster, shiurPictures,
   mediaObject, isoDuration, withListDetails, homePage, HOME_MARKER,
-  parsePlayerRef, shiurForPlayer, shiurAddressFor,
+  maggidPage, maggidMasechtaPage, parsePlayerRef, shiurForPlayer, shiurAddressFor,
 } from '../../netlify/functions/seo-pages.mjs';
-import { MASECHTOS, MASECHTA_SLUGS, masechtaBySlug, hebrewNumeral, otherSpellings } from '../../shared/masechtos.mjs';
+import { MASECHTOS, MASECHTA_SLUGS, masechtaBySlug, hebrewNumeral, otherSpellings, amudRange } from '../../shared/masechtos.mjs';
+import { MAGGIDIM } from '../../shared/maggidim.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const PLAYER_HTML = fs.readFileSync(path.join(ROOT, 'player/index.html'), 'utf8');
@@ -38,7 +39,8 @@ const SHIURIM = shiurimFromCatalog(CATALOG);
 const BECHOROS = masechtaBySlug('bechoros');
 
 test('every masechta has an address, and the home page links with the same slugs', () => {
-  const expected = ['/', '/player/'].concat(MASECHTOS.flatMap((m) => [`/${m.slug}`, `/${m.slug}/*`]), '/sitemap.xml');
+  const expected = ['/', '/player/'].concat(MASECHTOS.flatMap((m) => [`/${m.slug}`, `/${m.slug}/*`]),
+    MAGGIDIM.flatMap((m) => [`/${m.id}`, `/${m.id}/*`]), '/sitemap.xml');
   assert.deepEqual(config.path, expected);
   const home = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const table = JSON.parse(`{${/const MASECHTA_SLUGS = \{([^}]*)\};/.exec(home)[1]}}`);
@@ -47,7 +49,9 @@ test('every masechta has an address, and the home page links with the same slugs
   assert.equal(table.Arakhin, 'eruchin');
   assert.equal(MASECHTA_SLUGS.Arakhin, 'arachin');
   // No slug may shadow a real page of the site.
-  for (const m of MASECHTOS) assert.equal(fs.existsSync(path.join(ROOT, m.slug)), false, m.slug);
+  for (const slug of [...MASECHTOS.map((m) => m.slug), ...MAGGIDIM.map((m) => m.id)]) assert.equal(fs.existsSync(path.join(ROOT, slug)), false, slug);
+  // A maggid's id is never a masechta's slug: the two kinds of page cannot share an address.
+  for (const m of MAGGIDIM) assert.equal(masechtaBySlug(m.id), null, m.id);
 });
 
 test('names, numerals and spellings', () => {
@@ -55,7 +59,11 @@ test('names, numerals and spellings', () => {
   assert.equal(hebrewNumeral(15), 'טו');
   assert.equal(hebrewNumeral(16), 'טז');
   assert.equal(hebrewNumeral(120), 'קכ');
-  assert.deepEqual(otherSpellings(masechtaBySlug('eruchin')), ['Arakhin', 'Arachin']);
+  assert.deepEqual(otherSpellings(masechtaBySlug('eruchin')), ['Arakhin', 'Arachin', 'Erchin', 'Erkhin']);
+  assert.deepEqual(otherSpellings(masechtaBySlug('chullin')), ['Chulin', 'Hullin']);
+  assert.equal(amudRange(BECHOROS, 58), '58a–58b');
+  assert.equal(amudRange(BECHOROS, 61), '61a');            // Bechoros ends on 61a
+  assert.equal(amudRange(masechtaBySlug('shabbos'), 157), '157a–157b');
   assert.deepEqual(otherSpellings(BECHOROS), ['Bekhorot', 'Bechorot']);
 });
 
@@ -73,6 +81,12 @@ test('addresses: what each one names', () => {
   assert.equal(parseRoute('/bechoros/58/nobody/'), null);
   assert.equal(parseRoute('/bechoros/58/bornstein/director-cut/'), null);
   assert.equal(parseRoute('/nosuchmasechta/'), null);
+  assert.deepEqual(parseRoute('/bornstein/'), { kind: 'maggid', maggidId: 'bornstein' });
+  const his = parseRoute('/stefansky/eruchin/');
+  assert.equal(his.kind, 'maggid-masechta');
+  assert.equal(his.masechta.slug, 'eruchin');
+  assert.equal(parseRoute('/stefansky/nosuch/'), null);
+  assert.equal(parseRoute('/stefansky/eruchin/2/'), null);
 });
 
 test('the catalog becomes one shiur per recording, livestreams and unknown masechtos left out', () => {
@@ -88,11 +102,14 @@ test('the catalog becomes one shiur per recording, livestreams and unknown masec
 
 test('a daf page: its title, heading, every shiur, the daf text, and its neighbours', () => {
   const html = dafPage(BECHOROS, 58, SHIURIM, { text: 'אמר רב', details: { '0n7fE-jS0NE': { publishedAt: '2026-06-01T10:00:00Z', duration: 'PT1H4M' }, 'TWCiP96dKXU': { publishedAt: '2026-06-02T10:00:00Z' } } });
-  assert.match(html, /<title>Bechoros 58 Daf Yomi Shiur — Video with the Daf Synced \| DafSync<\/title>/);
+  assert.match(html, /<title>Bechoros 58a–58b Daf Yomi Shiurim with the Gemara Synced \| DafSync<\/title>/);
+  assert.match(html, /<meta name="description" content="Daf Yomi shiurim on Bechoros 58a–58b \(Bekhorot, Bechorot · בכורות נח\) by Rabbi Eli Stefansky and Rabbi Sruly Bornstein,/);
   assert.match(html, /<link rel="canonical" href="https:\/\/dafsync.com\/bechoros\/58\/">/);
   assert.match(html, /<h1>Bechoros 58 <span class="he" lang="he" dir="rtl">בכורות נח<\/span><\/h1>/);
   assert.match(html, /Bekhorot 58, Bechorot 58/);
-  assert.match(html, /by R&#39; Eli Stefansky and R&#39; Sruly Bornstein/);
+  assert.match(html, /daf 58 \(58a–58b\)/);
+  assert.match(html, /by Rabbi Eli Stefansky and Rabbi Sruly Bornstein/);
+  assert.ok(html.includes('href="/stefansky/bechoros/"') && html.includes('href="/bornstein/bechoros/"'));
   for (const href of ['/bechoros/58/stefansky/', '/bechoros/58/stefansky/chazarah/', '/bechoros/58/bornstein/']) {
     assert.ok(html.includes(`href="${href}"`), href);
   }
@@ -106,7 +123,10 @@ test('a daf page: its title, heading, every shiur, the daf text, and its neighbo
   assert.deepEqual(ld.map((o) => o['@type']), ['BreadcrumbList', 'VideoObject']);
   assert.equal(ld[1].embedUrl, 'https://www.youtube.com/embed/0n7fE-jS0NE');
   assert.equal(ld[1].uploadDate, '2026-06-01T10:00:00Z');
-  assert.deepEqual(ld[1].author, { '@type': 'Person', name: "R' Eli Stefansky" });
+  assert.deepEqual(ld[1].author, {
+    '@type': 'Person', name: 'Rabbi Eli Stefansky', alternateName: "R' Eli Stefansky", url: 'https://dafsync.com/stefansky/',
+    affiliation: { '@type': 'Organization', name: 'Mercaz Daf Yomi' },
+  });
 });
 
 test('a recording is described by the file the page plays, with its own date and length', () => {
@@ -142,8 +162,8 @@ test('a recording is described by the file the page plays, with its own date and
   assert.equal(audio.contentUrl, 'https://lakewoodafyomi.appspot.com/m5/x/Arachin%202_213511665.mp3');
   assert.equal(audio.uploadDate, '2026-11-19T04:47:41.000Z');
   assert.equal(audio.duration, 'PT58M7S');
-  assert.equal(audio.name, "Eruchin 2 — R' Sruly Bornstein");
-  assert.deepEqual(audio.author, { '@type': 'Person', name: "R' Sruly Bornstein" });
+  assert.equal(audio.name, 'Eruchin 2 — Rabbi Sruly Bornstein');
+  assert.equal(audio.author.name, 'Rabbi Sruly Bornstein');
   assert.equal(audio.thumbnailUrl, 'https://dafsync.com/assets/maggidim/bornstein-v1.jpg');
   assert.doesNotMatch(JSON.stringify(audio), /youtube|ytimg/);
   const html = dafPage(masechtaBySlug('eruchin'), 2, [mdy, mdyHebrew, bornstein], { pictures });
@@ -166,7 +186,9 @@ test('a shiur page is the player under its own address and title', () => {
   assert.ok(head.indexOf('history.replaceState') < head.indexOf('<script', head.indexOf('history.replaceState') + 1));
   assert.ok(head.indexOf('history.replaceState') < head.search(/<link rel="stylesheet"/));
   assert.match(head, /history\.replaceState\(history\.state, '', "\/player\/\?ref=Bekhorot\+58a&maggid=bornstein&mode=split"\)/);
-  assert.match(head, /<title>Bechoros 58 — R&#39; Sruly Bornstein, Daf Yomi Shiur \| DafSync<\/title>/);
+  assert.match(head, /<title>Bechoros 58a–58b Daf Yomi Shiur — Rabbi Sruly Bornstein \| DafSync<\/title>/);
+  assert.match(head, /<meta name="description" content="Listen to Rabbi Sruly Bornstein&#39;s Daf Yomi shiur on Bechoros 58a–58b \(Bekhorot, Bechorot · בכורות נח\)/);
+  assert.match(shiurPage(PLAYER_HTML, SHIURIM[2]), /<title>Bechoros 58a–58b Chazarah — Rabbi Eli Stefansky \| DafSync<\/title>/);
   assert.match(head, /<link rel="canonical" href="https:\/\/dafsync.com\/bechoros\/58\/bornstein\/">/);
   // The player's own description, robots, canonical and share tags are gone.
   assert.equal((head.match(/<title>/g) || []).length, 1);
@@ -174,17 +196,65 @@ test('a shiur page is the player under its own address and title', () => {
   assert.equal((head.match(/name="description"/g) || []).length, 1);
   assert.doesNotMatch(head, /name="robots"/);
   assert.equal((head.match(/property="og:url"/g) || []).length, 1);
-  assert.match(html, /<h1 id="lectureTitle">Bechoros 58 — R&#39; Sruly Bornstein<\/h1>/);
+  assert.match(html, /<h1 id="lectureTitle">Bechoros 58 — Rabbi Sruly Bornstein<\/h1>/);
   // Its files are asked for from the site root, as they are from /player/.
   assert.doesNotMatch(html, /(src|href)="\.\.\//);
   assert.match(html, /<script src="\/app\.js\?v=/);
+});
+
+test('a maggid\u2019s page: his latest shiurim and every masechta he has, by his full name', () => {
+  const dated = SHIURIM.map((s) => (s.videoId === '0n7fE-jS0NE' ? { ...s, published: '2026-11-10T13:00:00+00:00' } : s));
+  const html = maggidPage('stefansky', dated);
+  assert.match(html, /<title>Rabbi Eli Stefansky Daf Yomi Shiurim — Mercaz Daf Yomi \| DafSync<\/title>/);
+  assert.match(html, /<link rel="canonical" href="https:\/\/dafsync.com\/stefansky\/">/);
+  assert.match(html, /<h1>Rabbi Eli Stefansky — Daf Yomi Shiurim<\/h1>/);
+  const [latest, masechtos] = html.split('<h2>By masechta</h2>');
+  // Newest first: the dated shiur, then the rest from the last daf back. Never another maggid's.
+  assert.deepEqual([...latest.matchAll(/<li><a href="([^"]+)"/g)].map((m) => m[1]),
+    ['/bechoros/58/stefansky/', '/bechoros/58/stefansky/chazarah/', '/bechoros/57/stefansky/']);
+  assert.match(latest, /Bechoros 58a–58b<\/strong>.*Nov 10, 2026/);
+  assert.deepEqual([...masechtos.split('</ul>')[0].matchAll(/href="([^"]+)"/g)].map((m) => m[1]), ['/stefansky/bechoros/']);
+  assert.match(masechtos, /<small>2 dapim<\/small>/);
+  const ld = [...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
+  assert.deepEqual(ld.map((o) => o['@type']), ['BreadcrumbList', 'Person']);
+  assert.equal(ld[1].alternateName, "R' Eli Stefansky");
+  // R' Bornstein's shiurim are audio, and his page says so.
+  assert.match(maggidPage('bornstein', SHIURIM), /Rabbi Sruly Bornstein of Lakewood Daf Yomi gives a daily Daf Yomi shiur\. On DafSync each of his shiurim plays with the Gemara/);
+});
+
+test('a maggid\u2019s masechta page: each of his shiurim on it, daf by daf', () => {
+  const html = maggidMasechtaPage('stefansky', BECHOROS, SHIURIM);
+  assert.match(html, /<title>Bechoros Daf Yomi with Rabbi Eli Stefansky — Every Daf \| DafSync<\/title>/);
+  assert.match(html, /also spelled Bekhorot, Bechorot/);
+  assert.deepEqual([...html.matchAll(/<li><a href="([^"]+)"/g)].map((m) => m[1]),
+    ['/bechoros/57/stefansky/', '/bechoros/58/stefansky/', '/bechoros/58/stefansky/chazarah/']);
+  assert.ok(html.includes('href="/bechoros/"') && html.includes('href="/stefansky/"'));
+  const eruchin = maggidMasechtaPage('bornstein', masechtaBySlug('eruchin'), shiurimFromCatalog({
+    maggidim: { bornstein: { tractates: { Arakhin: [{ daf: 34, regularEn: { videoId: 'L1', label: 'Eruchin 34', amud: 'a' } }] } } },
+  }));
+  assert.match(eruchin, /also spelled Arakhin, Arachin, Erchin, Erkhin/);
+  assert.match(eruchin, /<strong>Eruchin 34a<\/strong>/);        // Eruchin ends on 34a
+});
+
+test('the handler: a maggid\u2019s pages, and none for a masechta he has no shiur on', async () => {
+  await withFetch(ROUTES, async () => {
+    const get = (p) => handle(new Request(`https://dafsync.com${p}`), {});
+    assert.equal((await get('/bornstein/')).status, 200);
+    assert.equal((await get('/bornstein/bechoros/')).status, 200);
+    assert.equal((await get('/bornstein/chullin/')).status, 404);
+    assert.equal((await get('/bornstein/nosuch/')).status, 404);
+    const slashless = await get('/stefansky');
+    assert.equal(slashless.status, 301);
+    assert.equal(slashless.headers.get('Location'), 'https://dafsync.com/stefansky/');
+  });
 });
 
 test('the sitemap lists the home page and every masechta, daf and shiur page', () => {
   const xml = sitemap(SHIURIM);
   const locs = [...xml.matchAll(/<loc>(.*?)<\/loc>/g)].map((m) => m[1].replace('https://dafsync.com', ''));
   assert.deepEqual(locs, ['/', '/browse/', '/chaburah/', '/bechoros/', '/bechoros/57/', '/bechoros/57/stefansky/',
-    '/bechoros/58/', '/bechoros/58/stefansky/', '/bechoros/58/stefansky/chazarah/', '/bechoros/58/bornstein/']);
+    '/bechoros/58/', '/bechoros/58/stefansky/', '/bechoros/58/stefansky/chazarah/', '/bechoros/58/bornstein/',
+    '/stefansky/', '/stefansky/bechoros/', '/bornstein/', '/bornstein/bechoros/']);
   // No shiur has a date: no page claims one (and never today's).
   assert.doesNotMatch(xml, /<lastmod>/);
 });
@@ -206,6 +276,8 @@ test('the sitemap dates each page by its newest shiur, and leaves undated pages 
   assert.equal(day['/bechoros/57/'], '');                // nothing known
   assert.equal(day['/bechoros/57/stefansky/'], '');
   assert.equal(day['/browse/'], '');
+  assert.equal(day['/bornstein/'], '2026-11-12');
+  assert.equal(day['/stefansky/bechoros/'], '2026-11-10');
 });
 
 test('the home page gets links to every masechta and the newest dapim, where it marks the place', () => {
@@ -224,8 +296,10 @@ test('the home page gets links to every masechta and the newest dapim, where it 
   assert.match(masechtos, /Chullin <span lang="he" dir="rtl">חולין<\/span> <small>2 dapim<\/small>/);
   assert.match(masechtos, /Bechoros <span lang="he" dir="rtl">בכורות<\/span> <small>1 daf<\/small>/);
   // The newest dapim first: the last masechta being learned, from its last daf back.
-  assert.deepEqual([...latest.matchAll(/href="([^"]+)"/g)].map((m) => m[1]), ['/eruchin/3/', '/eruchin/2/', '/bechoros/61/', '/chullin/142/', '/chullin/141/']);
-  assert.match(latest, /by R&#39; Eli Stefansky \(Mercaz Daf Yomi\) and R&#39; Sruly Bornstein \(Lakewood Daf Yomi\)/);
+  const [latestDapim, maggidim] = latest.split('<h2>By maggid</h2>');
+  assert.deepEqual([...latestDapim.matchAll(/href="([^"]+)"/g)].map((m) => m[1]), ['/eruchin/3/', '/eruchin/2/', '/bechoros/61/', '/chullin/142/', '/chullin/141/']);
+  assert.deepEqual([...maggidim.matchAll(/href="([^"]+)"/g)].map((m) => m[1]), ['/stefansky/', '/bornstein/']);
+  assert.match(maggidim, /by Rabbi Eli Stefansky \(Mercaz Daf Yomi\) and Rabbi Sruly Bornstein \(Lakewood Daf Yomi\)/);
   // Nothing to link, or no place marked: the page as it is.
   assert.equal(homePage(HOME_HTML, []), HOME_HTML);
   assert.equal(homePage('<main></main>', shiurimFromCatalog(catalog)), '<main></main>');
