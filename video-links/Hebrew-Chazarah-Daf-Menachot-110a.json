@@ -1,11 +1,8 @@
 {
   "label": "חזרה - חולין דף ב | \"רק הדף\" עם ר' אלי סטפנסקי",
+  "locked": false,
+  "source": "manual",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=psug78mggeg",
-  "videoId": "psug78mggeg",
-  "coveredRefs": [
-    "Menachot 110a",
-    "Chullin 2a",
-    "Chullin 2b"
-  ]
+  "videoId": "psug78mggeg"
 }
