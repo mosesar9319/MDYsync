@@ -4858,3 +4858,91 @@ body.audio-bar-up { padding-bottom: var(--audio-bar-room, 0px); }
   body #splitToolsPanel .split-tools-daf .vilna-select-text-toggle { font-size: 0; }
   body #splitToolsPanel .split-tools-daf .vilna-select-text-toggle::after { content: "Select"; font-size: 12px; }
 }
+
+/* ---- Switching to another shiur of the daf (app.js, "Switching to another
+   shiur of the daf"): the list of the daf's other synced shiurim, and the
+   chip that leads back to the one that was left. ---- */
+.switch-shiur-dialog { width: min(560px, calc(100% - 24px)); max-height: min(86vh, 720px); padding: 22px; overflow: auto; }
+.switch-shiur-dialog h2 { margin: 2px 0 4px; }
+.switch-shiur-note { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+.switch-shiur-list { display: flex; flex-direction: column; gap: 10px; }
+.switch-shiur-row {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: rgba(127,127,127,.08);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.switch-shiur-row:hover, .switch-shiur-row:focus-visible { background: rgba(127,127,127,.18); border-color: var(--accent, #2f7de1); outline: none; }
+.switch-shiur-thumb { display: block; width: 128px; aspect-ratio: 16 / 9; border-radius: 9px; overflow: hidden; background: rgba(127,127,127,.2); }
+.switch-shiur-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.switch-shiur-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.switch-shiur-info strong { font-size: 15px; line-height: 1.3; }
+.switch-shiur-title { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.switch-shiur-kind { align-self: flex-start; margin-top: 3px; padding: 1px 8px; border-radius: 999px; background: rgba(127,127,127,.22); font-size: 11px; font-weight: 700; letter-spacing: .03em; }
+@media (max-width: 520px) {
+  .switch-shiur-row { grid-template-columns: 96px minmax(0, 1fr); }
+  .switch-shiur-thumb { width: 96px; }
+}
+
+.audio-bar-switch { display: inline-flex; align-items: center; gap: 5px; }
+.audio-bar-switch svg { width: 16px; height: 16px; flex: none; }
+.audio-bar-switch[hidden], .player-switch-button[hidden] { display: none; }
+/* The same button in the bottom bar (player-chrome.js). On a computer it is
+   the one shown, and the top bar's is put away; on a phone the bar has no
+   room for it, so the top bar's stays -- except in the mini player floated
+   over the daf, which has no top bar. */
+#barSwitchButton[hidden] { display: none !important; }
+#barSwitchButton svg { width: 18px; height: 18px; flex: none; }
+
+@media (min-width: 761px) {
+  .player-switch-button { display: none !important; }
+}
+@media (max-width: 760px) {
+  body:not(.reading-mode-active) #barSwitchButton { display: none !important; }
+  /* A phone's mini player is the smallest bar there is: so that the button
+     sits on it, and not inside the More menu, it takes the mute button's
+     place there (a phone has its own volume buttons). */
+  body.can-switch-shiur.reading-mode-active .video-frame.is-tiny .pc-volume { display: none; }
+}
+/* The mini player's bar (the smallest tier): a bare icon, like the settings
+   wheel beside it, so that it does not push another control into the More menu. */
+.video-frame.is-tiny .pc-tools > #barSwitchButton { width: 24px; height: 26px; padding: 0; border: 0; background: none; justify-content: center; }
+.video-frame.is-tiny .pc-tools > #barSwitchButton svg { width: 19px; height: 19px; }
+@media (max-width: 560px) {
+  .audio-bar-switch span { display: none; } /* the arrows alone on a narrow phone */
+  .audio-bar-switch { width: 30px; justify-content: center; padding: 0; }
+}
+
+.switch-back-chip {
+  position: fixed;
+  left: 50%;
+  bottom: 14px; /* placeSwitchBackChip (app.js) lifts it over the bottom navigation and the audio bar */
+  transform: translateX(-50%);
+  z-index: 36;
+  display: flex;
+  align-items: center;
+  max-width: calc(100vw - 24px);
+  border-radius: 999px;
+  background: #17304b;
+  border: 1px solid rgba(255,255,255,.28);
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
+}
+.switch-back-chip[hidden] { display: none; }
+/* A message shows above the chip, not under it. */
+body.switch-back-up .toast { bottom: var(--switch-back-top, 24px); }
+.switch-back-go { display: inline-flex; align-items: center; gap: 7px; min-width: 0; height: 38px; padding: 0 6px 0 14px; border: 0; background: none; color: inherit; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.switch-back-go svg { width: 17px; height: 17px; flex: none; }
+.switch-back-go span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.switch-back-dismiss { flex: none; width: 34px; height: 38px; border: 0; border-radius: 0 999px 999px 0; background: none; color: rgba(255,255,255,.75); font-size: 20px; line-height: 1; cursor: pointer; }
+html[dir="rtl"] .switch-back-go { padding: 0 14px 0 6px; }
+html[dir="rtl"] .switch-back-dismiss { border-radius: 999px 0 0 999px; }

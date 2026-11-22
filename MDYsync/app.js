@@ -10889,6 +10889,7 @@ function refreshMdyChrome() {
   // YouTube's player stops at 2x.
   if (!state.mdyPlayback && Number($('speedSelect')?.value) > 2) window.setPlayerSpeed?.('2');
   refreshMdyAudioControl();
+  queueMicrotask(() => { if (typeof refreshSwitchShiur === 'function') refreshSwitchShiur(); });
 }
 
 // ---------------------------------------------------------------------------
@@ -10939,6 +10940,7 @@ function ensureAudioBar() {
       <button type="button" class="audio-bar-pill audio-bar-vaater" id="audioBarVaater" aria-label="Vaater -- skip ahead to the daf's next synced phrase" title="Vaater -- skip ahead to the daf's next synced phrase">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 6v12l8-6-8-6Z" fill="currentColor"/><path d="M11 6v12l8-6-8-6Z" fill="currentColor"/><rect x="19.5" y="6" width="2.2" height="12" rx="1" fill="currentColor"/></svg><span>Vaater</span>
       </button>
+      <button type="button" class="audio-bar-pill audio-bar-switch" id="audioBarSwitch" aria-label="Switch shiur" title="Switch shiur" hidden>${SWITCH_ICON}<span>Switch</span></button>
       <button type="button" class="audio-bar-pill" id="audioBarSpeed" aria-label="Playback speed, 1×" title="Playback speed" aria-haspopup="listbox" aria-expanded="false" aria-controls="audioBarSpeedMenu">1×</button>
       <a class="audio-bar-pill audio-bar-download" id="audioBarDownload" href="#" download aria-label="Download the MP3" title="Download the MP3">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>MP3</span>
@@ -10969,6 +10971,7 @@ function ensureAudioBar() {
     event.stopPropagation();
     toggleAudioBarSpeedMenu();
   });
+  bar.querySelector('#audioBarSwitch').addEventListener('click', () => openSwitchShiurDialog());
   bar.querySelector('#audioBarVideo').addEventListener('click', () => {
     if (state.browseMode && typeof setBookShiurListening === 'function') setBookShiurListening(false);
     else if (state.mdyPlayback?.quality === 'audio') changeMdyQuality(mdyVideoQuality());
@@ -11089,6 +11092,7 @@ function placeAudioBar() {
   const navHeight = nav && getComputedStyle(nav).display !== 'none' ? nav.getBoundingClientRect().height : 0;
   bar.style.setProperty('--audio-bar-bottom', `${Math.round(navHeight)}px`);
   document.body.style.setProperty('--audio-bar-room', `${Math.round(navHeight + bar.getBoundingClientRect().height + 8)}px`);
+  if (typeof placeSwitchBackChip === 'function') placeSwitchBackChip();
 }
 // The audio bar's MP3 button follows the shiur on screen.
 function refreshAudioBarDownload() {
@@ -11112,6 +11116,7 @@ function updateAudioBar() {
   }
   bar.hidden = !want;
   if (!want) closeAudioBarSpeedMenu();
+  if (!want && typeof placeSwitchBackChip === 'function') placeSwitchBackChip();
   document.body.classList.toggle('audio-bar-up', want);
   if (want) {
     const shiur = state.mdyShiur;
@@ -11119,6 +11124,7 @@ function updateAudioBar() {
     $('audioBarPicture').hidden = !$('audioBarPicture').src;
     $('audioBarTitle').textContent = state.videoSource?.label || $('lectureTitle')?.textContent || 'Shiur';
     $('audioBarClose').hidden = !state.browseMode;
+    refreshSwitchShiur();
     // R' Bornstein's shiur has no video to go back to.
     $('audioBarVideo').hidden = isLakewoodShiur(shiur);
     // Split view and Daf on video have nothing to show without the picture.
@@ -13608,9 +13614,20 @@ function bookShiurimFor(ref) {
 function bookShiurSynced(choice, ref) {
   const parsed = parseDafRef(ref);
   if (!parsed) return false;
-  if (choice.maggid) return null;
   const synced = state.syncedDapim?.[parsed.tractate]?.[`${parsed.daf}${parsed.amud}`] || [];
-  return synced.includes(comboKeyFor(choice.variant, choice.language));
+  // Another maggid's is listed as "<id>:<combo>" (list-synced-dapim.mjs). Not
+  // finding it there is not proof it has none: found out when it loads.
+  if (choice.maggid) return synced.includes(shiurSyncKey(choice)) ? true : null;
+  return synced.includes(shiurSyncKey(choice));
+}
+
+function shiurSyncKey(choice) {
+  return `${choice.maggid ? `${choice.maggid}:` : ''}${comboKeyFor(choice.variant, choice.language)}`;
+}
+
+// "R' Eli Stefansky · English", in the reader's language.
+function shiurChoiceLabel(choice) {
+  return `${T(String(choice.who || '').split(' · ')[0])} · ${T(choice.kind)}`;
 }
 
 function bookShiurRef(choice, ref) {
@@ -13661,6 +13678,8 @@ function closeBookVideo() {
   }
   if (state.viewerMode !== 'standard') setViewerMode('standard');
   updateAudioBar();
+  state.switchBack = null;
+  refreshSwitchShiur();
   scheduleVilnaPageLayoutRefresh(60);
 }
 
@@ -13685,7 +13704,7 @@ function setBookShiurListening(audio) {
 // no sync yet plays from its beginning, with nothing highlighted (there is no
 // timing to highlight by) -- and is played from the catalog, never saved as
 // the daf's video.
-async function watchShiurFromWord(choice, ref, wordIndex, { audio = false } = {}) {
+async function watchShiurFromWord(choice, ref, wordIndex, { audio = false, startAt = null } = {}) {
   const full = bookShiurRef(choice, ref);
   if (!full) return;
   state.maggid = choice.maggid;
@@ -13723,7 +13742,10 @@ async function watchShiurFromWord(choice, ref, wordIndex, { audio = false } = {}
     $('vilnaActiveOverlay').innerHTML = '';
   }
   setBookShiurListening(audio);
-  if (synced) await seekToVilnaWord(ref, wordIndex);
+  refreshSwitchShiur();
+  // startAt: a switch from another shiur says where this one picks up.
+  if (synced && startAt) await startAt();
+  else if (synced) await seekToVilnaWord(ref, wordIndex);
   else if (!same) seek(0);
   if (isPaused()) await togglePlay();
   if (!synced && !same) showToast('This shiur is not synced with the daf yet: it plays from the start.');
@@ -13804,9 +13826,12 @@ function openBookShiurWindow(ref, wordIndex) {
     const info = document.createElement('div');
     info.className = 'book-shiur-info';
     const who = document.createElement('strong');
-    who.textContent = `${choice.who.split(' · ')[0]} · ${choice.kind}`;
+    who.textContent = shiurChoiceLabel(choice);
+    who.setAttribute('translate', 'no');
     const title = document.createElement('span');
     title.className = 'book-shiur-title';
+    title.setAttribute('translate', 'no');
+    title.dir = 'auto';
     title.textContent = choice.title;
     const status = document.createElement('span');
     status.className = `book-shiur-status${synced === false ? ' is-unsynced' : ''}`;
@@ -13840,6 +13865,312 @@ function openBookShiurWindow(ref, wordIndex) {
   }
   if (!dialog.open) dialog.showModal();
 }
+
+// --- Switching to another shiur of the daf, where this one is ---------------
+// While a synced shiur plays, "Switch shiur" lists the daf's other synced
+// shiurim (another maggid's, the same maggid's Hebrew shiur or chazarah).
+// Choosing one loads it in place and starts it at the line the first one was
+// reading: every sync times the same words of the same daf, so a line in one
+// shiur is a moment in another. A chip then offers the way back, to the very
+// second the first shiur was left at.
+const SWITCH_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8h12m0 0-3.2-3.2M18 8l-3.2 3.2M18 16H6m0 0 3.2-3.2M6 16l3.2 3.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+const isRealSegment = (segment) => Boolean(segment) && !segment.estimated && Number.isFinite(Number(segment.start));
+
+// The last line this shiur has read, by its clock: the one the maggid is
+// reading or explaining. Null before he has read anything (the introduction).
+function currentReadLine(segments = state.segments, time = readPlayerTime()) {
+  let best = -1;
+  for (let i = 0; i < segments.length; i += 1) {
+    const segment = segments[i];
+    if (!isRealSegment(segment) || Number(segment.start) > time + 0.001) continue;
+    if (best < 0 || Number(segment.start) >= Number(segments[best].start)) best = i;
+  }
+  if (best < 0) return null;
+  return { ref: normalizeDafParagraphRef(segments[best].ref), wordIndex: Number.isInteger(segments[best].w0) ? segments[best].w0 : 0 };
+}
+
+// A line's place in the daf as one number: amud, then paragraph, then word.
+function dafLineOrder(ref, wordIndex) {
+  const match = /(\d+)([ab])\.(\d+)$/i.exec(normalizeDafParagraphRef(ref));
+  if (!match) return null;
+  const amud = Number(match[1]) * 2 + (match[2].toLowerCase() === 'b' ? 1 : 0);
+  return (amud * 1000 + Number(match[3])) * 1000 + (Number(wordIndex) || 0);
+}
+
+// Where a shiur reads that line: the first time it reads those words
+// (exact), or, when it never reads them, the nearest earlier line of the daf
+// it did read. index -1: it read nothing up to there.
+function switchTarget(segments, line) {
+  if (!line) return { index: -1, exact: false };
+  const ref = normalizeDafParagraphRef(line.ref);
+  let exact = -1;
+  for (let i = 0; i < segments.length; i += 1) {
+    const segment = segments[i];
+    if (!isRealSegment(segment) || normalizeDafParagraphRef(segment.ref) !== ref) continue;
+    const ranged = segment.w0 != null && segment.w1 != null;
+    if (ranged && (line.wordIndex < segment.w0 || line.wordIndex > segment.w1)) continue;
+    if (exact < 0 || Number(segment.start) < Number(segments[exact].start)) exact = i;
+  }
+  if (exact >= 0) return { index: exact, exact: true };
+  const want = dafLineOrder(ref, line.wordIndex);
+  let best = -1;
+  let bestOrder = -Infinity;
+  if (want != null) {
+    for (let i = 0; i < segments.length; i += 1) {
+      if (!isRealSegment(segments[i])) continue;
+      const order = dafLineOrder(segments[i].ref, segments[i].w0);
+      if (order == null || order > want || order < bestOrder) continue;
+      if (order > bestOrder || Number(segments[i].start) < Number(segments[best].start)) { best = i; bestOrder = order; }
+    }
+  }
+  return { index: best, exact: false };
+}
+
+// The shiur playing can be switched from: it is up, and synced (an unsynced
+// one has no line to pick up from).
+function switchShiurAvailable() {
+  if (!state.videoSource?.videoId || state.livePlainDaf || state.unsyncedDaf || state.liveFollow?.active) return false;
+  if (state.alignmentStatus === 'placeholder' || state.videoSource.liveBroadcast) return false;
+  return state.browseMode && document.body.classList.contains('book-video-up') && Boolean(state.bookVideo?.synced);
+}
+
+function switchShiurRef() {
+  return (state.browseMode && state.bookVideo?.ref) || state.dafRef || '';
+}
+
+// The daf's other synced shiurim: [{ choice, amud }], the amud being one that
+// shiur is synced for (the one on screen where it can be).
+function switchShiurChoices() {
+  if (!switchShiurAvailable()) return [];
+  const parsed = parseDafRef(switchShiurRef());
+  if (!parsed) return [];
+  const amudim = parsed.amud === 'b' ? ['b', 'a'] : ['a', 'b'];
+  const out = [];
+  for (const choice of videoChoicesFor(parsed.tractate, parsed.daf)) {
+    if (choice.videoId === state.videoSource.videoId || choice.liveBroadcast) continue;
+    const key = shiurSyncKey(choice);
+    const amud = amudim.find((side) => (state.syncedDapim?.[parsed.tractate]?.[`${parsed.daf}${side}`] || []).includes(key));
+    if (amud) out.push({ choice, amud });
+  }
+  return out;
+}
+
+function currentShiurChoice() {
+  const parsed = parseDafRef(switchShiurRef());
+  if (!parsed) return null;
+  return videoChoicesFor(parsed.tractate, parsed.daf).find((choice) => choice.videoId === state.videoSource?.videoId) || null;
+}
+
+// Starts the shiur now loaded at `line`, and says so when it is not the very
+// same line.
+function startAtSwitchLine(line) {
+  const target = switchTarget(state.segments, line);
+  if (target.index < 0) {
+    state.phrasePin = null;
+    seek(0, true);
+    showToast('This shiur starts from its beginning.');
+    return target;
+  }
+  const at = Math.max(0, Number(state.segments[target.index].start) - PHRASE_SEEK_LEAD);
+  state.phrasePin = { index: target.index, until: pinReleaseTime(target.index), seekTarget: at };
+  state.lastManualScrollAt = 0;
+  flashSeekPending();
+  seek(at, true);
+  if (!target.exact) showToast('This shiur does not read that line. It starts at the nearest earlier one.');
+  return target;
+}
+
+let switchingShiur = false;
+
+// Loads another shiur of the daf in place. `back`: { time, audio } returns to
+// a shiur left earlier, at the second it was left; otherwise the new shiur
+// picks up at the line this one is on, and this one becomes the way back.
+async function switchToShiur(entry, back = null) {
+  if (switchingShiur || !entry?.choice) return;
+  const parsed = parseDafRef(switchShiurRef());
+  if (!parsed) return;
+  switchingShiur = true;
+  const from = currentShiurChoice();
+  const left = { time: readPlayerTime(), audio: state.mdyPlayback?.quality === 'audio' };
+  const line = back ? null : currentReadLine();
+  const ref = `${parsed.tractate} ${parsed.daf}${entry.amud || parsed.amud}`;
+  const audio = back ? back.audio : left.audio;
+  // Once the new shiur is loaded and sent to its place: the way back is set
+  // and the next switch allowed, without waiting for it to start playing (a
+  // slow connection can keep play() pending for a long while).
+  const arrived = () => {
+    switchingShiur = false;
+    const there = state.videoSource?.videoId === entry.choice.videoId;
+    state.switchBack = !back && there && from ? { choice: from, amud: parsed.amud, time: left.time, audio: left.audio } : null;
+    refreshSwitchShiur();
+  };
+  try {
+    await watchShiurFromWord(entry.choice, ref, 0, {
+      audio,
+      startAt: () => {
+        if (back) {
+          state.phrasePin = null;
+          seek(Math.max(0, back.time), true);
+        } else {
+          startAtSwitchLine(line);
+        }
+        arrived();
+      },
+    });
+  } finally {
+    // It did not load, or turned out to have no sync: nothing to go back from.
+    if (switchingShiur) {
+      switchingShiur = false;
+      if (state.videoSource?.videoId !== from?.videoId) state.switchBack = null;
+      refreshSwitchShiur();
+    }
+  }
+}
+
+function ensureSwitchShiurDialog() {
+  let dialog = $('switchShiurDialog');
+  if (dialog) return dialog;
+  dialog = document.createElement('dialog');
+  dialog.id = 'switchShiurDialog';
+  dialog.className = 'switch-shiur-dialog';
+  dialog.innerHTML = `
+    <button class="dialog-close" type="button" aria-label="Close">×</button>
+    <div class="eyebrow">Switch shiur</div>
+    <h2 id="switchShiurDialogTitle"></h2>
+    <p class="switch-shiur-note">Picks up at the line being read.</p>
+    <div class="switch-shiur-list" id="switchShiurList"></div>`;
+  dialog.querySelector('.dialog-close').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
+  document.body.appendChild(dialog);
+  return dialog;
+}
+
+function openSwitchShiurDialog() {
+  const choices = switchShiurChoices();
+  const parsed = parseDafRef(switchShiurRef());
+  if (!parsed || !choices.length) return;
+  const dialog = ensureSwitchShiurDialog();
+  $('switchShiurDialogTitle').textContent = `${displayTractate(parsed.tractate)} ${parsed.daf}`;
+  const list = $('switchShiurList');
+  list.textContent = '';
+  for (const entry of choices) {
+    const { choice } = entry;
+    const ref = `${parsed.tractate} ${parsed.daf}${entry.amud}`;
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'switch-shiur-row';
+    row.dataset.videoId = choice.videoId;
+    const frame = document.createElement('span');
+    frame.className = 'switch-shiur-thumb';
+    const picture = bookShiurPicture(choice, ref);
+    if (picture.src) {
+      const img = document.createElement('img');
+      img.alt = '';
+      img.loading = 'lazy';
+      img.src = picture.src;
+      img.addEventListener('error', () => {
+        if (picture.fallback && img.src !== picture.fallback) img.src = picture.fallback;
+        else img.remove();
+      });
+      frame.appendChild(img);
+    }
+    const info = document.createElement('span');
+    info.className = 'switch-shiur-info';
+    const who = document.createElement('strong');
+    who.textContent = shiurChoiceLabel(choice);
+    who.setAttribute('translate', 'no');
+    const title = document.createElement('span');
+    title.className = 'switch-shiur-title';
+    title.textContent = choice.title;
+    title.setAttribute('translate', 'no');
+    title.dir = 'auto';
+    info.append(who, title);
+    if (bookShiurAudioOnly(choice, ref)) {
+      const kind = document.createElement('span');
+      kind.className = 'switch-shiur-kind';
+      kind.textContent = 'Audio';
+      info.appendChild(kind);
+    }
+    row.append(frame, info);
+    row.addEventListener('click', () => {
+      dialog.close();
+      switchToShiur(entry);
+    });
+    list.appendChild(row);
+  }
+  if (!dialog.open) dialog.showModal();
+}
+
+// "Back to R' Eli Stefansky · English", after a switch: one tap returns to
+// the shiur that was left, at the second it was left.
+function ensureSwitchBackChip() {
+  let chip = $('switchBackChip');
+  if (chip) return chip;
+  chip = document.createElement('div');
+  chip.id = 'switchBackChip';
+  chip.className = 'switch-back-chip';
+  chip.hidden = true;
+  chip.innerHTML = `
+    <button type="button" class="switch-back-go" id="switchBackGo">${SWITCH_ICON}<span id="switchBackLabel" translate="no"></span></button>
+    <button type="button" class="switch-back-dismiss" id="switchBackDismiss" aria-label="Dismiss">×</button>`;
+  chip.querySelector('#switchBackGo').addEventListener('click', () => {
+    const back = state.switchBack;
+    if (!back) return;
+    switchToShiur({ choice: back.choice, amud: back.amud }, { time: back.time, audio: back.audio });
+  });
+  chip.querySelector('#switchBackDismiss').addEventListener('click', () => {
+    state.switchBack = null;
+    refreshSwitchShiur();
+  });
+  document.body.appendChild(chip);
+  return chip;
+}
+
+// Above the phone's bottom navigation and the audio bar, whichever is up.
+function placeSwitchBackChip() {
+  const chip = $('switchBackChip');
+  // A message (toast) shows above the chip, not under it.
+  document.body.classList.toggle('switch-back-up', !!chip && !chip.hidden);
+  if (!chip || chip.hidden) return;
+  const nav = document.querySelector('.mobile-nav');
+  const navTop = nav && getComputedStyle(nav).display !== 'none' ? nav.getBoundingClientRect().top : window.innerHeight;
+  const bar = $('audioBar');
+  const barTop = bar && !bar.hidden ? bar.getBoundingClientRect().top : window.innerHeight;
+  const bottom = Math.round(window.innerHeight - Math.min(navTop, barTop) + 10);
+  chip.style.bottom = `${bottom}px`;
+  document.body.style.setProperty('--switch-back-top', `${bottom + Math.round(chip.getBoundingClientRect().height) + 8}px`);
+}
+window.addEventListener('resize', placeSwitchBackChip);
+
+// Shows the Switch buttons while there is a shiur to switch to, and the way
+// back while there is one. Cheap: called whenever the shiur on screen changes.
+function refreshSwitchShiur() {
+  const any = switchShiurChoices().length > 0;
+  for (const id of ['playerSwitchButton', 'barSwitchButton', 'audioBarSwitch']) {
+    const button = $(id);
+    if (button) button.hidden = !any;
+  }
+  document.body.classList.toggle('can-switch-shiur', any);
+  // The shiur left is the way back only while its replacement is still up.
+  if (state.switchBack && !switchShiurAvailable()) state.switchBack = null;
+  const back = state.switchBack;
+  if (!back && !$('switchBackChip')) return;
+  const chip = ensureSwitchBackChip();
+  chip.hidden = !back;
+  if (back) $('switchBackLabel').textContent = T('Back to {shiur}').replace('{shiur}', shiurChoiceLabel(back.choice));
+  placeSwitchBackChip();
+}
+
+window.dafSwitchShiur = {
+  open: openSwitchShiurDialog,
+  choices: switchShiurChoices,
+  refresh: refreshSwitchShiur,
+  icon: SWITCH_ICON,
+  // For tests: the pure parts.
+  currentReadLine,
+  switchTarget,
+};
 
 window.dafBookVideo = {
   shiurimFor: bookShiurimFor,
