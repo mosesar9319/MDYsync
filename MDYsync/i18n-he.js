@@ -1180,4 +1180,6 @@ window.DafSyncI18n && window.DafSyncI18n.addWords({
   'Your session ended. Sign in again in another tab, then post — your text is still here.': 'החיבור הסתיים. יש להתחבר שוב בלשונית אחרת ואז לפרסם — הטקסט שלך עדיין כאן.',
   'Your session expired. Sign in again to continue.': 'החיבור פג. יש להתחבר שוב כדי להמשיך.',
   '← My kuntrasim': '→ הקונטרסים שלי',
+  'Be the first to open a question or share a source on today’s daf.': 'אפשר להיות הראשונים לשאול או לשתף מקור על הדף היומי.',
+  "Be the first to open a question or share a source on today's daf.": 'אפשר להיות הראשונים לשאול או לשתף מקור על הדף היומי.',
 });
