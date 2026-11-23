@@ -233,9 +233,13 @@ function renderSummary() {
 // --- A day ---------------------------------------------------------------------------
 
 const cache = new Map();
+// Each file is fetched once. One that could not be fetched (the connection
+// dropped) is not remembered as missing: the next look tries again.
 function getJson(url) {
   if (!cache.has(url)) {
-    cache.set(url, fetch(url).then((response) => (response.ok ? response.json() : null)).catch(() => null));
+    cache.set(url, fetch(url)
+      .then((response) => { if (!response.ok) throw new Error(String(response.status)); return response.json(); })
+      .catch(() => { cache.delete(url); return null; }));
   }
   return cache.get(url);
 }
