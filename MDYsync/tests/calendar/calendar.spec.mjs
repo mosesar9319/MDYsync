@@ -47,7 +47,7 @@ test.describe('Daf Yomi calendar (design preview)', () => {
     await expect(panel).toBeVisible();
     await expect(panel.locator('.cal-day-title')).toContainText(await yesterday.locator('.cal-num').innerText());
     // The agreed rule's "almost" state: a finished shiur, a few words outstanding.
-    await expect(panel.locator('.cal-state strong')).toContainText('words still to hear');
+    await expect(panel.locator('.cal-state strong')).toContainText('words still to learn');
 
     const title = await page.locator('#calTitle').innerText();
     await page.locator('#calNext').click();

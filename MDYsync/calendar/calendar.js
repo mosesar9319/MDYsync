@@ -200,7 +200,7 @@ function renderSummary() {
       <div class="cal-tile cal-tile-invite">
         <span class="cal-tile-label">Keep track</span>
         <strong>Sign in and the calendar fills itself in</strong>
-        <span class="cal-tile-note">Every shiur you hear on DafSync is counted, line by line.</span>
+        <span class="cal-tile-note">Every shiur you learn on DafSync is counted, line by line.</span>
       </div>`;
     return;
   }
@@ -395,18 +395,18 @@ async function renderDay() {
     const jump = openLine ? `${playerUrl}&t=${Math.max(0, Math.floor(openLine.start))}` : playerUrl;
     const quote = openLine?.text ? `<span class="cal-quote" lang="he" dir="rtl" translate="no">${escapeHtml(openLine.text)}…</span>` : '';
     if (progress.state === 'done') {
-      status = `<div class="cal-state"><span class="cal-state-ring">${ring(progress, 44)}</span><div><strong>Done</strong><span>You heard this daf through.</span></div></div>`;
+      status = `<div class="cal-state"><span class="cal-state-ring">${ring(progress, 44)}</span><div><strong>Done</strong><span>You learned this daf through.</span></div></div>`;
     } else if (progress.state === 'marked') {
       status = `<div class="cal-state"><span class="cal-state-ring">${ring(progress, 44)}</span><div><strong>Done</strong><span>You marked it as learned.</span></div></div>`;
     } else if (progress.state === 'gap') {
       const words = openLine?.words || 8;
-      status = `<div class="cal-state"><span class="cal-state-ring">${ring(progress, 44)}</span><div><strong>${words} words still to hear</strong><span>The shiur you finished stopped before the end of the daf, and the next shiur you heard began ${words} words further on${printed ? ` (line ${printed.line} of ${amudWord})` : ''}.</span></div></div>
-        <a class="cal-primary" href="${jump}">Hear the ${words} words${quote}</a>`;
+      status = `<div class="cal-state"><span class="cal-state-ring">${ring(progress, 44)}</span><div><strong>${words} words still to learn</strong><span>The shiur you finished stopped before the end of the daf, and the next shiur you learned began ${words} words further on${printed ? ` (line ${printed.line} of ${amudWord})` : ''}.</span></div></div>
+        <a class="cal-primary" href="${jump}">Learn the ${words} words${quote}</a>`;
     } else if (progress.state === 'partial') {
-      status = `<div class="cal-state"><span class="cal-state-ring">${ring(progress, 44)}</span><div><strong>${Math.round(progress.fraction * 100)}% heard</strong><span>${openLine ? `You are up to ${where}.` : 'You stopped partway through the shiur.'}</span></div></div>
+      status = `<div class="cal-state"><span class="cal-state-ring">${ring(progress, 44)}</span><div><strong>${Math.round(progress.fraction * 100)}% learned</strong><span>${openLine ? `You are up to ${where}.` : 'You stopped partway through the shiur.'}</span></div></div>
         <a class="cal-primary" href="${jump}">${printed ? `Continue from line ${printed.line}` : (openLine ? 'Continue from here' : 'Continue the shiur')}${quote}</a>`;
     } else if (progress.state === 'missed') {
-      status = `<div class="cal-state"><span class="cal-state-ring">${ring(progress, 44)}</span><div><strong>Not learned yet</strong><span>Nothing heard on this daf.</span></div></div>
+      status = `<div class="cal-state"><span class="cal-state-ring">${ring(progress, 44)}</span><div><strong>Not learned yet</strong><span>Nothing learned on this daf.</span></div></div>
         <a class="cal-primary" href="${playerUrl}">Start this daf</a>`;
     } else if (progress.state === 'future') {
       status = `<div class="cal-state is-plain"><div><strong>${day === today + 1 ? 'Tomorrow' : 'Coming up'}</strong><span>${daf.masechta.onSite ? 'Shiurim appear here as they are published.' : ''}</span></div></div>`;
@@ -416,9 +416,9 @@ async function renderDay() {
   }
 
   const map = heard ? `<div class="cal-section"><h3>The daf, line by line</h3>${dafMap(heard)}
-      <div class="cal-map-key"><span class="is-heard">Heard</span><span class="is-open">Not yet</span>${heard.some((l) => l.mark === 'gap') ? '<span class="is-gap">Outstanding</span>' : ''}${heard.some((l) => l.mark === 'later') ? '<span class="is-later">Read in the next shiur</span>' : ''}</div></div>`
+      <div class="cal-map-key"><span class="is-heard">Learned</span><span class="is-open">Not yet</span>${heard.some((l) => l.mark === 'gap') ? '<span class="is-gap">Outstanding</span>' : ''}${heard.some((l) => l.mark === 'later') ? '<span class="is-later">Read in the next shiur</span>' : ''}</div></div>`
     : (view.signedIn && daf.masechta.onSite && !['future', 'before'].includes(progress.state)
-      ? '<div class="cal-section"><p class="cal-quiet">This daf\'s shiur is not synced line by line yet, so it is tracked by how much of the shiur you heard.</p></div>' : '');
+      ? '<div class="cal-section"><p class="cal-quiet">This daf\'s shiur is not synced line by line yet, so it is tracked by how much of the shiur you learned.</p></div>' : '');
 
   const list = shiurim.length
     ? `<div class="cal-section"><h3>Shiurim</h3><div class="cal-shiurim">${shiurim.map((shiur, index) => {
@@ -426,7 +426,7 @@ async function renderDay() {
       return `<a class="cal-shiur" href="${shiur.url}">
         <span class="cal-shiur-play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg></span>
         <span class="cal-shiur-text"><strong translate="no">${escapeHtml(shiur.who)} · ${escapeHtml(shiur.kind)}</strong>
-          <span>${view.signedIn ? (part >= 100 ? 'Heard through' : part > 0 ? `${part}% heard` : 'Not started') : escapeHtml(shiur.title)}</span></span>
+          <span>${view.signedIn ? (part >= 100 ? 'Learned through' : part > 0 ? `${part}% learned` : 'Not started') : escapeHtml(shiur.title)}</span></span>
         ${view.signedIn && part > 0 ? `<span class="cal-bar"><span style="width:${Math.min(100, part)}%"></span></span>` : ''}
       </a>`;
     }).join('')}</div></div>`
