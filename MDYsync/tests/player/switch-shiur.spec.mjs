@@ -146,7 +146,7 @@ test.describe('Switching to another shiur of the daf', () => {
     await expect(rows.nth(0).locator('strong')).toHaveText("R' Eli Stefansky · Hebrew");
     await expect(rows.nth(1).locator('strong')).toHaveText("R' Sruly Bornstein · English");
     await expect(rows.nth(1).locator('.switch-shiur-kind')).toHaveText('Audio');
-    await expect(page.locator('#switchShiurDialogTitle')).toHaveText('Chullin 91');
+    await expect(page.locator('#switchShiurMenuTitle')).toHaveText('Chullin 91');
   });
 
   test('the button is on the bottom bar: on a computer, and in the mini player over the daf', async ({ page }, testInfo) => {
@@ -172,6 +172,53 @@ test.describe('Switching to another shiur of the daf', () => {
     await expect(page.locator('#switchShiurList .switch-shiur-row')).toHaveCount(2);
   });
 
+  test('the list is a menu by the button: the page is not covered, and a press elsewhere closes it', async ({ page }, testInfo) => {
+    await open(page);
+    await bringUpEnglish(page);
+    await expect.poll(() => page.evaluate(() => document.getElementById('barSwitchButton').offsetWidth > 0)).toBe(true);
+    const menu = page.locator('#switchShiurMenu');
+    const press = () => page.evaluate(() => document.getElementById('barSwitchButton').click());
+    await press();
+    await expect(menu).toBeVisible();
+    await expect(page.locator('#switchShiurList .switch-shiur-row')).toHaveCount(2);
+    const placed = await page.evaluate(() => {
+      const box = document.getElementById('switchShiurMenu').getBoundingClientRect();
+      const button = document.getElementById('barSwitchButton').getBoundingClientRect();
+      // A point of the page well away from the menu: still the page, not a sheet laid over it.
+      const far = [[8, 8], [window.innerWidth - 8, 8]].map(([x, y]) => document.elementFromPoint(x, y));
+      return {
+        window: Boolean(document.querySelector('dialog[open]')),
+        covered: far.some((el) => !el || el.closest('#switchShiurMenu')),
+        inside: box.left >= 0 && box.right <= window.innerWidth && box.top >= 0 && box.bottom <= window.innerHeight,
+        // Up from the button, or down from it: never over it (where the button is on the screen).
+        clear: button.top > window.innerHeight - 60 || box.bottom <= button.top + 1 || box.top >= button.bottom - 1,
+        // On the larger side: as wide as a phone allows, 440px on a computer.
+        width: Math.round(box.width),
+        expanded: document.getElementById('barSwitchButton').getAttribute('aria-expanded'),
+      };
+    });
+    expect(placed).toEqual({
+      window: false, covered: false, inside: true, clear: true,
+      width: testInfo.project.name === 'desktop' ? 440 : await page.evaluate(() => window.innerWidth - 16),
+      expanded: 'true',
+    });
+    // The button again closes it.
+    await press();
+    await expect(menu).toBeHidden();
+    expect(await page.evaluate(() => document.getElementById('barSwitchButton').getAttribute('aria-expanded'))).toBe('false');
+    // So does a press anywhere else on the page, and Escape.
+    await press();
+    await expect(menu).toBeVisible();
+    await page.evaluate(() => document.querySelector('.daf-card, main, body').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })));
+    await expect(menu).toBeHidden();
+    await press();
+    await expect(menu).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    // The shiur was not switched by any of that.
+    expect(await loadedVideo(page)).toBe('AAAAAAAAAAA');
+  });
+
   test('the new shiur starts where it first reads the line the old one was on; the chip goes back to the very second', async ({ page }) => {
     await open(page);
     await bringUpEnglish(page);
@@ -182,7 +229,7 @@ test.describe('Switching to another shiur of the daf', () => {
     await expect.poll(() => loadedVideo(page)).toBe('BBBBBBBBBBB');
     // Hebrew reads that phrase at 3:20 and again at 6:40: the first reading, less the lead-in.
     await expect.poll(() => lastSeek(page)).toBe(199.6);
-    await expect(page.locator('#switchShiurDialog')).toBeHidden();
+    await expect(page.locator('#switchShiurMenu')).toBeHidden();
     // The chip names the shiur that was left.
     const chip = page.locator('#switchBackChip');
     await expect(chip).toBeVisible();
@@ -319,7 +366,7 @@ test.describe('Switching to another shiur on the player page', () => {
     expect(await page.evaluate(() => window.dafSwitchShiur.choices().map((e) => e.choice.videoId))).toEqual(['BBBBBBBBBBB', 'L0000000091']);
     await page.evaluate(() => window.dafSwitchShiur.open());
     await expect(page.locator('#switchShiurList .switch-shiur-row')).toHaveCount(2);
-    await expect(page.locator('#switchShiurDialogTitle')).toHaveText('Chullin 91');
+    await expect(page.locator('#switchShiurMenuTitle')).toHaveText('Chullin 91');
   });
 
   test('a computer has the button on the bottom bar, a phone in the top bar; the mini player has it on its bar', async ({ page }, testInfo) => {
@@ -416,5 +463,67 @@ test.describe('Switching to another shiur on the player page', () => {
     await expect.poll(() => page.evaluate(() => state.viewerMode)).not.toBe('split');
     await page.waitForTimeout(500);
     await expect.poll(() => address(page)).toEqual({ ref: 'Chullin 91a', maggid: 'bornstein' });
+  });
+
+  // A phone's top bar (in Split, the first row of the "Daf tools" drop-down) has
+  // no room for Bookmark beside the daf's name and "Switch shiur": it is the
+  // first row of the More menu there. A computer keeps it in the bar.
+  test('Bookmark is in the More menu on a phone, and nothing in the drop-down\'s top bar overlaps', async ({ page }, testInfo) => {
+    await open(page, { path: '/player/?ref=Chullin%2091a', builtInViewerMode: 'split' });
+    await expect.poll(() => loadedVideo(page)).toBe('AAAAAAAAAAA');
+    await expect.poll(() => page.evaluate(() => document.getElementById('playerSwitchButton').hidden)).toBe(false);
+    // A signed-in reader has the Bookmark button.
+    await page.evaluate(() => { document.getElementById('favoriteButton').hidden = false; });
+    const shown = (id) => page.evaluate((i) => getComputedStyle(document.getElementById(i)).display !== 'none' && !document.getElementById(i).hidden, id);
+    if (testInfo.project.name === 'desktop') {
+      await expect.poll(() => shown('playerBookmarkButton')).toBe(true);
+      expect(await shown('moreBookmarkButton')).toBe(false);
+      return;
+    }
+    await page.evaluate(() => setSplitToolsOpen(true));
+    await expect.poll(() => shown('moreBookmarkButton')).toBe(true);
+    expect(await shown('playerBookmarkButton')).toBe(false);
+    for (const width of [412, 390, 360, 320]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.waitForTimeout(250);
+      const bar = await page.evaluate(() => {
+        const box = (id) => { const b = document.getElementById(id).getBoundingClientRect(); return [Math.round(b.left), Math.round(b.right)]; };
+        const label = document.getElementById('playerDafLabel');
+        return {
+          order: ['playerDafButton', 'playerSwitchButton', 'playerNotesButton', 'playerMoreButton'].map(box),
+          nameCut: label.scrollWidth - label.clientWidth,
+          nameWidth: label.offsetWidth,
+          inside: box('playerMoreButton')[1] <= window.innerWidth,
+        };
+      });
+      // Left to right, each ends before the next begins.
+      for (let i = 1; i < bar.order.length; i += 1) expect(bar.order[i][0], `${width}px: button ${i}`).toBeGreaterThanOrEqual(bar.order[i - 1][1]);
+      expect(bar.inside, `${width}px`).toBe(true);
+      // The daf's name is there in full.
+      expect(bar.nameWidth, `${width}px`).toBeGreaterThan(40);
+      expect(bar.nameCut, `${width}px`).toBeLessThanOrEqual(0);
+    }
+    // The bar's button says "Switch shiur" in full, and its list drops down from it.
+    await expect(page.locator('#playerSwitchButton')).toHaveText('Switch shiur');
+    await page.locator('#playerSwitchButton').click();
+    await expect(page.locator('#switchShiurMenu')).toBeVisible();
+    expect(await page.evaluate(() => {
+      const box = document.getElementById('switchShiurMenu').getBoundingClientRect();
+      const button = document.getElementById('playerSwitchButton').getBoundingClientRect();
+      return { side: document.getElementById('switchShiurMenu').dataset.side, below: box.top >= button.bottom, inside: box.left >= 0 && box.right <= window.innerWidth && box.bottom <= window.innerHeight };
+    })).toEqual({ side: 'down', below: true, inside: true });
+    await page.locator('#playerSwitchButton').click();
+    await expect(page.locator('#switchShiurMenu')).toBeHidden();
+    // The row in the More menu is the page's own Bookmark button.
+    await page.evaluate(() => {
+      window.__bookmarked = 0;
+      document.getElementById('favoriteButton').addEventListener('click', () => { window.__bookmarked += 1; });
+    });
+    await page.locator('#playerMoreButton').click();
+    const first = page.locator('#playerMoreMenu .player-chrome-menu-item').first();
+    await expect(first).toHaveText('Bookmark');
+    await first.click();
+    expect(await page.evaluate(() => window.__bookmarked)).toBe(1);
+    await expect(page.locator('#playerMoreMenu')).toBeHidden();
   });
 });

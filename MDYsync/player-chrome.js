@@ -175,10 +175,10 @@
       <span class="player-daf-hebrew" id="playerDafHebrew" dir="rtl" lang="he"></span>
     </div>
     <div class="player-topbar-group player-topbar-actions">
-      <button class="player-chrome-button player-switch-button" id="playerSwitchButton" type="button" hidden>${window.dafSwitchShiur?.icon || ''}<span>Switch shiur</span></button>
+      <button class="player-chrome-button player-switch-button" id="playerSwitchButton" type="button" aria-label="Switch shiur" hidden>${window.dafSwitchShiur?.icon || ''}<span>Switch shiur</span></button>
       <button class="player-chrome-button" id="playerBookmarkButton" type="button" aria-pressed="false">${ICONS.bookmark}<span>Bookmark</span></button>
-      <button class="player-chrome-button" id="playerNotesButton" type="button" ${hasNotes ? '' : 'hidden'}>${ICONS.notes}<span>Notes</span></button>
-      <button class="player-chrome-button" id="playerMoreButton" type="button" aria-expanded="false">${ICONS.more}<span>More</span></button>
+      <button class="player-chrome-button" id="playerNotesButton" type="button" aria-label="Notes" ${hasNotes ? '' : 'hidden'}>${ICONS.notes}<span>Notes</span></button>
+      <button class="player-chrome-button" id="playerMoreButton" type="button" aria-label="More" aria-expanded="false">${ICONS.more}<span>More</span></button>
     </div>
     <div class="player-chrome-menu player-daf-menu" id="playerDafMenu" hidden></div>
     <div class="player-chrome-menu player-more-menu" id="playerMoreMenu" hidden></div>
@@ -202,9 +202,9 @@
 
   // Another shiur of the same daf, from the line this one is on (app.js keeps
   // the button hidden until there is one to switch to).
-  $('playerSwitchButton').addEventListener('click', () => {
+  $('playerSwitchButton').addEventListener('click', (event) => {
     closeMenus();
-    window.dafSwitchShiur?.open();
+    window.dafSwitchShiur?.open(event.currentTarget);
   });
   window.dafSwitchShiur?.refresh();
 
@@ -227,6 +227,23 @@
       $(item.id).click();
     });
     moreMenu.appendChild(button);
+  }
+  // Bookmark, on a phone: its top bar has no room for the button beside the
+  // daf and "Switch shiur", so it is the first row here instead (styles.css
+  // shows this one on a phone and the bar's own on a computer). The page's
+  // own #favoriteButton does the work, as for the bar's button.
+  if ($('favoriteButton')) {
+    const bookmark = document.createElement('button');
+    bookmark.type = 'button';
+    bookmark.id = 'moreBookmarkButton';
+    bookmark.className = 'player-chrome-menu-item player-more-bookmark';
+    bookmark.setAttribute('aria-pressed', 'false');
+    bookmark.textContent = 'Bookmark';
+    bookmark.addEventListener('click', () => {
+      closeMenus();
+      $('favoriteButton').click();
+    });
+    moreMenu.prepend(bookmark);
   }
   // An MDY shiur's audio (app.js refreshMdyAudioControl keeps these current
   // and shows them only for an MDY shiur). In Split view the same two live in
@@ -687,7 +704,7 @@
   barSwitchButton.hidden = true;
   barSwitchButton.addEventListener('click', (event) => {
     event.stopPropagation();
-    window.dafSwitchShiur?.open();
+    window.dafSwitchShiur?.open(event.currentTarget);
   });
   tools.appendChild(barSwitchButton);
   const hasSplitView = Boolean(document.querySelector('.watch-layout'));
@@ -901,8 +918,12 @@
     if (fullscreenCaption && fullscreenCaption.textContent !== fullscreenWord) fullscreenCaption.textContent = fullscreenWord;
     const favorite = $('favoriteButton');
     if (favorite) {
-      if ($('playerBookmarkButton').hidden !== favorite.hidden) $('playerBookmarkButton').hidden = favorite.hidden;
-      $('playerBookmarkButton').setAttribute('aria-pressed', String(favorite.classList.contains('is-favorited')));
+      for (const id of ['playerBookmarkButton', 'moreBookmarkButton']) {
+        const button = $(id);
+        if (!button) continue;
+        if (button.hidden !== favorite.hidden) button.hidden = favorite.hidden;
+        button.setAttribute('aria-pressed', String(favorite.classList.contains('is-favorited')));
+      }
     }
   }
   new MutationObserver(syncToggleStates).observe(frame, { attributes: true, attributeFilter: ['class'] });
