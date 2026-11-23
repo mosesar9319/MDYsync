@@ -670,15 +670,17 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
   #playerBookmarkButton { display: none !important; }
   .player-more-bookmark:not([hidden]) { display: block; }
 }
-/* "Switch shiur" in the top bar; the phone's Split drop-down shows the short
-   word (its rules are with the drop-down's, further down). */
-#playerSwitchButton .switch-short { display: none; }
-/* The narrowest phones: More, then Notes, are their icons alone there. */
-@media (max-width: 400px) {
+/* The phone's Split drop-down keeps "Switch shiur" in full. For that, and for
+   the daf's name: on phones under 430px wide More is its three dots alone,
+   under 380px Notes is its icon alone, and under 345px the logo is left out. */
+@media (max-width: 430px) {
   body.split-tools-phone.split-tools-open #splitToolsPanel #playerMoreButton span { display: none; }
 }
-@media (max-width: 340px) {
+@media (max-width: 380px) {
   body.split-tools-phone.split-tools-open #splitToolsPanel #playerNotesButton span { display: none; }
+}
+@media (max-width: 345px) {
+  body.split-tools-phone.split-tools-open #splitToolsPanel .player-brand { display: none; }
 }
 /* The page's real daf picker is moved in here rather than duplicated, so it
    arrives with the setup strip's own layout classes and needs re-fitting to
@@ -3469,15 +3471,12 @@ body:not(.split-view-active) .split-divider,
   }
   body.split-tools-phone.split-tools-open #splitToolsPanel .player-topbar::before { content: none; }
   body.split-tools-phone.split-tools-open #splitToolsPanel .player-topbar-group { flex-wrap: nowrap; min-width: 0; }
-  /* Room for the daf's name beside the buttons: closer together, no rule
-     between the logo and the daf, and "Switch" for "Switch shiur". Should the
-     name still not fit, it gives way (an ellipsis) before anything is drawn
-     over it. */
+  /* Room for the daf's name beside the buttons: closer together, and no rule
+     between the logo and the daf. Should the name still not fit, it gives way
+     (an ellipsis) before anything is drawn over it. */
   body.split-tools-phone.split-tools-open #splitToolsPanel .player-topbar-group { gap: 6px; }
   body.split-tools-phone.split-tools-open #splitToolsPanel .player-topbar-group:first-child { flex: 1 1 auto; overflow: hidden; }
   body.split-tools-phone.split-tools-open #splitToolsPanel .player-topbar-rule { display: none; }
-  body.split-tools-phone.split-tools-open #splitToolsPanel #playerSwitchButton .switch-long { display: none; }
-  body.split-tools-phone.split-tools-open #splitToolsPanel #playerSwitchButton .switch-short { display: inline; }
   body.split-tools-phone.split-tools-open #splitToolsPanel .player-brand span,
   body.split-tools-phone.split-tools-open #splitToolsPanel .player-daf-hebrew,
   body.split-tools-phone.split-tools-open #splitToolsPanel .player-topbar-rule-he { display: none; }
@@ -4890,32 +4889,53 @@ body.audio-bar-up { padding-bottom: var(--audio-bar-room, 0px); }
 /* ---- Switching to another shiur of the daf (app.js, "Switching to another
    shiur of the daf"): the list of the daf's other synced shiurim, and the
    chip that leads back to the one that was left. ---- */
-.switch-shiur-dialog { width: min(560px, calc(100% - 24px)); max-height: min(86vh, 720px); padding: 22px; overflow: auto; }
-.switch-shiur-dialog h2 { margin: 2px 0 4px; }
-.switch-shiur-note { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
-.switch-shiur-list { display: flex; flex-direction: column; gap: 10px; }
+/* "Switch shiur": the daf's other shiurim, as a menu by the button pressed
+   (app.js places it above or below the button). It lies over the page, which
+   stays as it is around it: no window, nothing dimmed. Above Split view (500)
+   and the player's other menus (up to 710). */
+.switch-shiur-menu {
+  position: fixed;
+  z-index: 750;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: 14px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 18px;
+  background: rgba(13, 24, 38, .98);
+  color: #f4f7fb;
+  box-shadow: 0 18px 48px rgba(0,0,0,.5);
+  overflow: hidden;
+}
+.switch-shiur-menu[hidden] { display: none; }
+.switch-shiur-head { display: flex; align-items: baseline; gap: 10px; padding: 0 4px; }
+.switch-shiur-eyebrow { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #8fc1f0; white-space: nowrap; }
+.switch-shiur-head strong { font-size: 17px; line-height: 1.25; }
+.switch-shiur-note { margin: 2px 4px 12px; color: rgba(244,247,251,.7); font-size: 13px; }
+.switch-shiur-list { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .switch-shiur-row {
   display: grid;
   grid-template-columns: 128px minmax(0, 1fr);
   gap: 12px;
   align-items: center;
   width: 100%;
-  padding: 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: 14px;
-  background: rgba(127,127,127,.08);
+  flex: none;
+  padding: 9px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 13px;
+  background: rgba(255,255,255,.06);
   color: inherit;
   font: inherit;
   text-align: start;
   cursor: pointer;
 }
-.switch-shiur-row:hover, .switch-shiur-row:focus-visible { background: rgba(127,127,127,.18); border-color: var(--accent, #2f7de1); outline: none; }
-.switch-shiur-thumb { display: block; width: 128px; aspect-ratio: 16 / 9; border-radius: 9px; overflow: hidden; background: rgba(127,127,127,.2); }
+.switch-shiur-row:hover, .switch-shiur-row:focus-visible { background: rgba(255,255,255,.14); border-color: #5aa7ee; outline: none; }
+.switch-shiur-thumb { display: block; width: 128px; aspect-ratio: 16 / 9; border-radius: 9px; overflow: hidden; background: rgba(255,255,255,.1); }
 .switch-shiur-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .switch-shiur-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .switch-shiur-info strong { font-size: 15px; line-height: 1.3; }
-.switch-shiur-title { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.switch-shiur-kind { align-self: flex-start; margin-top: 3px; padding: 1px 8px; border-radius: 999px; background: rgba(127,127,127,.22); font-size: 11px; font-weight: 700; letter-spacing: .03em; }
+.switch-shiur-title { color: rgba(244,247,251,.68); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.switch-shiur-kind { align-self: flex-start; margin-top: 3px; padding: 1px 8px; border-radius: 999px; background: rgba(255,255,255,.16); font-size: 11px; font-weight: 700; letter-spacing: .03em; }
 @media (max-width: 520px) {
   .switch-shiur-row { grid-template-columns: 96px minmax(0, 1fr); }
   .switch-shiur-thumb { width: 96px; }

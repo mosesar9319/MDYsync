@@ -10943,7 +10943,7 @@ function ensureAudioBar() {
       <button type="button" class="audio-bar-pill audio-bar-vaater" id="audioBarVaater" aria-label="Vaater -- skip ahead to the daf's next synced phrase" title="Vaater -- skip ahead to the daf's next synced phrase">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 6v12l8-6-8-6Z" fill="currentColor"/><path d="M11 6v12l8-6-8-6Z" fill="currentColor"/><rect x="19.5" y="6" width="2.2" height="12" rx="1" fill="currentColor"/></svg><span>Vaater</span>
       </button>
-      <button type="button" class="audio-bar-pill audio-bar-switch" id="audioBarSwitch" aria-label="Switch shiur" title="Switch shiur" hidden>${SWITCH_ICON}<span>Switch</span></button>
+      <button type="button" class="audio-bar-pill audio-bar-switch" id="audioBarSwitch" aria-label="Switch shiur" title="Switch shiur" hidden>${SWITCH_ICON}<span>Switch shiur</span></button>
       <button type="button" class="audio-bar-pill" id="audioBarSpeed" aria-label="Playback speed, 1×" title="Playback speed" aria-haspopup="listbox" aria-expanded="false" aria-controls="audioBarSpeedMenu">1×</button>
       <a class="audio-bar-pill audio-bar-download" id="audioBarDownload" href="#" download aria-label="Download the MP3" title="Download the MP3">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>MP3</span>
@@ -10974,7 +10974,7 @@ function ensureAudioBar() {
     event.stopPropagation();
     toggleAudioBarSpeedMenu();
   });
-  bar.querySelector('#audioBarSwitch').addEventListener('click', () => openSwitchShiurDialog());
+  bar.querySelector('#audioBarSwitch').addEventListener('click', (event) => openSwitchShiurMenu(event.currentTarget));
   bar.querySelector('#audioBarVideo').addEventListener('click', () => {
     if (state.browseMode && typeof setBookShiurListening === 'function') setBookShiurListening(false);
     else if (state.mdyPlayback?.quality === 'audio') changeMdyQuality(mdyVideoQuality());
@@ -14103,30 +14103,116 @@ window.addEventListener('popstate', () => {
   try { history.replaceState(history.state, '', wanted.path + location.hash); } catch { /* keep the address */ }
 });
 
-function ensureSwitchShiurDialog() {
-  let dialog = $('switchShiurDialog');
-  if (dialog) return dialog;
-  dialog = document.createElement('dialog');
-  dialog.id = 'switchShiurDialog';
-  dialog.className = 'switch-shiur-dialog';
-  dialog.innerHTML = `
-    <button class="dialog-close" type="button" aria-label="Close">×</button>
-    <div class="eyebrow">Switch shiur</div>
-    <h2 id="switchShiurDialogTitle"></h2>
+// The list of shiurim opens as a menu by the button that was pressed: up from
+// a button at the bottom of the player, down from one at its top. The page
+// around it stays as it is -- no window over it, nothing dimmed -- and a tap
+// anywhere else puts the menu away.
+let switchMenuAnchor = null;
+
+function ensureSwitchShiurMenu() {
+  let menu = $('switchShiurMenu');
+  if (menu) return menu;
+  menu = document.createElement('div');
+  menu.id = 'switchShiurMenu';
+  menu.className = 'switch-shiur-menu';
+  menu.setAttribute('role', 'dialog');
+  menu.setAttribute('aria-label', 'Switch shiur');
+  menu.hidden = true;
+  menu.innerHTML = `
+    <div class="switch-shiur-head">
+      <span class="switch-shiur-eyebrow">Switch shiur</span>
+      <strong id="switchShiurMenuTitle"></strong>
+    </div>
     <p class="switch-shiur-note">Picks up at the line being read.</p>
     <div class="switch-shiur-list" id="switchShiurList"></div>`;
-  dialog.querySelector('.dialog-close').addEventListener('click', () => dialog.close());
-  dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
-  document.body.appendChild(dialog);
-  return dialog;
+  document.body.appendChild(menu);
+  // A press anywhere but the menu, or the button it opened from (that one
+  // closes it itself), puts it away.
+  document.addEventListener('pointerdown', (event) => {
+    if (menu.hidden || menu.contains(event.target) || switchMenuAnchor?.contains(event.target)) return;
+    closeSwitchShiurMenu();
+  }, true);
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || menu.hidden) return;
+    const anchor = switchMenuAnchor;
+    closeSwitchShiurMenu();
+    anchor?.focus?.();
+  });
+  // It stays by its button as the page is scrolled or resized (the list's own
+  // scrolling is not the page's).
+  window.addEventListener('resize', () => { if (!menu.hidden) placeSwitchShiurMenu(); });
+  document.addEventListener('scroll', (event) => {
+    if (!menu.hidden && !menu.contains(event.target)) placeSwitchShiurMenu();
+  }, { capture: true, passive: true });
+  document.addEventListener('fullscreenchange', closeSwitchShiurMenu);
+  document.addEventListener('webkitfullscreenchange', closeSwitchShiurMenu);
+  return menu;
 }
 
-function openSwitchShiurDialog() {
+function closeSwitchShiurMenu() {
+  const menu = $('switchShiurMenu');
+  if (!menu || menu.hidden) return;
+  menu.hidden = true;
+  switchMenuAnchor?.setAttribute?.('aria-expanded', 'false');
+  switchMenuAnchor = null;
+}
+
+// The Switch button on screen, for a menu opened without being told which.
+function visibleSwitchButton() {
+  return ['barSwitchButton', 'playerSwitchButton', 'audioBarSwitch'].map((id) => $(id)).find((button) => button && button.offsetWidth > 0) || null;
+}
+
+// Above the button where there is more room above it, below it otherwise;
+// as wide as a phone allows, and never past the edge of the screen. Inside
+// the player while the player fills the screen (nothing else is drawn then).
+function placeSwitchShiurMenu() {
+  const menu = $('switchShiurMenu');
+  if (!menu || menu.hidden) return;
+  const full = document.fullscreenElement || document.webkitFullscreenElement || null;
+  const host = full && !/^(VIDEO|IFRAME)$/.test(full.tagName) ? full : document.body;
+  if (menu.parentElement !== host) host.appendChild(menu);
+  const margin = 8;
+  const viewWidth = window.innerWidth;
+  const viewHeight = window.innerHeight;
+  const width = Math.min(440, viewWidth - margin * 2);
+  menu.style.width = `${width}px`;
+  const anchor = switchMenuAnchor && switchMenuAnchor.isConnected && switchMenuAnchor.offsetWidth > 0 ? switchMenuAnchor : null;
+  if (!anchor) {
+    // The button has gone (it was in a tray that closed): bottom centre.
+    menu.dataset.side = 'up';
+    menu.style.left = `${Math.round((viewWidth - width) / 2)}px`;
+    menu.style.top = 'auto';
+    menu.style.bottom = '16px';
+    menu.style.maxHeight = `${Math.round(viewHeight * 0.72)}px`;
+    return;
+  }
+  const box = anchor.getBoundingClientRect();
+  const up = box.top >= viewHeight - box.bottom;
+  // Kept on the screen even when its button is partly off it (the mini player
+  // can hang below the edge until the page is scrolled).
+  const least = Math.min(220, viewHeight - margin * 2);
+  const edge = Math.min(Math.max((up ? viewHeight - box.top : box.bottom) + 8, margin), viewHeight - margin - least);
+  menu.dataset.side = up ? 'up' : 'down';
+  menu.style.maxHeight = `${Math.round(Math.min(viewHeight - margin - edge, viewHeight * 0.72))}px`;
+  const left = Math.min(Math.max(box.left + box.width / 2 - width / 2, margin), viewWidth - width - margin);
+  menu.style.left = `${Math.round(left)}px`;
+  menu.style.top = up ? 'auto' : `${Math.round(edge)}px`;
+  menu.style.bottom = up ? `${Math.round(edge)}px` : 'auto';
+}
+
+// `anchor`: the button pressed. Pressing it again closes the menu.
+function openSwitchShiurMenu(anchor = null) {
+  const menu = ensureSwitchShiurMenu();
+  const from = anchor instanceof Element ? anchor : visibleSwitchButton();
+  if (!menu.hidden) {
+    const same = from === switchMenuAnchor;
+    closeSwitchShiurMenu();
+    if (same) return;
+  }
   const choices = switchShiurChoices();
   const parsed = parseDafRef(switchShiurRef());
   if (!parsed || !choices.length) return;
-  const dialog = ensureSwitchShiurDialog();
-  $('switchShiurDialogTitle').textContent = `${displayTractate(parsed.tractate)} ${parsed.daf}`;
+  $('switchShiurMenuTitle').textContent = `${displayTractate(parsed.tractate)} ${parsed.daf}`;
   const list = $('switchShiurList');
   list.textContent = '';
   for (const entry of choices) {
@@ -14169,12 +14255,16 @@ function openSwitchShiurDialog() {
     }
     row.append(frame, info);
     row.addEventListener('click', () => {
-      dialog.close();
+      closeSwitchShiurMenu();
       switchToShiur(entry);
     });
     list.appendChild(row);
   }
-  if (!dialog.open) dialog.showModal();
+  switchMenuAnchor = from;
+  from?.setAttribute('aria-expanded', 'true');
+  menu.hidden = false;
+  list.scrollTop = 0;
+  placeSwitchShiurMenu();
 }
 
 // "Back to R' Eli Stefansky · English", after a switch: one tap returns to
@@ -14244,6 +14334,7 @@ function refreshSwitchShiur() {
     if (button) button.hidden = !any;
   }
   document.body.classList.toggle('can-switch-shiur', any);
+  if (!any) closeSwitchShiurMenu();
   // The shiur left is the way back only while its replacement is still up.
   // (Another shiur opened some other way -- the daf picker, say -- has none.)
   if (state.switchBack && (!switchShiurAvailable() || state.switchBack.to !== state.videoSource?.videoId)) state.switchBack = null;
@@ -14256,7 +14347,8 @@ function refreshSwitchShiur() {
 }
 
 window.dafSwitchShiur = {
-  open: openSwitchShiurDialog,
+  open: openSwitchShiurMenu,
+  close: closeSwitchShiurMenu,
   choices: switchShiurChoices,
   refresh: refreshSwitchShiur,
   icon: SWITCH_ICON,

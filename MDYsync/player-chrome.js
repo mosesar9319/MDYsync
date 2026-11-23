@@ -175,7 +175,7 @@
       <span class="player-daf-hebrew" id="playerDafHebrew" dir="rtl" lang="he"></span>
     </div>
     <div class="player-topbar-group player-topbar-actions">
-      <button class="player-chrome-button player-switch-button" id="playerSwitchButton" type="button" aria-label="Switch shiur" hidden>${window.dafSwitchShiur?.icon || ''}<span class="switch-long">Switch shiur</span><span class="switch-short">Switch</span></button>
+      <button class="player-chrome-button player-switch-button" id="playerSwitchButton" type="button" aria-label="Switch shiur" hidden>${window.dafSwitchShiur?.icon || ''}<span>Switch shiur</span></button>
       <button class="player-chrome-button" id="playerBookmarkButton" type="button" aria-pressed="false">${ICONS.bookmark}<span>Bookmark</span></button>
       <button class="player-chrome-button" id="playerNotesButton" type="button" aria-label="Notes" ${hasNotes ? '' : 'hidden'}>${ICONS.notes}<span>Notes</span></button>
       <button class="player-chrome-button" id="playerMoreButton" type="button" aria-label="More" aria-expanded="false">${ICONS.more}<span>More</span></button>
@@ -202,9 +202,9 @@
 
   // Another shiur of the same daf, from the line this one is on (app.js keeps
   // the button hidden until there is one to switch to).
-  $('playerSwitchButton').addEventListener('click', () => {
+  $('playerSwitchButton').addEventListener('click', (event) => {
     closeMenus();
-    window.dafSwitchShiur?.open();
+    window.dafSwitchShiur?.open(event.currentTarget);
   });
   window.dafSwitchShiur?.refresh();
 
@@ -704,7 +704,7 @@
   barSwitchButton.hidden = true;
   barSwitchButton.addEventListener('click', (event) => {
     event.stopPropagation();
-    window.dafSwitchShiur?.open();
+    window.dafSwitchShiur?.open(event.currentTarget);
   });
   tools.appendChild(barSwitchButton);
   const hasSplitView = Boolean(document.querySelector('.watch-layout'));
