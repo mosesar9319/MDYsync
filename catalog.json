@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-23T01:30:20.222Z",
+  "generatedAt": "2026-11-23T05:09:44.861Z",
   "tractates": {
     "Arakhin": [
       {
@@ -99,6 +99,13 @@
           "videoId": "HptVoq4aXtA",
           "label": "מרכז דף יומי - ערכין דף ו. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
+        },
+        "regularEn": {
+          "videoId": "ZZT0ZMTcMFw",
+          "label": "Daf Yomi Arachin Daf 06 by R’ Eli Stefansky (unedited)",
+          "amud": "a",
+          "liveBroadcast": true,
+          "liveStatus": "live"
         }
       }
     ],
