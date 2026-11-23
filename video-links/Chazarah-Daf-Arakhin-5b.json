@@ -1,1 +1,8 @@
-{"type":"youtube","url":"https://www.youtube.com/watch?v=w99xa9FwQ5w","videoId":"w99xa9FwQ5w","label":"CHAZARAH - Arachin Daf 5 | \"Nothing but the Daf\" with R' Eli Stefansky","coveredRefs":["Arakhin 4b","Arakhin 5a","Arakhin 5b"],"source":"channel-auto","published":"2026-11-23T06:13:06+00:00"}
+{
+  "label": "CHAZARAH - Arachin Daf 5 | \"Nothing but the Daf\" with R' Eli Stefansky",
+  "locked": false,
+  "source": "manual",
+  "type": "youtube",
+  "url": "https://www.youtube.com/watch?v=w99xa9FwQ5w",
+  "videoId": "w99xa9FwQ5w"
+}
