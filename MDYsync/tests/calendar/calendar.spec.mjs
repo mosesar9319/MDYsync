@@ -52,7 +52,19 @@ test.describe('Daf Yomi calendar', () => {
     // Today's square shows the daf the schedule gives for today.
     const cell = page.locator('.cal-cell.is-today');
     await expect(cell).toHaveCount(1);
-    await expect(cell.locator('.cal-date')).toHaveText('23');
+    // Each day carries its date, the month shortened, beside the Hebrew date.
+    await expect(cell.locator('.cal-date')).toHaveText('Nov 23');
+    await expect(cell.locator('.cal-hdate')).toHaveText('י״ג');
+    await expect(cell.locator('.cal-today-tag')).toHaveText('Today');
+    await expect(page.locator('.cal-cell').last().locator('.cal-date')).toHaveText('Dec 5');
+    // Neither date runs out of its day, nor into the other.
+    const crowded = await page.locator('.cal-cell').evaluateAll((cells) => cells.filter((day) => {
+      const box = day.getBoundingClientRect();
+      const [date, hebrew] = ['.cal-date', '.cal-hdate'].map((name) => day.querySelector(name).getBoundingClientRect());
+      const apart = date.bottom <= hebrew.top + 1 || date.right <= hebrew.left + 0.5 || hebrew.right <= date.left + 0.5;
+      return !apart || Math.min(date.left, hebrew.left) < box.left - 0.5 || Math.max(date.right, hebrew.right) > box.right + 0.5;
+    }).length);
+    expect(crowded).toBe(0);
     await expect(cell.locator('.cal-num')).toHaveText('6');
     await expect(cell.locator('.cal-mas-long')).toHaveText('Eruchin');
     // The day a masechta begins is marked (Eruchin 2, on the 19th).
@@ -153,6 +165,7 @@ test.describe('Daf Yomi calendar', () => {
     const cell = page.locator('.cal-cell.is-today');
     await expect(cell.locator('.cal-mas-long')).toHaveText('ערכין');
     await expect(cell.locator('.cal-num')).toHaveText('ו');
+    await expect(cell.locator('.cal-date')).toHaveText('23 בנוב׳');
     await expect(page.locator('#calWeekdays .cal-weekday-long').last()).toHaveText('שבת');
     await expect(page.locator('#calSummary .cal-tile').nth(1)).toContainText('דף 5 מתוך 33');
     await expect(page.locator('.cal-eyebrow')).toHaveText('לוח הדף היומי');

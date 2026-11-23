@@ -1,7 +1,7 @@
 // The Daf Yomi calendar (calendar/index.html).
 //
 // A month as a wall calendar shows it -- Sunday to Shabbos across, a daf on
-// every day with its Hebrew date -- from the real schedule (shared/
+// every day with its date ("Nov 23") and its Hebrew date -- from the real schedule (shared/
 // daf-yomi.mjs). A band along the top of each day tells one masechta from the
 // next; the day a masechta begins and the day of its siyum are marked. A day
 // opens beside the month (on a phone, as a sheet from the bottom, the month
@@ -185,14 +185,13 @@ function renderMonth() {
     const said = `${LONG_DATE.format(asDate(day))}: ${daf ? dafTitle(daf) : ''}${state === 'none' ? '' : `, ${say(STATE_WORD[state])}`}`;
     return `<button type="button" class="${classes.join(' ')}" role="gridcell" data-day="${day}" aria-label="${escapeHtml(said)}" aria-pressed="${day === view.selected}">
       <span class="cal-cell-top">
-        <span class="cal-date">${date.day}</span>
-        ${day === today ? '<span class="cal-today-tag">Today</span>' : ''}
+        <span class="cal-date" translate="no">${SHORT_DATE.format(asDate(day))}</span>
         ${hebrew.day === 1
           ? `<span class="cal-hdate is-month" translate="no"><span class="cal-hdate-name">${escapeHtml(hebrew.month)}</span><span class="cal-hdate-day" lang="he" dir="rtl">${hebrewDayLetters(1)}</span></span>`
           : `<span class="cal-hdate" lang="he" dir="rtl" translate="no">${hebrewDayLetters(hebrew.day)}</span>`}
       </span>
       ${label ? `<span class="cal-daf" translate="no"><span class="cal-mas"><span class="cal-mas-long">${escapeHtml(label.name)}</span><span class="cal-mas-short">${escapeHtml(label.short)}</span></span><span class="cal-num">${label.number}</span></span>` : '<span class="cal-daf"></span>'}
-      <span class="cal-cell-foot">${status}${flag}</span>
+      <span class="cal-cell-foot">${status}${day === today ? '<span class="cal-today-tag">Today</span>' : flag}</span>
     </button>`;
   }).join('');
   renderLegend();
