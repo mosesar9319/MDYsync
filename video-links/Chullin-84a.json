@@ -1,11 +1,8 @@
 {
   "label": "Daf Yomi Chullin Daf 84 by R' Eli Stefansky",
+  "locked": false,
+  "source": "manual",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=EHgiG0bpBWg",
-  "videoId": "EHgiG0bpBWg",
-  "coveredRefs": [
-    "Chullin 83b",
-    "Chullin 84a",
-    "Chullin 84b"
-  ]
+  "videoId": "EHgiG0bpBWg"
 }
