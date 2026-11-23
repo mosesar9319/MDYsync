@@ -1,0 +1,29 @@
+{
+  "schema": "dafsync-test-runs-v1",
+  "videoId": "L0213863721",
+  "runs": [
+    {
+      "id": "regular-1",
+      "engine": "regular",
+      "number": 1,
+      "name": "Regular #1 · 23 Nov 2026 · placed again from saved transcripts (main): holes answered in a Claude Code session",
+      "notes": "placed again from saved transcripts (main): holes answered in a Claude Code session",
+      "engineVersion": "02b09cd",
+      "createdAt": "2026-11-23T07:31:47Z",
+      "file": "regular-1.json",
+      "jobId": "realign-45131686107",
+      "summary": {
+        "segments": 272,
+        "estimatedSegments": 102,
+        "placements": 378,
+        "placedWords": 828,
+        "totalRuns": 562,
+        "totalWords": 1048,
+        "matchedWords": 804,
+        "unmatchedWords": 244,
+        "durationSeconds": 3515.59
+      }
+    }
+  ],
+  "updatedAt": "2026-11-23T07:31:47Z"
+}

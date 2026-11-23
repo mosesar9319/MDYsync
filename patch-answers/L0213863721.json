@@ -1,0 +1,164 @@
+{
+ "schema": "dafsync-patch-answers-v1",
+ "videoId": "L0213863721",
+ "shiur": "R' Sruly Bornstein, Eruchin 7",
+ "answeredBy": "Claude, in a Claude Code session",
+ "placements": [
+  {
+   "daf": [
+    146,
+    146
+   ],
+   "heard": [
+    100,
+    105
+   ],
+   "kind": "explained",
+   "confidence": 0.75,
+   "why": "'So the Mishnah said as follows' introduces the Mishnah"
+  },
+  {
+   "daf": [
+    493,
+    493
+   ],
+   "heard": [
+    1970,
+    1970
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'רב' before שמעון ואלעזר is his ורבי"
+  },
+  {
+   "daf": [
+    510,
+    510
+   ],
+   "heard": [
+    2214,
+    2215
+   ],
+   "kind": "read",
+   "confidence": 0.75,
+   "why": "'the הרג' right after ונפל עליו שור is והרגו"
+  },
+  {
+   "daf": [
+    548,
+    549
+   ],
+   "heard": [
+    2642,
+    2661
+   ],
+   "kind": "explained",
+   "confidence": 0.75,
+   "why": "'the שור literally buried him... knocked him six feet under' explains מת וקברו"
+  },
+  {
+   "daf": [
+    647,
+    647
+   ],
+   "heard": [
+    5245,
+    5246
+   ],
+   "kind": "explained",
+   "confidence": 0.75,
+   "why": "'zocht the Mishnah' introducing the new Mishnah"
+  },
+  {
+   "daf": [
+    710,
+    711
+   ],
+   "heard": [
+    5856,
+    5858
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'to Rabbi says' before הולד is לרבות את"
+  },
+  {
+   "daf": [
+    759,
+    760
+   ],
+   "heard": [
+    7859,
+    7860
+   ],
+   "kind": "read",
+   "confidence": 0.75,
+   "why": "'remember the' is למימרא דהיא before 'hilchot m'eseh bereishit' (קדמה ומתה ברישא)"
+  },
+  {
+   "daf": [
+    768,
+    769
+   ],
+   "heard": [
+    7903,
+    7907
+   ],
+   "kind": "explained",
+   "confidence": 0.8,
+   "why": "'the child always dies first' explains מיית ברישא"
+  },
+  {
+   "daf": [
+    782,
+    783
+   ],
+   "heard": [
+    8007,
+    8015
+   ],
+   "kind": "explained",
+   "confidence": 0.75,
+   "why": "'if that child then dies and he has brothers' explains להנחיל לאחין"
+  },
+  {
+   "daf": [
+    830,
+    830
+   ],
+   "heard": [
+    8338,
+    8338
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "'את' before תלת פרכוסי is עד"
+  },
+  {
+   "daf": [
+    843,
+    845
+   ],
+   "heard": [
+    8427,
+    8428
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'ואישה שיולדה' before משבר is האשה שישבה על"
+  },
+  {
+   "daf": [
+    847,
+    847
+   ],
+   "heard": [
+    8430,
+    8430
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'ומייסה' after משבר is ומתה"
+  }
+ ]
+}

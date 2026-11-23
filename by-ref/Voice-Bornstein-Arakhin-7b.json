@@ -12,8 +12,8 @@
   "segments": [
     {
       "ref": "Arakhin 6b:1",
-      "start": 28.44,
-      "end": 28.52,
+      "start": 27.36,
+      "end": 27.44,
       "he": "אִינִי? וְהָא רַבִּי יַנַּאי יָזֵיף וּפָרַע! שָׁאנֵי רַבִּי",
       "w0": 0,
       "w1": 7,
@@ -21,8 +21,8 @@
     },
     {
       "ref": "Arakhin 6b:1",
-      "start": 28.52,
-      "end": 28.61,
+      "start": 27.44,
+      "end": 27.53,
       "he": "יַנַּאי, דְּנִיחָא לְהוּ לַעֲנִיִּים דְּכַמָּה דִּמְשַׁהֵי מְעַשֵּׂה וּמַיְיתֵי לְהוּ.",
       "w0": 8,
       "w1": 16,
@@ -30,8 +30,8 @@
     },
     {
       "ref": "Arakhin 6b:2",
-      "start": 29.44,
-      "end": 29.52,
+      "start": 28.36,
+      "end": 28.44,
       "he": "תָּנוּ רַבָּנַן: יִשְׂרָאֵל שֶׁהִתְנַדֵּב מְנוֹרָה אוֹ נֵר לְבֵית",
       "w0": 0,
       "w1": 7,
@@ -39,8 +39,8 @@
     },
     {
       "ref": "Arakhin 6b:2",
-      "start": 29.52,
-      "end": 29.59,
+      "start": 28.44,
+      "end": 28.51,
       "he": "הַכְּנֶסֶת — אָסוּר לְשַׁנּוֹתָהּ. סָבַר רַבִּי חִיָּיא",
       "w0": 8,
       "w1": 14,
@@ -48,8 +48,8 @@
     },
     {
       "ref": "Arakhin 6b:2",
-      "start": 29.59,
-      "end": 29.66,
+      "start": 28.51,
+      "end": 28.58,
       "he": "בַּר אַבָּא לְמֵימָר: לָא שְׁנָא לִדְבַר הָרְשׁוּת",
       "w0": 15,
       "w1": 21,
@@ -57,8 +57,8 @@
     },
     {
       "ref": "Arakhin 6b:2",
-      "start": 29.66,
-      "end": 29.74,
+      "start": 28.58,
+      "end": 28.66,
       "he": "וְלָא שְׁנָא לִדְבַר מִצְוָה. אֲמַר לֵיהּ רַב אַמֵּי:",
       "w0": 22,
       "w1": 29,
@@ -66,8 +66,8 @@
     },
     {
       "ref": "Arakhin 6b:2",
-      "start": 29.74,
-      "end": 29.82,
+      "start": 28.66,
+      "end": 28.74,
       "he": "הָכִי אָמַר רַבִּי יוֹחָנָן — לֹא שָׁנוּ אֶלָּא",
       "w0": 30,
       "w1": 37,
@@ -75,8 +75,8 @@
     },
     {
       "ref": "Arakhin 6b:2",
-      "start": 29.82,
-      "end": 29.89,
+      "start": 28.74,
+      "end": 28.81,
       "he": "לִדְבַר הָרְשׁוּת, אֲבָל לִדְבַר מִצְוָה מוּתָּר לְשַׁנּוֹתָהּ.",
       "w0": 38,
       "w1": 44,
@@ -84,8 +84,8 @@
     },
     {
       "ref": "Arakhin 6b:3",
-      "start": 30.44,
-      "end": 30.53,
+      "start": 29.36,
+      "end": 29.45,
       "he": "מִדְּאָמַר רַבִּי אַסִּי אָמַר רַבִּי יוֹחָנָן: גּוֹי שֶׁהִתְנַדֵּב מְנוֹרָה",
       "w0": 0,
       "w1": 8,
@@ -93,8 +93,8 @@
     },
     {
       "ref": "Arakhin 6b:3",
-      "start": 30.53,
-      "end": 30.62,
+      "start": 29.45,
+      "end": 29.54,
       "he": "אוֹ נֵר לְבֵית הַכְּנֶסֶת, עַד שֶׁלֹּא נִשְׁתַּקַּע שֵׁם בְּעָלֶיהָ",
       "w0": 9,
       "w1": 17,
@@ -102,8 +102,8 @@
     },
     {
       "ref": "Arakhin 6b:3",
-      "start": 30.62,
-      "end": 30.71,
+      "start": 29.54,
+      "end": 29.63,
       "he": "— אָסוּר לְשַׁנּוֹתָהּ, מִשֶּׁנִּשְׁתַּקַּע שֵׁם בְּעָלֶיהָ — מוּתָּר לְשַׁנּוֹתָהּ.",
       "w0": 18,
       "w1": 26,
@@ -111,8 +111,8 @@
     },
     {
       "ref": "Arakhin 6b:4",
-      "start": 31.44,
-      "end": 31.54,
+      "start": 30.36,
+      "end": 30.46,
       "he": "לְמַאי? אִילֵימָא לִדְבַר הָרְשׁוּת, מַאי אִירְיָא גּוֹי? אֲפִילּוּ יִשְׂרָאֵל נָמֵי!",
       "w0": 0,
       "w1": 9,
@@ -120,8 +120,8 @@
     },
     {
       "ref": "Arakhin 6b:5",
-      "start": 32.44,
-      "end": 32.51,
+      "start": 31.36,
+      "end": 31.43,
       "he": "אֶלָּא לִדְבַר מִצְוָה, וְטַעְמָא דְּגוֹי הוּא דְּפָעֵי,",
       "w0": 0,
       "w1": 6,
@@ -129,8 +129,8 @@
     },
     {
       "ref": "Arakhin 6b:5",
-      "start": 32.51,
-      "end": 32.58,
+      "start": 31.43,
+      "end": 31.5,
       "he": "אֲבָל יִשְׂרָאֵל דְּלָא פָּעֵי — שַׁפִּיר דָּמֵי.",
       "w0": 7,
       "w1": 13,
@@ -138,8 +138,8 @@
     },
     {
       "ref": "Arakhin 6b:6",
-      "start": 33.44,
-      "end": 33.53,
+      "start": 32.36,
+      "end": 32.45,
       "he": "שַׁעַזְרַק טַיָּיעָא אִינַּדַּב שְׁרָגָא לְבֵי כְנִישְׁתָּא דְּרַב יְהוּדָה, שַׁנְּיֵיהּ",
       "w0": 0,
       "w1": 8,
@@ -147,8 +147,8 @@
     },
     {
       "ref": "Arakhin 6b:6",
-      "start": 33.53,
-      "end": 33.62,
+      "start": 32.45,
+      "end": 32.54,
       "he": "רַחֲבָא וְאִיקְּפֵד רָבָא. אִיכָּא דְּאָמְרִי: שַׁנְּיֵיהּ רָבָא וְאִיקְּפֵד רַחֲבָא,",
       "w0": 9,
       "w1": 17,
@@ -156,8 +156,8 @@
     },
     {
       "ref": "Arakhin 6b:6",
-      "start": 33.62,
-      "end": 33.71,
+      "start": 32.54,
+      "end": 32.63,
       "he": "וְאִיכָּא דְּאָמְרִי: שַׁנְּיֻיהּ חַזָּנֵי דְּפוּמְבְּדִיתָא, וְאִיקְּפֵד רַחֲבָא וְאִיקְּפֵד רַבָּה.",
       "w0": 18,
       "w1": 26,
@@ -165,8 +165,8 @@
     },
     {
       "ref": "Arakhin 6b:7",
-      "start": 34.44,
-      "end": 34.55,
+      "start": 33.36,
+      "end": 33.47,
       "he": "מַאן דְּשַׁנְּיֵיהּ סָבַר דְּלָא שְׁכִיחַ, וּמַאן דְּאִיקְּפֵד סָבַר זִמְנִין דְּמִקְּרֵי וְאָתֵי.",
       "w0": 0,
       "w1": 10,
@@ -174,19 +174,10 @@
     },
     {
       "ref": "Arakhin 6b:8",
-      "start": 35.44,
-      "end": 35.45,
-      "he": "מַתְנִי׳",
-      "w0": 0,
-      "w1": 0,
-      "estimated": true
-    },
-    {
-      "ref": "Arakhin 6b:8",
-      "start": 35.44,
+      "start": 34.36,
       "end": 35.44,
-      "he": "הַגּוֹסֵס",
-      "w0": 1,
+      "he": "מַתְנִי׳ הַגּוֹסֵס",
+      "w0": 0,
       "w1": 1
     },
     {
@@ -766,19 +757,10 @@
     },
     {
       "ref": "Arakhin 7a:3",
-      "start": 543.93,
-      "end": 543.94,
-      "he": "וְרַבִּי",
-      "w0": 24,
-      "w1": 24,
-      "estimated": true
-    },
-    {
-      "ref": "Arakhin 7a:3",
-      "start": 543.93,
+      "start": 543.83,
       "end": 546.03,
-      "he": "שִׁמְעוֹן בֶּן אֶלְעָזָר סָבַר: לָאו כִּכְתוּבָה בִּשְׁטָר דָּמְיָא.",
-      "w0": 25,
+      "he": "וְרַבִּי שִׁמְעוֹן בֶּן אֶלְעָזָר סָבַר: לָאו כִּכְתוּבָה בִּשְׁטָר דָּמְיָא.",
+      "w0": 24,
       "w1": 32
     },
     {
@@ -808,10 +790,18 @@
     },
     {
       "ref": "Arakhin 7a:4",
-      "start": 626.05,
-      "end": 626.07,
-      "he": "וַהֲרָגוֹ —",
+      "start": 612.95,
+      "end": 612.95,
+      "he": "וַהֲרָגוֹ",
       "w0": 8,
+      "w1": 8
+    },
+    {
+      "ref": "Arakhin 7a:4",
+      "start": 626.05,
+      "end": 626.06,
+      "he": "—",
+      "w0": 9,
       "w1": 9,
       "estimated": true
     },
@@ -857,8 +847,8 @@
     },
     {
       "ref": "Arakhin 7a:5",
-      "start": 701.37,
-      "end": 701.38,
+      "start": 701.27,
+      "end": 701.28,
       "he": "וְהָא",
       "w0": 7,
       "w1": 7,
@@ -866,8 +856,8 @@
     },
     {
       "ref": "Arakhin 7a:5",
-      "start": 701.37,
-      "end": 701.37,
+      "start": 701.27,
+      "end": 701.27,
       "he": "״הֲרָגוֹ״ קָתָנֵי!",
       "w0": 8,
       "w1": 9
@@ -890,12 +880,11 @@
     },
     {
       "ref": "Arakhin 7a:6",
-      "start": 740.47,
-      "end": 740.49,
+      "start": 730.91,
+      "end": 730.91,
       "he": "מֵת וּקְבָרוֹ!",
       "w0": 5,
-      "w1": 6,
-      "estimated": true
+      "w1": 6
     },
     {
       "ref": "Arakhin 7a:6",
@@ -1071,19 +1060,10 @@
     },
     {
       "ref": "Arakhin 7a:11",
-      "start": 1428.54,
-      "end": 1428.55,
-      "he": "מַתְנִי׳",
-      "w0": 0,
-      "w1": 0,
-      "estimated": true
-    },
-    {
-      "ref": "Arakhin 7a:11",
-      "start": 1428.54,
+      "start": 1427.6,
       "end": 1428.54,
-      "he": "הָאִשָּׁה שֶׁיָּצְאָה לֵיהָרֵג,",
-      "w0": 1,
+      "he": "מַתְנִי׳ הָאִשָּׁה שֶׁיָּצְאָה לֵיהָרֵג,",
+      "w0": 0,
       "w1": 3
     },
     {
@@ -1184,19 +1164,19 @@
     },
     {
       "ref": "Arakhin 7a:13",
-      "start": 1597.63,
-      "end": 1597.66,
-      "he": "— לְרַבּוֹת אֶת",
+      "start": 1597.05,
+      "end": 1597.06,
+      "he": "—",
       "w0": 14,
-      "w1": 16,
+      "w1": 14,
       "estimated": true
     },
     {
       "ref": "Arakhin 7a:13",
-      "start": 1597.63,
+      "start": 1597.05,
       "end": 1597.63,
-      "he": "הַוָּולָד.",
-      "w0": 17,
+      "he": "לְרַבּוֹת אֶת הַוָּולָד.",
+      "w0": 15,
       "w1": 17
     },
     {
@@ -1282,19 +1262,10 @@
     },
     {
       "ref": "Arakhin 7a:16",
-      "start": 2171.1,
-      "end": 2171.12,
-      "he": "לְמֵימְרָא דְּהִיא",
-      "w0": 22,
-      "w1": 23,
-      "estimated": true
-    },
-    {
-      "ref": "Arakhin 7a:16",
-      "start": 2171.1,
+      "start": 2170.64,
       "end": 2171.58,
-      "he": "קָדְמָה וּמֵתָה בְּרֵישָׁא?",
-      "w0": 24,
+      "he": "לְמֵימְרָא דְּהִיא קָדְמָה וּמֵתָה בְּרֵישָׁא?",
+      "w0": 22,
       "w1": 26
     },
     {
@@ -1307,12 +1278,11 @@
     },
     {
       "ref": "Arakhin 7a:16",
-      "start": 2179.36,
-      "end": 2179.38,
+      "start": 2181.5,
+      "end": 2181.5,
       "he": "מָיֵית בְּרֵישָׁא!",
       "w0": 31,
-      "w1": 32,
-      "estimated": true
+      "w1": 32
     },
     {
       "ref": "Arakhin 7a:17",
@@ -1332,12 +1302,11 @@
     },
     {
       "ref": "Arakhin 7a:17",
-      "start": 2208.88,
-      "end": 2208.9,
+      "start": 2206.1,
+      "end": 2206.1,
       "he": "לְהַנְחִיל לָאַחִין",
       "w0": 12,
-      "w1": 13,
-      "estimated": true
+      "w1": 13
     },
     {
       "ref": "Arakhin 7a:17",
@@ -1438,19 +1407,10 @@
     },
     {
       "ref": "Arakhin 7a:20",
-      "start": 2295.46,
-      "end": 2295.47,
-      "he": "עַד",
-      "w0": 4,
-      "w1": 4,
-      "estimated": true
-    },
-    {
-      "ref": "Arakhin 7a:20",
-      "start": 2295.46,
+      "start": 2295.32,
       "end": 2295.46,
-      "he": "תְּלָת פִּרְכּוּסֵי!",
-      "w0": 5,
+      "he": "עַד תְּלָת פִּרְכּוּסֵי!",
+      "w0": 4,
       "w1": 6
     },
     {
@@ -1480,27 +1440,18 @@
     },
     {
       "ref": "Arakhin 7a:21",
-      "start": 2317.96,
-      "end": 2317.99,
-      "he": "הָאִשָּׁה שֶׁיָּשְׁבָה עַל",
+      "start": 2317.02,
+      "end": 2318.76,
+      "he": "הָאִשָּׁה שֶׁיָּשְׁבָה עַל הַמַּשְׁבֵּר וּמֵתָה",
       "w0": 5,
-      "w1": 7,
-      "estimated": true
-    },
-    {
-      "ref": "Arakhin 7a:21",
-      "start": 2317.96,
-      "end": 2317.96,
-      "he": "הַמַּשְׁבֵּר",
-      "w0": 8,
-      "w1": 8
+      "w1": 9
     },
     {
       "ref": "Arakhin 7a:21",
       "start": 2338.98,
-      "end": 2339.0,
-      "he": "וּמֵתָה בְּשַׁבָּת,",
-      "w0": 9,
+      "end": 2338.99,
+      "he": "בְּשַׁבָּת,",
+      "w0": 10,
       "w1": 10,
       "estimated": true
     },
@@ -2339,6 +2290,15 @@
     }
   ],
   "wordTimeline": [
+    {
+      "start": 34.36,
+      "end": 35.44,
+      "ref": "Arakhin 6b:8",
+      "w0": 0,
+      "w1": 0,
+      "heardText": "So the Mishnah said as follows:",
+      "source": "claude-explained"
+    },
     {
       "start": 35.44,
       "end": 37.64,
@@ -3259,12 +3219,21 @@
     },
     {
       "start": 537.49,
-      "end": 543.93,
+      "end": 543.83,
       "ref": "Arakhin 7a:3",
       "w0": 21,
       "w1": 23,
       "heardText": "כתובה בשטר דמיא.",
       "source": "deterministic-local"
+    },
+    {
+      "start": 543.83,
+      "end": 543.93,
+      "ref": "Arakhin 7a:3",
+      "w0": 24,
+      "w1": 24,
+      "heardText": "רב",
+      "source": "claude-read"
     },
     {
       "start": 543.93,
@@ -3340,12 +3309,21 @@
     },
     {
       "start": 606.07,
-      "end": 626.05,
+      "end": 612.95,
       "ref": "Arakhin 7a:4",
       "w0": 4,
       "w1": 7,
       "heardText": "הרבים ונפל עליו שור.",
       "source": "path-hebrew"
+    },
+    {
+      "start": 612.95,
+      "end": 626.05,
+      "ref": "Arakhin 7a:4",
+      "w0": 8,
+      "w1": 8,
+      "heardText": "the הרג",
+      "source": "claude-read"
     },
     {
       "start": 626.05,
@@ -3421,7 +3399,7 @@
     },
     {
       "start": 687.49,
-      "end": 701.37,
+      "end": 701.27,
       "ref": "Arakhin 7a:5",
       "w0": 5,
       "w1": 6,
@@ -3429,12 +3407,12 @@
       "source": "path-hebrew"
     },
     {
-      "start": 701.37,
+      "start": 701.27,
       "end": 710.01,
       "ref": "Arakhin 7a:5",
       "w0": 8,
       "w1": 9,
-      "heardText": "הרג גטני.",
+      "heardText": "בהרג תני,",
       "source": "path-hebrew"
     },
     {
@@ -3484,12 +3462,21 @@
     },
     {
       "start": 724.93,
-      "end": 740.47,
+      "end": 730.91,
       "ref": "Arakhin 7a:6",
       "w0": 3,
       "w1": 4,
       "heardText": "תני חגא.",
       "source": "path-hebrew"
+    },
+    {
+      "start": 730.91,
+      "end": 740.47,
+      "ref": "Arakhin 7a:6",
+      "w0": 5,
+      "w1": 6,
+      "heardText": "The שור literally buried him. The force of the שור took this person, mamash, he knocked him six feet under.",
+      "source": "claude-explained"
     },
     {
       "start": 740.47,
@@ -3835,12 +3822,21 @@
     },
     {
       "start": 955.07,
-      "end": 1428.54,
+      "end": 1427.6,
       "ref": "Arakhin 7a:10",
       "w0": 23,
       "w1": 24,
       "heardText": "Neskakin Lo.",
       "source": "path-latin"
+    },
+    {
+      "start": 1427.6,
+      "end": 1428.54,
+      "ref": "Arakhin 7a:11",
+      "w0": 0,
+      "w1": 0,
+      "heardText": "the Mishnah.",
+      "source": "claude-explained"
     },
     {
       "start": 1428.54,
@@ -4105,12 +4101,21 @@
     },
     {
       "start": 1559.91,
-      "end": 1597.63,
+      "end": 1597.05,
       "ref": "Arakhin 7a:13",
       "w0": 11,
       "w1": 13,
       "heardText": "\"ומתו גם שניהם\".",
       "source": "path-hebrew"
+    },
+    {
+      "start": 1597.05,
+      "end": 1597.63,
+      "ref": "Arakhin 7a:13",
+      "w0": 15,
+      "w1": 16,
+      "heardText": "to Rabbi says,",
+      "source": "claude-read"
     },
     {
       "start": 1597.63,
@@ -4294,12 +4299,21 @@
     },
     {
       "start": 2146.74,
-      "end": 2171.1,
+      "end": 2170.64,
       "ref": "Arakhin 7a:16",
       "w0": 20,
       "w1": 21,
       "heardText": "בידי ניוול.",
       "source": "path-hebrew"
+    },
+    {
+      "start": 2170.64,
+      "end": 2171.1,
+      "ref": "Arakhin 7a:16",
+      "w0": 22,
+      "w1": 23,
+      "heardText": "remember the",
+      "source": "claude-read"
     },
     {
       "start": 2171.1,
@@ -4330,12 +4344,21 @@
     },
     {
       "start": 2179.36,
-      "end": 2184.48,
+      "end": 2181.5,
       "ref": "Arakhin 7a:16",
       "w0": 27,
       "w1": 30,
       "heardText": "וקיימא לן דוודאי",
       "source": "path-hebrew"
+    },
+    {
+      "start": 2181.5,
+      "end": 2184.48,
+      "ref": "Arakhin 7a:16",
+      "w0": 31,
+      "w1": 32,
+      "heardText": "the child always dies first.",
+      "source": "claude-explained"
     },
     {
       "start": 2184.48,
@@ -4384,12 +4407,21 @@
     },
     {
       "start": 2191.62,
-      "end": 2208.88,
+      "end": 2206.1,
       "ref": "Arakhin 7a:17",
       "w0": 9,
       "w1": 11,
       "heardText": "נוחל בנכסי האם.",
       "source": "path-hebrew"
+    },
+    {
+      "start": 2206.1,
+      "end": 2208.88,
+      "ref": "Arakhin 7a:17",
+      "w0": 12,
+      "w1": 13,
+      "heardText": "If that child then dies and he has brothers",
+      "source": "claude-explained"
     },
     {
       "start": 2208.88,
@@ -4609,12 +4641,21 @@
     },
     {
       "start": 2285.86,
-      "end": 2295.46,
+      "end": 2295.32,
       "ref": "Arakhin 7a:20",
       "w0": 1,
       "w1": 3,
       "heardText": "והוה עובדה ופרכיס.",
       "source": "path-hebrew"
+    },
+    {
+      "start": 2295.32,
+      "end": 2295.46,
+      "ref": "Arakhin 7a:20",
+      "w0": 4,
+      "w1": 4,
+      "heardText": "את",
+      "source": "claude-read"
     },
     {
       "start": 2295.46,
@@ -4645,7 +4686,7 @@
     },
     {
       "start": 2313.52,
-      "end": 2317.96,
+      "end": 2317.02,
       "ref": "Arakhin 7a:21",
       "w0": 1,
       "w1": 4,
@@ -4653,13 +4694,31 @@
       "source": "path-hebrew"
     },
     {
+      "start": 2317.02,
+      "end": 2317.96,
+      "ref": "Arakhin 7a:21",
+      "w0": 5,
+      "w1": 7,
+      "heardText": "ואישה שיולדה",
+      "source": "claude-read"
+    },
+    {
       "start": 2317.96,
-      "end": 2338.98,
+      "end": 2318.76,
       "ref": "Arakhin 7a:21",
       "w0": 8,
       "w1": 8,
       "heardText": "המשבר?",
       "source": "path-hebrew"
+    },
+    {
+      "start": 2318.76,
+      "end": 2338.98,
+      "ref": "Arakhin 7a:21",
+      "w0": 9,
+      "w1": 9,
+      "heardText": "ומייסה.",
+      "source": "claude-read"
     },
     {
       "start": 2338.98,
@@ -5638,8 +5697,8 @@
     "aligner": "path",
     "totalRuns": 562,
     "totalWords": 1048,
-    "matchedWords": 793,
-    "unmatchedWords": 255,
+    "matchedWords": 804,
+    "unmatchedWords": 244,
     "excludedWords": 0,
     "bySource": {
       "path-hebrew": {
@@ -5681,6 +5740,16 @@
         "label": "Deterministic matching (re-checked between anchors)",
         "runs": 3,
         "words": 7
+      },
+      "claude-explained": {
+        "label": "Explained without being read (highlighted, not counted as matched)",
+        "runs": 5,
+        "words": 8
+      },
+      "claude-read": {
+        "label": "Placed by Claude between two placed phrases (said, but garbled in the transcript)",
+        "runs": 7,
+        "words": 11
       }
     },
     "unmatched": [
@@ -6497,7 +6566,7 @@
       {
         "start": 443.55,
         "end": 444.19,
-        "text": "יוצא להיהרג.",
+        "text": "יוצא להרוג.",
         "offeredToLlm": false
       },
       {
@@ -6887,7 +6956,7 @@
     ],
     "excluded": [],
     "passes": 2,
-    "llmCalls": 3,
+    "llmCalls": 0,
     "witnesses": 2,
     "transcriptWords": 15787,
     "dafWords": 1048,
@@ -6898,21 +6967,17 @@
     "readingEndsAt": 2796.91,
     "droppedAfterReading": 1,
     "straightPath": true,
-    "relisten": {
-      "words": 2926,
-      "matchedBefore": 755
-    },
-    "dafWordsPatched": 0,
-    "dafWordsExplained": 0,
+    "dafWordsPatched": 11,
+    "dafWordsExplained": 8,
     "claude": {
-      "model": "claude-opus-5-5",
+      "model": "claude (in a Claude Code session)",
       "holes": 32,
       "holeWords": 255,
-      "calls": 3,
+      "calls": 0,
       "inputTokens": 0,
       "outputTokens": 0,
-      "readWords": 0,
-      "explainedWords": 0
+      "readWords": 11,
+      "explainedWords": 8
     },
     "phraseMatcher": {
       "matchedWords": 1002,
@@ -6922,9 +6987,10 @@
   },
   "transcription": {
     "engine": "elevenlabs",
-    "model": "scribe_v2"
+    "model": "scribe_v2",
+    "placedAgain": true
   },
-  "jobId": "97184efa61124087809b4ea4eb9481eb",
+  "jobId": "realign-45131686107",
   "videoId": "L0213863721",
   "videoUrl": "https://lakewoodafyomi.appspot.com/m5/CAEQ0tuihQEaINsgqPaeStEIHGw2LWlZqKZWybA9eThSqNZbek_IeivuIiBEBm0ZSfiihXEjXXHRkFUtgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQXJhY2hpbiA3XzIxMzg2MzcyMS5tcDM/Arachin%207_213863721.mp3",
   "coveredRefs": [
