@@ -232,6 +232,19 @@
   [headers.values]
     Content-Disposition = "attachment"
 
+# The site's icon, as browsers and Google's results show it. Square, in sizes
+# that are multiples of 48 (Google shows no icon otherwise). Kept for a day,
+# not for good, so a new one is picked up.
+[[headers]]
+  for = "/favicon.ico"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/favicon-*.png"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
 [[headers]]
   for = "/assets/*"
   [headers.values]
