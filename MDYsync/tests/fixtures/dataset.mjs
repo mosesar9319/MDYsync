@@ -444,6 +444,7 @@ export function buildDatabase() {
     highlights: [],
     favorites: [],
     progress: [],
+    learning: [],
     preferences: [],
   };
 }
