@@ -164,7 +164,7 @@ test.describe('Language', () => {
     expect(hebrew.icons).toEqual(english.icons);
     expect(hebrew.name).toBe('DafSync');
     expect([hebrew.lang, hebrew.dir, hebrew.start_url]).toEqual(['he', 'rtl', '/he/']);
-    expect(hebrew.shortcuts.map((s) => s.name)).toEqual(['הדף היומי', 'הדף האינטראקטיבי', 'החבורה בענן']);
+    expect(hebrew.shortcuts.map((s) => s.name)).toEqual(['לוח הדף היומי', 'הדף האינטראקטיבי', 'החבורה בענן']);
     expect(hebrew.shortcuts.length).toBe(english.shortcuts.length);
   });
 

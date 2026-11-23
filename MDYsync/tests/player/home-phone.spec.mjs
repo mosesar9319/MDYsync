@@ -83,11 +83,13 @@ const chip = (page, id) => page.locator(`#feedChips [data-chip="${id}"]`);
 test.describe('Phone home — the feed', () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== 'mobile', 'phone layout'));
 
-  test('the chips are All, Today’s Daf, each maggid, Chazarah, Hebrew and Continue watching', async ({ page }) => {
+  test('the chips are All, the calendar, each maggid, Chazarah, Hebrew and Continue watching', async ({ page }) => {
     const errors = await open(page);
-    await expect(page.locator('#feedChips [data-chip]')).toHaveText([
-      'All', 'Today’s Daf', 'R’ Eli Stefansky', 'R’ Sruly Bornstein', 'Chazarah', 'Hebrew', 'Continue watching',
+    await expect(page.locator('#feedChips > :not(.chip-filters)')).toHaveText([
+      'All', 'Calendar', 'R’ Eli Stefansky', 'R’ Sruly Bornstein', 'Chazarah', 'Hebrew', 'Continue watching',
     ]);
+    // The calendar's chip is a link to its own page, not a filter.
+    await expect(page.locator('#feedChips a')).toHaveAttribute('href', '/calendar/');
     await expect(chip(page, 'all')).toHaveClass(/active/);
     // What the chips replace is gone from the phone.
     await expect(page.locator('#filters')).toBeHidden();
@@ -147,13 +149,10 @@ test.describe('Phone home — the feed', () => {
 
   test('each chip narrows the feed, and only one is on at a time', async ({ page }) => {
     await open(page, { history: HISTORY });
-    await chip(page, 'today').click();
-    await expect(chip(page, 'today')).toHaveClass(/active/);
-    await expect(chip(page, 'all')).not.toHaveClass(/active/);
-    await expect(cards(page)).toHaveCount(2);
-    await expect(page.locator('#continueShelf')).toHaveCount(0);
-
     await chip(page, 'maggid:bornstein').click();
+    await expect(chip(page, 'maggid:bornstein')).toHaveClass(/active/);
+    await expect(chip(page, 'all')).not.toHaveClass(/active/);
+    await expect(page.locator('#continueShelf')).toHaveCount(0);
     await expect(cards(page)).toHaveCount(1);
     await expect(cards(page).first()).toContainText('Bechoros 22 (Lakewood)');
     await expect(page.locator('#maggidBack')).toBeHidden();

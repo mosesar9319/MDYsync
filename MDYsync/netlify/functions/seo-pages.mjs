@@ -958,7 +958,7 @@ export function shiurPage(playerHtml, shiur, { mode = 'split', extra = null, det
 // today's: a date that is always "today" teaches a search engine to ignore
 // all of them.
 export function sitemap(shiurim) {
-  const pages = new Map([['/', ''], ['/browse/', ''], ['/chaburah/', '']]);
+  const pages = new Map([['/', ''], ['/browse/', ''], ['/chaburah/', ''], ['/calendar/', '']]);
   const maggidPages = new Map();
   const noteIn = (map) => (path, day) => {
     if (!map.has(path) || day > map.get(path)) map.set(path, day);
@@ -978,9 +978,10 @@ export function sitemap(shiurim) {
   // catalog's order (a Map keeps the order its keys were first set in), then
   // each maggid's page followed by his masechtos.
   // Then every page again in Hebrew, in the same order (the site's own tools,
-  // /browse/ and /chaburah/, have no Hebrew address of their own).
+  // /browse/, /chaburah/ and /calendar/, have no Hebrew address of their own).
   const english = [...pages, ...maggidPages];
-  const hebrew = english.filter(([path]) => path !== '/browse/' && path !== '/chaburah/').map(([path, day]) => [hePath(path), day]);
+  const ownTools = new Set(['/browse/', '/chaburah/', '/calendar/']);
+  const hebrew = english.filter(([path]) => !ownTools.has(path)).map(([path, day]) => [hePath(path), day]);
   const entries = [...english, ...hebrew].map(([path, day]) => `  <url><loc>${escapeHtml(absolute(path))}</loc>${day ? `<lastmod>${day}</lastmod>` : ''}</url>`);
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.join('\n')}\n</urlset>\n`;
 }

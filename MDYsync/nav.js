@@ -3,17 +3,17 @@
 // Sitewide bottom tab bar -- renders the same 5 tabs index.html's own
 // sidebar/mobile-nav uses (see its own navItems there) as plain links on
 // every OTHER page, since those pages have no in-page catalog to filter
-// the way the home page does; "Today's Daf"/"Maggidei Shiur" instead
-// link back to / with a ?nav= param index.html reads on load to land
-// pre-selected. Not loaded by index.html itself -- it already renders its
-// own copy with real in-page filter behavior, not just links.
+// the way the home page does; "Maggidei Shiur" instead links back to /
+// with a ?nav= param index.html reads on load to land pre-selected. Not
+// loaded by index.html itself -- it already renders its own copy with real
+// in-page filter behavior, not just links.
 
 // `short` is the phone bar's label (the desktop sidebar keeps `label`); a
-// tab with `phone: false` is left off the phone bar -- Today's Daf is a chip
+// tab with `phone: false` is left off the phone bar -- the calendar is a chip
 // at the top of the phone home page instead -- so five tabs fit side by side.
 const NAV_ITEMS = [
   { label: 'Home', short: 'Home', icon: 'home', href: '/' },
-  { label: 'Today’s Daf', short: 'Today', icon: 'calendar', href: '/?nav=today', phone: false },
+  { label: 'Calendar', short: 'Calendar', icon: 'calendar', href: '/calendar/', phone: false },
   { label: 'Interactive Daf', short: 'Interactive Daf', icon: 'bookOpen', href: '/browse/' },
   { label: 'Cloud Chaburah', short: 'Cloud Chaburah', icon: 'chaburah', href: '/chaburah/' },
   { label: 'Maggidei Shiur', short: 'Maggidei Shiur', icon: 'teacher', href: '/?nav=maggidei' },
@@ -47,8 +47,8 @@ function isItemActive(item) {
     return new URLSearchParams(location.search).get('view') === 'scan';
   }
   if (url.pathname === '/') {
-    // Home (no ?nav=) vs. Today's Daf/Maggidei Shiur (?nav=today /
-    // ?nav=maggidei) are otherwise indistinguishable by pathname alone.
+    // Home (no ?nav=) vs. Maggidei Shiur (?nav=maggidei) are otherwise
+    // indistinguishable by pathname alone.
     return (new URLSearchParams(location.search).get('nav') || '') === (url.searchParams.get('nav') || '');
   }
   return true;
