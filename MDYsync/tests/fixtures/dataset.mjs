@@ -445,6 +445,7 @@ export function buildDatabase() {
     favorites: [],
     progress: [],
     learning: [],
+    calendar_notes: [],
     preferences: [],
   };
 }

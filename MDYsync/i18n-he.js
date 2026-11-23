@@ -1241,4 +1241,14 @@ window.DafSyncI18n && window.DafSyncI18n.addWords({
   'In the next shiur': 'בשיעור הבא',
   'Mark as learned': 'סימון כנלמד',
   'Remove my mark': 'הסרת הסימון',
+  // ----- notes on the calendar ----------------------------------------------------
+  'Has a note': 'יש הערה',
+  'My note for this day': 'ההערה שלי ליום הזה',
+  'Write a note for this day…': 'אפשר לכתוב הערה ליום הזה…',
+  'Could not save. Try again.': 'השמירה נכשלה. כדאי לנסות שוב.',
+  'My notes on this daf': 'ההערות שלי על הדף הזה',
+  'You have not written a note on this daf.': 'עדיין לא כתבת הערה על הדף הזה.',
+  'Write a note on the daf': 'כתיבת הערה על הדף',
+  'All my notes on this masechta': 'כל ההערות שלי על המסכת',
+  'to write a note on this day.': 'כדי לכתוב הערה ליום הזה.',
 });
