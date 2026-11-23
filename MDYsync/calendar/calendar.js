@@ -31,6 +31,26 @@ const view = (() => {
   return { year: now.year, month: now.month, selected: today };
 })();
 
+// --- Which dates a day shows --------------------------------------------------
+//
+// English ("Nov 23"), Hebrew (י״ג כסלו) or both: the reader's choice, kept in
+// this browser. calendar.css hides the one not wanted.
+const DATES_KEY = 'dafsync.calendar.dates';
+let dates = 'both';
+try {
+  const kept = localStorage.getItem(DATES_KEY);
+  if (kept === 'english' || kept === 'hebrew') dates = kept;
+} catch { /* storage blocked: both */ }
+
+function showDates(choice, { keep = false } = {}) {
+  dates = choice;
+  $('calendar').dataset.dates = choice;
+  for (const button of document.querySelectorAll('#calDates [data-dates]')) button.setAttribute('aria-pressed', String(button.dataset.dates === choice));
+  if (keep) {
+    try { localStorage.setItem(DATES_KEY, choice); } catch { /* storage blocked */ }
+  }
+}
+
 // --- Dates -------------------------------------------------------------------
 
 const asDate = (day) => new Date(day * DAY_MS);
@@ -180,10 +200,14 @@ function monthDays() {
 
 function renderMonth() {
   const { days, first, last } = monthDays();
-  $('calTitle').textContent = MONTH_TITLE.format(asDate(first));
+  const english = MONTH_TITLE.format(asDate(first));
   const from = hebrewDate(first);
   const to = hebrewDate(last);
-  $('calHebrewMonths').textContent = from.month === to.month ? `${from.month} ${to.year}` : `${from.month} – ${to.month} ${to.year}`;
+  const hebrewMonths = from.month === to.month ? `${from.month} ${to.year}` : `${from.month} – ${to.month} ${to.year}`;
+  // The month is named in the dates the reader chose; the other calendar's
+  // name sits under it (with English dates alone, there is none).
+  $('calTitle').textContent = dates === 'hebrew' ? hebrewMonths : english;
+  $('calHebrewMonths').textContent = dates === 'hebrew' ? english : (dates === 'english' ? '' : hebrewMonths);
   $('calWeekdays').innerHTML = WEEKDAYS.map((name, i) => `<span><span class="cal-weekday-long">${name}</span><span class="cal-weekday-short">${WEEKDAYS_SHORT[i]}</span></span>`).join('');
 
   $('calGrid').innerHTML = days.map((day) => {
@@ -530,11 +554,27 @@ $('calSummary').addEventListener('click', (event) => {
   const tile = event.target.closest('[data-go]');
   if (tile) selectDay(Number(tile.dataset.go));
 });
+$('calDates').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-dates]');
+  if (!button) return;
+  showDates(button.dataset.dates, { keep: true });
+  renderMonth();
+});
 $('calPrev').addEventListener('click', () => moveMonth(-1));
 $('calNext').addEventListener('click', () => moveMonth(1));
 $('calToday').addEventListener('click', () => selectDay(today));
 document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeDay(); });
 
+// In Hebrew the two calendars have their own names (לועזי, עברי), not the
+// languages' names the dictionary would give.
+if (HE) {
+  const names = { english: 'לועזי', hebrew: 'עברי', both: 'שניהם' };
+  for (const button of document.querySelectorAll('#calDates [data-dates]')) {
+    button.setAttribute('translate', 'no');
+    button.textContent = names[button.dataset.dates];
+  }
+}
+showDates(dates);
 renderMonth();
 renderSummary();
 // On a computer today's daf is open beside the month from the start; a phone

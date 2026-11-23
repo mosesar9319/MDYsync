@@ -85,6 +85,47 @@ test.describe('Daf Yomi calendar', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   });
 
+  test('the reader chooses which dates a day shows: English, Hebrew or both, and it is remembered', async ({ page }) => {
+    await open(page);
+    const cell = page.locator('.cal-cell.is-today');
+    const choice = (name) => page.locator(`#calDates [data-dates="${name}"]`);
+    // Both, to begin with.
+    await expect(choice('both')).toHaveAttribute('aria-pressed', 'true');
+    await expect(cell.locator('.cal-date')).toBeVisible();
+    await expect(cell.locator('.cal-hdate')).toBeVisible();
+
+    // Hebrew alone: the month is named by its Hebrew months, the English one under it.
+    await choice('hebrew').click();
+    await expect(cell.locator('.cal-date')).toBeHidden();
+    await expect(cell.locator('.cal-hdate')).toBeVisible();
+    await expect(cell.locator('.cal-hdate')).toHaveText('י״ג כסלו');
+    await expect(page.locator('#calTitle')).toHaveText('Cheshvan – Kislev 5787');
+    await expect(page.locator('#calHebrewMonths')).toHaveText('November 2026');
+    await expect(choice('hebrew')).toHaveAttribute('aria-pressed', 'true');
+    await expect(choice('both')).toHaveAttribute('aria-pressed', 'false');
+    // Kept for the next visit, and as the month turns.
+    await page.reload();
+    await expect(page.locator('.cal-cell.is-today .cal-date')).toBeHidden();
+    await expect(page.locator('#calTitle')).toHaveText('Cheshvan – Kislev 5787');
+    await page.locator('#calNext').click();
+    await expect(page.locator('#calTitle')).toHaveText('Kislev – Teves 5787');
+    await page.locator('#calToday').click();
+
+    // English alone.
+    await choice('english').click();
+    await expect(cell.locator('.cal-date')).toHaveText('Nov 23');
+    await expect(cell.locator('.cal-hdate')).toBeHidden();
+    await expect(page.locator('#calTitle')).toHaveText('November 2026');
+    await expect(page.locator('#calHebrewMonths')).toBeHidden();
+
+    // And both again.
+    await choice('both').click();
+    await expect(cell.locator('.cal-date')).toBeVisible();
+    await expect(cell.locator('.cal-hdate')).toBeVisible();
+    await expect(page.locator('#calHebrewMonths')).toHaveText('Cheshvan – Kislev 5787');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  });
+
   test('a day opens with its shiurim, each going to the player', async ({ page }, info) => {
     await open(page);
     const panel = page.locator('#calDay');

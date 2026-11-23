@@ -1251,4 +1251,6 @@ window.DafSyncI18n && window.DafSyncI18n.addWords({
   'Write a note on the daf': 'כתיבת הערה על הדף',
   'All my notes on this masechta': 'כל ההערות שלי על המסכת',
   'to write a note on this day.': 'כדי לכתוב הערה ליום הזה.',
+  'Dates': 'תאריכים',
+  'Both': 'שניהם',
 });
