@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-23T07:01:06.920Z",
+  "generatedAt": "2026-11-23T07:23:28.307Z",
   "tractates": {
     "Arakhin": [
       {
@@ -81,6 +81,12 @@
           "label": "Daf Yomi Arachin Daf 5 by R' Eli Stefansky",
           "amud": "a"
         },
+        "chazarahEn": {
+          "videoId": "w99xa9FwQ5w",
+          "label": "CHAZARAH - Arachin Daf 5 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a",
+          "published": "2026-11-23T06:13:06+00:00"
+        },
         "regularHe": {
           "videoId": "AtBGVB1M278",
           "label": "מרכז דף יומי - ערכין דף ה. - ר' אלי סטפנסקי שליט\"א",
@@ -91,21 +97,10 @@
           "label": "חזרה - ערכין דף ה | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a",
           "published": "2026-11-22T16:46:59+00:00"
-        },
-        "chazarahEn": {
-          "videoId": "w99xa9FwQ5w",
-          "label": "CHAZARAH - Arachin Daf 5 | \"Nothing but the Daf\" with R' Eli Stefansky",
-          "amud": "a",
-          "published": "2026-11-23T06:13:06+00:00"
         }
       },
       {
         "daf": 6,
-        "regularHe": {
-          "videoId": "HptVoq4aXtA",
-          "label": "מרכז דף יומי - ערכין דף ו. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "ZZT0ZMTcMFw",
           "label": "Daf Yomi Arachin Daf 06 by R’ Eli Stefansky (unedited)",
@@ -113,6 +108,11 @@
           "liveBroadcast": true,
           "liveStatus": "finished",
           "durationSeconds": 4118
+        },
+        "regularHe": {
+          "videoId": "HptVoq4aXtA",
+          "label": "מרכז דף יומי - ערכין דף ו. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
         }
       }
     ],
@@ -4791,6 +4791,17 @@
               "published": "2026-11-22T18:44:11.000Z",
               "source": "lakewood",
               "url": "https://lakewoodafyomi.appspot.com/m5/CAEQouWehwEaIJ8uWFRImoXMgZQ-2SrcniOCwns6RZ2G43M-YnyNDUuYIiBKA7oFytyA4FUDPxs0aCG-goAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQXJhY2hpbiA2XzIxMzgyMTA1My5tcDM/Arachin%206_213821053.mp3"
+            }
+          },
+          {
+            "daf": 7,
+            "regularEn": {
+              "videoId": "L0213863721",
+              "label": "Eruchin 7",
+              "amud": "a",
+              "published": "2026-11-23T06:35:20.000Z",
+              "source": "lakewood",
+              "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ0tuihQEaINsgqPaeStEIHGw2LWlZqKZWybA9eThSqNZbek_IeivuIiBEBm0ZSfiihXEjXXHRkFUtgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQXJhY2hpbiA3XzIxMzg2MzcyMS5tcDM/Arachin%207_213863721.mp3"
             }
           }
         ],
