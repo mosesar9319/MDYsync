@@ -535,7 +535,9 @@ ${he ? '<meta property="og:locale" content="he_IL">' : ''}
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="icon" href="/assets/dafsync-mark.png" type="image/png">
+<link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
+<link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png">
 <style>${STYLE}</style>
 ${ld}
 </head>
