@@ -417,4 +417,55 @@ test.describe('Switching to another shiur on the player page', () => {
     await page.waitForTimeout(500);
     await expect.poll(() => address(page)).toEqual({ ref: 'Chullin 91a', maggid: 'bornstein' });
   });
+
+  // A phone's top bar (in Split, the first row of the "Daf tools" drop-down) has
+  // no room for Bookmark beside the daf's name and "Switch shiur": it is the
+  // first row of the More menu there. A computer keeps it in the bar.
+  test('Bookmark is in the More menu on a phone, and nothing in the drop-down\'s top bar overlaps', async ({ page }, testInfo) => {
+    await open(page, { path: '/player/?ref=Chullin%2091a', builtInViewerMode: 'split' });
+    await expect.poll(() => loadedVideo(page)).toBe('AAAAAAAAAAA');
+    await expect.poll(() => page.evaluate(() => document.getElementById('playerSwitchButton').hidden)).toBe(false);
+    // A signed-in reader has the Bookmark button.
+    await page.evaluate(() => { document.getElementById('favoriteButton').hidden = false; });
+    const shown = (id) => page.evaluate((i) => getComputedStyle(document.getElementById(i)).display !== 'none' && !document.getElementById(i).hidden, id);
+    if (testInfo.project.name === 'desktop') {
+      await expect.poll(() => shown('playerBookmarkButton')).toBe(true);
+      expect(await shown('moreBookmarkButton')).toBe(false);
+      return;
+    }
+    await page.evaluate(() => setSplitToolsOpen(true));
+    await expect.poll(() => shown('moreBookmarkButton')).toBe(true);
+    expect(await shown('playerBookmarkButton')).toBe(false);
+    for (const width of [412, 390, 360, 320]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.waitForTimeout(250);
+      const bar = await page.evaluate(() => {
+        const box = (id) => { const b = document.getElementById(id).getBoundingClientRect(); return [Math.round(b.left), Math.round(b.right)]; };
+        const label = document.getElementById('playerDafLabel');
+        return {
+          order: ['playerDafButton', 'playerSwitchButton', 'playerNotesButton', 'playerMoreButton'].map(box),
+          nameCut: label.scrollWidth - label.clientWidth,
+          nameWidth: label.offsetWidth,
+          inside: box('playerMoreButton')[1] <= window.innerWidth,
+        };
+      });
+      // Left to right, each ends before the next begins.
+      for (let i = 1; i < bar.order.length; i += 1) expect(bar.order[i][0], `${width}px: button ${i}`).toBeGreaterThanOrEqual(bar.order[i - 1][1]);
+      expect(bar.inside, `${width}px`).toBe(true);
+      // The daf's name is there in full.
+      expect(bar.nameWidth, `${width}px`).toBeGreaterThan(40);
+      expect(bar.nameCut, `${width}px`).toBeLessThanOrEqual(0);
+    }
+    // The row in the More menu is the page's own Bookmark button.
+    await page.evaluate(() => {
+      window.__bookmarked = 0;
+      document.getElementById('favoriteButton').addEventListener('click', () => { window.__bookmarked += 1; });
+    });
+    await page.locator('#playerMoreButton').click();
+    const first = page.locator('#playerMoreMenu .player-chrome-menu-item').first();
+    await expect(first).toHaveText('Bookmark');
+    await first.click();
+    expect(await page.evaluate(() => window.__bookmarked)).toBe(1);
+    await expect(page.locator('#playerMoreMenu')).toBeHidden();
+  });
 });

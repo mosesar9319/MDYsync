@@ -661,6 +661,25 @@ body.reading-mode-active .video-settings-overlay-group { display: none !importan
 .player-more-menu { right: 16px; display: flex; flex-direction: column; gap: 2px; padding: 8px; }
 .player-chrome-menu-item { text-align: left; padding: 9px 11px; border: 0; border-radius: 8px; background: none; color: #f4f7fb; font: inherit; font-size: 13px; cursor: pointer; }
 .player-chrome-menu-item:hover { background: rgba(255,255,255,.12); color: #fff; }
+/* Bookmark: in the top bar on a computer; on a phone it is the first row of
+   the More menu, so the bar has room for the daf and "Switch shiur". */
+.player-more-bookmark { display: none; }
+.player-more-bookmark[aria-pressed="true"] { color: var(--accent); }
+.player-more-bookmark[aria-pressed="true"]::after { content: " \2713"; }
+@media (max-width: 760px) {
+  #playerBookmarkButton { display: none !important; }
+  .player-more-bookmark:not([hidden]) { display: block; }
+}
+/* "Switch shiur" in the top bar; the phone's Split drop-down shows the short
+   word (its rules are with the drop-down's, further down). */
+#playerSwitchButton .switch-short { display: none; }
+/* The narrowest phones: More, then Notes, are their icons alone there. */
+@media (max-width: 400px) {
+  body.split-tools-phone.split-tools-open #splitToolsPanel #playerMoreButton span { display: none; }
+}
+@media (max-width: 340px) {
+  body.split-tools-phone.split-tools-open #splitToolsPanel #playerNotesButton span { display: none; }
+}
 /* The page's real daf picker is moved in here rather than duplicated, so it
    arrives with the setup strip's own layout classes and needs re-fitting to
    a narrow popover. */
@@ -3450,6 +3469,15 @@ body:not(.split-view-active) .split-divider,
   }
   body.split-tools-phone.split-tools-open #splitToolsPanel .player-topbar::before { content: none; }
   body.split-tools-phone.split-tools-open #splitToolsPanel .player-topbar-group { flex-wrap: nowrap; min-width: 0; }
+  /* Room for the daf's name beside the buttons: closer together, no rule
+     between the logo and the daf, and "Switch" for "Switch shiur". Should the
+     name still not fit, it gives way (an ellipsis) before anything is drawn
+     over it. */
+  body.split-tools-phone.split-tools-open #splitToolsPanel .player-topbar-group { gap: 6px; }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .player-topbar-group:first-child { flex: 1 1 auto; overflow: hidden; }
+  body.split-tools-phone.split-tools-open #splitToolsPanel .player-topbar-rule { display: none; }
+  body.split-tools-phone.split-tools-open #splitToolsPanel #playerSwitchButton .switch-long { display: none; }
+  body.split-tools-phone.split-tools-open #splitToolsPanel #playerSwitchButton .switch-short { display: inline; }
   body.split-tools-phone.split-tools-open #splitToolsPanel .player-brand span,
   body.split-tools-phone.split-tools-open #splitToolsPanel .player-daf-hebrew,
   body.split-tools-phone.split-tools-open #splitToolsPanel .player-topbar-rule-he { display: none; }

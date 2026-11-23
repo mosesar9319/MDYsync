@@ -70,6 +70,7 @@ window.DafSyncI18n && window.DafSyncI18n.addWords({
   'Cancel': 'ביטול',
   'Save': 'שמירה',
   'Saved': 'נשמר',
+  'Bookmark': 'סימנייה',
   'Remove': 'הסרה',
   'Dismiss': 'סגירה',
   'Dismiss the tip': 'סגירת הטיפ',

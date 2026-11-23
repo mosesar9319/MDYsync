@@ -246,7 +246,7 @@
     var cssLoaded;
     var wordsLoaded;
     if (document.readyState === 'loading' && typeof document.write === 'function') {
-      document.write('<link rel="stylesheet" href="/rtl.css?v=3"><script src="/i18n-he.js?v=4"><\/script>');
+      document.write('<link rel="stylesheet" href="/rtl.css?v=3"><script src="/i18n-he.js?v=5"><\/script>');
       cssLoaded = Promise.resolve();
       wordsLoaded = Promise.resolve();
     } else {
@@ -259,7 +259,7 @@
       });
       document.head.appendChild(css);
       var words = document.createElement('script');
-      words.src = '/i18n-he.js?v=4';
+      words.src = '/i18n-he.js?v=5';
       wordsLoaded = new Promise(function (resolve) {
         words.onload = resolve;
         words.onerror = resolve;
