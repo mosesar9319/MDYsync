@@ -298,13 +298,14 @@ async function dafLines(daf) {
   take(mine, 'today');
   take(next, 'next');
   const sorted = [...lines.values()].sort((x, y) => x.amud.localeCompare(y.amud) || x.paragraph - y.paragraph || x.w0 - y.w0);
-  // The next shiur's lines count as "read in the next shiur" only past where
-  // this day's shiur stops; before that they are lines of this shiur's stretch.
+  // The next shiur's lines are kept only past where this day's shiur stops:
+  // before that they are the same words cut into different phrases, and
+  // their times are the next shiur's, not this one's.
   let end = -1;
   sorted.forEach((line, index) => { if (line.from === 'today') end = index; });
-  sorted.forEach((line, index) => { if (index < end) line.from = 'today'; });
-  sorted.query = mine.query || '';
-  return sorted;
+  const kept = sorted.filter((line, index) => line.from === 'today' || index > end);
+  kept.query = mine.query || '';
+  return kept;
 }
 
 // Sample: which of the daf's lines were heard, for the day's state.
