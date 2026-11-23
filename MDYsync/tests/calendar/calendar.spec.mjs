@@ -1,64 +1,198 @@
 import { test, expect } from '@playwright/test';
 import { preparePage } from '../support/harness.mjs';
-import { dafYomiOfDay, localDayNumber } from '../../shared/daf-yomi.mjs';
+import { CYCLE_LENGTH, dafYomiOfDay, dayNumber } from '../../shared/daf-yomi.mjs';
 
-// The Daf Yomi calendar's design preview (calendar/): a month laid out as a
-// wall calendar, the daf of each day from the real schedule, and a day that
-// opens beside the month (on a phone, as a sheet). Progress is sample data.
+// The Daf Yomi calendar (calendar/): a month laid out as a wall calendar, the
+// daf of each day from the real schedule, and a day that opens beside the
+// month (on a phone, as a sheet) with that daf's shiurim. It takes the place
+// "Today's Daf" had in the menu.
 
-async function open(page) {
+// A fixed day, so the month and its dapim are the same on every run:
+// Monday 23 November 2026, Eruchin 6.
+const NOW = new Date(2026, 10, 23, 12, 0, 0);
+const TODAY = dafYomiOfDay(dayNumber(2026, 11, 23));
+
+const CATALOG = {
+  tractates: {
+    Arakhin: [
+      { daf: 6, regularEn: { videoId: 'mdy-6', label: 'Daf Yomi Eruchin Daf 6', amud: 'a' }, chazarahEn: { videoId: 'mdy-6c', label: 'Chazarah Eruchin 6', amud: 'a' } },
+    ],
+  },
+  maggidim: {
+    bornstein: { tractates: { Arakhin: [{ daf: 6, regularEn: { videoId: 'ldy-6', label: 'Arachin 6', amud: 'a' } }] } },
+  },
+};
+
+async function open(page, { catalog = CATALOG, address = '/calendar/' } = {}) {
   await preparePage(page);
-  await page.goto('/calendar/');
+  await page.clock.install({ time: NOW });
+  // `catalog` is the library's answer, or a function giving it at each request
+  // (null: the library cannot be reached).
+  await page.route('**/api/get-catalog', (route) => {
+    const answer = typeof catalog === 'function' ? catalog() : catalog;
+    return route.fulfill({ status: answer ? 200 : 500, contentType: 'application/json', body: JSON.stringify(answer || {}) });
+  });
+  await page.goto(address);
   await expect(page.locator('.cal-cell').first()).toBeVisible();
 }
 
-test.describe('Daf Yomi calendar (design preview)', () => {
-  test('a month as a wall calendar: seven days across, today marked with its daf', async ({ page }) => {
+test.describe('Daf Yomi calendar', () => {
+  test('a month as a wall calendar: seven days across, today marked with its daf', async ({ page }, info) => {
     await open(page);
+    await expect(page.locator('#calTitle')).toHaveText('November 2026');
+    await expect(page.locator('#calHebrewMonths')).toHaveText('Cheshvan – Kislev 5787');
     await expect(page.locator('#calWeekdays > span')).toHaveCount(7);
-    const cells = await page.locator('.cal-cell').count();
-    expect(cells % 7).toBe(0);
-    expect(cells).toBeGreaterThanOrEqual(28);
     // Whole weeks, Sunday first: the columns line up under the weekday names.
+    await expect(page.locator('.cal-cell')).toHaveCount(35);
     const columns = await page.evaluate(() => {
       const lefts = [...document.querySelectorAll('.cal-cell')].slice(0, 14).map((cell) => Math.round(cell.getBoundingClientRect().left));
       return { week: new Set(lefts.slice(0, 7)).size, same: lefts.slice(0, 7).every((left, i) => left === lefts[i + 7]) };
     });
     expect(columns).toEqual({ week: 7, same: true });
     // Today's square shows the daf the schedule gives for today.
-    const today = dafYomiOfDay(await page.evaluate(() => {
-      const now = new Date();
-      return Math.round(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86400000);
-    }));
     const cell = page.locator('.cal-cell.is-today');
     await expect(cell).toHaveCount(1);
-    await expect(cell.locator('.cal-num')).toHaveText(String(today.daf));
-    await expect(cell.locator('.cal-mas-long')).toHaveText(today.masechta.display);
-    expect(localDayNumber()).toBeGreaterThan(0);
+    await expect(cell.locator('.cal-date')).toHaveText('23');
+    await expect(cell.locator('.cal-num')).toHaveText('6');
+    await expect(cell.locator('.cal-mas-long')).toHaveText('Eruchin');
+    // The day a masechta begins is marked (Eruchin 2, on the 19th).
+    await expect(page.locator('.cal-cell[data-day="' + dayNumber(2026, 11, 19) + '"] .cal-flag')).toHaveText('Begins');
+    // The first of a Hebrew month is named (1 Kislev, on the 11th); a phone has room only for its day.
+    const roshChodesh = page.locator(`.cal-cell[data-day="${dayNumber(2026, 11, 11)}"] .cal-hdate`);
+    await expect(roshChodesh.locator(info.project.name === 'mobile' ? '.cal-hdate-day' : '.cal-hdate-name')).toBeVisible();
+    await expect(roshChodesh.locator(info.project.name === 'mobile' ? '.cal-hdate-name' : '.cal-hdate-day')).toBeHidden();
+    expect(await roshChodesh.evaluate((el) => el.getBoundingClientRect().right <= el.closest('.cal-cell').getBoundingClientRect().right)).toBe(true);
+    // Above the month: today's daf, how far the masechta is, how far Shas is.
+    const tiles = page.locator('#calSummary .cal-tile');
+    await expect(tiles).toHaveCount(3);
+    await expect(tiles.nth(0)).toContainText('Eruchin 6');
+    await expect(tiles.nth(1)).toContainText('Daf 5 of 33');
+    await expect(tiles.nth(1)).toContainText('Siyum on Dec 21');
+    await expect(tiles.nth(2)).toContainText(`Daf ${(TODAY.dayOfCycle + 1).toLocaleString('en-US')} of ${CYCLE_LENGTH.toLocaleString('en-US')}`);
+    await expect(tiles.nth(2)).toContainText('Siyum HaShas on June 7, 2027');
     // Nothing runs off the side of the screen.
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   });
 
-  test('a day opens with its daf; the month turns; a signed-out visitor sees the plain calendar', async ({ page }) => {
+  test('a day opens with its shiurim, each going to the player', async ({ page }, info) => {
     await open(page);
-    const yesterday = page.locator('.cal-cell.is-gap').first();
-    await yesterday.click();
     const panel = page.locator('#calDay');
+    // A computer has today's daf open beside the month from the start; a
+    // phone shows the month alone until a day is tapped.
+    if (info.project.name === 'mobile') await expect(panel).toBeHidden();
+    await page.locator('#calSummary [data-go]').click();
     await expect(panel).toBeVisible();
-    await expect(panel.locator('.cal-day-title')).toContainText(await yesterday.locator('.cal-num').innerText());
-    // The agreed rule's "almost" state: a finished shiur, a few words outstanding.
-    await expect(panel.locator('.cal-state strong')).toContainText('words still to learn');
+    await expect(panel.locator('.cal-day-when')).toHaveText('Today');
+    await expect(panel.locator('.cal-day-date')).toContainText('Monday, November 23');
+    await expect(panel.locator('.cal-day-date')).toContainText('13 Kislev 5787');
+    await expect(panel.locator('.cal-day-title')).toContainText('Eruchin 6');
+    await expect(panel.locator('.cal-day-where')).toContainText('Daf 5 of 33');
+    const shiurim = panel.locator('.cal-shiur');
+    await expect(shiurim).toHaveCount(3);
+    await expect(shiurim.nth(0)).toContainText('R\' Eli Stefansky · English');
+    await expect(shiurim.nth(0)).toHaveAttribute('href', '/player/?ref=Arakhin%206a');
+    await expect(shiurim.nth(1)).toContainText('Chazarah Daf, English');
+    await expect(shiurim.nth(1)).toHaveAttribute('href', '/player/?ref=Arakhin%206a&variant=chazarah');
+    await expect(shiurim.nth(2)).toContainText('R\' Sruly Bornstein · English');
+    await expect(shiurim.nth(2)).toHaveAttribute('href', '/player/?ref=Arakhin%206a&maggid=bornstein');
+    await expect(panel.getByRole('link', { name: 'Open the daf' })).toHaveAttribute('href', '/browse/?ref=Arakhin%206a');
+    await expect(panel.getByRole('link', { name: 'About this daf' })).toHaveAttribute('href', '/eruchin/6/');
 
-    const title = await page.locator('#calTitle').innerText();
+    // Tomorrow's daf has no shiur yet, and says so.
+    if (info.project.name === 'mobile') await panel.locator('#calDayClose').click();
+    await page.locator(`.cal-cell[data-day="${dayNumber(2026, 11, 24)}"]`).click();
+    await expect(panel.locator('.cal-day-when')).toHaveText('Tomorrow');
+    await expect(panel.locator('.cal-day-title')).toContainText('Eruchin 7');
+    await expect(panel).toContainText('Its shiurim appear here once they are given.');
+    await expect(panel.locator('.cal-shiur')).toHaveCount(0);
+    await expect(page.locator('.cal-cell.is-selected .cal-num')).toHaveText('7');
+  });
+
+  test('the month turns, a siyum is marked, and Today comes back', async ({ page }, info) => {
+    await open(page);
     await page.locator('#calNext').click();
-    await expect(page.locator('#calTitle')).not.toHaveText(title);
-    await page.locator('#calToday').click();
-    await expect(page.locator('#calTitle')).toHaveText(title);
-    await expect(page.locator('.cal-cell.is-today')).toHaveCount(1);
+    await expect(page.locator('#calTitle')).toHaveText('December 2026');
+    // Eruchin ends at daf 34 on 21 December; Temurah begins the next day.
+    const siyum = page.locator(`.cal-cell[data-day="${dayNumber(2026, 12, 21)}"]`);
+    await expect(siyum.locator('.cal-num')).toHaveText('34');
+    await expect(siyum.locator('.cal-flag-siyum')).toHaveText('Siyum');
+    await expect(page.locator(`.cal-cell[data-day="${dayNumber(2026, 12, 22)}"] .cal-mas-long`)).toHaveText('Temurah');
+    await expect(page.locator('.cal-cell.is-today')).toHaveCount(0);
 
-    // Signed out: the schedule alone, no progress on any day.
-    await page.evaluate(() => document.querySelector('[data-preview="out"]').click());
-    await expect(page.locator('.cal-cell .cal-ring')).toHaveCount(0);
-    await expect(page.locator('#calSummary')).toContainText('Sign in');
+    // A masechta the site has no shiurim on (Tamid, March 2027) still has its days.
+    for (let i = 0; i < 3; i += 1) await page.locator('#calNext').click();
+    await expect(page.locator('#calTitle')).toHaveText('March 2027');
+    const tamid = page.locator('.cal-cell:not(.is-outside)', { has: page.locator('.cal-mas-long', { hasText: 'Tamid' }) }).first();
+    await tamid.click();
+    await expect(page.locator('#calDay')).toContainText('DafSync has no shiurim on this masechta yet.');
+    if (info.project.name === 'mobile') await page.locator('#calDayClose').click();
+
+    await page.locator('#calPrev').click();
+    await expect(page.locator('#calTitle')).toHaveText('February 2027');
+    await page.locator('#calToday').click();
+    await expect(page.locator('#calTitle')).toHaveText('November 2026');
+    await expect(page.locator('.cal-cell.is-today.is-selected')).toHaveCount(1);
+  });
+
+  test('when the library cannot be reached the day says so, and the next tap tries again', async ({ page }, info) => {
+    let fail = true;
+    await open(page, { catalog: () => (fail ? null : CATALOG) });
+    const today = page.locator('.cal-cell.is-today');
+    await page.locator(`.cal-cell[data-day="${dayNumber(2026, 11, 22)}"]`).click();
+    const panel = page.locator('#calDay');
+    await expect(panel).toContainText('The shiurim could not be loaded.');
+    fail = false;
+    if (info.project.name === 'mobile') await panel.locator('#calDayClose').click();
+    await today.click();
+    await expect(panel.locator('.cal-shiur')).toHaveCount(3);
+  });
+
+  test('in Hebrew: the days, the dapim and the wording', async ({ page }) => {
+    await open(page, { address: '/calendar/?lang=he' });
+    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+    const cell = page.locator('.cal-cell.is-today');
+    await expect(cell.locator('.cal-mas-long')).toHaveText('ערכין');
+    await expect(cell.locator('.cal-num')).toHaveText('ו');
+    await expect(page.locator('#calWeekdays .cal-weekday-long').last()).toHaveText('שבת');
+    await expect(page.locator('#calSummary .cal-tile').nth(1)).toContainText('דף 5 מתוך 33');
+    await expect(page.locator('.cal-eyebrow')).toHaveText('לוח הדף היומי');
+    // The Hebrew date in letters, as a Hebrew calendar prints it.
+    await expect(page.locator('#calHebrewMonths')).toHaveText('חשוון – כסלו תשפ״ז');
+    await page.locator('#calSummary [data-go]').click();
+    await expect(page.locator('#calDay .cal-shiur').first()).toContainText('הרב אלי סטפנסקי · אנגלית');
+    await expect(page.locator('#calDay .cal-day-date')).toContainText('י״ג כסלו תשפ״ז');
+    // The first column is on the right.
+    const [first, second] = await page.locator('.cal-cell').evaluateAll((cells) => cells.slice(0, 2).map((c) => c.getBoundingClientRect().left));
+    expect(first).toBeGreaterThan(second);
+  });
+});
+
+test.describe('The calendar in the menu', () => {
+  test('on a computer the sidebar opens it, from the home page and from the others', async ({ page }, info) => {
+    test.skip(info.project.name === 'mobile', 'desktop layout');
+    await preparePage(page, { user: null });
+    for (const address of ['/index.html', '/browse/']) {
+      await page.goto(address);
+      await expect(page.locator('.desktop-navigation a.side-link[href="/calendar/"] span')).toHaveText('Calendar');
+    }
+    await page.goto('/calendar/');
+    await expect(page.locator('.desktop-navigation a.side-link.active span')).toHaveText('Calendar');
+  });
+
+  test('on a phone the home page has it among the chips', async ({ page }, info) => {
+    test.skip(info.project.name !== 'mobile', 'phone layout');
+    await preparePage(page, { user: null });
+    await page.goto('/index.html');
+    const chip = page.locator('#feedChips a[href="/calendar/"]');
+    await expect(chip).toHaveText('Calendar');
+    await chip.click();
+    await expect(page).toHaveURL(/\/calendar\/$/);
+    await expect(page.locator('.cal-cell.is-today')).toHaveCount(1);
+  });
+
+  test('the old "Today’s Daf" address opens the calendar', async ({ page }) => {
+    await preparePage(page, { user: null });
+    await page.goto('/index.html?nav=today');
+    await expect(page).toHaveURL(/\/calendar\/$/);
   });
 });

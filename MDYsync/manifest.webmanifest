@@ -37,9 +37,9 @@
   ],
   "shortcuts": [
     {
-      "name": "Today's Daf",
-      "short_name": "Today",
-      "url": "/#today-section",
+      "name": "Daf Yomi Calendar",
+      "short_name": "Calendar",
+      "url": "/calendar/",
       "icons": [
         {
           "src": "/assets/app/icon-192.png",

@@ -318,7 +318,7 @@ test('the Hebrew home page: index.html in Hebrew, its links inside /he/', () => 
 test('the sitemap lists the home page and every masechta, daf and shiur page', () => {
   const xml = sitemap(SHIURIM);
   const locs = [...xml.matchAll(/<loc>(.*?)<\/loc>/g)].map((m) => m[1].replace('https://dafsync.com', ''));
-  assert.deepEqual(locs, ['/', '/browse/', '/chaburah/', '/bechoros/', '/bechoros/57/', '/bechoros/57/stefansky/',
+  assert.deepEqual(locs, ['/', '/browse/', '/chaburah/', '/calendar/', '/bechoros/', '/bechoros/57/', '/bechoros/57/stefansky/',
     '/bechoros/58/', '/bechoros/58/stefansky/', '/bechoros/58/stefansky/chazarah/', '/bechoros/58/bornstein/',
     '/stefansky/', '/stefansky/bechoros/', '/bornstein/', '/bornstein/bechoros/',
     // Every page again in Hebrew, but the site's own tools.

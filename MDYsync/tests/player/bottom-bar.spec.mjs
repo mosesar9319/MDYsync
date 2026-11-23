@@ -2,13 +2,13 @@ import { test, expect } from '@playwright/test';
 import { preparePage } from '../support/harness.mjs';
 
 // The phone's bottom bar: five tabs, each with its full name -- two short
-// lines where it needs them -- side by side without crowding (Today's Daf is a
+// lines where it needs them -- side by side without crowding (the calendar is a
 // chip at the top of the phone home page instead). The desktop sidebar keeps
 // every tab with its full name too.
 
 const FULL_NAMES = ['Home', 'Interactive Daf', 'Cloud Chaburah', 'Maggidei Shiur', 'Daf Scan'];
 const PHONE_TABS = FULL_NAMES;
-const SIDEBAR = ['Home', 'Today’s Daf', 'Interactive Daf', 'Cloud Chaburah', 'Maggidei Shiur', 'Daf Scan'];
+const SIDEBAR = ['Home', 'Calendar', 'Interactive Daf', 'Cloud Chaburah', 'Maggidei Shiur', 'Daf Scan'];
 
 for (const [page_, url] of [['home page', '/index.html'], ['Interactive Daf', '/browse/'], ['Cloud Chaburah', '/chaburah/']]) {
   test.describe(`Bottom bar — ${page_}`, () => {

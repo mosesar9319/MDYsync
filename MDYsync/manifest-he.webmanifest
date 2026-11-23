@@ -37,9 +37,9 @@
   ],
   "shortcuts": [
     {
-      "name": "הדף היומי",
-      "short_name": "הדף היומי",
-      "url": "/he/#today-section",
+      "name": "לוח הדף היומי",
+      "short_name": "לוח הדף היומי",
+      "url": "/calendar/?lang=he",
       "icons": [
         {
           "src": "/assets/app/icon-192.png",
