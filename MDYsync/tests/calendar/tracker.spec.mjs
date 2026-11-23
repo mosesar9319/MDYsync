@@ -166,7 +166,7 @@ test.describe('The calendar as a tracker', () => {
     // Before he began, and days to come: nothing.
     await expect(cell(page, 11, 19)).toHaveClass(/is-none/);
     await expect(cell(page, 11, 24)).toHaveClass(/is-none/);
-    await expect(page.locator('#calLegend .cal-legend-item')).toHaveText(['Done', 'In progress', 'A few words left', 'Missed']);
+    await expect(page.locator('#calLegend .cal-legend-item')).toHaveText(['Done', 'In progress', 'A few words left', 'Missed', 'Has a note']);
     // Above the month: where today stands, what is outstanding, how many in a row.
     const tiles = page.locator('#calSummary .cal-tile');
     await expect(tiles.nth(0)).toContainText('You are 30% through. Carry on');

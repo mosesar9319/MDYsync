@@ -18,6 +18,7 @@
 
 import { CYCLE_LENGTH, dafYomiOfDay, dateOfDay, dayNumber, localDayNumber, masechtaDays } from '/shared/daf-yomi.mjs';
 import { hebrewNumeral } from '/shared/masechtos.mjs';
+import { dafNotes, dayNotes, isoOfDate, saveDayNote } from './day-notes.js';
 import { learnerId, playerUrl, printedLine, progressOf, setMarked, trackingSince, whereToLearn } from './learning.js';
 
 const $ = (id) => document.getElementById(id);
@@ -30,6 +31,26 @@ const view = (() => {
   return { year: now.year, month: now.month, selected: today };
 })();
 
+// --- Which dates a day shows --------------------------------------------------
+//
+// English ("Nov 23"), Hebrew (י״ג כסלו) or both: the reader's choice, kept in
+// this browser. calendar.css hides the one not wanted.
+const DATES_KEY = 'dafsync.calendar.dates';
+let dates = 'both';
+try {
+  const kept = localStorage.getItem(DATES_KEY);
+  if (kept === 'english' || kept === 'hebrew') dates = kept;
+} catch { /* storage blocked: both */ }
+
+function showDates(choice, { keep = false } = {}) {
+  dates = choice;
+  $('calendar').dataset.dates = choice;
+  for (const button of document.querySelectorAll('#calDates [data-dates]')) button.setAttribute('aria-pressed', String(button.dataset.dates === choice));
+  if (keep) {
+    try { localStorage.setItem(DATES_KEY, choice); } catch { /* storage blocked */ }
+  }
+}
+
 // --- Dates -------------------------------------------------------------------
 
 const asDate = (day) => new Date(day * DAY_MS);
@@ -39,6 +60,10 @@ const LONG_DATE = fmt({ weekday: 'long', month: 'long', day: 'numeric' });
 const SHORT_DATE = fmt({ month: 'short', day: 'numeric' });
 const FULL_DATE = fmt({ month: 'long', day: 'numeric', year: 'numeric' });
 const HEBREW_PARTS = new Intl.DateTimeFormat(HE ? 'he-u-ca-hebrew' : 'en-u-ca-hebrew', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' });
+// The Hebrew month in Hebrew letters, whatever the reader's language: a day's
+// own Hebrew date is written as a Hebrew calendar writes it (י״ג כסלו).
+const HEBREW_MONTH = new Intl.DateTimeFormat('he-u-ca-hebrew', { timeZone: 'UTC', month: 'long' });
+const hebrewMonthLetters = (day) => HEBREW_MONTH.format(asDate(day)).replace(/^ב(?=[א-ת])/, '');
 
 // The months as the site's readers say them.
 const MONTH_SPELLING = { Tishri: 'Tishrei', Heshvan: 'Cheshvan', Tevet: 'Teves', Tamuz: 'Tammuz' };
@@ -95,6 +120,10 @@ const dafTitle = (daf) => { const label = dafLabel(daf); return `${label.name} $
 const learned = new Map();          // day -> progressOf()'s answer
 let since = null;                   // the day his tracking began
 let loading = 0;
+// His notes: the days he wrote a note on, and the notes he wrote on each daf.
+let noted = new Map();              // "2026-11-23" -> his note on that day
+const written = new Map();          // day -> the notes he wrote on its daf
+const hasNotes = (day) => noted.has(isoOfDate(dateOfDay(day))) || Boolean(written.get(day)?.length);
 
 function stateOf(day) {
   const progress = learned.get(day);
@@ -125,18 +154,27 @@ async function loadLearning() {
   if (!learnerId()) {
     learned.clear();
     since = null;
+    noted = new Map();
+    written.clear();
     renderMonth(); renderSummary(); renderDay();
     return;
   }
   const days = new Set(monthDays().days);
   for (let day = today - 45; day <= today; day += 1) days.add(day);
   const began = await trackingSince();
+  const notes = await dayNotes();
+  const onDapim = await Promise.all(monthDays().days.map(async (day) => {
+    const daf = dafYomiOfDay(day);
+    return [day, daf ? (await dafNotes(daf.masechta.name)).get(daf.daf) || [] : []];
+  }));
   const found = await Promise.all([...days].map(async (day) => {
     const daf = dafYomiOfDay(day);
     return [day, daf ? await progressOf(daf.masechta.name, daf.daf) : null];
   }));
   if (turn !== loading) return;
   since = began;
+  noted = notes;
+  for (const [day, list] of onDapim) written.set(day, list);
   for (const [day, progress] of found) { if (progress) learned.set(day, progress); else learned.delete(day); }
   renderMonth(); renderSummary(); renderDay();
 }
@@ -162,10 +200,14 @@ function monthDays() {
 
 function renderMonth() {
   const { days, first, last } = monthDays();
-  $('calTitle').textContent = MONTH_TITLE.format(asDate(first));
+  const english = MONTH_TITLE.format(asDate(first));
   const from = hebrewDate(first);
   const to = hebrewDate(last);
-  $('calHebrewMonths').textContent = from.month === to.month ? `${from.month} ${to.year}` : `${from.month} – ${to.month} ${to.year}`;
+  const hebrewMonths = from.month === to.month ? `${from.month} ${to.year}` : `${from.month} – ${to.month} ${to.year}`;
+  // The month is named in the dates the reader chose; the other calendar's
+  // name sits under it (with English dates alone, there is none).
+  $('calTitle').textContent = dates === 'hebrew' ? hebrewMonths : english;
+  $('calHebrewMonths').textContent = dates === 'hebrew' ? english : (dates === 'english' ? '' : hebrewMonths);
   $('calWeekdays').innerHTML = WEEKDAYS.map((name, i) => `<span><span class="cal-weekday-long">${name}</span><span class="cal-weekday-short">${WEEKDAYS_SHORT[i]}</span></span>`).join('');
 
   $('calGrid').innerHTML = days.map((day) => {
@@ -179,16 +221,15 @@ function renderMonth() {
     if (day === today) classes.push('is-today');
     if (day === view.selected) classes.push('is-selected');
     if (daf) classes.push(`mas-${daf.masechtaIndex % 6}`);
+    if (hasNotes(day)) classes.push('has-note');
     const flag = daf?.last ? '<span class="cal-flag cal-flag-siyum">Siyum</span>' : (daf?.first ? '<span class="cal-flag">Begins</span>' : '');
     const status = state === 'none' ? ''
       : `<span class="cal-status">${ring(state, share(day))}<span class="cal-status-word">${state === 'partial' ? `<span translate="no">${Math.round(share(day) * 100)}%</span>` : STATE_WORD[state]}</span></span>`;
-    const said = `${LONG_DATE.format(asDate(day))}: ${daf ? dafTitle(daf) : ''}${state === 'none' ? '' : `, ${say(STATE_WORD[state])}`}`;
+    const said = `${LONG_DATE.format(asDate(day))}: ${daf ? dafTitle(daf) : ''}${state === 'none' ? '' : `, ${say(STATE_WORD[state])}`}${hasNotes(day) ? `, ${say('Has a note')}` : ''}`;
     return `<button type="button" class="${classes.join(' ')}" role="gridcell" data-day="${day}" aria-label="${escapeHtml(said)}" aria-pressed="${day === view.selected}">
       <span class="cal-cell-top">
         <span class="cal-date" translate="no">${SHORT_DATE.format(asDate(day))}</span>
-        ${hebrew.day === 1
-          ? `<span class="cal-hdate is-month" translate="no"><span class="cal-hdate-name">${escapeHtml(hebrew.month)}</span><span class="cal-hdate-day" lang="he" dir="rtl">${hebrewDayLetters(1)}</span></span>`
-          : `<span class="cal-hdate" lang="he" dir="rtl" translate="no">${hebrewDayLetters(hebrew.day)}</span>`}
+        <span class="cal-hdate${hebrew.day === 1 ? ' is-month' : ''}" lang="he" dir="rtl" translate="no">${hebrewDayLetters(hebrew.day)} ${escapeHtml(hebrewMonthLetters(day))}</span>
       </span>
       ${label ? `<span class="cal-daf" translate="no"><span class="cal-mas"><span class="cal-mas-long">${escapeHtml(label.name)}</span><span class="cal-mas-short">${escapeHtml(label.short)}</span></span><span class="cal-num">${label.number}</span></span>` : '<span class="cal-daf"></span>'}
       <span class="cal-cell-foot">${status}${day === today ? '<span class="cal-today-tag">Today</span>' : flag}</span>
@@ -199,7 +240,8 @@ function renderMonth() {
 
 function renderLegend() {
   const items = learnerId() ? [['done', 'Done', 1], ['partial', 'In progress', 0.5], ['gap', 'A few words left', 0.93], ['missed', 'Missed', 0]] : [];
-  $('calLegend').innerHTML = items.map(([state, word, fraction]) => `<span class="cal-legend-item is-${state}">${ring(state, fraction, 16)}<span>${word}</span></span>`).join('');
+  $('calLegend').innerHTML = items.map(([state, word, fraction]) => `<span class="cal-legend-item is-${state}">${ring(state, fraction, 16)}<span>${word}</span></span>`).join('')
+    + (items.length ? '<span class="cal-legend-item"><span class="cal-legend-fold" aria-hidden="true"></span><span>Has a note</span></span>' : '');
 }
 
 // --- Above the month: today's daf, the masechta, Shas -- or what is outstanding ------
@@ -395,6 +437,28 @@ async function renderDay() {
       <div class="cal-map-key"><span class="is-heard">Learned</span>${progress.gaps.length ? '<span class="is-gap">Still to learn</span>' : ''}${progress.tail ? '<span class="is-later">In the next shiur</span>' : ''}</div></div>`;
   }
 
+  // His notes: one of his own on the day, and those he wrote on its daf.
+  const iso = isoOfDate(dateOfDay(day));
+  const onDaf = written.get(day) || [];
+  let notes = '';
+  if (learnerId()) {
+    notes = `<div class="cal-section"><h3><label for="calNote">My note for this day</label></h3>
+      <textarea class="cal-note" id="calNote" rows="3" maxlength="4000" dir="auto" placeholder="Write a note for this day…">${escapeHtml(noted.get(iso) || '')}</textarea>
+      <span class="cal-note-status" id="calNoteStatus" role="status"></span></div>`;
+    if (daf.masechta.onSite) {
+      notes += `<div class="cal-section"><h3>My notes on this daf</h3>${onDaf.length ? `<div class="cal-notes">${onDaf.slice(0, 6).map((note) => `<a class="cal-note-link" href="${note.url}">
+          <span class="cal-note-kind${note.isPrivate ? '' : ' is-public'}">${note.isPrivate ? 'Private' : 'Public'}</span>
+          <span class="cal-note-text" translate="no"><bdi>${escapeHtml((note.title || note.text).slice(0, 140))}</bdi></span>
+        </a>`).join('')}</div>` : '<p class="cal-quiet">You have not written a note on this daf.</p>'}
+        <div class="cal-note-more">
+          <a href="/browse/?ref=${encodeURIComponent(`${daf.masechta.name} ${daf.daf}a`)}">Write a note on the daf</a>
+          ${onDaf.length ? `<a href="/notes/?tractate=${encodeURIComponent(daf.masechta.name)}">All my notes on this masechta</a>` : ''}
+        </div></div>`;
+    }
+  } else {
+    notes = '<div class="cal-section"><p class="cal-quiet"><button type="button" class="cal-invite-link" id="calNoteSignIn">Sign in</button> <span>to write a note on this day.</span></p></div>';
+  }
+
   const ref = encodeURIComponent(`${daf.masechta.name} ${daf.daf}a`);
   const canMark = Boolean(learnerId()) && day <= today && (state !== 'done' || progress?.manual);
   const actions = `<div class="cal-actions">
@@ -402,7 +466,29 @@ async function renderDay() {
       ${shiurim?.length ? `<a class="cal-secondary" href="/${daf.masechta.slug}/${daf.daf}/">About this daf</a>` : ''}
       ${canMark ? `<button type="button" class="cal-secondary" id="calMark">${progress?.manual ? 'Remove my mark' : 'Mark as learned'}</button>` : ''}
     </div>`;
-  panel.querySelector('.cal-day-body').innerHTML = `${card}${map}${list}${actions}`;
+  panel.querySelector('.cal-day-body').innerHTML = `${card}${map}${list}${notes}${actions}`;
+  $('calNoteSignIn')?.addEventListener('click', () => document.getElementById('signInButton')?.click());
+
+  // The day's note keeps itself: a moment after the typing stops, and when
+  // the box is left. The day's square gains or loses its folded corner.
+  const box = $('calNote');
+  if (box) {
+    let timer = 0;
+    let kept = box.value.trim();
+    const keep = async () => {
+      clearTimeout(timer);
+      const text = box.value.trim();
+      if (text === kept) return;
+      const status = $('calNoteStatus');
+      if (status) status.textContent = say('Saving…');
+      const saved = await saveDayNote(iso, text);
+      if (saved) kept = text;
+      if ($('calNote') === box && status) status.textContent = say(saved ? 'Saved' : 'Could not save. Try again.');
+      document.querySelector(`.cal-cell[data-day="${day}"]`)?.classList.toggle('has-note', hasNotes(day));
+    };
+    box.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(keep, 900); });
+    box.addEventListener('blur', keep);
+  }
   panel.classList.add(`is-${state}`);
 
   $('calMark')?.addEventListener('click', async (event) => {
@@ -468,11 +554,27 @@ $('calSummary').addEventListener('click', (event) => {
   const tile = event.target.closest('[data-go]');
   if (tile) selectDay(Number(tile.dataset.go));
 });
+$('calDates').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-dates]');
+  if (!button) return;
+  showDates(button.dataset.dates, { keep: true });
+  renderMonth();
+});
 $('calPrev').addEventListener('click', () => moveMonth(-1));
 $('calNext').addEventListener('click', () => moveMonth(1));
 $('calToday').addEventListener('click', () => selectDay(today));
 document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeDay(); });
 
+// In Hebrew the two calendars have their own names (לועזי, עברי), not the
+// languages' names the dictionary would give.
+if (HE) {
+  const names = { english: 'לועזי', hebrew: 'עברי', both: 'שניהם' };
+  for (const button of document.querySelectorAll('#calDates [data-dates]')) {
+    button.setAttribute('translate', 'no');
+    button.textContent = names[button.dataset.dates];
+  }
+}
+showDates(dates);
 renderMonth();
 renderSummary();
 // On a computer today's daf is open beside the month from the start; a phone

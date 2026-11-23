@@ -340,8 +340,8 @@
               // Upserted tables in this repo and the columns their primary keys
               // are made of: progress/preferences (user_id, ref_key, variant),
               // thread_read_state (user_id, note_id), bookmarks (user_id,
-              // target_type, target_id), learning (user_id, shiur_key).
-              const KEY_COLUMNS = ['user_id', 'ref_key', 'variant', 'note_id', 'target_type', 'target_id', 'thread_id', 'shiur_key'];
+              // target_type, target_id), learning (user_id, shiur_key), calendar_notes (user_id, day).
+              const KEY_COLUMNS = ['user_id', 'ref_key', 'variant', 'note_id', 'target_type', 'target_id', 'thread_id', 'shiur_key', 'day'];
               const keys = Object.keys(record).filter((k) => KEY_COLUMNS.includes(k));
               const existingIndex = rows.findIndex((existing) => keys.every((k) => existing[k] === record[k]));
               if (existingIndex >= 0) {

@@ -54,7 +54,8 @@ test.describe('Daf Yomi calendar', () => {
     await expect(cell).toHaveCount(1);
     // Each day carries its date, the month shortened, beside the Hebrew date.
     await expect(cell.locator('.cal-date')).toHaveText('Nov 23');
-    await expect(cell.locator('.cal-hdate')).toHaveText('י״ג');
+    // The Hebrew date, day and month, as a Hebrew calendar writes it.
+    await expect(cell.locator('.cal-hdate')).toHaveText('י״ג כסלו');
     await expect(cell.locator('.cal-today-tag')).toHaveText('Today');
     await expect(page.locator('.cal-cell').last().locator('.cal-date')).toHaveText('Dec 5');
     // Neither date runs out of its day, nor into the other.
@@ -69,11 +70,9 @@ test.describe('Daf Yomi calendar', () => {
     await expect(cell.locator('.cal-mas-long')).toHaveText('Eruchin');
     // The day a masechta begins is marked (Eruchin 2, on the 19th).
     await expect(page.locator('.cal-cell[data-day="' + dayNumber(2026, 11, 19) + '"] .cal-flag')).toHaveText('Begins');
-    // The first of a Hebrew month is named (1 Kislev, on the 11th); a phone has room only for its day.
-    const roshChodesh = page.locator(`.cal-cell[data-day="${dayNumber(2026, 11, 11)}"] .cal-hdate`);
-    await expect(roshChodesh.locator(info.project.name === 'mobile' ? '.cal-hdate-day' : '.cal-hdate-name')).toBeVisible();
-    await expect(roshChodesh.locator(info.project.name === 'mobile' ? '.cal-hdate-name' : '.cal-hdate-day')).toBeHidden();
-    expect(await roshChodesh.evaluate((el) => el.getBoundingClientRect().right <= el.closest('.cal-cell').getBoundingClientRect().right)).toBe(true);
+    // The first of a Hebrew month stands out (1 Kislev, on the 11th), and the month before it ends on the 10th.
+    await expect(page.locator(`.cal-cell[data-day="${dayNumber(2026, 11, 11)}"] .cal-hdate.is-month`)).toHaveText('א׳ כסלו');
+    await expect(page.locator(`.cal-cell[data-day="${dayNumber(2026, 11, 10)}"] .cal-hdate`)).toHaveText('ל׳ חשוון');
     // Above the month: today's daf, how far the masechta is, how far Shas is.
     const tiles = page.locator('#calSummary .cal-tile');
     await expect(tiles).toHaveCount(3);
@@ -83,6 +82,47 @@ test.describe('Daf Yomi calendar', () => {
     await expect(tiles.nth(2)).toContainText(`Daf ${(TODAY.dayOfCycle + 1).toLocaleString('en-US')} of ${CYCLE_LENGTH.toLocaleString('en-US')}`);
     await expect(tiles.nth(2)).toContainText('Siyum HaShas on June 7, 2027');
     // Nothing runs off the side of the screen.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  });
+
+  test('the reader chooses which dates a day shows: English, Hebrew or both, and it is remembered', async ({ page }) => {
+    await open(page);
+    const cell = page.locator('.cal-cell.is-today');
+    const choice = (name) => page.locator(`#calDates [data-dates="${name}"]`);
+    // Both, to begin with.
+    await expect(choice('both')).toHaveAttribute('aria-pressed', 'true');
+    await expect(cell.locator('.cal-date')).toBeVisible();
+    await expect(cell.locator('.cal-hdate')).toBeVisible();
+
+    // Hebrew alone: the month is named by its Hebrew months, the English one under it.
+    await choice('hebrew').click();
+    await expect(cell.locator('.cal-date')).toBeHidden();
+    await expect(cell.locator('.cal-hdate')).toBeVisible();
+    await expect(cell.locator('.cal-hdate')).toHaveText('י״ג כסלו');
+    await expect(page.locator('#calTitle')).toHaveText('Cheshvan – Kislev 5787');
+    await expect(page.locator('#calHebrewMonths')).toHaveText('November 2026');
+    await expect(choice('hebrew')).toHaveAttribute('aria-pressed', 'true');
+    await expect(choice('both')).toHaveAttribute('aria-pressed', 'false');
+    // Kept for the next visit, and as the month turns.
+    await page.reload();
+    await expect(page.locator('.cal-cell.is-today .cal-date')).toBeHidden();
+    await expect(page.locator('#calTitle')).toHaveText('Cheshvan – Kislev 5787');
+    await page.locator('#calNext').click();
+    await expect(page.locator('#calTitle')).toHaveText('Kislev – Teves 5787');
+    await page.locator('#calToday').click();
+
+    // English alone.
+    await choice('english').click();
+    await expect(cell.locator('.cal-date')).toHaveText('Nov 23');
+    await expect(cell.locator('.cal-hdate')).toBeHidden();
+    await expect(page.locator('#calTitle')).toHaveText('November 2026');
+    await expect(page.locator('#calHebrewMonths')).toBeHidden();
+
+    // And both again.
+    await choice('both').click();
+    await expect(cell.locator('.cal-date')).toBeVisible();
+    await expect(cell.locator('.cal-hdate')).toBeVisible();
+    await expect(page.locator('#calHebrewMonths')).toHaveText('Cheshvan – Kislev 5787');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   });
 
