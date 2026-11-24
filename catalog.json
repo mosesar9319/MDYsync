@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-24T13:45:16.238Z",
+  "generatedAt": "2026-11-24T15:01:12.916Z",
   "tractates": {
     "Arakhin": [
       {
@@ -134,6 +134,12 @@
           "videoId": "3AupyYRkm7I",
           "label": "מרכז דף יומי - ערכין דף ז. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
+        },
+        "chazarahEn": {
+          "videoId": "qeSHV7pnbvg",
+          "label": "CHAZARAH - Arachin Daf 7 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a",
+          "published": "2026-11-24T14:53:13+00:00"
         }
       }
     ],
