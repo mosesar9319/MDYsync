@@ -1,32 +1,13 @@
 {
   "type": "youtube",
-  "url": "https://www.youtube.com/watch?v=JGSAAU2BwT0",
-  "videoId": "JGSAAU2BwT0",
-  "label": "מרכז דף יומי -  ערכין דף ז. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
+  "url": "https://www.youtube.com/watch?v=3AupyYRkm7I",
+  "videoId": "3AupyYRkm7I",
+  "label": "מרכז דף יומי - ערכין דף ז. - ר' אלי סטפנסקי שליט\"א",
   "coveredRefs": [
+    "Arakhin 6b",
     "Arakhin 7a",
     "Arakhin 7b"
   ],
-  "source": "live-auto",
-  "liveBroadcast": true,
-  "liveStatus": "finished",
-  "durationSeconds": 4198,
-  "actualStartTime": "2026-11-23T19:08:42Z",
-  "actualEndTime": "2026-11-23T20:18:48Z",
-  "locked": false,
-  "lengthCheck": {
-    "seconds": 4198,
-    "firstSeenAt": "2026-11-23T20:20:58.072Z"
-  },
-  "alignmentDispatchedAt": "2026-11-23T20:35:12.718Z",
-  "pendingEdit": {
-    "videoId": "3AupyYRkm7I",
-    "label": "מרכז דף יומי - ערכין דף ז. - ר' אלי סטפנסקי שליט\"א",
-    "coveredRefs": [
-      "Arakhin 6b",
-      "Arakhin 7a",
-      "Arakhin 7b"
-    ],
-    "dispatchedAt": "2026-11-24T06:01:01.890Z"
-  }
+  "source": "channel-auto",
+  "locked": false
 }
