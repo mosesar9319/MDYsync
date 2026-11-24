@@ -1,0 +1,268 @@
+{
+ "schema": "dafsync-patch-answers-v1",
+ "videoId": "L0213984778",
+ "shiur": "R' Sruly Bornstein, Eruchin 8",
+ "answeredBy": "Claude, in a Claude Code session",
+ "placements": [
+  {
+   "daf": [
+    236,
+    236
+   ],
+   "heard": [
+    432,
+    432
+   ],
+   "kind": "read",
+   "confidence": 0.75,
+   "why": "'Zoch the Mishnah' introducing the Mishnah"
+  },
+  {
+   "daf": [
+    237,
+    237
+   ],
+   "heard": [
+    433,
+    433
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "'Ein' before 'Eruch Pachas MeSelah'"
+  },
+  {
+   "daf": [
+    255,
+    255
+   ],
+   "heard": [
+    992,
+    992
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'VeHeshah' = והעשיר, then 'he becomes a Gvir'"
+  },
+  {
+   "daf": [
+    315,
+    316
+   ],
+   "heard": [
+    1661,
+    1662
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'My time' = מאי טעמא before 'with the רבי מאיר'"
+  },
+  {
+   "daf": [
+    350,
+    350
+   ],
+   "heard": [
+    1839,
+    1839
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "'מסגס' = משגת after 'ואראה יד היום'"
+  },
+  {
+   "daf": [
+    361,
+    361
+   ],
+   "heard": [
+    2043,
+    2043
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'Rabanan' before 'אבל לאו ממילא'"
+  },
+  {
+   "daf": [
+    413,
+    415
+   ],
+   "heard": [
+    2884,
+    2885
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "'su lesa' = תו לית ליה after 'Be'idna d'ya'av l'rishonah'"
+  },
+  {
+   "daf": [
+    447,
+    447
+   ],
+   "heard": [
+    3386,
+    3386
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'Kim' = כיון before 'd'bevas achas nodar ki'"
+  },
+  {
+   "daf": [
+    477,
+    480
+   ],
+   "heard": [
+    3612,
+    3629
+   ],
+   "kind": "explained",
+   "confidence": 0.75,
+   "why": "'Why does the Mishnah have to chazar over ... the same exact thing'"
+  },
+  {
+   "daf": [
+    489,
+    492
+   ],
+   "heard": [
+    3640,
+    3642
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "'yaser alah ikkar' = יתר על סלע איכא"
+  },
+  {
+   "daf": [
+    625,
+    626
+   ],
+   "heard": [
+    8191,
+    8191
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "'אמאי' = אמר ליה before 'לטכונה לידי נדה'"
+  },
+  {
+   "daf": [
+    631,
+    631
+   ],
+   "heard": [
+    8196,
+    8196
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'קמי' = קאמרינן after 'ופתחה'"
+  },
+  {
+   "daf": [
+    653,
+    655
+   ],
+   "heard": [
+    9218,
+    9219
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "'וסויה נחה' = ותו יום אחד before 'ושני ימים'"
+  },
+  {
+   "daf": [
+    679,
+    680
+   ],
+   "heard": [
+    9759,
+    9761
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'אם בן נגן' = אין בנגעים before 'פוחת משבוע אחד'"
+  },
+  {
+   "daf": [
+    745,
+    745
+   ],
+   "heard": [
+    10661,
+    10661
+   ],
+   "kind": "read",
+   "confidence": 0.75,
+   "why": "'Rabba' = בדרבי before 'Lazer or Rabbi Yosef ben'"
+  },
+  {
+   "daf": [
+    758,
+    758
+   ],
+   "heard": [
+    10742,
+    10742
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "'ben' = ברבי in 'Rabbi Yosef ben Chanina אמר'"
+  },
+  {
+   "daf": [
+    762,
+    762
+   ],
+   "heard": [
+    10821,
+    10821
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "'Rava' = רבה"
+  },
+  {
+   "daf": [
+    763,
+    764
+   ],
+   "heard": [
+    10828,
+    10829
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'כרבה לצר' = כרבי אלעזר"
+  },
+  {
+   "daf": [
+    765,
+    766
+   ],
+   "heard": [
+    10889,
+    10890
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "'Rabbi Yehuda' = ורב יהודה"
+  },
+  {
+   "daf": [
+    767,
+    770
+   ],
+   "heard": [
+    10892,
+    10895
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "'Rabbi Yosef ben Chanina' = כרבי יוסי ברבי חנינא"
+  }
+ ]
+}
