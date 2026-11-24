@@ -310,18 +310,18 @@
     {
       "ref": "Arakhin 7b:15",
       "start": 130.44,
-      "end": 130.46,
-      "he": "מַתְנִי׳ אֵין",
+      "end": 130.45,
+      "he": "מַתְנִי׳",
       "w0": 0,
-      "w1": 1,
+      "w1": 0,
       "estimated": true
     },
     {
       "ref": "Arakhin 7b:15",
       "start": 130.44,
       "end": 130.44,
-      "he": "נֶעֱרָכִין פָּחוֹת מִסֶּלַע, וְלֹא",
-      "w0": 2,
+      "he": "אֵין נֶעֱרָכִין פָּחוֹת מִסֶּלַע, וְלֹא",
+      "w0": 1,
       "w1": 5
     },
     {
@@ -547,19 +547,10 @@
     {
       "ref": "Arakhin 7b:20",
       "start": 515.84,
-      "end": 515.84,
-      "he": "וַהֲרֵי יָדוֹ",
+      "end": 516.82,
+      "he": "וַהֲרֵי יָדוֹ מַשֶּׂגֶת.",
       "w0": 22,
-      "w1": 23
-    },
-    {
-      "ref": "Arakhin 7b:20",
-      "start": 515.84,
-      "end": 515.85,
-      "he": "מַשֶּׂגֶת.",
-      "w0": 24,
-      "w1": 24,
-      "estimated": true
+      "w1": 24
     },
     {
       "ref": "Arakhin 7b:21",
@@ -668,12 +659,11 @@
     },
     {
       "ref": "Arakhin 7b:24",
-      "start": 798.89,
-      "end": 798.92,
+      "start": 801.15,
+      "end": 801.15,
       "he": "תּוּ לֵית לֵיהּ.",
       "w0": 8,
-      "w1": 10,
-      "estimated": true
+      "w1": 10
     },
     {
       "ref": "Arakhin 8a:1",
@@ -742,19 +732,19 @@
     },
     {
       "ref": "Arakhin 8a:2",
-      "start": 921.55,
-      "end": 921.57,
-      "he": "מַהוּ? כֵּיוָן",
+      "start": 921.31,
+      "end": 921.32,
+      "he": "מַהוּ?",
       "w0": 15,
-      "w1": 16,
+      "w1": 15,
       "estimated": true
     },
     {
       "ref": "Arakhin 8a:2",
-      "start": 921.55,
+      "start": 921.31,
       "end": 922.91,
-      "he": "דִּבְבַת אַחַת נָדַר — כִּי הֲדָדֵי תָּפְסָן,",
-      "w0": 17,
+      "he": "כֵּיוָן דִּבְבַת אַחַת נָדַר — כִּי הֲדָדֵי תָּפְסָן,",
+      "w0": 16,
       "w1": 23
     },
     {
@@ -791,19 +781,26 @@
     },
     {
       "ref": "Arakhin 8a:3",
-      "start": 967.85,
-      "end": 967.88,
+      "start": 976.93,
+      "end": 976.93,
       "he": "תּוּ לְמָה לִי?",
       "w0": 8,
-      "w1": 10,
-      "estimated": true
+      "w1": 10
     },
     {
       "ref": "Arakhin 8a:4",
       "start": 982.73,
       "end": 985.23,
-      "he": "הָא קָמַשְׁמַע לַן: פָּחוֹת מִסֶּלַע הוּא דְּלֵיכָּא, הָא יָתֵר עַל סֶלַע אִיכָּא; יָתֵר עַל",
+      "he": "הָא קָמַשְׁמַע לַן: פָּחוֹת מִסֶּלַע הוּא דְּלֵיכָּא, הָא יָתֵר עַל סֶלַע אִיכָּא;",
       "w0": 0,
+      "w1": 11
+    },
+    {
+      "ref": "Arakhin 8a:4",
+      "start": 985.23,
+      "end": 985.23,
+      "he": "יָתֵר עַל",
+      "w0": 12,
       "w1": 13
     },
     {
@@ -899,19 +896,19 @@
     },
     {
       "ref": "Arakhin 8a:7",
-      "start": 1893.22,
-      "end": 1893.24,
-      "he": "— פִּתְחָהּ",
+      "start": 1892.96,
+      "end": 1892.97,
+      "he": "—",
       "w0": 4,
-      "w1": 5,
+      "w1": 4,
       "estimated": true
     },
     {
       "ref": "Arakhin 8a:7",
-      "start": 1893.22,
+      "start": 1892.96,
       "end": 1893.22,
-      "he": "שִׁבְעָה עָשָׂר.",
-      "w0": 6,
+      "he": "פִּתְחָהּ שִׁבְעָה עָשָׂר.",
+      "w0": 5,
       "w1": 7
     },
     {
@@ -940,12 +937,20 @@
     },
     {
       "ref": "Arakhin 8a:9",
-      "start": 2054.08,
-      "end": 2054.1,
-      "he": "— פִּתְחָהּ",
+      "start": 1951.88,
+      "end": 1951.89,
+      "he": "—",
       "w0": 4,
-      "w1": 5,
+      "w1": 4,
       "estimated": true
+    },
+    {
+      "ref": "Arakhin 8a:9",
+      "start": 1951.88,
+      "end": 1951.88,
+      "he": "פִּתְחָהּ",
+      "w0": 5,
+      "w1": 5
     },
     {
       "ref": "Arakhin 8a:9",
@@ -1123,19 +1128,10 @@
     {
       "ref": "Arakhin 8b:5",
       "start": 2242.23,
-      "end": 2243.95,
-      "he": "אֲמַר לֵיהּ: לְתַקּוֹנַהּ לִידֵי נִדָּה וּפִתְחָהּ",
+      "end": 2244.39,
+      "he": "אֲמַר לֵיהּ: לְתַקּוֹנַהּ לִידֵי נִדָּה וּפִתְחָהּ קָאָמְרִינַן.",
       "w0": 0,
-      "w1": 5
-    },
-    {
-      "ref": "Arakhin 8b:5",
-      "start": 2243.95,
-      "end": 2243.96,
-      "he": "קָאָמְרִינַן.",
-      "w0": 6,
-      "w1": 6,
-      "estimated": true
+      "w1": 6
     },
     {
       "ref": "Arakhin 8b:6",
@@ -1187,19 +1183,10 @@
     },
     {
       "ref": "Arakhin 8b:7",
-      "start": 2498.55,
-      "end": 2498.56,
-      "he": "וְתוּ,",
-      "w0": 4,
-      "w1": 4,
-      "estimated": true
-    },
-    {
-      "ref": "Arakhin 8b:7",
-      "start": 2498.55,
+      "start": 2498.45,
       "end": 2499.89,
-      "he": "יוֹם אֶחָד וּשְׁנֵי יָמִים בַּת אֵיתוֹיֵי קׇרְבָּן הִיא?",
-      "w0": 5,
+      "he": "וְתוּ, יוֹם אֶחָד וּשְׁנֵי יָמִים בַּת אֵיתוֹיֵי קׇרְבָּן הִיא?",
+      "w0": 4,
       "w1": 12
     },
     {
@@ -1220,19 +1207,27 @@
     },
     {
       "ref": "Arakhin 8b:9",
-      "start": 2645.41,
-      "end": 2645.44,
-      "he": "מַתְנִי׳ אֵין בִּנְגָעִים",
+      "start": 2644.95,
+      "end": 2644.96,
+      "he": "מַתְנִי׳",
       "w0": 0,
-      "w1": 2,
+      "w1": 0,
       "estimated": true
     },
     {
       "ref": "Arakhin 8b:9",
-      "start": 2645.41,
+      "start": 2644.95,
+      "end": 2646.73,
+      "he": "אֵין בִּנְגָעִים פָּחוֹת מִשָּׁבוּעַ אֶחָד, וְלֹא יָתֵר עַל",
+      "w0": 1,
+      "w1": 8
+    },
+    {
+      "ref": "Arakhin 8b:9",
+      "start": 2647.09,
       "end": 2647.09,
-      "he": "פָּחוֹת מִשָּׁבוּעַ אֶחָד, וְלֹא יָתֵר עַל שְׁלֹשָׁה שְׁבוּעוֹת.",
-      "w0": 3,
+      "he": "שְׁלֹשָׁה שְׁבוּעוֹת.",
+      "w0": 9,
       "w1": 10
     },
     {
@@ -1646,6 +1641,15 @@
   "wordTimeline": [
     {
       "start": 130.44,
+      "end": 130.44,
+      "ref": "Arakhin 7b:15",
+      "w0": 1,
+      "w1": 1,
+      "heardText": "Ein",
+      "source": "claude-read"
+    },
+    {
+      "start": 130.44,
       "end": 132.48,
       "ref": "Arakhin 7b:15",
       "w0": 2,
@@ -2024,12 +2028,21 @@
     },
     {
       "start": 515.84,
-      "end": 523.52,
+      "end": 516.82,
       "ref": "Arakhin 7b:20",
       "w0": 22,
       "w1": 23,
       "heardText": "\"ועריי ידו",
       "source": "path-hebrew"
+    },
+    {
+      "start": 516.82,
+      "end": 523.52,
+      "ref": "Arakhin 7b:20",
+      "w0": 24,
+      "w1": 24,
+      "heardText": "משגעס.",
+      "source": "claude-read"
     },
     {
       "start": 523.52,
@@ -2155,7 +2168,7 @@
       "w0": 14,
       "w1": 15,
       "heardText": "ערכי עולאי.",
-      "source": "path-hebrew"
+      "source": "deterministic-local"
     },
     {
       "start": 692.72,
@@ -2231,12 +2244,21 @@
     },
     {
       "start": 798.89,
-      "end": 858.11,
+      "end": 801.15,
       "ref": "Arakhin 7b:24",
       "w0": 5,
       "w1": 7,
       "heardText": "בעידנא דיהיב לראשונה",
       "source": "path-hebrew"
+    },
+    {
+      "start": 801.15,
+      "end": 858.11,
+      "ref": "Arakhin 7b:24",
+      "w0": 8,
+      "w1": 10,
+      "heardText": "su lesah.",
+      "source": "claude-read"
     },
     {
       "start": 858.11,
@@ -2348,12 +2370,21 @@
     },
     {
       "start": 909.19,
-      "end": 921.55,
+      "end": 921.31,
       "ref": "Arakhin 8a:2",
       "w0": 12,
       "w1": 14,
       "heardText": "alai bevas achas,\"",
       "source": "path-latin"
+    },
+    {
+      "start": 921.31,
+      "end": 921.55,
+      "ref": "Arakhin 8a:2",
+      "w0": 16,
+      "w1": 16,
+      "heardText": "\"Kim",
+      "source": "claude-read"
     },
     {
       "start": 921.55,
@@ -2456,12 +2487,21 @@
     },
     {
       "start": 967.85,
-      "end": 982.73,
+      "end": 976.93,
       "ref": "Arakhin 8a:3",
       "w0": 3,
       "w1": 7,
       "heardText": "mesela v'dola yaser",
       "source": "path-latin"
+    },
+    {
+      "start": 976.93,
+      "end": 982.73,
+      "ref": "Arakhin 8a:3",
+      "w0": 8,
+      "w1": 10,
+      "heardText": "Why does the Mishnah have to chazar over literally verbatim the same exact thing in the same Mishnah?",
+      "source": "claude-explained"
     },
     {
       "start": 982.73,
@@ -2480,6 +2520,15 @@
       "w1": 6,
       "heardText": "לן פחות מסלע הוא דליכא",
       "source": "path-hebrew"
+    },
+    {
+      "start": 985.23,
+      "end": 985.23,
+      "ref": "Arakhin 8a:4",
+      "w0": 8,
+      "w1": 11,
+      "heardText": "yaser alah ikkah.",
+      "source": "claude-read"
     },
     {
       "start": 985.23,
@@ -2609,12 +2658,21 @@
     },
     {
       "start": 1888.56,
-      "end": 1893.22,
+      "end": 1892.96,
       "ref": "Arakhin 8a:7",
       "w0": 0,
       "w1": 3,
       "heardText": "Shnei yamim tamir isi.",
       "source": "path-latin"
+    },
+    {
+      "start": 1892.96,
+      "end": 1893.22,
+      "ref": "Arakhin 8a:7",
+      "w0": 5,
+      "w1": 5,
+      "heardText": "pischa",
+      "source": "claude-read"
     },
     {
       "start": 1893.22,
@@ -2654,12 +2712,21 @@
     },
     {
       "start": 1944.52,
-      "end": 2054.08,
+      "end": 1951.88,
       "ref": "Arakhin 8a:9",
       "w0": 0,
       "w1": 3,
       "heardText": "Arbah yamim tamir isi.",
       "source": "path-latin"
+    },
+    {
+      "start": 1951.88,
+      "end": 2054.08,
+      "ref": "Arakhin 8a:9",
+      "w0": 5,
+      "w1": 5,
+      "heardText": "Pischa",
+      "source": "claude-read"
     },
     {
       "start": 2054.08,
@@ -2978,12 +3045,21 @@
     },
     {
       "start": 2243.95,
-      "end": 2306.07,
+      "end": 2244.39,
       "ref": "Arakhin 8b:5",
       "w0": 5,
       "w1": 5,
       "heardText": "ופסחה",
       "source": "path-hebrew-gap"
+    },
+    {
+      "start": 2244.39,
+      "end": 2306.07,
+      "ref": "Arakhin 8b:5",
+      "w0": 6,
+      "w1": 6,
+      "heardText": "קמי.",
+      "source": "claude-read"
     },
     {
       "start": 2306.07,
@@ -3059,12 +3135,21 @@
     },
     {
       "start": 2466.53,
-      "end": 2498.55,
+      "end": 2498.45,
       "ref": "Arakhin 8b:7",
       "w0": 0,
       "w1": 3,
       "heardText": "אטו כל הטועות זבות.",
       "source": "path-hebrew"
+    },
+    {
+      "start": 2498.45,
+      "end": 2498.55,
+      "ref": "Arakhin 8b:7",
+      "w0": 4,
+      "w1": 4,
+      "heardText": "וסויה",
+      "source": "claude-read"
     },
     {
       "start": 2498.55,
@@ -3140,12 +3225,21 @@
     },
     {
       "start": 2518.75,
-      "end": 2645.41,
+      "end": 2644.95,
       "ref": "Arakhin 8b:8",
       "w0": 14,
       "w1": 15,
       "heardText": "קרבן ונאכל.",
       "source": "path-hebrew"
+    },
+    {
+      "start": 2644.95,
+      "end": 2645.41,
+      "ref": "Arakhin 8b:9",
+      "w0": 1,
+      "w1": 2,
+      "heardText": "אם בן גן",
+      "source": "claude-read"
     },
     {
       "start": 2645.41,
@@ -3494,8 +3588,8 @@
     "aligner": "path",
     "totalRuns": 399,
     "totalWords": 601,
-    "matchedWords": 493,
-    "unmatchedWords": 108,
+    "matchedWords": 509,
+    "unmatchedWords": 92,
     "excludedWords": 0,
     "bySource": {
       "path-latin": {
@@ -3505,8 +3599,8 @@
       },
       "path-hebrew": {
         "label": "Read from Hebrew letters",
-        "runs": 106,
-        "words": 273
+        "runs": 105,
+        "words": 271
       },
       "path-bridge": {
         "label": "Filled in between two placed phrases a moment apart (not heard on its own)",
@@ -3515,8 +3609,8 @@
       },
       "deterministic-local": {
         "label": "Deterministic matching (locked tracking)",
-        "runs": 2,
-        "words": 6
+        "runs": 3,
+        "words": 8
       },
       "path-latin-gap": {
         "label": "Second look between placed phrases (English letters)",
@@ -3537,6 +3631,16 @@
         "label": "Deterministic matching (relocalized)",
         "runs": 1,
         "words": 4
+      },
+      "claude-read": {
+        "label": "Placed by Claude between two placed phrases (said, but garbled in the transcript)",
+        "runs": 10,
+        "words": 16
+      },
+      "claude-explained": {
+        "label": "Explained without being read (highlighted, not counted as matched)",
+        "runs": 1,
+        "words": 3
       }
     },
     "unmatched": [
@@ -3968,8 +4072,8 @@
       },
       {
         "start": 571.62,
-        "end": 572.0,
-        "text": "Rabbi Meir.",
+        "end": 572.04,
+        "text": "רבי מאיר.",
         "offeredToLlm": false
       },
       {
@@ -4743,7 +4847,7 @@
     ],
     "excluded": [],
     "passes": 2,
-    "llmCalls": 3,
+    "llmCalls": 0,
     "witnesses": 2,
     "transcriptWords": 14490,
     "dafWords": 601,
@@ -4754,21 +4858,17 @@
     "readingEndsAt": 2935.98,
     "droppedAfterReading": 0,
     "straightPath": true,
-    "relisten": {
-      "words": 3159,
-      "matchedBefore": 482
-    },
-    "dafWordsPatched": 0,
-    "dafWordsExplained": 0,
+    "dafWordsPatched": 16,
+    "dafWordsExplained": 3,
     "claude": {
-      "model": "claude-opus-5-5",
+      "model": "claude (in a Claude Code session)",
       "holes": 25,
       "holeWords": 107,
-      "calls": 3,
+      "calls": 0,
       "inputTokens": 0,
       "outputTokens": 0,
-      "readWords": 0,
-      "explainedWords": 0
+      "readWords": 16,
+      "explainedWords": 3
     },
     "phraseMatcher": {
       "matchedWords": 381,
@@ -4778,9 +4878,10 @@
   },
   "transcription": {
     "engine": "elevenlabs",
-    "model": "scribe_v2"
+    "model": "scribe_v2",
+    "placedAgain": true
   },
-  "jobId": "e16f96ea776042fe86f16867040feb8e",
+  "jobId": "realign-45394193594",
   "videoId": "L0213968714",
   "videoUrl": "https://lakewoodafyomi.appspot.com/m5/CAEQkcjMjgEaIMRGHTD34DYqotRz-48RilZFROEy0605Sj093UHzhjTpIiA57i5XZ7DtNg66uDiKRdEbgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQXJhY2hpbiA4XzIxMzk2ODcxNC5tcDM/Arachin%208_213968714.mp3",
   "coveredRefs": [

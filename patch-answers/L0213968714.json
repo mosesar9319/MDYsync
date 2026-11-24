@@ -1,0 +1,151 @@
+{
+ "schema": "dafsync-patch-answers-v1",
+ "videoId": "L0213968714",
+ "shiur": "R' Sruly Bornstein, Eruchin 8",
+ "answeredBy": "Claude, in a Claude Code session",
+ "placements": [
+  {
+   "daf": [
+    237,
+    237
+   ],
+   "heard": [
+    432,
+    432
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "\"Ein\" opening the Mishnah, before \"Eruch Pachas MeSelah\""
+  },
+  {
+   "daf": [
+    350,
+    350
+   ],
+   "heard": [
+    1831,
+    1831
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "\"משגעס\" after \"וערע ידו היא\""
+  },
+  {
+   "daf": [
+    413,
+    415
+   ],
+   "heard": [
+    2873,
+    2874
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "\"su lesah\" for tu leis lei after \"larishonah\""
+  },
+  {
+   "daf": [
+    447,
+    447
+   ],
+   "heard": [
+    3366,
+    3366
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "\"Kim\" for keivan before \"d'bevas achas nodar\""
+  },
+  {
+   "daf": [
+    478,
+    480
+   ],
+   "heard": [
+    3594,
+    3611
+   ],
+   "kind": "explained",
+   "confidence": 0.75,
+   "why": "\"Why does the Mishnah have to chazar over ... the same exact thing\" explains tu lama li"
+  },
+  {
+   "daf": [
+    489,
+    492
+   ],
+   "heard": [
+    3622,
+    3624
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "\"yaser alah ikkah\" for yaser al sela ika"
+  },
+  {
+   "daf": [
+    531,
+    531
+   ],
+   "heard": [
+    6873,
+    6873
+   ],
+   "kind": "read",
+   "confidence": 0.95,
+   "why": "\"pischa\" before \"shiv'ah asar\""
+  },
+  {
+   "daf": [
+    545,
+    545
+   ],
+   "heard": [
+    7098,
+    7098
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "\"Pischa\" before \"shishah asar\""
+  },
+  {
+   "daf": [
+    631,
+    631
+   ],
+   "heard": [
+    8037,
+    8037
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "\"קמי\" for ka'amrinan after \"ופסחה\""
+  },
+  {
+   "daf": [
+    653,
+    653
+   ],
+   "heard": [
+    8874,
+    8874
+   ],
+   "kind": "read",
+   "confidence": 0.72,
+   "why": "\"וסויה\" for v'tu before \"נחל ושנייה\" (yom echad ushnei)"
+  },
+  {
+   "daf": [
+    679,
+    680
+   ],
+   "heard": [
+    9412,
+    9414
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "\"אם בן גן\" for ein binga'im before \"פוחת בשבוע\""
+  }
+ ]
+}
