@@ -1,0 +1,151 @@
+{
+ "schema": "dafsync-patch-answers-v1",
+ "videoId": "L0214070896",
+ "shiur": "R' Sruly Bornstein, Eruchin 9",
+ "answeredBy": "Claude, in a Claude Code session",
+ "placements": [
+  {
+   "daf": [
+    178,
+    178
+   ],
+   "heard": [
+    69,
+    69
+   ],
+   "kind": "read",
+   "confidence": 0.75,
+   "why": "'we are at the Mishnah' announces the matnisin heading"
+  },
+  {
+   "daf": [
+    256,
+    257
+   ],
+   "heard": [
+    4874,
+    4875
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "'Could amar' is kid'amar Rav, before 'רש\"י' = Mesharshiya"
+  },
+  {
+   "daf": [
+    450,
+    450
+   ],
+   "heard": [
+    12741,
+    12741
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'Elu' is ela, right before 'amani acheirim'"
+  },
+  {
+   "daf": [
+    457,
+    457
+   ],
+   "heard": [
+    12839,
+    12839
+   ],
+   "kind": "explained",
+   "confidence": 0.75,
+   "why": "'what acheirim says' translates omrim"
+  },
+  {
+   "daf": [
+    458,
+    458
+   ],
+   "heard": [
+    12840,
+    12840
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "'Ein' before 'bein atzeret la'atzeret'"
+  },
+  {
+   "daf": [
+    485,
+    486
+   ],
+   "heard": [
+    13772,
+    13772
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'Amar' of 'Amar mashar shia' = amar Rav Mesharshiya"
+  },
+  {
+   "daf": [
+    526,
+    526
+   ],
+   "heard": [
+    14628,
+    14628
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'מסקא' is garbled matkif, before 'לרבינא'"
+  },
+  {
+   "daf": [
+    580,
+    580
+   ],
+   "heard": [
+    15088,
+    15088
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'פיתי' is garbled meisivi, then 'גמרא קשה'"
+  },
+  {
+   "daf": [
+    597,
+    597
+   ],
+   "heard": [
+    15165,
+    15165
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "'מנין' read for moneh before 'נזירות שלש מאות'"
+  },
+  {
+   "daf": [
+    627,
+    627
+   ],
+   "heard": [
+    15468,
+    15473
+   ],
+   "kind": "explained",
+   "confidence": 0.75,
+   "why": "'we continue learning the braisa' explains d'tanya"
+  },
+  {
+   "daf": [
+    666,
+    666
+   ],
+   "heard": [
+    15918,
+    15918
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'דהו' is dal, before 'תלסל בהדי תלסא'"
+  }
+ ]
+}
