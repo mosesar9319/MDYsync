@@ -1,0 +1,17 @@
+{
+  "type": "youtube",
+  "url": "https://www.youtube.com/watch?v=tVV6w2w7QuM",
+  "videoId": "tVV6w2w7QuM",
+  "label": "מרכז דף יומי -  ערכין דף ט. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
+  "coveredRefs": [
+    "Arakhin 9a",
+    "Arakhin 9b"
+  ],
+  "source": "live-auto",
+  "liveBroadcast": true,
+  "liveStatus": "live",
+  "durationSeconds": null,
+  "actualStartTime": "2026-11-25T18:55:09Z",
+  "actualEndTime": null,
+  "locked": false
+}
