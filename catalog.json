@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-25T06:28:48.155Z",
+  "generatedAt": "2026-11-25T06:30:16.445Z",
   "tractates": {
     "Arakhin": [
       {
@@ -163,7 +163,7 @@
           "label": "Daf Yomi Arachin Daf 08 by R’ Eli Stefansky (unedited)",
           "amud": "a",
           "liveBroadcast": true,
-          "liveStatus": "live",
+          "liveStatus": "finished",
           "durationSeconds": 4418
         }
       }
