@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-25T18:55:15.557Z",
+  "generatedAt": "2026-11-25T19:01:10.409Z",
   "tractates": {
     "Arakhin": [
       {
@@ -165,6 +165,12 @@
           "videoId": "74qoflqIKPo",
           "label": "מרכז דף יומי - ערכין דף ח. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
+        },
+        "chazarahHe": {
+          "videoId": "q3CfG-5vq9s",
+          "label": "חזרה - ערכין דף ח | \"רק הדף\" עם ר' אלי סטפנסקי",
+          "amud": "a",
+          "published": "2026-11-25T18:32:00+00:00"
         }
       },
       {
