@@ -1,13 +1,8 @@
 {
+  "label": "Daf Yomi Arachin Daf 9 by R' Eli Stefansky",
+  "locked": false,
+  "source": "manual",
   "type": "youtube",
   "url": "https://www.youtube.com/watch?v=0qQHzRLEDBg",
-  "videoId": "0qQHzRLEDBg",
-  "label": "Daf Yomi Arachin Daf 9 by R' Eli Stefansky",
-  "coveredRefs": [
-    "Arakhin 8b",
-    "Arakhin 9a",
-    "Arakhin 9b"
-  ],
-  "source": "channel-auto",
-  "locked": false
+  "videoId": "0qQHzRLEDBg"
 }
