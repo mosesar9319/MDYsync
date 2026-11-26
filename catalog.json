@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-26T20:45:19.470Z",
+  "generatedAt": "2026-11-26T22:01:10.302Z",
   "tractates": {
     "Arakhin": [
       {
@@ -190,6 +190,12 @@
           "label": "חזרה - ערכין דף ט | \"רק הדף\" עם ר' אלי סטפנסקי",
           "amud": "a",
           "published": "2026-11-26T13:21:12+00:00"
+        },
+        "chazarahEn": {
+          "videoId": "oVmzuMAdPzw",
+          "label": "CHAZARAH - Arachin Daf 9 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a",
+          "published": "2026-11-26T21:50:56+00:00"
         }
       },
       {
