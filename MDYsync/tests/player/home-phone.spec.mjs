@@ -83,13 +83,13 @@ const chip = (page, id) => page.locator(`#feedChips [data-chip="${id}"]`);
 test.describe('Phone home — the feed', () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== 'mobile', 'phone layout'));
 
-  test('the chips are All, the calendar, each maggid, Chazarah, Hebrew and Continue watching', async ({ page }) => {
+  test('the chips are All, each maggid, Chazarah, Hebrew and Continue watching', async ({ page }) => {
     const errors = await open(page);
     await expect(page.locator('#feedChips > :not(.chip-filters)')).toHaveText([
-      'All', 'Calendar', 'R’ Eli Stefansky', 'R’ Sruly Bornstein', 'Chazarah', 'Hebrew', 'Continue watching',
+      'All', 'R’ Eli Stefansky', 'R’ Sruly Bornstein', 'Chazarah', 'Hebrew', 'Continue watching',
     ]);
-    // The calendar's chip is a link to its own page, not a filter.
-    await expect(page.locator('#feedChips a')).toHaveAttribute('href', '/calendar/');
+    // The calendar has its own tab on the bottom bar, not a chip here.
+    await expect(page.locator('#feedChips a')).toHaveCount(0);
     await expect(chip(page, 'all')).toHaveClass(/active/);
     // What the chips replace is gone from the phone.
     await expect(page.locator('#filters')).toBeHidden();

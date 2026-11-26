@@ -1088,7 +1088,10 @@ h1 {
     scroll-snap-type: x proximity;
     scrollbar-width: none;
     left: 0;
-    padding: 8px max(6px, env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-right));
+    /* A low bar: a little room above the tabs and under them. Where the
+       phone keeps a strip at the bottom for its own gesture bar, the tabs
+       stop just short of it rather than a full strip above it. */
+    padding: 5px max(6px, env(safe-area-inset-left)) max(5px, calc(env(safe-area-inset-bottom) - 8px)) max(6px, env(safe-area-inset-right));
     position: fixed;
     right: 0;
     z-index: 30;
@@ -1105,9 +1108,9 @@ h1 {
     flex: 1 0 auto;
     flex-direction: column;
     font-size: 10px;
-    gap: 4px;
+    gap: 2px;
     min-width: 74px;
-    padding: 4px 1px;
+    padding: 1px;
     scroll-snap-align: start;
     text-decoration: none;
   }
@@ -1115,9 +1118,10 @@ h1 {
   .mobile-nav button span,
   .mobile-nav a span {
     text-align: center;
-    line-height: 1.2;
+    line-height: 1.1;
     width: min-content;
   }
+  .mobile-nav svg { width: 20px; height: 20px; }
 
   .mobile-nav button.active,
   .mobile-nav a.active {
@@ -1543,7 +1547,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
 
   /* The chips: one row, sideways scrolling, under the top bar. */
   main {
-    padding: 0 0 92px;
+    padding: 0 0 74px;
   }
 
   .feed-chips {
@@ -1563,8 +1567,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     display: none;
   }
 
-  .feed-chips button,
-  .feed-chips a {
+  .feed-chips button {
     align-items: center;
     background: var(--feed-chip);
     border: 0;
@@ -1578,7 +1581,6 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     gap: 6px;
     height: 32px;
     padding: 0 12px;
-    text-decoration: none;
     white-space: nowrap;
   }
 
@@ -1841,16 +1843,15 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     border-top: 1px solid var(--feed-line);
     box-shadow: none;
     gap: 0;
-    padding-top: 6px;
   }
 
   .mobile-nav button,
   .mobile-nav a {
     color: var(--feed-meta);
-    /* Five short tabs share the width evenly. */
+    /* Six short tabs share the width evenly. */
     flex: 1 1 0;
     font-size: 11px;
-    min-width: 56px;
+    min-width: 50px;
     /* Full names, on two short lines where they need it. */
     white-space: normal;
   }
@@ -1859,6 +1860,14 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
   .mobile-nav a.active {
     color: var(--feed-title);
     font-weight: 700;
+  }
+
+  @media (max-width: 400px) {
+    .mobile-nav button, .mobile-nav a { font-size: 10px; }
+  }
+  @media (max-width: 340px) {
+    .mobile-nav { padding-left: 2px; padding-right: 2px; }
+    .mobile-nav button, .mobile-nav a { font-size: 9px; }
   }
 
   /* Other sections and the shiur window in the dark. */
@@ -2368,10 +2377,10 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     // -----------------------------------------------------------------
 
     const navItems = [
-      // `short` labels the phone's bottom bar; the calendar is a chip at the
-      // top of the phone page, so it stays off that bar (phone: false).
+      // `short` labels the phone's bottom bar (an entry with phone: false
+      // would be left off it; all six are on it).
       { label: "Home", short: "Home", icon: "home" },
-      { label: "Calendar", short: "Calendar", icon: "calendar", href: "/calendar/", phone: false },
+      { label: "Calendar", short: "Calendar", icon: "calendar", href: "/calendar/" },
       // These two are plain links to dedicated pages, not in-page filters --
       // Scan needs the camera permission scoped to /player/* in netlify.toml,
       // and both need app.js's daf-loading machinery this lightweight home
@@ -2600,7 +2609,6 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     // Single-select chips over the same state the desktop filters use.
     const CHIPS = [
       { id: "all", label: "All" },
-      { id: "calendar", label: "Calendar", href: "/calendar/" },
       ...MAGGIDIM.map((maggid) => ({ id: `maggid:${maggid.id}`, label: maggid.name })),
       { id: "chazarah", label: "Chazarah" },
       { id: "hebrew", label: "Hebrew" },
@@ -2633,9 +2641,8 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     function renderChips() {
       const active = activeChip();
       const chips = document.querySelector("#feedChips");
-      chips.innerHTML = CHIPS.map((chip) => chip.href
-        ? `<a class="chip-link" href="${chip.href}">${icon("calendar", 16)}${escapeHtml(chip.label)}</a>`
-        : `<button class="${chip.id === active ? "active" : ""}" data-chip="${escapeHtml(chip.id)}" type="button" aria-pressed="${chip.id === active}">${escapeHtml(chip.label)}</button>`
+      chips.innerHTML = CHIPS.map((chip) =>
+        `<button class="${chip.id === active ? "active" : ""}" data-chip="${escapeHtml(chip.id)}" type="button" aria-pressed="${chip.id === active}">${escapeHtml(chip.label)}</button>`
       ).join("") + `<button class="chip-filters${document.body.classList.contains("phone-filters-open") ? " open" : ""}" id="chipFilters" type="button" aria-label="More filters" aria-expanded="${document.body.classList.contains("phone-filters-open")}">${icon("sliders", 18)}</button>`;
       chips.querySelectorAll("[data-chip]").forEach((button) => {
         button.addEventListener("click", () => chooseChip(button.dataset.chip));

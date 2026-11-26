@@ -3005,7 +3005,10 @@ mark.daf-search-flash { background: rgba(240, 200, 90, .34); color: inherit; bor
     scroll-snap-type: x proximity;
     scrollbar-width: none;
     left: 0;
-    padding: 8px max(6px, env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-right));
+    /* A low bar: a little room above the tabs and under them. Where the
+       phone keeps a strip at the bottom for its own gesture bar, the tabs
+       stop just short of it rather than a full strip above it. */
+    padding: 5px max(6px, env(safe-area-inset-left)) max(5px, calc(env(safe-area-inset-bottom) - 8px)) max(6px, env(safe-area-inset-right));
     position: fixed;
     right: 0;
     z-index: 30;
@@ -3019,13 +3022,13 @@ mark.daf-search-flash { background: rgba(240, 200, 90, .34); color: inherit; bor
     border: 0;
     color: #65748a;
     display: flex;
-    /* Five short tabs share the width evenly. */
+    /* Six short tabs share the width evenly. */
     flex: 1 1 0;
     flex-direction: column;
     font-size: 11px;
-    gap: 4px;
-    min-width: 56px;
-    padding: 4px 1px;
+    gap: 2px;
+    min-width: 50px;
+    padding: 1px;
     scroll-snap-align: start;
     text-decoration: none;
     /* Full names (Interactive Daf, Cloud Chaburah, Maggidei Shiur, Daf Scan),
@@ -3041,7 +3044,7 @@ mark.daf-search-flash { background: rgba(240, 200, 90, .34); color: inherit; bor
   .mobile-nav button span,
   .mobile-nav a span {
     text-align: center;
-    line-height: 1.2;
+    line-height: 1.1;
     /* As wide as the longest word: "Interactive / Daf", "Cloud / Chaburah",
        one word to a line, with room between the tabs. */
     width: min-content;
@@ -3051,6 +3054,17 @@ mark.daf-search-flash { background: rgba(240, 200, 90, .34); color: inherit; bor
   .mobile-nav a.active {
     color: var(--accent);
   }
+  .mobile-nav .icon { width: 20px; height: 20px; }
+}
+/* Six tabs on the narrowest phones: smaller names, so each still stands
+   apart from the next. */
+@media (max-width: 400px) {
+  .mobile-nav button, .mobile-nav a { font-size: 10px; }
+}
+@media (max-width: 340px) {
+  .mobile-nav { padding-left: 2px; padding-right: 2px; }
+  .mobile-nav button, .mobile-nav a { font-size: 9px; }
+  .mobile-nav .icon { width: 19px; height: 19px; }
 }
 .mobile-nav button:focus-visible,
 .mobile-nav a:focus-visible {
@@ -4764,12 +4778,12 @@ body.split-tools-desk #splitToolsPanel #readerDafNotes:not(:has(> :not([hidden])
    never half under them. */
 @media (max-width: 760px) {
   .toast {
-    bottom: calc(86px + env(safe-area-inset-bottom));
+    bottom: calc(68px + env(safe-area-inset-bottom));
     width: max-content;
     max-width: calc(100vw - 32px);
     text-align: center;
   }
-  body.audio-bar-up .toast { bottom: calc(160px + env(safe-area-inset-bottom)); }
+  body.audio-bar-up .toast { bottom: calc(142px + env(safe-area-inset-bottom)); }
 }
 
 

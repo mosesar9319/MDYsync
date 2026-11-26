@@ -1,6 +1,6 @@
 'use strict';
 
-// Sitewide bottom tab bar -- renders the same 5 tabs index.html's own
+// Sitewide bottom tab bar -- renders the same 6 tabs index.html's own
 // sidebar/mobile-nav uses (see its own navItems there) as plain links on
 // every OTHER page, since those pages have no in-page catalog to filter
 // the way the home page does; "Maggidei Shiur" instead links back to /
@@ -8,12 +8,11 @@
 // loaded by index.html itself -- it already renders its own copy with real
 // in-page filter behavior, not just links.
 
-// `short` is the phone bar's label (the desktop sidebar keeps `label`); a
-// tab with `phone: false` is left off the phone bar -- the calendar is a chip
-// at the top of the phone home page instead -- so five tabs fit side by side.
+// `short` is the phone bar's label (the desktop sidebar keeps `label`). A tab
+// with `phone: false` would be left off the phone bar; all six are on it.
 const NAV_ITEMS = [
   { label: 'Home', short: 'Home', icon: 'home', href: '/' },
-  { label: 'Calendar', short: 'Calendar', icon: 'calendar', href: '/calendar/', phone: false },
+  { label: 'Calendar', short: 'Calendar', icon: 'calendar', href: '/calendar/' },
   { label: 'Interactive Daf', short: 'Interactive Daf', icon: 'bookOpen', href: '/browse/' },
   { label: 'Cloud Chaburah', short: 'Cloud Chaburah', icon: 'chaburah', href: '/chaburah/' },
   { label: 'Maggidei Shiur', short: 'Maggidei Shiur', icon: 'teacher', href: '/?nav=maggidei' },

@@ -1,21 +1,20 @@
 import { test, expect } from '@playwright/test';
 import { preparePage } from '../support/harness.mjs';
 
-// The phone's bottom bar: five tabs, each with its full name -- two short
-// lines where it needs them -- side by side without crowding (the calendar is a
-// chip at the top of the phone home page instead). The desktop sidebar keeps
-// every tab with its full name too.
+// The phone's bottom bar: six tabs, each with its full name -- two short
+// lines where it needs them -- side by side without crowding. The desktop
+// sidebar has the same six with their full names too.
 
-const FULL_NAMES = ['Home', 'Interactive Daf', 'Cloud Chaburah', 'Maggidei Shiur', 'Daf Scan'];
+const FULL_NAMES = ['Home', 'Calendar', 'Interactive Daf', 'Cloud Chaburah', 'Maggidei Shiur', 'Daf Scan'];
 const PHONE_TABS = FULL_NAMES;
 const SIDEBAR = ['Home', 'Calendar', 'Interactive Daf', 'Cloud Chaburah', 'Maggidei Shiur', 'Daf Scan'];
 
-for (const [page_, url] of [['home page', '/index.html'], ['Interactive Daf', '/browse/'], ['Cloud Chaburah', '/chaburah/']]) {
+for (const [page_, url] of [['home page', '/index.html'], ['Interactive Daf', '/browse/'], ['Cloud Chaburah', '/chaburah/'], ['Calendar', '/calendar/']]) {
   test.describe(`Bottom bar — ${page_}`, () => {
-    test('on a phone: five tabs with their full names, that fit and do not touch', async ({ page }, info) => {
+    test('on a phone: six tabs with their full names, that fit and do not touch', async ({ page }, info) => {
       test.skip(info.project.name !== 'mobile', 'phone layout');
       await preparePage(page, { user: null });
-      for (const width of [412, 360]) {
+      for (const width of [412, 390, 360, 320]) {
         await page.setViewportSize({ width, height: 860 });
         await page.goto(url);
         const tabs = page.locator('.mobile-nav > a, .mobile-nav > button');
@@ -33,6 +32,10 @@ for (const [page_, url] of [['home page', '/index.html'], ['Interactive Daf', '/
         }));
         for (let i = 1; i < labels.length; i += 1) expect(labels[i].left).toBeGreaterThanOrEqual(labels[i - 1].right + 4);
         for (const label of labels) expect(label.lines).toBeLessThanOrEqual(2);
+        // A low bar: it does not take a tenth of the screen, and a tab is still easy to hit.
+        const bar = await page.locator('.mobile-nav').evaluate((nav) => ({ height: nav.getBoundingClientRect().height, tab: nav.firstElementChild.getBoundingClientRect().height }));
+        expect(bar.height).toBeLessThanOrEqual(60);
+        expect(bar.tab).toBeGreaterThanOrEqual(42);
       }
     });
 
