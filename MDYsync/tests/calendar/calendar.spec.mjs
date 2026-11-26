@@ -77,9 +77,12 @@ test.describe('Daf Yomi calendar', () => {
     const tiles = page.locator('#calSummary .cal-tile');
     await expect(tiles).toHaveCount(3);
     await expect(tiles.nth(0)).toContainText('Eruchin 6');
-    await expect(tiles.nth(1)).toContainText('Daf 5 of 33');
+    // Where the schedule is, worded so it is not read as the learner's own count.
+    await expect(tiles.nth(1)).toContainText('Daf Yomi schedule');
+    await expect(tiles.nth(1)).toContainText('Eruchin · day 5 of 33');
     await expect(tiles.nth(1)).toContainText('Siyum on Dec 21');
-    await expect(tiles.nth(2)).toContainText(`Daf ${(TODAY.dayOfCycle + 1).toLocaleString('en-US')} of ${CYCLE_LENGTH.toLocaleString('en-US')}`);
+    await expect(tiles.nth(2)).toContainText('Daf Yomi cycle');
+    await expect(tiles.nth(2)).toContainText(`Day ${(TODAY.dayOfCycle + 1).toLocaleString('en-US')} of ${CYCLE_LENGTH.toLocaleString('en-US')}`);
     await expect(tiles.nth(2)).toContainText('Siyum HaShas on June 7, 2027');
     // Nothing runs off the side of the screen.
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
@@ -138,7 +141,7 @@ test.describe('Daf Yomi calendar', () => {
     await expect(panel.locator('.cal-day-date')).toContainText('Monday, November 23');
     await expect(panel.locator('.cal-day-date')).toContainText('13 Kislev 5787');
     await expect(panel.locator('.cal-day-title')).toContainText('Eruchin 6');
-    await expect(panel.locator('.cal-day-where')).toContainText('Daf 5 of 33');
+    await expect(panel.locator('.cal-day-where')).toContainText('Day 5 of 33 in Eruchin');
     const shiurim = panel.locator('.cal-shiur');
     await expect(shiurim).toHaveCount(3);
     await expect(shiurim.nth(0)).toContainText('R\' Eli Stefansky · English');
@@ -207,7 +210,8 @@ test.describe('Daf Yomi calendar', () => {
     await expect(cell.locator('.cal-num')).toHaveText('ו');
     await expect(cell.locator('.cal-date')).toHaveText('23 בנוב׳');
     await expect(page.locator('#calWeekdays .cal-weekday-long').last()).toHaveText('שבת');
-    await expect(page.locator('#calSummary .cal-tile').nth(1)).toContainText('דף 5 מתוך 33');
+    await expect(page.locator('#calSummary .cal-tile').nth(1)).toContainText('ערכין · יום 5 מתוך 33');
+    await expect(page.locator('#calSummary .cal-tile').nth(2)).toContainText('מחזור הדף היומי');
     await expect(page.locator('.cal-eyebrow')).toHaveText('לוח הדף היומי');
     // The Hebrew date in letters, as a Hebrew calendar prints it.
     await expect(page.locator('#calHebrewMonths')).toHaveText('חשוון – כסלו תשפ״ז');

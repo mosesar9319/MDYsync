@@ -245,6 +245,10 @@ function renderLegend() {
 }
 
 // --- Above the month: today's daf, the masechta, Shas -- or what is outstanding ------
+//
+// The masechta's and the cycle's tiles say where the Daf Yomi schedule is
+// today -- the day of the masechta, the day of the cycle -- and are worded so
+// that they are not read as the learner's own count of dapim.
 
 function renderSummary() {
   const daf = dafYomiOfDay(today);
@@ -264,14 +268,14 @@ function renderSummary() {
       <span class="cal-tile-note">${todayNote}</span>
     </button>`;
   const masechtaTile = `<div class="cal-tile">
-      <span class="cal-tile-label" translate="no">${escapeHtml(label.name)}</span>
-      <strong>Daf ${daf.position + 1} of ${daf.masechta.dapim}</strong>
+      <span class="cal-tile-label">Daf Yomi schedule</span>
+      <strong translate="no">${escapeHtml(either(`${label.name} · day ${daf.position + 1} of ${daf.masechta.dapim}`, `${label.name} · יום ${daf.position + 1} מתוך ${daf.masechta.dapim}`))}</strong>
       <span class="cal-bar"><span style="width:${Math.round(((daf.position + 1) / daf.masechta.dapim) * 100)}%"></span></span>
       <span class="cal-tile-note">Siyum on ${SHORT_DATE.format(asDate(span.last))}</span>
     </div>`;
   const shasTile = `<div class="cal-tile">
-      <span class="cal-tile-label">Shas</span>
-      <strong>Daf ${count.format(daf.dayOfCycle + 1)} of ${count.format(CYCLE_LENGTH)}</strong>
+      <span class="cal-tile-label">Daf Yomi cycle</span>
+      <strong>Day ${count.format(daf.dayOfCycle + 1)} of ${count.format(CYCLE_LENGTH)}</strong>
       <span class="cal-bar"><span style="width:${(((daf.dayOfCycle + 1) / CYCLE_LENGTH) * 100).toFixed(1)}%"></span></span>
       <span class="cal-tile-note">Siyum HaShas on ${FULL_DATE.format(asDate(cycleEnd))}</span>
     </div>`;
@@ -365,7 +369,7 @@ async function renderDay() {
   panel.innerHTML = `<button type="button" class="cal-day-close" id="calDayClose" aria-label="Close">×</button>
     <div class="cal-day-date">${when}<span translate="no">${LONG_DATE.format(asDate(day))} <span class="cal-day-hdate">· ${escapeHtml(hebrew.full)}</span></span></div>
     <h2 class="cal-day-title" translate="no">${escapeHtml(label.name)} <span>${label.number}</span>${HE ? '' : `<span class="cal-day-he" lang="he" dir="rtl">${escapeHtml(daf.masechta.hebrew)} ${hebrewNumeral(daf.daf)}</span>`}</h2>
-    <div class="cal-day-where"><span>Daf ${daf.position + 1} of ${daf.masechta.dapim}</span>${daf.first ? ' · <strong class="cal-day-mark">Begins</strong>' : ''}${daf.last ? ' · <strong class="cal-day-mark is-siyum">Siyum</strong>' : ''}</div>
+    <div class="cal-day-where"><span translate="no">${escapeHtml(either(`Day ${daf.position + 1} of ${daf.masechta.dapim} in ${label.name}`, `יום ${daf.position + 1} מתוך ${daf.masechta.dapim} במסכת ${label.name}`))}</span>${daf.first ? ' · <strong class="cal-day-mark">Begins</strong>' : ''}${daf.last ? ' · <strong class="cal-day-mark is-siyum">Siyum</strong>' : ''}</div>
     <div class="cal-day-body"><p class="cal-day-loading">Loading this daf…</p></div>`;
   $('calDayClose').addEventListener('click', closeDay);
 
