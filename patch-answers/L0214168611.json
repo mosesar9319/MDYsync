@@ -1,0 +1,281 @@
+{
+ "schema": "dafsync-patch-answers-v1",
+ "videoId": "L0214168611",
+ "shiur": "R' Sruly Bornstein, Eruchin 11",
+ "answeredBy": "Claude, in a Claude Code session",
+ "placements": [
+  {
+   "daf": [
+    335,
+    335
+   ],
+   "heard": [
+    1062,
+    1062
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "V'Alem Amar David: 'David'"
+  },
+  {
+   "daf": [
+    360,
+    360
+   ],
+   "heard": [
+    1287,
+    1287
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'אחד' before 'אמר' = וחד אמר"
+  },
+  {
+   "daf": [
+    382,
+    382
+   ],
+   "heard": [
+    1379,
+    1379
+   ],
+   "kind": "read",
+   "confidence": 0.75,
+   "why": "'the pasuk says שניים' right after שניים היו"
+  },
+  {
+   "daf": [
+    398,
+    398
+   ],
+   "heard": [
+    1497,
+    1497
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "'תיבה מלאך' = צוה המלך"
+  },
+  {
+   "daf": [
+    403,
+    403
+   ],
+   "heard": [
+    1502,
+    1502
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'שיתרבו מהן' = שיתרבו מימיו"
+  },
+  {
+   "daf": [
+    410,
+    410
+   ],
+   "heard": [
+    1713,
+    1713
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "'הכא מאן שונא אמר' = לקיים מה שנאמר"
+  },
+  {
+   "daf": [
+    473,
+    473
+   ],
+   "heard": [
+    1977,
+    1977
+   ],
+   "kind": "read",
+   "confidence": 0.75,
+   "why": "'מעשי סוטנה' = במתניתא תנא"
+  },
+  {
+   "daf": [
+    504,
+    504
+   ],
+   "heard": [
+    2176,
+    2176
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "'מסניסן גוזמא' = מתניתא גוזמא"
+  },
+  {
+   "daf": [
+    510,
+    511
+   ],
+   "heard": [
+    4271,
+    4272
+   ],
+   "kind": "read",
+   "confidence": 0.72,
+   "why": "'זכות מרבינו' before 'חכמי פלגי' = לימא בהא קמיפלגי"
+  },
+  {
+   "daf": [
+    534,
+    534
+   ],
+   "heard": [
+    4425,
+    4429
+   ],
+   "kind": "explained",
+   "confidence": 0.75,
+   "why": "'but if that's the case' before R' Yosei = ותסברא"
+  },
+  {
+   "daf": [
+    539,
+    540
+   ],
+   "heard": [
+    4505,
+    4507
+   ],
+   "kind": "explained",
+   "confidence": 0.8,
+   "why": "'If he holds' before איקרי שירה בפה = אי קסבר"
+  },
+  {
+   "daf": [
+    640,
+    640
+   ],
+   "heard": [
+    6125,
+    6125
+   ],
+   "kind": "read",
+   "confidence": 0.88,
+   "why": "'L'mar Rabbi Elazar' = דאמר רבי אלעזר"
+  },
+  {
+   "daf": [
+    662,
+    662
+   ],
+   "heard": [
+    6642,
+    6642
+   ],
+   "kind": "read",
+   "confidence": 0.92,
+   "why": "'Beshem Hashem Aleichem'"
+  },
+  {
+   "daf": [
+    671,
+    671
+   ],
+   "heard": [
+    6721,
+    6722
+   ],
+   "kind": "explained",
+   "confidence": 0.75,
+   "why": "'Maybe it's referring to Duchaning' = ואימא נשיאות כפים"
+  },
+  {
+   "daf": [
+    798,
+    801
+   ],
+   "heard": [
+    7815,
+    7829
+   ],
+   "kind": "explained",
+   "confidence": 0.75,
+   "why": "'What if you brought anavim and then you press the grapes' = הביא ענבים ודרכן מנין"
+  },
+  {
+   "daf": [
+    883,
+    885
+   ],
+   "heard": [
+    8488,
+    8490
+   ],
+   "kind": "read",
+   "confidence": 0.75,
+   "why": "'אכתי שמתא מלמי ישאו' = מה תלמוד לומר ישאו"
+  },
+  {
+   "daf": [
+    1055,
+    1055
+   ],
+   "heard": [
+    9752,
+    9752
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'לא גזר בו' = ולא גזרו בה"
+  },
+  {
+   "daf": [
+    1084,
+    1084
+   ],
+   "heard": [
+    10112,
+    10113
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'עולי זכום, רחמנא' = עולותיכם אמר רחמנא"
+  },
+  {
+   "daf": [
+    1155,
+    1156
+   ],
+   "heard": [
+    10636,
+    10637
+   ],
+   "kind": "read",
+   "confidence": 0.88,
+   "why": "'אמרי им אביי' = אמר ליה אביי"
+  },
+  {
+   "daf": [
+    1205,
+    1205
+   ],
+   "heard": [
+    10769,
+    10769
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "'ומצה היכי הלכה' = מצה היכי אכיל"
+  },
+  {
+   "daf": [
+    1214,
+    1214
+   ],
+   "heard": [
+    10880,
+    10883
+   ],
+   "kind": "explained",
+   "confidence": 0.75,
+   "why": "'he asks רשות' explains דממליך"
+  }
+ ]
+}
