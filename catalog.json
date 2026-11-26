@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-26T06:45:13.391Z",
+  "generatedAt": "2026-11-26T06:45:18.013Z",
   "tractates": {
     "Arakhin": [
       {
@@ -176,12 +176,9 @@
       {
         "daf": 9,
         "regularHe": {
-          "videoId": "tVV6w2w7QuM",
-          "label": "מרכז דף יומי -  ערכין דף ט. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
-          "amud": "a",
-          "liveBroadcast": true,
-          "liveStatus": "finished",
-          "durationSeconds": 5315
+          "videoId": "0WZwf95eqac",
+          "label": "מרכז דף יומי - ערכין דף ט. - ר' אלי סטפנסקי שליט\"א",
+          "amud": "a"
         },
         "regularEn": {
           "videoId": "oD9trvLStTY",
