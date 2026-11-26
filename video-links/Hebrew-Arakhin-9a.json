@@ -18,5 +18,15 @@
     "seconds": 5315,
     "firstSeenAt": "2026-11-25T20:30:14.302Z"
   },
-  "alignmentDispatchedAt": "2026-11-25T20:45:12.027Z"
+  "alignmentDispatchedAt": "2026-11-25T20:45:12.027Z",
+  "pendingEdit": {
+    "videoId": "0WZwf95eqac",
+    "label": "מרכז דף יומי - ערכין דף ט. - ר' אלי סטפנסקי שליט\"א",
+    "coveredRefs": [
+      "Arakhin 8b",
+      "Arakhin 9a",
+      "Arakhin 9b"
+    ],
+    "dispatchedAt": "2026-11-26T06:00:57.871Z"
+  }
 }
