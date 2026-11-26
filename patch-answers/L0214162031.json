@@ -1,0 +1,242 @@
+{
+ "schema": "dafsync-patch-answers-v1",
+ "videoId": "L0214162031",
+ "shiur": "R' Sruly Bornstein, Arakhin 10",
+ "answeredBy": "Claude, in a Claude Code session",
+ "placements": [
+  {
+   "daf": [
+    375,
+    375
+   ],
+   "heard": [
+    605,
+    605
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "ולי = ולא before היה מכה"
+  },
+  {
+   "daf": [
+    387,
+    387
+   ],
+   "heard": [
+    703,
+    703
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "ארע = ערב after מפני שקולו"
+  },
+  {
+   "daf": [
+    404,
+    406
+   ],
+   "heard": [
+    836,
+    841
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "Rabbi Yossi, and Rabbi Yossi says"
+  },
+  {
+   "daf": [
+    462,
+    462
+   ],
+   "heard": [
+    1413,
+    1415
+   ],
+   "kind": "explained",
+   "confidence": 0.8,
+   "why": "the pasuk says = כתיב"
+  },
+  {
+   "daf": [
+    467,
+    467
+   ],
+   "heard": [
+    1469,
+    1469
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "יסעו = יתקעו after תרועה"
+  },
+  {
+   "daf": [
+    507,
+    508
+   ],
+   "heard": [
+    1786,
+    1788
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "For Rabbi Yehuda = ורבי יהודה"
+  },
+  {
+   "daf": [
+    547,
+    549
+   ],
+   "heard": [
+    2653,
+    2659
+   ],
+   "kind": "explained",
+   "confidence": 0.75,
+   "why": "maybe he really holds like the Chachamim = ואימא הכי נמי"
+  },
+  {
+   "daf": [
+    632,
+    632
+   ],
+   "heard": [
+    5122,
+    5122
+   ],
+   "kind": "read",
+   "confidence": 0.7,
+   "why": "Yomin after D'lo = אמרינן garbled"
+  },
+  {
+   "daf": [
+    737,
+    737
+   ],
+   "heard": [
+    5943,
+    5947
+   ],
+   "kind": "explained",
+   "confidence": 0.8,
+   "why": "and still you say שירה = וקאמר"
+  },
+  {
+   "daf": [
+    741,
+    741
+   ],
+   "heard": [
+    6006,
+    6006
+   ],
+   "kind": "read",
+   "confidence": 0.75,
+   "why": "דכניסא = דאיכא ניסא run together"
+  },
+  {
+   "daf": [
+    755,
+    755
+   ],
+   "heard": [
+    6044,
+    6044
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "המסקא = מתקיף"
+  },
+  {
+   "daf": [
+    789,
+    789
+   ],
+   "heard": [
+    6287,
+    6287
+   ],
+   "kind": "read",
+   "confidence": 0.75,
+   "why": "Rabbi of Rabbi Nachman"
+  },
+  {
+   "daf": [
+    791,
+    791
+   ],
+   "heard": [
+    6291,
+    6291
+   ],
+   "kind": "read",
+   "confidence": 0.75,
+   "why": "Rabbi Nachman said"
+  },
+  {
+   "daf": [
+    797,
+    797
+   ],
+   "heard": [
+    6371,
+    6371
+   ],
+   "kind": "read",
+   "confidence": 0.75,
+   "why": "Rav said = רבא אמר"
+  },
+  {
+   "daf": [
+    806,
+    806
+   ],
+   "heard": [
+    6516,
+    6516
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "halacha = הכא"
+  },
+  {
+   "daf": [
+    807,
+    807
+   ],
+   "heard": [
+    6522,
+    6522
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "halelu before avdei Hashem"
+  },
+  {
+   "daf": [
+    820,
+    820
+   ],
+   "heard": [
+    6614,
+    6614
+   ],
+   "kind": "read",
+   "confidence": 0.75,
+   "why": "Pirasa = קרייתה after Damah"
+  },
+  {
+   "daf": [
+    833,
+    833
+   ],
+   "heard": [
+    6743,
+    6744
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "ki min = כיון before shegalu"
+  }
+ ]
+}
