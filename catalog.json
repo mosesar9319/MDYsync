@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-26T14:01:09.287Z",
+  "generatedAt": "2026-11-26T18:23:21.593Z",
   "tractates": {
     "Arakhin": [
       {
@@ -175,14 +175,14 @@
       },
       {
         "daf": 9,
-        "regularHe": {
-          "videoId": "0WZwf95eqac",
-          "label": "מרכז דף יומי - ערכין דף ט. - ר' אלי סטפנסקי שליט\"א",
-          "amud": "a"
-        },
         "regularEn": {
           "videoId": "0qQHzRLEDBg",
           "label": "Daf Yomi Arachin Daf 9 by R' Eli Stefansky",
+          "amud": "a"
+        },
+        "regularHe": {
+          "videoId": "0WZwf95eqac",
+          "label": "מרכז דף יומי - ערכין דף ט. - ר' אלי סטפנסקי שליט\"א",
           "amud": "a"
         },
         "chazarahHe": {
@@ -4901,6 +4901,17 @@
               "published": "2026-11-25T16:08:12.000Z",
               "source": "lakewood",
               "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ4eq9gwEaIAfygWih5i0jWrD5-HIZzVHlD6igSAGzzfoe95L_Uww-IiBEI6B7x0_Xabn_4OFfah7OgoAAtUXQcmJsQSiFcoIgoyodYXVkL2QvQXJhY2hpbiA5XzIxNDA3MDg5Ni5tcDM/Arachin%209_214070896.mp3"
+            }
+          },
+          {
+            "daf": 10,
+            "regularEn": {
+              "videoId": "L0214162031",
+              "label": "Eruchin 10",
+              "amud": "a",
+              "published": "2026-11-26T17:27:10.000Z",
+              "source": "lakewood",
+              "url": "https://lakewoodafyomi.appspot.com/m5/CAEQ8cL8iQEaIK9luRV3bjYxoBtRT8IWBTpk3uAGxZvTs3m3O38IdTdwIiBbECmHooDvsllvqjQE3mIpgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQXJhY2hpbiAxMF8yMTQxNjIwMzEubXAz/Arachin%2010_214162031.mp3"
             }
           }
         ],
