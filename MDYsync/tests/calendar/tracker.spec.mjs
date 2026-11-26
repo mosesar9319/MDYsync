@@ -49,8 +49,10 @@ test.describe('The player keeps what was heard', () => {
     return window.__DAFSYNC_TEST_DB__.learning;
   }, [from, to]);
 
-  async function open(page, user) {
-    await preparePage(page, { user });
+  async function open(page, user, learning = []) {
+    const db = buildDatabase();
+    db.learning = learning;
+    await preparePage(page, { user, db });
     await answerFiles(page, FILES);
     await page.goto('/player/?ref=Chullin%2089a');
     await page.waitForFunction(() => typeof state !== 'undefined' && state.segments?.some((s) => Number(s.start) === 100) && window.dafLearningTracker);
@@ -79,17 +81,13 @@ test.describe('The player keeps what was heard', () => {
   });
 
   test('what was heard before is added to, not replaced', async ({ page }) => {
-    await open(page, USERS.ordinary);
-    await play(page, 95, 140);
-    await page.reload();
-    await page.waitForFunction(() => typeof state !== 'undefined' && state.segments?.some((s) => Number(s.start) === 100) && window.dafLearningTracker);
-    // The stub's rows are seeded afresh on a reload: put the first visit's row back.
-    await page.evaluate((id) => {
-      window.__DAFSYNC_TEST_DB__.learning.push({ user_id: id, shiur_key: 'default:en:regular:Chullin:89', variant: 'regular', tractate: 'Chullin', daf: 89, ranges: [[95, 140]] });
-    }, USERS.ordinary.id);
+    // An earlier visit, on this device or another, heard 1:35 to 2:20.
+    await open(page, USERS.ordinary, [{ user_id: USERS.ordinary.id, shiur_key: 'default:en:regular:Chullin:89', variant: 'regular', tractate: 'Chullin', daf: 89, ranges: [[95, 140]] }]);
     const rows = await play(page, 170, 216);
     expect(rows).toHaveLength(1);
     expect(rows[0].ranges).toEqual([[95, 140], [170, 216]]);
+    // The words of both visits: amud a's first lines, and the end of amud b.
+    expect(rows[0].heard).toEqual({ 'Chullin 89a': [[0, 19]], 'Chullin 89b': [[5, 29]] });
   });
 
   test('a look of a few seconds is not kept, and nothing is kept for a visitor who is not signed in', async ({ page }) => {

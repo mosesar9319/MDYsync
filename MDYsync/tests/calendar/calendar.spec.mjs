@@ -232,15 +232,42 @@ test.describe('The calendar in the menu', () => {
     await expect(page.locator('.desktop-navigation a.side-link.active span')).toHaveText('Calendar');
   });
 
-  test('on a phone the home page has it among the chips', async ({ page }, info) => {
+  test('on a phone it has its own tab on the bottom bar, on the home page and on the others', async ({ page }, info) => {
     test.skip(info.project.name !== 'mobile', 'phone layout');
     await preparePage(page, { user: null });
-    await page.goto('/index.html');
-    const chip = page.locator('#feedChips a[href="/calendar/"]');
-    await expect(chip).toHaveText('Calendar');
-    await chip.click();
+    for (const address of ['/index.html', '/browse/']) {
+      await page.goto(address);
+      const tab = page.locator('.mobile-nav a[href="/calendar/"]');
+      await expect(tab).toBeVisible();
+      await expect(tab).toHaveText('Calendar');
+      await expect(tab).not.toHaveClass(/active/);
+    }
+    await page.locator('.mobile-nav a[href="/calendar/"]').click();
     await expect(page).toHaveURL(/\/calendar\/$/);
     await expect(page.locator('.cal-cell.is-today')).toHaveCount(1);
+    await expect(page.locator('.mobile-nav a.active')).toHaveText('Calendar');
+  });
+
+  test('on a phone the page sits in the middle of the screen, the same margin either side', async ({ page }, info) => {
+    test.skip(info.project.name !== 'mobile', 'phone layout');
+    await preparePage(page, { user: null });
+    for (const width of [412, 390, 360, 320]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto('/calendar/');
+      await expect(page.locator('.cal-cell').first()).toBeVisible();
+      const sides = await page.evaluate(() => ['.topbar', '.cal-head', '.cal-summary', '.cal-card'].map((name) => {
+        const box = document.querySelector(name).getBoundingClientRect();
+        return [Math.round(box.left), Math.round(window.innerWidth - box.right)];
+      }));
+      for (const [left, right] of sides) {
+        expect(left).toBeGreaterThanOrEqual(8);
+        expect(Math.abs(left - right)).toBeLessThanOrEqual(1);
+      }
+      // Nothing inside pokes out past that margin (the month's arrows, on the narrowest phones).
+      const furthest = await page.evaluate(() => Math.max(...[...document.querySelectorAll('.cal-nav > *, .cal-tile, .cal-cell, .cal-dates-choice')].map((el) => el.getBoundingClientRect().right)));
+      expect(furthest).toBeLessThanOrEqual(width - 8);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    }
   });
 
   test('the old "Today’s Daf" address opens the calendar', async ({ page }) => {

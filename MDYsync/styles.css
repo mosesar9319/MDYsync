@@ -3019,12 +3019,12 @@ mark.daf-search-flash { background: rgba(240, 200, 90, .34); color: inherit; bor
     border: 0;
     color: #65748a;
     display: flex;
-    /* Five short tabs share the width evenly. */
+    /* Six short tabs share the width evenly. */
     flex: 1 1 0;
     flex-direction: column;
     font-size: 11px;
     gap: 4px;
-    min-width: 56px;
+    min-width: 50px;
     padding: 4px 1px;
     scroll-snap-align: start;
     text-decoration: none;
@@ -3051,6 +3051,16 @@ mark.daf-search-flash { background: rgba(240, 200, 90, .34); color: inherit; bor
   .mobile-nav a.active {
     color: var(--accent);
   }
+}
+/* Six tabs on the narrowest phones: smaller names, so each still stands
+   apart from the next. */
+@media (max-width: 400px) {
+  .mobile-nav button, .mobile-nav a { font-size: 10px; }
+}
+@media (max-width: 340px) {
+  .mobile-nav { padding-left: 2px; padding-right: 2px; }
+  .mobile-nav button, .mobile-nav a { font-size: 9px; }
+  .mobile-nav .icon { width: 21px; height: 21px; }
 }
 .mobile-nav button:focus-visible,
 .mobile-nav a:focus-visible {

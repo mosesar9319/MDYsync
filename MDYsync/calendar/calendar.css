@@ -353,3 +353,23 @@ html[dir="rtl"] .cal-cell.has-note::after { right: auto; left: 0; border-width: 
 @media (max-width: 380px) {
   .cal[data-dates="hebrew"] .cal-hdate { font-size: 9.5px; font-weight: 500; letter-spacing: -.01em; }
 }
+
+/* --- On a phone the page sits in the middle of the screen -------------------------------- */
+/* The site's shell keeps to the left on a phone, with its spare width on the
+   right; here the month takes the whole width, the same margin either side. */
+@media (max-width: 760px), (max-height: 520px) and (max-width: 1100px) {
+  body[data-page="calendar"] .app-shell {
+    width: auto;
+    margin-left: max(10px, env(safe-area-inset-left));
+    margin-right: max(10px, env(safe-area-inset-right));
+  }
+}
+@media (max-width: 380px) {
+  /* The narrowest phones: the month's name and its arrows share one row. */
+  .cal-head { gap: 8px; }
+  .cal-head-titles { min-width: 0; }
+  .cal-head h1 { font-size: 25px; }
+  .cal-nav { gap: 4px; }
+  .cal-nav-arrow { width: 34px; height: 34px; }
+  .cal-nav-today { height: 34px; padding: 0 10px; }
+}
