@@ -1088,7 +1088,10 @@ h1 {
     scroll-snap-type: x proximity;
     scrollbar-width: none;
     left: 0;
-    padding: 8px max(6px, env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-right));
+    /* A low bar: a little room above the tabs and under them. Where the
+       phone keeps a strip at the bottom for its own gesture bar, the tabs
+       stop just short of it rather than a full strip above it. */
+    padding: 5px max(6px, env(safe-area-inset-left)) max(5px, calc(env(safe-area-inset-bottom) - 8px)) max(6px, env(safe-area-inset-right));
     position: fixed;
     right: 0;
     z-index: 30;
@@ -1105,9 +1108,9 @@ h1 {
     flex: 1 0 auto;
     flex-direction: column;
     font-size: 10px;
-    gap: 4px;
+    gap: 2px;
     min-width: 74px;
-    padding: 4px 1px;
+    padding: 1px;
     scroll-snap-align: start;
     text-decoration: none;
   }
@@ -1115,9 +1118,10 @@ h1 {
   .mobile-nav button span,
   .mobile-nav a span {
     text-align: center;
-    line-height: 1.2;
+    line-height: 1.1;
     width: min-content;
   }
+  .mobile-nav svg { width: 20px; height: 20px; }
 
   .mobile-nav button.active,
   .mobile-nav a.active {
@@ -1543,7 +1547,7 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
 
   /* The chips: one row, sideways scrolling, under the top bar. */
   main {
-    padding: 0 0 92px;
+    padding: 0 0 74px;
   }
 
   .feed-chips {
@@ -1839,7 +1843,6 @@ dialog#authDialog::backdrop { background: rgba(23, 33, 43, 0.5); }
     border-top: 1px solid var(--feed-line);
     box-shadow: none;
     gap: 0;
-    padding-top: 6px;
   }
 
   .mobile-nav button,

@@ -32,6 +32,10 @@ for (const [page_, url] of [['home page', '/index.html'], ['Interactive Daf', '/
         }));
         for (let i = 1; i < labels.length; i += 1) expect(labels[i].left).toBeGreaterThanOrEqual(labels[i - 1].right + 4);
         for (const label of labels) expect(label.lines).toBeLessThanOrEqual(2);
+        // A low bar: it does not take a tenth of the screen, and a tab is still easy to hit.
+        const bar = await page.locator('.mobile-nav').evaluate((nav) => ({ height: nav.getBoundingClientRect().height, tab: nav.firstElementChild.getBoundingClientRect().height }));
+        expect(bar.height).toBeLessThanOrEqual(60);
+        expect(bar.tab).toBeGreaterThanOrEqual(42);
       }
     });
 
