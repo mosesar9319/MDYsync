@@ -373,3 +373,20 @@ html[dir="rtl"] .cal-cell.has-note::after { right: auto; left: 0; border-width: 
   .cal-nav-arrow { width: 34px; height: 34px; }
   .cal-nav-today { height: 34px; padding: 0 10px; }
 }
+
+/* --- The learner's own count on the schedule's bars ---------------------------------------- */
+/* Green for the dapim he has finished, a lighter green for those part learned,
+   and a mark where the Daf Yomi schedule is today. */
+.cal-bar.is-yours { position: relative; overflow: visible; height: 7px; margin: 7px 0 5px; }
+.cal-bar.is-yours > span { position: absolute; top: 0; bottom: 0; inset-inline-start: 0; height: auto; min-width: 0; }
+.cal-bar.is-yours > .cal-bar-part { background: color-mix(in srgb, var(--cal-done) 36%, #fff); }
+.cal-bar.is-yours > .cal-bar-done { background: var(--cal-done); }
+.cal-bar-now { position: absolute; top: -4px; bottom: -4px; width: 3px; margin-inline-start: -1.5px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 0 1.5px #fff; }
+.cal-tile-you { font-size: 13px; font-weight: 700; color: var(--cal-done-ink); }
+/* Each line carries the colour of its part of the bar: the schedule's mark,
+   the learner's green. */
+.cal-tile.has-yours strong::before, .cal-tile-you::before { content: ""; display: inline-block; margin-inline-end: 7px; vertical-align: middle; }
+.cal-tile.has-yours strong::before { width: 3px; height: 15px; border-radius: 2px; background: var(--accent); margin-top: -3px; }
+.cal-tile-you::before { width: 11px; height: 7px; border-radius: 999px; background: var(--cal-done); margin-top: -2px; }
+.cal-tile-you > span { font-weight: 600; color: var(--muted); }
+.cal-tile-you > .cal-behind { color: var(--cal-gap-ink); }

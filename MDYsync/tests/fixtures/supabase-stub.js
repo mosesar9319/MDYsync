@@ -219,6 +219,7 @@
             return 0;
           });
         }
+        if (Number.isInteger(query.rangeFrom)) rows = rows.slice(query.rangeFrom, query.rangeTo + 1);
         if (query.limitCount !== null) rows = rows.slice(0, query.limitCount);
         return shapeRows(clone(rows));
       }
@@ -413,6 +414,8 @@
         },
         order(column, options) { query.orders.push({ column, ascending: options ? options.ascending !== false : true }); return api; },
         limit(count) { query.limitCount = count; return api; },
+        // .range(from, to): rows from..to of the ordered answer, both included.
+        range(from, to) { query.rangeFrom = from; query.rangeTo = to; return api; },
         single() { query.rowMode = 'single'; return api; },
         maybeSingle() { query.rowMode = 'maybeSingle'; return api; },
         then(resolve, reject) { return Promise.resolve().then(run).then(resolve, reject); },

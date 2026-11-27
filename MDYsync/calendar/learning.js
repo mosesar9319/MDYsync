@@ -14,46 +14,89 @@ const DAY_MS = 86400000;
 const auth = () => window.DafSyncAuth;
 export const learnerId = () => auth()?.getUser?.()?.id || null;
 
-// The learner's rows, a masechta at a time, each read once.
+// The learner's rows, read once: Map<tractate, rows>. A learner who keeps at
+// it has a few thousand rows over a cycle, so they are read a thousand at a
+// time (the most the server gives in one answer).
 let owner = null;
-let byTractate = new Map();
-let firstDay = null;
+let everything = null;
+const PAGE = 1000;
 
 function forLearner() {
   const id = learnerId();
   if (id !== owner) {
     owner = id;
-    byTractate = new Map();
-    firstDay = null;
+    everything = null;
   }
   return id;
 }
 
-function rowsOf(tractate) {
+function allRows() {
   const id = forLearner();
-  if (!id) return Promise.resolve([]);
-  if (!byTractate.has(tractate)) {
-    byTractate.set(tractate, auth().client.from('learning').select(COLUMNS).eq('user_id', id).eq('tractate', tractate)
-      .then(({ data, error }) => { if (error) throw error; return data || []; })
-      .catch(() => { byTractate.delete(tractate); return []; }));
+  if (!id) return Promise.resolve(new Map());
+  if (!everything) {
+    everything = (async () => {
+      const byTractate = new Map();
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await auth().client.from('learning').select(COLUMNS).eq('user_id', id)
+          .order('created_at', { ascending: true }).range(from, from + PAGE - 1);
+        if (error) throw error;
+        for (const row of data || []) {
+          if (!byTractate.has(row.tractate)) byTractate.set(row.tractate, []);
+          byTractate.get(row.tractate).push(row);
+        }
+        if (!data || data.length < PAGE) return byTractate;
+      }
+    })().catch(() => { everything = null; return new Map(); });
   }
-  return byTractate.get(tractate);
+  return everything;
 }
+
+const rowsOf = async (tractate) => (await allRows()).get(tractate) || [];
 
 // The day the learner's tracking began (a day number), or null when nothing
 // has been kept yet. Days before it are not "missed".
-export function trackingSince() {
-  const id = forLearner();
-  if (!id) return Promise.resolve(null);
-  if (!firstDay) {
-    firstDay = auth().client.from('learning').select('created_at').eq('user_id', id).order('created_at', { ascending: true }).limit(1)
-      .then(({ data }) => {
-        const at = data?.[0]?.created_at ? new Date(data[0].created_at) : null;
-        return at ? Math.round(Date.UTC(at.getFullYear(), at.getMonth(), at.getDate()) / DAY_MS) : null;
-      })
-      .catch(() => null);
+export async function trackingSince() {
+  let first = null;
+  for (const rows of (await allRows()).values()) {
+    for (const row of rows) {
+      const at = row.created_at ? new Date(row.created_at) : null;
+      if (at && !Number.isNaN(at.getTime()) && (!first || at < first)) first = at;
+    }
   }
-  return firstDay;
+  return first ? Math.round(Date.UTC(first.getFullYear(), first.getMonth(), first.getDate()) / DAY_MS) : null;
+}
+
+// How many dapim the learner has finished, masechta by masechta and in all.
+//
+//   cycle   the masechtos of the Daf Yomi cycle: [{ name, startDaf, endDaf }]
+//
+// A daf counts once it is done by the rule (shared/daf-progress.mjs): a shiur
+// heard to its end, or marked by hand. A daf part learned does not add to
+// the count; how much of it is learned is kept apart (`part`, in dapim), for
+// a lighter stretch on a bar.
+//
+// Returns { masechtos: [{ done: Set<daf>, part }], done, part }, the
+// masechtos in the order given.
+export async function learnedDapim(cycle) {
+  const rows = await allRows();
+  let done = 0;
+  let part = 0;
+  const masechtos = cycle.map((masechta) => {
+    const records = rows.get(masechta.name) || [];
+    const finished = new Set();
+    let partly = 0;
+    // Only a daf with a shiur of its own, or a mark, can be done or begun.
+    const dapim = new Set(records.map((row) => Number(row.daf)).filter((daf) => daf >= masechta.startDaf && daf <= masechta.endDaf));
+    for (const daf of dapim) {
+      const progress = dafProgress({ tractate: masechta.name, daf, records });
+      if (progress.status === 'done') finished.add(daf);
+      else if (progress.status !== 'none') partly += Math.max(0, Math.min(1, progress.percent || 0));
+    }
+    done += finished.size;
+    part += partly;
+    return { done: finished, part: partly };
+  });
+  return { masechtos, done, part };
 }
 
 // The learner's progress on a daf ({ tractate, daf }), with the rows it came from.
@@ -72,8 +115,7 @@ export async function setMarked(tractate, daf, marked) {
     ? await auth().client.from('learning').upsert({ user_id: id, shiur_key: key, tractate, daf, maggid: 'manual', manual: true, finished: true, finished_at: now, updated_at: now })
     : await auth().client.from('learning').delete().eq('user_id', id).eq('shiur_key', key);
   if (error) return false;
-  byTractate.delete(tractate);
-  firstDay = null;
+  everything = null;
   return true;
 }
 

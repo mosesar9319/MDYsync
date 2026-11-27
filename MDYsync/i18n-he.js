@@ -1253,4 +1253,7 @@ window.DafSyncI18n && window.DafSyncI18n.addWords({
   'to write a note on this day.': 'כדי לכתוב הערה ליום הזה.',
   'Dates': 'תאריכים',
   'Both': 'שניהם',
+  'Daf Yomi schedule': 'סדר הדף היומי',
+  'Daf Yomi cycle': 'מחזור הדף היומי',
+  'Day {n} of {count}': 'יום {n} מתוך {count}',
 });
