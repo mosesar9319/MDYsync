@@ -16,10 +16,10 @@
 // he.js has each sentence). Dates and daf names are made in the reader's
 // language directly.
 
-import { CYCLE_LENGTH, dafYomiOfDay, dateOfDay, dayNumber, localDayNumber, masechtaDays } from '/shared/daf-yomi.mjs';
+import { CYCLE, CYCLE_LENGTH, dafYomiOfDay, dateOfDay, dayNumber, localDayNumber, masechtaDays } from '/shared/daf-yomi.mjs';
 import { hebrewNumeral } from '/shared/masechtos.mjs';
 import { dafNotes, dayNotes, isoOfDate, saveDayNote } from './day-notes.js';
-import { learnerId, playerUrl, printedLine, progressOf, setMarked, trackingSince, whereToLearn } from './learning.js';
+import { learnedDapim, learnerId, playerUrl, printedLine, progressOf, setMarked, trackingSince, whereToLearn } from './learning.js';
 
 const $ = (id) => document.getElementById(id);
 const HE = document.documentElement.lang === 'he';
@@ -119,6 +119,7 @@ const dafTitle = (daf) => { const label = dafLabel(daf); return `${label.name} $
 //   none     nothing to show (not signed in, a day to come, or before he began)
 const learned = new Map();          // day -> progressOf()'s answer
 let since = null;                   // the day his tracking began
+let mine = null;                    // learnedDapim(): the dapim he has finished, by masechta and in all
 let loading = 0;
 // His notes: the days he wrote a note on, and the notes he wrote on each daf.
 let noted = new Map();              // "2026-11-23" -> his note on that day
@@ -154,6 +155,7 @@ async function loadLearning() {
   if (!learnerId()) {
     learned.clear();
     since = null;
+    mine = null;
     noted = new Map();
     written.clear();
     renderMonth(); renderSummary(); renderDay();
@@ -162,6 +164,7 @@ async function loadLearning() {
   const days = new Set(monthDays().days);
   for (let day = today - 45; day <= today; day += 1) days.add(day);
   const began = await trackingSince();
+  const finished = await learnedDapim(CYCLE);
   const notes = await dayNotes();
   const onDapim = await Promise.all(monthDays().days.map(async (day) => {
     const daf = dafYomiOfDay(day);
@@ -173,6 +176,7 @@ async function loadLearning() {
   }));
   if (turn !== loading) return;
   since = began;
+  mine = finished;
   noted = notes;
   for (const [day, list] of onDapim) written.set(day, list);
   for (const [day, progress] of found) { if (progress) learned.set(day, progress); else learned.delete(day); }
@@ -267,16 +271,41 @@ function renderSummary() {
       <strong translate="no">${escapeHtml(dafTitle(daf))}</strong>
       <span class="cal-tile-note">${todayNote}</span>
     </button>`;
-  const masechtaTile = `<div class="cal-tile">
+  // A signed-in learner's own count sits on the schedule's bar: a green
+  // stretch for the dapim he has finished (a lighter one for those part
+  // learned), and a mark where the schedule is today.
+  const signedIn = Boolean(learnerId()) && mine !== null;
+  const bar = (schedule, done, part) => (signedIn
+    ? `<span class="cal-bar is-yours"><span class="cal-bar-part" style="width:${(Math.min(1, done + part) * 100).toFixed(2)}%${part > 0 ? ';min-width:5px' : ''}"></span><span class="cal-bar-done" style="width:${(Math.min(1, done) * 100).toFixed(2)}%${done > 0 ? ';min-width:3px' : ''}"></span><i class="cal-bar-now" style="inset-inline-start:${(schedule * 100).toFixed(2)}%"></i></span>`
+    : `<span class="cal-bar"><span style="width:${(schedule * 100).toFixed(1)}%"></span></span>`);
+  const dapimWord = (n) => either(n === 1 ? 'daf' : 'dapim', 'דפים');
+  let yoursHere = '';
+  let yoursInAll = '';
+  const here = signedIn ? mine.masechtos[daf.masechtaIndex] : null;
+  if (signedIn) {
+    // Behind: the dapim of this masechta whose day has passed and are not finished.
+    let behind = 0;
+    for (let n = daf.masechta.startDaf; n < daf.daf; n += 1) if (!here.done.has(n)) behind += 1;
+    const standing = !tracking ? '' : (behind
+      ? ` · <span class="cal-behind">${either(`${behind} behind`, `${behind} בפיגור`)}</span>`
+      : ` · <span>${either('up to date', 'מעודכן')}</span>`);
+    yoursHere = `<span class="cal-tile-you" translate="no">${either(`You: ${here.done.size} of ${daf.masechta.dapim} ${dapimWord(daf.masechta.dapim)} learned`, `למדת ${here.done.size} מתוך ${daf.masechta.dapim} דפים`)}${standing}</span>`;
+    const share = mine.done / CYCLE_LENGTH;
+    const percent = share > 0 && share < 0.01 ? either('under 1%', 'פחות מ-1%') : `${Math.round(share * 100)}%`;
+    yoursInAll = `<span class="cal-tile-you" translate="no">${either(`You: ${count.format(mine.done)} of ${count.format(CYCLE_LENGTH)} dapim learned`, `למדת ${count.format(mine.done)} מתוך ${count.format(CYCLE_LENGTH)} דפים`)}${mine.done ? ` · <span>${percent}</span>` : ''}</span>`;
+  }
+  const masechtaTile = `<div class="cal-tile${signedIn ? ' has-yours' : ''}">
       <span class="cal-tile-label">Daf Yomi schedule</span>
       <strong translate="no">${escapeHtml(either(`${label.name} · day ${daf.position + 1} of ${daf.masechta.dapim}`, `${label.name} · יום ${daf.position + 1} מתוך ${daf.masechta.dapim}`))}</strong>
-      <span class="cal-bar"><span style="width:${Math.round(((daf.position + 1) / daf.masechta.dapim) * 100)}%"></span></span>
+      ${bar((daf.position + 1) / daf.masechta.dapim, here ? here.done.size / daf.masechta.dapim : 0, here ? here.part / daf.masechta.dapim : 0)}
+      ${yoursHere}
       <span class="cal-tile-note">Siyum on ${SHORT_DATE.format(asDate(span.last))}</span>
     </div>`;
-  const shasTile = `<div class="cal-tile">
+  const shasTile = `<div class="cal-tile${signedIn ? ' has-yours' : ''}">
       <span class="cal-tile-label">Daf Yomi cycle</span>
       <strong>Day ${count.format(daf.dayOfCycle + 1)} of ${count.format(CYCLE_LENGTH)}</strong>
-      <span class="cal-bar"><span style="width:${(((daf.dayOfCycle + 1) / CYCLE_LENGTH) * 100).toFixed(1)}%"></span></span>
+      ${bar((daf.dayOfCycle + 1) / CYCLE_LENGTH, signedIn ? mine.done / CYCLE_LENGTH : 0, signedIn ? mine.part / CYCLE_LENGTH : 0)}
+      ${yoursInAll}
       <span class="cal-tile-note">Siyum HaShas on ${FULL_DATE.format(asDate(cycleEnd))}</span>
     </div>`;
 
@@ -314,7 +343,7 @@ function renderSummary() {
       <span class="cal-tile-label">In a row</span>
       <strong translate="no">${either(`${streak} ${streak === 1 ? 'daf' : 'dapim'}`, streak === 1 ? 'דף אחד' : `${streak} דפים`)}</strong>
       <span class="cal-tile-note">Dapim learned one after the other</span>
-    </div>${masechtaTile}`;
+    </div>${masechtaTile}${shasTile}`;
 }
 
 // --- A day ---------------------------------------------------------------------------

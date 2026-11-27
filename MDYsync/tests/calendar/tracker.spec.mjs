@@ -170,6 +170,23 @@ test.describe('The calendar as a tracker', () => {
     await expect(tiles.nth(0)).toContainText('You are 30% through. Carry on');
     await expect(tiles.nth(1)).toContainText('2 dapim not finished');
     await expect(tiles.nth(2)).toContainText('2 dapim');
+    // His own count beside the schedule's: one daf finished (daf 3) of the
+    // masechta's 33, and three of the four dapim whose day has passed are not.
+    await expect(tiles.nth(3)).toContainText('Eruchin · day 5 of 33');
+    await expect(tiles.nth(3).locator('.cal-tile-you')).toHaveText('You: 1 of 33 dapim learned · 3 behind');
+    await expect(tiles.nth(4)).toContainText('Day 2,515 of 2,711');
+    await expect(tiles.nth(4).locator('.cal-tile-you')).toHaveText('You: 1 of 2,711 dapim learned · under 1%');
+    // On the masechta's bar: green for the daf finished, lighter for the two
+    // part learned (92% of daf 5, 30% of daf 6), and a mark at the schedule's day.
+    const widths = await tiles.nth(3).locator('.cal-bar.is-yours').evaluate((bar) => {
+      const whole = bar.getBoundingClientRect();
+      const share = (name) => { const box = bar.querySelector(name).getBoundingClientRect(); return Math.round((box.width / whole.width) * 1000) / 10; };
+      const mark = bar.querySelector('.cal-bar-now').getBoundingClientRect();
+      return { done: share('.cal-bar-done'), part: share('.cal-bar-part'), now: Math.round((((mark.left + mark.right) / 2 - whole.left) / whole.width) * 1000) / 10 };
+    });
+    expect(widths.done).toBeCloseTo((1 / 33) * 100, 0);
+    expect(widths.part).toBeCloseTo((2.22 / 33) * 100, 0);
+    expect(widths.now).toBeCloseTo((5 / 33) * 100, 0);
     // "To catch up" goes to the earliest of them.
     await tiles.nth(1).click();
     await expect(page.locator('#calDay .cal-day-title')).toContainText('Eruchin 4');
@@ -213,6 +230,8 @@ test.describe('The calendar as a tracker', () => {
     await expect(cell(page, 11, 21)).toHaveClass(/is-done/);
     await expect(panel.locator('.cal-state')).toContainText('Marked as learned.');
     await expect(page.locator('#calSummary .cal-tile').nth(1)).toContainText('1 daf not finished');
+    // A daf marked by hand counts as finished.
+    await expect(page.locator('#calSummary .cal-tile-you').first()).toHaveText('You: 2 of 33 dapim learned · 2 behind');
     await panel.getByRole('button', { name: 'Remove my mark' }).click();
     await expect(cell(page, 11, 21)).toHaveClass(/is-missed/);
   });
@@ -223,8 +242,12 @@ test.describe('The calendar as a tracker', () => {
     await expect(page.locator('#calLegend')).toBeHidden();
     await expect(page.locator('#calSummary .cal-tile')).toHaveCount(3);
     await expect(page.locator('#calSummary .cal-invite')).toContainText('Sign in');
+    // Signed out there is no count of anyone's own, and the bar is the schedule's alone.
+    await expect(page.locator('#calSummary .cal-tile-you')).toHaveCount(0);
+    await expect(page.locator('#calSummary .cal-bar.is-yours')).toHaveCount(0);
     await openCalendar(page, { learning: [] });
     await expect(page.locator('.cal-cell .cal-ring')).toHaveCount(0);
+    await expect(page.locator('#calSummary .cal-tile-you').first()).toHaveText('You: 0 of 33 dapim learned');
     await expect(page.locator('#calSummary .cal-invite')).toContainText('The calendar fills itself in as you learn');
   });
 });
