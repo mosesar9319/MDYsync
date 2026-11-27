@@ -10,7 +10,7 @@
   "source": "live-auto",
   "liveBroadcast": true,
   "liveStatus": "live",
-  "durationSeconds": null,
+  "durationSeconds": 3919,
   "actualStartTime": "2026-11-27T05:13:24Z",
   "actualEndTime": null,
   "locked": false
