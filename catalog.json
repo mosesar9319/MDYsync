@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-27T13:05:17.477Z",
+  "generatedAt": "2026-11-27T14:01:16.415Z",
   "tractates": {
     "Arakhin": [
       {
@@ -212,6 +212,12 @@
           "videoId": "JUIzCy28DpY",
           "label": "Daf Yomi Arachin Daf 10 by R' Eli Stefansky",
           "amud": "a"
+        },
+        "chazarahEn": {
+          "videoId": "LMegZEJkFPM",
+          "label": "CHAZARAH - Arachin Daf 10 | \"Nothing but the Daf\" with R' Eli Stefansky",
+          "amud": "a",
+          "published": "2026-11-27T13:15:47+00:00"
         }
       },
       {
