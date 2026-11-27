@@ -1,0 +1,17 @@
+{
+  "type": "youtube",
+  "url": "https://www.youtube.com/watch?v=W91Xnm-P-zM",
+  "videoId": "W91Xnm-P-zM",
+  "label": "Daf Yomi Arachin Daf 10 by R’ Eli Stefansky (unedited)",
+  "coveredRefs": [
+    "Arakhin 10a",
+    "Arakhin 10b"
+  ],
+  "source": "live-auto",
+  "liveBroadcast": true,
+  "liveStatus": "live",
+  "durationSeconds": null,
+  "actualStartTime": "2026-11-27T05:13:24Z",
+  "actualEndTime": null,
+  "locked": false
+}
