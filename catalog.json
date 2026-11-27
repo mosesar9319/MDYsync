@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-27T11:27:10.670Z",
+  "generatedAt": "2026-11-27T12:50:21.369Z",
   "tractates": {
     "Arakhin": [
       {
@@ -221,7 +221,8 @@
           "label": "מרכז דף יומי -  ערכין דף יא. - ר' אלי סטפנסקי שליט\"א (לא ערוך)",
           "amud": "a",
           "liveBroadcast": true,
-          "liveStatus": "live"
+          "liveStatus": "finished",
+          "durationSeconds": 4940
         }
       }
     ],
