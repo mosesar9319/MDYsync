@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-27T12:50:21.369Z",
+  "generatedAt": "2026-11-27T12:55:17.036Z",
   "tractates": {
     "Arakhin": [
       {
@@ -222,7 +222,7 @@
           "amud": "a",
           "liveBroadcast": true,
           "liveStatus": "finished",
-          "durationSeconds": 4940
+          "durationSeconds": 4933
         }
       }
     ],
