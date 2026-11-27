@@ -3,6 +3,15 @@
   "source": "https://app.daf-yomi.net/podcasts/DafYomi.xml",
   "videos": [
     {
+      "videoId": "L0214262562",
+      "title": "Eruchin 12",
+      "published": "2026-11-27T21:22:38.000Z",
+      "tractate": "Arakhin",
+      "daf": 12,
+      "url": "https://lakewoodafyomi.appspot.com/m5/CAEQkuSriAEaII-XC10FWrI6Wu1SjupRzI9c2GDqe4hscNw4zgJQA-3bIiCBfRlCeyoGnSlCtJO6q4lWgoAAtUXQcmJsQSiFcoIgoyoeYXVkL2QvQXJhY2hpbiAxMl8yMTQyNjI1NjIubXAz/Arachin%2012_214262562.mp3",
+      "seconds": 6192
+    },
+    {
       "videoId": "L0214168611",
       "title": "Eruchin 11",
       "published": "2026-11-26T19:16:51.000Z",
