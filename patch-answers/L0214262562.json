@@ -1,0 +1,411 @@
+{
+ "schema": "dafsync-patch-answers-v1",
+ "videoId": "L0214262562",
+ "shiur": "R' Sruly Bornstein, Eruchin 12",
+ "answeredBy": "Claude, in a Claude Code session",
+ "placements": [
+  {
+   "daf": [
+    311,
+    312
+   ],
+   "heard": [
+    375,
+    375
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'Toshma' is his reading of tha shema"
+  },
+  {
+   "daf": [
+    313,
+    315
+   ],
+   "heard": [
+    515,
+    517
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "'Rabbi Yossi Yoma' = Rabbi Yosei omer"
+  },
+  {
+   "daf": [
+    337,
+    337
+   ],
+   "heard": [
+    842,
+    842
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'Haya' after UMotzai Shviis"
+  },
+  {
+   "daf": [
+    341,
+    341
+   ],
+   "heard": [
+    900,
+    900
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'Haya' after Yehoyariv"
+  },
+  {
+   "daf": [
+    369,
+    370
+   ],
+   "heard": [
+    1414,
+    1420
+   ],
+   "kind": "explained",
+   "confidence": 0.75,
+   "why": "'this scene repeated itself literally twice' explains vechen bashniya"
+  },
+  {
+   "daf": [
+    378,
+    379
+   ],
+   "heard": [
+    1835,
+    1836
+   ],
+   "kind": "read",
+   "confidence": 0.95,
+   "why": "'Mi havai'"
+  },
+  {
+   "daf": [
+    385,
+    385
+   ],
+   "heard": [
+    1896,
+    1896
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'Elu' before 'avda eilas adavah'"
+  },
+  {
+   "daf": [
+    396,
+    396
+   ],
+   "heard": [
+    1983,
+    1983
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'ma' in 'ma ishada eilas adavah'"
+  },
+  {
+   "daf": [
+    411,
+    411
+   ],
+   "heard": [
+    2161,
+    2161
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "'Ama' before rava"
+  },
+  {
+   "daf": [
+    416,
+    416
+   ],
+   "heard": [
+    2187,
+    2187
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'v'tishra'"
+  },
+  {
+   "daf": [
+    567,
+    568
+   ],
+   "heard": [
+    4402,
+    4408
+   ],
+   "kind": "explained",
+   "confidence": 0.72,
+   "why": "'Maybe what it means is the nesachim' explains ela lav d'nesachim"
+  },
+  {
+   "daf": [
+    615,
+    616
+   ],
+   "heard": [
+    4746,
+    4747
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "'nothing min' before hachurba = nafik minei"
+  },
+  {
+   "daf": [
+    640,
+    640
+   ],
+   "heard": [
+    6444,
+    6444
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "'be'asal' before lachodesh"
+  },
+  {
+   "daf": [
+    649,
+    649
+   ],
+   "heard": [
+    6908,
+    6908
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'Eit' before shanah sh'rosh hashanah"
+  },
+  {
+   "daf": [
+    660,
+    662
+   ],
+   "heard": [
+    7106,
+    7107
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'איסא אגודאי' = v'i salka daatach"
+  },
+  {
+   "daf": [
+    676,
+    676
+   ],
+   "heard": [
+    7521,
+    7521
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'יבין' after chamesh esrei"
+  },
+  {
+   "daf": [
+    715,
+    715
+   ],
+   "heard": [
+    8063,
+    8063
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "'ושש' after esrim"
+  },
+  {
+   "daf": [
+    718,
+    718
+   ],
+   "heard": [
+    8541,
+    8541
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'לה' in amar lah Ravina"
+  },
+  {
+   "daf": [
+    736,
+    737
+   ],
+   "heard": [
+    9967,
+    9968
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'ושש הויא'"
+  },
+  {
+   "daf": [
+    789,
+    789
+   ],
+   "heard": [
+    11396,
+    11396
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "'V'chem' before bishnia"
+  },
+  {
+   "daf": [
+    849,
+    849
+   ],
+   "heard": [
+    13073,
+    13073
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'Tanyah'"
+  },
+  {
+   "daf": [
+    878,
+    879
+   ],
+   "heard": [
+    13497,
+    13499
+   ],
+   "kind": "read",
+   "confidence": 0.75,
+   "why": "'bar bas mitzrit' before shanah = b'arba esrei"
+  },
+  {
+   "daf": [
+    885,
+    887
+   ],
+   "heard": [
+    13632,
+    13634
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "'El at emehem' = ela tzei mehem"
+  },
+  {
+   "daf": [
+    894,
+    895
+   ],
+   "heard": [
+    13769,
+    13771
+   ],
+   "kind": "read",
+   "confidence": 0.75,
+   "why": "'bar bas mitzrit' before shanah = b'arba esrei"
+  },
+  {
+   "daf": [
+    947,
+    947
+   ],
+   "heard": [
+    14949,
+    14949
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "'Vatani' before arba mishmaros"
+  },
+  {
+   "daf": [
+    964,
+    964
+   ],
+   "heard": [
+    15061,
+    15062
+   ],
+   "kind": "read",
+   "confidence": 0.85,
+   "why": "'Bal Elok' = belalum"
+  },
+  {
+   "daf": [
+    980,
+    980
+   ],
+   "heard": [
+    15242,
+    15249
+   ],
+   "kind": "explained",
+   "confidence": 0.72,
+   "why": "'taking literally the next six' explains shesh"
+  },
+  {
+   "daf": [
+    1003,
+    1004
+   ],
+   "heard": [
+    15513,
+    15514
+   ],
+   "kind": "read",
+   "confidence": 0.8,
+   "why": "'El Asher' = ela a'sh'ara"
+  },
+  {
+   "daf": [
+    1027,
+    1027
+   ],
+   "heard": [
+    16146,
+    16146
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "'Uksiv'"
+  },
+  {
+   "daf": [
+    1042,
+    1042
+   ],
+   "heard": [
+    16227,
+    16232
+   ],
+   "kind": "explained",
+   "confidence": 0.72,
+   "why": "'The Talmud learned in the Braisa' = v'tana"
+  },
+  {
+   "daf": [
+    1051,
+    1051
+   ],
+   "heard": [
+    16262,
+    16262
+   ],
+   "kind": "read",
+   "confidence": 0.9,
+   "why": "'D'chiv'"
+  }
+ ]
+}
