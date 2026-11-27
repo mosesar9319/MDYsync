@@ -18,5 +18,15 @@
     "seconds": 3919,
     "firstSeenAt": "2026-11-27T06:20:15.011Z"
   },
-  "alignmentDispatchedAt": "2026-11-27T06:30:16.365Z"
+  "alignmentDispatchedAt": "2026-11-27T06:30:16.365Z",
+  "pendingEdit": {
+    "videoId": "JUIzCy28DpY",
+    "label": "Daf Yomi Arachin Daf 10 by R' Eli Stefansky",
+    "coveredRefs": [
+      "Arakhin 9b",
+      "Arakhin 10a",
+      "Arakhin 10b"
+    ],
+    "dispatchedAt": "2026-11-27T11:01:10.701Z"
+  }
 }
