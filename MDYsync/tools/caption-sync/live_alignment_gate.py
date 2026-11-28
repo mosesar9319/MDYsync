@@ -22,6 +22,13 @@ segments and hundreds of real words. The gates sit in the gap:
 
 A miss does not publish a guessed timeline and does not fall back to the
 voice engine. The recording stays on the site, unsynced, until the edit.
+
+That wrong box was the usual case, not the odd one: the engine kept the
+bright patch of the stream's "starting soon" screen as its caption box, and
+11 of the 21 live recordings of 15-27 November 2026 were refused here. The
+job now reads the bottom of the picture instead (bottom_region in
+caption_ocr_align.py). These gates stay as they are, for a recording whose
+captions are not there to read.
 """
 
 from datetime import datetime, timezone
