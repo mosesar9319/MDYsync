@@ -1,0 +1,194 @@
+name: Live stream probe (test only)
+
+# A test, not part of the site. It reads a Mercaz Daf Yomi stream WHILE it
+# is on the air and measures whether the caption engine can keep up: see
+# MDYsync/tools/caption-sync/live-probe/live_probe.py.
+#
+# It publishes nothing. It does not touch the results branch, the catalog or
+# any video link. The only output is this run's log and a small artifact
+# (report.json and a few frames).
+#
+# It runs when live-probe/request.json changes on the test branch, so it can
+# be tried on a real shiur before anything is merged, and by hand once it is
+# on main.
+
+on:
+  workflow_dispatch:
+    inputs:
+      videoId:
+        description: 'YouTube id of the stream that is on the air'
+        required: true
+      refsJson:
+        description: 'Sefaria refs as a JSON array, e.g. ["Arakhin 12a","Arakhin 12b"]'
+        required: true
+      minutes:
+        description: 'How long to read the stream'
+        default: '12'
+  push:
+    branches: [claude/project-thread-zlgarp]
+    paths: ['MDYsync/tools/caption-sync/live-probe/request.json']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-stream-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the request
+        id: request
+        env:
+          IN_VIDEO_ID: ${{ github.event.inputs.videoId }}
+          IN_REFS_JSON: ${{ github.event.inputs.refsJson }}
+          IN_MINUTES: ${{ github.event.inputs.minutes }}
+        run: |
+          file=MDYsync/tools/caption-sync/live-probe/request.json
+          if [ -n "$IN_VIDEO_ID" ]; then
+            video_id="$IN_VIDEO_ID"; refs_json="$IN_REFS_JSON"; minutes="$IN_MINUTES"
+          else
+            video_id=$(jq -r '.videoId // ""' "$file")
+            refs_json=$(jq -c '.refs // []' "$file")
+            minutes=$(jq -r '.minutes // 12' "$file")
+          fi
+          if ! printf '%s' "$video_id" | grep -Eq '^[A-Za-z0-9_-]{11}$'; then
+            echo "No usable video id in the request ('$video_id')."; exit 1
+          fi
+          if ! printf '%s' "$refs_json" | jq -e 'type == "array" and length > 0 and all(.[]; type == "string")' >/dev/null; then
+            echo "refs must be a JSON array of Sefaria refs."; exit 1
+          fi
+          if ! printf '%s' "$minutes" | grep -Eq '^[0-9]+(\.[0-9]+)?$'; then minutes=12; fi
+          minutes=$(awk -v m="$minutes" 'BEGIN { if (m > 30) m = 30; if (m < 1) m = 1; print m }')
+          echo "videoId=$video_id" >> "$GITHUB_OUTPUT"
+          echo "minutes=$minutes" >> "$GITHUB_OUTPUT"
+          { echo "refsJson<<REQUEST_EOF"; echo "$refs_json"; echo "REQUEST_EOF"; } >> "$GITHUB_OUTPUT"
+          echo "Probe $video_id for $minutes minutes, refs $refs_json"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Tesseract with Hebrew
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-heb ffmpeg
+
+      - name: Install Python dependencies
+        run: pip install opencv-python-headless pytesseract rapidfuzz requests yt-dlp
+
+      # The next two steps are the caption job's own (ocr-job.yml): yt-dlp
+      # needs a JavaScript runtime for YouTube's signature challenge, and a
+      # PO token provider for the media addresses.
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Start the PO token provider
+        run: |
+          pip install bgutil-ytdlp-pot-provider
+          docker run --name bgutil-provider -d -p 4416:4416 \
+            brainicism/bgutil-ytdlp-pot-provider
+          for _ in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:4416/ping >/dev/null 2>&1; then
+              echo "PO token provider is up."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "PO token provider never became ready:"
+          docker logs bgutil-provider || true
+          exit 1
+
+      - name: Ask YouTube for the stream
+        id: resolve
+        working-directory: MDYsync/tools/caption-sync
+        env:
+          VIDEO_ID: ${{ steps.request.outputs.videoId }}
+          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
+        run: |
+          if [ -z "$YOUTUBE_COOKIES" ]; then
+            echo "YOUTUBE_COOKIES repo secret is not set."; exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/probe"
+          printf '%s' "$YOUTUBE_COOKIES" > "$RUNNER_TEMP/probe/cookies.txt"
+          # info.json holds signed media addresses: it stays in the runner's
+          # temp folder and is never uploaded or printed.
+          yt-dlp --cookies "$RUNNER_TEMP/probe/cookies.txt" \
+            --remote-components ejs:github \
+            --no-playlist -J "https://www.youtube.com/watch?v=${VIDEO_ID}" \
+            > "$RUNNER_TEMP/probe/info.json" 2> "$RUNNER_TEMP/probe/resolve.err" || status=$?
+          sed -E 's#https?://[^ ]+#<address>#g' "$RUNNER_TEMP/probe/resolve.err" | tail -30
+          if [ -n "${status:-}" ]; then echo "yt-dlp could not describe the stream (exit $status)."; exit 1; fi
+          jq -r '"live_status=\(.live_status) release_timestamp=\(.release_timestamp) formats=\(.formats | length)"' \
+            "$RUNNER_TEMP/probe/info.json"
+          echo "liveStatus=$(jq -r '.live_status' "$RUNNER_TEMP/probe/info.json")" >> "$GITHUB_OUTPUT"
+
+      - name: Read the stream as it airs
+        working-directory: MDYsync/tools/caption-sync
+        env:
+          REFS_JSON: ${{ steps.request.outputs.refsJson }}
+          MINUTES: ${{ steps.request.outputs.minutes }}
+        run: |
+          python3 live-probe/live_probe.py \
+            --info "$RUNNER_TEMP/probe/info.json" \
+            --cookies "$RUNNER_TEMP/probe/cookies.txt" \
+            --refs-json "$REFS_JSON" --minutes "$MINUTES" \
+            --out-dir probe-out
+
+      # A second way to read the same stream, for comparison: yt-dlp's own
+      # live download for one minute. If the playlist read above could not
+      # fetch the pieces and this can, the real build reads through yt-dlp.
+      - name: One minute through yt-dlp itself
+        if: ${{ steps.resolve.outputs.liveStatus == 'is_live' }}
+        continue-on-error: true
+        working-directory: MDYsync/tools/caption-sync
+        env:
+          VIDEO_ID: ${{ steps.request.outputs.videoId }}
+        run: |
+          started=$(date +%s.%N)
+          timeout -s INT 70 yt-dlp --cookies "$RUNNER_TEMP/probe/cookies.txt" \
+            --remote-components ejs:github --no-playlist --no-part --hls-use-mpegts \
+            -f "b[height<=720][vcodec^=avc1][protocol^=m3u8]/bv*[height<=720][vcodec^=avc1][protocol^=m3u8]/b[protocol^=m3u8]" \
+            -o "$RUNNER_TEMP/probe/sample.ts" "https://www.youtube.com/watch?v=${VIDEO_ID}" 2>&1 \
+            | sed -E 's#https?://[^ ]+#<address>#g' | tail -15 || true
+          echo "Started at $started, stopped at $(date +%s.%N)"
+          ls -la "$RUNNER_TEMP/probe/" | grep -i sample || echo "No sample file was written."
+          sample=$(ls "$RUNNER_TEMP"/probe/sample.ts* 2>/dev/null | head -1)
+          if [ -n "$sample" ]; then
+            ffprobe -v error -show_entries format=start_time,duration,size -of json "$sample"
+          fi
+
+      - name: Remove the cookies
+        if: always()
+        run: rm -f "$RUNNER_TEMP/probe/cookies.txt" "$RUNNER_TEMP/probe/info.json" "$RUNNER_TEMP/probe/resolve.err"
+
+      - name: Summary
+        if: always()
+        working-directory: MDYsync/tools/caption-sync
+        run: |
+          if [ -f probe-out/report.json ]; then
+            {
+              echo '### Live stream probe'
+              echo '```json'
+              jq '{outcome, video, format, playlistHasProgramDateTime, piecesRead, pieceErrors, playlistErrors, typicalPieceSeconds, noticedAfterPieceEnd, fetchSeconds, workSecondsPerPiece, matchLagSeconds, tracker, captionBox, locked, streamZeroFromPieceNumbers, streamZeroFromPts, engineError}' probe-out/report.json
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No report was written." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-probe-${{ steps.request.outputs.videoId }}
+          path: |
+            MDYsync/tools/caption-sync/probe-out/report.json
+            MDYsync/tools/caption-sync/probe-out/frames/
+          retention-days: 14
+          if-no-files-found: ignore
