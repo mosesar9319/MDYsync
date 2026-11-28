@@ -50,6 +50,18 @@ on:
         type: choice
         options: [en, he]
         default: en
+      # A finished live recording, run again by hand (one the caption gate
+      # refused, say). It is published as that recording's own sync only,
+      # exactly as when the live poll starts the job, never as the daf's.
+      liveRecording:
+        description: 'This is a finished YouTube live recording (not a normal upload)'
+        required: false
+        type: boolean
+        default: false
+      expectedDurationSeconds:
+        description: 'Live recordings only: the length YouTube reports, in seconds (blank skips the length check)'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -84,6 +96,8 @@ jobs:
           WD_VARIANT: ${{ github.event.inputs.variant }}
           WD_LANGUAGE: ${{ github.event.inputs.language }}
           WD_REFS_JSON: ${{ github.event.inputs.refs }}
+          WD_LIVE: ${{ github.event.inputs.liveRecording }}
+          WD_EXPECTED: ${{ github.event.inputs.expectedDurationSeconds }}
           RD_DRIVE_URL: ${{ github.event.client_payload.driveUrl }}
           RD_YOUTUBE_URL: ${{ github.event.client_payload.youtubeUrl }}
           RD_VARIANT: ${{ github.event.client_payload.variant }}
@@ -101,8 +115,8 @@ jobs:
               echo "variant=${WD_VARIANT:-regular}"
               echo "language=${WD_LANGUAGE:-en}"
               echo "jobId=manual-${{ github.run_id }}"
-              echo "liveRecording=false"
-              echo "expectedDurationSeconds="
+              if [ "$WD_LIVE" = "true" ]; then echo "liveRecording=true"; else echo "liveRecording=false"; fi
+              echo "expectedDurationSeconds=$(printf '%s' "$WD_EXPECTED" | tr -cd '0-9.')"
             } >> "$GITHUB_OUTPUT"
             { echo "refsJson<<JOBINPUT_EOF"; echo "$WD_REFS_JSON"; echo "JOBINPUT_EOF"; } >> "$GITHUB_OUTPUT"
           else
@@ -272,12 +286,29 @@ jobs:
           REFS_JSON: ${{ steps.job_input.outputs.refsJson }}
           LIVE_RECORDING: ${{ steps.job_input.outputs.liveRecording }}
           EXPECT_DURATION: ${{ steps.job_input.outputs.expectedDurationSeconds }}
+          MANUAL: ${{ github.event_name == 'workflow_dispatch' }}
           YOUTUBE_URL: ${{ steps.job_input.outputs.youtubeUrl }}
         run: |
           args=(job-video.mp4 --refs-json "$REFS_JSON" --out-dir job-out)
+          # A video from the channel is read across the bottom of the
+          # picture, where its caption strip is. Left to find the strip
+          # itself, the engine keeps whatever bright patch the first frame
+          # has: on a normal upload that is the title card, which gives this
+          # same region; on a live recording it is the "starting soon"
+          # screen, which gives a box that misses the captions (see
+          # bottom_region in caption_ocr_align.py). A Drive video is
+          # somebody's own file and keeps the engine's own search.
+          if [ -n "$YOUTUBE_URL" ]; then
+            args+=(--crop bottom)
+          fi
           if [ "$LIVE_RECORDING" = "true" ]; then
             video_id=$(printf '%s' "$YOUTUBE_URL" | sed -n 's/.*[?&]v=\([A-Za-z0-9_-]\{11\}\).*/\1/p')
-            args+=(--expect-duration "$EXPECT_DURATION" --live-caption-gate --video-id "$video_id" --outcome job-out/outcome.json)
+            args+=(--live-caption-gate --video-id "$video_id" --outcome job-out/outcome.json)
+            # The live poll always sends the length. Only a run started by
+            # hand may leave it out, and then the length is not checked.
+            if [ -n "$EXPECT_DURATION" ] || [ "$MANUAL" != "true" ]; then
+              args+=(--expect-duration "$EXPECT_DURATION")
+            fi
           fi
           python3 caption_ocr_align.py "${args[@]}"
 

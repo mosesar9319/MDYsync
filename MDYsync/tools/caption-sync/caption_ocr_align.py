@@ -170,6 +170,37 @@ def auto_detect_box(frame):
     return (x, y + int(h * 0.6), cw, ch)
 
 
+# The part of the picture the caption strip is shown in, as a share of the
+# frame's height from the top: everything below this line, the full width.
+BOTTOM_REGION_TOP = 0.6
+
+
+def bottom_region(frame):
+    """The bottom of the picture, full width: (x, y, w, h).
+
+    Where a Mercaz Daf Yomi video shows its caption strip, wherever the
+    strip sits in it and however many lines it has. Unlike auto_detect_box
+    this does not depend on what the video happens to open with.
+
+    auto_detect_box is run once, on the first frame it finds a bright strip
+    in, and its answer is kept for the whole video. A normal upload opens
+    on a bright title card, which fills the bottom of the frame, so the
+    "box" it finds is this same region: 89 of 108 normal uploads in the job
+    logs of 25 October - 27 November 2026 logged x=0 y=432 w=1280 h=288
+    (720p), with 1,400-4,600 highlight samples each. A finished live
+    recording opens on the stream's "starting soon" screen instead. Its
+    bright patch is somewhere else (logged: x=670 y=432 w=534 h=154, x=407
+    y=432 w=873 h=232, ...), and the box kept from it misses the caption
+    strip, which sits at about y=598-716, or cuts off its highlighted line.
+    Of 21 live recordings in the same logs, 19 got such a box and 12-1,045
+    samples (11 were refused by the caption gate); the one that happened to
+    get this region got 5,126.
+    """
+    h, w = frame.shape[:2]
+    top = int(h * BOTTOM_REGION_TOP)
+    return (0, top, w, h - top)
+
+
 def box_is_visible(crop):
     """Cheap pre-filter so OCR isn't run on frames with no caption at all
     (e.g. a b-roll cutaway with nothing white/yellow in the crop region).
@@ -393,6 +424,11 @@ class WordEvent:
 
 def process_video(path, refs, crop=None, sample_fps=3.0, out_dir="out",
                   cache_dir=None, debug=False, progress=None):
+    """crop: where the caption strip is. (x, y, w, h); "bottom" for the
+    bottom of the picture (see bottom_region); or None to look for a bright
+    strip in the first frame that has one and keep that for the whole video
+    (auto_detect_box), which is only right when the video opens on its
+    captions or on a bright card."""
     os.makedirs(out_dir, exist_ok=True)
     canon, segments = load_canonical(refs, cache_dir or out_dir)
     print(f"Canonical text: {len(segments)} segments, {len(canon)} words")
@@ -427,7 +463,11 @@ def process_video(path, refs, crop=None, sample_fps=3.0, out_dir="out",
         if progress and nframes and frame_idx % (step * 25) == 0:
             progress(frame_idx / nframes)
 
-        if crop is None:
+        if crop == "bottom":
+            crop = bottom_region(frame)
+            print(f"Reading the bottom of the picture: caption box at "
+                  f"x={crop[0]} y={crop[1]} w={crop[2]} h={crop[3]}")
+        elif crop is None:
             crop = auto_detect_box(frame)
             if crop is None:
                 continue
@@ -893,6 +933,18 @@ def _write_outcome(path, document):
     print(f"Wrote {path} ({document.get('outcome')})")
 
 
+def parse_crop(value):
+    """--crop's value: None (auto-detect), "bottom", or (x, y, w, h)."""
+    if not value:
+        return None
+    if value.strip().lower() == "bottom":
+        return "bottom"
+    parts = tuple(int(v) for v in value.split(","))
+    if len(parts) != 4:
+        raise ValueError("--crop is x,y,w,h or 'bottom'")
+    return parts
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -907,7 +959,10 @@ def main():
                         '\'["Chullin 80b", "Bava Batra 82b"]\'. Safe for '
                         "multi-word tractate names; use this from scripts/CI "
                         "rather than --refs.")
-    p.add_argument("--crop", help="Caption box as x,y,w,h (default: auto-detect)")
+    p.add_argument("--crop",
+                   help="Caption box as x,y,w,h, or 'bottom' for the bottom of the "
+                        "picture, full width (default: auto-detect from the first "
+                        "frame with a bright strip in it)")
     p.add_argument("--sample-fps", type=float, default=3.0)
     p.add_argument("--out-dir", default="out")
     p.add_argument("--debug", action="store_true")
@@ -927,7 +982,7 @@ def main():
     else:
         p.error("one of --refs or --refs-json is required")
 
-    crop = tuple(int(v) for v in args.crop.split(",")) if args.crop else None
+    crop = parse_crop(args.crop)
     if args.expect_duration is not None:
         from live_alignment_gate import duration_ok, outcome_document
         probed = _probe_duration(args.video)
